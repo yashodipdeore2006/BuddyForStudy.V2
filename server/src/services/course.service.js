@@ -80,8 +80,10 @@ export async function deleteCourse(courseId) {
 }
 
 export function findLearningItem(course, itemId) {
-  for (const module of course.modules) {
-    const item = module.lessons.id(itemId);
+  for (const module of course.modules || []) {
+    const item = (module.lessons || []).find(
+      (lesson) => String(lesson._id || lesson.id) === String(itemId)
+    );
     if (item) return { module, item };
   }
   return null;

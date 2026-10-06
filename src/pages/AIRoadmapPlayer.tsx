@@ -9,6 +9,8 @@ export default function AIRoadmapPlayer() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number[]>>({});
+  const [quizBusy, setQuizBusy] = useState<number | null>(null);
 
   useEffect(() => {
     if (!roadmapId) return;
@@ -22,6 +24,25 @@ export default function AIRoadmapPlayer() {
 
   function lessonIdFor(module: any, moduleIndex: number, lesson: any, lessonIndex: number) {
     return String(lesson.id || lesson._id || `module-${moduleIndex + 1}-lesson-${lessonIndex + 1}`);
+  }
+
+  async function submitQuiz(moduleIndex: number, questionCount: number) {
+    if (!roadmapId) return;
+    const answers = quizAnswers[moduleIndex] || [];
+    if (answers.length !== questionCount || answers.some((answer) => answer < 0)) {
+      setError('Answer every quiz question before submitting.');
+      return;
+    }
+    setQuizBusy(moduleIndex); setError('');
+    try {
+      const data = await apiFetch(`/api/roadmaps/${roadmapId}/quizzes/${moduleIndex}/submit`, {
+        method: 'POST',
+        body: JSON.stringify({ moduleIndex, answers })
+      });
+      setRoadmap(data.roadmap);
+    } catch (err: any) {
+      setError(err.message || 'Unable to submit quiz');
+    } finally { setQuizBusy(null); }
   }
 
   async function complete(lessonId: string) {
@@ -82,6 +103,42 @@ export default function AIRoadmapPlayer() {
             </div>;
           })}
         </div>
+        {module.quiz?.questions?.length ? (
+          <div className="mt-6 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Knowledge Check</p>
+              <h3 className="mt-1 text-base font-bold text-slate-900">{module.quiz.title || 'Module Quiz'}</h3>
+            </div>
+            <div className="mt-4 space-y-5">
+              {module.quiz.questions.map((question: any, questionIndex: number) => (
+                <div key={questionIndex}>
+                  <p className="text-sm font-semibold text-slate-800">{questionIndex + 1}. {question.question}</p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    {(question.options || []).map((option: string, optionIndex: number) => {
+                      const selected = quizAnswers[index]?.[questionIndex] === optionIndex;
+                      return (
+                        <button key={optionIndex} type="button" onClick={() => setQuizAnswers((current) => ({
+                          ...current,
+                          [index]: Object.assign(Array(question.options.length).fill(-1), current[index] || [], { [questionIndex]: optionIndex })
+                        }))} className={`rounded-lg border px-3 py-2 text-left text-sm ${selected ? 'border-indigo-500 bg-indigo-100 text-indigo-800' : 'border-slate-200 bg-white text-slate-700'}`}>
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" disabled={quizBusy === index} onClick={() => submitQuiz(index, module.quiz.questions.length)} className="mt-5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              {quizBusy === index ? 'Submitting...' : 'Submit quiz'}
+            </button>
+            {(() => {
+              const attempts = roadmap.quizAttempts?.filter((attempt: any) => attempt.moduleIndex === index) || [];
+              const latest = attempts[attempts.length - 1];
+              return latest ? <p className="mt-3 text-sm font-semibold text-indigo-700">Latest score: {latest.score}/{latest.total}</p> : null;
+            })()}
+          </div>
+        ) : null}
       </section>)}
     </div>
   </div>;

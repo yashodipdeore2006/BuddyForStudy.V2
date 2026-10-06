@@ -87,8 +87,13 @@ export default function CourseDetails() {
         order_id: data.order.id,
         prefill: { name: session.user.name, email: session.user.email },
         theme: { color: '#2563eb' },
-        handler: () => {
-          setError('Payment completed. Payment verification will be finalized in the next payment step.');
+        handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+          try {
+            await apiFetch('/api/payments/course/verify', { method: 'POST', body: JSON.stringify({ paymentId: data.paymentId, razorpayPaymentId: response.razorpay_payment_id, razorpayOrderId: response.razorpay_order_id, razorpaySignature: response.razorpay_signature }) });
+            const enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+            setEnrollment(enrollmentData.enrollment);
+            setError(null);
+          } catch (err) { setError(err instanceof Error ? err.message : 'Payment verification failed'); }
         },
         modal: { ondismiss: () => setCheckoutLoading(false) }
       });

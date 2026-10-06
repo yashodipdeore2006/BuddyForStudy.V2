@@ -5,7 +5,7 @@ import { generateRoadmap, generateAndSaveCourse } from "../controllers/ai.contro
 const router = Router();
 
 router.post("/roadmap", authMiddleware, generateRoadmap);
-router.post("/course", authMiddleware, adminMiddleware, generateRoadmap);
+router.post("/course", authMiddleware, adminMiddleware, generateAndSaveCourse);
 router.post("/course/save", authMiddleware, adminMiddleware, generateAndSaveCourse);
 
 export default router;

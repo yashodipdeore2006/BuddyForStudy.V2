@@ -44,6 +44,7 @@ function normalizeRoadmap(course) {
         order: index + 1,
         lessons: (module.lessons || []).map((lesson, lessonIndex) => ({
           ...lesson,
+          id: String(lesson.id || lesson._id || `module-${index + 1}-lesson-${lessonIndex + 1}`),
           order: lessonIndex + 1
         }))
       }))

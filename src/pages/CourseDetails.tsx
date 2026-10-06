@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, Enrollment, Progress } from '@/types';
 import { countAllLessons, getAllLessonsFlat } from '@/lib/courseUtils';
@@ -30,7 +30,7 @@ const levelColors: Record<string, string> = {
 export default function CourseDetails() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const { session, profile } = useAuth();
+  const { session } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
@@ -42,84 +42,38 @@ export default function CourseDetails() {
   useEffect(() => {
     async function fetchCourse() {
       if (!courseId) return;
-      const { data } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('id', courseId)
-        .maybeSingle();
-
-      if (data) {
-        setCourse(data as Course);
-      }
-      setLoading(false);
+      try {
+        const data = await apiFetch(`/api/courses/${courseId}`);
+        const raw = data.course;
+        setCourse({ ...raw, id: raw._id, learning_outcomes: raw.learningOutcomes || [], is_published: raw.isPublished, created_at: raw.createdAt, updated_at: raw.updatedAt, modules: (raw.modules || []).map((m:any)=>({ ...m, id:m._id, lessons:(m.lessons||[]).map((l:any)=>({...l,id:l._id})) })) } as Course);
+        if (session) {
+          try {
+            const eData = await apiFetch(`/api/enrollments/course/${courseId}`);
+            setEnrollment(eData.enrollment);
+            const pData = await apiFetch(`/api/progress/${courseId}`);
+            setProgress(pData.progress);
+          } catch {}
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to load course');
+      } finally { setLoading(false); }
     }
     fetchCourse();
-  }, [courseId]);
-
-  useEffect(() => {
-    async function fetchEnrollmentAndProgress() {
-      if (!courseId || !session) return;
-      const { data: enrData } = await supabase
-        .from('enrollments')
-        .select('*')
-        .eq('course_id', courseId)
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-      setEnrollment(enrData as Enrollment | null);
-
-      if (enrData) {
-        const { data: progData } = await supabase
-          .from('progress')
-          .select('*')
-          .eq('course_id', courseId)
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-        setProgress(progData as Progress | null);
-      }
-    }
-    fetchEnrollmentAndProgress();
   }, [courseId, session]);
 
   const handleEnroll = async () => {
-    if (!session) {
-      navigate('/login', { state: { from: { pathname: `/courses/${courseId}` } } });
-      return;
-    }
-
+    if (!session) { navigate('/login', { state: { from: { pathname: `/courses/${courseId}` } } }); return; }
     if (!course || !course.is_published) return;
-    setEnrolling(true);
-    setError(null);
-
+    if (course.pricing?.mode === 'paid') { setError('This course requires payment. Checkout will be available once payment is configured.'); return; }
+    setEnrolling(true); setError(null);
     try {
-      const { data, error } = await supabase
-        .from('enrollments')
-        .insert({
-          user_id: session.user.id,
-          course_id: courseId,
-          status: 'active',
-        })
-        .select()
-        .maybeSingle();
-
-      if (error) {
-        if (error.code === '23505') {
-          // Unique constraint violation - already enrolled
-          setError('You are already enrolled in this course.');
-        } else {
-          throw error;
-        }
-      }
-
-      if (data) {
-        setEnrollment(data as Enrollment);
-      }
+      const data = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+      setEnrollment(data.enrollment);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to enroll. Please try again.';
-      setError(message);
-    } finally {
-      setEnrolling(false);
-    }
+      setError(err instanceof Error ? err.message : 'Failed to enroll. Please try again.');
+    } finally { setEnrolling(false); }
   };
+
 
   const handleStartLearning = () => {
     if (!courseId) return;
@@ -339,7 +293,7 @@ export default function CourseDetails() {
                       Enrolling...
                     </>
                   ) : session ? (
-                    'Enroll Now — Free'
+                    course.pricing?.mode === 'paid' ? `Buy Course — ₹${course.pricing.saleEnabled ? course.pricing.salePrice : course.pricing.price}` : 'Enroll Now — Free'
                   ) : (
                     'Sign In to Enroll'
                   )}

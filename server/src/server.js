@@ -20,6 +20,7 @@ import reviewRoutes from "./routes/review.routes.js";
 import achievementRoutes from "./routes/achievement.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
+import healthRoutes from "./routes/health.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -49,6 +50,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
+app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/enrollments", enrollmentRoutes);

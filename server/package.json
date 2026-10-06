@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "create-admin": "node src/scripts/createAdmin.js",
-    "test": "node --test"
+    "test": "node --test",
+    "worker": "node src/jobs/worker.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

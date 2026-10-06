@@ -40,9 +40,9 @@ export function getPublicKey() {
   return env.razorpayKeyId;
 }
 
-export function verifyPaymentSignature({ orderId, paymentId, signature }) {
+export function verifyPaymentSignature({ orderId, paymentId, signature, secret = env.razorpayKeySecret }) {
   if (!orderId || !paymentId || !signature) return false;
-  const expected = crypto.createHmac("sha256", env.razorpayKeySecret)
+  const expected = crypto.createHmac("sha256", secret)
     .update(orderId + "|" + paymentId)
     .digest("hex");
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));

@@ -13,6 +13,7 @@ import adminRoutes from "./routes/admin.routes.js";
 import curriculumRoutes from "./routes/curriculum.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import adminProRoutes from "./routes/adminPro.routes.js";
+import billingRoutes from "./routes/billing.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -48,6 +49,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminProRoutes);
 app.use("/api/courses", curriculumRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/billing", billingRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import {
   User as UserIcon,
   Mail,
@@ -25,12 +25,10 @@ export default function Profile() {
     setSuccess(false);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', profile!.id);
-
-      if (error) throw error;
+      await apiFetch('/api/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ name }),
+      });
 
       await refreshProfile();
       setSuccess(true);
@@ -50,7 +48,6 @@ export default function Profile() {
       <h1 className="text-2xl font-bold text-slate-900">Profile</h1>
       <p className="mt-1 text-sm text-slate-500">Manage your account information</p>
 
-      {/* Profile Card */}
       <div className="mt-6 card p-6">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-xl font-bold text-blue-700">
@@ -86,7 +83,6 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Edit Form */}
       <form onSubmit={handleSave} className="mt-6 card p-6">
         <h3 className="text-lg font-semibold text-slate-900">Edit Profile</h3>
 
@@ -114,6 +110,8 @@ export default function Profile() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="input-field pl-10"
+                minLength={2}
+                maxLength={100}
                 required
               />
             </div>

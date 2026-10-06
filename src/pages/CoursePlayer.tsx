@@ -9,13 +9,31 @@ import { classNames } from '@/lib/utils';
 
 function mapCourse(raw: any): Course {
   return {
-    id: String(raw._id ?? raw.id), title: raw.title, slug: raw.slug, description: raw.description,
-    category: raw.category, level: raw.level, duration: String(raw.duration ?? ''),
-    thumbnail: raw.thumbnail ?? null, learning_outcomes: raw.learningOutcomes ?? [],
-    modules: raw.modules ?? [], is_published: raw.isPublished ?? true, pricing: raw.pricing,
-    created_by: raw.createdBy ?? null, created_at: raw.createdAt ?? '', updated_at: raw.updatedAt ?? '',
+    id: String(raw._id ?? raw.id),
+    title: raw.title,
+    slug: raw.slug,
+    description: raw.description,
+    category: raw.category,
+    level: raw.level,
+    duration: String(raw.duration ?? ''),
+    thumbnail: raw.thumbnail ?? null,
+    learning_outcomes: raw.learningOutcomes ?? [],
+    modules: (raw.modules ?? []).map((module: any) => ({
+      ...module,
+      id: String(module._id ?? module.id),
+      lessons: (module.lessons ?? []).map((lesson: any) => ({
+        ...lesson,
+        id: String(lesson._id ?? lesson.id),
+      })),
+    })),
+    is_published: raw.isPublished ?? true,
+    pricing: raw.pricing,
+    created_by: raw.createdBy ?? null,
+    created_at: raw.createdAt ?? '',
+    updated_at: raw.updatedAt ?? '',
   };
 }
+
 function mapProgress(raw: any): Progress {
   return {
     id: String(raw._id ?? raw.id), user_id: String(raw.user ?? raw.user_id),
@@ -103,17 +121,9 @@ export default function CoursePlayer() {
     <main className="min-w-0 flex-1">
       <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4"><button className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></button><div className="min-w-0 flex-1 px-3"><p className="truncate text-sm font-semibold text-slate-900">{currentLesson?.lesson.title || 'Course Player'}</p><p className="text-xs text-slate-500">{currentLesson?.module.title}</p></div>{currentLesson && <button onClick={handleComplete} disabled={completing || currentCompleted} className={classNames('inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold', currentCompleted ? 'bg-green-50 text-green-700' : 'bg-blue-600 text-white hover:bg-blue-700')}>{completing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{currentCompleted ? 'Completed' : 'Mark Complete'}</button>}</div>
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        {currentLesson ? <><div className="flex items-center gap-2"><span className={classNames('badge', currentLesson.lesson.type === 'project' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700')}>{currentLesson.lesson.type === 'project' ? <ListChecks className="h-3 w-3" /> : <Play className="h-3 w-3" />}{currentLesson.lesson.type}</span></div><h1 className="mt-3 text-3xl font-bold text-slate-900">{currentLesson.lesson.title}</h1><p className="mt-2 text-slate-500">{currentLesson.lesson.description}</p>{currentLesson.lesson.type === 'tutorial' && currentLesson.lesson.tutorial && <TutorialView tutorial={currentLesson.lesson.tutorial} />}{currentLesson.lesson.type === 'project' && currentLesson.lesson.project && <ProjectView project={currentLesson.lesson.project} />}
-          <div className="mt-12 flex items-center justify-between border-t border-slate-200 pt-6">{nav.prev ? <button onClick={() => handleNavigate(nav.prev!.id)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm"><ChevronLeft className="h-4 w-4" />Previous</button> : <div />}{nav.next ? <button onClick={() => handleNavigate(nav.next!.id)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Next<ChevronRight className="h-4 w-4" /></button> : progressPct === 100 ? <span className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-700"><CheckCircle2 className="h-4 w-4" />Course Completed!</span> : <div />}</div>
-        </> : <div className="py-16 text-center"><BookOpen className="mx-auto h-12 w-12 text-slate-300" /><h2 className="mt-4 text-xl font-bold text-slate-900">Select a lesson to begin</h2></div>}
+        {currentLesson ? <><div className="flex items-center gap-2"><span className={classNames('badge', currentLesson.lesson.type === 'project' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700')}>{currentLesson.lesson.type === 'project' ? <ListChecks className="h-3 w-3" /> : <Play className="h-3 w-3" />}{currentLesson.lesson.type}</span></div><h1 className="mt-3 text-3xl font-bold text-slate-900">{currentLesson.lesson.title}</h1><p className="mt-2 text-slate-500">{currentLesson.lesson.description}</p>{currentLesson.lesson.type === 'tutorial' && <div className="mt-8 space-y-6">{currentLesson.lesson.tutorial?.content && <div className="prose max-w-none whitespace-pre-wrap text-slate-700">{currentLesson.lesson.tutorial.content}</div>}{currentLesson.lesson.tutorial?.videos?.length ? <div className="space-y-3"><h2 className="text-lg font-semibold text-slate-900">Recommended Videos</h2>{currentLesson.lesson.tutorial.videos.map((video) => <a key={video.videoId || video.url} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300"><Play className="h-5 w-5 text-red-600" /><span className="flex-1"><span className="block font-medium text-slate-800">{video.title}</span><span className="text-xs text-slate-500">{video.channelTitle}</span></span><ExternalLink className="h-4 w-4 text-slate-400" /></a>)}</div> : null}{currentLesson.lesson.tutorial?.resources?.length ? <div className="space-y-2"><h2 className="text-lg font-semibold text-slate-900">Resources</h2>{currentLesson.lesson.tutorial.resources.map((resource) => <a key={resource} href={resource} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">{resource}</a>)}</div> : null}</div>}{currentLesson.lesson.type === 'project' && <div className="mt-8 space-y-4"><div className="rounded-xl bg-white p-5"><h2 className="font-semibold">Project</h2><p className="mt-2 whitespace-pre-wrap text-slate-700">{currentLesson.lesson.project?.description}</p><h3 className="mt-5 font-semibold">Objectives</h3><ul className="mt-2 list-disc pl-5 text-sm text-slate-600">{(currentLesson.lesson.project?.objectives || []).map((x) => <li key={x}>{x}</li>)}</ul><h3 className="mt-5 font-semibold">Requirements</h3><ul className="mt-2 list-disc pl-5 text-sm text-slate-600">{(currentLesson.lesson.project?.requirements || []).map((x) => <li key={x}>{x}</li>)}</ul><p className="mt-5 whitespace-pre-wrap text-slate-700">{currentLesson.lesson.project?.instructions}</p><p className="mt-5 font-medium text-slate-800">{currentLesson.lesson.project?.expectedOutcome}</p></div></div> : null}
+        {currentLesson && <div className="mt-10 flex items-center justify-between gap-3 border-t border-slate-200 pt-6"><button disabled={!nav.prev} onClick={() => nav.prev && handleNavigate(nav.prev.id)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"><ChevronLeft className="h-4 w-4" />Previous</button><button disabled={!nav.next} onClick={() => nav.next && handleNavigate(nav.next.id)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Next<ChevronRight className="h-4 w-4" /></button></div>}
       </div>
     </main>
   </div>;
-}
-
-function TutorialView({ tutorial }: { tutorial: any }) {
-  return <div className="card mt-8 p-6 sm:p-8">{tutorial.videoUrl && <div className="mb-6 aspect-video overflow-hidden rounded-lg bg-slate-900"><iframe src={tutorial.videoUrl} className="h-full w-full" title="Tutorial Video" allowFullScreen /></div>}{tutorial.content && <div><div className="mb-4 flex items-center gap-2"><FileText className="h-5 w-5 text-slate-400" /><h2 className="text-lg font-semibold text-slate-900">Lesson Content</h2></div><div className="prose prose-slate max-w-none">{tutorial.content.split('\n').map((line: string, i: number) => line.startsWith('## ') ? <h3 key={i} className="mt-6 text-lg font-semibold">{line.slice(3)}</h3> : line.startsWith('# ') ? <h2 key={i} className="mt-6 text-xl font-bold">{line.slice(2)}</h2> : line.startsWith('- ') ? <p key={i} className="my-1 text-slate-700">• {line.slice(2)}</p> : <p key={i} className="leading-relaxed text-slate-700">{line || ' '}</p>)}</div></div>}{tutorial.resourceUrl && <a href={tutorial.resourceUrl} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 border-t border-slate-200 pt-6 text-sm font-semibold text-blue-600"><ExternalLink className="h-4 w-4" />View Resource</a>}</div>;
-}
-function ProjectView({ project }: { project: any }) {
-  return <div className="mt-8 space-y-6"><div className="card p-6 sm:p-8"><div className="mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-purple-600" /><h2 className="text-lg font-semibold">Project Overview</h2></div><p className="leading-relaxed text-slate-700">{project.description || 'Project description will be added soon.'}</p></div>{project.requirements?.length > 0 && <div className="card p-6 sm:p-8"><h2 className="mb-4 text-lg font-semibold">Requirements</h2><ul className="space-y-2">{project.requirements.map((req: string, i: number) => <li key={i} className="flex gap-3 text-sm text-slate-700"><span className="font-bold">{i + 1}.</span>{req}</li>)}</ul></div>}{project.instructions && <div className="card p-6 sm:p-8"><h2 className="mb-4 text-lg font-semibold">Instructions</h2><div className="prose prose-slate max-w-none">{project.instructions.split('\n').map((line: string, i: number) => <p key={i} className="leading-relaxed text-slate-700">{line || ' '}</p>)}</div></div>}{project.expectedOutcome && <div className="card border-purple-200 bg-purple-50 p-6"><h2 className="mb-2 text-lg font-semibold">Expected Outcome</h2><p className="text-slate-700">{project.expectedOutcome}</p></div>}{project.starterCodeUrl && <a href={project.starterCodeUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600"><ExternalLink className="h-4 w-4" />Download Starter Code</a>}</div>;
 }

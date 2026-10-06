@@ -22,6 +22,8 @@ import webhookRoutes from "./routes/webhook.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
+const paymentLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many payment requests. Please try again later." } });
+const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
 
 app.disable("x-powered-by");
 app.use(helmet());
@@ -58,8 +60,8 @@ app.use("/api/billing", billingRoutes);
 app.use("/api/roadmaps", roadmapRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/achievements", achievementRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/webhooks", webhookRoutes);
+app.use("/api/payments", paymentLimiter, paymentRoutes);
+app.use("/api/webhooks", webhookLimiter, webhookRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

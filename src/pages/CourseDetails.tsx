@@ -62,7 +62,24 @@ export default function CourseDetails() {
             const eData = await apiFetch(`/api/enrollments/course/${courseId}`);
             setEnrollment(eData.enrollment);
             const pData = await apiFetch(`/api/progress/${courseId}`);
-            setProgress(pData.progress);
+            const rawProgress = pData.progress;
+            setProgress({
+              ...rawProgress,
+              id: String(rawProgress._id ?? rawProgress.id),
+              user_id: String(rawProgress.user ?? rawProgress.user_id),
+              course_id: String(rawProgress.course ?? rawProgress.course_id),
+              completed_lessons: (rawProgress.completedLessons ?? []).map((item: any) => ({
+                lessonId: String(item.lessonId),
+                type: item.type,
+                completedAt: item.completedAt,
+              })),
+              completed_count: rawProgress.completedCount ?? 0,
+              total_lessons: rawProgress.totalLessons ?? 0,
+              last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
+              last_accessed_at: rawProgress.lastAccessedAt ?? null,
+              created_at: rawProgress.createdAt ?? '',
+              updated_at: rawProgress.updatedAt ?? '',
+            } as Progress);
           } catch {}
         }
       } catch (err) {
@@ -356,7 +373,7 @@ export default function CourseDetails() {
                   </div>
                   {progress && (
                     <p className="mt-2 text-xs text-slate-500">
-                      {progress.completedCount} of {progress.totalLessons} lessons completed
+                      {progress.completed_count} of {progress.total_lessons} lessons completed
                     </p>
                   )}
                 </div>

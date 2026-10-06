@@ -111,7 +111,8 @@ Rules:
 6. Every tutorial must have a precise searchable topic.
 7. Include learning outcomes and estimated duration.
 8. Do not invent unrelated technologies.
-9. Return ONLY valid JSON.
+9. Add a short 3-5 question quiz to each module. Questions must test concepts actually taught in that module. Use exactly four options and zero-based answer indexes.
+10. Return ONLY valid JSON.
 
 Return:
 {

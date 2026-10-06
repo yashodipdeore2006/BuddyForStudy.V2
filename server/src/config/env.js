@@ -10,5 +10,7 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID || "", googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "", googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || "",
   smtpHost: process.env.SMTP_HOST || "", smtpPort: Number(process.env.SMTP_PORT || 587),
   smtpSecure: process.env.SMTP_SECURE === "true", smtpUser: process.env.SMTP_USER || "", smtpPass: process.env.SMTP_PASS || "",
-  mailFrom: process.env.MAIL_FROM || process.env.SMTP_USER || ""
+  mailFrom: process.env.MAIL_FROM || process.env.SMTP_USER || "",
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || ""
 };

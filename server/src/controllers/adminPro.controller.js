@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import { User } from "../models/User.js";
 import { Course } from "../models/Course.js";

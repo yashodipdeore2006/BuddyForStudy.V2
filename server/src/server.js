@@ -15,6 +15,7 @@ import aiRoutes from "./routes/ai.routes.js";
 import adminProRoutes from "./routes/adminPro.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import roadmapRoutes from "./routes/roadmap.routes.js";
+import reviewRoutes from "./routes/review.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -52,6 +53,7 @@ app.use("/api/courses", curriculumRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/roadmaps", roadmapRoutes);
+app.use("/api/reviews", reviewRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

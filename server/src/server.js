@@ -6,6 +6,9 @@ import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
 import { connectDatabase } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
+import courseRoutes from "./routes/course.routes.js";
+import enrollmentRoutes from "./routes/enrollment.routes.js";
+import progressRoutes from "./routes/progress.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -34,6 +37,9 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/enrollments", enrollmentRoutes);
+app.use("/api/progress", progressRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

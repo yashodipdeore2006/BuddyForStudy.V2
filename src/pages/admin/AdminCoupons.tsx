@@ -1,0 +1,8 @@
+import { useEffect,useState } from "react";
+import { Plus,Power } from "lucide-react";
+import { adminFetch } from "@/lib/adminApi";
+export default function AdminCoupons(){const [coupons,setCoupons]=useState<any[]>([]),[code,setCode]=useState(""),[value,setValue]=useState(10);
+ async function load(){const d=await adminFetch("/api/admin/coupons");setCoupons(d.data.coupons)}useEffect(()=>{load()},[]);
+ async function create(){await adminFetch("/api/admin/coupons",{method:"POST",body:JSON.stringify({code,value,type:"percentage"})});setCode("");load()}
+ async function toggle(c:any){await adminFetch(`/api/admin/coupons/${c._id}`,{method:"PUT",body:JSON.stringify({isActive:!c.isActive})});load()}
+ return <div className="mx-auto max-w-6xl"><h1 className="text-3xl font-bold">Coupons & Promotions</h1><div className="card mt-6 p-5 flex flex-col gap-3 sm:flex-row"><input className="input-field" placeholder="CODE" value={code} onChange={e=>setCode(e.target.value)}/><input className="input-field sm:w-40" type="number" value={value} onChange={e=>setValue(Number(e.target.value))}/><button className="btn-primary" onClick={create}><Plus className="h-4 w-4"/>Create</button></div><div className="mt-6 grid gap-4 md:grid-cols-2">{coupons.map(c=><div className="card p-5 flex items-center justify-between" key={c._id}><div><b>{c.code}</b><p className="text-sm text-slate-500">{c.type==="percentage"?c.value+"%":"₹"+c.value} discount</p></div><button onClick={()=>toggle(c)} className={c.isActive?"btn-secondary":"btn-danger"}><Power className="h-4 w-4"/>{c.isActive?"Disable":"Enable"}</button></div>)}</div></div>}

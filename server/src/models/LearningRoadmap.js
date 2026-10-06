@@ -26,6 +26,16 @@ const roadmapSchema = new mongoose.Schema({
   skillGraph: { type: mongoose.Schema.Types.Mixed, default: [] },
   lessons: { type: [roadmapLessonSchema], default: [] },
   completedLessonIds: { type: [String], default: [] },
+  quizAttempts: {
+    type: [{
+      moduleIndex: { type: Number, required: true },
+      score: { type: Number, required: true },
+      total: { type: Number, required: true },
+      answers: { type: [Number], default: [] },
+      attemptedAt: { type: Date, default: Date.now }
+    }],
+    default: []
+  },
   lastLessonId: { type: String, default: null },
   status: { type: String, enum: ["active", "completed"], default: "active" },
   startedAt: { type: Date, default: Date.now },

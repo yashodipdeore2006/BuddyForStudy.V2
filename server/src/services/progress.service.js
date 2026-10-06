@@ -2,6 +2,7 @@ import { Progress } from "../models/Progress.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
 import { findLearningItem, totalLessons } from "./course.service.js";
+import { recordLearningActivity } from "./achievement.service.js";
 
 async function getAuthorizedCourse(userId, courseId) {
   const [course, enrollment] = await Promise.all([
@@ -84,11 +85,17 @@ export async function completeItem(userId, courseId, itemId) {
 
   await progress.save();
 
+  let courseCompleted = false;
   if (progress.percentage === 100) {
-    await Enrollment.updateOne(
+    const enrollmentUpdate = await Enrollment.updateOne(
       { user: userId, course: courseId, status: "active" },
       { status: "completed" }
     );
+    courseCompleted = enrollmentUpdate.modifiedCount > 0;
+  }
+
+  if (!alreadyCompleted) {
+    await recordLearningActivity(userId, { lessonCompleted: true, courseCompleted });
   }
 
   return progress;

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Course } from "../models/Course.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { cacheDelete } from "../config/cache.js";
 
 const moduleSchema = z.object({
   title: z.string().trim().min(1),
@@ -33,6 +34,10 @@ async function getCourse(courseId) {
   return course;
 }
 
+async function invalidateCourseCache(courseId) {
+  await cacheDelete(`course:${courseId}`);
+}
+
 export async function createModule(req, res, next) {
   try {
     const input = moduleSchema.parse(req.body);
@@ -41,6 +46,7 @@ export async function createModule(req, res, next) {
     course.modules.push(module);
     course.modules.sort((a, b) => a.order - b.order);
     await course.save();
+    await invalidateCourseCache(course._id);
     return success(res, { module }, "Module created successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
@@ -57,6 +63,7 @@ export async function updateModule(req, res, next) {
     Object.assign(module, input);
     course.modules.sort((a, b) => a.order - b.order);
     await course.save();
+    await invalidateCourseCache(course._id);
     return success(res, { module }, "Module updated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
@@ -71,6 +78,7 @@ export async function deleteModule(req, res, next) {
     if (!module) return failure(res, "Module not found", 404);
     module.deleteOne();
     await course.save();
+    await invalidateCourseCache(course._id);
     return success(res, {}, "Module deleted successfully");
   } catch (e) { next(e); }
 }
@@ -87,6 +95,7 @@ export async function createLesson(req, res, next) {
     module.lessons.push(lesson);
     module.lessons.sort((a, b) => a.order - b.order);
     await course.save();
+    await invalidateCourseCache(course._id);
     return success(res, { lesson }, "Lesson created successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
@@ -105,6 +114,7 @@ export async function updateLesson(req, res, next) {
     Object.assign(lesson, input);
     module.lessons.sort((a, b) => a.order - b.order);
     await course.save();
+    await invalidateCourseCache(course._id);
     return success(res, { lesson }, "Lesson updated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
@@ -121,6 +131,7 @@ export async function deleteLesson(req, res, next) {
     if (!lesson) return failure(res, "Lesson not found", 404);
     lesson.deleteOne();
     await course.save();
+    await invalidateCourseCache(course._id);
     return success(res, {}, "Lesson deleted successfully");
   } catch (e) { next(e); }
 }

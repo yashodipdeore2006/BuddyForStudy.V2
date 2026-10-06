@@ -68,15 +68,17 @@ export default function Dashboard() {
   const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [roadmaps, setRoadmaps] = useState<any[]>([]);
+  const [learningStats, setLearningStats] = useState<any>(null);
 
   useEffect(() => {
     async function fetchData() {
       if (!profile) return;
       try {
-        const [enrollmentData, courseData, roadmapData] = await Promise.all([
+        const [enrollmentData, courseData, roadmapData, achievementData] = await Promise.all([
           apiFetch('/api/enrollments'),
           apiFetch('/api/courses?limit=3'),
           apiFetch('/api/roadmaps'),
+          apiFetch('/api/achievements/me'),
         ]);
 
         const active = (enrollmentData.enrollments ?? [])
@@ -87,6 +89,7 @@ export default function Dashboard() {
         setEnrollments(active);
         setPublishedCourses((courseData.courses ?? []).map(mapCourse));
         setRoadmaps(roadmapData.roadmaps ?? []);
+        setLearningStats(achievementData.stats ?? null);
 
         const entries = await Promise.all(
           active.map(async (enrollment) => {
@@ -137,6 +140,33 @@ export default function Dashboard() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        <div className="card p-5">
+          <p className="text-sm font-medium text-slate-500">Current Streak</p>
+          <p className="mt-1 text-3xl font-bold text-orange-600">{learningStats?.currentStreak || 0} days</p>
+          <p className="mt-1 text-xs text-slate-500">Longest: {learningStats?.longestStreak || 0} days</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-sm font-medium text-slate-500">Active Learning Days</p>
+          <p className="mt-1 text-3xl font-bold text-blue-600">{learningStats?.totalActiveDays || 0}</p>
+          <p className="mt-1 text-xs text-slate-500">{learningStats?.totalLessonsCompleted || 0} lessons completed</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-sm font-medium text-slate-500">Achievements</p>
+          <p className="mt-1 text-3xl font-bold text-amber-600">{learningStats?.achievements?.length || 0}</p>
+          <p className="mt-1 text-xs text-slate-500">{learningStats?.totalCoursesCompleted || 0} courses completed</p>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-amber-100 bg-amber-50 p-5">
+        <h2 className="font-semibold text-slate-900">Your Achievements</h2>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(learningStats?.achievements || []).length ? learningStats.achievements.map((achievement: any) => (
+            <span key={achievement.key} className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">{achievement.title}</span>
+          )) : <span className="text-sm text-slate-500">Complete lessons to unlock your first achievement.</span>}
+        </div>
       </div>
 
       <div className="mt-10">

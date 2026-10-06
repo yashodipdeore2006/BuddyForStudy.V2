@@ -1,0 +1,18 @@
+import mongoose from "mongoose";
+
+const paymentSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+  course: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
+  plan: { type: mongoose.Schema.Types.ObjectId, ref: "SubscriptionPlan", default: null },
+  amount: { type: Number, required: true, min: 0 },
+  currency: { type: String, default: "INR", uppercase: true },
+  provider: { type: String, enum: ["razorpay", "stripe", "manual", "other"], default: "manual" },
+  providerPaymentId: { type: String, default: "", index: true },
+  providerOrderId: { type: String, default: "" },
+  status: { type: String, enum: ["created", "pending", "paid", "failed", "refunded", "partially_refunded", "cancelled"], default: "created", index: true },
+  metadata: { type: Map, of: String, default: {} },
+  paidAt: { type: Date, default: null }
+}, { timestamps: true, collection: "payments" });
+
+paymentSchema.index({ createdAt: -1 });
+export const Payment = mongoose.model("Payment", paymentSchema);

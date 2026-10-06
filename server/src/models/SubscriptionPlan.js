@@ -12,7 +12,8 @@ const subscriptionPlanSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   isPopular: { type: Boolean, default: false },
   trialDays: { type: Number, default: 0, min: 0, max: 365 },
-  sortOrder: { type: Number, default: 0 }
+  sortOrder: { type: Number, default: 0 },
+  providerPlanId: { type: String, default: "" }
 }, { timestamps: true, collection: "subscription_plans" });
 
 subscriptionPlanSchema.index({ isActive: 1, sortOrder: 1 });

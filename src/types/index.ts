@@ -16,10 +16,13 @@ export interface TutorialContent {
   content: string;
   videoUrl?: string;
   resourceUrl?: string;
+  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; relevanceScore?: number }>;
+  resources?: Array<{ title?: string; url?: string; type?: string }>;
 }
 
 export interface ProjectContent {
   description: string;
+  objectives?: string[];
   requirements: string[];
   instructions: string;
   expectedOutcome: string;

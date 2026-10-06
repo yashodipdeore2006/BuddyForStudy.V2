@@ -1,4 +1,5 @@
 import { Payment } from "../models/Payment.js";
+import { UserSubscription } from "../models/UserSubscription.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
@@ -27,6 +28,27 @@ export async function razorpayWebhook(req, res, next) {
           }
         );
       }
+    } else if (event.event === "subscription.activated" || event.event === "subscription.resumed") {
+      const subscription = event?.payload?.subscription?.entity;
+      if (subscription?.id) {
+        await UserSubscription.findOneAndUpdate(
+          { provider: "razorpay", providerSubscriptionId: subscription.id },
+          { $set: { status: "active", currentPeriodStart: subscription.current_start ? new Date(subscription.current_start * 1000) : new Date(), currentPeriodEnd: subscription.current_end ? new Date(subscription.current_end * 1000) : null } }
+        );
+        await Payment.findOneAndUpdate({ provider: "razorpay", providerOrderId: subscription.id }, { $set: { status: "paid", paidAt: new Date() } });
+      }
+    } else if (event.event === "subscription.charged") {
+      const subscription = event?.payload?.subscription?.entity;
+      if (subscription?.id) {
+        await UserSubscription.findOneAndUpdate(
+          { provider: "razorpay", providerSubscriptionId: subscription.id },
+          { $set: { status: "active", currentPeriodStart: subscription.current_start ? new Date(subscription.current_start * 1000) : new Date(), currentPeriodEnd: subscription.current_end ? new Date(subscription.current_end * 1000) : null } }
+        );
+        await Payment.findOneAndUpdate({ provider: "razorpay", providerOrderId: subscription.id }, { $set: { status: "paid", paidAt: new Date() } });
+      }
+    } else if (event.event === "subscription.cancelled" || event.event === "subscription.completed") {
+      const subscription = event?.payload?.subscription?.entity;
+      if (subscription?.id) await UserSubscription.findOneAndUpdate({ provider: "razorpay", providerSubscriptionId: subscription.id }, { $set: { status: event.event === "subscription.completed" ? "expired" : "cancelled", cancelledAt: new Date() } });
     } else if (event.event === "payment.failed" && orderId) {
       await Payment.findOneAndUpdate(
         { provider: "razorpay", providerOrderId: orderId, status: { $ne: "paid" } },

@@ -122,6 +122,13 @@ export async function createSubscriptionOrder(req, res, next) {
       customerNotify: 1
     });
 
+    const { UserSubscription } = await import("../models/UserSubscription.js");
+    await UserSubscription.findOneAndUpdate(
+      { user: req.user.userId },
+      { $set: { plan: plan._id, status: "trialing", provider: "razorpay", providerSubscriptionId: subscription.id, currentPeriodStart: new Date() } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     await Payment.create({
       user: req.user.userId,
       plan: plan._id,

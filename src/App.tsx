@@ -14,6 +14,7 @@ import CoursePlayer from '@/pages/CoursePlayer';
 import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import Notifications from '@/pages/Notifications';
+import AIRoadmapPlayer from '@/pages/AIRoadmapPlayer';
 import AdminLogin from '@/pages/admin/AdminLogin';
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
 import AdminControlCenter from '@/pages/admin/AdminControlCenter';
@@ -48,6 +49,7 @@ function App() {
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+    <Route path="/roadmaps/:roadmapId" element={<ProtectedRoute><AIRoadmapPlayer /></ProtectedRoute>} />
 
     <Route path="/admin/login" element={<AdminLogin />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />

@@ -45,7 +45,9 @@ export function verifyPaymentSignature({ orderId, paymentId, signature, secret =
   const expected = crypto.createHmac("sha256", secret)
     .update(orderId + "|" + paymentId)
     .digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(signature);
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
 export function verifyWebhookSignature(rawBody, signature, webhookSecret) {

@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { Search, BookOpen, Filter, X } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2 } from 'lucide-react';
 import { classNames } from '@/lib/utils';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -15,20 +16,26 @@ export default function Courses() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const { session } = useAuth();
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiRoadmap, setAiRoadmap] = useState<any>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCourses() {
-      const { data } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
-
-      setCourses((data as Course[]) || []);
-      setLoading(false);
+      try {
+        const params = new URLSearchParams({ page: '1', limit: '50' });
+        if (selectedLevel !== 'all') params.set('level', selectedLevel);
+        if (selectedCategory !== 'all') params.set('category', selectedCategory);
+        if (searchQuery.trim()) params.set('q', searchQuery.trim());
+        const data = await apiFetch(`/api/courses?${params.toString()}`);
+        const rows = data.courses || data.items || [];
+        setCourses(rows.map((c:any)=>({ ...c, id:c._id, learning_outcomes:c.learningOutcomes||[], is_published:c.isPublished, created_at:c.createdAt, updated_at:c.updatedAt })));
+      } catch { setCourses([]); }
+      finally { setLoading(false); }
     }
     fetchCourses();
-  }, []);
+  }, [selectedLevel, selectedCategory, searchQuery]);
 
   const categories = useMemo(() => {
     const cats = new Set(courses.map((c) => c.category).filter(Boolean));
@@ -57,6 +64,20 @@ export default function Courses() {
     setSearchQuery('');
     setSelectedLevel('all');
     setSelectedCategory('all');
+    setAiRoadmap(null);
+    setAiError(null);
+  };
+
+  const generateAiRoadmap = async () => {
+    const topic = searchQuery.trim();
+    if (!topic) return;
+    if (!session) { setAiError('Sign in to generate a personalized AI roadmap.'); return; }
+    setAiLoading(true); setAiError(null);
+    try {
+      const data = await apiFetch('/api/ai/roadmap', { method: 'POST', body: JSON.stringify({ topic, level: selectedLevel === 'all' ? 'Beginner' : selectedLevel, goals: ['Become job-ready with practical projects'] }) });
+      setAiRoadmap(data);
+    } catch (err) { setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed'); }
+    finally { setAiLoading(false); }
   };
 
   return (
@@ -108,6 +129,36 @@ export default function Courses() {
           </select>
         </div>
       </div>
+
+      {searchQuery.trim().length >= 2 && (
+        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 font-semibold text-slate-900"><Sparkles className="h-4 w-4 text-blue-600" /> Can't find exactly what you need?</div>
+              <p className="mt-1 text-sm text-slate-600">AI can understand "{searchQuery.trim()}" and build a prerequisite-ordered roadmap with projects and learning resources.</p>
+            </div>
+            <button onClick={generateAiRoadmap} disabled={aiLoading} className="btn-primary whitespace-nowrap">
+              {aiLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Building...</> : <><Sparkles className="h-4 w-4" /> Build with AI</>}
+            </button>
+          </div>
+          {aiError && <p className="mt-3 text-sm text-red-600">{aiError}</p>}
+        </div>
+      )}
+
+      {aiRoadmap?.course && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Roadmap</p><h2 className="mt-1 text-xl font-bold text-slate-900">{aiRoadmap.canonicalTopic || aiRoadmap.course.title}</h2><p className="mt-1 text-sm text-slate-500">{aiRoadmap.course.description}</p></div>
+            <button onClick={()=>setAiRoadmap(null)} className="text-sm text-slate-400 hover:text-slate-700">Close</button>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {(aiRoadmap.skillGraph || []).map((skill:any)=><div key={skill.id} className="rounded-lg bg-slate-50 p-3"><p className="font-medium text-slate-800">{skill.name}</p><p className="text-xs text-slate-500">{skill.category} · {skill.importance}</p></div>)}
+          </div>
+          <div className="mt-6 space-y-3">
+            {aiRoadmap.course.modules.map((m:any)=><div key={m.title} className="rounded-lg border border-slate-200 p-4"><p className="font-semibold text-slate-900">{m.order}. {m.title}</p><p className="mt-1 text-xs text-slate-500">{m.lessons?.length || 0} learning activities</p></div>)}
+          </div>
+        </div>
+      )}
 
       {/* Active filters */}
       {hasFilters && (

@@ -20,6 +20,8 @@ export default function Courses() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRoadmap, setAiRoadmap] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [savingRoadmap, setSavingRoadmap] = useState(false);
+  const [savedRoadmapId, setSavedRoadmapId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -59,6 +61,16 @@ export default function Courses() {
   }, [courses, searchQuery, selectedLevel, selectedCategory]);
 
   const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || searchQuery.trim();
+
+  const saveAiRoadmap = async () => {
+    if (!aiRoadmap?.course) return;
+    setSavingRoadmap(true); setAiError(null);
+    try {
+      const data = await apiFetch('/api/roadmaps', { method: 'POST', body: JSON.stringify(aiRoadmap) });
+      setSavedRoadmapId(data.roadmap?._id || data.roadmap?.id || null);
+    } catch (err) { setAiError(err instanceof Error ? err.message : 'Unable to save roadmap'); }
+    finally { setSavingRoadmap(false); }
+  };
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -149,7 +161,7 @@ export default function Courses() {
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Roadmap</p><h2 className="mt-1 text-xl font-bold text-slate-900">{aiRoadmap.canonicalTopic || aiRoadmap.course.title}</h2><p className="mt-1 text-sm text-slate-500">{aiRoadmap.course.description}</p></div>
-            <button onClick={()=>setAiRoadmap(null)} className="text-sm text-slate-400 hover:text-slate-700">Close</button>
+            <div className="flex items-center gap-3"><button onClick={saveAiRoadmap} disabled={savingRoadmap || !!savedRoadmapId} className="btn-primary">{savingRoadmap ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : savedRoadmapId ? 'Saved to My Learning' : 'Save Roadmap'}</button><button onClick={()=>setAiRoadmap(null)} className="text-sm text-slate-400 hover:text-slate-700">Close</button></div>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {(aiRoadmap.skillGraph || []).map((skill:any)=><div key={skill.id} className="rounded-lg bg-slate-50 p-3"><p className="font-medium text-slate-800">{skill.name}</p><p className="text-xs text-slate-500">{skill.category} · {skill.importance}</p></div>)}

@@ -171,20 +171,44 @@ function scoreVideo(video, lesson) {
   return exact * 3 + queryMatch + educational - penalty;
 }
 
+function isUsableVideo(video, lesson) {
+  if (!video?.videoId || !video?.url || !video.title) return false;
+  const text = `${video.title} ${video.description}`.toLowerCase();
+  if (/(#shorts|\bshorts\b)/i.test(text)) return false;
+  return scoreVideo(video, lesson) > 0;
+}
+
+function uniqueVideos(videos) {
+  const seen = new Set();
+  return videos.filter((video) => {
+    const key = video.videoId || video.url;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function attachResources(course) {
   const allSources = [];
   for (const module of course.modules || []) {
     for (const lesson of module.lessons || []) {
       if (lesson.type !== "tutorial") continue;
       const query = lesson.tutorial?.searchQuery || `${course.title} ${lesson.title} tutorial`;
-      const videos = await searchYouTube(query, 8);
-      const ranked = videos
+      let videos = [];
+      try {
+        videos = await searchYouTube(query, 8);
+      } catch {
+        videos = [];
+      }
+      const ranked = uniqueVideos(videos)
+        .filter((video) => isUsableVideo(video, lesson))
         .map((video) => ({ ...video, relevanceScore: scoreVideo(video, lesson) }))
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
         .slice(0, 3);
       lesson.tutorial ||= {};
       lesson.tutorial.resources = ranked.map((video) => video.url);
       lesson.tutorial.videos = ranked;
+      lesson.tutorial.resourceStatus = ranked.length ? "ready" : "unavailable";
       delete lesson.tutorial.searchQuery;
       allSources.push(...ranked);
     }

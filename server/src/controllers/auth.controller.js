@@ -17,15 +17,22 @@ const googleSchema = z.object({
   credential: z.string().min(1)
 });
 
+const profileSchema = z.object({
+  name: z.string().trim().min(2).max(100)
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(8).max(128)
+});
+
 export async function register(req, res) {
   try {
     const input = registerSchema.parse(req.body);
     const result = await authService.register(input);
     return success(res, result, "User registered successfully", 201);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    }
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return failure(res, error.message, error.status || 500);
   }
 }
@@ -36,9 +43,7 @@ export async function login(req, res) {
     const result = await authService.login(input);
     return success(res, result, "Login successful");
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    }
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return failure(res, error.message, error.status || 500);
   }
 }
@@ -49,9 +54,29 @@ export async function googleLogin(req, res) {
     const result = await authService.googleLogin(credential);
     return success(res, result, "Google authentication successful");
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    }
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}
+
+export async function updateProfile(req, res) {
+  try {
+    const input = profileSchema.parse(req.body);
+    const result = await authService.updateProfile(req.user.user._id, input);
+    return success(res, result, "Profile updated successfully");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}
+
+export async function changePassword(req, res) {
+  try {
+    const input = changePasswordSchema.parse(req.body);
+    const result = await authService.changePassword(req.user.user._id, input);
+    return success(res, result, "Password updated successfully");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return failure(res, error.message, error.status || 500);
   }
 }

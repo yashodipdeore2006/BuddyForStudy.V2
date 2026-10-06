@@ -3,19 +3,16 @@ import { env } from "../config/env.js";
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
-async function searchYouTube(query, maxResults = 8) {
+async function searchYouTube(query, maxResults = 5) {
   if (!env.youtubeApiKey) return [];
-
   const url = new URL("https://www.googleapis.com/youtube/v3/search");
   url.searchParams.set("part", "snippet");
   url.searchParams.set("type", "video");
   url.searchParams.set("q", query);
   url.searchParams.set("maxResults", String(maxResults));
   url.searchParams.set("key", env.youtubeApiKey);
-
   const response = await fetch(url);
   if (!response.ok) throw new Error("YouTube search failed");
-
   const data = await response.json();
   return (data.items || []).map((item) => ({
     videoId: item.id.videoId,
@@ -28,25 +25,46 @@ async function searchYouTube(query, maxResults = 8) {
   }));
 }
 
-export async function generateCoursePlan({ topic, level = "Beginner", goals = [] }) {
-  if (!client) {
-    const error = new Error("AI provider is not configured");
-    error.status = 503;
-    throw error;
-  }
+function normalizeRoadmap(course) {
+  const modules = Array.isArray(course.modules) ? course.modules : [];
+  return modules
+    .map((module, index) => ({
+      ...module,
+      order: index + 1,
+      lessons: (module.lessons || []).map((lesson, lessonIndex) => ({
+        ...lesson,
+        order: lessonIndex + 1
+      }))
+    }))
+    .filter((module) => module.title && module.lessons.length);
+}
 
-  const videos = await searchYouTube(topic, 10);
-
+async function buildRoadmap({ topic, level, goals }) {
   const prompt = `
-Create a production-ready learning course for BuddyForStudy.
+You are BuddyForStudy's curriculum architect.
 
-Topic: ${topic}
+The user searched for: "${topic}"
 Level: ${level}
-Learning goals: ${goals.join(", ") || "Build practical skills"}
+Goals: ${goals.join(", ") || "Become job-ready with practical projects"}
 
-Use the supplied YouTube candidates only as supporting resources. Do not invent video URLs.
+First understand the user's intent. If the topic is a technology stack, decompose it into its real prerequisite technologies and teach them in dependency order.
 
-Return ONLY valid JSON matching:
+For example, for "MERN Stack", the roadmap should normally cover:
+HTML → CSS → project → JavaScript → project → React → project → Node.js → Express.js → MongoDB → full-stack project.
+Do not blindly copy this example if the user's requested stack is different. Infer the correct technologies and dependencies.
+
+Rules:
+1. Start with prerequisites before framework-specific technologies.
+2. Put a practical project after major learning stages.
+3. Projects must use only technologies already taught.
+4. Finish with an integrated capstone project using the complete requested stack.
+5. Do not put multiple unrelated technologies into one vague module.
+6. Include enough lessons to genuinely teach each technology.
+7. Every tutorial lesson needs a specific searchable topic.
+8. Every project lesson needs a concrete project brief.
+9. Return ONLY valid JSON.
+
+Return:
 {
   "title": "string",
   "description": "string",
@@ -56,23 +74,25 @@ Return ONLY valid JSON matching:
   "learningOutcomes": ["string"],
   "modules": [
     {
-      "title": "string",
+      "title": "HTML Fundamentals",
       "description": "string",
-      "order": 1,
       "lessons": [
         {
-          "title": "string",
+          "title": "specific lesson",
           "description": "string",
-          "type": "tutorial|project",
-          "order": 1,
-          "tutorial": { "content": "string", "resources": ["string"] },
+          "type": "tutorial",
+          "tutorial": { "content": "string", "searchQuery": "specific YouTube search query" }
+        },
+        {
+          "title": "HTML Project",
+          "description": "string",
+          "type": "project",
           "project": {
             "description": "string",
             "objectives": ["string"],
             "requirements": ["string"],
             "instructions": "string",
             "expectedOutcome": "string",
-            "resources": ["string"],
             "submissionRequirements": ["string"]
           }
         }
@@ -80,11 +100,6 @@ Return ONLY valid JSON matching:
     }
   ]
 }
-
-Every course should progress from fundamentals to practical application. Include project lessons where appropriate.
-
-YouTube candidates:
-${JSON.stringify(videos)}
 `;
 
   const response = await client.responses.create({
@@ -92,19 +107,46 @@ ${JSON.stringify(videos)}
     input: [{ role: "user", content: prompt }]
   });
 
-  const text = response.output_text?.trim();
-  if (!text) throw new Error("AI provider returned an empty response");
+  const raw = response.output_text?.trim();
+  if (!raw) throw new Error("AI provider returned an empty roadmap");
 
-  const normalizedText = text.replace(/^\`\`\`json\\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
-
-  let course;
+  const normalized = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
   try {
-    course = JSON.parse(normalizedText);
+    return JSON.parse(normalized);
   } catch {
-    const error = new Error("AI provider returned invalid course JSON");
+    const error = new Error("AI provider returned invalid roadmap JSON");
     error.status = 502;
     throw error;
   }
+}
 
-  return { course, sources: videos };
+async function attachResources(course) {
+  const allSources = [];
+  for (const module of course.modules || []) {
+    for (const lesson of module.lessons || []) {
+      if (lesson.type !== "tutorial") continue;
+      const query = lesson.tutorial?.searchQuery || `${course.title} ${lesson.title} tutorial`;
+      const videos = await searchYouTube(query, 3);
+      lesson.tutorial ||= {};
+      lesson.tutorial.resources = videos.map((video) => video.url);
+      lesson.tutorial.videos = videos;
+      delete lesson.tutorial.searchQuery;
+      allSources.push(...videos);
+    }
+  }
+  return allSources;
+}
+
+export async function generateCoursePlan({ topic, level = "Beginner", goals = [] }) {
+  if (!client) {
+    const error = new Error("AI provider is not configured");
+    error.status = 503;
+    throw error;
+  }
+
+  const course = await buildRoadmap({ topic, level, goals });
+  course.modules = normalizeRoadmap(course);
+  const sources = await attachResources(course);
+
+  return { course, sources };
 }

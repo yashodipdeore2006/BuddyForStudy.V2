@@ -12,6 +12,7 @@ import progressRoutes from "./routes/progress.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
 import curriculumRoutes from "./routes/curriculum.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
+import adminProRoutes from "./routes/adminPro.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -44,6 +45,7 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", adminProRoutes);
 app.use("/api/courses", curriculumRoutes);
 app.use("/api/ai", aiRoutes);
 

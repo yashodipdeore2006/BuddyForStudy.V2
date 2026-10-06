@@ -17,15 +17,16 @@ function publicUser(user) {
   };
 }
 
+function authError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
 export async function register({ name, email, password }) {
   const normalizedEmail = email.trim().toLowerCase();
-
   const existing = await User.findOne({ email: normalizedEmail });
-  if (existing) {
-    const error = new Error("Email is already registered");
-    error.status = 409;
-    throw error;
-  }
+  if (existing) throw authError("Email is already registered", 409);
 
   const hashedPassword = await User.hashPassword(password);
   const user = await User.create({
@@ -44,38 +45,24 @@ export async function login({ email, password }) {
   const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
   if (!user || !(await user.comparePassword(password))) {
-    const error = new Error("Invalid email or password");
-    error.status = 401;
-    throw error;
+    throw authError("Invalid email or password", 401);
   }
-
-  if (!user.isActive) {
-    const error = new Error("Account is inactive");
-    error.status = 401;
-    throw error;
-  }
+  if (!user.isActive) throw authError("Account is inactive", 401);
 
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
 export async function googleLogin(credential) {
-  if (!env.googleClientId) {
-    const error = new Error("Google OAuth is not configured on the server");
-    error.status = 503;
-    throw error;
-  }
+  if (!env.googleClientId) throw authError("Google OAuth is not configured on the server", 503);
 
   const ticket = await googleClient.verifyIdToken({
     idToken: credential,
     audience: env.googleClientId
   });
-
   const payload = ticket.getPayload();
 
   if (!payload?.sub || !payload.email || !payload.email_verified) {
-    const error = new Error("Google account could not be verified");
-    error.status = 401;
-    throw error;
+    throw authError("Google account could not be verified", 401);
   }
 
   const email = payload.email.toLowerCase();
@@ -92,12 +79,7 @@ export async function googleLogin(credential) {
       authProvider: "google"
     });
   } else {
-    if (!user.isActive) {
-      const error = new Error("Account is inactive");
-      error.status = 401;
-      throw error;
-    }
-
+    if (!user.isActive) throw authError("Account is inactive", 401);
     user.googleId = payload.sub;
     user.profileImage = payload.picture || user.profileImage;
     user.authProvider = user.password ? "local_google" : "google";
@@ -106,4 +88,35 @@ export async function googleLogin(credential) {
   }
 
   return { user: publicUser(user), token: signAccessToken(user) };
+}
+
+export async function updateProfile(userId, { name }) {
+  const normalizedName = name.trim();
+  if (normalizedName.length < 2 || normalizedName.length > 100) {
+    throw authError("Name must be between 2 and 100 characters", 400);
+  }
+
+  const user = await User.findById(userId);
+  if (!user) throw authError("User not found", 404);
+  if (!user.isActive) throw authError("Account is inactive", 401);
+
+  user.name = normalizedName;
+  await user.save();
+  return { user: publicUser(user) };
+}
+
+export async function changePassword(userId, { currentPassword, newPassword }) {
+  const user = await User.findById(userId).select("+password");
+  if (!user) throw authError("User not found", 404);
+  if (!user.isActive) throw authError("Account is inactive", 401);
+  if (!user.password) {
+    throw authError("This account does not have a password. Sign in with Google.", 400);
+  }
+
+  const valid = await user.comparePassword(currentPassword);
+  if (!valid) throw authError("Current password is incorrect", 401);
+
+  user.password = await User.hashPassword(newPassword);
+  await user.save();
+  return { user: publicUser(user) };
 }

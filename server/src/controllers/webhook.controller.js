@@ -13,7 +13,8 @@ export async function razorpayWebhook(req, res, next) {
 
     const event = req.body;
     const paymentEntity = event?.payload?.payment?.entity;
-    const orderId = paymentEntity?.order_id;
+    const orderEntity = event?.payload?.order?.entity;
+    const orderId = paymentEntity?.order_id || orderEntity?.id;
 
     if (event.event === "payment.captured" || event.event === "order.paid") {
       if (orderId) {

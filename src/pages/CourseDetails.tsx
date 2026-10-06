@@ -106,7 +106,7 @@ export default function CourseDetails() {
   const handleEnroll = async () => {
     if (!session) { navigate('/login', { state: { from: { pathname: `/courses/${courseId}` } } }); return; }
     if (!course || !course.is_published) return;
-    if (course.pricing?.mode === 'paid') { setError('This course requires payment. Checkout will be available once payment is configured.'); return; }
+    if (course.pricing?.mode === 'paid') { await handleCheckout(); return; }
     setEnrolling(true); setError(null);
     try {
       const data = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
@@ -175,7 +175,7 @@ export default function CourseDetails() {
   }
 
   const lessonCount = countAllLessons(course.modules);
-  const isEnrolled = enrollment?.status === 'active';
+  const isEnrolled = enrollment?.status === 'active' || enrollment?.status === 'completed';
   const progressPct = progress?.percentage || 0;
 
   return (
@@ -356,7 +356,7 @@ export default function CourseDetails() {
                   </div>
                   {progress && (
                     <p className="mt-2 text-xs text-slate-500">
-                      {progress.completed_count} of {progress.total_lessons} lessons completed
+                      {progress.completedCount} of {progress.totalLessons} lessons completed
                     </p>
                   )}
                 </div>

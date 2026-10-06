@@ -16,6 +16,7 @@ import Settings from '@/pages/Settings';
 import Notifications from '@/pages/Notifications';
 import AIRoadmapPlayer from '@/pages/AIRoadmapPlayer';
 import Pricing from '@/pages/Pricing';
+import Billing from '@/pages/Billing';
 import AdminLogin from '@/pages/admin/AdminLogin';
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
 import AdminControlCenter from '@/pages/admin/AdminControlCenter';
@@ -43,7 +44,7 @@ function App() {
   return <AuthProvider><BrowserRouter><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
     <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} />
-    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
     <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
     <Route path="/learn/:courseId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
     <Route path="/learn/:courseId/:lessonId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />

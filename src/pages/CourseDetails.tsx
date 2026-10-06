@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, Enrollment, Progress } from '@/types';
 import { countAllLessons, getAllLessonsFlat } from '@/lib/courseUtils';
+import { loadRazorpay } from '@/lib/razorpay';
 import {
   BookOpen,
   Clock,
@@ -44,6 +45,7 @@ export default function CourseDetails() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   useEffect(() => {
     async function fetchCourse() {
@@ -69,6 +71,32 @@ export default function CourseDetails() {
     }
     fetchCourse();
   }, [courseId, session]);
+
+  const handleCheckout = async () => {
+    if (!session || !courseId || !course) return;
+    setCheckoutLoading(true); setError(null);
+    try {
+      const data = await apiFetch('/api/payments/course/order', { method: 'POST', body: JSON.stringify({ courseId }) });
+      await loadRazorpay();
+      const razorpay = new window.Razorpay({
+        key: data.keyId,
+        amount: data.order.amount,
+        currency: data.order.currency,
+        name: 'BuddyForStudy',
+        description: data.course.title,
+        order_id: data.order.id,
+        prefill: { name: session.user.name, email: session.user.email },
+        theme: { color: '#2563eb' },
+        handler: () => {
+          setError('Payment completed. Payment verification will be finalized in the next payment step.');
+        },
+        modal: { ondismiss: () => setCheckoutLoading(false) }
+      });
+      razorpay.open();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start checkout');
+    } finally { setCheckoutLoading(false); }
+  };
 
   const handleEnroll = async () => {
     if (!session) { navigate('/login', { state: { from: { pathname: `/courses/${courseId}` } } }); return; }
@@ -335,14 +363,14 @@ export default function CourseDetails() {
             ) : (
               <div>
                 <button
-                  onClick={handleEnroll}
-                  disabled={enrolling || !course.is_published}
+                  onClick={course.pricing?.mode === 'paid' ? handleCheckout : handleEnroll}
+                  disabled={enrolling || checkoutLoading || !course.is_published}
                   className="btn-primary w-full"
                 >
-                  {enrolling ? (
+                  {enrolling || checkoutLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Enrolling...
+                      {checkoutLoading ? 'Opening Checkout...' : 'Enrolling...'}
                     </>
                   ) : session ? (
                     course.pricing?.mode === 'paid' ? `Buy Course — ₹${course.pricing.saleEnabled ? course.pricing.salePrice : course.pricing.price}` : 'Enroll Now — Free'

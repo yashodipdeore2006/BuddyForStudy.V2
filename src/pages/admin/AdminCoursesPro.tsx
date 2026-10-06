@@ -1,0 +1,10 @@
+import { useEffect,useState } from "react";
+import { Save,RefreshCcw } from "lucide-react";
+import { adminFetch } from "@/lib/adminApi";
+export default function AdminCoursesPro(){
+ const [courses,setCourses]=useState<any[]>([]),[loading,setLoading]=useState(true);
+ async function load(){setLoading(true);const d=await adminFetch("/api/admin/courses");setCourses(d.data.courses);setLoading(false)}
+ useEffect(()=>{load()},[]);
+ async function save(c:any,patch:any){await adminFetch(`/api/admin/courses/${c._id}`,{method:"PUT",body:JSON.stringify(patch)});load()}
+ return <div className="mx-auto max-w-7xl"><h1 className="text-3xl font-bold">Course Commerce Control</h1><p className="mt-2 text-slate-500">Publish, feature and switch every course between free and paid access.</p><div className="mt-6 space-y-4">{loading?<div className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin"/></div>:courses.map(c=><div className="card p-5" key={c._id}><div className="flex flex-col gap-4 lg:flex-row lg:items-center"><div className="flex-1"><h2 className="font-semibold">{c.title}</h2><p className="text-sm text-slate-500">{c.category} · {c.level}</p></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.isPublished} onChange={e=>save(c,{isPublished:e.target.checked})}/> Published</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={c.featured} onChange={e=>save(c,{featured:e.target.checked})}/> Featured</label><select className="input-field w-auto" value={c.pricing?.mode||"free"} onChange={e=>save(c,{pricing:{...c.pricing,mode:e.target.value}})}><option value="free">Free</option><option value="paid">Paid</option></select>{(c.pricing?.mode==="paid")&&<input className="input-field w-32" type="number" min="0" value={c.pricing?.price||0} onChange={e=>setCourses(cs=>cs.map(x=>x._id===c._id?{...x,pricing:{...x.pricing,price:Number(e.target.value)}}:x))}/>}<button className="btn-primary" onClick={()=>save(c,{pricing:c.pricing})}><Save className="h-4 w-4"/>Save</button></div></div>)}</div></div>
+}

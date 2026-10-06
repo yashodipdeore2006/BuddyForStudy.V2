@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import type { Course } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import {
@@ -21,15 +21,23 @@ export default function Home() {
 
   useEffect(() => {
     async function fetchCourses() {
-      const { data } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
-        .limit(6);
-
-      setCourses((data as Course[]) || []);
-      setLoading(false);
+      try {
+        const data = await apiFetch('/api/courses?limit=6');
+        const mappedCourses = (data.courses || []).map((course: any) => ({
+          ...course,
+          id: String(course._id || course.id),
+          learning_outcomes: course.learningOutcomes || course.learning_outcomes || [],
+          is_published: course.isPublished ?? course.is_published ?? false,
+          created_at: course.createdAt || course.created_at,
+          updated_at: course.updatedAt || course.updated_at,
+          created_by: course.createdBy || course.created_by || null,
+        }));
+        setCourses(mappedCourses as Course[]);
+      } catch {
+        setCourses([]);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchCourses();
   }, []);

@@ -33,7 +33,7 @@ app.use(cors({
   origin: env.clientUrl,
   credentials: false
 }));
-app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl === "/api/webhooks/razorpay") req.rawBody = Buffer.from(buf); } }));
+app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,

@@ -1,6 +1,7 @@
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
+import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 
 function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -41,7 +42,12 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
 }
 
 export async function getPublished(courseId) {
-  return Course.findOne({ _id: courseId, isPublished: true }).lean();
+  const key = `course:${courseId}`;
+  const cached = await cacheGet(key);
+  if (cached) return cached;
+  const course = await Course.findOne({ _id: courseId, isPublished: true }).lean();
+  if (course) await cacheSet(key, course, 120);
+  return course;
 }
 
 export async function getAny(courseId) {
@@ -50,17 +56,22 @@ export async function getAny(courseId) {
 
 export async function createCourse(input) {
   const slug = input.slug ? normalizeSlug(input.slug) : normalizeSlug(input.title);
-  return Course.create({ ...input, slug });
+  const course = await Course.create({ ...input, slug });
+  await cacheDelete(`course:${course._id}`);
+  return course;
 }
 
 export async function updateCourse(courseId, input) {
   if (input.slug) input.slug = normalizeSlug(input.slug);
-  return Course.findByIdAndUpdate(courseId, input, { new: true, runValidators: true });
+  const course = await Course.findByIdAndUpdate(courseId, input, { new: true, runValidators: true });
+  await cacheDelete(`course:${courseId}`);
+  return course;
 }
 
 export async function deleteCourse(courseId) {
   const course = await Course.findByIdAndDelete(courseId);
   if (!course) return null;
+  await cacheDelete(`course:${courseId}`);
   await Promise.all([
     Enrollment.deleteMany({ course: courseId }),
     Progress.deleteMany({ course: courseId })

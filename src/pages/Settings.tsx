@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import { Lock, Loader2, Check, AlertCircle, Bell } from 'lucide-react';
 
 export default function Settings() {
-  const { session } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,19 +28,18 @@ export default function Settings() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
       return;
     }
 
     setSavingPassword(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
+      await apiFetch('/api/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
-
-      if (error) throw error;
 
       setPasswordSuccess(true);
       setCurrentPassword('');
@@ -59,7 +56,6 @@ export default function Settings() {
 
   const handleNotifSave = async () => {
     setSavingNotifs(true);
-    // Simulate saving preferences
     await new Promise((r) => setTimeout(r, 500));
     setNotifSuccess(true);
     setSavingNotifs(false);
@@ -71,7 +67,6 @@ export default function Settings() {
       <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
       <p className="mt-1 text-sm text-slate-500">Manage your account preferences</p>
 
-      {/* Password Section */}
       <form onSubmit={handlePasswordChange} className="mt-6 card p-6">
         <div className="flex items-center gap-2">
           <Lock className="h-5 w-5 text-slate-400" />
@@ -94,23 +89,31 @@ export default function Settings() {
 
         <div className="mt-4 space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              New Password
-            </label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Current Password</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="input-field"
+              placeholder="Enter current password"
+              required
+              autoComplete="current-password"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">New Password</label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="input-field"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
               required
               autoComplete="new-password"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Confirm New Password
-            </label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm New Password</label>
             <input
               type="password"
               value={confirmPassword}
@@ -137,7 +140,6 @@ export default function Settings() {
         </div>
       </form>
 
-      {/* Notification Preferences */}
       <div className="mt-6 card p-6">
         <div className="flex items-center gap-2">
           <Bell className="h-5 w-5 text-slate-400" />
@@ -157,16 +159,11 @@ export default function Settings() {
             { key: 'projectUpdates', label: 'Project Updates', desc: 'Receive updates about your project submissions' },
             { key: 'announcements', label: 'Platform Announcements', desc: 'Important platform-wide news and updates' },
           ].map((pref) => (
-            <label
-              key={pref.key}
-              className="flex items-start gap-3 rounded-lg border border-slate-200 p-4 cursor-pointer hover:bg-slate-50"
-            >
+            <label key={pref.key} className="flex items-start gap-3 rounded-lg border border-slate-200 p-4 cursor-pointer hover:bg-slate-50">
               <input
                 type="checkbox"
                 checked={notifPrefs[pref.key as keyof typeof notifPrefs]}
-                onChange={(e) =>
-                  setNotifPrefs({ ...notifPrefs, [pref.key]: e.target.checked })
-                }
+                onChange={(e) => setNotifPrefs({ ...notifPrefs, [pref.key]: e.target.checked })}
                 className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
               <div>
@@ -178,7 +175,7 @@ export default function Settings() {
         </div>
 
         <div className="mt-6">
-          <button onClick={handleNotifSave} disabled={savingNotifs} className="btn-primary">
+          <button type="button" onClick={handleNotifSave} disabled={savingNotifs} className="btn-primary">
             {savingNotifs ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />

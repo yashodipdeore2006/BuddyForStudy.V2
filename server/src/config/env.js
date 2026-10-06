@@ -13,5 +13,5 @@ export const env = {
   mailFrom: process.env.MAIL_FROM || process.env.SMTP_USER || "",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
-  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || ""
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",\n  redisUrl: process.env.REDIS_URL || "", sentryDsn: process.env.SENTRY_DSN || "", sentryTracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1)
 };

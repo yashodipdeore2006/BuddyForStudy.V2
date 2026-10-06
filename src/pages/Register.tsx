@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { session, profile, signUp } = useAuth();
+  const { session, profile, signUp, signInWithGoogle } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +25,18 @@ export default function Register() {
       }
     }
   }, [session, profile, navigate]);
+
+  const handleGoogle = async (credential: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signInWithGoogle(credential);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +151,13 @@ export default function Register() {
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? 'Creating account...' : 'Create Account'}
         </button>
+
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+          <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-slate-400">OR</span></div>
+        </div>
+
+        <GoogleSignInButton onCredential={handleGoogle} disabled={loading} />
 
         <p className="text-center text-xs text-slate-400">
           By signing up, you agree to our Terms of Service and Privacy Policy.

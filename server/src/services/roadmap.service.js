@@ -60,3 +60,16 @@ export async function completeLesson(userId, roadmapId, lessonId) {
   await roadmap.save();
   return decorate(roadmap);
 }
+
+export async function submitQuiz(userId, roadmapId, moduleIndex, answers) {
+  const roadmap = await LearningRoadmap.findOne({ _id: roadmapId, user: userId });
+  if (!roadmap) { const error = new Error("Learning roadmap not found"); error.status = 404; throw error; }
+  const quiz = roadmap.course?.modules?.[moduleIndex]?.quiz;
+  if (!quiz?.questions?.length) { const error = new Error("Quiz not found for this module"); error.status = 404; throw error; }
+  if (answers.length !== quiz.questions.length) { const error = new Error("Answer all quiz questions before submitting"); error.status = 400; throw error; }
+  const score = answers.reduce((total, answer, index) => total + (Number(answer) === Number(quiz.questions[index].answer) ? 1 : 0), 0);
+  roadmap.quizAttempts.push({ moduleIndex, score, total: quiz.questions.length, answers });
+  roadmap.lastAccessedAt = new Date();
+  await roadmap.save();
+  return decorate(roadmap);
+}

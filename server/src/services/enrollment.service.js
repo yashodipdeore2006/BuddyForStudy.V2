@@ -1,5 +1,6 @@
 import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
+import { Payment } from "../models/Payment.js";
 
 export async function enroll(userId, courseId) {
   const course = await Course.findOne({ _id: courseId, isPublished: true }).select("_id pricing enrollmentEnabled");
@@ -10,7 +11,10 @@ export async function enroll(userId, courseId) {
   }
 
   if (course.enrollmentEnabled === false) { const error = new Error("Enrollment is currently disabled for this course"); error.status = 403; throw error; }
-  if (course.pricing?.mode === "paid") { const error = new Error("Payment is required before enrolling in this course"); error.status = 402; throw error; }
+  if (course.pricing?.mode === "paid") {
+    const payment = await Payment.findOne({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } }).sort({ paidAt: -1, createdAt: -1 });
+    if (!payment) { const error = new Error("Verified payment is required before enrolling in this course"); error.status = 402; throw error; }
+  }
 
   const existing = await Enrollment.findOne({ user: userId, course: courseId });
   if (existing) {

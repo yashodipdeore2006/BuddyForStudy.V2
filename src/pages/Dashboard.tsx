@@ -67,14 +67,16 @@ export default function Dashboard() {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
   const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [roadmaps, setRoadmaps] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchData() {
       if (!profile) return;
       try {
-        const [enrollmentData, courseData] = await Promise.all([
+        const [enrollmentData, courseData, roadmapData] = await Promise.all([
           apiFetch('/api/enrollments'),
           apiFetch('/api/courses?limit=3'),
+          apiFetch('/api/roadmaps'),
         ]);
 
         const active = (enrollmentData.enrollments ?? [])
@@ -84,6 +86,7 @@ export default function Dashboard() {
 
         setEnrollments(active);
         setPublishedCourses((courseData.courses ?? []).map(mapCourse));
+        setRoadmaps(roadmapData.roadmaps ?? []);
 
         const entries = await Promise.all(
           active.map(async (enrollment) => {
@@ -155,6 +158,13 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {roadmaps.length > 0 && <div className="mt-10">
+        <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-900">Your AI Roadmaps</h2><Link to="/courses" className="text-sm font-semibold text-blue-600">Build another</Link></div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {roadmaps.slice(0, 4).map((roadmap) => <div key={roadmap._id} className="card p-5"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Roadmap</p><h3 className="mt-1 font-semibold text-slate-900">{roadmap.canonicalTopic || roadmap.course?.title}</h3><p className="mt-1 text-sm text-slate-500">{roadmap.course?.description}</p><div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{width: `${roadmap.progress?.percentage || 0}%`}} /></div><span className="text-xs font-semibold text-slate-600">{roadmap.progress?.percentage || 0}%</span></div></div>)}
+        </div>
+      </div>}
 
       <div className="mt-10">
         <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-900">Recommended for You</h2><Link to="/courses" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600">View all <ArrowRight className="h-4 w-4" /></Link></div>

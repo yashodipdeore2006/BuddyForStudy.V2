@@ -13,8 +13,8 @@ export default function AdminLogin() {
       const res=await fetch(`${API_URL}/api/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
       const data=await res.json();
       if(!res.ok || !data.success) throw new Error(data.message || "Invalid admin credentials");
-      if(data.data?.user?.role!=="admin") throw new Error("This account does not have administrator access.");
-      localStorage.setItem("bfs_admin_token",data.data.token); localStorage.setItem("bfs_admin_user",JSON.stringify(data.data.user)); navigate("/admin",{replace:true});
+      if(data?.user?.role!=="admin") throw new Error("This account does not have administrator access.");
+      localStorage.setItem("bfs_admin_token",data.token); localStorage.setItem("bfs_admin_user",JSON.stringify(data.user)); navigate("/admin",{replace:true});
     } catch(e){setError(e instanceof Error?e.message:"Admin login failed");} finally{setLoading(false);}
   }
   return <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">

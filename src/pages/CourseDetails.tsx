@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Loader2,
   ListChecks,
+  Star,
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -38,12 +39,20 @@ export default function CourseDetails() {
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set([0]));
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewStats, setReviewStats] = useState({ count: 0, average: 0 });
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
 
   useEffect(() => {
     async function fetchCourse() {
       if (!courseId) return;
       try {
         const data = await apiFetch(`/api/courses/${courseId}`);
+        const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
+        setReviews(reviewData.reviews || []);
+        setReviewStats(reviewData.stats || { count: 0, average: 0 });
         const raw = data.course;
         setCourse({ ...raw, id: raw._id, learning_outcomes: raw.learningOutcomes || [], is_published: raw.isPublished, created_at: raw.createdAt, updated_at: raw.updatedAt, modules: (raw.modules || []).map((m:any)=>({ ...m, id:m._id, lessons:(m.lessons||[]).map((l:any)=>({...l,id:l._id})) })) } as Course);
         if (session) {
@@ -74,6 +83,18 @@ export default function CourseDetails() {
     } finally { setEnrolling(false); }
   };
 
+
+  const submitReview = async () => {
+    if (!courseId || !session) return;
+    setReviewSaving(true); setError(null);
+    try {
+      const data = await apiFetch(`/api/reviews/courses/${courseId}`, { method: 'POST', body: JSON.stringify({ rating: reviewRating, comment: reviewComment }) });
+      setReviews((current) => [data.review, ...current.filter((item) => item.user?._id !== session.user.id)]);
+      const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
+      setReviewStats(reviewData.stats || { count: 0, average: 0 });
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save review'); }
+    finally { setReviewSaving(false); }
+  };
 
   const handleStartLearning = () => {
     if (!courseId) return;
@@ -182,6 +203,37 @@ export default function CourseDetails() {
               </ul>
             </div>
           )}
+
+          {/* Reviews & Ratings */}
+          <div className="card p-6">
+            <h2 className="text-lg font-semibold text-slate-900">Reviews & Ratings</h2>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-2xl font-bold text-slate-900">{reviewStats.average || '—'}</span>
+              <div className="flex text-amber-400">{[1,2,3,4,5].map((star) => <Star key={star} className="h-4 w-4" fill={star <= Math.round(reviewStats.average) ? "currentColor" : "none"} />)}</div>
+              <span className="text-sm text-slate-500">({reviewStats.count} reviews)</span>
+            </div>
+            {isEnrolled && (
+              <div className="mt-5 rounded-xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-800">Rate this course</p>
+                <div className="mt-2 flex gap-1">{[1,2,3,4,5].map((star) => (
+                  <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={`Rate ${star} stars`}>
+                    <Star className={`h-6 w-6 ${star <= reviewRating ? 'text-amber-400' : 'text-slate-300'}`} fill={star <= reviewRating ? "currentColor" : "none"} />
+                  </button>
+                ))}</div>
+                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="mt-3 min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-blue-500" />
+                <button type="button" onClick={submitReview} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? 'Saving...' : 'Submit Review'}</button>
+              </div>
+            )}
+            <div className="mt-6 space-y-4">
+              {reviews.length ? reviews.map((review) => (
+                <div key={review._id} className="border-t border-slate-100 pt-4">
+                  <div className="flex items-center gap-2"><span className="font-semibold text-slate-800">{review.user?.name || 'Learner'}</span><div className="flex text-amber-400">{[1,2,3,4,5].map((star) => <Star key={star} className="h-3.5 w-3.5" fill={star <= review.rating ? "currentColor" : "none"} />)}</div></div>
+                  {review.comment && <p className="mt-2 text-sm text-slate-600">{review.comment}</p>}
+                  <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
+                </div>
+              )) : <p className="mt-4 text-sm text-slate-500">No reviews yet. Be the first to review this course.</p>}
+            </div>
+          </div>
 
           {/* Curriculum */}
           <div className="card p-6">

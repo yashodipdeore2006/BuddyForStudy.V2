@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Users, BookOpen, CreditCard, Megaphone, Settings, ScrollText, LogOut, Tag, ShieldCheck, ChevronRight } from "lucide-react";
 import { clearAdminToken } from "@/lib/adminApi";
 

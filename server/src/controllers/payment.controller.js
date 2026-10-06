@@ -89,3 +89,57 @@ export async function verifyCoursePayment(req, res, next) {
     next(e);
   }
 }
+
+export async function createSubscriptionOrder(req, res, next) {
+  try {
+    const schema = z.object({ planId: z.string().min(1) });
+    const { planId } = schema.parse(req.body);
+    if (!isValidObjectId(planId)) return failure(res, "Invalid planId", 400);
+
+    const { SubscriptionPlan } = await import("../models/SubscriptionPlan.js");
+    const plan = await SubscriptionPlan.findOne({ _id: planId, isActive: true });
+    if (!plan) return failure(res, "Subscription plan not found", 404);
+    if (plan.billingInterval === "one_time") return failure(res, "Use course checkout for one-time purchases", 400);
+
+    const intervalMap = { monthly: { period: "monthly", interval: 1 }, quarterly: { period: "monthly", interval: 3 }, yearly: { period: "yearly", interval: 1 } };
+    const interval = intervalMap[plan.billingInterval];
+    if (!interval) return failure(res, "Unsupported billing interval", 400);
+
+    if (!plan.providerPlanId) {
+      const providerPlan = await razorpay.createSubscriptionPlan({
+        name: plan.name,
+        amount: plan.price,
+        currency: plan.currency || "INR",
+        period: interval.period,
+        interval: interval.interval
+      });
+      plan.providerPlanId = providerPlan.id;
+      await plan.save();
+    }
+
+    const subscription = await razorpay.createSubscription({
+      planId: plan.providerPlanId,
+      customerNotify: 1
+    });
+
+    await Payment.create({
+      user: req.user.userId,
+      plan: plan._id,
+      amount: plan.price,
+      currency: plan.currency || "INR",
+      provider: "razorpay",
+      providerOrderId: subscription.id,
+      status: "pending",
+      metadata: { checkoutType: "subscription", subscriptionId: subscription.id }
+    });
+
+    return success(res, {
+      subscriptionId: subscription.id,
+      keyId: razorpay.getPublicKey(),
+      plan: { id: plan._id, name: plan.name, price: plan.price, currency: plan.currency, billingInterval: plan.billingInterval }
+    }, "Subscription checkout created", 201);
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}

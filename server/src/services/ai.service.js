@@ -95,9 +95,11 @@ ${JSON.stringify(videos)}
   const text = response.output_text?.trim();
   if (!text) throw new Error("AI provider returned an empty response");
 
+  const normalizedText = text.replace(/^\`\`\`json\\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
+
   let course;
   try {
-    course = JSON.parse(text);
+    course = JSON.parse(normalizedText);
   } catch {
     const error = new Error("AI provider returned invalid course JSON");
     error.status = 502;

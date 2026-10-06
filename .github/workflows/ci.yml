@@ -26,6 +26,8 @@ jobs:
         working-directory: server
     env:
       NODE_ENV: test
+      MONGO_URI: mongodb://127.0.0.1:27017/buddyforstudy_test
+      JWT_SECRET: ci-test-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

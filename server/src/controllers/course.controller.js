@@ -79,9 +79,9 @@ export async function learn(req, res, next) {
     const course = await courseService.getPublished(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
     const enrolled = await (await import("../models/Enrollment.js")).Enrollment.findOne({
-      user: req.user.userId, course: req.params.courseId, status: "active"
+      user: req.user.userId, course: req.params.courseId, status: { $in: ["active", "completed"] }
     });
-    if (!enrolled) return failure(res, "Active enrollment required", 403);
+    if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
     return success(res, { course });
   } catch (e) { next(e); }
 }
@@ -93,9 +93,9 @@ export async function learningItem(req, res, next) {
     const course = await courseService.getPublished(courseId);
     if (!course) return failure(res, "Course not found", 404);
     const enrolled = await (await import("../models/Enrollment.js")).Enrollment.findOne({
-      user: req.user.userId, course: courseId, status: "active"
+      user: req.user.userId, course: courseId, status: { $in: ["active", "completed"] }
     });
-    if (!enrolled) return failure(res, "Active enrollment required", 403);
+    if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
     const located = courseService.findLearningItem(course, itemId);
     if (!located) return failure(res, "Learning item not found", 404);
     const progress = await (await import("../models/Progress.js")).Progress.findOne({ user: req.user.userId, course: courseId });

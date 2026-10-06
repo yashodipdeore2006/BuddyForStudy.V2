@@ -3,7 +3,7 @@ import { env } from "../config/env.js";
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
-async function searchYouTube(query, maxResults = 5) {
+async function searchYouTube(query, maxResults = 8) {
   if (!env.youtubeApiKey) return [];
   const url = new URL("https://www.googleapis.com/youtube/v3/search");
   url.searchParams.set("part", "snippet");
@@ -25,43 +25,91 @@ async function searchYouTube(query, maxResults = 5) {
   }));
 }
 
-function normalizeRoadmap(course) {
-  const modules = Array.isArray(course.modules) ? course.modules : [];
-  return modules
-    .map((module, index) => ({
-      ...module,
-      order: index + 1,
-      lessons: (module.lessons || []).map((lesson, lessonIndex) => ({
-        ...lesson,
-        order: lessonIndex + 1
-      }))
-    }))
-    .filter((module) => module.title && module.lessons.length);
+function parseJson(raw) {
+  const normalized = String(raw || "").trim().replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
+  try { return JSON.parse(normalized); } catch {
+    const error = new Error("AI provider returned invalid JSON");
+    error.status = 502;
+    throw error;
+  }
 }
 
-async function buildRoadmap({ topic, level, goals }) {
-  const prompt = `
-You are BuddyForStudy's curriculum architect.
+function normalizeRoadmap(course) {
+  const modules = Array.isArray(course.modules) ? course.modules : [];
+  return {
+    ...course,
+    modules: modules
+      .map((module, index) => ({
+        ...module,
+        order: index + 1,
+        lessons: (module.lessons || []).map((lesson, lessonIndex) => ({
+          ...lesson,
+          order: lessonIndex + 1
+        }))
+      }))
+      .filter((module) => module.title && module.lessons.length)
+  };
+}
 
-The user searched for: "${topic}"
-Level: ${level}
+async function understandTopic({ topic, level, goals }) {
+  const prompt = `You are BuddyForStudy's learning-path intelligence engine.
+
+User query: "${topic}"
+Learner level: ${level}
 Goals: ${goals.join(", ") || "Become job-ready with practical projects"}
 
-First understand the user's intent. If the topic is a technology stack, decompose it into its real prerequisite technologies and teach them in dependency order.
+Convert the query into a structured skill graph. Do NOT generate videos yet.
 
-For example, for "MERN Stack", the roadmap should normally cover:
-HTML → CSS → project → JavaScript → project → React → project → Node.js → Express.js → MongoDB → full-stack project.
-Do not blindly copy this example if the user's requested stack is different. Infer the correct technologies and dependencies.
+For a technology stack, identify:
+- the actual technologies/skills
+- prerequisite relationships
+- sensible learning stages
+- practical project checkpoints
+- final capstone requirements
+
+Example only: MERN normally implies HTML/CSS fundamentals, JavaScript, React, Node.js, Express.js and MongoDB. Do not blindly copy this for other stacks.
+
+Return ONLY JSON:
+{
+  "intent": "string",
+  "canonicalTopic": "string",
+  "careerOutcome": "string",
+  "skills": [
+    {
+      "id": "stable-kebab-id",
+      "name": "string",
+      "category": "foundation|language|frontend|backend|database|devops|tooling|other",
+      "importance": "core|supporting",
+      "prerequisites": ["skill-id"],
+      "practiceProject": "string"
+    }
+  ]
+}`;
+  const response = await client.responses.create({
+    model: env.openaiModel,
+    input: [{ role: "user", content: prompt }]
+  });
+  return parseJson(response.output_text);
+}
+
+async function buildCurriculum({ understanding, level, goals }) {
+  const prompt = `You are BuddyForStudy's curriculum architect.
+
+Build a complete learning curriculum from this skill graph:
+${JSON.stringify(understanding)}
+
+Learner level: ${level}
+Goals: ${goals.join(", ") || "Become job-ready with practical projects"}
 
 Rules:
-1. Start with prerequisites before framework-specific technologies.
-2. Put a practical project after major learning stages.
-3. Projects must use only technologies already taught.
-4. Finish with an integrated capstone project using the complete requested stack.
-5. Do not put multiple unrelated technologies into one vague module.
-6. Include enough lessons to genuinely teach each technology.
-7. Every tutorial lesson needs a specific searchable topic.
-8. Every project lesson needs a concrete project brief.
+1. Respect prerequisite order. A skill cannot be taught before its prerequisites.
+2. Group closely related skills into coherent stages.
+3. Use a project checkpoint after a meaningful group of skills, not mechanically after every lesson.
+4. A project may use ONLY skills already introduced.
+5. End with an integrated capstone using the core stack.
+6. Every tutorial must have a precise searchable topic.
+7. Include learning outcomes and estimated duration.
+8. Do not invent unrelated technologies.
 9. Return ONLY valid JSON.
 
 Return:
@@ -74,17 +122,21 @@ Return:
   "learningOutcomes": ["string"],
   "modules": [
     {
-      "title": "HTML Fundamentals",
+      "title": "string",
       "description": "string",
+      "skillIds": ["skill-id"],
       "lessons": [
         {
-          "title": "specific lesson",
+          "title": "string",
           "description": "string",
           "type": "tutorial",
-          "tutorial": { "content": "string", "searchQuery": "specific YouTube search query" }
+          "tutorial": {
+            "content": "string",
+            "searchQuery": "specific YouTube search query"
+          }
         },
         {
-          "title": "HTML Project",
+          "title": "string",
           "description": "string",
           "type": "project",
           "project": {
@@ -99,25 +151,23 @@ Return:
       ]
     }
   ]
-}
-`;
-
+}`;
   const response = await client.responses.create({
     model: env.openaiModel,
     input: [{ role: "user", content: prompt }]
   });
+  return parseJson(response.output_text);
+}
 
-  const raw = response.output_text?.trim();
-  if (!raw) throw new Error("AI provider returned an empty roadmap");
-
-  const normalized = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
-  try {
-    return JSON.parse(normalized);
-  } catch {
-    const error = new Error("AI provider returned invalid roadmap JSON");
-    error.status = 502;
-    throw error;
-  }
+function scoreVideo(video, lesson) {
+  const text = `${video.title} ${video.description} ${video.channelTitle}`.toLowerCase();
+  const terms = String(lesson.title).toLowerCase().split(/[^a-z0-9+#.]+/).filter((x) => x.length > 2);
+  const queryTerms = String(lesson.tutorial?.searchQuery || "").toLowerCase().split(/[^a-z0-9+#.]+/).filter((x) => x.length > 2);
+  const exact = terms.filter((term) => text.includes(term)).length;
+  const queryMatch = queryTerms.filter((term) => text.includes(term)).length;
+  const educational = /(tutorial|course|learn|beginner|explained|full course|project)/i.test(text) ? 2 : 0;
+  const penalty = /(shorts|#shorts)/i.test(text) ? 5 : 0;
+  return exact * 3 + queryMatch + educational - penalty;
 }
 
 async function attachResources(course) {
@@ -126,12 +176,16 @@ async function attachResources(course) {
     for (const lesson of module.lessons || []) {
       if (lesson.type !== "tutorial") continue;
       const query = lesson.tutorial?.searchQuery || `${course.title} ${lesson.title} tutorial`;
-      const videos = await searchYouTube(query, 3);
+      const videos = await searchYouTube(query, 8);
+      const ranked = videos
+        .map((video) => ({ ...video, relevanceScore: scoreVideo(video, lesson) }))
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .slice(0, 3);
       lesson.tutorial ||= {};
-      lesson.tutorial.resources = videos.map((video) => video.url);
-      lesson.tutorial.videos = videos;
+      lesson.tutorial.resources = ranked.map((video) => video.url);
+      lesson.tutorial.videos = ranked;
       delete lesson.tutorial.searchQuery;
-      allSources.push(...videos);
+      allSources.push(...ranked);
     }
   }
   return allSources;
@@ -143,10 +197,16 @@ export async function generateCoursePlan({ topic, level = "Beginner", goals = []
     error.status = 503;
     throw error;
   }
-
-  const course = await buildRoadmap({ topic, level, goals });
-  course.modules = normalizeRoadmap(course);
+  const understanding = await understandTopic({ topic, level, goals });
+  const course = normalizeRoadmap(await buildCurriculum({ understanding, level, goals }));
   const sources = await attachResources(course);
-
-  return { course, sources };
+  return {
+    query: topic,
+    intent: understanding.intent,
+    canonicalTopic: understanding.canonicalTopic,
+    careerOutcome: understanding.careerOutcome,
+    skillGraph: understanding.skills,
+    course,
+    sources
+  };
 }

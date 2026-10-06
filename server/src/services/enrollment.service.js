@@ -9,7 +9,10 @@ export async function enroll(userId, courseId) {
     throw error;
   }
 
-  if (course.enrollmentEnabled === false) { const error = new Error("Enrollment is currently disabled for this course"); error.status = 403; throw error; }\n  if (course.pricing?.mode === "paid") { const error = new Error("Payment is required before enrolling in this course"); error.status = 402; throw error; }\n\n  const existing = await Enrollment.findOne({ user: userId, course: courseId });
+  if (course.enrollmentEnabled === false) { const error = new Error("Enrollment is currently disabled for this course"); error.status = 403; throw error; }
+  if (course.pricing?.mode === "paid") { const error = new Error("Payment is required before enrolling in this course"); error.status = 402; throw error; }
+
+  const existing = await Enrollment.findOne({ user: userId, course: courseId });
   if (existing) {
     if (existing.status === "cancelled") {
       existing.status = "active";

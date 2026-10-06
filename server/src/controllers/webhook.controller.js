@@ -32,11 +32,17 @@ export async function razorpayWebhook(req, res, next) {
     } else if (event.event === "subscription.activated" || event.event === "subscription.resumed") {
       const subscription = event?.payload?.subscription?.entity;
       if (subscription?.id) {
-        await UserSubscription.findOneAndUpdate(
-          { provider: "razorpay", providerSubscriptionId: subscription.id },
-          { $set: { status: "active", currentPeriodStart: subscription.current_start ? new Date(subscription.current_start * 1000) : new Date(), currentPeriodEnd: subscription.current_end ? new Date(subscription.current_end * 1000) : null } }
-        );
-        await Payment.findOneAndUpdate({ provider: "razorpay", providerOrderId: subscription.id }, { $set: { status: "paid", paidAt: new Date() } });
+        const payment = await Payment.findOne({ provider: "razorpay", providerOrderId: subscription.id });
+        if (payment) {
+          payment.status = "paid";
+          payment.paidAt = payment.paidAt || new Date();
+          await payment.save();
+          await UserSubscription.findOneAndUpdate(
+            { user: payment.user },
+            { $set: { plan: payment.plan, status: "active", provider: "razorpay", providerSubscriptionId: subscription.id, currentPeriodStart: subscription.current_start ? new Date(subscription.current_start * 1000) : new Date(), currentPeriodEnd: subscription.current_end ? new Date(subscription.current_end * 1000) : null } },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+        }
       }
     } else if (event.event === "subscription.charged") {
       const subscription = event?.payload?.subscription?.entity;

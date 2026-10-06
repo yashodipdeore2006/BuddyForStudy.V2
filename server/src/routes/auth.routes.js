@@ -7,6 +7,8 @@ const router = Router();
 router.post("/register", controller.register);
 router.post("/login", controller.login);
 router.post("/google", controller.googleLogin);
+router.put("/profile", authMiddleware, controller.updateProfile);
+router.post("/change-password", authMiddleware, controller.changePassword);
 router.post("/logout", authMiddleware, controller.logout);
 router.get("/me", authMiddleware, controller.me);
 

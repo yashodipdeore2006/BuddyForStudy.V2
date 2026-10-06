@@ -1,6 +1,19 @@
 import mongoose from "mongoose";
 
-const tutorialSchema = new mongoose.Schema({ content: { type: String, default: "" }, resources: { type: [String], default: [] } }, { _id: false });
+const videoResourceSchema = new mongoose.Schema({
+  videoId: { type: String, default: "" },
+  title: { type: String, default: "" },
+  description: { type: String, default: "" },
+  channelTitle: { type: String, default: "" },
+  publishedAt: { type: Date, default: null },
+  url: { type: String, default: "" },
+  thumbnail: { type: String, default: "" }
+}, { _id: false });
+const tutorialSchema = new mongoose.Schema({
+  content: { type: String, default: "" },
+  resources: { type: [String], default: [] },
+  videos: { type: [videoResourceSchema], default: [] }
+}, { _id: false });
 const projectSchema = new mongoose.Schema({
   description: { type: String, default: "" }, objectives: { type: [String], default: [] }, requirements: { type: [String], default: [] },
   instructions: { type: String, default: "" }, expectedOutcome: { type: String, default: "" }, resources: { type: [String], default: [] }, submissionRequirements: { type: [String], default: [] }

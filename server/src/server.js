@@ -18,6 +18,7 @@ import roadmapRoutes from "./routes/roadmap.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import achievementRoutes from "./routes/achievement.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
+import webhookRoutes from "./routes/webhook.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -28,7 +29,7 @@ app.use(cors({
   origin: env.clientUrl,
   credentials: false
 }));
-app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl === "/api/payments/webhook") req.rawBody = Buffer.from(buf); } }));
+app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl === "/api/webhooks/razorpay") req.rawBody = Buffer.from(buf); } }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -58,6 +59,7 @@ app.use("/api/roadmaps", roadmapRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/achievements", achievementRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/webhooks", webhookRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

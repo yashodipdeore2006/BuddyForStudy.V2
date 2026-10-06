@@ -63,6 +63,7 @@ export async function completeItem(userId, courseId, itemId) {
 
   progress.totalLessons = totalLessons(course);
   progress.lastAccessedAt = new Date();
+  progress.lastLessonId = located.item._id;
 
   const alreadyCompleted = progress.completedLessons.some(
     (entry) => entry.lessonId.toString() === itemId

@@ -9,11 +9,11 @@ const schema = z.object({
   goals: z.array(z.string().trim().min(1)).max(20).default([])
 });
 
-export async function generateCourse(req, res, next) {
+export async function generateRoadmap(req, res, next) {
   try {
     const input = schema.parse(req.body);
     const result = await generateCoursePlan(input);
-    return success(res, result, "AI course generated successfully");
+    return success(res, result, "AI learning roadmap generated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

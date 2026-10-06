@@ -43,6 +43,22 @@ export async function get(req, res, next) {
   } catch (e) { next(e); }
 }
 
+const quizSchema = z.object({
+  moduleIndex: z.number().int().min(0),
+  answers: z.array(z.number().int().min(0)).max(20)
+});
+
+export async function submitQuiz(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
+    const input = quizSchema.parse(req.body);
+    return success(res, { roadmap: await service.submitQuiz(req.user.userId, req.params.roadmapId, input.moduleIndex, input.answers) }, "Quiz submitted");
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}
+
 export async function complete(req, res, next) {
   try {
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);

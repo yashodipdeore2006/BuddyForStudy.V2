@@ -7,7 +7,7 @@ import { recordLearningActivity } from "./achievement.service.js";
 async function getAuthorizedCourse(userId, courseId) {
   const [course, enrollment] = await Promise.all([
     Course.findOne({ _id: courseId, isPublished: true }),
-    Enrollment.findOne({ user: userId, course: courseId, status: "active" })
+    Enrollment.findOne({ user: userId, course: courseId, status: { $in: ["active", "completed"] } })
   ]);
 
   if (!course) {
@@ -17,7 +17,7 @@ async function getAuthorizedCourse(userId, courseId) {
   }
 
   if (!enrollment) {
-    const error = new Error("Active enrollment required");
+    const error = new Error("Active or completed enrollment required");
     error.status = 403;
     throw error;
   }

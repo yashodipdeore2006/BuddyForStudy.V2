@@ -28,7 +28,9 @@ export async function createSubscriptionPlan({ name, amount, currency, interval,
 
 export async function createSubscription({ planId, customerNotify = 1, totalCount }) {
   const client = getClient();
-  return client.subscriptions.create({ plan_id: planId, customer_notify: customerNotify, total_count: totalCount });
+  const payload = { plan_id: planId, customer_notify: customerNotify };
+  if (Number.isInteger(totalCount) && totalCount > 0) payload.total_count = totalCount;
+  return client.subscriptions.create(payload);
 }
 
 export function getPublicKey() {
@@ -41,17 +43,19 @@ export function getPublicKey() {
 }
 
 export function verifyPaymentSignature({ orderId, paymentId, signature, secret = env.razorpayKeySecret }) {
-  if (!orderId || !paymentId || !signature) return false;
+  if (!orderId || !paymentId || !signature || !secret) return false;
   const expected = crypto.createHmac("sha256", secret)
     .update(orderId + "|" + paymentId)
     .digest("hex");
-  const expectedBuffer = Buffer.from(expected);
-  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const actualBuffer = Buffer.from(signature, "utf8");
   return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }
 
-export function verifyWebhookSignature(rawBody, signature, webhookSecret) {
+export function verifyWebhookSignature(rawBody, signature, webhookSecret = env.razorpayWebhookSecret) {
   if (!rawBody || !signature || !webhookSecret) return false;
   const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const actualBuffer = Buffer.from(signature, "utf8");
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 }

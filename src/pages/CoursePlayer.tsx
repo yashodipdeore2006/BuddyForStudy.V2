@@ -237,8 +237,10 @@ export default function CoursePlayer() {
                   {currentLesson.lesson.tutorial?.resources?.length ? (
                     <div className="space-y-2">
                       <h2 className="text-lg font-semibold text-slate-900">Resources</h2>
-                      {currentLesson.lesson.tutorial.resources.map((resource: string) => (
-                        <a key={resource} href={resource} target="_blank" rel="noreferrer" className="block text-blue-600 hover:underline">{resource}</a>
+                      {currentLesson.lesson.tutorial.resources.map((resource) => (
+                        <a key={resource.url || resource.title} href={resource.url} target="_blank" rel="noreferrer" className="block text-blue-600 hover:underline">
+                          {resource.title || resource.url}
+                        </a>
                       ))}
                     </div>
                   ) : null}

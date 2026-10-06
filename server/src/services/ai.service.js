@@ -126,6 +126,17 @@ Return:
       "title": "string",
       "description": "string",
       "skillIds": ["skill-id"],
+      "quiz": {
+        "title": "Module quiz",
+        "questions": [
+          {
+            "question": "string",
+            "options": ["string", "string", "string", "string"],
+            "answer": 0,
+            "explanation": "string"
+          }
+        ]
+      },
       "lessons": [
         {
           "title": "string",

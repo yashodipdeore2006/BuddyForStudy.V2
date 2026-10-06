@@ -21,6 +21,16 @@ export async function createOrder({ amount, currency, receipt, notes = {} }) {
   });
 }
 
+export async function createSubscriptionPlan({ name, amount, currency, interval, period }) {
+  const client = getClient();
+  return client.plans.create({ period, interval, item: { name, amount: Math.round(amount * 100), currency, description: name } });
+}
+
+export async function createSubscription({ planId, customerNotify = 1, totalCount }) {
+  const client = getClient();
+  return client.subscriptions.create({ plan_id: planId, customer_notify: customerNotify, total_count: totalCount });
+}
+
 export function getPublicKey() {
   if (!env.razorpayKeyId) {
     const error = new Error("Razorpay is not configured");

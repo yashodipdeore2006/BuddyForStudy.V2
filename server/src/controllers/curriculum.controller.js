@@ -37,10 +37,11 @@ export async function createModule(req, res, next) {
   try {
     const input = moduleSchema.parse(req.body);
     const course = await getCourse(req.params.courseId);
-    course.modules.push({ ...input, lessons: [] });
+    const module = course.modules.create({ ...input, lessons: [] });
+    course.modules.push(module);
     course.modules.sort((a, b) => a.order - b.order);
     await course.save();
-    return success(res, { module: course.modules[course.modules.length - 1] }, "Module created successfully", 201);
+    return success(res, { module }, "Module created successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);
@@ -82,10 +83,10 @@ export async function createLesson(req, res, next) {
     const course = await getCourse(req.params.courseId);
     const module = course.modules.id(req.params.moduleId);
     if (!module) return failure(res, "Module not found", 404);
-    module.lessons.push(input);
+    const lesson = module.lessons.create(input);
+    module.lessons.push(lesson);
     module.lessons.sort((a, b) => a.order - b.order);
     await course.save();
-    const lesson = module.lessons[module.lessons.length - 1];
     return success(res, { lesson }, "Lesson created successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);

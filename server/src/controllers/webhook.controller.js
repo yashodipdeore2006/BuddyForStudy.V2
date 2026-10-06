@@ -7,7 +7,7 @@ import { success, failure } from "../utils/response.js";
 export async function razorpayWebhook(req, res, next) {
   try {
     const signature = req.get("x-razorpay-signature");
-    if (!razorpay.verifyWebhookSignature(req.rawBody, signature, env.razorpayWebhookSecret)) {
+    if (!req.rawBody || !razorpay.verifyWebhookSignature(req.rawBody, signature, env.razorpayWebhookSecret)) {
       return failure(res, "Invalid webhook signature", 400);
     }
 

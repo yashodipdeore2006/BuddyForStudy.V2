@@ -13,6 +13,7 @@ const progressSchema = new mongoose.Schema({
   completedCount: { type: Number, default: 0, min: 0 },
   totalLessons: { type: Number, default: 0, min: 0 },
   percentage: { type: Number, default: 0, min: 0, max: 100 },
+  lastLessonId: { type: mongoose.Schema.Types.ObjectId, default: null },
   lastAccessedAt: { type: Date }
 }, { timestamps: true, collection: "progress" });
 

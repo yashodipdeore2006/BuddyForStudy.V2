@@ -4,7 +4,7 @@ function flattenLessons(course) {
   let order = 0;
   return (course.modules || []).flatMap((module) =>
     (module.lessons || []).map((lesson) => ({
-      lessonId: String(lesson.id || lesson._id || (++order)),
+      lessonId: String(lesson.id || lesson._id || `module-${module.order || "x"}-lesson-${lesson.order || (++order)}`),
       title: lesson.title,
       type: lesson.type,
       moduleTitle: module.title,

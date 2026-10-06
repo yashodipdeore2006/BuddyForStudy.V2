@@ -4,6 +4,7 @@ import { Payment } from "../models/Payment.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { verifyPaymentSignature } from "../services/razorpay.service.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
@@ -49,6 +50,40 @@ export async function createCourseOrder(req, res, next) {
       keyId: razorpay.getPublicKey(),
       course: { id: course._id, title: course.title, amount }
     }, "Checkout order created", 201);
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}
+
+export async function verifyCoursePayment(req, res, next) {
+  try {
+    const schema = z.object({
+      paymentId: z.string().min(1),
+      razorpayOrderId: z.string().min(1),
+      razorpayPaymentId: z.string().min(1),
+      razorpaySignature: z.string().min(1)
+    });
+    const input = schema.parse(req.body);
+    const payment = await Payment.findOne({
+      _id: input.paymentId,
+      user: req.user.userId,
+      provider: "razorpay"
+    });
+    if (!payment) return failure(res, "Payment record not found", 404);
+    if (payment.providerOrderId !== input.razorpayOrderId) return failure(res, "Order mismatch", 400);
+    if (!verifyPaymentSignature({
+      orderId: payment.providerOrderId,
+      paymentId: input.razorpayPaymentId,
+      signature: input.razorpaySignature
+    })) return failure(res, "Invalid payment signature", 400);
+
+    payment.providerPaymentId = input.razorpayPaymentId;
+    payment.status = "paid";
+    payment.paidAt = payment.paidAt || new Date();
+    await payment.save();
+
+    return success(res, { payment }, "Payment verified successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

@@ -13,7 +13,7 @@ async function ensureEnrolled(userId, courseId) {
 
 export async function listReviews(courseId) {
   const reviews = await Review.find({ course: courseId })
-    .populate("user", "name email")
+    .populate("user", "name")
     .sort({ createdAt: -1 })
     .lean();
   const stats = reviews.reduce((acc, review) => {

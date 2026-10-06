@@ -14,145 +14,52 @@ import CoursePlayer from '@/pages/CoursePlayer';
 import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import Notifications from '@/pages/Notifications';
-import AdminDashboard from '@/pages/admin/AdminDashboard';
-import AdminUsers from '@/pages/admin/AdminUsers';
-import AdminCourses from '@/pages/admin/AdminCourses';
-import CourseBuilder from '@/pages/admin/CourseBuilder';
-import AdminAnalytics from '@/pages/admin/AdminAnalytics';
+import AdminLogin from '@/pages/admin/AdminLogin';
+import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
+import AdminControlCenter from '@/pages/admin/AdminControlCenter';
+import AdminUsersPro from '@/pages/admin/AdminUsersPro';
+import AdminCoursesPro from '@/pages/admin/AdminCoursesPro';
+import AdminPlans from '@/pages/admin/AdminPlans';
+import AdminBilling from '@/pages/admin/AdminBilling';
+import AdminCommunications from '@/pages/admin/AdminCommunications';
+import AdminSettings from '@/pages/admin/AdminSettings';
+import AdminAudit from '@/pages/admin/AdminAudit';
+import AdminCoupons from '@/pages/admin/AdminCoupons';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const isPlayerPage = pathname.startsWith('/learn/');
+  const isAdmin = pathname.startsWith('/admin');
+  return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}</div>;
+}
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      {!isPlayerPage && <Navbar />}
-      <main className="flex-1">{children}</main>
-      {!isPlayerPage && <Footer />}
-    </div>
-  );
+function AdminPage({ children }: { children: React.ReactNode }) {
+  return <AdminGuard><AdminLayout>{children}</AdminLayout></AdminGuard>;
 }
 
 function App() {
-  return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/courses" element={<Courses />} />
-            <Route path="/courses/:courseId" element={<CourseDetails />} />
+  return <AuthProvider><BrowserRouter><Layout><Routes>
+    <Route path="/" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
+    <Route path="/courses" element={<Courses />} /><Route path="/courses/:courseId" element={<CourseDetails />} />
+    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+    <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
+    <Route path="/learn/:courseId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
+    <Route path="/learn/:courseId/:lessonId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
+    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+    <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+    <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
-            {/* Student routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/my-courses"
-              element={
-                <ProtectedRoute>
-                  <MyCourses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/learn/:courseId"
-              element={
-                <ProtectedRoute>
-                  <CoursePlayer />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/learn/:courseId/:lessonId"
-              element={
-                <ProtectedRoute>
-                  <CoursePlayer />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <ProtectedRoute>
-                  <Notifications />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Admin routes */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminUsers />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/courses"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminCourses />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/courses/:courseId"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <CourseBuilder />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/analytics"
-              element={
-                <ProtectedRoute requireAdmin>
-                  <AdminAnalytics />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Fallback */}
-            <Route path="*" element={<Home />} />
-          </Routes>
-        </Layout>
-      </BrowserRouter>
-    </AuthProvider>
-  );
+    <Route path="/admin/login" element={<AdminLogin />} />
+    <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />
+    <Route path="/admin/users" element={<AdminPage><AdminUsersPro /></AdminPage>} />
+    <Route path="/admin/courses" element={<AdminPage><AdminCoursesPro /></AdminPage>} />
+    <Route path="/admin/plans" element={<AdminPage><AdminPlans /></AdminPage>} />
+    <Route path="/admin/billing" element={<AdminPage><AdminBilling /></AdminPage>} />
+    <Route path="/admin/communications" element={<AdminPage><AdminCommunications /></AdminPage>} />
+    <Route path="/admin/coupons" element={<AdminPage><AdminCoupons /></AdminPage>} />
+    <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
+    <Route path="/admin/audit" element={<AdminPage><AdminAudit /></AdminPage>} />
+    <Route path="*" element={<Home />} />
+  </Routes></Layout></BrowserRouter></AuthProvider>;
 }
-
 export default App;

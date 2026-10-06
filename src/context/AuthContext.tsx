@@ -9,46 +9,72 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email:string,password:string)=>Promise<Profile>;
   signUp: (name:string,email:string,password:string)=>Promise<Profile>;
+  signInWithGoogle: (credential:string)=>Promise<Profile>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function profileFromUser(u:any):Profile {
+  return {id:u.id,name:u.name,role:u.role,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session,setSession]=useState<AppSession|null>(null);
   const [profile,setProfile]=useState<Profile|null>(null);
   const [loading,setLoading]=useState(true);
 
+  const applyUser = (u:any) => {
+    const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,profileImage:u.profileImage}};
+    setSession(s);
+    setProfile(profileFromUser(u));
+  };
+
   const hydrate = async () => {
     const token=getToken();
     if(!token){setLoading(false);return;}
     try {
       const data=await apiFetch('/api/auth/me');
-      const u=data.user;
-      const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,profileImage:u.profileImage}};
-      setSession(s);
-      setProfile({id:u.id,name:u.name,role:u.role,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()});
-    } catch { clearAuth(); setSession(null); setProfile(null); }
-    finally { setLoading(false); }
+      applyUser(data.user);
+    } catch {
+      clearAuth(); setSession(null); setProfile(null);
+    } finally { setLoading(false); }
   };
-  useEffect(()=>{hydrate();},[]);
+
+  useEffect(()=>{ void hydrate(); },[]);
 
   const signIn=async(email:string,password:string)=>{
     const data=await apiFetch('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
     setAuth(data.token,data.user);
-    const u=data.user; const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,profileImage:u.profileImage}};
-    setSession(s); setProfile({id:u.id,name:u.name,role:u.role,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()});
-    return profileFromUser(u);
+    applyUser(data.user);
+    return profileFromUser(data.user);
   };
+
   const signUp=async(name:string,email:string,password:string)=>{
     const data=await apiFetch('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
     setAuth(data.token,data.user);
-    const u=data.user; setSession({user:{id:u.id,email:u.email,name:u.name,role:u.role,profileImage:u.profileImage}});
-    const p=profileFromUser(u); setProfile(p); return p;
+    applyUser(data.user);
+    return profileFromUser(data.user);
   };
-  const signOut=async()=>{try{if(getToken()) await apiFetch('/api/auth/logout',{method:'POST'});}catch{} clearAuth();setSession(null);setProfile(null);};
-  const refreshProfile=async()=>{const data=await apiFetch('/api/auth/me');const u=data.user;setSession({user:{id:u.id,email:u.email,name:u.name,role:u.role,profileImage:u.profileImage}});setProfile(profileFromUser(u));};
-  return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
+
+  const signInWithGoogle=async(credential:string)=>{
+    const data=await apiFetch('/api/auth/google',{method:'POST',body:JSON.stringify({credential})});
+    setAuth(data.token,data.user);
+    applyUser(data.user);
+    return profileFromUser(data.user);
+  };
+
+  const signOut=async()=>{
+    try{if(getToken()) await apiFetch('/api/auth/logout',{method:'POST'});}catch{}
+    clearAuth();setSession(null);setProfile(null);
+  };
+
+  const refreshProfile=async()=>{
+    const data=await apiFetch('/api/auth/me');
+    applyUser(data.user);
+  };
+
+  return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,signInWithGoogle,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
 }
-function profileFromUser(u:any):Profile{return {id:u.id,name:u.name,role:u.role,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};}
+
 export function useAuth(){const ctx=useContext(AuthContext);if(!ctx)throw new Error('useAuth must be used within AuthProvider');return ctx;}

@@ -22,6 +22,7 @@ export async function authMiddleware(req, res, next) {
     req.user = {
       userId: user._id.toString(),
       role: user.role,
+      accessType: payload.accessType || "user",
       user
     };
 
@@ -36,8 +37,8 @@ export async function authMiddleware(req, res, next) {
 }
 
 export function adminMiddleware(req, res, next) {
-  if (req.user?.role !== "admin") {
-    return failure(res, "Administrator access required", 403);
+  if (req.user?.role !== "admin" || req.user?.accessType !== "admin") {
+    return failure(res, "Administrator access required. Use the admin login.", 403);
   }
   next();
 }

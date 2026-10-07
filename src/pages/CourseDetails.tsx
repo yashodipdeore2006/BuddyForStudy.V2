@@ -108,7 +108,6 @@ export default function CourseDetails() {
               total_lessons: rawProgress.totalLessons ?? 0,
               last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
               percentage: rawProgress.percentage ?? 0,
-              last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
               last_accessed_at: rawProgress.lastAccessedAt ?? null,
               created_at: rawProgress.createdAt ?? '',
               updated_at: rawProgress.updatedAt ?? '',

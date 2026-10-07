@@ -47,6 +47,10 @@ export default function Courses() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [savingRoadmap, setSavingRoadmap] = useState(false);
   const [savedRoadmapId, setSavedRoadmapId] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiGoal, setAiGoal] = useState('Get job-ready');
+  const [aiStudyTime, setAiStudyTime] = useState(60);
+  const [aiKnownSkills, setAiKnownSkills] = useState('');
 
   useEffect(() => {
     async function fetchCourses() {
@@ -144,7 +148,9 @@ export default function Courses() {
         body: JSON.stringify({
           topic,
           level: selectedLevel === 'all' ? 'Beginner' : selectedLevel,
-          goals: ['Become job-ready with practical projects'],
+          goals: [aiGoal],
+          studyTimeMinutesPerDay: aiStudyTime,
+          knownSkills: aiKnownSkills.split(',').map((item) => item.trim()).filter(Boolean),
         }),
       });
       setAiRoadmap(data);
@@ -208,7 +214,7 @@ export default function Courses() {
           </button>
           <button
             type="button"
-            onClick={generateAiRoadmap}
+            onClick={() => { setAiOpen(true); setAiError(null); }}
             disabled={aiLoading}
             className="btn-secondary h-11 justify-center whitespace-nowrap lg:min-w-36"
           >
@@ -267,6 +273,53 @@ export default function Courses() {
         </div>
       </div>
 
+      {aiOpen && (
+        <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/50 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Architect</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">Build a roadmap for your goal</h2>
+              <p className="mt-1 text-sm text-slate-500">AI will order prerequisites, choose projects, estimate your schedule, and find tutorial resources.</p>
+            </div>
+            <button type="button" onClick={() => setAiOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-700" aria-label="Close AI builder">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <label className="text-xs font-semibold text-slate-600">
+              Goal
+              <select value={aiGoal} onChange={(e) => setAiGoal(e.target.value)} className="input-field mt-1 h-10 w-full text-sm">
+                <option>Get job-ready</option>
+                <option>Build real projects</option>
+                <option>Prepare for interviews</option>
+                <option>Learn for exams</option>
+                <option>Master the fundamentals</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Study time per day
+              <select value={aiStudyTime} onChange={(e) => setAiStudyTime(Number(e.target.value))} className="input-field mt-1 h-10 w-full text-sm">
+                <option value={30}>30 minutes</option>
+                <option value={60}>1 hour</option>
+                <option value={90}>1.5 hours</option>
+                <option value={120}>2 hours</option>
+                <option value={180}>3 hours</option>
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
+              Skills you already know
+              <input value={aiKnownSkills} onChange={(e) => setAiKnownSkills(e.target.value)} className="input-field mt-1 h-10 w-full text-sm" placeholder="e.g. HTML, CSS, JavaScript" />
+            </label>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">Topic: <span className="font-semibold text-slate-700">{searchQuery.trim() || 'Enter a topic above'}</span></p>
+            <button type="button" onClick={generateAiRoadmap} disabled={aiLoading} className="btn-primary">
+              {aiLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Building your path...</> : <><Sparkles className="h-4 w-4" />Build Personalized Roadmap</>}
+            </button>
+          </div>
+        </div>
+      )}
+
       {aiError && (
         <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
           {aiError}
@@ -312,6 +365,18 @@ export default function Courses() {
               </button>
             </div>
           </div>
+
+          {aiRoadmap.personalization && (
+            <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">Why this path?</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded-full bg-white px-3 py-1">{aiRoadmap.personalization.studyTimeMinutesPerDay} min/day</span>
+                <span className="rounded-full bg-white px-3 py-1">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
+                {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1 text-green-700">Skipped: {skill}</span>)}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">{aiRoadmap.personalization.rationale?.join(' ')}</p>
+            </div>
+          )}
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {(aiRoadmap.skillGraph || []).map((skill: any) => (

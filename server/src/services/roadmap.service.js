@@ -26,7 +26,7 @@ export async function saveRoadmap(userId, input) {
     user: userId, query: input.query, canonicalTopic: input.canonicalTopic,
     intent: input.intent, careerOutcome: input.careerOutcome,
     level: input.course.level || input.level || "Beginner",
-    course: input.course, skillGraph: input.skillGraph || [],
+    course: input.course, skillGraph: input.skillGraph || [], personalization: input.personalization || {},
     lessons: flattenLessons(input.course)
   });
   return decorate(roadmap);

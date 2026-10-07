@@ -39,7 +39,8 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
   credentialHandlerRef.current = onCredential;
 
   useEffect(() => {
-    activeCredentialHandler = (credential) => credentialHandlerRef.current(credential);
+    const credentialHandler = (credential: string) => credentialHandlerRef.current(credential);
+    activeCredentialHandler = credentialHandler;
 
     let cancelled = false;
     let attempts = 0;
@@ -85,7 +86,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
 
     return () => {
       cancelled = true;
-      if (activeCredentialHandler === credentialHandlerRef.current) {
+      if (activeCredentialHandler === credentialHandler) {
         activeCredentialHandler = null;
       }
     };

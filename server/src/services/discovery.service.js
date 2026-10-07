@@ -10,11 +10,22 @@ async function youtubeRequest(endpoint, params) {
   }
   const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
   Object.entries({ ...params, key: env.youtubeApiKey }).forEach(([key, value]) => url.searchParams.set(key, String(value)));
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      "x-goog-api-key": env.youtubeApiKey
+    }
+  });
   const data = await response.json();
   if (!response.ok) {
-    const reason = data?.error?.errors?.[0]?.reason || data?.error?.message || "unknown error";
-    throw new Error(`YouTube ${endpoint} failed: ${reason}`);
+    const reason =
+      data?.error?.errors?.[0]?.reason ||
+      data?.error?.status ||
+      data?.error?.message ||
+      "unknown error";
+    const error = new Error(`YouTube ${endpoint} failed: ${reason}`);
+    error.status = response.status === 403 ? 503 : response.status;
+    error.code = reason;
+    throw error;
   }
   return data;
 }

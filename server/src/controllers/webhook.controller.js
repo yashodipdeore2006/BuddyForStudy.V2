@@ -99,6 +99,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
 }
 
 export async function razorpayWebhook(req, res, next) {
+  let claimedEventId = "";
   try {
     const signature = req.get("x-razorpay-signature");
     if (!req.rawBody || !razorpay.verifyWebhookSignature(req.rawBody, signature, env.razorpayWebhookSecret)) {
@@ -106,6 +107,7 @@ export async function razorpayWebhook(req, res, next) {
     }
 
     const event = req.body;
+    claimedEventId = eventId(req);
     const claimed = await claimEvent(req, event);
     if (!claimed) return success(res, { received: true, duplicate: true });
 
@@ -177,6 +179,7 @@ export async function razorpayWebhook(req, res, next) {
 
     return success(res, { received: true });
   } catch (e) {
+    if (claimedEventId) await WebhookEvent.deleteOne({ eventId: claimedEventId }).catch(() => {});
     next(e);
   }
 }

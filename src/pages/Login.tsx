@@ -14,6 +14,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname;
 
@@ -44,11 +45,14 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNeedsVerification(false);
     setLoading(true);
     try {
       await signIn(email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(message);
+      setNeedsVerification(message.toLowerCase().includes('email not verified'));
     } finally {
       setLoading(false);
     }
@@ -93,7 +97,10 @@ export default function Login() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <label className="text-sm font-medium text-slate-700">Password</label>
+            <Link to="/forgot-password" className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot password?</Link>
+          </div>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -115,6 +122,16 @@ export default function Login() {
             </button>
           </div>
         </div>
+
+        {needsVerification && (
+          <Link
+            to="/verify-email"
+            state={{ email }}
+            className="block rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700 hover:bg-blue-100"
+          >
+            Verify your email
+          </Link>
+        )}
 
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? 'Signing in...' : 'Sign In'}

@@ -49,18 +49,49 @@ export default function CourseDetails() {
 
   useEffect(() => {
     async function fetchCourse() {
-      if (!courseId) return;
+      if (!courseId) {
+        setError('Invalid course');
+        setLoading(false);
+        return;
+      }
+
       try {
+        // The course itself is the primary resource. Optional review/enrollment
+        // requests must never block the course page from rendering.
         const data = await apiFetch(`/api/courses/${courseId}`);
-        const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
-        setReviews(reviewData.reviews || []);
-        setReviewStats(reviewData.stats || { count: 0, average: 0 });
         const raw = data.course;
-        setCourse({ ...raw, id: raw._id, learning_outcomes: raw.learningOutcomes || [], is_published: raw.isPublished, created_at: raw.createdAt, updated_at: raw.updatedAt, modules: (raw.modules || []).map((m:any)=>({ ...m, id:m._id, lessons:(m.lessons||[]).map((l:any)=>({...l,id:l._id})) })) } as Course);
+        setCourse({
+          ...raw,
+          id: String(raw._id ?? raw.id),
+          learning_outcomes: raw.learningOutcomes || [],
+          is_published: raw.isPublished,
+          created_at: raw.createdAt,
+          updated_at: raw.updatedAt,
+          modules: (raw.modules || []).map((m: any) => ({
+            ...m,
+            id: String(m._id ?? m.id),
+            lessons: (m.lessons || []).map((l: any) => ({
+              ...l,
+              id: String(l._id ?? l.id),
+            })),
+          })),
+        } as Course);
+
+        // Reviews are secondary content. A review API failure must not make
+        // an otherwise valid course appear to be stuck loading.
+        try {
+          const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
+          setReviews(reviewData.reviews || []);
+          setReviewStats(reviewData.stats || { count: 0, average: 0 });
+        } catch (reviewError) {
+          console.warn('Course reviews unavailable:', reviewError);
+        }
+
         if (session) {
           try {
             const eData = await apiFetch(`/api/enrollments/course/${courseId}`);
             setEnrollment(eData.enrollment);
+
             const pData = await apiFetch(`/api/progress/${courseId}`);
             const rawProgress = pData.progress;
             setProgress({
@@ -76,15 +107,21 @@ export default function CourseDetails() {
               completed_count: rawProgress.completedCount ?? 0,
               total_lessons: rawProgress.totalLessons ?? 0,
               last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
+              percentage: rawProgress.percentage ?? 0,
+              last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
               last_accessed_at: rawProgress.lastAccessedAt ?? null,
               created_at: rawProgress.createdAt ?? '',
               updated_at: rawProgress.updatedAt ?? '',
             } as Progress);
-          } catch {}
+          } catch (learningError) {
+            console.warn('Course enrollment/progress unavailable:', learningError);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load course');
-      } finally { setLoading(false); }
+      } finally {
+        setLoading(false);
+      }
     }
     fetchCourse();
   }, [courseId, session]);

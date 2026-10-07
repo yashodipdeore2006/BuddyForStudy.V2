@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { apiFetch, clearAuth, getToken, setAuth } from '@/lib/api';
 import type { Profile } from '@/types';
 
-export interface AppSession { user: { id: string; email: string; name: string; role: 'user'|'admin'; profileImage?: string; }; }
+export interface AppSession { user: { id: string; email: string; name: string; role: 'user'|'admin'; authProvider: 'local'|'google'|'local_google'; profileImage?: string; }; }
 interface AuthContextValue {
   session: AppSession | null;
   profile: Profile | null;
@@ -16,7 +16,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function profileFromUser(u:any):Profile {
-  return {id:u.id,name:u.name,role:u.role,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+  return {id:u.id,name:u.name,role:u.role,auth_provider:u.authProvider,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading,setLoading]=useState(true);
 
   const applyUser = (u:any) => {
-    const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,profileImage:u.profileImage}};
+    const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,authProvider:u.authProvider,profileImage:u.profileImage}};
     setSession(s);
     setProfile(profileFromUser(u));
   };

@@ -144,10 +144,10 @@ export default function CoursePlayer() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className={classNames(
-        "fixed inset-y-0 left-0 z-50 w-80 transform border-r border-slate-200 bg-white transition-transform lg:relative lg:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        "order-2 fixed inset-y-0 right-0 z-50 flex h-screen w-80 transform flex-col border-l border-slate-200 bg-white shadow-2xl transition-transform lg:sticky lg:top-0 lg:translate-x-0 lg:shadow-none",
+        sidebarOpen ? "translate-x-0" : "translate-x-full"
       )}>
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+        <div className="flex h-16 flex-shrink-0 items-center justify-between border-b border-slate-200 px-4">
           <Link to={`/courses/${courseId}`} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <ArrowLeft className="h-4 w-4" />Course Details
           </Link>
@@ -163,7 +163,7 @@ export default function CoursePlayer() {
             <div className="h-full rounded-full bg-blue-600" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
-        <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {course.modules.map((module, index) => (
             <div key={module.id} className="border-b border-slate-100">
               <div className="bg-slate-50 px-4 py-3">
@@ -190,7 +190,7 @@ export default function CoursePlayer() {
 
       {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-      <main className="min-w-0 flex-1">
+      <main className="order-1 min-w-0 flex-1">
         <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4">
           <button className="lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open course menu"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0 flex-1 px-3">

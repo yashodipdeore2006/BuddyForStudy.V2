@@ -3,6 +3,7 @@ import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
+import { buildTopicKeys } from "./generatedCourseCache.service.js";
 
 function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");

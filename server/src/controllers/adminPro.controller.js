@@ -17,6 +17,7 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { cacheDelete } from "../config/cache.js";
+import { getPlaylistCourse } from "../services/discovery.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   await AuditLog.create({
@@ -147,11 +148,8 @@ export async function updateCourseTutorial(req, res, next) {
 
     const lessonId = String(req.body.lessonId || "");
     const moduleId = String(req.body.moduleId || "");
-    const videoUrl = String(req.body.videoUrl || "").trim();
-    if (!videoUrl) return failure(res, "videoUrl is required", 400);
-
-    const videoId = extractYouTubeVideoId(videoUrl);
-    if (!videoId) return failure(res, "Enter a valid YouTube video URL", 400);
+    const resourceUrl = String(req.body.resourceUrl || req.body.videoUrl || "").trim();
+    if (!resourceUrl) return failure(res, "YouTube video or playlist URL is required", 400);
 
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
@@ -162,97 +160,120 @@ export async function updateCourseTutorial(req, res, next) {
     if (lessonId) {
       for (const module of course.modules || []) {
         const lesson = (module.lessons || []).find((item) => String(item._id) === lessonId);
-        if (lesson) {
-          targetLesson = lesson;
-          targetModule = module;
-          break;
-        }
+        if (lesson) { targetLesson = lesson; targetModule = module; break; }
       }
-
       if (!targetLesson || !targetModule) return failure(res, "Tutorial lesson not found", 404);
-      if (targetLesson.type !== "tutorial") {
-        return failure(res, "Only tutorial lessons can have a YouTube video replaced", 400);
-      }
+      if (targetLesson.type !== "tutorial") return failure(res, "Only tutorial lessons can have a YouTube resource", 400);
     } else if (moduleId) {
       targetModule = (course.modules || []).find((module) => String(module._id) === moduleId);
       if (!targetModule) return failure(res, "Course module not found", 404);
-
-      targetModule.lessons ||= [];
-      targetLesson = (targetModule.lessons || []).find((lesson) => lesson.type === "tutorial") || null;
-
-      if (!targetLesson) {
-        targetLesson = targetModule.lessons.create({
-          title: String(req.body.lessonTitle || `Learn ${targetModule.title}`).trim(),
-          description: "",
-          type: "tutorial",
-          order: targetModule.lessons.length + 1,
-          tutorial: {
-            content: "",
-            resources: [],
-            videos: []
-          }
-        });
-        targetModule.lessons.push(targetLesson);
-      }
     } else {
       return failure(res, "lessonId or moduleId is required", 400);
     }
 
     const before = {
       moduleTitle: targetModule.title,
-      lessonId: String(targetLesson._id),
-      lessonTitle: targetLesson.title,
-      videos: targetLesson.tutorial?.videos || [],
-      resources: targetLesson.tutorial?.resources || []
+      lessons: (targetModule.lessons || []).map((lesson) => ({
+        id: String(lesson._id), title: lesson.title, type: lesson.type, videos: lesson.tutorial?.videos || []
+      }))
     };
 
-    const currentVideo = targetLesson.tutorial?.videos?.[0] || {};
-    const updatedVideo = {
-      videoId,
-      title: req.body.title ? String(req.body.title).trim() : (currentVideo.title || targetLesson.title || "Admin-selected YouTube video"),
-      description: currentVideo.description || "",
-      channelTitle: currentVideo.channelTitle || "",
-      publishedAt: currentVideo.publishedAt || null,
-      url: `https://www.youtube.com/watch?v=${videoId}`,
-      thumbnail: currentVideo.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-      embedUrl: `https://www.youtube.com/embed/${videoId}`
-    };
+    const url = new URL(resourceUrl);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const playlistId = (host === "youtube.com" || host === "m.youtube.com") ? url.searchParams.get("list") : null;
 
-    targetLesson.tutorial ||= {};
-    targetLesson.tutorial.videos = [updatedVideo];
-    targetLesson.tutorial.resources = [updatedVideo.url];
+    if (playlistId) {
+      if (lessonId) return failure(res, "Use a playlist URL on a module, not on an individual tutorial", 400);
+      const playlist = await getPlaylistCourse(playlistId);
+      if (!playlist.lessons?.length) return failure(res, "The YouTube playlist contains no usable embeddable videos", 400);
+
+      targetModule.lessons ||= [];
+      const nonTutorialLessons = targetModule.lessons.filter((lesson) => lesson.type !== "tutorial");
+      const playlistLessons = playlist.lessons.map((video, index) => targetModule.lessons.create({
+        title: video.title,
+        description: video.description || "",
+        type: "tutorial",
+        order: nonTutorialLessons.length + index + 1,
+        tutorial: {
+          content: video.description || "",
+          resources: [video.url],
+          videos: [{
+            videoId: video.videoId,
+            title: video.title,
+            description: video.description || "",
+            channelTitle: video.channelTitle || "",
+            publishedAt: video.publishedAt || null,
+            url: video.url,
+            thumbnail: video.thumbnail || "",
+            embedUrl: video.embedUrl
+          }],
+          playlistId,
+          playlistTitle: playlist.title
+        }
+      }));
+      targetModule.lessons = [...nonTutorialLessons, ...playlistLessons];
+    } else {
+      const videoId = extractYouTubeVideoId(resourceUrl);
+      if (!videoId) return failure(res, "Enter a valid YouTube video or playlist URL", 400);
+
+      if (!targetLesson) {
+        targetModule.lessons ||= [];
+        targetLesson = targetModule.lessons.create({
+          title: String(req.body.lessonTitle || `Learn ${targetModule.title}`).trim(),
+          description: "",
+          type: "tutorial",
+          order: targetModule.lessons.length + 1,
+          tutorial: { content: "", resources: [], videos: [] }
+        });
+        targetModule.lessons.push(targetLesson);
+      }
+
+      const currentVideo = targetLesson.tutorial?.videos?.[0] || {};
+      const updatedVideo = {
+        videoId,
+        title: req.body.title ? String(req.body.title).trim() : (currentVideo.title || targetLesson.title || "Admin-selected YouTube video"),
+        description: currentVideo.description || "",
+        channelTitle: currentVideo.channelTitle || "",
+        publishedAt: currentVideo.publishedAt || null,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        thumbnail: currentVideo.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        embedUrl: `https://www.youtube.com/embed/${videoId}`
+      };
+      targetLesson.tutorial ||= {};
+      targetLesson.tutorial.videos = [updatedVideo];
+      targetLesson.tutorial.resources = [updatedVideo.url];
+    }
 
     course.markModified("modules");
     await course.save();
     await cacheDelete(`course:${course._id}`);
 
-    const action = lessonId ? "course.tutorial.video.updated" : "course.tutorial.video.added";
+    const playlistMode = Boolean(playlistId);
     await audit(
       req,
-      action,
+      lessonId ? "course.tutorial.video.updated" : (playlistMode ? "course.module.playlist.added" : "course.tutorial.video.added"),
       "Course",
       course._id,
       before,
-      {
-        moduleTitle: targetModule.title,
-        lessonId: String(targetLesson._id),
-        lessonTitle: targetLesson.title,
-        videos: targetLesson.tutorial.videos,
-        resources: targetLesson.tutorial.resources
-      },
+      { moduleTitle: targetModule.title, lessons: targetModule.lessons.map((lesson) => ({
+        id: String(lesson._id), title: lesson.title, type: lesson.type, videos: lesson.tutorial?.videos || []
+      })) },
       req.body.reason || ""
     );
 
     return success(res, {
       course,
-      lesson: {
-        id: String(targetLesson._id),
-        title: targetLesson.title,
-        moduleTitle: targetModule.title,
-        video: updatedVideo
-      }
-    }, lessonId ? "Tutorial video updated" : "Tutorial video added");
-  } catch (e) { next(e); }
+      mode: playlistMode ? "playlist" : "video",
+      lesson: targetModule.lessons?.length ? {
+        id: String(targetModule.lessons[targetModule.lessons.length - 1]?._id || ""),
+        title: targetModule.lessons[targetModule.lessons.length - 1]?.title || "",
+        moduleTitle: targetModule.title
+      } : null
+    }, playlistMode ? "YouTube playlist added to module" : (lessonId ? "Tutorial video updated" : "Tutorial video added"));
+  } catch (e) {
+    if (e?.status === 404) return failure(res, e.message, 404);
+    next(e);
+  }
 }
 
 export async function updateCourse(req, res, next) {

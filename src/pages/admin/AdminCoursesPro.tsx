@@ -90,7 +90,7 @@ export default function AdminCoursesPro() {
     }));
   }
 
-  async function updateTutorialVideo(
+  async function updateTutorialResource(
     courseId: string,
     target: { lessonId?: string; moduleId?: string; editorKey: string }
   ) {
@@ -107,7 +107,7 @@ export default function AdminCoursesPro() {
         method: "PUT",
         body: JSON.stringify({
           ...(target.lessonId ? { lessonId: target.lessonId } : { moduleId: target.moduleId }),
-          videoUrl: editor.url.trim(),
+          resourceUrl: editor.url.trim(),
         }),
       });
 
@@ -123,7 +123,7 @@ export default function AdminCoursesPro() {
           url: data.lesson?.video?.url || editor.url,
           saving: false,
           error: "",
-          success: target.lessonId ? "Video updated" : "Tutorial video added",
+          success: data.mode === "playlist" ? "Playlist imported as tutorial lessons" : target.lessonId ? "Video updated" : "Tutorial video added",
         },
       }));
     } catch (error) {
@@ -285,7 +285,7 @@ export default function AdminCoursesPro() {
                                             <input
                                               value={editor.url}
                                               onChange={(e) => setVideoUrl(lesson._id, e.target.value)}
-                                              placeholder="https://www.youtube.com/watch?v=..."
+                                              placeholder="YouTube video or playlist URL"
                                               className="input-field flex-1"
                                               type="url"
                                             />
@@ -296,7 +296,7 @@ export default function AdminCoursesPro() {
                                               className="btn-primary justify-center whitespace-nowrap"
                                             >
                                               {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                                              {currentVideo ? "Replace Video" : "Add Video"}
+                                              {currentVideo ? "Replace Resource" : "Add Resource"}
                                             </button>
                                           </div>
                                           {editor.success && <p className="mt-1.5 text-xs font-semibold text-green-600">{editor.success}</p>}
@@ -332,10 +332,10 @@ export default function AdminCoursesPro() {
                                     <div className="bg-blue-50/50 p-4">
                                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
                                         <div className="min-w-0 flex-1">
-                                          <p className="text-[11px] font-bold uppercase tracking-[.12em] text-blue-600">No tutorial video</p>
-                                          <p className="mt-1 font-semibold text-slate-900">Add a YouTube tutorial to this module</p>
+                                          <p className="text-[11px] font-bold uppercase tracking-[.12em] text-blue-600">No tutorial resource</p>
+                                          <p className="mt-1 font-semibold text-slate-900">Add a YouTube video or playlist to this module</p>
                                           <p className="mt-1 text-xs leading-5 text-slate-500">
-                                            This creates a tutorial lesson and keeps the existing module structure unchanged.
+                                            A video creates one tutorial lesson. A playlist imports its videos as ordered tutorial lessons.
                                           </p>
                                         </div>
 

@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, Power, Plus, RefreshCcw, Save, X } from "lucide-react";
+import { Check, Power, Plus, RefreshCcw, Save } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+
+type FeatureDefinition = {
+  key: string;
+  label: string;
+};
 
 type Plan = {
   _id: string;
@@ -15,14 +20,28 @@ type Plan = {
   isPopular: boolean;
 };
 
-const emptyForm = {
+type PlanForm = {
+  name: string;
+  slug: string;
+  description: string;
+  price: number;
+  currency: string;
+  billingInterval: string;
+  features: string[];
+  isActive: boolean;
+  isPopular: boolean;
+  trialDays: number;
+  sortOrder: number;
+};
+
+const emptyForm: PlanForm = {
   name: "",
   slug: "",
   description: "",
   price: 0,
   currency: "INR",
   billingInterval: "monthly",
-  features: [] as string[],
+  features: [],
   isActive: true,
   isPopular: false,
   trialDays: 0,
@@ -31,9 +50,8 @@ const emptyForm = {
 
 export default function AdminPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [form, setForm] = useState<any>(emptyForm);
-  const [features, setFeatures] = useState("");
-  const [featureDrafts, setFeatureDrafts] = useState<Record<string, string>>({});
+  const [availableFeatures, setAvailableFeatures] = useState<FeatureDefinition[]>([]);
+  const [form, setForm] = useState<PlanForm>(emptyForm);
   const [savingPlan, setSavingPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,9 +59,11 @@ export default function AdminPlans() {
   async function load() {
     setLoading(true);
     setError("");
+
     try {
       const data = await adminFetch("/api/admin/plans");
       setPlans(data.plans || []);
+      setAvailableFeatures(data.availableFeatures || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load plans");
     } finally {
@@ -56,7 +76,6 @@ export default function AdminPlans() {
   }, []);
 
   async function create() {
-    const nextFeatures = features.split(",").map((x) => x.trim()).filter(Boolean);
     if (!form.name.trim() || !form.slug.trim()) {
       setError("Plan name and slug are required.");
       return;
@@ -68,11 +87,10 @@ export default function AdminPlans() {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          features: nextFeatures,
+          features: form.features,
         }),
       });
       setForm(emptyForm);
-      setFeatures("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to create plan");
@@ -81,6 +99,7 @@ export default function AdminPlans() {
 
   async function toggle(plan: Plan) {
     try {
+      setError("");
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
         body: JSON.stringify({ isActive: !plan.isActive }),
@@ -91,33 +110,52 @@ export default function AdminPlans() {
     }
   }
 
-  function addFeature(planId: string) {
-    const value = (featureDrafts[planId] || "").trim();
-    if (!value) return;
-
-    setPlans((current) => current.map((plan) =>
-      plan._id === planId && !plan.features.includes(value)
-        ? { ...plan, features: [...plan.features, value] }
-        : plan
-    ));
-    setFeatureDrafts((current) => ({ ...current, [planId]: "" }));
+  function toggleCreateFeature(feature: string) {
+    setForm((current) => ({
+      ...current,
+      features: current.features.includes(feature)
+        ? current.features.filter((item) => item !== feature)
+        : [...current.features, feature],
+    }));
   }
 
-  function removeFeature(planId: string, feature: string) {
-    setPlans((current) => current.map((plan) =>
-      plan._id === planId
-        ? { ...plan, features: plan.features.filter((item) => item !== feature) }
-        : plan
-    ));
+  function togglePlanFeature(planId: string, feature: string) {
+    setPlans((current) =>
+      current.map((plan) => {
+        if (plan._id !== planId) return plan;
+
+        const features = plan.features || [];
+        return {
+          ...plan,
+          features: features.includes(feature)
+            ? features.filter((item) => item !== feature)
+            : [...features, feature],
+        };
+      })
+    );
+  }
+
+  function setAllPlanFeatures(planId: string, enabled: boolean) {
+    setPlans((current) =>
+      current.map((plan) =>
+        plan._id === planId
+          ? {
+              ...plan,
+              features: enabled ? availableFeatures.map((feature) => feature.label) : [],
+            }
+          : plan
+      )
+    );
   }
 
   async function saveFeatures(plan: Plan) {
     setSavingPlan(plan._id);
     setError("");
+
     try {
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
-        body: JSON.stringify({ features: plan.features }),
+        body: JSON.stringify({ features: plan.features || [] }),
       });
       await load();
     } catch (e) {
@@ -127,12 +165,14 @@ export default function AdminPlans() {
     }
   }
 
+  const featureLabelByKey = new Map(availableFeatures.map((feature) => [feature.key, feature.label]));
+
   return (
     <div className="mx-auto max-w-7xl">
       <div>
         <h1 className="text-3xl font-bold text-slate-950">Subscription Plans</h1>
         <p className="mt-2 text-slate-500">
-          Manage Free, Pro and Premium plans and control the features shown for each one.
+          Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks.
         </p>
       </div>
 
@@ -181,14 +221,48 @@ export default function AdminPlans() {
           </select>
         </div>
 
-        <input
-          className="input-field mt-3"
-          placeholder="Features, comma separated"
-          value={features}
-          onChange={(e) => setFeatures(e.target.value)}
-        />
+        {availableFeatures.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Plan features</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Tick the features this new plan should include.
+                </p>
+              </div>
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500">
+                {form.features.length}/{availableFeatures.length} selected
+              </span>
+            </div>
 
-        <button className="btn-primary mt-3" onClick={() => void create()}>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {availableFeatures.map((feature) => {
+                const checked = form.features.includes(feature.label);
+
+                return (
+                  <label
+                    key={feature.key}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
+                      checked
+                        ? "border-blue-200 bg-blue-50/70"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      checked={checked}
+                      onChange={() => toggleCreateFeature(feature.label)}
+                    />
+                    <span className="text-sm font-semibold text-slate-700">{feature.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <button className="btn-primary mt-4" onClick={() => void create()}>
           <Plus className="h-4 w-4" />
           Create Plan
         </button>
@@ -204,114 +278,133 @@ export default function AdminPlans() {
             No plans found.
           </div>
         ) : (
-          plans.map((plan) => (
-            <div className="card flex flex-col p-5" key={plan._id}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  {plan.isPopular && (
-                    <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-blue-700">
-                      Most popular
-                    </span>
-                  )}
-                  <h3 className="mt-2 text-xl font-extrabold text-slate-950">{plan.name}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
-                  <p className="mt-3 text-3xl font-extrabold text-slate-950">
-                    ₹{plan.price}
-                    <span className="text-xs font-normal text-slate-500">
-                      {plan.price === 0 ? " · free" : ` / ${plan.billingInterval}`}
-                    </span>
-                  </p>
-                </div>
+          plans.map((plan) => {
+            const selectedFeatureCount = plan.features?.length || 0;
 
-                <button
-                  onClick={() => void toggle(plan)}
-                  className={plan.isActive ? "btn-secondary" : "btn-danger"}
-                >
-                  <Power className="h-4 w-4" />
-                  {plan.isActive ? "Disable" : "Enable"}
-                </button>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center justify-between gap-3">
+            return (
+              <div className="card flex flex-col p-5" key={plan._id}>
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Plan features</p>
-                    <p className="mt-1 text-xs text-slate-500">Add or remove features for this plan only.</p>
+                    {plan.isPopular && (
+                      <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-blue-700">
+                        Most popular
+                      </span>
+                    )}
+                    <h3 className="mt-2 text-xl font-extrabold text-slate-950">{plan.name}</h3>
+                    <p className="mt-1 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
+                    <p className="mt-3 text-3xl font-extrabold text-slate-950">
+                      ₹{plan.price}
+                      <span className="text-xs font-normal text-slate-500">
+                        {plan.price === 0 ? " · free" : ` / ${plan.billingInterval}`}
+                      </span>
+                    </p>
                   </div>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500">
-                    {plan.features?.length || 0}
-                  </span>
-                </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {(plan.features || []).map((feature) => (
-                    <span
-                      key={feature}
-                      className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
-                    >
-                      <Check className="h-3.5 w-3.5 text-green-600" />
-                      <span className="max-w-[190px] truncate">{feature}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeFeature(plan._id, feature)}
-                        className="rounded-full p-0.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                        aria-label={`Remove ${feature}`}
-                        title={`Remove ${feature}`}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </span>
-                  ))}
-
-                  {!plan.features?.length && (
-                    <p className="text-xs text-slate-400">No features configured.</p>
-                  )}
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <input
-                    className="input-field min-w-0 flex-1 bg-white"
-                    placeholder="Add a feature"
-                    value={featureDrafts[plan._id] || ""}
-                    onChange={(e) => setFeatureDrafts((current) => ({ ...current, [plan._id]: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addFeature(plan._id);
-                      }
-                    }}
-                  />
                   <button
-                    type="button"
-                    onClick={() => addFeature(plan._id)}
-                    className="btn-secondary whitespace-nowrap"
+                    onClick={() => void toggle(plan)}
+                    className={plan.isActive ? "btn-secondary" : "btn-danger"}
                   >
-                    <Plus className="h-4 w-4" />
-                    Add
+                    <Power className="h-4 w-4" />
+                    {plan.isActive ? "Disable" : "Enable"}
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => void saveFeatures(plan)}
-                  disabled={savingPlan === plan._id}
-                  className="btn-primary mt-3 w-full justify-center"
-                >
-                  {savingPlan === plan._id ? (
-                    <>
-                      <RefreshCcw className="h-4 w-4 animate-spin" />
-                      Saving features...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4" />
-                      Save Features
-                    </>
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">
+                        Feature access
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Tick a feature to enable it for this plan.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500">
+                      {selectedFeatureCount}/{availableFeatures.length}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {availableFeatures.map((feature) => {
+                      const checked = (plan.features || []).includes(feature.label);
+
+                      return (
+                        <label
+                          key={feature.key}
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition ${
+                            checked
+                              ? "border-blue-200 bg-white"
+                              : "border-transparent bg-white/60 hover:border-slate-200"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            checked={checked}
+                            onChange={() => togglePlanFeature(plan._id, feature.label)}
+                          />
+                          <span className={checked ? "text-sm font-semibold text-slate-700" : "text-sm text-slate-500"}>
+                            {feature.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+
+                    {!availableFeatures.length && (
+                      <p className="text-xs text-slate-400">No subscription features configured.</p>
+                    )}
+                  </div>
+
+                  {availableFeatures.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        onClick={() => setAllPlanFeatures(plan._id, true)}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Enable all
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        onClick={() => setAllPlanFeatures(plan._id, false)}
+                      >
+                        Clear all
+                      </button>
+                    </div>
                   )}
-                </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void saveFeatures(plan)}
+                    disabled={savingPlan === plan._id}
+                    className="btn-primary mt-3 w-full justify-center"
+                  >
+                    {savingPlan === plan._id ? (
+                      <>
+                        <RefreshCcw className="h-4 w-4 animate-spin" />
+                        Saving features...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        Save Features
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="mt-3 text-xs text-slate-400">
+                  {availableFeatures
+                    .filter((feature) => (plan.features || []).includes(feature.label))
+                    .map((feature) => featureLabelByKey.get(feature.key))
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

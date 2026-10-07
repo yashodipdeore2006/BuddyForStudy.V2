@@ -2,6 +2,9 @@ import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { generateCoursePlan as generateKnowledgeBaseCoursePlan } from "./roadmapGenerator.service.js";
 import { attachYouTubeResources } from "./youtube.service.js";
+import { Course } from "../models/Course.js";
+import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
+import { randomUUID } from "node:crypto";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -240,34 +243,161 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
   return value;
 }
 
+function generatedAiSlug(title) {
+  const base = String(title || "ai-course").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return `${base}-ai-${randomUUID().slice(0, 8)}`;
+}
+
+function buildNormalSearchSnapshot(course, query) {
+  const modules = (course.modules || []).map((module, index) => {
+    const lesson = (module.lessons || []).find((item) => item.type === "tutorial");
+    const policy = lesson?.tutorial?.searchPolicy || {};
+    const selected = lesson?.tutorial?.videos?.[0] || null;
+    return {
+      order: module.order || index + 1,
+      title: module.title,
+      skill: module.skillIds?.[0] || module.title,
+      searchSpecification: {
+        searchQueries: lesson?.tutorial?.searchQueries || [],
+        requiredTopics: lesson?.tutorial?.requiredTopics || [module.title],
+        duration: {
+          minMinutes: Number(policy.minDurationMinutes || 0),
+          targetMinutes: Number(policy.targetDurationMinutes || 0),
+          maxMinutes: Number(policy.maxDurationMinutes || 0)
+        }
+      },
+      course: selected ? {
+        videoId: selected.videoId,
+        title: selected.title,
+        description: selected.description || "",
+        channelTitle: selected.channelTitle || "",
+        publishedAt: selected.publishedAt || null,
+        durationSeconds: Number(selected.durationSeconds || 0),
+        duration: selected.duration || "",
+        url: selected.url || "",
+        embedUrl: selected.embedUrl || "",
+        thumbnail: selected.thumbnail || "",
+        score: Number(selected.score || 0),
+        selection: selected.selection || null
+      } : null
+    };
+  });
+
+  return {
+    query,
+    title: course.title,
+    modules,
+    moduleCount: modules.length,
+    foundModules: modules.filter((module) => module.course).length
+  };
+}
+
+function toPublicCourse(course) {
+  const data = course?.toObject ? course.toObject() : course;
+  if (!data) return null;
+  const { generation, ...publicCourse } = data;
+  return publicCourse;
+}
+
+function cachedRoadmapFromCourse(course, input) {
+  const snapshot = course?.generation?.snapshot || {};
+  return {
+    query: course.generation?.query || input.topic,
+    intent: snapshot.intent || "ai_personalized_path",
+    canonicalTopic: snapshot.canonicalTopic || input.topic,
+    careerOutcome: snapshot.careerOutcome || "",
+    skillGraph: snapshot.skillGraph || [],
+    course: toPublicCourse(course),
+    sources: snapshot.sources || [],
+    personalization: snapshot.personalization || {},
+    cached: true
+  };
+}
+
 export async function generateAIRoadmap(input) {
+  const topicKeys = buildTopicKeys(input.topic);
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
+  if (existing) return cachedRoadmapFromCourse(existing, input);
+
   try {
     const ai = await generateWithGemini(input);
     const built = buildCourse(ai, input);
     const sources = await attachYouTubeResources(built.course);
+    const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
+
+    const course = await Course.create({
+      ...built.course,
+      slug: generatedAiSlug(built.course.title),
+      generation: {
+        mode: "ai",
+        query: input.topic,
+        topicKeys: buildTopicKeys(input.topic, ai.canonicalTopic, ai.title, ai.category),
+        snapshot: {
+          intent: "ai_personalized_path",
+          canonicalTopic: ai.canonicalTopic,
+          careerOutcome: ai.careerOutcome,
+          skillGraph: built.skillGraph,
+          personalization: built.personalization,
+          sources,
+          normalSearchSnapshot
+        }
+      },
+      isPublished: true,
+      pricing: { mode: "free", price: 0, currency: "INR" },
+      enrollmentEnabled: true,
+      certificateEnabled: true
+    });
+
     return {
       query: input.topic,
       intent: "ai_personalized_path",
       canonicalTopic: ai.canonicalTopic,
       careerOutcome: ai.careerOutcome,
       skillGraph: built.skillGraph,
-      course: built.course,
+      course: toPublicCourse(course),
       sources,
-      personalization: built.personalization
+      personalization: built.personalization,
+      cached: false
     };
   } catch (error) {
     if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) throw error;
     const fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
+    const fallbackPersonalization = {
+      goals: input.goals || [],
+      studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
+      knownSkills: input.knownSkills || [],
+      skippedSkills: [],
+      rationale: ["AI generation was unavailable, so BuddyForStudy used its validated prerequisite knowledge base."]
+    };
+    const fallbackCourse = await Course.create({
+      ...fallback.course,
+      slug: generatedAiSlug(fallback.course.title),
+      generation: {
+        mode: "ai",
+        query: input.topic,
+        topicKeys: buildTopicKeys(input.topic, fallback.canonicalTopic, fallback.course.title),
+        snapshot: {
+          intent: "ai_personalized_path_fallback",
+          canonicalTopic: fallback.canonicalTopic,
+          careerOutcome: fallback.careerOutcome,
+          skillGraph: fallback.skillGraph || [],
+          personalization: fallbackPersonalization,
+          sources: fallback.sources || [],
+          normalSearchSnapshot: buildNormalSearchSnapshot(fallback.course, input.topic)
+        }
+      },
+      isPublished: true,
+      pricing: { mode: "free", price: 0, currency: "INR" },
+      enrollmentEnabled: true,
+      certificateEnabled: true
+    });
+
     return {
       ...fallback,
+      course: toPublicCourse(fallbackCourse),
       intent: "ai_personalized_path_fallback",
-      personalization: {
-        goals: input.goals || [],
-        studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
-        knownSkills: input.knownSkills || [],
-        skippedSkills: [],
-        rationale: ["AI generation was unavailable, so BuddyForStudy used its validated prerequisite knowledge base."]
-      }
+      personalization: fallbackPersonalization,
+      cached: false
     };
   }
 }

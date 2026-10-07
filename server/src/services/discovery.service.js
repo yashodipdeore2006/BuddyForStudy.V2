@@ -1,6 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
+import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { searchBestYouTubeCourse } from "./youtube.service.js";
+import { Course } from "../models/Course.js";
+import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 
 const cache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
@@ -108,11 +111,160 @@ async function generateSearchSpecification(topic) {
   return result;
 }
 
-export async function searchCourseBySkills(query) {
-  const normalized = query.trim().toLowerCase();
-  const key = `course-search:${normalized}`;
-  if (playlistCache.has(key)) return playlistCache.get(key);
+function generatedSlug(title, mode) {
+  const base = String(title || "course").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return `${base}-${mode}-${randomUUID().slice(0, 8)}`;
+}
 
+function courseToSearchSnapshot(course, fallbackQuery = "") {
+  const snapshot = course?.generation?.snapshot;
+  if (snapshot?.modules?.length) return snapshot;
+
+  return {
+    query: course?.generation?.query || fallbackQuery,
+    title: course?.title || fallbackQuery,
+    modules: (course?.modules || []).map((module, index) => {
+      const lesson = (module.lessons || []).find((item) => item.type === "tutorial");
+      const video = lesson?.tutorial?.videos?.[0] || null;
+      return {
+        order: module.order || index + 1,
+        title: module.title,
+        skill: module.title,
+        searchSpecification: {
+          searchQueries: [],
+          requiredTopics: [module.title],
+          duration: { minMinutes: 0, targetMinutes: 0, maxMinutes: 0 }
+        },
+        course: video ? {
+          videoId: video.videoId,
+          title: video.title,
+          description: video.description || "",
+          channelTitle: video.channelTitle || "",
+          publishedAt: video.publishedAt || null,
+          durationSeconds: 0,
+          duration: "",
+          url: video.url || "",
+          embedUrl: video.url ? video.url.replace("watch?v=", "embed/") : "",
+          thumbnail: video.thumbnail || "",
+          score: 0,
+          selection: null
+        } : null
+      };
+    }),
+    moduleCount: (course?.modules || []).length,
+    foundModules: (course?.modules || []).filter((module) =>
+      (module.lessons || []).some((lesson) => lesson.type === "tutorial" && lesson.tutorial?.videos?.length)
+    ).length
+  };
+}
+
+function stripAiOnlyLessons(course) {
+  return (course.modules || []).map((module) => ({
+    title: module.title,
+    description: module.description || "",
+    order: module.order,
+    lessons: (module.lessons || [])
+      .filter((lesson) => lesson.type === "tutorial")
+      .map((lesson, index) => ({
+        title: lesson.title,
+        description: lesson.description || "",
+        type: "tutorial",
+        order: lesson.order || index + 1,
+        tutorial: {
+          content: lesson.tutorial?.content || "",
+          resources: lesson.tutorial?.resources || [],
+          videos: lesson.tutorial?.videos || []
+        }
+      }))
+  }));
+}
+
+async function createNormalCourseFromSearch(query, result) {
+  const availableModules = result.modules.filter((module) => module.course);
+  const totalSeconds = availableModules.reduce(
+    (sum, module) => sum + Number(module.course?.durationSeconds || 0),
+    0
+  );
+  const duration = totalSeconds >= 3600
+    ? `${Math.floor(totalSeconds / 3600)}h ${String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")}m`
+    : `${Math.floor(totalSeconds / 60)}m`;
+
+  return Course.create({
+    title: result.title,
+    slug: generatedSlug(result.title, "normal"),
+    description: `An AI-assembled ${query} learning course with independently selected, duration-matched YouTube lessons ordered by prerequisite.`,
+    category: "AI Course Search",
+    level: "Beginner",
+    duration: duration || "Self-paced",
+    thumbnail: availableModules[0]?.course?.thumbnail || "",
+    learningOutcomes: availableModules.map((module) => `Learn ${module.skill}`),
+    modules: result.modules.map((module) => ({
+      title: module.title,
+      description: `Learn ${module.skill} using the selected course video for this module.`,
+      order: module.order,
+      lessons: module.course ? [{
+        title: module.course.title,
+        description: module.course.description || `Selected YouTube course for ${module.skill}.`,
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          content: module.course.description || "",
+          resources: [module.course.url].filter(Boolean),
+          videos: [{
+            videoId: module.course.videoId,
+            title: module.course.title,
+            description: module.course.description || "",
+            channelTitle: module.course.channelTitle || "",
+            publishedAt: module.course.publishedAt || null,
+            url: module.course.url,
+            thumbnail: module.course.thumbnail || ""
+          }]
+        }
+      }] : []
+    })),
+    generation: {
+      mode: "normal",
+      query,
+      topicKeys: buildTopicKeys(query, result.topic, result.title),
+      snapshot: result
+    },
+    isPublished: true,
+    pricing: { mode: "free", price: 0, currency: "INR" },
+    enrollmentEnabled: true,
+    certificateEnabled: true
+  });
+}
+
+async function createNormalCourseFromAi(aiCourse, query) {
+  const snapshot = aiCourse.generation?.snapshot?.normalSearchSnapshot;
+  if (!snapshot) return null;
+
+  const source = aiCourse.toObject ? aiCourse.toObject() : aiCourse;
+  return Course.create({
+    title: source.title,
+    slug: generatedSlug(source.title, "normal"),
+    description: `An AI-assembled ${query} learning course with the core tutorial path from an existing AI-generated course.`,
+    category: "AI Course Search",
+    level: source.level,
+    duration: source.duration || "Self-paced",
+    thumbnail: source.thumbnail || "",
+    learningOutcomes: source.learningOutcomes || [],
+    modules: stripAiOnlyLessons(source),
+    generation: {
+      mode: "normal",
+      query,
+      topicKeys: buildTopicKeys(query, ...(source.generation?.topicKeys || [])),
+      sourceCourse: source._id,
+      snapshot
+    },
+    isPublished: true,
+    pricing: source.pricing || { mode: "free", price: 0, currency: "INR" },
+    enrollmentEnabled: source.enrollmentEnabled !== false,
+    certificateEnabled: source.certificateEnabled !== false
+  });
+}
+
+async function searchCourseBySkillsFresh(query) {
   const spec = await generateSearchSpecification(query);
   const modules = [];
 
@@ -159,72 +311,49 @@ export async function searchCourseBySkills(query) {
     });
   }
 
-  const result = {
-    query,
+  return {
     title: spec.title || `${query} Learning Course`,
-    modules,
-    moduleCount: modules.length,
-    foundModules: modules.filter((module) => module.course).length
+    topic: spec.topic || query,
+    modules
   };
+}
 
-  playlistCache.set(key, result);
-  return result;
+export async function getOrCreateNormalCourse(query) {
+  const normalized = query.trim();
+  const topicKeys = buildTopicKeys(normalized);
+
+  const existingNormal = await findRecentGeneratedCourse({ mode: "normal", topicKeys });
+  if (existingNormal) {
+    return { course: existingNormal, result: courseToSearchSnapshot(existingNormal, normalized), cached: true };
+  }
+
+  const existingAi = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
+  if (existingAi) {
+    const derived = await createNormalCourseFromAi(existingAi, normalized);
+    if (derived) {
+      return { course: derived, result: courseToSearchSnapshot(derived, normalized), cached: true, derivedFromAi: true };
+    }
+  }
+
+  const fresh = await searchCourseBySkillsFresh(normalized);
+  const result = {
+    query: normalized,
+    topic: fresh.topic,
+    title: fresh.title,
+    modules: fresh.modules,
+    moduleCount: fresh.modules.length,
+    foundModules: fresh.modules.filter((module) => module.course).length
+  };
+  const course = await createNormalCourseFromSearch(normalized, result);
+  return { course, result, cached: false };
+}
+
+export async function searchCourseBySkills(query) {
+  return (await getOrCreateNormalCourse(query)).result;
 }
 
 export async function createCourseFromSearch(query) {
-  const { title, modules } = await searchCourseBySkills(query);
-  const { Course } = await import("../models/Course.js");
-
-  const category = "AI Course Search";
-  const existing = await Course.findOne({ title, category, isPublished: true });
-  if (existing) return existing;
-
-  const availableModules = modules.filter((module) => module.course);
-  const totalSeconds = availableModules.reduce(
-    (sum, module) => sum + Number(module.course?.durationSeconds || 0),
-    0
-  );
-  const duration = totalSeconds >= 3600
-    ? `${Math.floor(totalSeconds / 3600)}h ${String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")}m`
-    : `${Math.floor(totalSeconds / 60)}m`;
-
-  return Course.create({
-    title,
-    slug: `${title}-${query}`,
-    description: `An AI-assembled ${query} learning course with independently selected, duration-matched YouTube lessons ordered by prerequisite.`,
-    category,
-    level: "Beginner",
-    duration: duration || "Self-paced",
-    thumbnail: availableModules[0]?.course?.thumbnail || "",
-    learningOutcomes: availableModules.map((module) => `Learn ${module.skill}`),
-    modules: modules.map((module) => ({
-      title: module.title,
-      description: `Learn ${module.skill} using the selected course video for this module.`,
-      order: module.order,
-      lessons: module.course ? [{
-        title: module.course.title,
-        description: module.course.description || `Selected YouTube course for ${module.skill}.`,
-        type: "tutorial",
-        order: 1,
-        tutorial: {
-          content: module.course.description || "",
-          resources: [],
-          videos: [{
-            videoId: module.course.videoId,
-            title: module.course.title,
-            description: module.course.description || "",
-            channelTitle: module.course.channelTitle || "",
-            url: module.course.url,
-            thumbnail: module.course.thumbnail || ""
-          }]
-        }
-      }] : []
-    })),
-    isPublished: true,
-    pricing: { mode: "free", price: 0, currency: "INR" },
-    enrollmentEnabled: true,
-    certificateEnabled: true
-  });
+  return (await getOrCreateNormalCourse(query)).course;
 }
 
 // Legacy playlist discovery remains available for direct playlist browsing.

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
@@ -18,7 +18,6 @@ import Notifications from '@/pages/Notifications';
 import PlaylistCourse from '@/pages/PlaylistCourse';
 import Pricing from '@/pages/Pricing';
 import Billing from '@/pages/Billing';
-import AdminLogin from '@/pages/admin/AdminLogin';
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
 import AdminControlCenter from '@/pages/admin/AdminControlCenter';
 import AdminUsersPro from '@/pages/admin/AdminUsersPro';
@@ -54,7 +53,7 @@ function App() {
     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
     <Route path="/playlists/:playlistId" element={<ProtectedRoute><PlaylistCourse /></ProtectedRoute>} />
 
-    <Route path="/admin/login" element={<AdminLogin />} />
+    <Route path="/admin/login" element={<Navigate to="/login" replace />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />
     <Route path="/admin/users" element={<AdminPage><AdminUsersPro /></AdminPage>} />
     <Route path="/admin/courses" element={<AdminPage><AdminCoursesPro /></AdminPage>} />

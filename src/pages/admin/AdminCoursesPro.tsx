@@ -10,6 +10,16 @@ type TutorialEditor = {
   success: string;
 };
 
+function isYouTubePlaylistUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    return (host === "youtube.com" || host === "m.youtube.com") && Boolean(parsed.searchParams.get("list"));
+  } catch {
+    return false;
+  }
+}
+
 function youtubeEmbedUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -90,7 +100,7 @@ export default function AdminCoursesPro() {
     }));
   }
 
-  async function updateTutorialResource(
+  async function updateTutorialVideo(
     courseId: string,
     target: { lessonId?: string; moduleId?: string; editorKey: string }
   ) {
@@ -291,12 +301,21 @@ export default function AdminCoursesPro() {
                                             />
                                             <button
                                               type="button"
-                                              onClick={() => void updateTutorialVideo(course._id, { lessonId: lesson._id, editorKey: lesson._id })}
+                                              onClick={() => {
+                                                const target = isYouTubePlaylistUrl(editor.url)
+                                                  ? { moduleId: String(module._id), editorKey: lesson._id }
+                                                  : { lessonId: lesson._id, editorKey: lesson._id };
+                                                void updateTutorialVideo(course._id, target);
+                                              }}
                                               disabled={editor.saving || !editor.url.trim()}
                                               className="btn-primary justify-center whitespace-nowrap"
                                             >
                                               {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                                              {currentVideo ? "Replace Resource" : "Add Resource"}
+                                              {isYouTubePlaylistUrl(editor.url)
+                                                ? "Import Playlist"
+                                                : currentVideo
+                                                  ? "Replace Video"
+                                                  : "Add Video"}
                                             </button>
                                           </div>
                                           {editor.success && <p className="mt-1.5 text-xs font-semibold text-green-600">{editor.success}</p>}

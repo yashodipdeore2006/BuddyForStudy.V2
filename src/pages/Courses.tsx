@@ -14,6 +14,7 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [catalogQuery, setCatalogQuery] = useState('');
   const [playlistQuery, setPlaylistQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -30,7 +31,7 @@ export default function Courses() {
         const params = new URLSearchParams({ page: '1', limit: '50' });
         if (selectedLevel !== 'all') params.set('level', selectedLevel);
         if (selectedCategory !== 'all') params.set('category', selectedCategory);
-        if (searchQuery.trim()) params.set('q', searchQuery.trim());
+        if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
         const data = await apiFetch(`/api/courses?${params.toString()}`);
         const rows = data.courses || data.items || [];
         setCourses(rows.map((c:any)=>({ ...c, id:c._id, learning_outcomes:c.learningOutcomes||[], is_published:c.isPublished, created_at:c.createdAt, updated_at:c.updatedAt })));
@@ -38,7 +39,7 @@ export default function Courses() {
       finally { setLoading(false); }
     }
     fetchCourses();
-  }, [selectedLevel, selectedCategory, searchQuery]);
+  }, [selectedLevel, selectedCategory, catalogQuery]);
 
   const categories = useMemo(() => {
     const cats = new Set(courses.map((c) => c.category).filter(Boolean));
@@ -49,8 +50,8 @@ export default function Courses() {
     return courses.filter((course) => {
       if (selectedLevel !== 'all' && course.level !== selectedLevel) return false;
       if (selectedCategory !== 'all' && course.category !== selectedCategory) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (catalogQuery.trim()) {
+        const q = catalogQuery.toLowerCase();
         return (
           course.title.toLowerCase().includes(q) ||
           course.description.toLowerCase().includes(q) ||
@@ -59,9 +60,9 @@ export default function Courses() {
       }
       return true;
     });
-  }, [courses, searchQuery, selectedLevel, selectedCategory]);
+  }, [courses, catalogQuery, selectedLevel, selectedCategory]);
 
-  const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || searchQuery.trim();
+  const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim();
 
   const saveAiRoadmap = async () => {
     if (!aiRoadmap?.course) return;
@@ -75,6 +76,7 @@ export default function Courses() {
 
   const clearFilters = () => {
     setSearchQuery('');
+    setCatalogQuery('');
     setPlaylistQuery('');
     setSelectedLevel('all');
     setSelectedCategory('all');
@@ -103,7 +105,12 @@ export default function Courses() {
 
       {/* Search */}
       <div className="mt-6 flex flex-col gap-4 sm:flex-row">
-        <form className="relative flex flex-1 gap-2" onSubmit={(event) => { event.preventDefault(); setPlaylistQuery(searchQuery); }}>
+        <form className="relative flex flex-1 gap-2" onSubmit={(event) => {
+          event.preventDefault();
+          const query = searchQuery.trim();
+          setCatalogQuery(query);
+          setPlaylistQuery(query);
+        }}>
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input

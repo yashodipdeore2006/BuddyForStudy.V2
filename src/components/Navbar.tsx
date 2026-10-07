@@ -58,12 +58,6 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
-            <Link
-              to="/courses"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              Browse Courses
-            </Link>
             {profile && links.map((link) => (
               <Link
                 key={link.to}
@@ -136,13 +130,6 @@ export default function Navbar() {
       {mobileOpen && (
         <div className="md:hidden border-t border-slate-200 bg-white px-4 pb-4 pt-2">
           <div className="flex flex-col gap-1">
-            <Link
-              to="/courses"
-              onClick={() => setMobileOpen(false)}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-            >
-              Browse Courses
-            </Link>
             {profile && links.map((link) => (
               <Link
                 key={link.to}

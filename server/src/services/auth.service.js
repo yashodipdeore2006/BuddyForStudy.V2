@@ -167,6 +167,16 @@ export async function verifyEmail({ email, otp }) {
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
+export async function resendLoginOtp(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail }).select("_id email name isActive authProvider");
+  if (!user || user.authProvider === "google" || user.emailVerified === false || !user.isActive) {
+    return { email: normalizedEmail };
+  }
+  await otpService.sendOtp(user, "login_verification");
+  return { email: user.email };
+}
+
 export async function resendEmailVerification(email) {
   const normalizedEmail = email.trim().toLowerCase();
   const user = await User.findOne({

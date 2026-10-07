@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { ShieldCheck, Mail, Lock, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { clearAdminToken } from "@/lib/adminApi";
+import { clearAuth } from "@/lib/api";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
@@ -11,7 +13,9 @@ export default function AdminLogin() {
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(""); setLoading(true);
     try {
-      const res=await fetch(`${API_URL}/api/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
+      clearAuth();
+      clearAdminToken();
+      const res=await fetch(`${API_URL}/api/admin/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
       const data=await res.json();
       if(!res.ok || !data.success) throw new Error(data.message || "Invalid admin credentials");
       if(data?.user?.role!=="admin") throw new Error("This account does not have administrator access.");

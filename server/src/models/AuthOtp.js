@@ -5,7 +5,7 @@ const otpSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
   purpose: { type: String, enum: ["email_verification", "login_verification", "password_reset"], required: true, index: true },
   codeHash: { type: String, required: true },
-  expiresAt: { type: Date, required: true, index: true },
+  expiresAt: { type: Date, required: true },
   attempts: { type: Number, default: 0 },
   lastSentAt: { type: Date, required: true },
   usedAt: { type: Date, default: null }

@@ -18,6 +18,7 @@ import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { cacheDelete } from "../config/cache.js";
 import { getPlaylistCourse } from "../services/discovery.service.js";
+import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   await AuditLog.create({
@@ -334,7 +335,9 @@ async function ensureDefaultPlans() {
       currency: "INR",
       billingInterval: "monthly",
       features: [
-        "Everything in Free",
+        "Access published courses",
+        "Normal course search",
+        "Basic learning progress tracking",
         "Build with AI",
         "Personalized learning roadmaps",
         "Project-based learning"
@@ -352,7 +355,12 @@ async function ensureDefaultPlans() {
       currency: "INR",
       billingInterval: "monthly",
       features: [
-        "Everything in Pro",
+        "Access published courses",
+        "Normal course search",
+        "Basic learning progress tracking",
+        "Build with AI",
+        "Personalized learning roadmaps",
+        "Project-based learning",
         "Advanced AI learning paths",
         "Personalized study planning",
         "Priority learning recommendations"
@@ -376,7 +384,12 @@ async function ensureDefaultPlans() {
 export async function plans(req, res, next) {
   try {
     await ensureDefaultPlans();
-    return success(res, { plans: await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 }).lean() });
+    const plans = await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 }).lean();
+    const normalizedPlans = plans.map((plan) => ({
+      ...plan,
+      features: normalizeSubscriptionFeatures(plan.features),
+    }));
+    return success(res, { plans: normalizedPlans, availableFeatures: SUBSCRIPTION_FEATURES });
   } catch (e) { next(e); }
 }
 
@@ -385,7 +398,7 @@ export async function createPlan(req, res, next) {
     const plan = await SubscriptionPlan.create({
       name: req.body.name, slug: req.body.slug, description: req.body.description || "", price: Number(req.body.price) || 0,
       currency: req.body.currency || "INR", billingInterval: req.body.billingInterval || "monthly",
-      features: Array.isArray(req.body.features) ? req.body.features : [], isActive: req.body.isActive !== false,
+      features: normalizeSubscriptionFeatures(req.body.features), isActive: req.body.isActive !== false,
       isPopular: Boolean(req.body.isPopular), trialDays: Number(req.body.trialDays) || 0, sortOrder: Number(req.body.sortOrder) || 0
     });
     await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, plan.toObject());
@@ -399,7 +412,10 @@ export async function updatePlan(req, res, next) {
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
     const before = plan.toObject();
     const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "isActive", "isPopular", "trialDays", "sortOrder"];
-    for (const key of allowed) if (req.body[key] !== undefined) plan[key] = req.body[key];
+    for (const key of allowed) {
+      if (req.body[key] === undefined) continue;
+      plan[key] = key === "features" ? normalizeSubscriptionFeatures(req.body[key]) : req.body[key];
+    }
     await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, plan.toObject(), req.body.reason);
     return success(res, { plan }, "Plan updated");
   } catch (e) { next(e); }

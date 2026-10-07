@@ -11,31 +11,62 @@ interface GoogleConfigResponse {
   clientId: string;
 }
 
+let googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+let googleConfigPromise: Promise<string> | null = null;
+let initializedClientId = "";
+let activeCredentialHandler: ((credential: string) => Promise<void>) | null = null;
+
+function getGoogleClientId() {
+  if (googleClientId) return Promise.resolve(googleClientId);
+  if (!googleConfigPromise) {
+    googleConfigPromise = apiFetch("/api/auth/google/config")
+      .then((response) => {
+        const config = response as GoogleConfigResponse;
+        if (!config.enabled || !config.clientId) return "";
+        googleClientId = config.clientId;
+        return googleClientId;
+      })
+      .catch(() => "");
+  }
+  return googleConfigPromise;
+}
+
 export default function GoogleSignInButton({ onCredential, disabled = false }: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [configured, setConfigured] = useState(Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID));
+  const credentialHandlerRef = useRef(onCredential);
+  const [configured, setConfigured] = useState(Boolean(googleClientId));
+
+  credentialHandlerRef.current = onCredential;
 
   useEffect(() => {
+    activeCredentialHandler = (credential) => credentialHandlerRef.current(credential);
+
     let cancelled = false;
     let attempts = 0;
-    let clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
     const render = () => {
-      if (cancelled || !containerRef.current || disabled || !clientId || !window.google?.accounts?.id) {
-        if (!cancelled && !disabled && clientId && attempts++ < 100) window.setTimeout(render, 200);
+      if (cancelled || !containerRef.current || disabled || !googleClientId || !window.google?.accounts?.id) {
+        if (!cancelled && !disabled && googleClientId && attempts++ < 100) {
+          window.setTimeout(render, 200);
+        }
         return;
       }
 
       setConfigured(true);
+
+      if (initializedClientId !== googleClientId) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: ({ credential }) => {
+            if (credential) void activeCredentialHandler?.(credential);
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        initializedClientId = googleClientId;
+      }
+
       containerRef.current.innerHTML = "";
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: ({ credential }) => {
-          if (credential) void onCredential(credential);
-        },
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
       window.google.accounts.id.renderButton(containerRef.current, {
         theme: "outline",
         size: "large",
@@ -45,27 +76,20 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
       });
     };
 
-    const loadConfig = async () => {
-      if (!clientId) {
-        try {
-          const config = await apiFetch("/api/auth/google/config") as GoogleConfigResponse;
-          if (config.enabled && config.clientId) {
-            clientId = config.clientId;
-            setConfigured(true);
-          }
-        } catch {
-          // The visible fallback button remains available when Google is not configured.
-        }
+    void getGoogleClientId().then((clientId) => {
+      if (!cancelled && clientId) {
+        setConfigured(true);
+        render();
       }
-      render();
-    };
-
-    void loadConfig();
+    });
 
     return () => {
       cancelled = true;
+      if (activeCredentialHandler === credentialHandlerRef.current) {
+        activeCredentialHandler = null;
+      }
     };
-  }, [disabled, onCredential]);
+  }, [disabled]);
 
   if (!configured) {
     return (

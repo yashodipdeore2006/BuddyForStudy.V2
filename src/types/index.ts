@@ -1,4 +1,5 @@
 export type UserRole = 'user' | 'admin';
+export type AuthProvider = 'local' | 'google' | 'local_google';
 export type CourseLevel = 'Beginner' | 'Intermediate' | 'Advanced';
 export type LessonType = 'tutorial' | 'project';
 export type EnrollmentStatus = 'active' | 'completed' | 'cancelled';
@@ -7,6 +8,7 @@ export interface Profile {
   id: string;
   name: string;
   role: UserRole;
+  auth_provider: AuthProvider;
   is_active: boolean;
   created_at: string;
   updated_at: string;

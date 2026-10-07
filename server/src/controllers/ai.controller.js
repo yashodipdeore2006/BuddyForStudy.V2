@@ -13,7 +13,7 @@ export async function generateRoadmap(req, res, next) {
   try {
     const input = schema.parse(req.body);
     const result = await generateCoursePlan(input);
-    return success(res, result, "AI learning roadmap generated successfully");
+    return success(res, result, "Learning roadmap generated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);
@@ -25,7 +25,7 @@ export async function generateAndSaveCourse(req, res, next) {
     const input = schema.parse(req.body);
     const result = await generateCoursePlan(input);
     const course = await createCourse(result.course);
-    return success(res, { course, sources: result.sources }, "AI course generated and saved successfully", 201);
+    return success(res, { course, sources: result.sources }, "Course generated and saved successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

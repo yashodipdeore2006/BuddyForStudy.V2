@@ -155,6 +155,7 @@ async function getStandaloneModuleCourses(search) {
 
   const candidateFilter = {
     isPublished: true,
+    "generation.mode": { $ne: "module" },
     $or: [
       { "modules.title": new RegExp(escapeRegex(search), "i") },
       { "modules.description": new RegExp(escapeRegex(search), "i") },
@@ -249,7 +250,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
     const excludedIds = [...new Set([
       ...standalone.sourceCourseIds,
       ...standalone.standaloneIds
-    ])];
+    ])].map((id) => new mongoose.Types.ObjectId(id));
     filter._id = { $nin: excludedIds };
   }
 
@@ -260,7 +261,8 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   const standaloneCount = standaloneCourses.length;
   const skip = (page - 1) * limit;
   const regularSkip = Math.max(skip - standaloneCount, 0);
-  const regularLimit = Math.max(limit - Math.max(standaloneCount - skip, 0), 0);
+  const pageStandalone = standaloneCourses.slice(skip, skip + limit);
+  const regularLimit = Math.max(limit - pageStandalone.length, 0);
 
   const fetchRegular = async () => {
     if (regularLimit === 0 && standaloneCount > skip) {
@@ -323,7 +325,6 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   };
 
   const regular = await fetchRegular();
-  const pageStandalone = standaloneCourses.slice(skip, skip + limit);
   const courses = [...pageStandalone, ...regular.courses];
   const total = standaloneCount + regular.total;
 

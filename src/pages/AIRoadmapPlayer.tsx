@@ -10,7 +10,8 @@ export default function AIRoadmapPlayer() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number[]>>({});
-  const [quizBusy, setQuizBusy] = useState<number | null>(null);\n  const [quizGenerating, setQuizGenerating] = useState<number | null>(null);
+  const [quizBusy, setQuizBusy] = useState<number | null>(null);
+  const [quizGenerating, setQuizGenerating] = useState<number | null>(null);
 
   useEffect(() => {
     if (!roadmapId) return;

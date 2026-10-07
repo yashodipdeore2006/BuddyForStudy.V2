@@ -1,3 +1,171 @@
+import { GoogleGenAI } from "@google/genai";
+import { env } from "../config/env.js";
+import { searchBestYouTubeCourse } from "./youtube.service.js";
+
+const cache = new Map();
+const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
+
+const searchSpecSchema = {
+  type: "object",
+  properties: {
+    topic: { type: "string" },
+    title: { type: "string" },
+    skills: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          searchQueries: { type: "array", items: { type: "string" } },
+          requiredTopics: { type: "array", items: { type: "string" } },
+          searchPolicy: {
+            type: "object",
+            properties: {
+              minDurationMinutes: { type: "integer" },
+              targetDurationMinutes: { type: "integer" },
+              maxDurationMinutes: { type: "integer" },
+              excludeShorts: { type: "boolean" },
+              requireEmbeddable: { type: "boolean" },
+              preferProjectBased: { type: "boolean" },
+              preferredLanguage: { type: "string" }
+            },
+            required: [
+              "minDurationMinutes",
+              "targetDurationMinutes",
+              "maxDurationMinutes",
+              "excludeShorts",
+              "requireEmbeddable",
+              "preferProjectBased",
+              "preferredLanguage"
+            ]
+          }
+        },
+        required: ["name", "searchQueries", "requiredTopics", "searchPolicy"]
+      }
+    }
+  },
+  required: ["topic", "title", "skills"]
+};
+
+function normalizePolicy(policy) {
+  const min = Math.max(30, Math.min(2400, Number(policy?.minDurationMinutes) || 180));
+  const target = Math.max(min, Math.min(3000, Number(policy?.targetDurationMinutes) || min));
+  const max = Math.max(target, Math.min(3600, Number(policy?.maxDurationMinutes) || target));
+  return {
+    ...policy,
+    minDurationMinutes: min,
+    targetDurationMinutes: target,
+    maxDurationMinutes: max,
+    excludeShorts: policy?.excludeShorts !== false,
+    requireEmbeddable: policy?.requireEmbeddable !== false,
+    preferProjectBased: policy?.preferProjectBased !== false,
+    preferredLanguage: policy?.preferredLanguage || "en"
+  };
+}
+
+async function generateSearchSpecification(topic) {
+  if (!aiClient) {
+    const error = new Error("AI search is not configured. Add GEMINI_API_KEY.");
+    error.status = 503;
+    throw error;
+  }
+
+  const response = await aiClient.models.generateContent({
+    model: env.geminiModel,
+    contents: [
+      "You are BuddyForStudy's learning-resource search planner.",
+      "The user is performing NORMAL COURSE SEARCH, not asking for a personalized roadmap.",
+      "Break the requested technology/career into the essential ordered skills needed to learn it.",
+      "For every skill, create independent YouTube search queries and a course-duration range.",
+      "The duration range must be specific to the skill. Do not use one generic duration for all skills.",
+      "Example principle: JavaScript may reasonably need 10-20 hours for a complete course, while React may need 7+ hours. Decide realistic values for the actual topic.",
+      "The search engine will enforce the duration range against the video's actual YouTube duration.",
+      "Do not return video URLs. Do not choose a channel. Do not choose a video.",
+      "Return skills in learning order.",
+      "For a MERN Stack search, the expected progression normally includes HTML, CSS, JavaScript, React, Node.js, Express.js, and MongoDB.",
+      `User search: ${topic}`
+    ].join("\n"),
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: searchSpecSchema,
+      thinkingConfig: { thinkingLevel: "MINIMAL" },
+      maxOutputTokens: 8000
+    }
+  });
+
+  const result = JSON.parse(response.text);
+  if (!result?.skills?.length) {
+    const error = new Error("AI search planner returned no skills");
+    error.status = 502;
+    throw error;
+  }
+  return result;
+}
+
+export async function searchCourseBySkills(query) {
+  const normalized = query.trim().toLowerCase();
+  const key = `course-search:${normalized}`;
+  if (cache.has(key)) return cache.get(key);
+
+  const spec = await generateSearchSpecification(query);
+  const modules = [];
+
+  for (let index = 0; index < spec.skills.length; index += 1) {
+    const skill = spec.skills[index];
+    const policy = normalizePolicy(skill.searchPolicy);
+    const selected = await searchBestYouTubeCourse({
+      skill: skill.name,
+      searchQueries: skill.searchQueries,
+      searchPolicy: {
+        ...policy,
+        requiredTopics: skill.requiredTopics
+      }
+    });
+
+    modules.push({
+      order: index + 1,
+      title: skill.name,
+      skill: skill.name,
+      searchSpecification: {
+        searchQueries: skill.searchQueries,
+        requiredTopics: skill.requiredTopics,
+        duration: {
+          minMinutes: policy.minDurationMinutes,
+          targetMinutes: policy.targetDurationMinutes,
+          maxMinutes: policy.maxDurationMinutes
+        }
+      },
+      course: selected
+        ? {
+            videoId: selected.videoId,
+            title: selected.title,
+            description: selected.description,
+            channelTitle: selected.channelTitle,
+            durationSeconds: selected.durationSeconds,
+            duration: selected.durationSeconds,
+            url: selected.url,
+            embedUrl: selected.embedUrl,
+            thumbnail: selected.thumbnail,
+            score: selected.score,
+            selection: selected.selection
+          }
+        : null
+    });
+  }
+
+  const result = {
+    query,
+    title: spec.title || `${query} Learning Course`,
+    modules,
+    moduleCount: modules.length,
+    foundModules: modules.filter((module) => module.course).length
+  };
+
+  cache.set(key, result);
+  return result;
+}
+
+// Legacy playlist discovery remains available for direct playlist browsing.
 import { env } from "../config/env.js";
 
 const cache = new Map();

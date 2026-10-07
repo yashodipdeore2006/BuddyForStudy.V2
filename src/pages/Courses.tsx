@@ -147,10 +147,10 @@ export default function Courses() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 font-semibold text-slate-900"><Sparkles className="h-4 w-4 text-blue-600" /> Can't find exactly what you need?</div>
-              <p className="mt-1 text-sm text-slate-600">AI can understand "{searchQuery.trim()}" and build a prerequisite-ordered roadmap with projects and learning resources.</p>
+              <p className="mt-1 text-sm text-slate-600">Build a prerequisite-ordered roadmap with practical projects and YouTube learning resources selected by BuddyForStudy.</p>
             </div>
             <button onClick={generateAiRoadmap} disabled={aiLoading} className="btn-primary whitespace-nowrap">
-              {aiLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Building...</> : <><Sparkles className="h-4 w-4" /> Build with AI</>}
+              {aiLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Building...</> : <><Sparkles className="h-4 w-4" /> Build Roadmap</>}
             </button>
           </div>
           {aiError && <p className="mt-3 text-sm text-red-600">{aiError}</p>}
@@ -160,7 +160,7 @@ export default function Courses() {
       {aiRoadmap?.course && (
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
-            <div><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Roadmap</p><h2 className="mt-1 text-xl font-bold text-slate-900">{aiRoadmap.canonicalTopic || aiRoadmap.course.title}</h2><p className="mt-1 text-sm text-slate-500">{aiRoadmap.course.description}</p></div>
+            <div><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Personalized Learning Roadmap</p><h2 className="mt-1 text-xl font-bold text-slate-900">{aiRoadmap.canonicalTopic || aiRoadmap.course.title}</h2><p className="mt-1 text-sm text-slate-500">{aiRoadmap.course.description}</p></div>
             <div className="flex items-center gap-3"><button onClick={saveAiRoadmap} disabled={savingRoadmap || !!savedRoadmapId} className="btn-primary">{savingRoadmap ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : savedRoadmapId ? 'Saved to My Learning' : 'Save Roadmap'}</button><button onClick={()=>setAiRoadmap(null)} className="text-sm text-slate-400 hover:text-slate-700">Close</button></div>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">

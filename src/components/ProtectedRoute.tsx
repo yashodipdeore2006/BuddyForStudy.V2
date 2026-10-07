@@ -27,6 +27,10 @@ export default function ProtectedRoute({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (profile?.role === 'admin' && !requireAdmin) {
+    return <Navigate to="/admin" replace />;
+  }
+
   if (requireAdmin && profile?.role !== 'admin') {
     return <Navigate to="/dashboard" replace />;
   }

@@ -32,7 +32,7 @@ import AdminCoupons from '@/pages/admin/AdminCoupons';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
-  const isPlayerPage = pathname.startsWith('/learn/');
+  const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/roadmaps/') || pathname.startsWith('/playlists/');
   const isAdmin = pathname.startsWith('/admin');
   return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}</div>;
 }

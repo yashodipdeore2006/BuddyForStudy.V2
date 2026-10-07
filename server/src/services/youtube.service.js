@@ -39,12 +39,16 @@ function relevanceScore(video,query) {
   if(!terms.length) return 50;
   return Math.round((terms.filter((term)=>text.includes(term)).length/terms.length)*100);
 }
-function durationScore(seconds,expected={min:30,max:180}) {
-  const minutes=seconds/60;
-  if(!minutes)return 0;
-  if(minutes>=expected.min&&minutes<=expected.max)return 100;
-  if(minutes<expected.min)return clamp(100-((expected.min-minutes)/Math.max(expected.min,1))*100);
-  return clamp(100-((minutes-expected.max)/Math.max(expected.max,1))*60);
+function durationScore(seconds, expected = {}) {
+  const minutes = seconds / 60;
+  const min = Number(expected.minDurationMinutes ?? expected.min ?? 30);
+  const target = Number(expected.targetDurationMinutes ?? expected.target ?? min);
+  const max = Number(expected.maxDurationMinutes ?? expected.max ?? Math.max(target, min));
+  if (!minutes || minutes < min || minutes > max) return 0;
+  if (minutes === target) return 100;
+  const distance = Math.abs(minutes - target);
+  const range = Math.max(target - min, max - target, 1);
+  return clamp(100 - (distance / range) * 50);
 }
 function recencyScore(publishedAt){const ageDays=Math.max(0,(Date.now()-new Date(publishedAt||Date.now()).getTime())/86400000);return clamp(100-(ageDays/3650)*100);}
 function logMetric(value){return Math.log10(Math.max(1,Number(value||0))+1);}
@@ -53,7 +57,7 @@ function normalizedMetric(values,value){const max=Math.max(...values,1);return c
 function scoreCandidate(video,lesson,pool) {
   const coverage=coverageScore(video,lesson.tutorial?.requiredTopics);
   const relevance=relevanceScore(video,lesson.tutorial?.searchQuery||lesson.title);
-  const duration=durationScore(video.durationSeconds,lesson.tutorial?.durationMinutes);
+  const duration=durationScore(video.durationSeconds, lesson.tutorial?.searchPolicy || lesson.tutorial?.durationMinutes);
   const views=normalizedMetric(pool.map((v)=>logMetric(v.viewCount)),logMetric(video.viewCount));
   const subscribers=normalizedMetric(pool.map((v)=>logMetric(v.subscriberCount)),logMetric(video.subscriberCount));
   const recency=recencyScore(video.publishedAt);
@@ -147,16 +151,25 @@ export async function attachYouTubeResources(course){
   const allSources=[];
 
   for(const {lesson,items} of queryResults){
+    const policy = lesson.tutorial?.searchPolicy || {};
+    const minDuration = Number(policy.minDurationMinutes || 0);
+    const maxDuration = Number(policy.maxDurationMinutes || Number.MAX_SAFE_INTEGER);
     const candidates=[...new Set(items.map((item)=>item.id?.videoId).filter(Boolean))]
       .map((id)=>toCandidate(byId.get(id),channelMap.get(byId.get(id)?.snippet?.channelId)))
-      .filter((video)=>video&&!video.isShort&&video.embeddable);
+      .filter((video)=>video
+        && (!policy.excludeShorts || !video.isShort)
+        && (!policy.requireEmbeddable || video.embeddable)
+        && video.durationSeconds >= minDuration * 60
+        && video.durationSeconds <= maxDuration * 60
+      );
     const ranked=candidates.map((video)=>({...video,...scoreCandidate(video,lesson,candidates)})).sort((a,b)=>b.score-a.score).slice(0,3);
     lesson.tutorial.videos=ranked;
     lesson.tutorial.resources=ranked.map((video)=>video.url);
     lesson.tutorial.resourceStatus=ranked.length?"ready":"unavailable";
     lesson.tutorial.selection=ranked[0]?{
-      algorithm:"metadata-v1",
-      weights:{relevance:.30,coverage:.30,duration:.10,views:.08,likeRatio:.08,subscribers:.05,recency:.05,embeddable:.04}
+      algorithm:"metadata-v2-hard-duration",
+      weights:{relevance:.30,coverage:.30,duration:.10,views:.08,likeRatio:.08,subscribers:.05,recency:.05,embeddable:.04},
+      durationPolicy: lesson.tutorial?.searchPolicy || null
     }:null;
     delete lesson.tutorial.searchQuery;
     allSources.push(...ranked);

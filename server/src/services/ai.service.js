@@ -88,27 +88,39 @@ async function generateWithGemini(prompt) {
     throw error;
   }
 
-  const response = await geminiClient.models.generateContent({
-    model: env.geminiModel,
-    contents: prompt,
-    config: {
-      systemInstruction:
-        "You are a structured-output engine. Return only valid JSON. Do not use Markdown fences, commentary, or explanations outside the JSON object.",
-      responseMimeType: "application/json",
-      thinkingConfig: {
-        thinkingLevel: "low"
-      },
-      maxOutputTokens: 24000
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const response = await geminiClient.models.generateContent({
+        model: env.geminiModel,
+        contents: prompt,
+        config: {
+          systemInstruction:
+            "You are a structured-output engine. Return only valid JSON. Do not use Markdown fences, commentary, or explanations outside the JSON object.",
+          responseMimeType: "application/json",
+          thinkingConfig: {
+            thinkingLevel: "MINIMAL"
+          },
+          maxOutputTokens: 24000
+        }
+      });
+
+      const content = response.text;
+
+      if (!content) {
+        throw new Error("Gemini AI provider returned an empty response");
+      }
+
+      return parseJson(content);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
     }
-  });
-
-  const content = response.text;
-
-  if (!content) {
-    throw new Error("Gemini AI provider returned an empty response");
   }
 
-  return parseJson(content);
+  throw lastError;
 }
 
 async function generateWithOpenRouter(prompt) {
@@ -119,7 +131,7 @@ async function generateWithOpenRouter(prompt) {
   }
 
   const request = {
-    model: env.openrouterApiKey ? env.openrouterModel : env.openaiModel,
+    model: env.openrouterApiKey ? env.openrouterFallbackModel : env.openaiModel,
     messages: [
       {
         role: "system",
@@ -129,7 +141,7 @@ async function generateWithOpenRouter(prompt) {
     ],
     temperature: 0.2,
     max_completion_tokens: 16000,
-    reasoning: { effort: "low" },
+    reasoning: { effort: "none" },
     response_format: { type: "json_object" },
     ...(env.openrouterApiKey ? { provider: { require_parameters: true } } : {})
   };

@@ -140,6 +140,15 @@ export default function CoursePlayer() {
     );
   }
 
+  const completedLessons = progress?.completed_lessons || [];
+  const currentCompleted = lessonId
+    ? isLessonCompleted(completedLessons, lessonId)
+    : false;
+  const navigation = lessonId
+    ? getNavigationLessons(course.modules, lessonId)
+    : { prev: null, next: null };
+  const progressPct = progress?.percentage || 0;
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur">

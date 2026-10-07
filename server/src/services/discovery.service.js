@@ -105,7 +105,7 @@ async function generateSearchSpecification(topic) {
 export async function searchCourseBySkills(query) {
   const normalized = query.trim().toLowerCase();
   const key = `course-search:${normalized}`;
-  if (cache.has(key)) return cache.get(key);
+  if (playlistCache.has(key)) return playlistCache.get(key);
 
   const spec = await generateSearchSpecification(query);
   const modules = [];
@@ -161,14 +161,12 @@ export async function searchCourseBySkills(query) {
     foundModules: modules.filter((module) => module.course).length
   };
 
-  cache.set(key, result);
+  playlistCache.set(key, result);
   return result;
 }
 
 // Legacy playlist discovery remains available for direct playlist browsing.
-import { env } from "../config/env.js";
-
-const cache = new Map();
+const playlistCache = new Map();
 
 async function youtubeRequest(endpoint, params) {
   if (!env.youtubeApiKey) {
@@ -213,7 +211,7 @@ function formatDuration(seconds) {
 
 export async function searchStructuredPlaylists(query, maxResults = 12) {
   const key = `search:${query.trim().toLowerCase()}`;
-  if (cache.has(key)) return cache.get(key);
+  if (playlistCache.has(key)) return playlistCache.get(key);
 
   const data = await youtubeRequest("search", {
     part: "snippet",
@@ -249,7 +247,7 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
     }))
     .filter((playlist) => playlist.itemCount > 0);
 
-  cache.set(key, results);
+  playlistCache.set(key, results);
   return results;
 }
 

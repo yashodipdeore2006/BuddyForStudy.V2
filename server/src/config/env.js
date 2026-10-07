@@ -7,12 +7,18 @@ for (const key of required) {
 }
 
 const configuredOpenRouterModel = process.env.OPENROUTER_MODEL?.trim();
+
+const retiredFreeModels = new Set([
+  "openai/gpt-oss-20b:free",
+  "qwen/qwen3.8-27b:free"
+]);
+
 const openrouterModel =
-  configuredOpenRouterModel &&
-  configuredOpenRouterModel !== "openai/gpt-oss-20b:free" &&
-  configuredOpenRouterModel !== "openrouter/free"
-    ? configuredOpenRouterModel
-    : "qwen/qwen3.8-27b:free";
+  !configuredOpenRouterModel ||
+  configuredOpenRouterModel === "openrouter/free" ||
+  retiredFreeModels.has(configuredOpenRouterModel)
+    ? "openrouter/free"
+    : configuredOpenRouterModel;
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",

@@ -1,6 +1,6 @@
-import { createClient } from "redis";
+import { createClient, commandOptions } from "redis";
 
-const CACHE_TIMEOUT_MS = 750;
+const CACHE_TIMEOUT_MS = 250;
 
 let client = null;
 let connecting = null;
@@ -9,10 +9,17 @@ function getClient() {
   if (!process.env.REDIS_URL) return null;
 
   if (!client) {
-    client = createClient({ url: process.env.REDIS_URL }).on("error", () => {});
+    client = createClient({
+      url: process.env.REDIS_URL,
+      socket: {
+        connectTimeout: CACHE_TIMEOUT_MS,
+        reconnectStrategy: false,
+      },
+      disableOfflineQueue: true,
+    }).on("error", () => {});
   }
 
-  if (!connecting) {
+  if (!connecting && !client.isOpen) {
     connecting = client.connect().catch(() => {
       connecting = null;
       return false;
@@ -37,15 +44,13 @@ async function withTimeout(promise, fallback) {
 }
 
 export async function cacheGet(key) {
+  const c = getClient();
+  if (!c || !c.isReady) return null;
+
   try {
-    const c = getClient();
-    if (!c || !connecting) return null;
-
-    const connected = await withTimeout(connecting, false);
-    if (connected === false && !c.isReady) return null;
-
     return await withTimeout(
-      c.get(key).then((value) => (value ? JSON.parse(value) : null)),
+      c.get(commandOptions({ signal: AbortSignal.timeout(CACHE_TIMEOUT_MS) }), key)
+        .then((value) => (value ? JSON.parse(value) : null)),
       null
     );
   } catch {
@@ -54,31 +59,27 @@ export async function cacheGet(key) {
 }
 
 export async function cacheSet(key, value, ttlSeconds = 60) {
+  const c = getClient();
+  if (!c || !c.isReady) return false;
+
   try {
-    const c = getClient();
-    if (!c || !connecting) return false;
-
-    const connected = await withTimeout(connecting, false);
-    if (connected === false && !c.isReady) return false;
-
-    return await withTimeout(
-      c.set(key, JSON.stringify(value), { EX: ttlSeconds }).then(() => true),
+    await withTimeout(
+      c.set(key, JSON.stringify(value), { EX: ttlSeconds }),
       false
     );
+    return true;
   } catch {
     return false;
   }
 }
 
 export async function cacheDelete(key) {
+  const c = getClient();
+  if (!c || !c.isReady) return false;
+
   try {
-    const c = getClient();
-    if (!c || !connecting) return false;
-
-    const connected = await withTimeout(connecting, false);
-    if (connected === false && !c.isReady) return false;
-
-    return await withTimeout(c.del(key).then(() => true), false);
+    await withTimeout(c.del(key), false);
+    return true;
   } catch {
     return false;
   }

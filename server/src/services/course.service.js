@@ -7,6 +7,36 @@ function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+function escapeRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\function normalizeSlug(value) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}");
+}
+
+function buildCourseSearchFilter(search) {
+  const query = String(search || "").trim();
+  if (!query) return null;
+
+  const regex = new RegExp(escapeRegex(query), "i");
+
+  return {
+    $or: [
+      { title: regex },
+      { description: regex },
+      { category: regex },
+      { learningOutcomes: regex },
+      { "modules.title": regex },
+      { "modules.description": regex },
+      { "modules.lessons.title": regex },
+      { "modules.lessons.description": regex },
+      { "modules.lessons.tutorial.playlistTitle": regex },
+      { "modules.lessons.tutorial.videos.title": regex },
+      { "modules.lessons.tutorial.videos.description": regex },
+      { "modules.lessons.tutorial.videos.channelTitle": regex }
+    ]
+  };
+}
+
 function totalLessons(course) {
   return course.modules.reduce((count, module) => count + module.lessons.length, 0);
 }
@@ -30,7 +60,8 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   const filter = { isPublished: true };
   if (category) filter.category = category;
   if (level) filter.level = level;
-  if (search) filter.$text = { $search: search };
+  const searchFilter = buildCourseSearchFilter(search);
+  if (searchFilter) Object.assign(filter, searchFilter);
 
   const skip = (page - 1) * limit;
 

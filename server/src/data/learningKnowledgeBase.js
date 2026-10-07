@@ -10,6 +10,24 @@ const SKILLS = {
   react: skill({ id:"react", name:"React", category:"frontend", topics:["JSX","components","props","state","events","hooks","useEffect","forms","React Router","API integration"], project:"Build a React task management application with routing and API integration", searchQueries:["React full course beginners hooks router API","React complete course projects beginners"], durationMinutes:{min:180,max:900} }),
   node: skill({ id:"node", name:"Node.js", category:"backend", topics:["Node runtime","modules","npm","filesystem","HTTP","environment variables","asynchronous programming"], project:"Build a Node.js REST API without a framework", searchQueries:["Node.js full course beginners modules npm HTTP REST API","Node.js complete course beginners"], durationMinutes:{min:120,max:600} }),
   express: skill({ id:"express", name:"Express.js", category:"backend", topics:["routing","middleware","controllers","REST APIs","validation","error handling","authentication"], project:"Build a production-style Express REST API with validation and error handling", searchQueries:["Express.js full course REST API middleware authentication","Express.js tutorial beginners REST API"], durationMinutes:{min:90,max:480} }),
+  cpp: skill({
+    id: "cpp",
+    name: "C++",
+    category: "language",
+    topics: ["syntax", "variables", "functions", "arrays", "strings", "pointers", "references", "classes", "STL", "algorithms", "OOP"],
+    project: "Build a C++ console-based student management system",
+    searchQueries: ["C++ full course beginners OOP STL algorithms", "C++ complete course beginners projects"],
+    durationMinutes: { min: 180, max: 900 }
+  }),
+  python: skill({
+    id: "python",
+    name: "Python",
+    category: "language",
+    topics: ["syntax", "variables", "data types", "functions", "collections", "modules", "exceptions", "OOP", "file handling"],
+    project: "Build a Python CLI expense tracker",
+    searchQueries: ["Python full course beginners functions OOP file handling", "Python complete course beginners projects"],
+    durationMinutes: { min: 180, max: 900 }
+  }),
   mongodb: skill({ id:"mongodb", name:"MongoDB", category:"database", topics:["documents","collections","CRUD","queries","indexes","aggregation","Mongoose"], project:"Build a MongoDB CRUD API using Mongoose", searchQueries:["MongoDB full course beginners CRUD aggregation Mongoose","MongoDB complete course Mongoose Node.js"], durationMinutes:{min:120,max:600} })
 };
 

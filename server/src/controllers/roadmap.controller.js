@@ -36,6 +36,17 @@ export async function list(req, res, next) {
   catch (e) { next(e); }
 }
 
+export async function remove(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
+    return success(
+      res,
+      { roadmap: await service.deleteRoadmap(req.user.userId, req.params.roadmapId) },
+      "Learning roadmap removed"
+    );
+  } catch (e) { next(e); }
+}
+
 export async function get(req, res, next) {
   try {
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);

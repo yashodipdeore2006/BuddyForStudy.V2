@@ -1,1 +1,88 @@
-import { GoogleGenAI } from "@google/genai";\nimport { env } from "../config/env.js";\n\nconst geminiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;\n\nfunction parseJson(raw) {\n  const normalized = String(raw || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();\n  try { return JSON.parse(normalized); } catch {\n    const first = normalized.indexOf("{");\n    const last = normalized.lastIndexOf("}");\n    if (first !== -1 && last > first) return JSON.parse(normalized.slice(first, last + 1));\n    const error = new Error("Gemini quiz provider returned invalid JSON");\n    error.status = 502;\n    throw error;\n  }\n}\n\nfunction validateQuiz(value) {\n  if (!value || !Array.isArray(value.questions) || value.questions.length < 3 || value.questions.length > 5) {\n    throw Object.assign(new Error("Gemini returned an invalid quiz"), { status: 502 });\n  }\n  const questions = value.questions.map((question, index) => {\n    if (!question?.question || !Array.isArray(question.options) || question.options.length !== 4) {\n      throw Object.assign(new Error("Gemini returned an invalid quiz question at index " + index), { status: 502 });\n    }\n    const answer = Number(question.answer);\n    if (!Number.isInteger(answer) || answer < 0 || answer > 3) {\n      throw Object.assign(new Error("Gemini returned an invalid answer index at question " + (index + 1)), { status: 502 });\n    }\n    return { question: String(question.question), options: question.options.map((option) => String(option)), answer, explanation: String(question.explanation || "") };\n  });\n  return { title: String(value.title || "Module Quiz"), questions };\n}\n\nexport async function generateModuleQuiz({ module, courseTitle, level = "Beginner" }) {\n  if (!geminiClient) {\n    const error = new Error("Gemini quiz provider is not configured");\n    error.status = 503;\n    throw error;\n  }\n\n  const lessons = (module.lessons || []).map((lesson) => ({\n    title: lesson.title,\n    type: lesson.type,\n    description: lesson.description,\n    topics: lesson.tutorial?.requiredTopics || [],\n    project: lesson.project?.objectives || []\n  }));\n\n  const prompt = [\n    "You are BuddyForStudy quiz generator.",\n    "",\n    "Course: " + courseTitle,\n    "Module: " + module.title,\n    "Learner level: " + level,\n    "",\n    "Create 5 multiple-choice questions using ONLY the learning material below.",\n    "Do not test topics that are not present in the module.",\n    "Questions should test understanding, not trivia.",\n    "Each question must have exactly four plausible options and exactly one correct answer.",\n    "The answer field must be the zero-based option index.",\n    "Return ONLY valid JSON.",\n    "",\n    "Learning material:",\n    JSON.stringify(lessons)\n  ].join("\n");\n\n  let lastError;\n  for (let attempt = 1; attempt <= 2; attempt += 1) {\n    try {\n      const response = await geminiClient.models.generateContent({\n        model: env.geminiModel,\n        contents: prompt,\n        config: {\n          systemInstruction: "Return only valid JSON. No Markdown fences or commentary.",\n          responseMimeType: "application/json",\n          thinkingConfig: { thinkingLevel: "MINIMAL" },\n          maxOutputTokens: 5000\n        }\n      });\n      return validateQuiz(parseJson(response.text));\n    } catch (error) {\n      lastError = error;\n      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200));\n    }\n  }\n  throw lastError;\n}\n
+import { GoogleGenAI } from "@google/genai";
+import { env } from "../config/env.js";
+
+const geminiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
+
+function parseJson(raw) {
+  const normalized = String(raw || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  try { return JSON.parse(normalized); } catch {
+    const first = normalized.indexOf("{");
+    const last = normalized.lastIndexOf("}");
+    if (first !== -1 && last > first) return JSON.parse(normalized.slice(first, last + 1));
+    const error = new Error("Gemini quiz provider returned invalid JSON");
+    error.status = 502;
+    throw error;
+  }
+}
+
+function validateQuiz(value) {
+  if (!value || !Array.isArray(value.questions) || value.questions.length < 3 || value.questions.length > 5) {
+    throw Object.assign(new Error("Gemini returned an invalid quiz"), { status: 502 });
+  }
+  const questions = value.questions.map((question, index) => {
+    if (!question?.question || !Array.isArray(question.options) || question.options.length !== 4) {
+      throw Object.assign(new Error("Gemini returned an invalid quiz question at index " + index), { status: 502 });
+    }
+    const answer = Number(question.answer);
+    if (!Number.isInteger(answer) || answer < 0 || answer > 3) {
+      throw Object.assign(new Error("Gemini returned an invalid answer index at question " + (index + 1)), { status: 502 });
+    }
+    return { question: String(question.question), options: question.options.map((option) => String(option)), answer, explanation: String(question.explanation || "") };
+  });
+  return { title: String(value.title || "Module Quiz"), questions };
+}
+
+export async function generateModuleQuiz({ module, courseTitle, level = "Beginner" }) {
+  if (!geminiClient) {
+    const error = new Error("Gemini quiz provider is not configured");
+    error.status = 503;
+    throw error;
+  }
+
+  const lessons = (module.lessons || []).map((lesson) => ({
+    title: lesson.title,
+    type: lesson.type,
+    description: lesson.description,
+    topics: lesson.tutorial?.requiredTopics || [],
+    project: lesson.project?.objectives || []
+  }));
+
+  const prompt = [
+    "You are BuddyForStudy quiz generator.",
+    "",
+    "Course: " + courseTitle,
+    "Module: " + module.title,
+    "Learner level: " + level,
+    "",
+    "Create 5 multiple-choice questions using ONLY the learning material below.",
+    "Do not test topics that are not present in the module.",
+    "Questions should test understanding, not trivia.",
+    "Each question must have exactly four plausible options and exactly one correct answer.",
+    "The answer field must be the zero-based option index.",
+    "Return ONLY valid JSON.",
+    "",
+    "Learning material:",
+    JSON.stringify(lessons)
+  ].join("\n");
+
+  let lastError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const response = await geminiClient.models.generateContent({
+        model: env.geminiModel,
+        contents: prompt,
+        config: {
+          systemInstruction: "Return only valid JSON. No Markdown fences or commentary.",
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingLevel: "MINIMAL" },
+          maxOutputTokens: 5000
+        }
+      });
+      return validateQuiz(parseJson(response.text));
+    } catch (error) {
+      lastError = error;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+  }
+  throw lastError;
+}

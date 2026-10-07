@@ -94,7 +94,7 @@ async function generateSearchSpecification(topic) {
     config: {
       responseMimeType: "application/json",
       responseSchema: searchSpecSchema,
-      thinkingConfig: { thinkingLevel: "MINIMAL" },
+      thinkingConfig: { thinkingLevel: "LOW" },
       maxOutputTokens: 8000
     }
   });

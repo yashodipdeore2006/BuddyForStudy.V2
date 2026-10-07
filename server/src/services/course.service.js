@@ -8,7 +8,8 @@ function normalizeSlug(value) {
 }
 
 function escapeRegex(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
+  const regexCharacters = "\\^$.*+?()[]{}|";
+  return [...String(value || "")].map((char) => regexCharacters.includes(char) ? "\\" + char : char).join("");
 }
 
 function buildCourseSearchFilter(search) {

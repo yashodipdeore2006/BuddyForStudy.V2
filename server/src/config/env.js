@@ -34,6 +34,7 @@ export const env = {
   geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
   openaiModel: process.env.OPENAI_MODEL || "gpt-5.6-luna",
   openrouterModel,
+  openrouterFallbackModel: process.env.OPENROUTER_FALLBACK_MODEL || "google/gemma-4-26b-a4b-it:free",
   openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
   youtubeApiKey: process.env.YOUTUBE_API_KEY || "",
   smtpHost: process.env.SMTP_HOST || "",

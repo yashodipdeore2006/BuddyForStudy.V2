@@ -8,9 +8,7 @@ function normalizeSlug(value) {
 }
 
 function escapeRegex(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\function normalizeSlug(value) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}");
+  return String(value || "").replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
 }
 
 function buildCourseSearchFilter(search) {

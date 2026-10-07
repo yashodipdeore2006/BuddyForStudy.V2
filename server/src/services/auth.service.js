@@ -40,7 +40,12 @@ export async function register({ name, email, password }) {
     emailVerified: false
   });
 
-  await otpService.sendOtp(user, "email_verification");
+  try {
+    await otpService.sendOtp(user, "email_verification");
+  } catch (error) {
+    await user.deleteOne();
+    throw error;
+  }
 
   return {
     requiresVerification: true,

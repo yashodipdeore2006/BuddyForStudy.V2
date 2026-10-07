@@ -364,7 +364,7 @@ async function attachResources(course) {
 }
 
 export async function generateCoursePlan({ topic, level = "Beginner", goals = [] }) {
-  if (!client) {
+  if (!geminiClient && !openaiClient) {
     const error = new Error("AI provider is not configured");
     error.status = 503;
     throw error;

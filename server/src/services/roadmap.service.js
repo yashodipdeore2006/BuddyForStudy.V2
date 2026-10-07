@@ -37,6 +37,16 @@ export async function listRoadmaps(userId) {
   return roadmaps.map(decorate);
 }
 
+export async function deleteRoadmap(userId, roadmapId) {
+  const deleted = await LearningRoadmap.findOneAndDelete({ _id: roadmapId, user: userId });
+  if (!deleted) {
+    const error = new Error("Learning roadmap not found");
+    error.status = 404;
+    throw error;
+  }
+  return { id: String(deleted._id) };
+}
+
 export async function getRoadmap(userId, roadmapId) {
   const roadmap = await LearningRoadmap.findOne({ _id: roadmapId, user: userId });
   if (!roadmap) { const error = new Error("Learning roadmap not found"); error.status = 404; throw error; }

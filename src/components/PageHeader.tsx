@@ -1,19 +1,3 @@
 import type { ReactNode } from 'react';
-
-interface PageHeaderProps {
-  title: string;
-  subtitle?: string;
-  action?: ReactNode;
-}
-
-export default function PageHeader({ title, subtitle, action }: PageHeaderProps) {
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-  );
-}
+interface PageHeaderProps{title:string;subtitle?:string;action?:ReactNode}
+export default function PageHeader({title,subtitle,action}:PageHeaderProps){return <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="bfs-eyebrow">BuddyForStudy</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">{title}</h1>{subtitle&&<p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">{subtitle}</p>}</div>{action&&<div className="shrink-0">{action}</div>}</div>}

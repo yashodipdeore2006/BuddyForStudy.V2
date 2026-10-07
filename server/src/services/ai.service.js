@@ -98,7 +98,7 @@ async function generateWithGemini(prompt) {
       thinkingConfig: {
         thinkingLevel: "low"
       },
-      maxOutputTokens: 20000
+      maxOutputTokens: 24000
     }
   });
 

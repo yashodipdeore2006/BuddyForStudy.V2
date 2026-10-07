@@ -8,7 +8,8 @@ interface AuthContextValue {
   profile: Profile | null;
   loading: boolean;
   signIn: (email:string,password:string)=>Promise<Profile>;
-  signUp: (name:string,email:string,password:string)=>Promise<Profile>;
+  signUp: (name:string,email:string,password:string)=>Promise<Profile | { requiresVerification: true; email: string }>;
+  verifyEmail: (email:string,otp:string)=>Promise<Profile>;
   signInWithGoogle: (credential:string)=>Promise<Profile>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -52,6 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp=async(name:string,email:string,password:string)=>{
     const data=await apiFetch('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
+    if (data.requiresVerification) {
+      return { requiresVerification: true, email: data.email };
+    }
+    setAuth(data.token,data.user);
+    applyUser(data.user);
+    return profileFromUser(data.user);
+  };
+
+  const verifyEmail=async(email:string,otp:string)=>{
+    const data=await apiFetch('/api/auth/verify-email',{method:'POST',body:JSON.stringify({email,otp})});
     setAuth(data.token,data.user);
     applyUser(data.user);
     return profileFromUser(data.user);
@@ -75,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyUser(data.user);
   };
 
-  return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,signInWithGoogle,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,verifyEmail,signInWithGoogle,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(){const ctx=useContext(AuthContext);if(!ctx)throw new Error('useAuth must be used within AuthProvider');return ctx;}

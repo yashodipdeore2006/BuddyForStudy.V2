@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Course } from "../models/Course.js";
 import { Payment } from "../models/Payment.js";
+import { UserSubscription } from "../models/UserSubscription.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -78,6 +79,30 @@ export async function verifyCoursePayment(req, res, next) {
       signature: input.razorpaySignature
     })) return failure(res, "Invalid payment signature", 400);
 
+    if (payment.status === "paid") {
+      if (payment.providerPaymentId === input.razorpayPaymentId) {
+        return success(res, { payment }, "Payment already verified");
+      }
+      return failure(res, "Payment has already been verified with a different provider payment", 409);
+    }
+    if (payment.status === "refunded" || payment.status === "partially_refunded") {
+      return failure(res, "Payment is already refunded", 409);
+    }
+
+    const providerPayment = await razorpay.fetchPayment(input.razorpayPaymentId);
+    if (providerPayment.order_id !== payment.providerOrderId) {
+      return failure(res, "Provider payment order mismatch", 400);
+    }
+    if (providerPayment.status !== "captured") {
+      return failure(res, "Payment has not been captured", 400);
+    }
+    if (Number(providerPayment.amount) !== Math.round(payment.amount * 100)) {
+      return failure(res, "Payment amount mismatch", 400);
+    }
+    if (String(providerPayment.currency || "").toUpperCase() !== String(payment.currency).toUpperCase()) {
+      return failure(res, "Payment currency mismatch", 400);
+    }
+
     payment.providerPaymentId = input.razorpayPaymentId;
     payment.status = "paid";
     payment.paidAt = payment.paidAt || new Date();
@@ -100,6 +125,12 @@ export async function createSubscriptionOrder(req, res, next) {
     const plan = await SubscriptionPlan.findOne({ _id: planId, isActive: true });
     if (!plan) return failure(res, "Subscription plan not found", 404);
     if (plan.billingInterval === "one_time") return failure(res, "Use course checkout for one-time purchases", 400);
+
+    const existingSubscription = await UserSubscription.findOne({
+      user: req.user.userId,
+      status: { $in: ["trialing", "active", "past_due"] }
+    });
+    if (existingSubscription) return failure(res, "An active subscription already exists", 409);
 
     const intervalMap = { monthly: { period: "monthly", interval: 1 }, quarterly: { period: "monthly", interval: 3 }, yearly: { period: "yearly", interval: 1 } };
     const interval = intervalMap[plan.billingInterval];

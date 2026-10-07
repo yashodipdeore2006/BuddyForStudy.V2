@@ -171,6 +171,62 @@ export async function searchCourseBySkills(query) {
   return result;
 }
 
+export async function createCourseFromSearch(query) {
+  const { title, modules } = await searchCourseBySkills(query);
+  const { Course } = await import("../models/Course.js");
+
+  const category = "AI Course Search";
+  const existing = await Course.findOne({ title, category, isPublished: true });
+  if (existing) return existing;
+
+  const availableModules = modules.filter((module) => module.course);
+  const totalSeconds = availableModules.reduce(
+    (sum, module) => sum + Number(module.course?.durationSeconds || 0),
+    0
+  );
+  const duration = totalSeconds >= 3600
+    ? `${Math.floor(totalSeconds / 3600)}h ${String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0")}m`
+    : `${Math.floor(totalSeconds / 60)}m`;
+
+  return Course.create({
+    title,
+    slug: `${title}-${query}`,
+    description: `An AI-assembled ${query} learning course with independently selected, duration-matched YouTube lessons ordered by prerequisite.`,
+    category,
+    level: "Beginner",
+    duration: duration || "Self-paced",
+    thumbnail: availableModules[0]?.course?.thumbnail || "",
+    learningOutcomes: availableModules.map((module) => `Learn ${module.skill}`),
+    modules: modules.map((module) => ({
+      title: module.title,
+      description: `Learn ${module.skill} using the selected course video for this module.`,
+      order: module.order,
+      lessons: module.course ? [{
+        title: module.course.title,
+        description: module.course.description || `Selected YouTube course for ${module.skill}.`,
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          content: module.course.description || "",
+          resources: [],
+          videos: [{
+            videoId: module.course.videoId,
+            title: module.course.title,
+            description: module.course.description || "",
+            channelTitle: module.course.channelTitle || "",
+            url: module.course.url,
+            thumbnail: module.course.thumbnail || ""
+          }]
+        }
+      }] : []
+    })),
+    isPublished: true,
+    pricing: { mode: "free", price: 0, currency: "INR" },
+    enrollmentEnabled: true,
+    certificateEnabled: true
+  });
+}
+
 // Legacy playlist discovery remains available for direct playlist browsing.
 const playlistCache = new Map();
 

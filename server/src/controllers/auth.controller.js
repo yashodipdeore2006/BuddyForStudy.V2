@@ -14,11 +14,6 @@ const loginSchema = z.object({
   password: z.string().min(1).max(128)
 });
 
-const adminLoginSchema = z.object({
-  email: z.string().trim().email(),
-  password: z.string().min(1).max(128)
-});
-
 const googleSchema = z.object({
   credential: z.string().min(1)
 });
@@ -48,17 +43,6 @@ export async function login(req, res) {
     const input = loginSchema.parse(req.body);
     const result = await authService.login(input);
     return success(res, result, "Login successful");
-  } catch (error) {
-    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
-  }
-}
-
-export async function adminLogin(req, res) {
-  try {
-    const input = adminLoginSchema.parse(req.body);
-    const result = await authService.adminLogin(input);
-    return success(res, result, "Admin login successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return failure(res, error.message, error.status || 500);

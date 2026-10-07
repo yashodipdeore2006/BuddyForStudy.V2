@@ -16,6 +16,7 @@ import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
+import { cacheDelete } from "../config/cache.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   await AuditLog.create({
@@ -202,6 +203,7 @@ export async function updateCourseTutorial(req, res, next) {
 
     course.markModified("modules");
     await course.save();
+    await cacheDelete(`course:${course._id}`);
 
     await audit(
       req,

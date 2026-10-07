@@ -94,6 +94,17 @@ export async function submitQuiz(userId, roadmapId, moduleIndex, answers) {
   if (answers.length !== quiz.questions.length) { const error = new Error("Answer all quiz questions before submitting"); error.status = 400; throw error; }
   const score = answers.reduce((total, answer, index) => total + (Number(answer) === Number(quiz.questions[index].answer) ? 1 : 0), 0);
   roadmap.quizAttempts.push({ moduleIndex, score, total: quiz.questions.length, answers });
+  const percentage = Math.round((score / quiz.questions.length) * 100);
+  const moduleTitle = roadmap.course?.modules?.[moduleIndex]?.title || `Module ${moduleIndex + 1}`;
+  const recommendation = percentage < 50
+    ? { action: "reinforce", message: `Review ${moduleTitle} before moving forward. Focus on the concepts you missed.` }
+    : percentage < 80
+      ? { action: "practice", message: `Do one more practice task for ${moduleTitle}, then continue to the next stage.` }
+      : { action: "advance", message: `You have demonstrated strong understanding of ${moduleTitle}. Continue to the next stage.` };
+  roadmap.adaptiveState = {
+    lastQuiz: { moduleIndex, score, total: quiz.questions.length, percentage, attemptedAt: new Date() },
+    recommendation
+  };
   roadmap.lastAccessedAt = new Date();
   await roadmap.save();
   return decorate(roadmap);

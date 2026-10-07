@@ -6,7 +6,7 @@ import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2 } from 'lucide-react';
-import { classNames } from '@/lib/utils';
+import StructuredPlaylists from '@/components/StructuredPlaylists';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -142,8 +142,10 @@ export default function Courses() {
         </div>
       </div>
 
+      {searchQuery.trim().length >= 2 && <StructuredPlaylists query={searchQuery} />}
+
       {searchQuery.trim().length >= 2 && (
-        <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-5">
+        <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50 p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 font-semibold text-slate-900"><Sparkles className="h-4 w-4 text-blue-600" /> Can't find exactly what you need?</div>

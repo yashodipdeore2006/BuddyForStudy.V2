@@ -51,21 +51,6 @@ export async function login({ email, password }) {
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
-export async function adminLogin({ email, password }) {
-  const normalizedEmail = email.trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select("+password");
-
-  if (!user || !(await user.comparePassword(password))) {
-    throw authError("Invalid administrator credentials", 401);
-  }
-  if (!user.isActive) throw authError("Account is inactive", 401);
-  if (user.role !== "admin") {
-    throw authError("This account does not have administrator access.", 403);
-  }
-
-  return { user: publicUser(user), token: signAccessToken(user, "admin") };
-}
-
 export async function googleLogin(credential) {
   if (!env.googleClientId) throw authError("Google OAuth is not configured on the server", 503);
 

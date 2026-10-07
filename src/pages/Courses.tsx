@@ -98,21 +98,7 @@ export default function Courses() {
     return Array.from(cats).sort();
   }, [courses]);
 
-  const filteredCourses = useMemo(() => {
-    return courses.filter((course) => {
-      if (selectedLevel !== 'all' && course.level !== selectedLevel) return false;
-      if (selectedCategory !== 'all' && course.category !== selectedCategory) return false;
-      if (catalogQuery.trim()) {
-        const q = catalogQuery.toLowerCase();
-        return (
-          course.title.toLowerCase().includes(q) ||
-          course.description.toLowerCase().includes(q) ||
-          course.category.toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [courses, catalogQuery, selectedLevel, selectedCategory]);
+  const filteredCourses = useMemo(() => courses, [courses]);
 
   const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
 

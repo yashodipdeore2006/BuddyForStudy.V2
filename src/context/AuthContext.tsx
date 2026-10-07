@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch, clearAuth, getToken, setAuth } from '@/lib/api';
+import { clearAdminToken } from '@/lib/adminApi';
 import type { Profile } from '@/types';
 
 export interface AppSession { user: { id: string; email: string; name: string; role: 'user'|'admin'; profileImage?: string; }; }
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(()=>{ void hydrate(); },[]);
 
   const signIn=async(email:string,password:string)=>{
+    clearAdminToken();
     const data=await apiFetch('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
     setAuth(data.token,data.user);
     applyUser(data.user);
@@ -51,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp=async(name:string,email:string,password:string)=>{
+    clearAdminToken();
     const data=await apiFetch('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
     setAuth(data.token,data.user);
     applyUser(data.user);
@@ -58,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle=async(credential:string)=>{
+    clearAdminToken();
     const data=await apiFetch('/api/auth/google',{method:'POST',body:JSON.stringify({credential})});
     setAuth(data.token,data.user);
     applyUser(data.user);
@@ -66,7 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut=async()=>{
     try{if(getToken()) await apiFetch('/api/auth/logout',{method:'POST'});}catch{}
-    clearAuth();setSession(null);setProfile(null);
+    clearAuth();
+    clearAdminToken();
+    setSession(null);setProfile(null);
   };
 
   const refreshProfile=async()=>{

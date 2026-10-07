@@ -129,6 +129,67 @@ function toCandidate(video,channel){
   };
 }
 
+export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy }) {
+  if (!env.youtubeApiKey) return null;
+
+  const queries = (searchQueries || []).slice(0, 3);
+  const items = [];
+  for (const query of queries) {
+    try {
+      const data = await searchVideos(query, 20);
+      items.push(...(data?.items || []));
+    } catch (error) {
+      console.error("YouTube course search failed", { skill, query, message: error.message });
+    }
+  }
+
+  const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];
+  const videoDetails = await getVideoDetails(uniqueIds);
+  const channelIds = [...new Set(videoDetails.map((video) => video.snippet?.channelId).filter(Boolean))];
+  const channels = await getChannelDetails(channelIds);
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+  const byId = new Map(videoDetails.map((video) => [video.id, video]));
+
+  const minDuration = Number(searchPolicy?.minDurationMinutes || 0);
+  const maxDuration = Number(searchPolicy?.maxDurationMinutes || Number.MAX_SAFE_INTEGER);
+
+  const candidates = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))]
+    .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
+    .filter((video) =>
+      video &&
+      (!searchPolicy?.excludeShorts || !video.isShort) &&
+      (!searchPolicy?.requireEmbeddable || video.embeddable) &&
+      video.durationSeconds >= minDuration * 60 &&
+      video.durationSeconds <= maxDuration * 60
+    );
+
+  if (!candidates.length) return null;
+
+  const lesson = {
+    title: skill,
+    tutorial: {
+      searchQuery: queries[0] || skill,
+      requiredTopics: searchPolicy?.requiredTopics || [skill],
+      searchPolicy
+    }
+  };
+
+  const ranked = candidates
+    .map((video) => ({ ...video, ...scoreCandidate(video, lesson, candidates) }))
+    .sort((a, b) => b.score - a.score);
+
+  const selected = ranked[0];
+  return {
+    ...selected,
+    selection: {
+      algorithm: "normal-search-course-v1",
+      skill,
+      searchQueries: queries,
+      durationPolicy: searchPolicy
+    }
+  };
+}
+
 export async function attachYouTubeResources(course){
   if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return [];}
   const lessonRequests=[];

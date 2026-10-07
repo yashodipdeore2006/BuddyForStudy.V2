@@ -15,6 +15,7 @@ import { Coupon } from "../models/Coupon.js";
 import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import * as razorpay from "../services/razorpay.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   await AuditLog.create({
@@ -175,10 +176,36 @@ export async function updateRefund(req, res, next) {
     if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
     const refund = await RefundRequest.findById(req.params.refundId); if (!refund) return failure(res, "Refund request not found", 404);
     if (!["approved", "rejected", "processed"].includes(req.body.status)) return failure(res, "Invalid refund status", 400);
+    const payment = await Payment.findById(refund.payment);
+    if (!payment) return failure(res, "Payment record not found", 404);
+
     const before = refund.toObject();
-    refund.status = req.body.status; refund.adminNote = req.body.adminNote || refund.adminNote;
-    refund.processedBy = req.user.user._id; refund.processedAt = new Date(); await refund.save();
-    if (req.body.status === "processed") await Payment.findByIdAndUpdate(refund.payment, { $set: { status: "refunded" } });
+    refund.adminNote = req.body.adminNote || refund.adminNote;
+    refund.processedBy = req.user.user._id;
+
+    if (req.body.status === "rejected") {
+      refund.status = "rejected";
+      refund.processedAt = new Date();
+    } else if (req.body.status === "approved" || req.body.status === "processed") {
+      if (refund.status === "processed") return failure(res, "Refund is already processed", 409);
+      if (payment.provider !== "razorpay" || !payment.providerPaymentId) {
+        return failure(res, "Refund cannot be processed because the payment provider reference is missing", 400);
+      }
+
+      const providerRefund = await razorpay.refundPayment({
+        paymentId: payment.providerPaymentId,
+        amount: refund.amount
+      });
+
+      refund.status = "processed";
+      refund.providerRefundId = providerRefund.id || "";
+      refund.processedAt = new Date();
+
+      const isFullRefund = refund.amount >= payment.amount;
+      payment.status = isFullRefund ? "refunded" : "partially_refunded";
+      await payment.save();
+    }
+    await refund.save();
     await audit(req, "refund.updated", "RefundRequest", refund._id, before, refund.toObject(), req.body.adminNote);
     return success(res, { refund }, "Refund updated");
   } catch (e) { next(e); }

@@ -7,9 +7,10 @@ interface AuthContextValue {
   session: AppSession | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email:string,password:string)=>Promise<Profile>;
+  signIn: (email:string,password:string)=>Promise<Profile | { requiresOtp: true; email: string; purpose: 'login_verification' }>;
   signUp: (name:string,email:string,password:string)=>Promise<Profile | { requiresVerification: true; email: string }>;
   verifyEmail: (email:string,otp:string)=>Promise<Profile>;
+  verifyLogin: (email:string,otp:string)=>Promise<Profile>;
   signInWithGoogle: (credential:string)=>Promise<Profile>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -46,6 +47,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn=async(email:string,password:string)=>{
     const data=await apiFetch('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+    if (data.requiresOtp) {
+      return { requiresOtp: true, email: data.email, purpose: data.purpose };
+    }
+    setAuth(data.token,data.user);
+    applyUser(data.user);
+    return profileFromUser(data.user);
+  };
+
+  const verifyLogin=async(email:string,otp:string)=>{
+    const data=await apiFetch('/api/auth/verify-login',{method:'POST',body:JSON.stringify({email,otp})});
     setAuth(data.token,data.user);
     applyUser(data.user);
     return profileFromUser(data.user);
@@ -86,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyUser(data.user);
   };
 
-  return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,verifyEmail,signInWithGoogle,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,verifyEmail,verifyLogin,signInWithGoogle,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(){const ctx=useContext(AuthContext);if(!ctx)throw new Error('useAuth must be used within AuthProvider');return ctx;}

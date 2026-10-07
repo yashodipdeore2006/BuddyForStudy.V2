@@ -190,9 +190,9 @@ export default function Dashboard() {
       </div>
 
       {roadmaps.length > 0 && <div className="mt-10">
-        <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-900">Your AI Roadmaps</h2><Link to="/courses" className="text-sm font-semibold text-blue-600">Build another</Link></div>
+        <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-900">Your Learning Roadmaps</h2><Link to="/courses" className="text-sm font-semibold text-blue-600">Build another</Link></div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {roadmaps.slice(0, 4).map((roadmap) => <Link to={`/roadmaps/${roadmap._id}`} key={roadmap._id} className="card block p-5 hover:border-blue-200"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Roadmap</p><h3 className="mt-1 font-semibold text-slate-900">{roadmap.canonicalTopic || roadmap.course?.title}</h3><p className="mt-1 text-sm text-slate-500">{roadmap.course?.description}</p><div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{width: `${roadmap.progress?.percentage || 0}%`}} /></div><span className="text-xs font-semibold text-slate-600">{roadmap.progress?.percentage || 0}%</span></div></Link>)}
+          {roadmaps.slice(0, 4).map((roadmap) => <Link to={`/roadmaps/${roadmap._id}`} key={roadmap._id} className="card block p-5 hover:border-blue-200"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Learning Roadmap</p><h3 className="mt-1 font-semibold text-slate-900">{roadmap.canonicalTopic || roadmap.course?.title}</h3><p className="mt-1 text-sm text-slate-500">{roadmap.course?.description}</p><div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{width: `${roadmap.progress?.percentage || 0}%`}} /></div><span className="text-xs font-semibold text-slate-600">{roadmap.progress?.percentage || 0}%</span></div></Link>)}
         </div>
       </div>}
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { failure, success } from "../utils/response.js";
-import { getPlaylistCourse, searchStructuredPlaylists, searchCourseBySkills } from "../services/discovery.service.js";
+import { getPlaylistCourse, searchStructuredPlaylists, searchCourseBySkills, createCourseFromSearch } from "../services/discovery.service.js";
+import { enroll } from "../services/enrollment.service.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
 
@@ -28,6 +29,19 @@ export async function courseSearch(req, res, next) {
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Invalid search query", 400);
     if (e?.status === 503) return failure(res, e.message, 503);
+    next(e);
+  }
+}
+
+
+export async function enrollCourseSearch(req, res, next) {
+  try {
+    const { q } = searchSchema.parse(req.body);
+    const course = await createCourseFromSearch(q);
+    const enrollment = await enroll(req.user.userId, course._id);
+    return success(res, { course, enrollment }, "Course enrolled successfully", 201);
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Invalid course query", 400);
     next(e);
   }
 }

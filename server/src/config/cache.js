@@ -1,4 +1,4 @@
-import { createClient, commandOptions } from "redis";
+import { createClient } from "redis";
 
 const CACHE_TIMEOUT_MS = 250;
 
@@ -16,6 +16,7 @@ function getClient() {
         reconnectStrategy: false,
       },
       disableOfflineQueue: true,
+      commandOptions: { timeout: CACHE_TIMEOUT_MS },
     }).on("error", () => {});
   }
 
@@ -49,7 +50,7 @@ export async function cacheGet(key) {
 
   try {
     return await withTimeout(
-      c.get(commandOptions({ signal: AbortSignal.timeout(CACHE_TIMEOUT_MS) }), key)
+      c.get(key)
         .then((value) => (value ? JSON.parse(value) : null)),
       null
     );

@@ -53,7 +53,7 @@ function buildCourse({ path, level }) {
       quiz: null,
       lessons: [
         {
-          id: "mern-capstone-project",
+          id: `${path.id}-capstone-project`,
           title: path.capstone.title,
           description: path.capstone.description,
           type: "project",
@@ -112,7 +112,7 @@ export async function generateCoursePlan({ topic, level = "Beginner" }) {
         name: item.name,
         category: item.category,
         importance: item.importance,
-        prerequisites: path.skillOrder.slice(0, index),
+        prerequisites: item.prerequisites || [],
         practiceProject: item.practiceProject
       };
     }),

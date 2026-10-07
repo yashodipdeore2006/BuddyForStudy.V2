@@ -13,6 +13,8 @@
     "verify:deployment": "node src/scripts/verifyDeployment.js"
   },
   "dependencies": {
+    "@google/genai": "^2.27.0",
+    "@sentry/node": "^11.4.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
@@ -24,11 +26,10 @@
     "mongoose": "^8.18.0",
     "morgan": "^1.10.1",
     "nodemailer": "^7.0.9",
-    "zod": "^4.1.8",
     "openai": "^6.16.0",
     "razorpay": "^2.9.6",
     "redis": "^5.0.1",
-    "@sentry/node": "^11.4.0"
+    "zod": "^4.1.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

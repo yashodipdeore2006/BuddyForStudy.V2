@@ -6,6 +6,7 @@ const router = Router();
 
 router.post("/register", controller.register);
 router.post("/login", controller.login);
+router.get("/google/config", controller.googleConfig);
 router.post("/google", controller.googleLogin);
 router.put("/profile", authMiddleware, controller.updateProfile);
 router.post("/change-password", authMiddleware, controller.changePassword);

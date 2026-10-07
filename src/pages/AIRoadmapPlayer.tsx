@@ -117,10 +117,13 @@ export default function AIRoadmapPlayer() {
                     {(question.options || []).map((option: string, optionIndex: number) => {
                       const selected = quizAnswers[index]?.[questionIndex] === optionIndex;
                       return (
-                        <button key={optionIndex} type="button" onClick={() => setQuizAnswers((current) => ({
-                          ...current,
-                          [index]: Object.assign(Array(question.options.length).fill(-1), current[index] || [], { [questionIndex]: optionIndex })
-                        }))} className={`rounded-lg border px-3 py-2 text-left text-sm ${selected ? 'border-indigo-500 bg-indigo-100 text-indigo-800' : 'border-slate-200 bg-white text-slate-700'}`}>
+                        <button key={optionIndex} type="button" onClick={() => setQuizAnswers((current) => {
+                          const answers = current[index]
+                            ? [...current[index]]
+                            : Array(module.quiz.questions.length).fill(-1);
+                          answers[questionIndex] = optionIndex;
+                          return { ...current, [index]: answers };
+                        })} className={`rounded-lg border px-3 py-2 text-left text-sm ${selected ? 'border-indigo-500 bg-indigo-100 text-indigo-800' : 'border-slate-200 bg-white text-slate-700'}`}>
                           {option}
                         </button>
                       );

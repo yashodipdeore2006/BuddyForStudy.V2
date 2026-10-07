@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { Lock, Loader2, Check, AlertCircle, Bell } from 'lucide-react';
 
 export default function Settings() {
+  const { profile } = useAuth();
+  const canChangePassword = profile?.auth_provider === 'local' || profile?.auth_provider === 'local_google';
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -67,78 +71,90 @@ export default function Settings() {
       <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
       <p className="mt-1 text-sm text-slate-500">Manage your account preferences</p>
 
-      <form onSubmit={handlePasswordChange} className="mt-6 card p-6">
-        <div className="flex items-center gap-2">
-          <Lock className="h-5 w-5 text-slate-400" />
-          <h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
+      {canChangePassword ? (
+        <form onSubmit={handlePasswordChange} className="mt-6 card p-6">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-slate-400" />
+            <h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
+          </div>
+
+          {passwordError && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{passwordError}</span>
+            </div>
+          )}
+
+          {passwordSuccess && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
+              <Check className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>Password updated successfully!</span>
+            </div>
+          )}
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Current Password</label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="input-field"
+                placeholder="Enter current password"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="input-field"
+                placeholder="At least 8 characters"
+                required
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm New Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="input-field"
+                placeholder="••••••••"
+                required
+                autoComplete="new-password"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <button type="submit" disabled={savingPassword} className="btn-primary">
+              {savingPassword ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Password'
+              )}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="mt-6 card p-6">
+          <div className="flex items-center gap-2">
+            <Lock className="h-5 w-5 text-slate-400" />
+            <h2 className="text-lg font-semibold text-slate-900">Password</h2>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            Your account uses Google Sign-In, so your password is managed by Google. There is no BuddyForStudy password to change.
+          </p>
         </div>
-
-        {passwordError && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>{passwordError}</span>
-          </div>
-        )}
-
-        {passwordSuccess && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-            <Check className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <span>Password updated successfully!</span>
-          </div>
-        )}
-
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Current Password</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="input-field"
-              placeholder="Enter current password"
-              required
-              autoComplete="current-password"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">New Password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="input-field"
-              placeholder="At least 8 characters"
-              required
-              autoComplete="new-password"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Confirm New Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="input-field"
-              placeholder="••••••••"
-              required
-              autoComplete="new-password"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <button type="submit" disabled={savingPassword} className="btn-primary">
-            {savingPassword ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              'Update Password'
-            )}
-          </button>
-        </div>
-      </form>
+      )}
 
       <div className="mt-6 card p-6">
         <div className="flex items-center gap-2">

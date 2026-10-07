@@ -36,6 +36,184 @@ function buildCourseSearchFilter(search) {
   };
 }
 
+function normalizeSearchTokens(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[^a-z0-9+#.]+/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function textMatchesSearch(value, searchTokens) {
+  const tokens = normalizeSearchTokens(value);
+  return searchTokens.every((token) => tokens.includes(token));
+}
+
+function moduleMatchesSearch(module, searchTokens) {
+  if (!module || !searchTokens.length) return false;
+
+  const values = [
+    module.title,
+    module.description,
+    ...(module.lessons || []).flatMap((lesson) => [
+      lesson.title,
+      lesson.description,
+      lesson.tutorial?.playlistTitle,
+      ...(lesson.tutorial?.videos || []).flatMap((video) => [
+        video.title,
+        video.description,
+        video.channelTitle
+      ])
+    ])
+  ];
+
+  return values.some((value) => textMatchesSearch(value, searchTokens));
+}
+
+function standaloneCourseFromModule(parent, module) {
+  const lessons = (module.lessons || []).map((lesson, index) => ({
+    title: lesson.title,
+    description: lesson.description || "",
+    type: lesson.type,
+    order: lesson.order || index + 1,
+    ...(lesson.type === "tutorial"
+      ? {
+          tutorial: {
+            content: lesson.tutorial?.content || "",
+            resources: lesson.tutorial?.resources || [],
+            videos: lesson.tutorial?.videos || [],
+            playlistId: lesson.tutorial?.playlistId || "",
+            playlistTitle: lesson.tutorial?.playlistTitle || ""
+          }
+        }
+      : {
+          project: lesson.project || {}
+        })
+  }));
+
+  const firstVideo = (module.lessons || [])
+    .flatMap((lesson) => lesson.tutorial?.videos || [])
+    .find((video) => video?.thumbnail || video?.url);
+
+  const sourceModuleId = String(module._id);
+  const title = String(module.title || "Learning Module").trim();
+  const parentTitle = String(parent.title || "course").trim();
+  const slugBase = normalizeSlug(title + "-" + parentTitle + "-" + sourceModuleId.slice(-8));
+
+  return {
+    title,
+    slug: slugBase,
+    description: module.description
+      ? String(module.description)
+      : "Standalone " + title + " course extracted from the " + parentTitle + " curriculum.",
+    category: parent.category || "Learning",
+    level: parent.level || "Beginner",
+    duration: "Self-paced",
+    thumbnail: firstVideo?.thumbnail || parent.thumbnail || "",
+    learningOutcomes: ["Learn " + title],
+    modules: [{
+      title,
+      description: module.description || "Learn " + title + " through the selected curriculum lessons.",
+      order: 1,
+      lessons
+    }],
+    isPublished: true,
+    pricing: parent.pricing || { mode: "free", price: 0, currency: "INR" },
+    enrollmentEnabled: parent.enrollmentEnabled !== false,
+    certificateEnabled: parent.certificateEnabled !== false,
+    featured: false,
+    generation: {
+      mode: "module",
+      query: title,
+      topicKeys: buildTopicKeys(
+        title,
+        parent.title,
+        ...(module.lessons || []).flatMap((lesson) => [
+          lesson.title,
+          lesson.tutorial?.playlistTitle,
+          ...(lesson.tutorial?.videos || []).map((video) => video.title)
+        ])
+      ),
+      sourceCourse: parent._id,
+      sourceModuleId: module._id,
+      snapshot: {
+        sourceCourseId: String(parent._id),
+        sourceCourseTitle: parent.title,
+        sourceModuleId
+      }
+    }
+  };
+}
+
+async function getStandaloneModuleCourses(search) {
+  const searchTokens = normalizeSearchTokens(search);
+  if (!searchTokens.length) {
+    return { courses: [], sourceCourseIds: [], standaloneIds: [] };
+  }
+
+  const candidateFilter = {
+    isPublished: true,
+    $or: [
+      { "modules.title": new RegExp(escapeRegex(search), "i") },
+      { "modules.description": new RegExp(escapeRegex(search), "i") },
+      { "modules.lessons.title": new RegExp(escapeRegex(search), "i") },
+      { "modules.lessons.description": new RegExp(escapeRegex(search), "i") },
+      { "modules.lessons.tutorial.playlistTitle": new RegExp(escapeRegex(search), "i") },
+      { "modules.lessons.tutorial.videos.title": new RegExp(escapeRegex(search), "i") },
+      { "modules.lessons.tutorial.videos.description": new RegExp(escapeRegex(search), "i") },
+      { "modules.lessons.tutorial.videos.channelTitle": new RegExp(escapeRegex(search), "i") }
+    ]
+  };
+
+  const parents = await Course.find(candidateFilter)
+    .select("title description category level duration thumbnail pricing enrollmentEnabled certificateEnabled modules")
+    .lean();
+
+  const matches = [];
+  for (const parent of parents) {
+    for (const module of parent.modules || []) {
+      if (moduleMatchesSearch(module, searchTokens)) {
+        matches.push({ parent, module });
+      }
+    }
+  }
+
+  if (!matches.length) {
+    return { courses: [], sourceCourseIds: [], standaloneIds: [] };
+  }
+
+  const courses = [];
+  const sourceCourseIds = new Set();
+
+  for (const { parent, module } of matches) {
+    sourceCourseIds.add(String(parent._id));
+
+    const existing = await Course.findOne({
+      "generation.mode": "module",
+      "generation.sourceCourse": parent._id,
+      "generation.sourceModuleId": module._id,
+      isPublished: true
+    }).lean();
+
+    if (existing) {
+      courses.push(existing);
+      continue;
+    }
+
+    const created = await Course.create(standaloneCourseFromModule(parent, module));
+    courses.push(created.toObject());
+  }
+
+  const uniqueCourses = [...new Map(courses.map((item) => [String(item._id), item])).values()];
+  return {
+    courses: uniqueCourses,
+    sourceCourseIds: [...sourceCourseIds],
+    standaloneIds: uniqueCourses.map((item) => String(item._id))
+  };
+}
+
 function totalLessons(course) {
   return course.modules.reduce((count, module) => count + module.lessons.length, 0);
 }
@@ -55,65 +233,110 @@ function courseSummary(course) {
   };
 }
 
+
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
   const filter = { isPublished: true };
   if (category) filter.category = category;
   if (level) filter.level = level;
+
+  const standalone = search ? await getStandaloneModuleCourses(search) : {
+    courses: [],
+    sourceCourseIds: [],
+    standaloneIds: []
+  };
+
+  if (standalone.sourceCourseIds.length || standalone.standaloneIds.length) {
+    const excludedIds = [...new Set([
+      ...standalone.sourceCourseIds,
+      ...standalone.standaloneIds
+    ])];
+    filter._id = { $nin: excludedIds };
+  }
+
   const searchFilter = buildCourseSearchFilter(search);
   if (searchFilter) Object.assign(filter, searchFilter);
 
+  const standaloneCourses = standalone.courses;
+  const standaloneCount = standaloneCourses.length;
   const skip = (page - 1) * limit;
+  const regularSkip = Math.max(skip - standaloneCount, 0);
+  const regularLimit = Math.max(limit - Math.max(standaloneCount - skip, 0), 0);
 
-  if (sort === "popular") {
-    const [courses, total] = await Promise.all([
-      Course.aggregate([
-        { $match: filter },
-        {
-          $lookup: {
-            from: "enrollments",
-            let: { courseId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$course", "$courseId"] },
-                      { $in: ["$status", ["active", "completed"]] }
-                    ]
+  const fetchRegular = async () => {
+    if (regularLimit === 0 && standaloneCount > skip) {
+      return { courses: [], total: 0 };
+    }
+
+    if (sort === "popular") {
+      const [courses, total] = await Promise.all([
+        Course.aggregate([
+          { $match: filter },
+          {
+            $lookup: {
+              from: "enrollments",
+              let: { courseId: "$_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $and: [
+                        { $eq: ["$course", "$$courseId"] },
+                        { $in: ["$status", ["active", "completed"]] }
+                      ]
+                    }
                   }
-                }
-              },
-              { $count: "count" }
-            ],
-            as: "enrollmentStats"
-          }
-        },
-        {
-          $addFields: {
-            enrollmentCount: {
-              $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
+                },
+                { $count: "count" }
+              ],
+              as: "enrollmentStats"
             }
-          }
-        },
-        { $project: { modules: 0, enrollmentStats: 0 } },
-        { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
-        { $skip: skip },
-        { $limit: limit }
-      ]),
+          },
+          {
+            $addFields: {
+              enrollmentCount: {
+                $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
+              }
+            }
+          },
+          { $project: { modules: 0, enrollmentStats: 0 } },
+          { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
+          ...(regularSkip ? [{ $skip: regularSkip }] : []),
+          ...(regularLimit ? [{ $limit: regularLimit }] : [])
+        ]),
+        Course.countDocuments(filter)
+      ]);
+
+      return { courses, total };
+    }
+
+    const [courses, total] = await Promise.all([
+      Course.find(filter)
+        .select("-modules")
+        .sort({ createdAt: -1 })
+        .skip(regularSkip)
+        .limit(regularLimit || limit)
+        .lean(),
       Course.countDocuments(filter)
     ]);
 
-    return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
-  }
+    return { courses, total };
+  };
 
-  const [courses, total] = await Promise.all([
-    Course.find(filter).select("-modules").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-    Course.countDocuments(filter)
-  ]);
+  const regular = await fetchRegular();
+  const pageStandalone = standaloneCourses.slice(skip, skip + limit);
+  const courses = [...pageStandalone, ...regular.courses];
+  const total = standaloneCount + regular.total;
 
-  return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  return {
+    courses,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    }
+  };
 }
-
 export async function getPublished(courseId) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);

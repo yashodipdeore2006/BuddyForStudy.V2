@@ -83,14 +83,37 @@ export default function AIRoadmapPlayer() {
                 <p className={`font-medium ${done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{lesson.title}</p>
                 <p className="text-xs text-slate-400">{lesson.type}</p>
                 {lesson.type === 'tutorial' && (lesson.tutorial?.videos?.length || lesson.tutorial?.resources?.length) ? (
-                  <div className="mt-3 space-y-2">
-                    {(lesson.tutorial?.videos || []).map((video: any) => (
+                  <div className="mt-3 space-y-3">
+                    {lesson.tutorial?.videos?.[0]?.videoId ? (
+                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-950">
+                        <div className="aspect-video w-full">
+                          <iframe
+                            className="h-full w-full"
+                            src={lesson.tutorial.videos[0].embedUrl || `https://www.youtube.com/embed/${lesson.tutorial.videos[0].videoId}`}
+                            title={lesson.tutorial.videos[0].title}
+                            loading="lazy"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 bg-white p-3">
+                          <PlayCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
+                          <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">{lesson.tutorial.videos[0].title}</span>
+                          <a href={lesson.tutorial.videos[0].url} target="_blank" rel="noreferrer" className="flex-shrink-0 text-slate-400 hover:text-blue-600" aria-label="Open on YouTube">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {lesson.tutorial?.videos?.slice(1).map((video: any) => (
                       <a key={video.videoId || video.url} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 hover:bg-slate-100">
                         <PlayCircle className="h-5 w-5 flex-shrink-0 text-red-600" />
                         <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{video.title}</span>
                         <ExternalLink className="h-4 w-4 flex-shrink-0 text-slate-400" />
                       </a>
                     ))}
+
                     {!lesson.tutorial?.videos?.length && (lesson.tutorial?.resources || []).map((url: string) => (
                       <a key={url} href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm font-medium text-blue-600">
                         <ExternalLink className="h-4 w-4" />Open learning resource

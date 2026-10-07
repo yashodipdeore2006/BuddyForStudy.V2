@@ -31,12 +31,71 @@ async function searchYouTube(query, maxResults = 8) {
 }
 
 function parseJson(raw) {
-  const normalized = String(raw || "").trim().replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
-  try { return JSON.parse(normalized); } catch {
+  let normalized = String(raw || "").trim();
+
+  normalized = normalized
+    .replace(/^\`\`\`(?:json)?\\s*/i, "")
+    .replace(/\\s*\`\`\`$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(normalized);
+  } catch {
+    const firstObject = normalized.indexOf("{");
+    const lastObject = normalized.lastIndexOf("}");
+    if (firstObject !== -1 && lastObject > firstObject) {
+      try {
+        return JSON.parse(normalized.slice(firstObject, lastObject + 1));
+      } catch {
+        // Fall through to the consistent provider error below.
+      }
+    }
+
     const error = new Error("AI provider returned invalid JSON");
     error.status = 502;
     throw error;
   }
+}
+
+async function generateStructuredJson(prompt) {
+  if (!client) {
+    const error = new Error("AI provider is not configured");
+    error.status = 503;
+    throw error;
+  }
+
+  const request = {
+    model: env.openaiModel,
+    messages: [
+      {
+        role: "system",
+        content: "You are a structured-output engine. Return only valid JSON. Do not use Markdown fences, commentary, or explanations outside the JSON object."
+      },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.2,
+    max_completion_tokens: 12000,
+    response_format: { type: "json_object" }
+  };
+
+  let response;
+  try {
+    response = await client.chat.completions.create(request);
+  } catch (error) {
+    if (!env.openrouterApiKey) throw error;
+
+    const { response_format: _responseFormat, ...fallbackRequest } = request;
+    response = await client.chat.completions.create(fallbackRequest);
+  }
+
+  const content = response.choices?.[0]?.message?.content;
+  if (!content) {
+    const error = new Error("AI provider returned an empty response");
+    error.status = 502;
+    throw error;
+  }
+
+  return parseJson(content);
 }
 
 function normalizeRoadmap(course) {
@@ -91,11 +150,7 @@ Return ONLY JSON:
     }
   ]
 }`;
-  const response = await client.responses.create({
-    model: env.openaiModel,
-    input: [{ role: "user", content: prompt }]
-  });
-  return parseJson(response.output_text);
+  return generateStructuredJson(prompt);
 }
 
 async function buildCurriculum({ understanding, level, goals }) {
@@ -170,11 +225,7 @@ Return:
     }
   ]
 }`;
-  const response = await client.responses.create({
-    model: env.openaiModel,
-    input: [{ role: "user", content: prompt }]
-  });
-  return parseJson(response.output_text);
+  return generateStructuredJson(prompt);
 }
 
 function scoreVideo(video, lesson) {

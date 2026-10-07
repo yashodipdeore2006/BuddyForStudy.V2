@@ -90,20 +90,23 @@ export default function AdminCoursesPro() {
     }));
   }
 
-  async function replaceTutorial(courseId: string, lessonId: string) {
-    const editor = editors[lessonId];
+  async function updateTutorialVideo(
+    courseId: string,
+    target: { lessonId?: string; moduleId?: string; editorKey: string }
+  ) {
+    const editor = editors[target.editorKey];
     if (!editor?.url.trim()) return;
 
     setEditors((current) => ({
       ...current,
-      [lessonId]: { ...current[lessonId], saving: true, error: "", success: "" },
+      [target.editorKey]: { ...current[target.editorKey], saving: true, error: "", success: "" },
     }));
 
     try {
       const data = await adminFetch(`/api/admin/courses/${courseId}/tutorial`, {
         method: "PUT",
         body: JSON.stringify({
-          lessonId,
+          ...(target.lessonId ? { lessonId: target.lessonId } : { moduleId: target.moduleId }),
           videoUrl: editor.url.trim(),
         }),
       });
@@ -115,19 +118,19 @@ export default function AdminCoursesPro() {
 
       setEditors((current) => ({
         ...current,
-        [lessonId]: {
-          ...current[lessonId],
+        [target.editorKey]: {
+          ...current[target.editorKey],
           url: data.lesson?.video?.url || editor.url,
           saving: false,
           error: "",
-          success: "Video updated",
+          success: target.lessonId ? "Video updated" : "Tutorial video added",
         },
       }));
     } catch (error) {
       setEditors((current) => ({
         ...current,
-        [lessonId]: {
-          ...current[lessonId],
+        [target.editorKey]: {
+          ...current[target.editorKey],
           saving: false,
           success: "",
           error: error instanceof Error ? error.message : "Unable to update video",
@@ -288,12 +291,12 @@ export default function AdminCoursesPro() {
                                             />
                                             <button
                                               type="button"
-                                              onClick={() => void replaceTutorial(course._id, lesson._id)}
+                                              onClick={() => void updateTutorialVideo(course._id, { lessonId: lesson._id, editorKey: lesson._id })}
                                               disabled={editor.saving || !editor.url.trim()}
                                               className="btn-primary justify-center whitespace-nowrap"
                                             >
                                               {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                                              Replace Video
+                                              {currentVideo ? "Replace Video" : "Add Video"}
                                             </button>
                                           </div>
                                           {editor.success && <p className="mt-1.5 text-xs font-semibold text-green-600">{editor.success}</p>}
@@ -313,6 +316,59 @@ export default function AdminCoursesPro() {
                                   </div>
                                 );
                               })}
+
+                              {!(module.lessons || []).some((lesson: any) => lesson.type === "tutorial" && lesson.tutorial?.videos?.length) && (
+                                (() => {
+                                  const editorKey = `module:${module._id || module.order}`;
+                                  const editor = editors[editorKey] || {
+                                    lessonId: "",
+                                    url: "",
+                                    saving: false,
+                                    error: "",
+                                    success: "",
+                                  };
+
+                                  return (
+                                    <div className="bg-blue-50/50 p-4">
+                                      <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-[11px] font-bold uppercase tracking-[.12em] text-blue-600">No tutorial video</p>
+                                          <p className="mt-1 font-semibold text-slate-900">Add a YouTube tutorial to this module</p>
+                                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                                            This creates a tutorial lesson and keeps the existing module structure unchanged.
+                                          </p>
+                                        </div>
+
+                                        <div className="w-full lg:max-w-xl">
+                                          <div className="flex flex-col gap-2 sm:flex-row">
+                                            <input
+                                              value={editor.url}
+                                              onChange={(e) => setVideoUrl(editorKey, e.target.value)}
+                                              placeholder="https://www.youtube.com/watch?v=..."
+                                              className="input-field flex-1"
+                                              type="url"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => void updateTutorialVideo(course._id, { moduleId: String(module._id), editorKey })}
+                                              disabled={editor.saving || !editor.url.trim()}
+                                              className="btn-primary justify-center whitespace-nowrap"
+                                            >
+                                              {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                                              Add Video
+                                            </button>
+                                          </div>
+                                          {editor.success && <p className="mt-1.5 text-xs font-semibold text-green-600">{editor.success}</p>}
+                                          {editor.error && <p className="mt-1.5 text-xs font-semibold text-red-600">{editor.error}</p>}
+                                          {youtubeEmbedUrl(editor.url) && (
+                                            <p className="mt-1 text-xs text-slate-400">Valid YouTube video link detected.</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              )}
                             </div>
                           </div>
                         ))}

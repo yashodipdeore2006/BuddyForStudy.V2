@@ -219,7 +219,6 @@ export default function CoursePlayer() {
               </div>
 
               <h1 className="mt-3 text-3xl font-bold text-slate-900">{currentLesson.lesson.title}</h1>
-              <p className="mt-2 text-slate-500">{currentLesson.lesson.description}</p>
 
               {currentLesson.lesson.type === "tutorial" && (
                 <div className="mt-8 space-y-5">

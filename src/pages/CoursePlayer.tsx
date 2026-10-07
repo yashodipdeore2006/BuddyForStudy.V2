@@ -57,7 +57,7 @@ function mapProgress(raw: any): Progress {
 export default function CoursePlayer() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId?: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { session } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,11 @@ export default function CoursePlayer() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!courseId || !profile) return;
+    if (!courseId) {
+      setError("Invalid course");
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const [courseData, progressData] = await Promise.all([
@@ -82,7 +86,7 @@ export default function CoursePlayer() {
       }
     }
     void load();
-  }, [courseId, profile]);
+  }, [courseId]);
 
   const allLessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
   const currentLesson = useMemo(

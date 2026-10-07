@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
 interface GoogleSignInButtonProps {
@@ -13,6 +13,7 @@ interface GoogleConfigResponse {
 
 export default function GoogleSignInButton({ onCredential, disabled = false }: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [configured, setConfigured] = useState(Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID));
 
   useEffect(() => {
     let cancelled = false;
@@ -21,10 +22,11 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
 
     const render = () => {
       if (cancelled || !containerRef.current || disabled || !clientId || !window.google?.accounts?.id) {
-        if (!cancelled && !disabled && attempts++ < 100) window.setTimeout(render, 200);
+        if (!cancelled && !disabled && clientId && attempts++ < 100) window.setTimeout(render, 200);
         return;
       }
 
+      setConfigured(true);
       containerRef.current.innerHTML = "";
       window.google.accounts.id.initialize({
         client_id: clientId,
@@ -47,9 +49,12 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
       if (!clientId) {
         try {
           const config = await apiFetch("/api/auth/google/config") as GoogleConfigResponse;
-          if (config.enabled && config.clientId) clientId = config.clientId;
+          if (config.enabled && config.clientId) {
+            clientId = config.clientId;
+            setConfigured(true);
+          }
         } catch {
-          // Keep polling so the Google Identity Services script can finish loading.
+          // The visible fallback button remains available when Google is not configured.
         }
       }
       render();
@@ -61,6 +66,20 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
       cancelled = true;
     };
   }, [disabled, onCredential]);
+
+  if (!configured) {
+    return (
+      <button
+        type="button"
+        disabled
+        title="Google Sign-In is not configured yet"
+        className="flex h-10 w-full items-center justify-center gap-3 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-500 opacity-90"
+      >
+        <span className="text-base font-bold">G</span>
+        <span>Continue with Google</span>
+      </button>
+    );
+  }
 
   return <div ref={containerRef} className={disabled ? "pointer-events-none opacity-60" : ""} />;
 }

@@ -48,8 +48,26 @@ export async function login({ email, password }) {
     throw authError("Invalid email or password", 401);
   }
   if (!user.isActive) throw authError("Account is inactive", 401);
+  if (user.role === "admin") {
+    throw authError("Administrator accounts must use the admin login.", 403);
+  }
 
-  return { user: publicUser(user), token: signAccessToken(user) };
+  return { user: publicUser(user), token: signAccessToken(user, "user") };
+}
+
+export async function adminLogin({ email, password }) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail }).select("+password");
+
+  if (!user || !(await user.comparePassword(password))) {
+    throw authError("Invalid administrator credentials", 401);
+  }
+  if (!user.isActive) throw authError("Account is inactive", 401);
+  if (user.role !== "admin") {
+    throw authError("This account does not have administrator access.", 403);
+  }
+
+  return { user: publicUser(user), token: signAccessToken(user, "admin") };
 }
 
 export async function googleLogin(credential) {
@@ -67,6 +85,10 @@ export async function googleLogin(credential) {
 
   const email = payload.email.toLowerCase();
   let user = await User.findOne({ $or: [{ googleId: payload.sub }, { email }] });
+
+  if (user?.role === "admin") {
+    throw authError("Administrator accounts must use the admin login.", 403);
+  }
 
   if (!user) {
     user = await User.create({
@@ -87,7 +109,7 @@ export async function googleLogin(credential) {
     await user.save();
   }
 
-  return { user: publicUser(user), token: signAccessToken(user) };
+  return { user: publicUser(user), token: signAccessToken(user, "user") };
 }
 
 export async function updateProfile(userId, { name }) {

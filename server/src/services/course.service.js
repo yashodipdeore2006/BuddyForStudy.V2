@@ -26,13 +26,56 @@ function courseSummary(course) {
   };
 }
 
-export async function listPublished({ page = 1, limit = 20, search, category, level }) {
+export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
   const filter = { isPublished: true };
   if (category) filter.category = category;
   if (level) filter.level = level;
   if (search) filter.$text = { $search: search };
 
   const skip = (page - 1) * limit;
+
+  if (sort === "popular") {
+    const [courses, total] = await Promise.all([
+      Course.aggregate([
+        { $match: filter },
+        {
+          $lookup: {
+            from: "enrollments",
+            let: { courseId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$course", "$courseId"] },
+                      { $in: ["$status", ["active", "completed"]] }
+                    ]
+                  }
+                }
+              },
+              { $count: "count" }
+            ],
+            as: "enrollmentStats"
+          }
+        },
+        {
+          $addFields: {
+            enrollmentCount: {
+              $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
+            }
+          }
+        },
+        { $project: { modules: 0, enrollmentStats: 0 } },
+        { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit }
+      ]),
+      Course.countDocuments(filter)
+    ]);
+
+    return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  }
+
   const [courses, total] = await Promise.all([
     Course.find(filter).select("-modules").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
     Course.countDocuments(filter)

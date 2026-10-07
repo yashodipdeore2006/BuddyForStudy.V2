@@ -40,6 +40,15 @@ async function audienceUsers(audience) {
   return User.find({ isActive: true }).select("_id email name");
 }
 
+async function notificationAudienceUsers(audience) {
+  if (audience === "active") return User.find({ isActive: true }).select("_id");
+  if (audience === "subscribers") {
+    const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
+    return User.find({ _id: { $in: subs.map(s => s.user) }, isActive: true }).select("_id");
+  }
+  return User.find({}).select("_id");
+}
+
 export async function overview(req, res, next) {
   try {
     const [users, activeUsers, courses, published, enrollments, subscribers, revenue, pendingRefunds, unread] = await Promise.all([
@@ -454,7 +463,7 @@ export async function updateRefund(req, res, next) {
 export async function sendNotification(req, res, next) {
   try {
     const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
-    const users = ids.length ? await User.find({ _id: { $in: ids }, isActive: true }).select("_id") : await audienceUsers(req.body.audience || "all");
+    const users = ids.length ? await User.find({ _id: { $in: ids } }).select("_id") : await notificationAudienceUsers(req.body.audience || "all");
     if (!req.body.title || !req.body.message) return failure(res, "title and message are required", 400);
     const docs = users.map(u => ({ user: u._id, title: req.body.title, message: req.body.message, type: req.body.type || "system", link: req.body.link || "", sentBy: req.user.user._id }));
     if (docs.length) await Notification.insertMany(docs);

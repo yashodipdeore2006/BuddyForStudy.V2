@@ -10,6 +10,8 @@ export default function Navbar() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const isAdmin = profile?.role === 'admin';
+  const settingsPath = isAdmin ? '/admin/settings' : '/settings';
+  const profilePath = isAdmin ? '/admin/settings' : '/profile';
   const handleSignOut = async () => { await signOut(); navigate('/'); };
   const links = isAdmin
     ? [{ to:'/admin',label:'Dashboard',icon:LayoutDashboard },{to:'/admin/users',label:'Users',icon:Users},{to:'/admin/courses',label:'Courses',icon:BookOpen},{to:'/admin/analytics',label:'Analytics',icon:BarChart3 }]

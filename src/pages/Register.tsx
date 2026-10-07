@@ -45,7 +45,10 @@ export default function Register() {
     if (password.length < 8) { setError('Password must be at least 8 characters long'); return; }
     setLoading(true);
     try {
-      await signUp(name, email, password);
+      const result = await signUp(name, email, password);
+      if ("requiresVerification" in result) {
+        navigate("/verify-email", { state: { email: result.email } });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {

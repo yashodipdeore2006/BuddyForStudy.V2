@@ -1,7 +1,12 @@
+import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
 import { env } from "../config/env.js";
 
-const client = (env.openrouterApiKey || env.openaiApiKey)
+const geminiClient = env.geminiApiKey
+  ? new GoogleGenAI({ apiKey: env.geminiApiKey })
+  : null;
+
+const openaiClient = (env.openrouterApiKey || env.openaiApiKey)
   ? new OpenAI({
       apiKey: env.openrouterApiKey || env.openaiApiKey,
       ...(env.openrouterApiKey ? { baseURL: env.openrouterBaseUrl } : {})
@@ -57,9 +62,39 @@ function parseJson(raw) {
   }
 }
 
-async function generateStructuredJson(prompt) {
-  if (!client) {
-    const error = new Error("AI provider is not configured");
+async function generateWithGemini(prompt) {
+  if (!geminiClient) {
+    const error = new Error("Gemini AI provider is not configured");
+    error.status = 503;
+    throw error;
+  }
+
+  const response = await geminiClient.models.generateContent({
+    model: env.geminiModel,
+    contents: prompt,
+    config: {
+      systemInstruction:
+        "You are a structured-output engine. Return only valid JSON. Do not use Markdown fences, commentary, or explanations outside the JSON object.",
+      responseMimeType: "application/json",
+      thinkingConfig: {
+        thinkingLevel: "low"
+      },
+      maxOutputTokens: 20000
+    }
+  });
+
+  const content = response.text;
+
+  if (!content) {
+    throw new Error("Gemini AI provider returned an empty response");
+  }
+
+  return parseJson(content);
+}
+
+async function generateWithOpenRouter(prompt) {
+  if (!openaiClient) {
+    const error = new Error("OpenRouter/OpenAI AI provider is not configured");
     error.status = 503;
     throw error;
   }
@@ -74,30 +109,18 @@ async function generateStructuredJson(prompt) {
       { role: "user", content: prompt }
     ],
     temperature: 0.2,
-    max_completion_tokens: 12000,
+    max_completion_tokens: 16000,
     reasoning: { effort: "low" },
     response_format: { type: "json_object" },
     ...(env.openrouterApiKey ? { provider: { require_parameters: true } } : {})
   };
 
-  let response;
-  try {
-    response = await client.chat.completions.create(request);
-  } catch (error) {
-    const providerError = new Error(
-      env.openrouterApiKey
-        ? `OpenRouter AI request failed: ${error.message}`
-        : error.message
-    );
-    providerError.status = error.status || 502;
-    throw providerError;
-  }
-
+  const response = await openaiClient.chat.completions.create(request);
   const choice = response.choices?.[0];
   const content = choice?.message?.content;
 
   if (!content) {
-    console.error("AI provider returned no text content", {
+    console.error("AI fallback provider returned no text content", {
       model: request.model,
       finishReason: choice?.finish_reason || null,
       usage: response.usage || null,
@@ -107,23 +130,51 @@ async function generateStructuredJson(prompt) {
 
     const error = new Error(
       choice?.finish_reason === "length"
-        ? "AI provider reached its completion limit before returning JSON"
-        : "AI provider returned an empty response"
+        ? "AI fallback provider reached its completion limit before returning JSON"
+        : "AI fallback provider returned an empty response"
     );
     error.status = 502;
     throw error;
   }
 
-  try {
-    return parseJson(content);
-  } catch (error) {
-    console.error("AI structured output parse failed", {
-      model: request.model,
-      finishReason: choice?.finish_reason || null,
-      contentLength: content.length
-    });
+  return parseJson(content);
+}
+
+async function generateStructuredJson(prompt) {
+  if (!geminiClient && !openaiClient) {
+    const error = new Error("AI provider is not configured");
+    error.status = 503;
     throw error;
   }
+
+  if (geminiClient) {
+    try {
+      return await generateWithGemini(prompt);
+    } catch (error) {
+      console.error("Gemini AI request failed; trying fallback provider", {
+        model: env.geminiModel,
+        message: error.message
+      });
+    }
+  }
+
+  if (openaiClient) {
+    try {
+      return await generateWithOpenRouter(prompt);
+    } catch (error) {
+      const providerError = new Error(
+        env.openrouterApiKey
+          ? `OpenRouter AI request failed: ${error.message}`
+          : error.message
+      );
+      providerError.status = error.status || 502;
+      throw providerError;
+    }
+  }
+
+  const error = new Error("All configured AI providers failed");
+  error.status = 502;
+  throw error;
 }
 
 function normalizeRoadmap(course) {

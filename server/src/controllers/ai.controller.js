@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateCoursePlan } from "../services/roadmap.service.js";
+import { generateCoursePlan } from "../services/roadmapGenerator.service.js";
 import { createCourse } from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
 

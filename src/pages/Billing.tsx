@@ -8,6 +8,7 @@ export default function Billing() {
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
   const [refundMessage, setRefundMessage] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me")])
@@ -55,7 +56,33 @@ export default function Billing() {
                 {subscription.status} · {subscription.plan?.billingInterval || "recurring"}
               </p>
             </div>
-            <span className="badge bg-green-50 text-green-700">{subscription.status}</span>
+            <div className="flex items-center gap-3">
+              <span className="badge bg-green-50 text-green-700">{subscription.status}</span>
+              {["trialing", "active", "past_due"].includes(subscription.status) && !subscription.cancelAtPeriodEnd && (
+                <button
+                  className="text-xs font-semibold text-red-600 disabled:opacity-50"
+                  disabled={cancelling}
+                  onClick={async () => {
+                    if (!window.confirm("Cancel auto-renewal for this subscription? Your access will remain active through the current billing period.")) return;
+                    setCancelling(true);
+                    try {
+                      const data = await apiFetch("/api/billing/subscription/cancel", { method: "POST" });
+                      setSubscription(data.subscription || subscription);
+                      setRefundMessage("Auto-renewal cancelled. Your subscription remains active until the current period ends.");
+                    } catch (error) {
+                      setRefundMessage(error instanceof Error ? error.message : "Unable to cancel subscription");
+                    } finally {
+                      setCancelling(false);
+                    }
+                  }}
+                >
+                  {cancelling ? "Cancelling..." : "Cancel auto-renewal"}
+                </button>
+              )}
+              {subscription.cancelAtPeriodEnd && (
+                <span className="text-xs font-medium text-amber-700">Ends at period end</span>
+              )}
+            </div>
           </div>
         ) : (
           <p className="mt-3 text-sm text-slate-500">No active subscription.</p>

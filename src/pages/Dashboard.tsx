@@ -73,7 +73,7 @@ export default function Dashboard() {
     async function fetchData() {
       if (!profile) return;
       try {
-        const [enrollmentData, courseData, roadmapData, achievementData] = await Promise.all([
+        const [enrollmentData, courseData, achievementData] = await Promise.all([
           apiFetch('/api/enrollments'),
           apiFetch('/api/courses?limit=3'),
           apiFetch('/api/achievements/me'),

@@ -51,6 +51,10 @@ export default function NotificationMenu() {
   };
 
   useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
     if (open) void load();
   }, [open]);
 
@@ -138,7 +142,7 @@ export default function NotificationMenu() {
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex min-w-4.5 h-4.5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-white">
+          <span className="absolute -right-0.5 -top-0.5 flex min-w-5 h-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-extrabold leading-none text-white ring-2 ring-white">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}

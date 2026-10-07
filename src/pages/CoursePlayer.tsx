@@ -128,6 +128,19 @@ export default function CoursePlayer() {
 
   if (error || !course) {
     return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <AlertCircle className="mx-auto h-12 w-12 text-slate-400" />
+        <h1 className="mt-4 text-2xl font-bold text-slate-900">
+          {error || "Course Not Found"}
+        </h1>
+        <Link to={`/courses/${courseId}`} className="btn-primary mt-6">
+          View Course
+        </Link>
+      </div>
+    );
+  }
+
+  return (
     <div className="min-h-screen bg-white text-slate-900">
       <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="flex h-full items-center gap-3 px-4 sm:gap-4">

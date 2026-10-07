@@ -34,8 +34,8 @@ function parseJson(raw) {
   let normalized = String(raw || "").trim();
 
   normalized = normalized
-    .replace(/^\`\`\`(?:json)?\\s*/i, "")
-    .replace(/\\s*\`\`\`$/i, "")
+    .replace(/^\`\`\`(?:json)?\s*/i, "")
+    .replace(/\s*\`\`\`$/i, "")
     .trim();
 
   try {
@@ -65,7 +65,7 @@ async function generateStructuredJson(prompt) {
   }
 
   const request = {
-    model: env.openaiModel,
+    model: env.openrouterApiKey ? env.openrouterModel : env.openaiModel,
     messages: [
       {
         role: "system",
@@ -74,28 +74,42 @@ async function generateStructuredJson(prompt) {
       { role: "user", content: prompt }
     ],
     temperature: 0.2,
-    max_completion_tokens: 12000,
-    response_format: { type: "json_object" }
+    max_tokens: 9000,
+    response_format: { type: "json_object" },
+    ...(env.openrouterApiKey ? { provider: { require_parameters: true } } : {})
   };
 
   let response;
   try {
     response = await client.chat.completions.create(request);
   } catch (error) {
-    if (!env.openrouterApiKey) throw error;
-
-    const { response_format: _responseFormat, ...fallbackRequest } = request;
-    response = await client.chat.completions.create(fallbackRequest);
+    const providerError = new Error(
+      env.openrouterApiKey
+        ? `OpenRouter AI request failed: ${error.message}`
+        : error.message
+    );
+    providerError.status = error.status || 502;
+    throw providerError;
   }
 
-  const content = response.choices?.[0]?.message?.content;
+  const choice = response.choices?.[0];
+  const content = choice?.message?.content;
   if (!content) {
     const error = new Error("AI provider returned an empty response");
     error.status = 502;
     throw error;
   }
 
-  return parseJson(content);
+  try {
+    return parseJson(content);
+  } catch (error) {
+    console.error("AI structured output parse failed", {
+      model: request.model,
+      finishReason: choice?.finish_reason || null,
+      contentLength: content.length
+    });
+    throw error;
+  }
 }
 
 function normalizeRoadmap(course) {

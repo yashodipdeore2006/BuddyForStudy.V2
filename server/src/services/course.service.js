@@ -89,7 +89,7 @@ export async function getPublished(courseId) {
   const cached = await cacheGet(key);
   if (cached) return cached;
   const course = await Course.findOne({ _id: courseId, isPublished: true }).lean();
-  if (course) await cacheSet(key, course, 120);
+  if (course) void cacheSet(key, course, 120);
   return course;
 }
 

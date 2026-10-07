@@ -79,8 +79,13 @@ export default function CourseRoadmap() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!courseId) {
+      setError('Invalid course');
+      setLoading(false);
+      return;
+    }
+
     async function load() {
-      if (!courseId) return;
       setLoading(true);
       setError(null);
       try {

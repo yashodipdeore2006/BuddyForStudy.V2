@@ -165,7 +165,6 @@ export default function AdminPlans() {
     }
   }
 
-  const featureLabelByKey = new Map(availableFeatures.map((feature) => [feature.key, feature.label]));
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -395,13 +394,6 @@ export default function AdminPlans() {
                   </button>
                 </div>
 
-                <div className="mt-3 text-xs text-slate-400">
-                  {availableFeatures
-                    .filter((feature) => (plan.features || []).includes(feature.label))
-                    .map((feature) => featureLabelByKey.get(feature.key))
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
               </div>
             );
           })

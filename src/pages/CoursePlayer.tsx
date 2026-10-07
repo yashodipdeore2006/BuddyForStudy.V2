@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, Menu, X, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
 import { classNames } from "@/lib/utils";
 
 function mapCourse(raw: any): Course {
@@ -223,14 +223,34 @@ export default function CoursePlayer() {
                     <div className="prose max-w-none whitespace-pre-wrap text-slate-700">{currentLesson.lesson.tutorial.content}</div>
                   )}
                   {currentLesson.lesson.tutorial?.videos?.length ? (
-                    <div className="space-y-3">
-                      <h2 className="text-lg font-semibold text-slate-900">Recommended Videos</h2>
+                    <div className="space-y-5">
+                      <h2 className="text-lg font-semibold text-slate-900">Course Video</h2>
                       {currentLesson.lesson.tutorial.videos.map((video: any) => (
-                        <a key={video.videoId || video.url} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:border-blue-300">
-                          <Play className="h-5 w-5 text-red-600" />
-                          <span className="flex-1"><span className="block font-medium text-slate-800">{video.title}</span><span className="text-xs text-slate-500">{video.channelTitle}</span></span>
-                          <ExternalLink className="h-4 w-4 text-slate-400" />
-                        </a>
+                        <div key={video.videoId || video.url} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          {video.videoId ? (
+                            <div className="aspect-video w-full bg-slate-950">
+                              <iframe
+                                title={video.title || "Course video"}
+                                src={`https://www.youtube.com/embed/${encodeURIComponent(video.videoId)}?rel=0&playsinline=1`}
+                                className="h-full w-full"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowFullScreen
+                                referrerPolicy="strict-origin-when-cross-origin"
+                              />
+                            </div>
+                          ) : (
+                            <div className="p-5 text-sm text-amber-700">
+                              This video does not provide an embeddable video ID.
+                            </div>
+                          )}
+                          <div className="p-4">
+                            <p className="font-semibold text-slate-900">{video.title}</p>
+                            {video.channelTitle && <p className="mt-1 text-xs text-slate-500">{video.channelTitle}</p>}
+                            <p className="mt-2 text-xs text-slate-400">
+                              This video is played inside BuddyForStudy.
+                            </p>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : null}

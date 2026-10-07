@@ -26,10 +26,19 @@ const roadmapSchema = {
           prerequisites: { type: "array", items: { type: "string" } },
           topics: { type: "array", items: { type: "string" } },
           searchQueries: { type: "array", items: { type: "string" } },
+          courseDuration: {
+            type: "object",
+            properties: {
+              minMinutes: { type: "integer" },
+              targetMinutes: { type: "integer" },
+              maxMinutes: { type: "integer" }
+            },
+            required: ["minMinutes", "targetMinutes", "maxMinutes"]
+          },
           practiceProject: { type: "string" },
           durationMinutes: { type: "integer" }
         },
-        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "practiceProject", "durationMinutes"]
+        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject"]
       }
     }
   },
@@ -38,6 +47,13 @@ const roadmapSchema = {
 
 function normalizeId(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+
+function normalizeCourseDuration(value) {
+  const minMinutes = Math.max(30, Math.min(2400, Number(value?.minMinutes) || 180));
+  const targetMinutes = Math.max(minMinutes, Math.min(3000, Number(value?.targetMinutes) || minMinutes));
+  const maxMinutes = Math.max(targetMinutes, Math.min(3600, Number(value?.maxMinutes) || targetMinutes));
+  return { minMinutes, targetMinutes, maxMinutes };
 }
 
 function topoSort(skills) {
@@ -68,7 +84,7 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
     ...skill,
     id: normalizeId(skill.id || skill.name),
     prerequisites: (skill.prerequisites || []).map(normalizeId),
-    durationMinutes: Math.max(30, Math.min(2400, Number(skill.durationMinutes) || 120)),
+    courseDuration: normalizeCourseDuration(skill.courseDuration),
     topics: skill.topics?.slice(0, 12) || [],
     searchQueries: (skill.searchQueries?.length ? skill.searchQueries : [`${skill.name} complete course tutorial`]).slice(0, 2)
   })));
@@ -100,7 +116,17 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
           searchQuery: skill.searchQueries[0],
           searchQueries: skill.searchQueries,
           requiredTopics: skill.topics,
-          durationMinutes: { min: Math.round(skill.durationMinutes * 0.5), max: skill.durationMinutes }
+          durationMinutes: skill.courseDuration,
+          searchPolicy: {
+            contentType: "complete-course",
+            minDurationMinutes: skill.courseDuration.minMinutes,
+            targetDurationMinutes: skill.courseDuration.targetMinutes,
+            maxDurationMinutes: skill.courseDuration.maxMinutes,
+            excludeShorts: true,
+            requireEmbeddable: true,
+            preferProjectBased: true,
+            preferredLanguage: "en"
+          }
         }
       },
       {
@@ -120,7 +146,7 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
     ]
   }));
 
-  const totalMinutes = activeSkills.reduce((sum, skill) => sum + skill.durationMinutes, 0);
+  const totalMinutes = activeSkills.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0);
   const days = Math.max(1, Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60)));
 
   return {
@@ -173,6 +199,11 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "Include practical projects after major skill stages.",
     "Create 5-12 skills for broad technologies/careers and 3-8 for focused topics.",
     "Create useful YouTube search queries for each skill; do not invent video URLs.",
+    "For EVERY skill, decide a realistic complete-course duration range based on the depth required to become competent in that skill.",
+    "Return minMinutes, targetMinutes, and maxMinutes for each skill.",
+    "Do not use one generic duration for every skill. A deeper technology such as JavaScript may require a much longer course than a smaller focused skill.",
+    "The duration range is a SEARCH CONSTRAINT for YouTube resources, not the learner's total study duration.",
+    "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists."
     "",
     `Topic: ${topic}`,
     `Learner level: ${level}`,

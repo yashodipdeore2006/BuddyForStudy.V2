@@ -6,20 +6,6 @@ for (const key of required) {
   if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
 }
 
-const configuredOpenRouterModel = process.env.OPENROUTER_MODEL?.trim();
-
-const retiredFreeModels = new Set([
-  "openai/gpt-oss-20b:free",
-  "qwen/qwen3.8-27b:free"
-]);
-
-const openrouterModel =
-  !configuredOpenRouterModel ||
-  configuredOpenRouterModel === "openrouter/free" ||
-  retiredFreeModels.has(configuredOpenRouterModel)
-    ? "openrouter/free"
-    : configuredOpenRouterModel;
-
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 5000),

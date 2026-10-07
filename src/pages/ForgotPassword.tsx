@@ -9,7 +9,7 @@ const RESEND_SECONDS = 60;
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { resetPassword } = useAuth();
   const [step, setStep] = useState<"email" | "reset">("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -72,11 +72,7 @@ export default function ForgotPassword() {
 
     setLoading(true);
     try {
-      await apiFetch("/api/auth/reset-password", {
-        method: "POST",
-        body: JSON.stringify({ email, otp, newPassword }),
-      });
-      await signIn(email, newPassword);
+      await resetPassword(email, otp, newPassword);
       navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reset the password.");

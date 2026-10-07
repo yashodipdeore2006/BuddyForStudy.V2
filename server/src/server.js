@@ -23,6 +23,7 @@ import achievementRoutes from "./routes/achievement.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
 import webhookRoutes from "./routes/webhook.routes.js";
 import healthRoutes from "./routes/health.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -68,6 +69,7 @@ app.use("/api/roadmaps", roadmapRoutes);
 app.use("/api/discovery", discoveryRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/achievements", achievementRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api/payments", paymentLimiter, paymentRoutes);
 app.use("/api/webhooks", webhookLimiter, webhookRoutes);
 

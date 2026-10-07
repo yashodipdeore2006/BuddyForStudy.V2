@@ -1,8 +1,16 @@
+import { LearningRoadmap } from "../models/LearningRoadmap.js";
 import { resolveLearningPath, getSkill, listSupportedTopics } from "../data/learningKnowledgeBase.js";
 import { attachYouTubeResources } from "./youtube.service.js";
 import { generateModuleQuiz } from "./quiz.service.js";
 
 function lessonId(skillId,suffix){return `${skillId}-${suffix}`;}
+
+function decorate(roadmap) {
+  const data = roadmap.toObject ? roadmap.toObject() : roadmap;
+  const total = data.lessons?.length || 0;
+  const completed = data.completedLessonIds?.length || 0;
+  return { ...data, progress: { completedCount: completed, totalLessons: total, percentage: total ? Math.round((completed / total) * 100) : 0 } };
+}
 
 function buildCourse({path,level}){
   const modules=path.skillOrder.map((skillId,index)=>{

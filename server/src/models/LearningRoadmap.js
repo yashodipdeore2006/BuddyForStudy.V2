@@ -25,6 +25,7 @@ const roadmapSchema = new mongoose.Schema({
   },
   skillGraph: { type: mongoose.Schema.Types.Mixed, default: [] },
   personalization: { type: mongoose.Schema.Types.Mixed, default: {} },
+  adaptiveState: { type: mongoose.Schema.Types.Mixed, default: {} },
   lessons: { type: [roadmapLessonSchema], default: [] },
   completedLessonIds: { type: [String], default: [] },
   quizAttempts: {

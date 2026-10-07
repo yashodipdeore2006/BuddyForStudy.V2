@@ -203,7 +203,7 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "Return minMinutes, targetMinutes, and maxMinutes for each skill.",
     "Do not use one generic duration for every skill. A deeper technology such as JavaScript may require a much longer course than a smaller focused skill.",
     "The duration range is a SEARCH CONSTRAINT for YouTube resources, not the learner's total study duration.",
-    "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists."
+    "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists.",
     "",
     `Topic: ${topic}`,
     `Learner level: ${level}`,

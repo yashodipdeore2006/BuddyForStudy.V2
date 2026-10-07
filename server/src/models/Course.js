@@ -12,7 +12,9 @@ const videoResourceSchema = new mongoose.Schema({
 const tutorialSchema = new mongoose.Schema({
   content: { type: String, default: "" },
   resources: { type: [String], default: [] },
-  videos: { type: [videoResourceSchema], default: [] }
+  videos: { type: [videoResourceSchema], default: [] },
+  playlistId: { type: String, default: "" },
+  playlistTitle: { type: String, default: "" }
 }, { _id: false });
 const projectSchema = new mongoose.Schema({
   description: { type: String, default: "" }, objectives: { type: [String], default: [] }, requirements: { type: [String], default: [] },

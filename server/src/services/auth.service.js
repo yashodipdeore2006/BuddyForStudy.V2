@@ -108,6 +108,9 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
   const user = await User.findById(userId).select("+password");
   if (!user) throw authError("User not found", 404);
   if (!user.isActive) throw authError("Account is inactive", 401);
+  if (user.authProvider === "google") {
+    throw authError("Google-only accounts cannot change their BuddyForStudy password.", 400);
+  }
   if (!user.password) {
     throw authError("This account does not have a password. Sign in with Google.", 400);
   }

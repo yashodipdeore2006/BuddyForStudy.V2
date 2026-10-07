@@ -1,8 +1,14 @@
 import { useEffect, useRef } from "react";
+import { apiFetch } from "@/lib/api";
 
 interface GoogleSignInButtonProps {
   onCredential: (credential: string) => Promise<void>;
   disabled?: boolean;
+}
+
+interface GoogleConfigResponse {
+  enabled: boolean;
+  clientId: string;
 }
 
 export default function GoogleSignInButton({ onCredential, disabled = false }: GoogleSignInButtonProps) {
@@ -11,13 +17,11 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
   useEffect(() => {
     let cancelled = false;
     let attempts = 0;
+    let clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
 
     const render = () => {
-      if (cancelled || !containerRef.current || disabled) return;
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-      if (!clientId || !window.google?.accounts?.id) {
-        if (attempts++ < 50) window.setTimeout(render, 200);
+      if (cancelled || !containerRef.current || disabled || !clientId || !window.google?.accounts?.id) {
+        if (!cancelled && !disabled && attempts++ < 100) window.setTimeout(render, 200);
         return;
       }
 
@@ -39,8 +43,23 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
       });
     };
 
-    render();
-    return () => { cancelled = true; };
+    const loadConfig = async () => {
+      if (!clientId) {
+        try {
+          const config = await apiFetch("/api/auth/google/config") as GoogleConfigResponse;
+          if (config.enabled && config.clientId) clientId = config.clientId;
+        } catch {
+          // Keep polling so the Google Identity Services script can finish loading.
+        }
+      }
+      render();
+    };
+
+    void loadConfig();
+
+    return () => {
+      cancelled = true;
+    };
   }, [disabled, onCredential]);
 
   return <div ref={containerRef} className={disabled ? "pointer-events-none opacity-60" : ""} />;

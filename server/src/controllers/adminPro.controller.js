@@ -35,9 +35,9 @@ async function audienceUsers(audience) {
   if (audience === "active") return User.find({ isActive: true }).select("_id email name");
   if (audience === "subscribers") {
     const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
-    return User.find({ _id: { $in: subs.map(s => s.user) }, isActive: true }).select("_id email name");
+    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id email name");
   }
-  return User.find({ isActive: true }).select("_id email name");
+  return User.find({}).select("_id email name");
 }
 
 async function notificationAudienceUsers(audience) {

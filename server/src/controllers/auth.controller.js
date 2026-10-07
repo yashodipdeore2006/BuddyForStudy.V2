@@ -30,7 +30,7 @@ const otpSchema = z.object({
 
 const resendOtpSchema = z.object({
   email: z.string().trim().email(),
-  purpose: z.enum(["email_verification", "password_reset"])
+  purpose: z.enum(["email_verification", "login_verification", "password_reset"])
 });
 
 const forgotPasswordSchema = z.object({
@@ -117,7 +117,9 @@ export async function resendOtp(req, res) {
     const input = resendOtpSchema.parse(req.body);
     const result = input.purpose === "email_verification"
       ? await authService.resendEmailVerification(input.email)
-      : await authService.requestPasswordReset(input.email);
+      : input.purpose === "login_verification"
+        ? await authService.resendLoginOtp(input.email)
+        : await authService.requestPasswordReset(input.email);
     return success(res, result, "OTP sent successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);

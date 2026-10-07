@@ -15,7 +15,6 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
-  const [requiresOtp, setRequiresOtp] = useState(false);
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname;
 
@@ -47,7 +46,6 @@ export default function Login() {
     e.preventDefault();
     setError(null);
     setNeedsVerification(false);
-    setRequiresOtp(false);
     setLoading(true);
     try {
       const result = await signIn(email, password);
@@ -58,7 +56,6 @@ export default function Login() {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       setError(message);
       setNeedsVerification(message.toLowerCase().includes('email not verified'));
-      setRequiresOtp(false);
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,6 @@
 import type { Course } from '@/types';
 import { Link } from 'react-router-dom';
-import { BookOpen, Clock, ChevronRight } from 'lucide-react';
+import { BookOpen, Clock, ChevronRight, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { classNames } from '@/lib/utils';
 import { countAllLessons } from '@/lib/courseUtils';
@@ -68,6 +68,12 @@ export default function CourseCard({ course, progressPercentage }: CourseCardPro
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />
                 {course.duration}
+              </span>
+            )}
+            {course.enrollment_count !== undefined && (
+              <span className="flex items-center gap-1">
+                <Users className="h-3.5 w-3.5" />
+                {course.enrollment_count} enrolled
               </span>
             )}
           </div>

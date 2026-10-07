@@ -8,6 +8,7 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import Courses from '@/pages/Courses';
 import CourseDetails from '@/pages/CourseDetails';
+import CourseRoadmap from '@/pages/CourseRoadmap';
 import Dashboard from '@/pages/Dashboard';
 import MyCourses from '@/pages/MyCourses';
 import CoursePlayer from '@/pages/CoursePlayer';
@@ -32,7 +33,7 @@ import AdminCoupons from '@/pages/admin/AdminCoupons';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
-  const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/roadmaps/') || pathname.startsWith('/playlists/');
+  const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/roadmaps/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
   const isAdmin = pathname.startsWith('/admin');
   return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}</div>;
 }
@@ -44,7 +45,7 @@ function AdminPage({ children }: { children: React.ReactNode }) {
 function App() {
   return <AuthProvider><BrowserRouter><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
-    <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} />
+    <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
     <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
     <Route path="/learn/:courseId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />

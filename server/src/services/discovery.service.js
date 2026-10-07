@@ -253,7 +253,7 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
 
 export async function getPlaylistCourse(playlistId) {
   const key = `playlist:${playlistId}`;
-  if (cache.has(key)) return cache.get(key);
+  if (playlistCache.has(key)) return playlistCache.get(key);
 
   const playlistData = await youtubeRequest("playlists", {
     part: "snippet,contentDetails,status",
@@ -331,6 +331,6 @@ export async function getPlaylistCourse(playlistId) {
     lessons
   };
 
-  cache.set(key, result);
+  playlistCache.set(key, result);
   return result;
 }

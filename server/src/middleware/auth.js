@@ -38,7 +38,7 @@ export async function authMiddleware(req, res, next) {
 
 export function adminMiddleware(req, res, next) {
   if (req.user?.role !== "admin" || req.user?.accessType !== "admin") {
-    return failure(res, "Administrator access required. Use the admin login.", 403);
+    return failure(res, "Administrator access required.", 403);
   }
   next();
 }

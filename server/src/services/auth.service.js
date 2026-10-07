@@ -1,4 +1,5 @@
 import { OAuth2Client } from "google-auth-library";
+import * as otpService from "./otp.service.js";
 import { User } from "../models/User.js";
 import { env } from "../config/env.js";
 import { signAccessToken } from "../utils/jwt.js";
@@ -13,7 +14,8 @@ function publicUser(user) {
     role: user.role,
     isActive: user.isActive,
     profileImage: user.profileImage || "",
-    authProvider: user.authProvider
+    authProvider: user.authProvider,
+    emailVerified: user.emailVerified !== false
   };
 }
 
@@ -34,10 +36,16 @@ export async function register({ name, email, password }) {
     email: normalizedEmail,
     password: hashedPassword,
     role: "user",
-    authProvider: "local"
+    authProvider: "local",
+    emailVerified: false
   });
 
-  return { user: publicUser(user), token: signAccessToken(user) };
+  await otpService.sendOtp(user, "email_verification");
+
+  return {
+    requiresVerification: true,
+    email: user.email
+  };
 }
 
 export async function login({ email, password }) {
@@ -48,6 +56,9 @@ export async function login({ email, password }) {
     throw authError("Invalid email or password", 401);
   }
   if (!user.isActive) throw authError("Account is inactive", 401);
+  if (user.authProvider !== "google" && user.emailVerified === false) {
+    throw authError("Email not verified. Please verify your email before signing in.", 403);
+  }
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
@@ -75,13 +86,15 @@ export async function googleLogin(credential) {
       isActive: true,
       googleId: payload.sub,
       profileImage: payload.picture || "",
-      authProvider: "google"
+      authProvider: "google",
+      emailVerified: true
     });
   } else {
     if (!user.isActive) throw authError("Account is inactive", 401);
     user.googleId = payload.sub;
     user.profileImage = payload.picture || user.profileImage;
     user.authProvider = user.password ? "local_google" : "google";
+    user.emailVerified = true;
     if (!user.name && payload.name) user.name = payload.name;
     await user.save();
   }
@@ -121,4 +134,58 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
   user.password = await User.hashPassword(newPassword);
   await user.save();
   return { user: publicUser(user) };
+}
+
+
+export async function verifyEmail({ email, otp }) {
+  const record = await otpService.verifyOtp({ email, purpose: "email_verification", code: otp });
+  const user = await User.findById(record.user);
+  if (!user) throw authError("Account not found", 404);
+  user.emailVerified = true;
+  await user.save();
+  return { user: publicUser(user), token: signAccessToken(user) };
+}
+
+export async function resendEmailVerification(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await User.findOne({
+    email: normalizedEmail,
+    authProvider: { $in: ["local", "local_google"] }
+  });
+
+  if (!user || user.emailVerified === true) {
+    return { email: normalizedEmail };
+  }
+
+  await otpService.sendOtp(user, "email_verification");
+  return { email: user.email };
+}
+
+export async function requestPasswordReset(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await User.findOne({
+    email: normalizedEmail,
+    authProvider: { $in: ["local", "local_google"] }
+  });
+
+  if (user) {
+    await otpService.sendOtp(user, "password_reset");
+  }
+
+  return { email: normalizedEmail };
+}
+
+export async function resetPassword({ email, otp, newPassword }) {
+  const record = await otpService.verifyOtp({ email, purpose: "password_reset", code: otp });
+  const user = await User.findById(record.user).select("+password");
+  if (!user) throw authError("Account not found", 404);
+  if (user.authProvider === "google" || !user.password) {
+    throw authError("This account does not use an email password.", 400);
+  }
+
+  user.password = await User.hashPassword(newPassword);
+  user.emailVerified = true;
+  await user.save();
+
+  return { user: publicUser(user), token: signAccessToken(user) };
 }

@@ -74,7 +74,8 @@ async function generateStructuredJson(prompt) {
       { role: "user", content: prompt }
     ],
     temperature: 0.2,
-    max_tokens: 9000,
+    max_completion_tokens: 12000,
+    reasoning: { effort: "low" },
     response_format: { type: "json_object" },
     ...(env.openrouterApiKey ? { provider: { require_parameters: true } } : {})
   };
@@ -94,8 +95,21 @@ async function generateStructuredJson(prompt) {
 
   const choice = response.choices?.[0];
   const content = choice?.message?.content;
+
   if (!content) {
-    const error = new Error("AI provider returned an empty response");
+    console.error("AI provider returned no text content", {
+      model: request.model,
+      finishReason: choice?.finish_reason || null,
+      usage: response.usage || null,
+      hasReasoning: Boolean(choice?.message?.reasoning),
+      responseId: response.id || null
+    });
+
+    const error = new Error(
+      choice?.finish_reason === "length"
+        ? "AI provider reached its completion limit before returning JSON"
+        : "AI provider returned an empty response"
+    );
     error.status = 502;
     throw error;
   }

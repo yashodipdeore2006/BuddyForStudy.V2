@@ -6,6 +6,12 @@ for (const key of required) {
   if (!process.env[key]) throw new Error(`Missing required environment variable: ${key}`);
 }
 
+const configuredOpenRouterModel = process.env.OPENROUTER_MODEL?.trim();
+const openrouterModel =
+  configuredOpenRouterModel && configuredOpenRouterModel !== "openai/gpt-oss-20b:free"
+    ? configuredOpenRouterModel
+    : "openrouter/free";
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   port: Number(process.env.PORT || 5000),
@@ -17,7 +23,7 @@ export const env = {
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   openrouterApiKey: process.env.OPENROUTER_API_KEY || "",
   openaiModel: process.env.OPENAI_MODEL || "gpt-5.6-luna",
-  openrouterModel: process.env.OPENROUTER_MODEL || "openai/gpt-oss-20b:free",
+  openrouterModel,
   openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
   youtubeApiKey: process.env.YOUTUBE_API_KEY || "",
   smtpHost: process.env.SMTP_HOST || "",

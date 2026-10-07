@@ -24,7 +24,8 @@ interface CourseCardProps {
 }
 
 export default function CourseCard({ course, progressPercentage }: CourseCardProps) {
-  const lessonCount = countAllLessons(course.modules);
+  const hasModules = Array.isArray(course.modules);
+  const lessonCount = hasModules ? countAllLessons(course.modules) : null;
   const CategoryIcon = categoryIcons[course.category] || BookOpen;
 
   return (
@@ -60,10 +61,12 @@ export default function CourseCard({ course, progressPercentage }: CourseCardPro
 
         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
           <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span className="flex items-center gap-1">
-              <BookOpen className="h-3.5 w-3.5" />
-              {lessonCount} lessons
-            </span>
+            {lessonCount !== null && (
+              <span className="flex items-center gap-1">
+                <BookOpen className="h-3.5 w-3.5" />
+                {lessonCount} lessons
+              </span>
+            )}
             {course.duration && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3.5 w-3.5" />

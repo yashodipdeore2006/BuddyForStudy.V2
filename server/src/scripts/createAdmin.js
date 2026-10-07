@@ -11,6 +11,6 @@ if (!email || !password) throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD are req
 await mongoose.connect(env.mongoUri);
 const hashed = await User.hashPassword(password);
 const existing = await User.findOne({ email: email.toLowerCase() });
-if (existing) { existing.name = name; existing.password = hashed; existing.role = "admin"; existing.isActive = true; await existing.save(); console.log("Admin account updated:", existing.email); }
-else { const user = await User.create({ name, email: email.toLowerCase(), password: hashed, role: "admin", isActive: true, authProvider: "local" }); console.log("Admin account created:", user.email); }
+if (existing) { existing.name = name; existing.password = hashed; existing.role = "admin"; existing.isActive = true; existing.emailVerified = true; await existing.save(); console.log("Admin account updated:", existing.email); }
+else { const user = await User.create({ name, email: email.toLowerCase(), password: hashed, role: "admin", isActive: true, emailVerified: true, authProvider: "local" }); console.log("Admin account created:", user.email); }
 await mongoose.disconnect();

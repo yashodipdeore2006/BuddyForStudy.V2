@@ -75,9 +75,15 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
     const amount = Number(paymentEntity?.amount || 0) / 100;
     if (!Number.isFinite(amount) || amount <= 0) return;
 
+    const currentSubscription = await UserSubscription.findOne({
+      provider: "razorpay",
+      providerSubscriptionId: subscription.id
+    }).select("user plan");
+    if (!currentSubscription) return;
+
     payment = await Payment.create({
-      user: (await UserSubscription.findOne({ provider: "razorpay", providerSubscriptionId: subscription.id }).select("user")).user,
-      plan: (await UserSubscription.findOne({ provider: "razorpay", providerSubscriptionId: subscription.id }).select("plan")).plan,
+      user: currentSubscription.user,
+      plan: currentSubscription.plan,
       amount,
       currency: paymentEntity?.currency || "INR",
       provider: "razorpay",

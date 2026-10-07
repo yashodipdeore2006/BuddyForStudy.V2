@@ -47,6 +47,12 @@ const searchSpecSchema = {
   required: ["topic", "title", "skills"]
 };
 
+function formatCourseDuration(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
 function normalizePolicy(policy) {
   const min = Math.max(30, Math.min(2400, Number(policy?.minDurationMinutes) || 180));
   const target = Math.max(min, Math.min(3000, Number(policy?.targetDurationMinutes) || min));
@@ -142,7 +148,7 @@ export async function searchCourseBySkills(query) {
             description: selected.description,
             channelTitle: selected.channelTitle,
             durationSeconds: selected.durationSeconds,
-            duration: selected.durationSeconds,
+            duration: formatCourseDuration(selected.durationSeconds),
             url: selected.url,
             embedUrl: selected.embedUrl,
             thumbnail: selected.thumbnail,

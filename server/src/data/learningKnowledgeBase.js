@@ -46,10 +46,10 @@ export function resolveLearningPath(query) {
       type:"skill",
       path:{
         id:skillId,
-        title:\`\${SKILLS[skillId].name}: Structured Learning Path\`,
-        description:\`A focused prerequisite-ordered path for learning \${SKILLS[skillId].name} through tutorials and practical projects.\`,
+        title:`${SKILLS[skillId].name}: Structured Learning Path`,
+        description:`A focused prerequisite-ordered path for learning ${SKILLS[skillId].name} through tutorials and practical projects.`,
         category:"Technology",
-        careerOutcome:\`\${SKILLS[skillId].name} Developer\`,
+        careerOutcome:`${SKILLS[skillId].name} Developer`,
         skillOrder:[skillId],
         capstone:null
       }

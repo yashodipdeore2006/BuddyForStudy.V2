@@ -148,7 +148,6 @@ export default function Courses() {
     event.preventDefault();
     const query = searchQuery.trim();
     setCatalogQuery(query);
-    setPlaylistQuery(query);
     setAiRoadmap(null);
     setAiError(null);
   };

@@ -298,9 +298,77 @@ export async function updateCourse(req, res, next) {
   } catch (e) { next(e); }
 }
 
+async function ensureDefaultPlans() {
+  const defaults = [
+    {
+      name: "Free",
+      slug: "free",
+      description: "Core BuddyForStudy access for every learner.",
+      price: 0,
+      currency: "INR",
+      billingInterval: "monthly",
+      features: [
+        "Access published courses",
+        "Normal course search",
+        "Basic learning progress tracking"
+      ],
+      isActive: true,
+      isPopular: false,
+      trialDays: 0,
+      sortOrder: 1
+    },
+    {
+      name: "Pro",
+      slug: "pro",
+      description: "More powerful learning workflows for active learners.",
+      price: 199,
+      currency: "INR",
+      billingInterval: "monthly",
+      features: [
+        "Everything in Free",
+        "Build with AI",
+        "Personalized learning roadmaps",
+        "Project-based learning"
+      ],
+      isActive: true,
+      isPopular: true,
+      trialDays: 0,
+      sortOrder: 2
+    },
+    {
+      name: "Premium",
+      slug: "premium",
+      description: "The full BuddyForStudy learning experience.",
+      price: 399,
+      currency: "INR",
+      billingInterval: "monthly",
+      features: [
+        "Everything in Pro",
+        "Advanced AI learning paths",
+        "Personalized study planning",
+        "Priority learning recommendations"
+      ],
+      isActive: true,
+      isPopular: false,
+      trialDays: 0,
+      sortOrder: 3
+    }
+  ];
+
+  for (const plan of defaults) {
+    await SubscriptionPlan.updateOne(
+      { slug: plan.slug },
+      { $setOnInsert: plan },
+      { upsert: true }
+    );
+  }
+}
+
 export async function plans(req, res, next) {
-  try { return success(res, { plans: await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 }).lean() }); }
-  catch (e) { next(e); }
+  try {
+    await ensureDefaultPlans();
+    return success(res, { plans: await SubscriptionPlan.find().sort({ sortOrder: 1, createdAt: 1 }).lean() });
+  } catch (e) { next(e); }
 }
 
 export async function createPlan(req, res, next) {

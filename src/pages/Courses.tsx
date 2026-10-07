@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, type FormEvent } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel } from '@/types';
@@ -172,7 +172,7 @@ export default function Courses() {
     }
   };
 
-  const handleSearch = (event: React.FormEvent) => {
+  const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const query = searchQuery.trim();
     setCatalogQuery(query);

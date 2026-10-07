@@ -1,7 +1,12 @@
+import { getToken } from "@/lib/api";
+
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
-export function getAdminToken() { return localStorage.getItem("bfs_admin_token"); }
-export function clearAdminToken() { localStorage.removeItem("bfs_admin_token"); localStorage.removeItem("bfs_admin_user"); }
+export function getAdminToken() { return getToken(); }
+export function clearAdminToken() {
+  localStorage.removeItem("bfs_admin_token");
+  localStorage.removeItem("bfs_admin_user");
+}
 
 export async function adminFetch(path: string, options: RequestInit = {}) {
   const token = getAdminToken();

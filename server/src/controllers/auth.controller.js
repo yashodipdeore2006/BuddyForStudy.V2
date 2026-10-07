@@ -1,5 +1,6 @@
 import { z } from "zod";
 import * as authService from "../services/auth.service.js";
+import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
 
 const registerSchema = z.object({
@@ -46,6 +47,10 @@ export async function login(req, res) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return failure(res, error.message, error.status || 500);
   }
+}
+
+export function googleConfig(_req, res) {
+  return success(res, { enabled: Boolean(env.googleClientId), clientId: env.googleClientId });
 }
 
 export async function googleLogin(req, res) {

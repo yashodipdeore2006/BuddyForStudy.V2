@@ -14,25 +14,44 @@ const openaiClient = (env.openrouterApiKey || env.openaiApiKey)
   : null;
 
 async function searchYouTube(query, maxResults = 8) {
-  if (!env.youtubeApiKey) return [];
+  if (!env.youtubeApiKey) {
+    console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");
+    return [];
+  }
+
   const url = new URL("https://www.googleapis.com/youtube/v3/search");
   url.searchParams.set("part", "snippet");
   url.searchParams.set("type", "video");
+  url.searchParams.set("videoEmbeddable", "true");
+  url.searchParams.set("videoSyndicated", "true");
+  url.searchParams.set("relevanceLanguage", "en");
+  url.searchParams.set("regionCode", "IN");
+  url.searchParams.set("safeSearch", "moderate");
+  url.searchParams.set("order", "relevance");
   url.searchParams.set("q", query);
-  url.searchParams.set("maxResults", String(maxResults));
+  url.searchParams.set("maxResults", String(Math.min(maxResults, 10)));
   url.searchParams.set("key", env.youtubeApiKey);
+
   const response = await fetch(url);
-  if (!response.ok) throw new Error("YouTube search failed");
   const data = await response.json();
-  return (data.items || []).map((item) => ({
-    videoId: item.id.videoId,
-    title: item.snippet.title,
-    description: item.snippet.description,
-    channelTitle: item.snippet.channelTitle,
-    publishedAt: item.snippet.publishedAt,
-    url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-    thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || ""
-  }));
+
+  if (!response.ok) {
+    const reason = data?.error?.errors?.[0]?.reason || data?.error?.message || "unknown error";
+    throw new Error(`YouTube search failed: ${reason}`);
+  }
+
+  return (data.items || [])
+    .filter((item) => item.id?.videoId && item.snippet?.title)
+    .map((item) => ({
+      videoId: item.id.videoId,
+      title: item.snippet.title,
+      description: item.snippet.description || "",
+      channelTitle: item.snippet.channelTitle || "",
+      publishedAt: item.snippet.publishedAt || null,
+      url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+      embedUrl: `https://www.youtube.com/embed/${item.id.videoId}`,
+      thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || ""
+    }));
 }
 
 function parseJson(raw) {
@@ -337,29 +356,63 @@ function uniqueVideos(videos) {
 
 async function attachResources(course) {
   const allSources = [];
+  const searchCache = new Map();
+
+  const searchWithCache = async (query) => {
+    const normalizedQuery = String(query).trim().toLowerCase();
+    if (!normalizedQuery) return [];
+    if (!searchCache.has(normalizedQuery)) {
+      searchCache.set(normalizedQuery, searchYouTube(query, 8));
+    }
+    return searchCache.get(normalizedQuery);
+  };
+
   for (const module of course.modules || []) {
     for (const lesson of module.lessons || []) {
       if (lesson.type !== "tutorial") continue;
-      const query = lesson.tutorial?.searchQuery || `${course.title} ${lesson.title} tutorial`;
+
+      const primaryQuery =
+        lesson.tutorial?.searchQuery ||
+        `${course.title} ${lesson.title} tutorial`;
+
+      const fallbackQuery = `${lesson.title} tutorial programming`;
+
       let videos = [];
       try {
-        videos = await searchYouTube(query, 8);
-      } catch {
-        videos = [];
+        videos = await searchWithCache(primaryQuery);
+
+        if (!videos.length && fallbackQuery.toLowerCase() !== primaryQuery.toLowerCase()) {
+          videos = await searchWithCache(fallbackQuery);
+        }
+      } catch (error) {
+        console.error("YouTube resource search failed", {
+          lesson: lesson.title,
+          query: primaryQuery,
+          message: error.message
+        });
       }
+
       const ranked = uniqueVideos(videos)
         .filter((video) => isUsableVideo(video, lesson))
         .map((video) => ({ ...video, relevanceScore: scoreVideo(video, lesson) }))
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
         .slice(0, 3);
+
       lesson.tutorial ||= {};
       lesson.tutorial.resources = ranked.map((video) => video.url);
       lesson.tutorial.videos = ranked;
       lesson.tutorial.resourceStatus = ranked.length ? "ready" : "unavailable";
       delete lesson.tutorial.searchQuery;
+
+      console.log("YouTube resources attached", {
+        lesson: lesson.title,
+        videos: ranked.length
+      });
+
       allSources.push(...ranked);
     }
   }
+
   return allSources;
 }
 

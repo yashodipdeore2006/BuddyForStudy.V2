@@ -4,6 +4,7 @@ import { adminFetch } from "@/lib/adminApi";
 
 type TutorialEditor = {
   lessonId: string;
+  sourceType: "video" | "playlist";
   url: string;
   saving: boolean;
   error: string;
@@ -87,11 +88,13 @@ export default function AdminCoursesPro() {
     }
   }
 
-  function setVideoUrl(lessonId: string, url: string) {
+  function setVideoUrl(editorKey: string, url: string) {
     setEditors((current) => ({
       ...current,
-      [lessonId]: {
-        lessonId,
+      [editorKey]: {
+        ...(current[editorKey] || {}),
+        lessonId: current[editorKey]?.lessonId || "",
+        sourceType: current[editorKey]?.sourceType || (isYouTubePlaylistUrl(url) ? "playlist" : "video"),
         url,
         saving: false,
         error: "",
@@ -341,6 +344,7 @@ export default function AdminCoursesPro() {
                                   const editorKey = `module:${module._id || module.order}`;
                                   const editor = editors[editorKey] || {
                                     lessonId: "",
+                                    sourceType: "video",
                                     url: "",
                                     saving: false,
                                     error: "",
@@ -360,10 +364,24 @@ export default function AdminCoursesPro() {
 
                                         <div className="w-full lg:max-w-xl">
                                           <div className="flex flex-col gap-2 sm:flex-row">
+                                            <select
+                                              value={editor.sourceType}
+                                              onChange={(e) => setEditors((current) => ({
+                                                ...current,
+                                                [editorKey]: { ...current[editorKey], sourceType: e.target.value as "video" | "playlist" },
+                                              }))}
+                                              className="input-field w-full sm:w-36"
+                                              disabled={editor.saving}
+                                            >
+                                              <option value="video">Single Video</option>
+                                              <option value="playlist">Playlist</option>
+                                            </select>
                                             <input
                                               value={editor.url}
                                               onChange={(e) => setVideoUrl(editorKey, e.target.value)}
-                                              placeholder="https://www.youtube.com/watch?v=..."
+                                              placeholder={editor.sourceType === "playlist"
+                                                ? "https://www.youtube.com/playlist?list=..."
+                                                : "https://www.youtube.com/watch?v=..."}
                                               className="input-field flex-1"
                                               type="url"
                                             />
@@ -374,7 +392,7 @@ export default function AdminCoursesPro() {
                                               className="btn-primary justify-center whitespace-nowrap"
                                             >
                                               {editor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                                              Add Video
+                                              {editor.sourceType === "playlist" ? "Import Playlist" : "Add Video"}
                                             </button>
                                           </div>
                                           {editor.success && <p className="mt-1.5 text-xs font-semibold text-green-600">{editor.success}</p>}

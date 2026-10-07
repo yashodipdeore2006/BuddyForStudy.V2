@@ -84,5 +84,11 @@ export async function generateModuleQuiz({ module, courseTitle, level = "Beginne
       if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200));
     }
   }
+  const raw = String(lastError?.message || lastError || "");
+  if (/429|RESOURCE_EXHAUSTED|quota/i.test(raw)) {
+    const error = new Error("Quiz generation is temporarily unavailable because the Gemini API quota has been reached. Please try again later.");
+    error.status = 429;
+    throw error;
+  }
   throw lastError;
 }

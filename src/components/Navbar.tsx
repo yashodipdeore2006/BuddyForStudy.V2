@@ -32,7 +32,7 @@ export default function Navbar() {
   const studentLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/courses', label: 'Courses', icon: BookOpen },
-    { to: '/my-courses', label: 'My Courses', icon: GraduationCap },
+    { to: '/my-courses', label: 'My Learning', icon: GraduationCap },
   ];
 
   const adminLinks = [

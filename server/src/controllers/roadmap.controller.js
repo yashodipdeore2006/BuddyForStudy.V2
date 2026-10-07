@@ -10,6 +10,7 @@ const saveSchema = z.object({
   careerOutcome: z.string().optional().default(""),
   level: z.enum(["Beginner", "Intermediate", "Advanced"]).default("Beginner"),
   skillGraph: z.array(z.any()).default([]),
+  personalization: z.record(z.any()).default({}),
   course: z.object({
     title: z.string().min(2),
     description: z.string().default(""),

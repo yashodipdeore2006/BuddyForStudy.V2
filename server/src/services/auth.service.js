@@ -64,6 +64,22 @@ export async function login({ email, password }) {
   if (user.authProvider !== "google" && user.emailVerified === false) {
     throw authError("Email not verified. Please verify your email before signing in.", 403);
   }
+
+  await otpService.sendOtp(user, "login_verification");
+  return {
+    requiresOtp: true,
+    purpose: "login_verification",
+    email: user.email
+  };
+}
+
+
+export async function verifyLogin({ email, otp }) {
+  const record = await otpService.verifyOtp({ email, purpose: "login_verification", code: otp });
+  const user = await User.findById(record.user);
+  if (!user) throw authError("Account not found", 404);
+  if (!user.isActive) throw authError("Account is inactive", 401);
+
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 

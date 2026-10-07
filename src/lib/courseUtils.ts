@@ -4,34 +4,40 @@ export function generateId(): string {
   return crypto.randomUUID();
 }
 
-export function countAllLessons(modules: Module[]): number {
-  return modules.reduce((sum, m) => sum + m.lessons.length, 0);
+export function countAllLessons(modules?: Module[]): number {
+  return (modules || []).reduce((sum, module) => sum + (module?.lessons?.length || 0), 0);
 }
 
-export function getAllLessonsFlat(modules: Module[]): Lesson[] {
+export function getAllLessonsFlat(modules?: Module[]): Lesson[] {
   const lessons: Lesson[] = [];
-  modules.forEach((m) => {
-    m.lessons.forEach((l) => lessons.push(l));
+  (modules || []).forEach((module) => {
+    (module?.lessons || []).forEach((lesson) => lessons.push(lesson));
   });
   return lessons;
 }
 
 export function findLessonById(
-  modules: Module[],
+  modules: Module[] | undefined,
   lessonId: string
 ): { lesson: Lesson; module: Module; moduleIndex: number; lessonIndex: number } | null {
-  for (let mi = 0; mi < modules.length; mi++) {
-    for (let li = 0; li < modules[mi].lessons.length; li++) {
-      if (modules[mi].lessons[li].id === lessonId) {
+  const safeModules = modules || [];
+
+  for (let moduleIndex = 0; moduleIndex < safeModules.length; moduleIndex++) {
+    const module = safeModules[moduleIndex];
+    const moduleLessons = module?.lessons || [];
+
+    for (let lessonIndex = 0; lessonIndex < moduleLessons.length; lessonIndex++) {
+      if (moduleLessons[lessonIndex].id === lessonId) {
         return {
-          lesson: modules[mi].lessons[li],
-          module: modules[mi],
-          moduleIndex: mi,
-          lessonIndex: li,
+          lesson: moduleLessons[lessonIndex],
+          module,
+          moduleIndex,
+          lessonIndex,
         };
       }
     }
   }
+
   return null;
 }
 
@@ -43,14 +49,15 @@ export function isLessonCompleted(
 }
 
 export function getNavigationLessons(
-  modules: Module[],
+  modules: Module[] | undefined,
   currentLessonId: string
 ): { prev: Lesson | null; next: Lesson | null } {
   const flat = getAllLessonsFlat(modules);
   const idx = flat.findIndex((l) => l.id === currentLessonId);
+
   return {
     prev: idx > 0 ? flat[idx - 1] : null,
-    next: idx < flat.length - 1 ? flat[idx + 1] : null,
+    next: idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null,
   };
 }
 
@@ -81,6 +88,7 @@ export function createEmptyLesson(order: number, type: 'tutorial' | 'project' = 
     type,
     order,
   };
+
   if (type === 'tutorial') {
     lesson.tutorial = { content: '' };
   } else {
@@ -91,5 +99,6 @@ export function createEmptyLesson(order: number, type: 'tutorial' | 'project' = 
       expectedOutcome: '',
     };
   }
+
   return lesson;
 }

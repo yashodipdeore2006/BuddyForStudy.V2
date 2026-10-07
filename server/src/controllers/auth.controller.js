@@ -18,6 +18,26 @@ const googleSchema = z.object({
   credential: z.string().min(1)
 });
 
+const otpSchema = z.object({
+  email: z.string().trim().email(),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code")
+});
+
+const resendOtpSchema = z.object({
+  email: z.string().trim().email(),
+  purpose: z.enum(["email_verification", "password_reset"])
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email()
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().trim().email(),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code"),
+  newPassword: z.string().min(8).max(128)
+});
+
 const profileSchema = z.object({
   name: z.string().trim().min(2).max(100)
 });
@@ -58,6 +78,55 @@ export async function googleLogin(req, res) {
     const { credential } = googleSchema.parse(req.body);
     const result = await authService.googleLogin(credential);
     return success(res, result, "Google authentication successful");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}
+
+
+export async function verifyEmail(req, res) {
+  try {
+    const input = otpSchema.parse(req.body);
+    const result = await authService.verifyEmail(input);
+    return success(res, result, "Email verified successfully");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}
+
+export async function resendOtp(req, res) {
+  try {
+    const input = resendOtpSchema.parse(req.body);
+    const result = input.purpose === "email_verification"
+      ? await authService.resendEmailVerification(input.email)
+      : await authService.requestPasswordReset(input.email);
+    return success(res, result, "OTP sent successfully");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    const body = { message: error.message };
+    if (error.retryAfter) body.retryAfter = error.retryAfter;
+    return failure(res, body.message, error.status || 500);
+  }
+}
+
+export async function forgotPassword(req, res) {
+  try {
+    const input = forgotPasswordSchema.parse(req.body);
+    const result = await authService.requestPasswordReset(input.email);
+    return success(res, result, "If the account exists, a password reset OTP has been sent.");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}
+
+export async function resetPassword(req, res) {
+  try {
+    const input = resetPasswordSchema.parse(req.body);
+    const result = await authService.resetPassword(input);
+    return success(res, result, "Password reset successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return failure(res, error.message, error.status || 500);

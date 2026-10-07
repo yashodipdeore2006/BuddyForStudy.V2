@@ -104,6 +104,132 @@ export async function courses(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function courseDetail(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const course = await Course.findById(req.params.courseId).lean();
+    if (!course) return failure(res, "Course not found", 404);
+    return success(res, { course });
+  } catch (e) { next(e); }
+}
+
+function extractYouTubeVideoId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+
+    if (host === "youtu.be") {
+      const id = url.pathname.split("/").filter(Boolean)[0];
+      return id || null;
+    }
+
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const queryId = url.searchParams.get("v");
+      if (queryId) return queryId;
+
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (["embed", "shorts", "live"].includes(parts[0]) && parts[1]) return parts[1];
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export async function updateCourseTutorial(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+
+    const lessonId = String(req.body.lessonId || "");
+    const videoUrl = String(req.body.videoUrl || "").trim();
+    if (!lessonId) return failure(res, "lessonId is required", 400);
+    if (!videoUrl) return failure(res, "videoUrl is required", 400);
+
+    const videoId = extractYouTubeVideoId(videoUrl);
+    if (!videoId) {
+      return failure(res, "Enter a valid YouTube video URL", 400);
+    }
+
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+
+    let targetLesson = null;
+    let targetModule = null;
+
+    for (const module of course.modules || []) {
+      const lesson = (module.lessons || []).find((item) => String(item._id) === lessonId);
+      if (lesson) {
+        targetLesson = lesson;
+        targetModule = module;
+        break;
+      }
+    }
+
+    if (!targetLesson || !targetModule) {
+      return failure(res, "Tutorial lesson not found", 404);
+    }
+
+    if (targetLesson.type !== "tutorial") {
+      return failure(res, "Only tutorial lessons can have a YouTube video replaced", 400);
+    }
+
+    const before = {
+      moduleTitle: targetModule.title,
+      lessonTitle: targetLesson.title,
+      videos: targetLesson.tutorial?.videos || [],
+      resources: targetLesson.tutorial?.resources || []
+    };
+
+    const currentVideo = targetLesson.tutorial?.videos?.[0] || {};
+    const updatedVideo = {
+      videoId,
+      title: req.body.title ? String(req.body.title).trim() : (currentVideo.title || "Admin-selected YouTube video"),
+      description: currentVideo.description || "",
+      channelTitle: currentVideo.channelTitle || "",
+      publishedAt: currentVideo.publishedAt || null,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      thumbnail: currentVideo.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      embedUrl: `https://www.youtube.com/embed/${videoId}`
+    };
+
+    targetLesson.tutorial ||= {};
+    targetLesson.tutorial.videos = [updatedVideo];
+    targetLesson.tutorial.resources = [updatedVideo.url];
+
+    course.markModified("modules");
+    await course.save();
+
+    await audit(
+      req,
+      "course.tutorial.video.updated",
+      "Course",
+      course._id,
+      before,
+      {
+        moduleTitle: targetModule.title,
+        lessonTitle: targetLesson.title,
+        videos: targetLesson.tutorial.videos,
+        resources: targetLesson.tutorial.resources
+      },
+      req.body.reason || ""
+    );
+
+    return success(res, {
+      course,
+      lesson: {
+        id: String(targetLesson._id),
+        title: targetLesson.title,
+        moduleTitle: targetModule.title,
+        video: updatedVideo
+      }
+    }, "Tutorial video updated");
+  } catch (e) { next(e); }
+}
+
 export async function updateCourse(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);

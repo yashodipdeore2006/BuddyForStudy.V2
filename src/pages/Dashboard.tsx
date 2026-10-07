@@ -6,7 +6,7 @@ import type { Course, Enrollment, Progress } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play } from 'lucide-react';
+import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play, Trash2, ExternalLink } from 'lucide-react';
 
 function mapCourse(raw: any): Course {
   return {
@@ -125,6 +125,17 @@ export default function Dashboard() {
 
   const continueLearning = enrollments.filter((e) => (progressMap[e.course_id]?.percentage ?? 0) < 100);
 
+  const removeRoadmap = async (roadmapId: string) => {
+    const confirmed = window.confirm('Remove this learning roadmap? This will permanently delete its saved progress.');
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/api/roadmaps/${roadmapId}`, { method: 'DELETE' });
+      setRoadmaps((current) => current.filter((roadmap) => String(roadmap._id) !== String(roadmapId)));
+    } catch (error) {
+      console.error('Failed to remove roadmap:', error);
+    }
+  };
+
   if (loading) return <div className="flex min-h-[60vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" /></div>;
 
   return (
@@ -190,9 +201,35 @@ export default function Dashboard() {
       </div>
 
       {roadmaps.length > 0 && <div className="mt-10">
-        <div className="flex items-center justify-between"><h2 className="text-xl font-bold text-slate-900">Your Learning Roadmaps</h2><Link to="/courses" className="text-sm font-semibold text-blue-600">Build another</Link></div>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Your Learning Roadmaps</h2>
+            <p className="mt-1 text-sm text-slate-500">AI-generated learning paths. Your enrolled courses appear in My Learning.</p>
+          </div>
+          <Link to="/courses" className="text-sm font-semibold text-blue-600">Build another</Link>
+        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {roadmaps.slice(0, 4).map((roadmap) => <Link to={`/roadmaps/${roadmap._id}`} key={roadmap._id} className="card block p-5 hover:border-blue-200"><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Learning Roadmap</p><h3 className="mt-1 font-semibold text-slate-900">{roadmap.canonicalTopic || roadmap.course?.title}</h3><p className="mt-1 text-sm text-slate-500">{roadmap.course?.description}</p><div className="mt-4 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{width: `${roadmap.progress?.percentage || 0}%`}} /></div><span className="text-xs font-semibold text-slate-600">{roadmap.progress?.percentage || 0}%</span></div></Link>)}
+          {roadmaps.slice(0, 4).map((roadmap) => (
+            <div key={roadmap._id} className="card p-5">
+              <div className="flex items-start justify-between gap-4">
+                <Link to={`/roadmaps/${roadmap._id}`} className="min-w-0 flex-1 hover:text-blue-600">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">AI Learning Roadmap</p>
+                  <h3 className="mt-1 font-semibold text-slate-900">{roadmap.canonicalTopic || roadmap.course?.title}</h3>
+                </Link>
+                <button type="button" onClick={() => removeRoadmap(String(roadmap._id))} className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Remove roadmap" aria-label="Remove roadmap">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <Link to={`/roadmaps/${roadmap._id}`} className="block">
+                <p className="mt-1 text-sm text-slate-500">{roadmap.course?.description}</p>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600" style={{width: `${roadmap.progress?.percentage || 0}%`}} /></div>
+                  <span className="text-xs font-semibold text-slate-600">{roadmap.progress?.percentage || 0}%</span>
+                  <ExternalLink className="h-4 w-4 text-slate-400" />
+                </div>
+              </Link>
+            </div>
+          ))}
         </div>
       </div>}
 

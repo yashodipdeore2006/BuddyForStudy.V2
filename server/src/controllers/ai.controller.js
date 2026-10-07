@@ -25,7 +25,7 @@ export async function generateRoadmap(req, res, next) {
 export async function generateAndSaveCourse(req, res, next) {
   try {
     const input = schema.parse(req.body);
-    const result = await generateCoursePlan(input);
+    const result = await generateAIRoadmap(input);
     const course = await createCourse(result.course);
     return success(res, { course, sources: result.sources }, "Course generated and saved successfully", 201);
   } catch (e) {

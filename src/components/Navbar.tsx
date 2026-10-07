@@ -1,7 +1,8 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { GraduationCap, LayoutDashboard, BookOpen, LogOut, User as UserIcon, Bell, Settings, Users, BarChart3, Shield, Menu, X, Sparkles } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, LogOut, User as UserIcon, Settings, Users, BarChart3, Shield, Menu, X, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import NotificationMenu from '@/components/NotificationMenu';
 import { classNames } from '@/lib/utils';
 
 export default function Navbar() {
@@ -28,7 +29,7 @@ export default function Navbar() {
           {profile && <div className="hidden items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50/80 p-1 md:flex">{links.map(link=>{const active=location.pathname===link.to||location.pathname.startsWith(link.to+'/');return <Link key={link.to} to={link.to} className={classNames('inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all',active?'bg-white text-blue-600 shadow-sm':'text-slate-500 hover:bg-white hover:text-slate-900')}><link.icon className="h-4 w-4"/>{link.label}</Link>})}</div>}
         </div>
         <div className="hidden items-center gap-2 md:flex">
-          {profile ? <><>{isAdmin&&<span className="badge bg-blue-50 text-blue-700"><Shield className="h-3 w-3"/>Admin</span>}</>{!isAdmin&&<Link to="/notifications" className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100"><Bell className="h-5 w-5"/></Link>}<Link to={settingsPath} className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100"><Settings className="h-5 w-5"/></Link><Link to={profilePath} className="flex items-center gap-2 rounded-xl border border-transparent px-2.5 py-1.5 hover:border-slate-200 hover:bg-slate-50"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-500 text-sm font-bold text-white">{profile.name.charAt(0).toUpperCase()}</div><span className="max-w-28 truncate text-sm font-semibold text-slate-700">{profile.name}</span></Link><button onClick={handleSignOut} className="btn-ghost p-2.5" aria-label="Sign out"><LogOut className="h-4 w-4"/></button></>
+          {profile ? <><>{isAdmin&&<span className="badge bg-blue-50 text-blue-700"><Shield className="h-3 w-3"/>Admin</span>}</>{!isAdmin&&<NotificationMenu />}<Link to={settingsPath} className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100"><Settings className="h-5 w-5"/></Link><Link to={profilePath} className="flex items-center gap-2 rounded-xl border border-transparent px-2.5 py-1.5 hover:border-slate-200 hover:bg-slate-50"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-500 text-sm font-bold text-white">{profile.name.charAt(0).toUpperCase()}</div><span className="max-w-28 truncate text-sm font-semibold text-slate-700">{profile.name}</span></Link><button onClick={handleSignOut} className="btn-ghost p-2.5" aria-label="Sign out"><LogOut className="h-4 w-4"/></button></>
           : <><Link to="/courses" className="btn-ghost">Explore</Link><Link to="/login" className="btn-ghost">Sign in</Link><Link to="/register" className="btn-primary"><Sparkles className="h-4 w-4"/>Start learning</Link></>}
         </div>
         <button className="rounded-xl p-2.5 text-slate-600 hover:bg-slate-100 md:hidden" onClick={()=>setMobileOpen(!mobileOpen)} aria-label="Toggle menu">{mobileOpen?<X className="h-5 w-5"/>:<Menu className="h-5 w-5"/>}</button>

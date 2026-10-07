@@ -5,6 +5,7 @@ const refundRequestSchema = new mongoose.Schema({
   payment: { type: mongoose.Schema.Types.ObjectId, ref: "Payment", required: true },
   amount: { type: Number, required: true, min: 0 },
   reason: { type: String, required: true, maxlength: 2000 },
+  providerRefundId: { type: String, default: "", index: true },
   status: { type: String, enum: ["pending", "approved", "rejected", "processed"], default: "pending", index: true },
   adminNote: { type: String, default: "" },
   processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

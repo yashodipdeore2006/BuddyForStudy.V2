@@ -20,7 +20,12 @@ export async function list(req, res, next) {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
     const result = await courseService.listPublished({
-      page, limit, search: req.query.q, category: req.query.category, level: req.query.level
+      page,
+      limit,
+      search: req.query.q,
+      category: req.query.category,
+      level: req.query.level,
+      sort: req.query.sort === "popular" ? "popular" : "recent"
     });
     return success(res, result);
   } catch (e) { next(e); }

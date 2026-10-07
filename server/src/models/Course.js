@@ -50,10 +50,11 @@ const courseSchema = new mongoose.Schema({
   certificateEnabled: { type: Boolean, default: true },
   featured: { type: Boolean, default: false },
   generation: {
-    mode: { type: String, enum: ["normal", "ai"] },
+    mode: { type: String, enum: ["normal", "ai", "module"] },
     query: { type: String, default: "" },
     topicKeys: { type: [String], default: [] },
     sourceCourse: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
+    sourceModuleId: { type: mongoose.Schema.Types.ObjectId, default: null },
     snapshot: { type: mongoose.Schema.Types.Mixed, default: null }
   }
 }, { timestamps: true, collection: "courses" });
@@ -61,6 +62,7 @@ const courseSchema = new mongoose.Schema({
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
 courseSchema.index({ "pricing.mode": 1, isPublished: 1 });
 courseSchema.index({ "generation.mode": 1, "generation.topicKeys": 1, createdAt: -1 });
+courseSchema.index({ "generation.mode": 1, "generation.sourceCourse": 1, "generation.sourceModuleId": 1 });
 courseSchema.index({ title: "text", description: "text", category: "text" });
 
 export const Course = mongoose.model("Course", courseSchema);

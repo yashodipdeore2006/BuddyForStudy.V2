@@ -146,14 +146,12 @@ export async function updateCourseTutorial(req, res, next) {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
 
     const lessonId = String(req.body.lessonId || "");
+    const moduleId = String(req.body.moduleId || "");
     const videoUrl = String(req.body.videoUrl || "").trim();
-    if (!lessonId) return failure(res, "lessonId is required", 400);
     if (!videoUrl) return failure(res, "videoUrl is required", 400);
 
     const videoId = extractYouTubeVideoId(videoUrl);
-    if (!videoId) {
-      return failure(res, "Enter a valid YouTube video URL", 400);
-    }
+    if (!videoId) return failure(res, "Enter a valid YouTube video URL", 400);
 
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
@@ -161,25 +159,48 @@ export async function updateCourseTutorial(req, res, next) {
     let targetLesson = null;
     let targetModule = null;
 
-    for (const module of course.modules || []) {
-      const lesson = (module.lessons || []).find((item) => String(item._id) === lessonId);
-      if (lesson) {
-        targetLesson = lesson;
-        targetModule = module;
-        break;
+    if (lessonId) {
+      for (const module of course.modules || []) {
+        const lesson = (module.lessons || []).find((item) => String(item._id) === lessonId);
+        if (lesson) {
+          targetLesson = lesson;
+          targetModule = module;
+          break;
+        }
       }
-    }
 
-    if (!targetLesson || !targetModule) {
-      return failure(res, "Tutorial lesson not found", 404);
-    }
+      if (!targetLesson || !targetModule) return failure(res, "Tutorial lesson not found", 404);
+      if (targetLesson.type !== "tutorial") {
+        return failure(res, "Only tutorial lessons can have a YouTube video replaced", 400);
+      }
+    } else if (moduleId) {
+      targetModule = (course.modules || []).find((module) => String(module._id) === moduleId);
+      if (!targetModule) return failure(res, "Course module not found", 404);
 
-    if (targetLesson.type !== "tutorial") {
-      return failure(res, "Only tutorial lessons can have a YouTube video replaced", 400);
+      targetModule.lessons ||= [];
+      targetLesson = (targetModule.lessons || []).find((lesson) => lesson.type === "tutorial") || null;
+
+      if (!targetLesson) {
+        targetLesson = targetModule.lessons.create({
+          title: String(req.body.lessonTitle || `Learn ${targetModule.title}`).trim(),
+          description: "",
+          type: "tutorial",
+          order: targetModule.lessons.length + 1,
+          tutorial: {
+            content: "",
+            resources: [],
+            videos: []
+          }
+        });
+        targetModule.lessons.push(targetLesson);
+      }
+    } else {
+      return failure(res, "lessonId or moduleId is required", 400);
     }
 
     const before = {
       moduleTitle: targetModule.title,
+      lessonId: String(targetLesson._id),
       lessonTitle: targetLesson.title,
       videos: targetLesson.tutorial?.videos || [],
       resources: targetLesson.tutorial?.resources || []
@@ -188,7 +209,7 @@ export async function updateCourseTutorial(req, res, next) {
     const currentVideo = targetLesson.tutorial?.videos?.[0] || {};
     const updatedVideo = {
       videoId,
-      title: req.body.title ? String(req.body.title).trim() : (currentVideo.title || "Admin-selected YouTube video"),
+      title: req.body.title ? String(req.body.title).trim() : (currentVideo.title || targetLesson.title || "Admin-selected YouTube video"),
       description: currentVideo.description || "",
       channelTitle: currentVideo.channelTitle || "",
       publishedAt: currentVideo.publishedAt || null,
@@ -205,14 +226,16 @@ export async function updateCourseTutorial(req, res, next) {
     await course.save();
     await cacheDelete(`course:${course._id}`);
 
+    const action = lessonId ? "course.tutorial.video.updated" : "course.tutorial.video.added";
     await audit(
       req,
-      "course.tutorial.video.updated",
+      action,
       "Course",
       course._id,
       before,
       {
         moduleTitle: targetModule.title,
+        lessonId: String(targetLesson._id),
         lessonTitle: targetLesson.title,
         videos: targetLesson.tutorial.videos,
         resources: targetLesson.tutorial.resources
@@ -228,7 +251,7 @@ export async function updateCourseTutorial(req, res, next) {
         moduleTitle: targetModule.title,
         video: updatedVideo
       }
-    }, "Tutorial video updated");
+    }, lessonId ? "Tutorial video updated" : "Tutorial video added");
   } catch (e) { next(e); }
 }
 

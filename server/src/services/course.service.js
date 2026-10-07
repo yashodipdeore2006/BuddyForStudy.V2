@@ -192,20 +192,42 @@ async function getStandaloneModuleCourses(search) {
   for (const { parent, module } of matches) {
     sourceCourseIds.add(String(parent._id));
 
-    const existing = await Course.findOne({
+    const matchFilter = {
       "generation.mode": "module",
       "generation.sourceCourse": parent._id,
       "generation.sourceModuleId": module._id,
       isPublished: true
-    }).lean();
+    };
 
+    const existing = await Course.findOne(matchFilter).lean();
     if (existing) {
       courses.push(existing);
       continue;
     }
 
-    const created = await Course.create(standaloneCourseFromModule(parent, module));
-    courses.push(created.toObject());
+    const payload = standaloneCourseFromModule(parent, module);
+
+    try {
+      const created = await Course.findOneAndUpdate(
+        {
+          "generation.mode": "module",
+          "generation.sourceCourse": parent._id,
+          "generation.sourceModuleId": module._id
+        },
+        { $setOnInsert: payload },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).lean();
+
+      if (created) courses.push(created);
+    } catch (error) {
+      if (error?.code === 11000) {
+        const duplicate = await Course.findOne(matchFilter).lean();
+        if (duplicate) courses.push(duplicate);
+        else throw error;
+      } else {
+        throw error;
+      }
+    }
   }
 
   const uniqueCourses = [...new Map(courses.map((item) => [String(item._id), item])).values()];

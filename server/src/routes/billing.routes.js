@@ -6,9 +6,13 @@ import { authMiddleware } from "../middleware/auth.js";
 import { success, failure } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
+import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 const router = Router();
-router.get("/plans", async (_req,res,next)=>{ try { return success(res,{plans:await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean()}); } catch(e){next(e)} });
+router.get("/plans", async (_req,res,next)=>{ try {
+  const plans = await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean();
+  return success(res,{plans:plans.map((plan)=>({...plan,features:normalizeSubscriptionFeatures(plan.features)}))});
+} catch(e){next(e)} });
 router.use(authMiddleware);
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try { const { UserSubscription } = await import("../models/UserSubscription.js"); const subscription=await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean(); return success(res,{subscription}); } catch(e){next(e)} });

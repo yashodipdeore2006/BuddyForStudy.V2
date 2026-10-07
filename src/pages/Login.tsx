@@ -19,10 +19,10 @@ export default function Login() {
 
   useEffect(() => {
     if (session && profile) {
-      if (from) {
-        navigate(from, { replace: true });
-      } else if (profile.role === 'admin') {
+      if (profile.role === 'admin') {
         navigate('/admin', { replace: true });
+      } else if (from) {
+        navigate(from, { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
       }
@@ -64,10 +64,7 @@ export default function Login() {
           <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-700">
             Sign up
           </Link>
-          <span className="mx-2 text-slate-300">•</span>
-          <Link to="/admin/login" className="font-semibold text-slate-600 hover:text-blue-600">
-            Admin login
-          </Link>
+
         </>
       }
     >

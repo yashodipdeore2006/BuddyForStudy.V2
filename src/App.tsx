@@ -43,7 +43,7 @@ function AdminPage({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
-  return <AuthProvider><BrowserRouter><Layout><Routes>
+  return <AuthProvider><BrowserRouter useTransitions={false}><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
     <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />

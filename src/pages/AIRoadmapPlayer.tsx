@@ -78,7 +78,7 @@ export default function AIRoadmapPlayer() {
   return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
     <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600"><ArrowLeft className="h-4 w-4" />Dashboard</Link>
     <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-6">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-600"><Sparkles className="h-4 w-4" />AI Learning Roadmap</div>
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-600"><Sparkles className="h-4 w-4" />Learning Roadmap</div>
       <h1 className="mt-2 text-3xl font-bold text-slate-900">{roadmap?.course?.title}</h1>
       <p className="mt-2 text-slate-600">{roadmap?.course?.description}</p>
       <div className="mt-5 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-blue-600" style={{width: `${roadmap?.progress?.percentage || 0}%`}} /></div><span className="text-sm font-bold text-blue-700">{roadmap?.progress?.percentage || 0}%</span></div>

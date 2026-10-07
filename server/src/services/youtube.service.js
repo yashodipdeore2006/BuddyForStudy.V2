@@ -13,11 +13,25 @@ function clamp(value,min=0,max=100){return Math.max(min,Math.min(max,value));}
 function tokenize(value){return String(value||"").toLowerCase().replace(/[^a-z0-9+#.]+/g," ").split(/\s+/).filter((x)=>x.length>2);}
 
 function coverageScore(video, requiredTopics) {
-  const text=`${video.title} ${video.description} ${(video.tags||[]).join(" ")}`.toLowerCase();
-  const topics=[...new Set(requiredTopics||[])];
-  if(!topics.length) return 50;
-  const matched=topics.filter((topic)=>tokenize(topic).some((word)=>text.includes(word))).length;
-  return Math.round((matched/topics.length)*100);
+  const title = String(video.title || "").toLowerCase();
+  const description = String(video.description || "").toLowerCase();
+  const tags = (video.tags || []).join(" ").toLowerCase();
+  const topics = [...new Set(requiredTopics || [])];
+  if (!topics.length) return 50;
+
+  const matched = topics.filter((topic) => {
+    const normalizedTopic = String(topic || "").toLowerCase().trim();
+    if (!normalizedTopic) return false;
+    if (title.includes(normalizedTopic) || tags.includes(normalizedTopic)) return true;
+
+    const words = tokenize(normalizedTopic);
+    if (!words.length) return false;
+
+    const descriptionMatches = words.filter((word) => description.includes(word)).length;
+    return descriptionMatches === words.length;
+  }).length;
+
+  return Math.round((matched / topics.length) * 100);
 }
 function relevanceScore(video,query) {
   const text=`${video.title} ${video.description} ${(video.tags||[]).join(" ")}`.toLowerCase();
@@ -41,7 +55,6 @@ function scoreCandidate(video,lesson,pool) {
   const relevance=relevanceScore(video,lesson.tutorial?.searchQuery||lesson.title);
   const duration=durationScore(video.durationSeconds,lesson.tutorial?.durationMinutes);
   const views=normalizedMetric(pool.map((v)=>logMetric(v.viewCount)),logMetric(video.viewCount));
-  const likes=normalizedMetric(pool.map((v)=>logMetric(v.likeCount)),logMetric(video.likeCount));
   const subscribers=normalizedMetric(pool.map((v)=>logMetric(v.subscriberCount)),logMetric(video.subscriberCount));
   const recency=recencyScore(video.publishedAt);
   const ratio=video.viewCount>0?clamp((video.likeCount/video.viewCount)*10000):0;
@@ -76,17 +89,21 @@ async function searchVideos(query,maxResults=10){
 }
 async function getVideoDetails(videoIds){
   const missing=videoIds.filter((id)=>!VIDEO_CACHE.has(id));
-  if(missing.length){
-    const data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:missing.slice(0,50).join(",")});
-    for(const item of data?.items||[])VIDEO_CACHE.set(item.id,item);
+  for(let index=0;index<missing.length;index+=50){
+    const batch=missing.slice(index,index+50);
+    if(!batch.length) continue;
+    const data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")});
+    for(const item of data?.items||[]) VIDEO_CACHE.set(item.id,item);
   }
   return videoIds.map((id)=>VIDEO_CACHE.get(id)).filter(Boolean);
 }
 async function getChannelDetails(channelIds){
   const missing=channelIds.filter((id)=>!CHANNEL_CACHE.has(id));
-  if(missing.length){
-    const data=await youtubeRequest("channels",{part:"statistics",id:missing.slice(0,50).join(",")});
-    for(const item of data?.items||[])CHANNEL_CACHE.set(item.id,item);
+  for(let index=0;index<missing.length;index+=50){
+    const batch=missing.slice(index,index+50);
+    if(!batch.length) continue;
+    const data=await youtubeRequest("channels",{part:"statistics",id:batch.join(",")});
+    for(const item of data?.items||[]) CHANNEL_CACHE.set(item.id,item);
   }
   return channelIds.map((id)=>CHANNEL_CACHE.get(id)).filter(Boolean);
 }

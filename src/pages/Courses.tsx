@@ -45,8 +45,6 @@ export default function Courses() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRoadmap, setAiRoadmap] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [savingRoadmap, setSavingRoadmap] = useState(false);
-  const [savedRoadmapId, setSavedRoadmapId] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [aiGoal, setAiGoal] = useState('Get job-ready');
   const [aiStudyTime, setAiStudyTime] = useState(60);
@@ -126,7 +124,6 @@ export default function Courses() {
     setSelectedCategory('all');
     setAiRoadmap(null);
     setAiError(null);
-    setSavedRoadmapId(null);
   };
 
   const generateAiRoadmap = async () => {
@@ -161,23 +158,6 @@ export default function Courses() {
     }
   };
 
-  const saveAiRoadmap = async () => {
-    if (!aiRoadmap?.course) return;
-    setSavingRoadmap(true);
-    setAiError(null);
-    try {
-      const data = await apiFetch('/api/roadmaps', {
-        method: 'POST',
-        body: JSON.stringify(aiRoadmap),
-      });
-      setSavedRoadmapId(data.roadmap?._id || data.roadmap?.id || null);
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Unable to save roadmap');
-    } finally {
-      setSavingRoadmap(false);
-    }
-  };
-
   const handleSearch = (event: FormEvent) => {
     event.preventDefault();
     const query = searchQuery.trim();
@@ -185,7 +165,6 @@ export default function Courses() {
     setPlaylistQuery(query);
     setAiRoadmap(null);
     setAiError(null);
-    setSavedRoadmapId(null);
   };
 
   return (
@@ -405,18 +384,9 @@ export default function Courses() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={saveAiRoadmap} disabled={savingRoadmap || !!savedRoadmapId} className="btn-primary">
-                  {savingRoadmap ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : savedRoadmapId ? (
-                    'Saved to My Learning'
-                  ) : (
-                    'Save Roadmap'
-                  )}
-                </button>
+                <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-slate-300">
+                  Personalized for your goal
+                </span>
                 <button onClick={() => setAiRoadmap(null)} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">
                   Close
                 </button>

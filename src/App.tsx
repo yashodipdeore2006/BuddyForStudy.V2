@@ -15,7 +15,6 @@ import CoursePlayer from '@/pages/CoursePlayer';
 import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import Notifications from '@/pages/Notifications';
-import AIRoadmapPlayer from '@/pages/AIRoadmapPlayer';
 import PlaylistCourse from '@/pages/PlaylistCourse';
 import Pricing from '@/pages/Pricing';
 import Billing from '@/pages/Billing';
@@ -33,7 +32,7 @@ import AdminCoupons from '@/pages/admin/AdminCoupons';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
-  const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/roadmaps/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
+  const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
   const isAdmin = pathname.startsWith('/admin');
   return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}</div>;
 }
@@ -53,7 +52,6 @@ function App() {
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-    <Route path="/roadmaps/:roadmapId" element={<ProtectedRoute><AIRoadmapPlayer /></ProtectedRoute>} />
     <Route path="/playlists/:playlistId" element={<ProtectedRoute><PlaylistCourse /></ProtectedRoute>} />
 
     <Route path="/admin/login" element={<AdminLogin />} />

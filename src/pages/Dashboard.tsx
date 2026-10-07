@@ -6,7 +6,7 @@ import type { Course, Enrollment, Progress } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play, Trash2, ExternalLink } from 'lucide-react';
+import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play } from 'lucide-react';
 
 function mapCourse(raw: any): Course {
   return {
@@ -67,7 +67,6 @@ export default function Dashboard() {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
   const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [roadmaps, setRoadmaps] = useState<any[]>([]);
   const [learningStats, setLearningStats] = useState<any>(null);
 
   useEffect(() => {
@@ -77,7 +76,6 @@ export default function Dashboard() {
         const [enrollmentData, courseData, roadmapData, achievementData] = await Promise.all([
           apiFetch('/api/enrollments'),
           apiFetch('/api/courses?limit=3'),
-          apiFetch('/api/roadmaps'),
           apiFetch('/api/achievements/me'),
         ]);
 
@@ -88,7 +86,6 @@ export default function Dashboard() {
 
         setEnrollments(active);
         setPublishedCourses((courseData.courses ?? []).map(mapCourse));
-        setRoadmaps(roadmapData.roadmaps ?? []);
         setLearningStats(achievementData.stats ?? null);
 
         const entries = await Promise.all(
@@ -125,17 +122,6 @@ export default function Dashboard() {
 
   const continueLearning = enrollments.filter((e) => (progressMap[e.course_id]?.percentage ?? 0) < 100);
 
-  const removeRoadmap = async (roadmapId: string) => {
-    const confirmed = window.confirm('Remove this learning roadmap? This will permanently delete its saved progress.');
-    if (!confirmed) return;
-    try {
-      await apiFetch(`/api/roadmaps/${roadmapId}`, { method: 'DELETE' });
-      setRoadmaps((current) => current.filter((roadmap) => String(roadmap._id) !== String(roadmapId)));
-    } catch (error) {
-      console.error('Failed to remove roadmap:', error);
-    }
-  };
-
   if (loading) return <div className="flex min-h-[60vh] items-center justify-center"><div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" /></div>;
 
   return (
@@ -171,8 +157,6 @@ export default function Dashboard() {
       </div>
 
       <section className="mt-8 rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-6"><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-amber-600">Achievements</p><h2 className="mt-1 text-xl font-extrabold">Small wins compound.</h2></div><div className="flex flex-wrap gap-2">{(learningStats?.achievements||[]).length?learningStats.achievements.map((a:any)=><span key={a.key} className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm">{a.title}</span>):<span className="text-sm text-slate-500">Complete lessons to unlock your first achievement.</span>}</div></div></section>
-
-      {roadmaps.length>0&&<section className="mt-10"><div className="flex items-end justify-between gap-4"><div><p className="bfs-eyebrow">Saved intelligence</p><h2 className="mt-2 text-2xl font-extrabold">Your Learning Roadmaps</h2><p className="mt-1 text-sm text-slate-500">AI-generated paths stay separate from your enrolled courses.</p></div><Link to="/courses" className="text-sm font-bold text-blue-600">Build another →</Link></div><div className="mt-5 grid gap-4 md:grid-cols-2">{roadmaps.slice(0,4).map(roadmap=><div key={roadmap._id} className="card p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"><div className="flex items-start justify-between gap-4"><Link to={`/roadmaps/${roadmap._id}`} className="min-w-0 flex-1"><p className="text-[11px] font-bold uppercase tracking-[.14em] text-blue-600">AI Learning Roadmap</p><h3 className="mt-2 truncate text-lg font-extrabold text-slate-900">{roadmap.canonicalTopic||roadmap.course?.title}</h3></Link><button type="button" onClick={()=>removeRoadmap(String(roadmap._id))} className="rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Remove roadmap" aria-label="Remove roadmap"><Trash2 className="h-4 w-4"/></button></div><Link to={`/roadmaps/${roadmap._id}`} className="block"><p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{roadmap.course?.description}</p><div className="mt-5 flex items-center gap-3"><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-purple-500" style={{width:`${roadmap.progress?.percentage||0}%`}}/></div><span className="text-xs font-bold text-slate-600">{roadmap.progress?.percentage||0}%</span><ExternalLink className="h-4 w-4 text-slate-400"/></div></Link></div>)}</div></section>}
 
       <section className="mt-10"><div className="flex items-end justify-between gap-4"><div><p className="bfs-eyebrow">Keep exploring</p><h2 className="mt-2 text-2xl font-extrabold">Recommended for you</h2></div><Link to="/courses" className="inline-flex items-center gap-1 text-sm font-bold text-blue-600">View all <ArrowRight className="h-4 w-4"/></Link></div><div className="mt-5">{publishedCourses.length===0?<p className="py-8 text-center text-sm text-slate-500">No courses available yet.</p>:<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{publishedCourses.map(course=><CourseCard key={course.id} course={course}/>)}</div>}</div></section>
     </div>

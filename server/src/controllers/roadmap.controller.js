@@ -48,6 +48,21 @@ const quizSchema = z.object({
   answers: z.array(z.number().int().min(0)).max(20)
 });
 
+export async function generateQuiz(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
+    const moduleIndex = Number(req.params.moduleIndex);
+    if (!Number.isInteger(moduleIndex) || moduleIndex < 0) return failure(res, "Invalid moduleIndex", 400);
+    return success(
+      res,
+      { roadmap: await service.generateModuleQuizForRoadmap(req.user.userId, req.params.roadmapId, moduleIndex) },
+      "Module quiz generated"
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
 export async function submitQuiz(req, res, next) {
   try {
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);

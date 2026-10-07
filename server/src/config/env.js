@@ -30,6 +30,8 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   openrouterApiKey: process.env.OPENROUTER_API_KEY || "",
+  geminiApiKey: process.env.GEMINI_API_KEY || "",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
   openaiModel: process.env.OPENAI_MODEL || "gpt-5.6-luna",
   openrouterModel,
   openrouterBaseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",

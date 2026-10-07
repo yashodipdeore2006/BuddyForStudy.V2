@@ -10,7 +10,7 @@ export default function AIRoadmapPlayer() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number[]>>({});
-  const [quizBusy, setQuizBusy] = useState<number | null>(null);
+  const [quizBusy, setQuizBusy] = useState<number | null>(null);\n  const [quizGenerating, setQuizGenerating] = useState<number | null>(null);
 
   useEffect(() => {
     if (!roadmapId) return;
@@ -24,6 +24,22 @@ export default function AIRoadmapPlayer() {
 
   function lessonIdFor(module: any, moduleIndex: number, lesson: any, lessonIndex: number) {
     return String(lesson.id || lesson._id || `module-${moduleIndex + 1}-lesson-${lessonIndex + 1}`);
+  }
+
+  async function generateQuiz(moduleIndex: number) {
+    if (!roadmapId) return;
+    setQuizGenerating(moduleIndex); setError('');
+    try {
+      const data = await apiFetch(`/api/roadmaps/${roadmapId}/quizzes/${moduleIndex}/generate`, {
+        method: 'POST'
+      });
+      setRoadmap(data.roadmap);
+      setQuizAnswers((current) => ({ ...current, [moduleIndex]: [] }));
+    } catch (err: any) {
+      setError(err.message || 'Unable to generate quiz');
+    } finally {
+      setQuizGenerating(null);
+    }
   }
 
   async function submitQuiz(moduleIndex: number, questionCount: number) {
@@ -164,7 +180,23 @@ export default function AIRoadmapPlayer() {
               return latest ? <p className="mt-3 text-sm font-semibold text-indigo-700">Latest score: {latest.score}/{latest.total}</p> : null;
             })()}
           </div>
-        ) : null}
+        ) : (
+          <div className="mt-6 rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Knowledge Check</p>
+              <h3 className="mt-1 text-base font-bold text-slate-900">Test what you learned</h3>
+              <p className="mt-1 text-sm text-slate-500">Gemini generates a fresh 5-question quiz from this module only.</p>
+            </div>
+            <button
+              type="button"
+              disabled={quizGenerating === index}
+              onClick={() => generateQuiz(index)}
+              className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {quizGenerating === index ? 'Generating quiz...' : 'Generate quiz'}
+            </button>
+          </div>
+        )}
       </section>)}
     </div>
   </div>;

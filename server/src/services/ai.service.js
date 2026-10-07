@@ -1,7 +1,12 @@
 import OpenAI from "openai";
 import { env } from "../config/env.js";
 
-const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
+const client = (env.openrouterApiKey || env.openaiApiKey)
+  ? new OpenAI({
+      apiKey: env.openrouterApiKey || env.openaiApiKey,
+      ...(env.openrouterApiKey ? { baseURL: env.openrouterBaseUrl } : {})
+    })
+  : null;
 
 async function searchYouTube(query, maxResults = 8) {
   if (!env.youtubeApiKey) return [];
@@ -26,7 +31,7 @@ async function searchYouTube(query, maxResults = 8) {
 }
 
 function parseJson(raw) {
-  const normalized = String(raw || "").trim().replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, "").trim();
+  const normalized = String(raw || "").trim().replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
   try { return JSON.parse(normalized); } catch {
     const error = new Error("AI provider returned invalid JSON");
     error.status = 502;

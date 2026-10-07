@@ -150,9 +150,9 @@ export default function CourseDetails() {
     if (!courseId) return;
     const firstLesson = course ? getAllLessonsFlat(course.modules)[0] : null;
     if (firstLesson) {
-      navigate(`/learn/${courseId}/${firstLesson.id}`);
+      navigate(`/courses/${courseId}/roadmap`);
     } else {
-      navigate(`/learn/${courseId}`);
+      navigate(`/courses/${courseId}/roadmap`);
     }
   };
 
@@ -378,7 +378,7 @@ export default function CourseDetails() {
                   )}
                 </div>
                 <button onClick={handleStartLearning} className="btn-primary w-full">
-                  {progressPct > 0 ? 'Continue Learning' : 'Start Learning'}
+                  'View Course Roadmap'
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>

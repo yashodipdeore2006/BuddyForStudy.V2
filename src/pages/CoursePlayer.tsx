@@ -222,15 +222,16 @@ export default function CoursePlayer() {
               <p className="mt-2 text-slate-500">{currentLesson.lesson.description}</p>
 
               {currentLesson.lesson.type === "tutorial" && (
-                <div className="mt-8 space-y-6">
-                  {currentLesson.lesson.tutorial?.content && (
-                    <div className="prose max-w-none whitespace-pre-wrap text-slate-700">{currentLesson.lesson.tutorial.content}</div>
-                  )}
+                <div className="mt-8 space-y-5">
                   {currentLesson.lesson.tutorial?.videos?.length ? (
-                    <div className="space-y-5">
-                      <h2 className="text-lg font-semibold text-slate-900">Course Video</h2>
+                    <section className="space-y-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[.16em] text-slate-400">Lesson video</p>
+                        <h2 className="mt-1 text-xl font-extrabold tracking-tight text-slate-900">Watch the tutorial</h2>
+                      </div>
+
                       {currentLesson.lesson.tutorial.videos.map((video: any) => (
-                        <div key={video.videoId || video.url} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                        <div key={video.videoId || video.url} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(13,18,32,.08)]">
                           {video.videoId ? (
                             <div className="aspect-video w-full bg-slate-950">
                               <iframe
@@ -247,7 +248,8 @@ export default function CoursePlayer() {
                               This video does not provide an embeddable video ID.
                             </div>
                           )}
-                          <div className="p-4">
+
+                          <div className="border-t border-slate-100 p-4 sm:p-5">
                             <p className="font-semibold text-slate-900">{video.title}</p>
                             {video.channelTitle && <p className="mt-1 text-xs text-slate-500">{video.channelTitle}</p>}
                             <p className="mt-2 text-xs text-slate-400">
@@ -256,17 +258,66 @@ export default function CoursePlayer() {
                           </div>
                         </div>
                       ))}
-                    </div>
+                    </section>
                   ) : null}
+
+                  {(currentLesson.lesson.description || currentLesson.lesson.tutorial?.content) && (
+                    <details className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-bold text-slate-900 transition hover:bg-slate-50 marker:hidden">
+                        <span className="flex items-center gap-3">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                            <Play className="h-4 w-4 transition-transform group-open:rotate-90" />
+                          </span>
+                          <span>Description & lesson notes</span>
+                        </span>
+                        <span className="text-xs font-semibold text-slate-400 group-open:text-blue-600">Click to expand</span>
+                      </summary>
+
+                      <div className="border-t border-slate-100 px-5 py-5 sm:px-6">
+                        {currentLesson.lesson.description && (
+                          <div className="mb-5">
+                            <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Lesson description</p>
+                            <p className="mt-2 text-sm leading-7 text-slate-600">{currentLesson.lesson.description}</p>
+                          </div>
+                        )}
+
+                        {currentLesson.lesson.tutorial?.content && (
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Tutorial notes</p>
+                            <div className="prose mt-2 max-w-none whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                              {currentLesson.lesson.tutorial.content}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  )}
+
                   {currentLesson.lesson.tutorial?.resources?.length ? (
-                    <div className="space-y-2">
-                      <h2 className="text-lg font-semibold text-slate-900">Resources</h2>
-                      {currentLesson.lesson.tutorial.resources.map((resource) => (
-                        <a key={resource.url || resource.title} href={resource.url} target="_blank" rel="noreferrer" className="block text-blue-600 hover:underline">
-                          {resource.title || resource.url}
-                        </a>
-                      ))}
-                    </div>
+                    <details className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-bold text-slate-900 transition hover:bg-slate-50 marker:hidden">
+                        <span>Resources</span>
+                        <span className="text-xs font-semibold text-slate-400">
+                          {currentLesson.lesson.tutorial.resources.length} item{currentLesson.lesson.tutorial.resources.length === 1 ? "" : "s"}
+                        </span>
+                      </summary>
+
+                      <div className="border-t border-slate-100 px-5 py-4 sm:px-6">
+                        <div className="space-y-3">
+                          {currentLesson.lesson.tutorial.resources.map((resource) => (
+                            <a
+                              key={resource.url || resource.title}
+                              href={resource.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block rounded-xl border border-slate-100 px-4 py-3 text-sm font-medium text-blue-600 transition hover:border-blue-100 hover:bg-blue-50"
+                            >
+                              {resource.title || resource.url}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </details>
                   ) : null}
                 </div>
               )}

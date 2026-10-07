@@ -15,6 +15,7 @@ import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import Notifications from '@/pages/Notifications';
 import AIRoadmapPlayer from '@/pages/AIRoadmapPlayer';
+import PlaylistCourse from '@/pages/PlaylistCourse';
 import Pricing from '@/pages/Pricing';
 import Billing from '@/pages/Billing';
 import AdminLogin from '@/pages/admin/AdminLogin';
@@ -52,6 +53,7 @@ function App() {
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
     <Route path="/roadmaps/:roadmapId" element={<ProtectedRoute><AIRoadmapPlayer /></ProtectedRoute>} />
+    <Route path="/playlists/:playlistId" element={<ProtectedRoute><PlaylistCourse /></ProtectedRoute>} />
 
     <Route path="/admin/login" element={<AdminLogin />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />

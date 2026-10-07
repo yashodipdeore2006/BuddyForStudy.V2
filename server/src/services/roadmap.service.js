@@ -1,5 +1,6 @@
 import { resolveLearningPath, getSkill, listSupportedTopics } from "../data/learningKnowledgeBase.js";
 import { attachYouTubeResources } from "./youtube.service.js";
+import { generateModuleQuiz } from "./quiz.service.js";
 
 function lessonId(skillId,suffix){return `${skillId}-${suffix}`;}
 
@@ -30,6 +31,25 @@ function buildCourse({path,level}){
     learningOutcomes:[`Understand the prerequisite concepts required for ${path.title}`,"Build practical projects after each major learning stage","Use Git and GitHub to document and publish work",path.capstone?path.capstone.title:`Build a practical ${path.title} project`],
     modules
   };
+}
+
+export async function generateModuleQuizForRoadmap(userId, roadmapId, moduleIndex) {
+  const roadmap = await LearningRoadmap.findOne({ _id: roadmapId, user: userId });
+  if (!roadmap) { const error = new Error("Learning roadmap not found"); error.status = 404; throw error; }
+  const module = roadmap.course?.modules?.[moduleIndex];
+  if (!module) { const error = new Error("Roadmap module not found"); error.status = 404; throw error; }
+
+  if (module.quiz?.questions?.length) return decorate(roadmap);
+
+  module.quiz = await generateModuleQuiz({
+    module,
+    courseTitle: roadmap.course.title,
+    level: roadmap.level
+  });
+  roadmap.markModified("course.modules");
+  roadmap.lastAccessedAt = new Date();
+  await roadmap.save();
+  return decorate(roadmap);
 }
 
 export async function generateCoursePlan({topic,level="Beginner"}){

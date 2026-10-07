@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";

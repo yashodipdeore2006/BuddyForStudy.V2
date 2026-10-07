@@ -107,6 +107,88 @@ export default function Courses() {
       if (catalogQuery.trim()) {
         const q = catalogQuery.toLowerCase();
         return (
+          course.title.toLowerCase().includes(q) ||
+          course.description.toLowerCase().includes(q) ||
+          course.category.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [courses, catalogQuery, selectedLevel, selectedCategory]);
+
+  const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setCatalogQuery('');
+    setPlaylistQuery('');
+    setSelectedLevel('all');
+    setSelectedCategory('all');
+    setAiRoadmap(null);
+    setAiError(null);
+    setSavedRoadmapId(null);
+  };
+
+  const generateAiRoadmap = async () => {
+    const topic = searchQuery.trim();
+    if (!topic) {
+      setAiError('Enter a course or topic first, then choose Build with AI.');
+      return;
+    }
+    if (!session) {
+      setAiError('Sign in to generate a personalized AI roadmap.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const data = await apiFetch('/api/ai/roadmap', {
+        method: 'POST',
+        body: JSON.stringify({
+          topic,
+          level: selectedLevel === 'all' ? 'Beginner' : selectedLevel,
+          goals: [aiGoal],
+          studyTimeMinutesPerDay: aiStudyTime,
+          knownSkills: aiKnownSkills.split(',').map((item) => item.trim()).filter(Boolean),
+        }),
+      });
+      setAiRoadmap(data);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const saveAiRoadmap = async () => {
+    if (!aiRoadmap?.course) return;
+    setSavingRoadmap(true);
+    setAiError(null);
+    try {
+      const data = await apiFetch('/api/roadmaps', {
+        method: 'POST',
+        body: JSON.stringify(aiRoadmap),
+      });
+      setSavedRoadmapId(data.roadmap?._id || data.roadmap?.id || null);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Unable to save roadmap');
+    } finally {
+      setSavingRoadmap(false);
+    }
+  };
+
+  const handleSearch = (event: FormEvent) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    setCatalogQuery(query);
+    setPlaylistQuery(query);
+    setAiRoadmap(null);
+    setAiError(null);
+    setSavedRoadmapId(null);
+  };
+
+  return (
     <div className="bfs-shell py-8 sm:py-10">
       <section className="relative overflow-hidden rounded-[32px] bg-slate-950 px-5 py-7 text-white shadow-[0_24px_70px_rgba(13,18,32,.14)] sm:px-8 sm:py-9 lg:px-10 lg:py-10">
         <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />

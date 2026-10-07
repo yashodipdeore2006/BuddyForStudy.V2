@@ -14,6 +14,7 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [playlistQuery, setPlaylistQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const { session } = useAuth();
@@ -74,6 +75,7 @@ export default function Courses() {
 
   const clearFilters = () => {
     setSearchQuery('');
+    setPlaylistQuery('');
     setSelectedLevel('all');
     setSelectedCategory('all');
     setAiRoadmap(null);
@@ -101,16 +103,19 @@ export default function Courses() {
 
       {/* Search */}
       <div className="mt-6 flex flex-col gap-4 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field pl-10"
-            placeholder="Search courses..."
-          />
-        </div>
+        <form className="relative flex flex-1 gap-2" onSubmit={(event) => { event.preventDefault(); setPlaylistQuery(searchQuery); }}>
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input-field pl-10"
+              placeholder="Search courses or a topic..."
+            />
+          </div>
+          <button type="submit" className="btn-primary whitespace-nowrap">Search</button>
+        </form>
 
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-slate-400" />
@@ -142,7 +147,7 @@ export default function Courses() {
         </div>
       </div>
 
-      {searchQuery.trim().length >= 2 && <StructuredPlaylists query={searchQuery} />}
+      {playlistQuery.trim().length >= 2 && <StructuredPlaylists query={playlistQuery} />}
 
       {searchQuery.trim().length >= 2 && (
         <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50 p-5">

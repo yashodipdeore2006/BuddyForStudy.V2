@@ -8,9 +8,11 @@ for (const key of required) {
 
 const configuredOpenRouterModel = process.env.OPENROUTER_MODEL?.trim();
 const openrouterModel =
-  configuredOpenRouterModel && configuredOpenRouterModel !== "openai/gpt-oss-20b:free"
+  configuredOpenRouterModel &&
+  configuredOpenRouterModel !== "openai/gpt-oss-20b:free" &&
+  configuredOpenRouterModel !== "openrouter/free"
     ? configuredOpenRouterModel
-    : "openrouter/free";
+    : "qwen/qwen3.8-27b:free";
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",

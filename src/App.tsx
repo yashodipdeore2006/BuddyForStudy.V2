@@ -7,6 +7,7 @@ import Home from '@/pages/Home';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import VerifyEmail from '@/pages/VerifyEmail';
+import VerifyLogin from '@/pages/VerifyLogin';
 import ForgotPassword from '@/pages/ForgotPassword';
 import Courses from '@/pages/Courses';
 import CourseDetails from '@/pages/CourseDetails';
@@ -45,7 +46,7 @@ function AdminPage({ children }: { children: React.ReactNode }) {
 function App() {
   return <AuthProvider><BrowserRouter useTransitions={false}><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
-    <Route path="/verify-email" element={<VerifyEmail />} /><Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/verify-email" element={<VerifyEmail />} /><Route path="/verify-login" element={<VerifyLogin />} /><Route path="/forgot-password" element={<ForgotPassword />} />
     <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
     <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />

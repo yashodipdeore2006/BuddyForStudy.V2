@@ -14,6 +14,11 @@ const loginSchema = z.object({
   password: z.string().min(1).max(128)
 });
 
+const loginOtpSchema = z.object({
+  email: z.string().trim().email(),
+  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code")
+});
+
 const googleSchema = z.object({
   credential: z.string().min(1)
 });
@@ -84,6 +89,17 @@ export async function googleLogin(req, res) {
   }
 }
 
+
+export async function verifyLogin(req, res) {
+  try {
+    const input = loginOtpSchema.parse(req.body);
+    const result = await authService.verifyLogin(input);
+    return success(res, result, "Login successful");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}
 
 export async function verifyEmail(req, res) {
   try {

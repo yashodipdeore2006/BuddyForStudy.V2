@@ -6,7 +6,6 @@ import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp } from 'lucide-react';
-import StructuredPlaylists from '@/components/StructuredPlaylists';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -35,10 +34,10 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [popularCourses, setPopularCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
   const [popularLoading, setPopularLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [catalogQuery, setCatalogQuery] = useState('');
-  const [playlistQuery, setPlaylistQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const { session } = useAuth();
@@ -54,6 +53,7 @@ export default function Courses() {
     async function fetchCourses() {
       setLoading(true);
       try {
+        setCatalogError("");
         const params = new URLSearchParams({ page: '1', limit: '50' });
         if (selectedLevel !== 'all') params.set('level', selectedLevel);
         if (selectedCategory !== 'all') params.set('category', selectedCategory);
@@ -62,8 +62,9 @@ export default function Courses() {
         const data = await apiFetch(`/api/courses?${params.toString()}`);
         const rows = data.courses || data.items || [];
         setCourses(rows.map(mapCourse));
-      } catch {
+      } catch (error) {
         setCourses([]);
+        setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
       } finally {
         setLoading(false);
       }
@@ -105,7 +106,6 @@ export default function Courses() {
   const clearFilters = () => {
     setSearchQuery('');
     setCatalogQuery('');
-    setPlaylistQuery('');
     setSelectedLevel('all');
     setSelectedCategory('all');
     setAiRoadmap(null);
@@ -357,7 +357,11 @@ export default function Courses() {
         </div>
       )}
 
-      {playlistQuery.trim().length >= 2 && <StructuredPlaylists query={playlistQuery} />}
+      {catalogError && (
+        <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          Course search failed: {catalogError}
+        </div>
+      )}
 
       {aiRoadmap?.course && (
         <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">

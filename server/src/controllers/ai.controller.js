@@ -13,6 +13,25 @@ const schema = z.object({
   knownSkills: z.array(z.string().trim().min(1)).max(50).default([])
 });
 
+export async function usage(req, res, next) {
+  try {
+    const plan = await getActivePlanForUser(req.user.userId);
+    return success(res, {
+      plan: plan ? {
+        id: String(plan._id),
+        name: plan.name,
+        slug: plan.slug,
+        limits: plan.limits || {}
+      } : null,
+      features: {
+        aiCourseBuilder: Boolean((await getEntitlement(req.user.userId, "ai_course_builder")).allowed),
+        personalizedRoadmaps: Boolean((await getEntitlement(req.user.userId, "personalized_roadmaps")).allowed),
+        projectBasedLearning: Boolean((await getEntitlement(req.user.userId, "project_based_learning")).allowed)
+      }
+    });
+  } catch (e) { next(e); }
+}
+
 export async function generateRoadmap(req, res, next) {
   try {
     const input = schema.parse(req.body);

@@ -34,7 +34,7 @@ export default function AdminAnalytics() {
   const enrollmentMax = useMemo(() => maxOf(data?.enrollmentsDaily || [], "count"), [data]);
   const revenueMax = useMemo(() => maxOf(data?.revenueDaily || [], "amount"), [data]);
 
-  const completions = (data?.completionBreakdown || [])
+  const completions: Array<{ label: string; count: number }> = (data?.completionBreakdown || [])
     .map((item: any) => ({
       label:
         item._id === 0 ? "0–24%" :

@@ -370,6 +370,134 @@ function ensureWebIndustryStage(skills, topic, ai) {
   return normalized;
 }
 
+function defaultWebCapstoneProjects(topic, ai) {
+  const text = `${topic || ""} ${ai?.title || ""}`.toLowerCase();
+  if (!isWebOrFullStackTopic(topic, ai)) return [];
+
+  const mern = text.includes("mern");
+  const stackName = mern ? "MERN" : (ai?.canonicalTopic || topic || "full-stack");
+  return [
+    {
+      title: `${stackName} Production E-Commerce Platform`,
+      scenario: "Build a realistic commerce platform where users can browse products, authenticate, manage carts, place orders, and administrators can manage inventory.",
+      whyThisProject: "It combines frontend, backend, database, authentication, APIs, validation, testing, deployment, and professional GitHub workflow into one portfolio-grade application.",
+      features: [
+        "User registration, login, logout, and protected routes",
+        "Product catalog with search, filters, pagination, and details",
+        "Cart and checkout/order workflow",
+        "Admin dashboard for products and orders",
+        "Input validation, authorization, and secure error handling",
+        "Responsive frontend with loading, empty, and error states",
+        "API documentation and environment-based configuration"
+      ],
+      architecture: [
+        `${stackName} frontend application`,
+        "REST API with controllers, services, validation, and middleware",
+        "MongoDB persistence with normalized domain models",
+        "Authentication and authorization layer",
+        "Testing and deployment pipeline"
+      ],
+      milestones: [
+        "Plan requirements and create the GitHub repository",
+        "Build the frontend shell and reusable UI components",
+        "Design the API and database models",
+        "Implement authentication and authorization",
+        "Build catalog and cart flows",
+        "Implement orders and admin workflows",
+        "Add tests, validation, security hardening, and error handling",
+        "Deploy and document the finished application"
+      ],
+      testingChecklist: [
+        "Authentication and authorization tests",
+        "API validation and error-path tests",
+        "Critical user-flow tests",
+        "Responsive and accessibility checks",
+        "Production environment configuration check"
+      ],
+      industrySkills: [
+        "REST API design",
+        "Authentication and authorization",
+        "Database modeling",
+        "Testing",
+        "Git and GitHub collaboration",
+        "Deployment",
+        "Debugging",
+        "Technical documentation"
+      ],
+      githubWorkflow: [
+        "Create a professional repository and README",
+        "Use feature branches and atomic commits",
+        "Open pull requests for meaningful changes",
+        "Review and merge changes",
+        "Track tasks with issues",
+        "Tag a release after deployment"
+      ],
+      videoSearchQueries: [
+        `${stackName} full stack e-commerce project tutorial complete`,
+        `${stackName} full stack project from scratch deployment`
+      ]
+    },
+    {
+      title: `${stackName} SaaS Project Management Application`,
+      scenario: "Build a team project-management SaaS where users can create workspaces, manage projects and tasks, collaborate, and track progress.",
+      whyThisProject: "It forces the learner to integrate the stack around realistic product requirements instead of following isolated tutorials.",
+      features: [
+        "User and workspace management",
+        "Projects, tasks, statuses, priorities, and due dates",
+        "Role-based access control",
+        "Search, filtering, sorting, and pagination",
+        "Activity history and notifications",
+        "Dashboard analytics",
+        "Responsive UI and robust loading/error handling"
+      ],
+      architecture: [
+        `${stackName} frontend`,
+        "REST API and service layer",
+        "MongoDB data model with relationships",
+        "Authentication, authorization, and validation",
+        "Testing, deployment, and monitoring"
+      ],
+      milestones: [
+        "Define product requirements and architecture",
+        "Create the repository and branching strategy",
+        "Build authentication and workspace management",
+        "Build project and task workflows",
+        "Add role-based access and collaboration features",
+        "Test critical paths and harden security",
+        "Deploy, monitor, and document the application"
+      ],
+      testingChecklist: [
+        "Protected-route and role tests",
+        "CRUD and validation tests",
+        "Critical end-to-end workflow checks",
+        "Performance and error handling checks",
+        "Production smoke test"
+      ],
+      industrySkills: [
+        "Full-stack integration",
+        "API design",
+        "Database modeling",
+        "RBAC",
+        "Testing",
+        "Deployment",
+        "GitHub collaboration",
+        "Product thinking"
+      ],
+      githubWorkflow: [
+        "Maintain issues for product work",
+        "Use feature branches",
+        "Write atomic commits",
+        "Open pull requests and review changes",
+        "Maintain release notes and a professional README"
+      ],
+      videoSearchQueries: [
+        `${stackName} full stack project management app tutorial complete`,
+        `${stackName} full stack SaaS project tutorial from scratch`
+      ]
+    }
+  ];
+}
+
 function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
   const enrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
   const orderedSkills = topoSort(enrichedSkills.map((skill) => ({
@@ -498,7 +626,10 @@ function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSki
     });
   }
 
-  const capstones = (ai.capstoneProjects || []).slice(0, 2);
+  let capstones = (ai.capstoneProjects || []).slice(0, 2);
+  if (isWebOrFullStackTopic(topic, ai) && capstones.length === 0) {
+    capstones = defaultWebCapstoneProjects(topic, ai).slice(0, 2);
+  }
   if (capstones.length) {
     const capstoneLessons = [];
 
@@ -629,6 +760,7 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "Include practical projects after major skill stages.",
     "For software/web/full-stack learning paths, explicitly include a Git & GitHub workflow stage after the core programming/foundation stage and before heavy framework work. Teach repositories, branches, commits, pull requests, issues, README/documentation, code review, and collaborative workflow.",
     "For web/full-stack paths, include production readiness: HTTP and APIs, validation, authentication/authorization, security basics, testing/debugging, environment configuration, deployment, monitoring, and performance where relevant.",
+    "Also teach software engineering fundamentals that transfer across stacks: clean code, debugging strategy, API contracts/documentation, data modeling, security, testing strategy, deployment, observability, performance trade-offs, and basic system design when relevant.",
     "Do not assume a learner becomes job-ready by watching videos alone. Sequence learning so each major stage has hands-on application, feedback/assessment, and professional engineering practice.",
     "Project plans must be detailed enough for a complete beginner to understand the problem, why it matters, what to build, architecture, feature milestones, testing, GitHub workflow, industry skills, and a sensible definition of done.",
     "At the END of a web/full-stack curriculum, provide 1-2 portfolio-grade capstone projects that combine the major technologies. For MERN, these must be full-stack MERN applications. Generate one strong YouTube search query per capstone for a long-form project build tutorial.",

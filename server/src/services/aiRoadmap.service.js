@@ -77,10 +77,22 @@ const roadmapSchema = {
           },
           durationMinutes: { type: "integer" }
         },
-        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject", "projectPlacement", "projectPlan", "quizPolicy"]
+        required: [
+          "id",
+          "name",
+          "category",
+          "importance",
+          "prerequisites",
+          "topics",
+          "searchQueries",
+          "courseDuration",
+          "practiceProject",
+          "projectPlacement",
+          "projectPlan",
+          "quizPolicy"
+        ]
       }
-    }
-  },
+    },
     capstoneProjects: {
       type: "array",
       minItems: 0,
@@ -114,9 +126,17 @@ const roadmapSchema = {
       }
     }
   },
-  required: ["canonicalTopic", "title", "description", "careerOutcome", "category", "learningOutcomes", "skills", "capstoneProjects"]
+  required: [
+    "canonicalTopic",
+    "title",
+    "description",
+    "careerOutcome",
+    "category",
+    "learningOutcomes",
+    "skills",
+    "capstoneProjects"
+  ]
 };
-
 function normalizeId(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 }

@@ -7,7 +7,7 @@ import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCach
 import { randomUUID } from "node:crypto";
 import { normalizeMultiVideoLessons } from "./course.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
-import { readPlanLimit } from "./subscriptionEntitlement.service.js";
+import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -788,7 +788,8 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     `Already known skills: ${JSON.stringify(knownSkills || [])}`
   ].join("\n");
 
-  const response = await client.models.generateContent({
+  try {
+    const response = await client.models.generateContent({
     model: env.geminiModel,
     contents: prompt,
     config: {
@@ -927,7 +928,7 @@ function validateQuizQuestions(questions, expectedCount) {
   return valid.slice(0, expectedCount);
 }
 
-export async function generateCourseQuiz({ courseId, lessonId }) {
+export async function generateCourseQuiz({ courseId, lessonId, userId = null }) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
     error.status = 503;
@@ -966,6 +967,26 @@ export async function generateCourseQuiz({ courseId, lessonId }) {
       lessonId: String(located.lesson._id),
       quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
     };
+  }
+
+  let usageReserved = false;
+  if (userId) {
+    const plan = await getActivePlanForUser(userId);
+    const limit = readPlanLimit(plan, "ai_quiz_generations_per_month", -1);
+    const usage = await consumeUsage({
+      userId,
+      feature: "ai_quiz_generations",
+      period: "month",
+      limit,
+      amount: 1
+    });
+    if (!usage.allowed) {
+      const error = new Error("You have reached your AI quiz-generation limit for this month.");
+      error.status = 429;
+      error.code = "AI_USAGE_LIMIT";
+      throw error;
+    }
+    usageReserved = true;
   }
 
   const context = getQuizContext(located.module, located.lesson);
@@ -1027,6 +1048,17 @@ export async function generateCourseQuiz({ courseId, lessonId }) {
     lessonId: String(located.lesson._id),
     quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
   };
+  } catch (error) {
+    if (usageReserved && userId) {
+      await releaseUsage({ userId, feature: "ai_quiz_generations", period: "month", amount: 1 }).catch(() => {});
+    }
+    if (/429|RESOURCE_EXHAUSTED|quota/i.test(String(error?.message || ""))) {
+      const e = new Error("Quiz generation is temporarily unavailable because the Gemini API quota has been reached.");
+      e.status = 429;
+      throw e;
+    }
+    throw error;
+  }
 }
 
 

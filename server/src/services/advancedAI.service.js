@@ -53,7 +53,7 @@ function lessonDurationSeconds(lesson) {
   const candidates = (lesson?.tutorial?.videos || [])
     .map((video) => Number(video.durationSeconds || 0))
     .filter((value) => Number.isFinite(value) && value > 0);
-  return candidates.length ? Math.max(...candidates) : 0;
+  return candidates.length ? candidates.reduce((total, value) => total + value, 0) : 0;
 }
 
 async function findCourseLesson(courseId, lessonId) {
@@ -346,7 +346,7 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
     }
 
     const insight = await AILessonInsight.findOneAndUpdate(
-      { user: userId, course: course._id, lesson: lesson._id },
+      { course: course._id, lesson: lesson._id, contentHash: contextHash },
       {
         $set: {
           contentHash: contextHash,

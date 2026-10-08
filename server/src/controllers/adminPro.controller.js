@@ -454,11 +454,11 @@ export async function updateCourseTutorial(req, res, next) {
       if (!playlist.lessons?.length) return failure(res, "The YouTube playlist contains no usable embeddable videos", 400);
 
       targetModule.lessons ||= [];
-      const playlistLessons = playlist.lessons.map((video) => targetModule.lessons.create({
+      const playlistLessons = playlist.lessons.map((video, index) => targetModule.lessons.create({
         title: video.title,
         description: video.description || "",
         type: "tutorial",
-        order: nonTutorialLessons.length + index + 1,
+        order: targetModule.lessons.length + index + 1,
         tutorial: {
           content: video.description || "",
           resources: [video.url],

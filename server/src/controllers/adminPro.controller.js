@@ -718,7 +718,13 @@ async function ensureDefaultPlans() {
       isActive: true,
       isPopular: false,
       trialDays: 0,
-      sortOrder: 1
+      sortOrder: 1,
+      limits: {
+        ai_course_builds_per_month: 0,
+        advanced_ai_questions_per_month: 0,
+        advanced_ai_insights_per_month: 0,
+        ai_quiz_generations_per_month: 20
+      }
     },
     {
       name: "Pro",
@@ -738,7 +744,13 @@ async function ensureDefaultPlans() {
       isActive: true,
       isPopular: true,
       trialDays: 0,
-      sortOrder: 2
+      sortOrder: 2,
+      limits: {
+        ai_course_builds_per_month: 5,
+        advanced_ai_questions_per_month: 100,
+        advanced_ai_insights_per_month: 30,
+        ai_quiz_generations_per_month: 50
+      }
     },
     {
       name: "Premium",
@@ -761,7 +773,13 @@ async function ensureDefaultPlans() {
       isActive: true,
       isPopular: false,
       trialDays: 0,
-      sortOrder: 3
+      sortOrder: 3,
+      limits: {
+        ai_course_builds_per_month: 20,
+        advanced_ai_questions_per_month: 500,
+        advanced_ai_insights_per_month: 100,
+        ai_quiz_generations_per_month: 200
+      }
     }
   ];
 
@@ -771,6 +789,11 @@ async function ensureDefaultPlans() {
       { $setOnInsert: plan },
       { upsert: true }
     );
+
+    const current = await SubscriptionPlan.findOne({ slug: plan.slug }).select("limits").lean();
+    if (!current?.limits || Object.keys(current.limits).length === 0) {
+      await SubscriptionPlan.updateOne({ slug: plan.slug }, { $set: { limits: plan.limits } });
+    }
   }
 }
 

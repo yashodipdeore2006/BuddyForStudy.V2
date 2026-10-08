@@ -292,55 +292,62 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
           .lean()
       : [];
 
-    const directCourses = directCandidates.filter(
+    const nonModuleDirectCourses = directCandidates.filter(
       (course) => course.generation?.mode !== "module"
-    ).slice((page - 1) * limit, page * limit);
+    );
+    let localCourses = nonModuleDirectCourses.slice(
+      (page - 1) * limit,
+      page * limit
+    );
 
-    if (directCourses.length) {
-      const total = directCandidates.filter(
-        (course) => course.generation?.mode !== "module"
-      ).length;
-      return {
-        courses: directCourses,
-        pagination: { page, limit, total, pages: Math.ceil(total / limit) }
-      };
-    }
+    if (!localCourses.length) {
+      const standalone = await getStandaloneModuleCourses(normalizedSearch, {
+        category,
+        level
+      });
 
-    const standalone = await getStandaloneModuleCourses(normalizedSearch, { category, level });
-    if (standalone.courses.length) {
-      const skip = (page - 1) * limit;
-      const courses = standalone.courses.slice(skip, skip + limit);
-      return {
-        courses,
-        pagination: {
-          page,
-          limit,
-          total: standalone.courses.length,
-          pages: Math.ceil(standalone.courses.length / limit)
-        }
-      };
+      localCourses = standalone.courses.slice(
+        (page - 1) * limit,
+        page * limit
+      );
     }
 
     let youtubeCourseRecommendations = [];
     let youtubeError = "";
+
     try {
-      youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(normalizedSearch, 3);
+      youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(
+        normalizedSearch,
+        3
+      );
     } catch (error) {
-      youtubeError = error instanceof Error ? error.message : "YouTube course search is unavailable";
-      console.error("YouTube fallback course search failed", {
+      youtubeError =
+        error instanceof Error
+          ? error.message
+          : "YouTube course search is unavailable";
+      console.error("YouTube supplementary search failed", {
         query: normalizedSearch,
         message: youtubeError
       });
     }
 
+    const localTotal = nonModuleDirectCourses.length || localCourses.length;
+    const hasLocalResults = localCourses.length > 0;
+
     return {
-      courses: [],
-      pagination: { page, limit, total: 0, pages: 0 },
+      courses: localCourses,
+      pagination: {
+        page,
+        limit,
+        total: hasLocalResults ? localTotal : 0,
+        pages: hasLocalResults ? Math.ceil(localTotal / limit) : 0
+      },
       discovery: {
-        mode: "youtube_fallback",
+        mode: "youtube_supplementary",
         query: normalizedSearch,
         courseRecommendations: youtubeCourseRecommendations,
-        youtubeError
+        youtubeError,
+        hasLocalResults
       }
     };
   }
@@ -384,15 +391,26 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       Course.countDocuments(filter)
     ]);
 
-    return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+    return {
+      courses,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    };
   }
 
   const [courses, total] = await Promise.all([
-    Course.find(filter).select("-modules").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Course.find(filter)
+      .select("-modules")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
     Course.countDocuments(filter)
   ]);
 
-  return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  return {
+    courses,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  };
 }
 export async function getPublished(courseId) {
   const key = `course:${courseId}`;

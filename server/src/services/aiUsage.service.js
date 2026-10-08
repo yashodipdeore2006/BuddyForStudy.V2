@@ -26,6 +26,9 @@ export async function consumeUsage({ userId, feature, period = "month", limit = 
   if (parsedLimit === -1) {
     return { allowed: true, count: await increment(userId, feature, period, amount), limit: -1 };
   }
+  if (parsedLimit === 0 || amount > parsedLimit) {
+    return { allowed: false, count: await getUsage(userId, feature, period), limit: parsedLimit };
+  }
   if (!Number.isFinite(parsedLimit) || parsedLimit < 0) {
     return { allowed: false, count: 0, limit: parsedLimit };
   }

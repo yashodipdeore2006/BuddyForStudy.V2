@@ -6,6 +6,8 @@ import { Course } from "../models/Course.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 import { randomUUID } from "node:crypto";
 import { normalizeMultiVideoLessons } from "./course.service.js";
+import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
+import { readPlanLimit } from "./subscriptionEntitlement.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -1028,14 +1030,62 @@ export async function generateCourseQuiz({ courseId, lessonId }) {
 }
 
 
-export async function generateAIRoadmap(input) {
-  const topicKeys = buildTopicKeys(input.topic, "industry-ready-v2");
+export async function generateAIRoadmap(input, options = {}) {
+  const userId = options.userId || null;
+  const personalized = options.personalized !== false;
+  const projectsEnabled = options.projectsEnabled !== false;
+  const plan = options.plan || null;
+  const topicKeys = buildTopicKeys(
+    input.topic,
+    "industry-ready-v2",
+    personalized ? JSON.stringify(input.goals || []) : "",
+    personalized ? JSON.stringify(input.knownSkills || []) : "",
+    personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
+  );
   const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
-  if (existing) return cachedRoadmapFromCourse(existing, input);
+  if (existing) {
+    const cached = cachedRoadmapFromCourse(existing, input);
+    if (!projectsEnabled) {
+      cached.course.modules = (cached.course.modules || []).map((module) => ({
+        ...module,
+        lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
+      }));
+    }
+    return cached;
+  }
+
+  let reservation = false;
+  if (userId) {
+    const limit = readPlanLimit(options.plan, "ai_course_builds_per_month", -1);
+    const result = await consumeUsage({
+      userId,
+      feature: "ai_course_builds",
+      period: "month",
+      limit,
+      amount: 1
+    });
+    if (!result.allowed) {
+      const error = new Error("You have reached your AI course-builder limit for this month.");
+      error.status = 429;
+      error.code = "AI_USAGE_LIMIT";
+      throw error;
+    }
+    reservation = true;
+  }
+
+  const generationInput = personalized
+    ? input
+    : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60 };
 
   try {
-    const ai = await generateWithGemini(input);
-    const built = buildCourse(ai, input);
+    const ai = await generateWithGemini(generationInput);
+    const built = buildCourse(ai, generationInput);
+    if (!projectsEnabled) {
+      built.course.modules = (built.course.modules || []).map((module) => ({
+        ...module,
+        lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
+      }));
+    }
     const sources = await attachYouTubeResources(built.course);
     normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
@@ -1075,6 +1125,9 @@ export async function generateAIRoadmap(input) {
       cached: false
     };
   } catch (error) {
+    if (reservation && userId) {
+      await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+    }
     if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) throw error;
     const fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
     const fallbackPersonalization = {

@@ -29,6 +29,14 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [advancedAI, setAdvancedAI] = useState({
+    questionsPerHourVideo: 10,
+    unknownDurationQuestions: 10,
+    maxQuestionsPerLesson: 50,
+    summaryEnabled: true,
+    qaEnabled: true,
+  });
+  const [savingAdvancedAI, setSavingAdvancedAI] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -36,6 +44,14 @@ export default function AdminSettings() {
     try {
       const data = await adminFetch("/api/admin/settings");
       setSettings(data.settings || []);
+      const values = Object.fromEntries((data.settings || []).map((item: any) => [item.key, item.value]));
+      setAdvancedAI({
+        questionsPerHourVideo: Number(values.advanced_ai_questions_per_hour_video ?? 10),
+        unknownDurationQuestions: Number(values.advanced_ai_questions_unknown_duration ?? 10),
+        maxQuestionsPerLesson: Number(values.advanced_ai_max_questions_per_lesson ?? 50),
+        summaryEnabled: values.advanced_ai_summary_enabled === undefined ? true : Boolean(values.advanced_ai_summary_enabled),
+        qaEnabled: values.advanced_ai_qa_enabled === undefined ? true : Boolean(values.advanced_ai_qa_enabled),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load settings");
     } finally {
@@ -44,6 +60,39 @@ export default function AdminSettings() {
   }
 
   useEffect(() => { void load(); }, []);
+
+  async function saveAdvancedAI() {
+    setSavingAdvancedAI(true);
+    setError("");
+    setStatus("");
+    try {
+      const entries = [
+        ["advanced_ai_questions_per_hour_video", Math.max(1, Math.min(100, Math.trunc(advancedAI.questionsPerHourVideo)))],
+        ["advanced_ai_questions_unknown_duration", Math.max(1, Math.min(100, Math.trunc(advancedAI.unknownDurationQuestions)))],
+        ["advanced_ai_max_questions_per_lesson", Math.max(1, Math.min(200, Math.trunc(advancedAI.maxQuestionsPerLesson)))],
+        ["advanced_ai_summary_enabled", Boolean(advancedAI.summaryEnabled)],
+        ["advanced_ai_qa_enabled", Boolean(advancedAI.qaEnabled)],
+      ];
+      await Promise.all(entries.map(([settingKey, settingValue]) =>
+        adminFetch("/api/admin/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            key: settingKey,
+            value: settingValue,
+            description: "Advanced AI assistant platform control",
+            isPublic: false,
+            reason: "Admin updated Advanced AI configuration",
+          }),
+        })
+      ));
+      setStatus("Advanced AI configuration saved.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save Advanced AI configuration");
+    } finally {
+      setSavingAdvancedAI(false);
+    }
+  }
 
   function edit(setting: any) {
     setKey(setting.key);
@@ -93,6 +142,38 @@ export default function AdminSettings() {
       </div>
 
       {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+
+      <section className="card mt-6 p-6">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">AI control plane</p>
+            <h2 className="mt-1 text-xl font-extrabold text-slate-950">Advanced AI assistant</h2>
+          </div>
+          <p className="text-xs text-slate-500">Questions are restricted to the current lesson. Repeated questions reuse the stored answer without another Gemini request.</p>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="block text-xs font-semibold text-slate-500">Questions / video hour
+            <input className="input-field mt-2" type="number" min="1" max="100" value={advancedAI.questionsPerHourVideo} onChange={(e) => setAdvancedAI({ ...advancedAI, questionsPerHourVideo: Number(e.target.value) })} />
+          </label>
+          <label className="block text-xs font-semibold text-slate-500">Unknown-duration questions
+            <input className="input-field mt-2" type="number" min="1" max="100" value={advancedAI.unknownDurationQuestions} onChange={(e) => setAdvancedAI({ ...advancedAI, unknownDurationQuestions: Number(e.target.value) })} />
+          </label>
+          <label className="block text-xs font-semibold text-slate-500">Hard max / lesson
+            <input className="input-field mt-2" type="number" min="1" max="200" value={advancedAI.maxQuestionsPerLesson} onChange={(e) => setAdvancedAI({ ...advancedAI, maxQuestionsPerLesson: Number(e.target.value) })} />
+          </label>
+          <label className="flex items-center gap-2 pt-7 text-sm font-semibold text-slate-700"><input type="checkbox" checked={advancedAI.summaryEnabled} onChange={(e) => setAdvancedAI({ ...advancedAI, summaryEnabled: e.target.checked })} /> Lesson summaries</label>
+          <label className="flex items-center gap-2 pt-7 text-sm font-semibold text-slate-700"><input type="checkbox" checked={advancedAI.qaEnabled} onChange={(e) => setAdvancedAI({ ...advancedAI, qaEnabled: e.target.checked })} /> Ask AI Q&A</label>
+        </div>
+
+        <div className="mt-4 rounded-xl bg-slate-50 p-4 text-xs text-slate-500">
+          Example: with <strong>10 questions/hour</strong> and a <strong>2-hour video</strong>, a learner can ask up to <strong>20 unique questions</strong> for that lesson (subject to the hard maximum and their plan's monthly Advanced AI limit).
+        </div>
+
+        <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI}>
+          <Save className="h-4 w-4" /> {savingAdvancedAI ? "Saving..." : "Save Advanced AI settings"}
+        </button>
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
         <section className="card p-6">

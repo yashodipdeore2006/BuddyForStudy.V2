@@ -85,3 +85,17 @@ async function increment(userId, feature, period, amount) {
     return counter?.count || amount;
   }
 }
+
+
+export async function releaseUsage({ userId, feature, period = "month", amount = 1 }) {
+  if (amount <= 0) return;
+  const periodStart = startOf(period);
+  await AIUsageCounter.updateOne(
+    { user: userId, feature, period, periodStart },
+    { $inc: { count: -amount } }
+  );
+  await AIUsageCounter.updateOne(
+    { user: userId, feature, period, periodStart, count: { $lt: 0 } },
+    { $set: { count: 0 } }
+  );
+}

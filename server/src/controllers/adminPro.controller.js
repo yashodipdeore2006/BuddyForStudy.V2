@@ -786,7 +786,7 @@ export async function sendEmail(req, res, next) {
   try {
     const transport = mailer(); if (!transport) return failure(res, "SMTP is not configured", 503);
     let users = [];
-    if (Array.isArray(req.body.userIds) && req.body.userIds.length) users = await User.find({ _id: { $in: req.body.userIds.filter(isValidObjectId) }, isActive: true }).select("email name");
+    if (Array.isArray(req.body.userIds) && req.body.userIds.length) users = await User.find({ _id: { $in: req.body.userIds.filter(isValidObjectId) } }).select("email name");
     else if (req.body.email) users = [{ email: req.body.email, name: "" }];
     else users = await audienceUsers(req.body.audience || "all");
     if (!req.body.subject || !req.body.html) return failure(res, "subject and html are required", 400);
@@ -860,7 +860,17 @@ export async function updateCoupon(req, res, next) {
 export async function auditLogs(req, res, next) {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
-    const logs = await AuditLog.find().populate("actor", "name email").sort({ createdAt: -1 }).limit(limit).lean();
+    const q = String(req.query.q || "").trim();
+    const filter = {};
+    if (q) filter.$or = [
+      { action: new RegExp(q, "i") },
+      { targetType: new RegExp(q, "i") },
+      { targetId: new RegExp(q, "i") },
+      { reason: new RegExp(q, "i") }
+    ];
+    if (req.query.action) filter.action = String(req.query.action);
+    if (req.query.targetType) filter.targetType = String(req.query.targetType);
+    const logs = await AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).limit(limit).lean();
     return success(res, { logs });
   } catch (e) { next(e); }
 }

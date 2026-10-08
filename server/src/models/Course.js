@@ -63,9 +63,18 @@ const lessonSchema = new mongoose.Schema({
   type: { type: String, enum: ["tutorial", "project", "quiz"], required: true }, order: { type: Number, required: true, min: 1 },
   tutorial: { type: tutorialSchema }, project: { type: projectSchema }, quiz: { type: quizSchema }
 });
+const moduleResourceSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true, maxlength: 160 },
+  url: { type: String, required: true, trim: true, maxlength: 1000 },
+  type: { type: String, enum: ["link", "document", "repository", "article"], default: "link" }
+});
+
 const moduleSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true, maxlength: 200 }, description: { type: String, default: "", trim: true },
-  order: { type: Number, required: true, min: 1 }, lessons: { type: [lessonSchema], default: [] }
+  title: { type: String, required: true, trim: true, maxlength: 200 },
+  description: { type: String, default: "", trim: true },
+  order: { type: Number, required: true, min: 1 },
+  resources: { type: [moduleResourceSchema], default: [] },
+  lessons: { type: [lessonSchema], default: [] }
 });
 
 const courseSchema = new mongoose.Schema({

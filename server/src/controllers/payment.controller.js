@@ -148,9 +148,20 @@ export async function createSubscriptionOrder(req, res, next) {
       await plan.save();
     }
 
+    // Razorpay requires total_count when perpetual subscriptions are not enabled
+    // on the merchant account. Keep subscription lifetimes bounded to Razorpay's
+    // supported maximum of 10 years while allowing the customer to cancel earlier.
+    const totalCountByInterval = {
+      monthly: 120,
+      quarterly: 40,
+      yearly: 10
+    };
+    const totalCount = totalCountByInterval[plan.billingInterval];
+
     const subscription = await razorpay.createSubscription({
       planId: plan.providerPlanId,
-      customerNotify: 1
+      customerNotify: 1,
+      totalCount
     });
 
     await Payment.create({

@@ -199,17 +199,190 @@ function topoSort(skills) {
   return result;
 }
 
-function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) {
-  const orderedSkills = topoSort(ai.skills.map((skill) => ({
+function projectPlanToContent(plan, skill, fallbackProject) {
+  const value = plan || {};
+  return {
+    description: value.whyThisProject || fallbackProject || `Build a practical project using ${skill}.`,
+    realWorldScenario: value.scenario || `Solve a realistic problem with ${skill}.`,
+    objectives: (value.features || []).slice(0, 8).length
+      ? (value.features || []).slice(0, 8).map((feature) => `Implement: ${feature}`)
+      : [`Apply the core ${skill} concepts in a working application.`],
+    requirements: (value.industrySkills || []).length
+      ? value.industrySkills.slice(0, 8)
+      : [skill],
+    instructions: [
+      value.scenario ? `Scenario: ${value.scenario}` : "",
+      value.whyThisProject ? `Why this project: ${value.whyThisProject}` : "",
+      value.architecture?.length ? `Architecture: ${value.architecture.join(" | ")}` : "",
+      value.milestones?.length ? `Milestones: ${value.milestones.map((item, index) => `${index + 1}. ${item}`).join(" | ")}` : "",
+      "Implement the project incrementally. Use clean code, meaningful Git commits, validation, error handling, and documentation.",
+      value.testingChecklist?.length ? `Testing checklist: ${value.testingChecklist.join(" | ")}` : "",
+      value.githubWorkflow?.length ? `GitHub workflow: ${value.githubWorkflow.join(" | ")}` : ""
+    ].filter(Boolean).join("\n\n"),
+    expectedOutcome:
+      value.scenario
+        ? `A working project that solves the scenario: ${value.scenario}`
+        : `A working project demonstrating practical ${skill} skills.`,
+    features: (value.features || []).slice(0, 12),
+    architecture: (value.architecture || []).slice(0, 10),
+    milestones: (value.milestones || []).slice(0, 12),
+    testingChecklist: (value.testingChecklist || []).slice(0, 12),
+    industrySkills: (value.industrySkills || []).slice(0, 12),
+    githubWorkflow: (value.githubWorkflow || []).slice(0, 10),
+    videoSearchQueries: (value.videoSearchQueries || []).slice(0, 3),
+    resources: [],
+    videos: [],
+    submissionRequirements: [
+      "Source code repository on GitHub",
+      "README with setup, architecture, and usage",
+      "Test evidence or test suite",
+      "Deployed application or recorded demo where applicable",
+      "Short explanation of technical decisions"
+    ]
+  };
+}
+
+function isWebOrFullStackTopic(topic, ai) {
+  const text = `${topic || ""} ${ai?.title || ""} ${ai?.category || ""}`.toLowerCase();
+  return /(mern|mean|full.?stack|web development|frontend|backend|react|node\.js|express|next\.js|java full stack|\.net|web app)/i.test(text);
+}
+
+function ensureWebIndustryStage(skills, topic, ai) {
+  if (!isWebOrFullStackTopic(topic, ai)) return skills;
+
+  const normalized = skills.map((skill) => ({
+    ...skill,
+    id: normalizeId(skill.id || skill.name),
+    prerequisites: (skill.prerequisites || []).map(normalizeId)
+  }));
+
+  const ensureStage = (name, id, topics, queries, afterNames = []) => {
+    if (normalized.some((skill) => normalizeId(skill.id || skill.name) === id || String(skill.name).toLowerCase() === name.toLowerCase())) return;
+    const preceding = normalized.filter((skill) =>
+      afterNames.some((after) => String(skill.name).toLowerCase().includes(after))
+    );
+    const prerequisites = preceding.length ? [normalizeId(preceding[preceding.length - 1].id || preceding[preceding.length - 1].name)] : [];
+    normalized.push({
+      id,
+      name,
+      category: "Engineering Workflow",
+      importance: "High",
+      prerequisites,
+      topics,
+      searchQueries: queries,
+      courseDuration: {
+        minMinutes: 120,
+        targetMinutes: 180,
+        maxMinutes: 300
+      },
+      practiceProject: `Apply ${name} in a small professional workflow.`,
+      projectPlacement: "none",
+      projectPlan: {
+        scenario: `Use ${name} to work on the codebase professionally.`,
+        whyThisProject: `Build the habits needed to collaborate, ship, and maintain software reliably.`,
+        features: [],
+        architecture: [],
+        milestones: [],
+        testingChecklist: ["Verify the workflow on a real repository."],
+        industrySkills: ["Version control", "Documentation", "Professional collaboration"],
+        githubWorkflow: [
+          "Create a Git repository",
+          "Use meaningful commits",
+          "Create feature branches",
+          "Open and review pull requests",
+          "Write a useful README"
+        ],
+        videoSearchQueries: queries
+      },
+      quizPolicy: { lessonQuestionCount: 4, moduleQuestionCount: 5, passingScore: 70 }
+    });
+  };
+
+  const jsIndex = normalized.findIndex((skill) => /javascript|typescript/i.test(skill.name || ""));
+  if (jsIndex >= 0) {
+    const hasGitHub = normalized.some((skill) => /git.?hub|version control/i.test(skill.name || ""));
+    if (!hasGitHub) {
+      normalized.splice(jsIndex + 1, 0, {
+        id: "git-github-workflow",
+        name: "Git & GitHub Workflow",
+        category: "Engineering Workflow",
+        importance: "Critical",
+        prerequisites: [normalizeId(normalized[jsIndex].id || normalized[jsIndex].name)],
+        topics: [
+          "Git fundamentals",
+          "branching",
+          "commits",
+          "merge and rebase basics",
+          "pull requests",
+          "GitHub repositories",
+          "issues",
+          "README and collaboration"
+        ],
+        searchQueries: [
+          "Git and GitHub for beginners complete tutorial",
+          "GitHub workflow pull requests branches tutorial"
+        ],
+        courseDuration: { minMinutes: 180, targetMinutes: 300, maxMinutes: 480 },
+        practiceProject: "",
+        projectPlacement: "none",
+        projectPlan: {
+          scenario: "Manage a real web-project repository with professional Git and GitHub practices.",
+          whyThisProject: "Every industry-ready developer must be able to collaborate, review changes, and ship code safely.",
+          features: [],
+          architecture: [],
+          milestones: [],
+          testingChecklist: ["Create a branch", "Commit changes", "Open a pull request", "Review and merge"],
+          industrySkills: ["Git", "GitHub", "Code review", "Collaboration", "Documentation"],
+          githubWorkflow: [
+            "Initialize and structure the repository",
+            "Create feature branches",
+            "Use atomic commits",
+            "Open pull requests",
+            "Review and merge changes",
+            "Track work with issues",
+            "Maintain a professional README"
+          ],
+          videoSearchQueries: [
+            "Git and GitHub for beginners complete tutorial",
+            "GitHub workflow pull requests branches tutorial"
+          ]
+        },
+        quizPolicy: { lessonQuestionCount: 5, moduleQuestionCount: 8, passingScore: 70 }
+      });
+    }
+  }
+
+  ensureStage(
+    "Testing, Debugging & Quality",
+    "testing-debugging-quality",
+    ["unit testing", "integration testing", "debugging", "linting", "validation", "error handling"],
+    ["web application testing debugging complete tutorial", "JavaScript Node React testing debugging tutorial"],
+    ["react", "node", "express", "backend", "full"]
+  );
+  ensureStage(
+    "Deployment, Security & Production",
+    "deployment-security-production",
+    ["deployment", "environment variables", "security basics", "HTTPS", "production configuration", "monitoring"],
+    ["web app deployment security production complete tutorial", "MERN production deployment security tutorial"],
+    ["testing", "backend", "express", "node"]
+  );
+
+  return normalized;
+}
+
+function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
+  const enrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
+  const orderedSkills = topoSort(enrichedSkills.map((skill) => ({
     ...skill,
     id: normalizeId(skill.id || skill.name),
     prerequisites: (skill.prerequisites || []).map(normalizeId),
     courseDuration: normalizeCourseDuration(skill.courseDuration),
-    topics: skill.topics?.slice(0, 12) || [],
+    topics: skill.topics?.slice(0, 16) || [],
     searchQueries: (skill.searchQueries?.length
       ? skill.searchQueries
-      : [`${skill.name} complete course tutorial`]).slice(0, 2),
+      : [`${skill.name} complete course tutorial`]).slice(0, 3),
     projectPlacement: skill.projectPlacement || "skill",
+    projectPlan: skill.projectPlan || {},
     quizPolicy: normalizeQuizPolicy(skill.quizPolicy, skill.topics?.length || 1)
   })));
 
@@ -228,7 +401,7 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
 
   for (let skillIndex = 0; skillIndex < activeSkills.length; skillIndex += 1) {
     const skill = activeSkills[skillIndex];
-    const topicChunks = splitTopics(skill.topics, skill.topics.length > 8 ? 4 : 5);
+    const topicChunks = splitTopics(skill.topics, skill.topics.length > 10 ? 4 : 5);
     const moduleLessons = [];
     let lessonOrder = 1;
 
@@ -240,21 +413,18 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
         title: topicChunks.length > 1
           ? `${skill.name} — Part ${chunkIndex + 1}: ${topicChunk.slice(0, 2).join(" & ")}`
           : `Learn ${skill.name}`,
-        description: `Cover ${topicChunk.join(", ")} in a prerequisite-aware ${level} lesson.`,
+        description: `Cover ${topicChunk.join(", ")} in a ${level}-level lesson with practical context.`,
         type: "tutorial",
         order: lessonOrder++,
         tutorial: {
           content: `Core topics: ${topicChunk.join(", ")}.`,
           searchQuery: query,
-          searchQueries: [query, ...skill.searchQueries.filter((item) => item !== query)].slice(0, 2),
+          searchQueries: [query, ...skill.searchQueries.filter((item) => item !== query)].slice(0, 3),
           requiredTopics: topicChunk,
           durationMinutes: {
             minMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
             targetMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
-            maxMinutes: Math.max(
-              60,
-              Math.round(skill.courseDuration.maxMinutes / topicChunks.length)
-            )
+            maxMinutes: Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length))
           },
           searchPolicy: {
             contentType: "complete-course",
@@ -295,17 +465,10 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       moduleLessons.push({
         id: `${skill.id}-project`,
         title: skill.practiceProject,
-        description: "Apply the skills from this stage before moving deeper into the stack.",
+        description: skill.projectPlan?.scenario || "Apply the skills from this stage in a realistic project.",
         type: "project",
         order: lessonOrder++,
-        project: {
-          description: skill.practiceProject,
-          objectives: skill.topics.slice(0, 6).map((topic) => `Use ${topic}`),
-          requirements: skill.topics.slice(0, 6),
-          instructions: `Build the project using the skills introduced in ${skill.name}. Test the main flows, explain your decisions, and document the result.`,
-          expectedOutcome: `A working project demonstrating practical ${skill.name} skills.`,
-          submissionRequirements: ["Source code repository", "README with setup instructions", "Short project demonstration"]
-        }
+        project: projectPlanToContent(skill.projectPlan, skill.name, skill.practiceProject)
       });
     }
 
@@ -313,7 +476,7 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       moduleLessons.push({
         id: `${skill.id}-module-quiz`,
         title: `${skill.name} Module Assessment`,
-        description: `A module-level assessment covering the key topics from ${skill.name}.`,
+        description: `An assessment covering the major topics of ${skill.name}.`,
         type: "quiz",
         order: lessonOrder++,
         quiz: {
@@ -321,17 +484,41 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
           questionCount: skill.quizPolicy.moduleQuestionCount,
           passingScore: skill.quizPolicy.passingScore,
           focusTopics: skill.topics,
-          instructions: "Use the assessment to validate the whole module before moving to the next technology."
+          instructions: "Validate the whole module before continuing to the next technology."
         }
       });
     }
 
     modules.push({
       title: skill.name,
-      description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after its prerequisites.`,
+      description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after prerequisites.`,
       skillIds: [skill.id],
       order: globalOrder++,
       lessons: moduleLessons
+    });
+  }
+
+  const capstones = (ai.capstoneProjects || []).slice(0, 2);
+  if (capstones.length) {
+    const capstoneLessons = [];
+
+    capstones.forEach((project, index) => {
+      capstoneLessons.push({
+        id: `capstone-project-${index + 1}`,
+        title: project.title,
+        description: project.scenario,
+        type: "project",
+        order: capstoneLessons.length + 1,
+        project: projectPlanToContent(project, ai.title, project.title)
+      });
+    });
+
+    modules.push({
+      title: "Final Capstone Projects",
+      description: "Build portfolio-grade projects that combine the technologies learned across the roadmap.",
+      skillIds: activeSkills.map((skill) => skill.id),
+      order: globalOrder++,
+      lessons: capstoneLessons
     });
   }
 
@@ -351,7 +538,12 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       category: ai.category,
       level,
       duration: `${days} study days at ${studyTimeMinutesPerDay || 60} min/day`,
-      learningOutcomes: ai.learningOutcomes,
+      learningOutcomes: [
+        ...(ai.learningOutcomes || []),
+        "Build practical projects that prove your ability to apply the stack.",
+        "Use Git and GitHub with professional collaboration and documentation practices.",
+        "Test, debug, secure, and deploy applications instead of stopping at tutorial completion."
+      ],
       modules
     },
     skillGraph: activeSkills.map((skill) => ({
@@ -371,7 +563,12 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       skippedSkills,
       rationale: [
         `Ordered technologies by prerequisites for a ${level} learner.`,
-        `Created lesson quizzes from each lesson's topic depth and module assessments for broader technology coverage.`,
+        "Inserted professional workflow stages where appropriate for software/web stacks.",
+        "Added practical project briefs with architecture, milestones, testing, GitHub workflow, and industry skills.",
+        "Added adaptive lesson and module assessments based on topic depth.",
+        capstones.length
+          ? `Added ${capstones.length} final portfolio capstone project(s) at the end of the curriculum.`
+          : "Used the AI-selected practical project progression for this learning path.",
         goals.length ? `Prioritized the roadmap around: ${goals.join(", ")}.` : "Used a balanced learning progression.",
         `Estimated the plan around ${studyTimeMinutesPerDay || 60} minutes per day.`
       ]
@@ -430,6 +627,14 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
     "Do not add a prerequisite that is not needed.",
     "Include practical projects after major skill stages.",
+    "For software/web/full-stack learning paths, explicitly include a Git & GitHub workflow stage after the core programming/foundation stage and before heavy framework work. Teach repositories, branches, commits, pull requests, issues, README/documentation, code review, and collaborative workflow.",
+    "For web/full-stack paths, include production readiness: HTTP and APIs, validation, authentication/authorization, security basics, testing/debugging, environment configuration, deployment, monitoring, and performance where relevant.",
+    "Do not assume a learner becomes job-ready by watching videos alone. Sequence learning so each major stage has hands-on application, feedback/assessment, and professional engineering practice.",
+    "Project plans must be detailed enough for a complete beginner to understand the problem, why it matters, what to build, architecture, feature milestones, testing, GitHub workflow, industry skills, and a sensible definition of done.",
+    "At the END of a web/full-stack curriculum, provide 1-2 portfolio-grade capstone projects that combine the major technologies. For MERN, these must be full-stack MERN applications. Generate one strong YouTube search query per capstone for a long-form project build tutorial.",
+    "Never invent GitHub repository URLs or YouTube URLs. Return search queries only; the resource search layer will select real embeddable resources.",
+    "Adapt the sequence to the learner's topic rather than forcing MERN-specific technologies onto unrelated careers.",
+
     "Create 5-12 technologies/stages for broad stacks/careers and 3-8 for focused topics.",
     "Treat the topic as a complete stack/career when appropriate: identify the major technologies, modules, prerequisites, and project milestones needed to finish the stack.",
     "For every technology/stage, decide whether a practical project should follow it: use projectPlacement=skill for a meaningful project, milestone for a larger project after two stages, or none when a project would add little value.",

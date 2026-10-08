@@ -40,6 +40,7 @@ function mapCourse(raw: any): Course {
         order: lesson.order ?? lessonIndex + 1,
         tutorial: lesson.tutorial,
         project: lesson.project,
+        quiz: lesson.quiz,
       })),
     })),
     is_published: raw.isPublished ?? raw.is_published ?? true,

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
-import { searchBestYouTubeCourse } from "./youtube.service.js";
+import { getYouTubeVideoResource, searchBestYouTubeCourse } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 
@@ -346,6 +346,163 @@ export async function getOrCreateNormalCourse(query) {
   };
   const course = await createNormalCourseFromSearch(normalized, result);
   return { course, result, cached: false };
+}
+
+export async function getOrCreateYouTubeResourceCourse({
+  query,
+  resourceType,
+  resourceId
+}) {
+  const type = resourceType === "playlist" ? "playlist" : "video";
+  const id = String(resourceId || "").trim();
+  if (!id) {
+    const error = new Error("YouTube resourceId is required");
+    error.status = 400;
+    throw error;
+  }
+
+  const existing = await Course.findOne({
+    "generation.mode": "discovery",
+    "generation.sourceResourceType": type,
+    "generation.sourceResourceId": id,
+    isPublished: true
+  }).lean();
+
+  if (existing) return existing;
+
+  let title = query || "YouTube Course";
+  let description = "";
+  let thumbnail = "";
+  let channelTitle = "";
+  let lessons = [];
+  let durationSeconds = 0;
+
+  if (type === "playlist") {
+    const playlist = await getPlaylistCourse(id);
+    title = playlist.title || title;
+    description = playlist.description || `A BuddyForStudy course built from the YouTube playlist “${title}”.`;
+    thumbnail = playlist.thumbnail || "";
+    channelTitle = playlist.channelTitle || "";
+    lessons = (playlist.lessons || []).map((lesson, index) => ({
+      title: lesson.title || `Lesson ${index + 1}`,
+      description: lesson.description || "",
+      type: "tutorial",
+      order: index + 1,
+      tutorial: {
+        content: lesson.description || "",
+        resources: lesson.url ? [lesson.url] : [],
+        videos: [{
+          videoId: lesson.videoId,
+          title: lesson.title || `Lesson ${index + 1}`,
+          description: lesson.description || "",
+          channelTitle: lesson.channelTitle || channelTitle,
+          publishedAt: lesson.publishedAt || null,
+          url: lesson.url || "",
+          thumbnail: lesson.thumbnail || ""
+        }]
+      }
+    }));
+    durationSeconds = (playlist.lessons || []).reduce(
+      (sum, lesson) => sum + Number(lesson.durationSeconds || 0),
+      0
+    );
+  } else {
+    const video = await getYouTubeVideoResource(id);
+    if (!video.embeddable) {
+      const error = new Error("This YouTube video cannot be played inside BuddyForStudy");
+      error.status = 409;
+      throw error;
+    }
+
+    title = video.title || title;
+    description = video.description || `A BuddyForStudy course built from the YouTube learning video “${title}”.`;
+    thumbnail = video.thumbnail || "";
+    channelTitle = video.channelTitle || "";
+    durationSeconds = Number(video.durationSeconds || 0);
+    lessons = [{
+      title: video.title || title,
+      description: video.description || "",
+      type: "tutorial",
+      order: 1,
+      tutorial: {
+        content: video.description || "",
+        resources: video.url ? [video.url] : [],
+        videos: [{
+          videoId: video.videoId,
+          title: video.title || title,
+          description: video.description || "",
+          channelTitle,
+          publishedAt: video.publishedAt || null,
+          url: video.url || "",
+          thumbnail
+        }]
+      }
+    }];
+  }
+
+  if (!lessons.length) {
+    const error = new Error("This YouTube resource has no playable lessons");
+    error.status = 409;
+    throw error;
+  }
+
+  const hours = Math.floor(durationSeconds / 3600);
+  const minutes = Math.floor((durationSeconds % 3600) / 60);
+  const duration = durationSeconds
+    ? hours
+      ? `${hours}h ${minutes ? ` ${minutes}m` : ""}`
+      : `${minutes}m`
+    : "Self-paced";
+
+  const payload = {
+    title,
+    slug: generatedSlug(title, "discovery"),
+    description,
+    category: "YouTube Discovery",
+    level: "Beginner",
+    duration,
+    thumbnail,
+    learningOutcomes: [`Learn ${query || title}`],
+    modules: [{
+      title,
+      description: description || `Learn ${query || title} through the selected YouTube resource.`,
+      order: 1,
+      lessons
+    }],
+    isPublished: true,
+    pricing: { mode: "free", price: 0, currency: "INR" },
+    enrollmentEnabled: true,
+    certificateEnabled: false,
+    featured: false,
+    generation: {
+      mode: "discovery",
+      query: String(query || title),
+      topicKeys: buildTopicKeys(query || title, title, channelTitle),
+      sourceResourceType: type,
+      sourceResourceId: id,
+      snapshot: {
+        source: "youtube",
+        resourceType: type,
+        resourceId: id,
+        channelTitle
+      }
+    }
+  };
+
+  try {
+    return await Course.create(payload);
+  } catch (error) {
+    if (error?.code === 11000) {
+      const retry = await Course.findOne({
+        "generation.mode": "discovery",
+        "generation.sourceResourceType": type,
+        "generation.sourceResourceId": id,
+        isPublished: true
+      }).lean();
+      if (retry) return retry;
+    }
+    throw error;
+  }
 }
 
 export async function searchCourseBySkills(query) {

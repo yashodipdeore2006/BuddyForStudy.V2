@@ -73,6 +73,7 @@ type Props = {
   playlists: YouTubePlaylist[];
   loadingPlaylists?: boolean;
   error?: string;
+  hasLocalResults?: boolean;
 };
 
 function formatCount(value: number) {
@@ -99,6 +100,7 @@ export default function YouTubeSearchFallback({
   playlists,
   loadingPlaylists = false,
   error = "",
+  hasLocalResults = false,
 }: Props) {
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
@@ -313,12 +315,14 @@ export default function YouTubeSearchFallback({
             Learning discovery
           </p>
           <h3 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
-            No matching BuddyForStudy course yet
+            {hasLocalResults
+              ? `More learning resources for “${query}”`
+              : "No matching BuddyForStudy course yet"}
           </h3>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            We ranked the best YouTube learning resources for “{query}”. The top three
-            resources are packaged into course-style experiences, and everything opens
-            inside the BuddyForStudy player.
+            {hasLocalResults
+              ? `We also found highly ranked YouTube courses, videos, and playlists for “${query}”. These additional resources stay inside BuddyForStudy.`
+              : `We ranked the best YouTube learning resources for “${query}”. The top three resources are packaged into course-style experiences, and everything opens inside the BuddyForStudy player.`}
           </p>
 
           {builtCourses.length > 0 && (

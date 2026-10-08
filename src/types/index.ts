@@ -1,7 +1,7 @@
 export type UserRole = 'user' | 'admin';
 export type AuthProvider = 'local' | 'google' | 'local_google';
 export type CourseLevel = 'Beginner' | 'Intermediate' | 'Advanced';
-export type LessonType = 'tutorial' | 'project';
+export type LessonType = 'tutorial' | 'project' | 'quiz';
 export type EnrollmentStatus = 'active' | 'completed' | 'cancelled';
 
 export interface Profile {
@@ -31,6 +31,29 @@ export interface ProjectContent {
   starterCodeUrl?: string;
 }
 
+export interface QuizQuestionOption {
+  id: string;
+  text: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  topic?: string;
+  question: string;
+  options: QuizQuestionOption[];
+  correctOptionId: string;
+  explanation?: string;
+}
+
+export interface QuizContent {
+  scope: 'lesson' | 'module';
+  questionCount: number;
+  passingScore: number;
+  focusTopics?: string[];
+  instructions?: string;
+  questions?: QuizQuestion[];
+}
+
 export interface Lesson {
   id: string;
   title: string;
@@ -39,6 +62,7 @@ export interface Lesson {
   order: number;
   tutorial?: TutorialContent;
   project?: ProjectContent;
+  quiz?: QuizContent;
 }
 
 export interface Module {

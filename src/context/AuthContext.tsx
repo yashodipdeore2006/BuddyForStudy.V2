@@ -48,8 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn=async(email:string,password:string)=>{
     const data=await apiFetch('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
-    if (data.requiresOtp) {
-      return { requiresOtp: true, email: data.email, purpose: data.purpose };
+    if (data.requiresOtp === true) {
+      return {
+        requiresOtp: true,
+        email: String(data.email || email),
+        purpose: "login_verification" as const,
+      };
     }
     setAuth(data.token,data.user);
     applyUser(data.user);

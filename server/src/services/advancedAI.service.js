@@ -4,8 +4,8 @@ import { env } from "../config/env.js";
 import { Course } from "../models/Course.js";
 import { AILessonInsight } from "../models/AILessonInsight.js";
 import { AIQuestionAnswer } from "../models/AIQuestionAnswer.js";
+import { AIQuestionAsk } from "../models/AIQuestionAsk.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
-import { AIUsageCounter } from "../models/AIUsageCounter.js";
 import { AIUsageCounter as UsageCounter } from "../models/AIUsageCounter.js";
 import { getYouTubeVideoResource } from "./youtube.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
@@ -186,10 +186,10 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
   const { course, lesson } = await findCourseLesson(courseId, lessonId);
   const questionPolicy = await getQuestionLimit(course, lesson);
 
-  const usedOnLesson = await AIQuestionAnswer.countDocuments({
+  const usedOnLesson = await AIQuestionAsk.countDocuments({
+    user: userId,
     course: course._id,
-    lesson: lesson._id,
-    firstAskedBy: userId
+    lesson: lesson._id
   });
 
   const monthlyLimit = readPlanLimit(
@@ -399,6 +399,42 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
   });
 
   if (cached) {
+    const questionLimit = await getQuestionLimit(course, lesson);
+    const alreadyAsked = await AIQuestionAsk.exists({
+      user: userId,
+      course: course._id,
+      lesson: lesson._id,
+      questionHash
+    });
+
+    if (!alreadyAsked) {
+      const previousQuestions = await AIQuestionAsk.countDocuments({
+        user: userId,
+        course: course._id,
+        lesson: lesson._id
+      });
+      if (previousQuestions >= questionLimit.maxQuestions) {
+        const error = new Error(
+          `You have reached the lesson AI question limit of ${questionLimit.maxQuestions}. The limit is calculated at ${questionLimit.ratePerHour} questions per hour of video.`
+        );
+        error.status = 429;
+        error.code = "LESSON_AI_LIMIT";
+        throw error;
+      }
+
+      try {
+        await AIQuestionAsk.create({
+          user: userId,
+          course: course._id,
+          lesson: lesson._id,
+          questionHash,
+          answerCacheId: cached._id
+        });
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+      }
+    }
+
     cached.hitCount += 1;
     cached.lastAskedAt = new Date();
     await cached.save();
@@ -411,10 +447,10 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
   }
 
   const questionLimit = await getQuestionLimit(course, lesson);
-  const previousQuestions = await AIQuestionAnswer.countDocuments({
+  const previousQuestions = await AIQuestionAsk.countDocuments({
+    user: userId,
     course: course._id,
-    lesson: lesson._id,
-    firstAskedBy: userId
+    lesson: lesson._id
   });
   if (previousQuestions >= questionLimit.maxQuestions) {
     const error = new Error(
@@ -498,7 +534,7 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
     return {
       question: saved?.question || cleanQuestion,
       answer: saved?.answer || answer,
-      fromCache: Boolean(saved && saved.answer !== answer),
+      fromCache: Boolean(saved && String(saved.answer || "") !== answer),
       usage: await getAdvancedAIUsage({ userId, courseId, lessonId })
     };
   } catch (error) {

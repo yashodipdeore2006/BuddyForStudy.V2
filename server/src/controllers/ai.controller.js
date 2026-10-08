@@ -50,7 +50,7 @@ export async function generateQuiz(req, res, next) {
     });
     if (!enrollment) return failure(res, "Active or completed enrollment required", 403);
 
-    const result = await generateCourseQuiz(input);
+    const result = await generateCourseQuiz({ ...input, userId: req.user.userId });
     return success(res, result, "Quiz generated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);

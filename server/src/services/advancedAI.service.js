@@ -437,6 +437,21 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
         throw error;
       }
 
+      const monthlyLimit = readPlanLimit(entitlement.plan, "advanced_ai_questions_per_month", -1);
+      const reservation = await consumeUsage({
+        userId,
+        feature: "advanced_ai_questions",
+        period: "month",
+        limit: monthlyLimit,
+        amount: 1
+      });
+      if (!reservation.allowed) {
+        const error = new Error("You have reached your Advanced AI question limit for this month.");
+        error.status = 429;
+        error.code = "AI_USAGE_LIMIT";
+        throw error;
+      }
+
       try {
         await AIQuestionAsk.create({
           user: userId,
@@ -446,7 +461,15 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
           answerCacheId: cached._id
         });
       } catch (error) {
-        if (error?.code !== 11000) throw error;
+        if (error?.code !== 11000) {
+          await releaseUsage({
+            userId,
+            feature: "advanced_ai_questions",
+            period: "month",
+            amount: 1
+          }).catch(() => {});
+          throw error;
+        }
       }
     }
 

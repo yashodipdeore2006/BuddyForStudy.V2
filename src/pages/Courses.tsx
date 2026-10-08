@@ -484,17 +484,19 @@ export default function Courses() {
           </div>
 
           {loading ? (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-              ))}
+            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
+                ))}
+              </div>
             </div>
           ) : (
-            <>
+            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
               {filteredCourses.length > 0 && (
-                <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredCourses.map((course) => (
-                    <CourseCard key={course.id} course={course} />
+                    <CourseCard key={course.id} course={course} showActions />
                   ))}
                 </div>
               )}
@@ -511,7 +513,7 @@ export default function Courses() {
               )}
 
               {filteredCourses.length === 0 && !youtubeDiscovery && (
-                <div className="mt-5">
+                <div className="py-8">
                   <EmptyState
                     icon={<BookOpen className="h-8 w-8" />}
                     title="No matching courses"
@@ -519,7 +521,7 @@ export default function Courses() {
                   />
                 </div>
               )}
-            </>
+            </div>
           )}
         </section>
       ) : (
@@ -553,7 +555,7 @@ export default function Courses() {
             <div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[72vh]">
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {popularCourses.map((course) => (
-                  <CourseCard key={course.id} course={course} />
+                  <CourseCard key={course.id} course={course} showActions />
                 ))}
               </div>
             </div>

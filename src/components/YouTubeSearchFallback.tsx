@@ -458,17 +458,15 @@ export default function YouTubeSearchFallback({
                 <div>
                   <h4 className="font-bold text-slate-900">Top-ranked YouTube videos</h4>
                   <p className="text-xs text-slate-500">
-                    The same ranked resources used to build the course options above.
+                    Ranked YouTube videos shown separately from the course options above.
                   </p>
                 </div>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {courses.slice(0, 3).map((course, index) => (
-                  <button
+                  <article
                     key={course.videoId}
-                    type="button"
-                    onClick={() => openVideo(course)}
                     className="group flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
                   >
                     <div className="relative aspect-video overflow-hidden bg-slate-100">
@@ -568,7 +566,7 @@ export default function YouTubeSearchFallback({
                         Preview in BuddyForStudy
                       </button>
                     </div>
-                  </button>
+                  </article>
                 ))}
               </div>
             </div>

@@ -774,6 +774,17 @@ async function ensureDefaultPlans() {
   }
 }
 
+function normalizePlanLimits(value) {
+  const input = value && typeof value === "object" ? value : {};
+  const output = {};
+  for (const [key, raw] of Object.entries(input)) {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) continue;
+    output[key] = Math.trunc(parsed);
+  }
+  return output;
+}
+
 export async function plans(req, res, next) {
   try {
     await ensureDefaultPlans();
@@ -791,7 +802,9 @@ export async function createPlan(req, res, next) {
     const plan = await SubscriptionPlan.create({
       name: req.body.name, slug: req.body.slug, description: req.body.description || "", price: Number(req.body.price) || 0,
       currency: req.body.currency || "INR", billingInterval: req.body.billingInterval || "monthly",
-      features: normalizeSubscriptionFeatures(req.body.features), isActive: req.body.isActive !== false,
+      features: normalizeSubscriptionFeatures(req.body.features),
+      limits: normalizePlanLimits(req.body.limits),
+      isActive: req.body.isActive !== false,
       isPopular: Boolean(req.body.isPopular), trialDays: Number(req.body.trialDays) || 0, sortOrder: Number(req.body.sortOrder) || 0
     });
     await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, plan.toObject());
@@ -804,10 +817,12 @@ export async function updatePlan(req, res, next) {
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
     const before = plan.toObject();
-    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "isActive", "isPopular", "trialDays", "sortOrder"];
+    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isPopular", "trialDays", "sortOrder"];
     for (const key of allowed) {
       if (req.body[key] === undefined) continue;
-      plan[key] = key === "features" ? normalizeSubscriptionFeatures(req.body[key]) : req.body[key];
+      if (key === "features") plan[key] = normalizeSubscriptionFeatures(req.body[key]);
+      else if (key === "limits") plan[key] = normalizePlanLimits(req.body[key]);
+      else plan[key] = req.body[key];
     }
     await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, plan.toObject(), req.body.reason);
     return success(res, { plan }, "Plan updated");

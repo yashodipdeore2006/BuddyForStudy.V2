@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import type { Course } from '@/types';
-import { Link } from 'react-router-dom';
-import { BookOpen, Clock, ChevronRight, Users } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { BookOpen, Clock, ChevronRight, Users, Bookmark, Loader2, PlayCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { classNames } from '@/lib/utils';
 import { countAllLessons } from '@/lib/courseUtils';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const levelColors: Record<string, string> = {
   Beginner: 'bg-green-50 text-green-700',
@@ -21,21 +24,70 @@ const categoryIcons: Record<string, LucideIcon> = {
 interface CourseCardProps {
   course: Course;
   progressPercentage?: number;
+  showActions?: boolean;
 }
 
 export default function CourseCard({
   course,
   progressPercentage,
+  showActions = false,
 }: CourseCardProps) {
   const hasModules = Array.isArray(course.modules);
   const lessonCount = hasModules ? countAllLessons(course.modules) : null;
   const CategoryIcon = categoryIcons[course.category] || BookOpen;
 
+  const { session } = useAuth();
+  const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [enrolled, setEnrolled] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  const saveCourse = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!session) {
+      navigate('/login', { state: { from: { pathname: '/courses/' + course.id } } });
+      return;
+    }
+    setSaving(true);
+    setActionError('');
+    try {
+      await apiFetch('/api/saved-courses', {
+        method: 'POST',
+        body: JSON.stringify({ courseId: course.id }),
+      });
+      setSaved(true);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to save course.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const enrollCourse = async (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!session) {
+      navigate('/login', { state: { from: { pathname: '/courses/' + course.id } } });
+      return;
+    }
+    setEnrolling(true);
+    setActionError('');
+    try {
+      await apiFetch('/api/enrollments/' + course.id, { method: 'POST' });
+      setEnrolled(true);
+      navigate('/courses/' + course.id + '/roadmap');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to enroll in course.');
+    } finally {
+      setEnrolling(false);
+    }
+  };
+
   return (
-    <Link
-      to={`/courses/${course.id}`}
-      className="group flex min-h-[420px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(13,18,32,.045)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_60px_rgba(13,18,32,.10)]"
-    >
+    <article className="group flex min-h-[420px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(13,18,32,.045)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_60px_rgba(13,18,32,.10)]">
       <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600">
         {course.thumbnail ? (
           <img
@@ -123,7 +175,24 @@ export default function CourseCard({
             </div>
           </div>
         )}
+
+        {showActions && (
+          <div className="mt-auto pt-4">
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={saveCourse} disabled={saving} className={saved ? "inline-flex items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-bold text-green-700" : "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}>
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className="h-3.5 w-3.5" />}{saved ? "Saved" : "Save Course"}
+              </button>
+              <button type="button" onClick={enrollCourse} disabled={enrolling || enrolled} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60">
+                {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolled ? "Enrolled" : "Enroll Now"}
+              </button>
+            </div>
+            {actionError && <p className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
+            <Link to={"/courses/" + course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100">
+              <PlayCircle className="h-4 w-4" />Preview in BuddyForStudy
+            </Link>
+          </div>
+        )}
       </div>
-    </Link>
+    </article>
   );
 }

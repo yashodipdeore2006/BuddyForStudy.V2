@@ -285,17 +285,21 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
 
   if (normalizedSearch) {
     const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
-    const directCourses = directFilter
+    const directCandidates = directFilter
       ? await Course.find({ ...filter, ...directFilter })
           .select("-modules")
           .sort({ createdAt: -1 })
-          .skip((page - 1) * limit)
-          .limit(limit)
           .lean()
       : [];
 
+    const directCourses = directCandidates.filter(
+      (course) => course.generation?.mode !== "module"
+    ).slice((page - 1) * limit, page * limit);
+
     if (directCourses.length) {
-      const total = await Course.countDocuments({ ...filter, ...directFilter });
+      const total = directCandidates.filter(
+        (course) => course.generation?.mode !== "module"
+      ).length;
       return {
         courses: directCourses,
         pagination: { page, limit, total, pages: Math.ceil(total / limit) }

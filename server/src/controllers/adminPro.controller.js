@@ -360,7 +360,9 @@ export async function addCourseVideo(req, res, next) {
           publishedAt: null,
           url: `https://www.youtube.com/watch?v=${videoId}`,
           thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-          embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`
+          embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`,
+          durationSeconds: 0,
+          duration: ""
         }]
       }
     });
@@ -563,7 +565,9 @@ export async function updateCourseTutorial(req, res, next) {
             publishedAt: video.publishedAt || null,
             url: video.url,
             thumbnail: video.thumbnail || "",
-            embedUrl: video.embedUrl
+            embedUrl: video.embedUrl,
+            durationSeconds: Number(video.durationSeconds || 0),
+            duration: video.duration || ""
           }],
           playlistId,
           playlistTitle: playlist.title
@@ -596,7 +600,9 @@ export async function updateCourseTutorial(req, res, next) {
         publishedAt: currentVideo.publishedAt || null,
         url: `https://www.youtube.com/watch?v=${videoId}`,
         thumbnail: currentVideo.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-        embedUrl: `https://www.youtube.com/embed/${videoId}`
+        embedUrl: `https://www.youtube.com/embed/${videoId}`,
+        durationSeconds: Number(currentVideo.durationSeconds || 0),
+        duration: currentVideo.duration || ""
       };
       targetLesson.tutorial ||= {};
       targetLesson.tutorial.videos = [updatedVideo];

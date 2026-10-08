@@ -83,11 +83,19 @@ export interface Lesson {
   quiz?: QuizContent;
 }
 
+export interface ModuleResource {
+  id: string;
+  title: string;
+  url: string;
+  type: 'link' | 'document' | 'repository' | 'article';
+}
+
 export interface Module {
   id: string;
   title: string;
   description: string;
   order: number;
+  resources?: ModuleResource[];
   lessons: Lesson[];
 }
 

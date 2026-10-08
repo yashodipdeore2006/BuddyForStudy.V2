@@ -18,6 +18,8 @@ type Plan = {
   features: string[];
   isActive: boolean;
   isPopular: boolean;
+  trialDays?: number;
+  sortOrder?: number;
 };
 
 type PlanForm = {
@@ -53,6 +55,7 @@ export default function AdminPlans() {
   const [availableFeatures, setAvailableFeatures] = useState<FeatureDefinition[]>([]);
   const [form, setForm] = useState<PlanForm>(emptyForm);
   const [savingPlan, setSavingPlan] = useState<string | null>(null);
+  const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -146,6 +149,30 @@ export default function AdminPlans() {
           : plan
       )
     );
+  }
+
+  async function savePlanDetails(plan: Plan) {
+    setSavingPlan(plan._id);
+    setError("");
+    try {
+      await adminFetch(`/api/admin/plans/${plan._id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          description: plan.description || "",
+          price: Math.max(Number(plan.price) || 0, 0),
+          billingInterval: plan.billingInterval,
+          trialDays: Math.max(Number(plan.trialDays || 0), 0),
+          sortOrder: Number(plan.sortOrder || 0),
+          isPopular: Boolean(plan.isPopular),
+        }),
+      });
+      setEditingPlan(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save plan");
+    } finally {
+      setSavingPlan(null);
+    }
   }
 
   async function saveFeatures(plan: Plan) {
@@ -290,22 +317,40 @@ export default function AdminPlans() {
                       </span>
                     )}
                     <h3 className="mt-2 text-xl font-extrabold text-slate-950">{plan.name}</h3>
-                    <p className="mt-1 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
-                    <p className="mt-3 text-3xl font-extrabold text-slate-950">
-                      ₹{plan.price}
-                      <span className="text-xs font-normal text-slate-500">
-                        {plan.price === 0 ? " · free" : ` / ${plan.billingInterval}`}
-                      </span>
-                    </p>
+                    {editingPlan === plan._id ? (
+                      <div className="mt-3 space-y-2">
+                        <textarea className="input-field min-h-20" value={plan.description || ""} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, description: e.target.value } : item))} placeholder="Plan description" />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input className="input-field" type="number" min="0" value={plan.price} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, price: Number(e.target.value) } : item))} />
+                          <select className="input-field" value={plan.billingInterval} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, billingInterval: e.target.value } : item))}>
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="yearly">Yearly</option>
+                            <option value="one_time">One time</option>
+                          </select>
+                          <input className="input-field" type="number" min="0" value={plan.trialDays || 0} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, trialDays: Number(e.target.value) } : item))} placeholder="Trial days" />
+                          <input className="input-field" type="number" min="0" value={plan.sortOrder || 0} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, sortOrder: Number(e.target.value) } : item))} placeholder="Sort order" />
+                        </div>
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><input type="checkbox" checked={Boolean(plan.isPopular)} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, isPopular: e.target.checked } : item))} /> Mark as most popular</label>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="mt-1 line-clamp-2 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
+                        <p className="mt-3 text-3xl font-extrabold text-slate-950">₹{plan.price}<span className="text-xs font-normal text-slate-500">{plan.price === 0 ? " · free" : " / " + plan.billingInterval}</span></p>
+                        <p className="mt-1 text-xs text-slate-400">Trial {plan.trialDays || 0} days · Sort {plan.sortOrder || 0}</p>
+                      </>
+                    )}
                   </div>
 
-                  <button
-                    onClick={() => void toggle(plan)}
-                    className={plan.isActive ? "btn-secondary" : "btn-danger"}
-                  >
-                    <Power className="h-4 w-4" />
-                    {plan.isActive ? "Disable" : "Enable"}
-                  </button>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setEditingPlan(editingPlan === plan._id ? null : plan._id)} className="btn-secondary">
+                      {editingPlan === plan._id ? "Close editor" : "Edit plan"}
+                    </button>
+                    <button onClick={() => void toggle(plan)} className={plan.isActive ? "btn-secondary" : "btn-danger"}>
+                      <Power className="h-4 w-4" />
+                      {plan.isActive ? "Disable" : "Enable"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -372,6 +417,18 @@ export default function AdminPlans() {
                         Clear all
                       </button>
                     </div>
+                  )}
+
+                  {editingPlan === plan._id && (
+                    <button
+                      type="button"
+                      onClick={() => void savePlanDetails(plan)}
+                      disabled={savingPlan === plan._id}
+                      className="btn-secondary mt-2 w-full justify-center"
+                    >
+                      <Save className="h-4 w-4" />
+                      {savingPlan === plan._id ? "Saving plan..." : "Save plan details"}
+                    </button>
                   )}
 
                   <button

@@ -416,15 +416,29 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
   });
 
   const ids = (data.items || []).map((item) => item.id?.playlistId).filter(Boolean);
-  if (!ids.length) return [];
+  if (!ids.length) {
+    playlistCache.set(key, []);
+    return [];
+  }
 
   const details = await youtubeRequest("playlists", {
     part: "snippet,contentDetails,status",
     id: ids.join(",")
   });
 
-  const results = (details.items || [])
-    .filter((playlist) => playlist.status?.privacyStatus !== "private")
+  const queryTerms = [...new Set(
+    String(query || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9+#.]+/g, " ")
+      .split(/\s+/)
+      .filter((term) => term.length > 1)
+  )];
+
+  const rawResults = (details.items || [])
+    .filter((playlist) =>
+      playlist.status?.privacyStatus !== "private" &&
+      Number(playlist.contentDetails?.itemCount || 0) > 0
+    )
     .map((playlist) => ({
       playlistId: playlist.id,
       title: playlist.snippet?.title || "Untitled course",
@@ -433,15 +447,51 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
       channelId: playlist.snippet?.channelId || "",
       publishedAt: playlist.snippet?.publishedAt || null,
       itemCount: Number(playlist.contentDetails?.itemCount || 0),
-      thumbnail: playlist.snippet?.thumbnails?.high?.url || playlist.snippet?.thumbnails?.medium?.url || playlist.snippet?.thumbnails?.default?.url || "",
+      thumbnail:
+        playlist.snippet?.thumbnails?.high?.url ||
+        playlist.snippet?.thumbnails?.medium?.url ||
+        playlist.snippet?.thumbnails?.default?.url ||
+        "",
       url: `https://www.youtube.com/playlist?list=${playlist.id}`
-    }))
-    .filter((playlist) => playlist.itemCount > 0);
+    }));
+
+  const maxItems = Math.max(...rawResults.map((playlist) => playlist.itemCount), 1);
+
+  const results = rawResults
+    .map((playlist) => {
+      const searchable = `${playlist.title} ${playlist.description} ${playlist.channelTitle}`.toLowerCase();
+      const matchedTerms = queryTerms.filter((term) => searchable.includes(term)).length;
+      const relevance = queryTerms.length ? (matchedTerms / queryTerms.length) * 100 : 50;
+      const depth = Math.min(
+        100,
+        (Math.log10(playlist.itemCount + 1) / Math.log10(maxItems + 1)) * 100
+      );
+      const ageDays = Math.max(
+        0,
+        (Date.now() - new Date(playlist.publishedAt || Date.now()).getTime()) / 86400000
+      );
+      const recency = Math.max(0, 100 - (ageDays / 3650) * 100);
+      const score = Number(
+        (relevance * 0.60 + depth * 0.25 + recency * 0.15).toFixed(2)
+      );
+
+      return {
+        ...playlist,
+        score,
+        ranking: {
+          algorithm: "youtube-playlist-fallback-v1",
+          relevance: Math.round(relevance),
+          contentDepth: Math.round(depth),
+          recency: Math.round(recency)
+        }
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.min(maxResults, 6));
 
   playlistCache.set(key, results);
   return results;
 }
-
 export async function getPlaylistCourse(playlistId) {
   const key = `playlist:${playlistId}`;
   if (playlistCache.has(key)) return playlistCache.get(key);

@@ -583,38 +583,161 @@ export default function CoursePlayer() {
                     )}
 
                     {currentLesson.lesson.type === "project" && (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                        <h2 className="font-extrabold text-slate-900">Project</h2>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                          {currentLesson.lesson.project?.description}
-                        </p>
-
-                        <h3 className="mt-6 font-bold text-slate-900">Objectives</h3>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {(currentLesson.lesson.project?.objectives || []).map((item: string, itemIndex: number) => (
-                            <li key={"objective-" + itemIndex + "-" + item}>{item}</li>
-                          ))}
-                        </ul>
-
-                        <h3 className="mt-6 font-bold text-slate-900">Requirements</h3>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {(currentLesson.lesson.project?.requirements || []).map((item: string, itemIndex: number) => (
-                            <li key={"requirement-" + itemIndex + "-" + item}>{item}</li>
-                          ))}
-                        </ul>
-
-                        <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                          {currentLesson.lesson.project?.instructions}
-                        </p>
-
-                        <div className="mt-6 rounded-xl bg-green-50 p-4">
-                          <p className="text-xs font-bold uppercase tracking-[.14em] text-green-700">
-                            Expected outcome
+                      <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">
+                            Project brief
                           </p>
-                          <p className="mt-1 text-sm font-semibold leading-6 text-green-900">
-                            {currentLesson.lesson.project?.expectedOutcome}
+                          <h2 className="mt-1 text-xl font-extrabold text-slate-950">
+                            {currentLesson.lesson.title}
+                          </h2>
+                          <p className="mt-3 text-sm leading-7 text-slate-700">
+                            {currentLesson.lesson.project?.description}
                           </p>
                         </div>
+
+                        {currentLesson.lesson.project?.realWorldScenario && (
+                          <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                            <h3 className="font-bold text-slate-900">Real-world scenario</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-700">
+                              {currentLesson.lesson.project.realWorldScenario}
+                            </p>
+                          </section>
+                        )}
+
+                        {currentLesson.lesson.project?.features?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">What you will build</h3>
+                            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                              {currentLesson.lesson.project.features.map((item: string, index: number) => (
+                                <li key={"feature-" + index + "-" + item} className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.architecture?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Suggested architecture</h3>
+                            <ul className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.architecture.map((item: string, index: number) => (
+                                <li key={"architecture-" + index + "-" + item} className="text-sm leading-6 text-slate-700">
+                                  <span className="mr-2 text-blue-600">•</span>{item}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.milestones?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Build milestones</h3>
+                            <ol className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.milestones.map((item: string, index: number) => (
+                                <li key={"milestone-" + index + "-" + item} className="flex gap-3 text-sm leading-6 text-slate-700">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">
+                                    {index + 1}
+                                  </span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </section>
+                        ) : null}
+
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Objectives</h3>
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                              {(currentLesson.lesson.project?.objectives || []).map((item: string, index: number) => (
+                                <li key={"objective-" + index + "-" + item}>{item}</li>
+                              ))}
+                            </ul>
+                          </section>
+
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Technical requirements</h3>
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                              {(currentLesson.lesson.project?.requirements || []).map((item: string, index: number) => (
+                                <li key={"requirement-" + index + "-" + item}>{item}</li>
+                              ))}
+                            </ul>
+                          </section>
+                        </div>
+
+                        {currentLesson.lesson.project?.testingChecklist?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Testing & quality checklist</h3>
+                            <ul className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.testingChecklist.map((item: string, index: number) => (
+                                <li key={"test-" + index + "-" + item} className="text-sm leading-6 text-slate-700">
+                                  <span className="mr-2 text-green-600">✓</span>{item}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.industrySkills?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Industry skills</h3>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {currentLesson.lesson.project.industrySkills.map((item: string, index: number) => (
+                                <span key={"industry-" + index + "-" + item} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.githubWorkflow?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Git & GitHub workflow</h3>
+                            <ol className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.githubWorkflow.map((item: string, index: number) => (
+                                <li key={"github-" + index + "-" + item} className="flex gap-3 text-sm leading-6 text-slate-700">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                                    {index + 1}
+                                  </span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.videos?.length ? (
+                          <section className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                            <h3 className="font-bold text-slate-900">Project tutorial</h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Watch the selected long-form project walkthrough inside BuddyForStudy.
+                            </p>
+                            <div className="mt-3 overflow-hidden rounded-xl bg-black">
+                              <div className="aspect-video">
+                                <iframe
+                                  title={currentLesson.lesson.project.videos[0].title || "Project tutorial"}
+                                  src={"https://www.youtube-nocookie.com/embed/" + encodeURIComponent(String(currentLesson.lesson.project.videos[0].videoId || "")) + "?rel=0&playsinline=1"}
+                                  className="h-full w-full"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                  allowFullScreen
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                />
+                              </div>
+                            </div>
+                          </section>
+                        ) : null}
+
+                        <section className="rounded-2xl border border-green-100 bg-green-50 p-4">
+                          <p className="text-xs font-bold uppercase tracking-[.14em] text-green-700">
+                            Definition of done
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-green-900">
+                            {currentLesson.lesson.project?.expectedOutcome}
+                          </p>
+                        </section>
                       </div>
                     )}
                   </div>

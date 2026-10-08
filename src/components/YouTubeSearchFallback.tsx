@@ -110,48 +110,29 @@ export default function YouTubeSearchFallback({
   const { session } = useAuth();
   const navigate = useNavigate();
 
-  const builtCourses = useMemo<BuiltCourse[]>(() => {
-    const playlistCourses = playlists.slice(0, 3).map((playlist, index) => ({
-      id: `playlist-course-${playlist.playlistId}`,
-      title: playlist.title,
-      description: `BuddyForStudy course built from the #${index + 1} ranked YouTube playlist for “${query}”.`,
-      thumbnail: playlist.thumbnail,
-      channelTitle: playlist.channelTitle,
-      sourceType: "playlist" as const,
-      sourceId: playlist.playlistId,
-      lessons: [],
-      itemCount: playlist.itemCount,
-    }));
-
-    if (playlistCourses.length >= 3) return playlistCourses;
-
-    const used = new Set(playlistCourses.map((course) => course.sourceId));
-    const videoCourses = courses
-      .filter((video) => !used.has(video.videoId))
-      .slice(0, 3 - playlistCourses.length)
-      .map((video, index) => ({
-        id: `video-course-${video.videoId}`,
-        title: `${query} Course ${index + playlistCourses.length + 1}`,
-        description: `BuddyForStudy course built from the #${index + playlistCourses.length + 1} ranked YouTube learning resource.`,
-        thumbnail: video.thumbnail,
+  const builtCourses = useMemo<BuiltCourse[]>(() => (
+    courses.slice(0, 3).map((video, index) => ({
+      id: `video-course-${video.videoId}`,
+      title: `${query} Course ${index + 1}`,
+      description:
+        `BuddyForStudy course built from the #${index + 1} ranked YouTube learning resource.`,
+      thumbnail: video.thumbnail,
+      channelTitle: video.channelTitle,
+      sourceType: "video" as const,
+      sourceId: video.videoId,
+      lessons: [{
+        videoId: video.videoId,
+        title: video.title,
+        description: video.description,
         channelTitle: video.channelTitle,
-        sourceType: "video" as const,
-        sourceId: video.videoId,
-        lessons: [{
-          videoId: video.videoId,
-          title: video.title,
-          description: video.description,
-          channelTitle: video.channelTitle,
-          duration: video.duration,
-          durationSeconds: video.durationSeconds,
-          thumbnail: video.thumbnail,
-          embedUrl: toEmbedUrl(video.videoId),
-        }],
-        itemCount: 1,
-      }));
-
-    return [...playlistCourses, ...videoCourses];
-  }, [courses, playlists, query]);
+        duration: video.duration,
+        durationSeconds: video.durationSeconds,
+        thumbnail: video.thumbnail,
+        embedUrl: toEmbedUrl(video.videoId),
+      }],
+      itemCount: 1,
+    }))
+  ), [courses, query]);
 
   const requireSignIn = () => {
     navigate("/login", {

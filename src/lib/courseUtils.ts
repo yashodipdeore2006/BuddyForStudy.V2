@@ -80,7 +80,7 @@ export function createEmptyModule(order: number): Module {
   };
 }
 
-export function createEmptyLesson(order: number, type: 'tutorial' | 'project' = 'tutorial'): Lesson {
+export function createEmptyLesson(order: number, type: 'tutorial' | 'project' | 'quiz' = 'tutorial'): Lesson {
   const lesson: Lesson = {
     id: generateId(),
     title: '',
@@ -91,12 +91,20 @@ export function createEmptyLesson(order: number, type: 'tutorial' | 'project' = 
 
   if (type === 'tutorial') {
     lesson.tutorial = { content: '' };
-  } else {
+  } else if (type === 'project') {
     lesson.project = {
       description: '',
       requirements: [],
       instructions: '',
       expectedOutcome: '',
+    };
+  } else {
+    lesson.quiz = {
+      scope: 'lesson',
+      questionCount: 5,
+      passingScore: 70,
+      focusTopics: [],
+      questions: [],
     };
   }
 

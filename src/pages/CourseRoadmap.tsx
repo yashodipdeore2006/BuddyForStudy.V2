@@ -178,7 +178,11 @@ export default function CourseRoadmap() {
                 <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                   {course.title}
                 </h1>
-                <p className="mt-1 max-w-2xl text-sm text-slate-500">{course.description}</p>
+                <ExpandableText
+                  text={course.description}
+                  maxLength={220}
+                  className="mt-1 max-w-2xl text-sm text-slate-500"
+                />
               </div>
             </div>
 
@@ -283,7 +287,11 @@ export default function CourseRoadmap() {
                             </p>
                             <h3 className="mt-1 text-lg font-bold text-slate-900">{module.title}</h3>
                             {module.description && (
-                              <p className="mt-1 text-sm text-slate-500">{module.description}</p>
+                              <ExpandableText
+                                text={module.description}
+                                maxLength={180}
+                                className="mt-1 max-w-3xl text-sm text-slate-500"
+                              />
                             )}
                           </div>
                           <div className="shrink-0 text-left sm:text-right">

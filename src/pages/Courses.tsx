@@ -52,6 +52,7 @@ export default function Courses() {
   const [aiGoal, setAiGoal] = useState('Get job-ready');
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiKnownSkills, setAiKnownSkills] = useState('');
+  const [aiUsage, setAiUsage] = useState<any>(null);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -150,6 +151,17 @@ export default function Courses() {
     setAiRoadmap(null);
     setAiError(null);
   };
+
+  useEffect(() => {
+    if (!aiOpen || !session) {
+      setAiUsage(null);
+      return;
+    }
+
+    apiFetch('/api/ai/usage')
+      .then((data) => setAiUsage(data))
+      .catch(() => setAiUsage(null));
+  }, [aiOpen, session]);
 
   const generateAiRoadmap = async () => {
     const topic = searchQuery.trim();
@@ -316,6 +328,27 @@ export default function Courses() {
 
       {aiOpen && (
         <section className="mt-5 overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-sm">
+          {aiUsage && (
+            <div className="border-b border-blue-100/80 bg-white/70 px-5 py-4 sm:px-7">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">{aiUsage.plan?.name || "Current"} plan AI allowance</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {aiUsage.features?.aiCourseBuilder ? "AI Course Builder available" : "AI Course Builder unavailable"}
+                    {" · "}
+                    {aiUsage.features?.personalizedRoadmaps ? "personalized" : "standard"}
+                    {" · "}
+                    {aiUsage.features?.projectBasedLearning ? "projects included" : "projects excluded"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? "—"}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">Quizzes/month: {aiUsage.plan?.limits?.ai_quiz_generations_per_month ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="border-b border-blue-100/80 px-5 py-5 sm:px-7">
             <div className="flex items-start justify-between gap-4">
               <div>

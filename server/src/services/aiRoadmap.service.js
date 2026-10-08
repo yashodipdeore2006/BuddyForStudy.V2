@@ -75,10 +75,11 @@ function normalizeQuizPolicy(value, topicCount = 1) {
     3,
     Math.min(10, Number(value?.lessonQuestionCount) || defaultLesson)
   );
-  const moduleQuestionCount = Math.max(
-    0,
-    Math.min(15, Number(value?.moduleQuestionCount) || (topicCount >= 5 ? 8 : 5))
-  );
+  const moduleRaw =
+    value?.moduleQuestionCount === undefined
+      ? (topicCount >= 5 ? 8 : 5)
+      : Number(value.moduleQuestionCount);
+  const moduleQuestionCount = Math.max(0, Math.min(15, Number.isFinite(moduleRaw) ? moduleRaw : 5));
   const passingScore = Math.max(
     50,
     Math.min(90, Number(value?.passingScore) || 70)

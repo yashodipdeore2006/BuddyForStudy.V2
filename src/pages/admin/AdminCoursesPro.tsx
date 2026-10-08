@@ -5,6 +5,7 @@ import { adminFetch } from "@/lib/adminApi";
 type TutorialEditor = {
   lessonId: string;
   sourceType: "video" | "playlist";
+  title?: string;
   url: string;
   saving: boolean;
   error: string;

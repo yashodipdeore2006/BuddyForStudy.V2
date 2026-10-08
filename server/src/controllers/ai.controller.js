@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateAIRoadmap } from "../services/aiRoadmap.service.js";
+import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.service.js";
 import { createCourse } from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
 
@@ -16,6 +16,31 @@ export async function generateRoadmap(req, res, next) {
     const input = schema.parse(req.body);
     const result = await generateAIRoadmap(input);
     return success(res, result, "Learning roadmap generated successfully");
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}
+
+
+export async function generateQuiz(req, res, next) {
+  try {
+    const quizSchema = z.object({
+      courseId: z.string().trim().min(1),
+      lessonId: z.string().trim().min(1)
+    });
+    const input = quizSchema.parse(req.body);
+
+    const { Enrollment } = await import("../models/Enrollment.js");
+    const enrollment = await Enrollment.findOne({
+      user: req.user.userId,
+      course: input.courseId,
+      status: { $in: ["active", "completed"] }
+    });
+    if (!enrollment) return failure(res, "Active or completed enrollment required", 403);
+
+    const result = await generateCourseQuiz(input);
+    return success(res, result, "Quiz generated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

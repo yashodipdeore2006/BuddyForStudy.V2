@@ -65,6 +65,7 @@ export default function CoursePlayer() {
   const [completing, setCompleting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState("");
+  const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizData, setQuizData] = useState<any>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
@@ -80,12 +81,18 @@ export default function CoursePlayer() {
     }
     async function load() {
       try {
-        const [courseData, progressData] = await Promise.all([
-          apiFetch(`/api/courses/${courseId}/learn`),
-          apiFetch(`/api/progress/${courseId}`),
-        ]);
+        const courseData = await apiFetch(`/api/courses/${courseId}/learn`);
         setCourse(mapCourse(courseData.course));
-        setProgress(mapProgress(progressData.progress));
+
+        try {
+          const progressData = await apiFetch(`/api/progress/${courseId}`);
+          setProgress(mapProgress(progressData.progress));
+          setProgressUnavailable(false);
+        } catch {
+          // Progress is independently plan-controlled; do not block course access when disabled.
+          setProgress(null);
+          setProgressUnavailable(true);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load this course.");
       } finally {
@@ -247,7 +254,7 @@ export default function CoursePlayer() {
             <p className="truncate text-sm font-extrabold text-slate-900">{course.title}</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
-                {progress?.completed_count || 0}/{allLessons.length} lessons
+                {progressUnavailable ? "Progress unavailable on this plan" : `${progress?.completed_count || 0}/${allLessons.length} lessons`}
               </span>
               <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200 sm:w-32">
                 <div
@@ -259,7 +266,7 @@ export default function CoursePlayer() {
             </div>
           </div>
 
-          {currentLesson && currentLesson.lesson.type !== "quiz" && (
+          {currentLesson && currentLesson.lesson.type !== "quiz" && !progressUnavailable && (
             <button
               onClick={handleComplete}
               disabled={completing || currentCompleted}

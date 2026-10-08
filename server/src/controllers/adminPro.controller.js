@@ -59,7 +59,7 @@ export async function overview(req, res, next) {
       Course.countDocuments(),
       Course.countDocuments({ isPublished: true }),
       Course.countDocuments({ isPublished: false }),
-      Course.countDocuments({ $or: [{ modules: { $size: 0 } }, { "modules.lessons": { $size: 0 } }] }),
+      Course.countDocuments({ "modules.0": { $exists: false } }),
       Enrollment.countDocuments(),
       UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
       UserSubscription.countDocuments({ status: "past_due" }),

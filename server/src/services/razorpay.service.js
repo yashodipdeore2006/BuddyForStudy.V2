@@ -81,6 +81,15 @@ export async function createSubscription({ planId, customerNotify = 1, totalCoun
   }
 }
 
+export async function fetchSubscription(subscriptionId) {
+  const client = getClient();
+  try {
+    return await client.subscriptions.fetch(subscriptionId);
+  } catch (error) {
+    wrapProviderError("subscription fetch", error);
+  }
+}
+
 export async function fetchPayment(paymentId) {
   const client = getClient();
   return client.payments.fetch(paymentId);

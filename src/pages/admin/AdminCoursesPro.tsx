@@ -26,6 +26,18 @@ type ResourceForm = {
   error: string;
 };
 
+type CourseMetaForm = {
+  title: string;
+  description: string;
+  category: string;
+  level: "Beginner" | "Intermediate" | "Advanced";
+  duration: string;
+  thumbnail: string;
+  learningOutcomes: string;
+  saving: boolean;
+  error: string;
+};
+
 function isYouTubePlaylistUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -65,11 +77,14 @@ export default function AdminCoursesPro() {
   const [moduleForms, setModuleForms] = useState<Record<string, ModuleForm>>({});
   const [newModuleForms, setNewModuleForms] = useState<Record<string, ModuleForm>>({});
   const [resourceForms, setResourceForms] = useState<Record<string, ResourceForm>>({});
+  const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
+  const [courseQuery, setCourseQuery] = useState("");
 
-  async function load() {
+  async function load(query = courseQuery) {
     setLoading(true);
     try {
-      const data = await adminFetch("/api/admin/courses");
+      const suffix = query.trim() ? "?q=" + encodeURIComponent(query.trim()) : "";
+      const data = await adminFetch("/api/admin/courses" + suffix);
       setCourses(data.courses || []);
     } finally {
       setLoading(false);
@@ -119,6 +134,54 @@ export default function AdminCoursesPro() {
         success: "",
       },
     }));
+  }
+
+  function courseMeta(course: any): CourseMetaForm {
+    return courseMetaForms[course._id] || {
+      title: course.title || "",
+      description: course.description || "",
+      category: course.category || "",
+      level: course.level || "Beginner",
+      duration: course.duration || "",
+      thumbnail: course.thumbnail || "",
+      learningOutcomes: Array.isArray(course.learningOutcomes) ? course.learningOutcomes.join("\n") : "",
+      saving: false,
+      error: "",
+    };
+  }
+
+  async function saveCourseMeta(courseId: string, course: any) {
+    const form = courseMeta(course);
+    if (!form.title.trim() || !form.description.trim() || !form.category.trim()) return;
+
+    setCourseMetaForms((current) => ({ ...current, [courseId]: { ...form, saving: true, error: "" } }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category.trim(),
+          level: form.level,
+          duration: form.duration.trim(),
+          thumbnail: form.thumbnail.trim(),
+          learningOutcomes: form.learningOutcomes.split("\n").map((item) => item.trim()).filter(Boolean),
+          reason: "Admin course metadata update",
+        }),
+      });
+      patchDetail(courseId, data.course);
+      await load();
+      setCourseMetaForms((current) => ({ ...current, [courseId]: { ...form, saving: false, error: "" } }));
+    } catch (error) {
+      setCourseMetaForms((current) => ({
+        ...current,
+        [courseId]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to save course metadata",
+        },
+      }));
+    }
   }
 
   function patchDetail(courseId: string, course: any) {
@@ -391,6 +454,25 @@ export default function AdminCoursesPro() {
         <div>
           <h1 className="text-3xl font-bold text-slate-950">Course Commerce Control</h1>
           <p className="mt-2 text-slate-500">Publish, price, and fully manage modules, videos, playlists, and learning resources.</p>
+        </div>
+      </div>
+
+      <div className="card mt-6 p-4">
+        <div className="flex flex-col gap-3 md:flex-row">
+          <input
+            className="input-field flex-1"
+            value={courseQuery}
+            onChange={(e) => setCourseQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void load()}
+            placeholder="Search courses by title or category"
+          />
+          <button type="button" className="btn-primary" onClick={() => void load()} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+            Search courses
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => { setCourseQuery(""); void load(""); }}>
+            Clear
+          </button>
         </div>
       </div>
 

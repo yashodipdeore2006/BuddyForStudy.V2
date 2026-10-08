@@ -4,6 +4,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
+import { searchYouTubeCourseRecommendations } from "./youtube.service.js";
 
 function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -38,6 +39,20 @@ function buildCourseSearchFilter(search) {
   };
 }
 
+function buildDirectCourseSearchFilter(search) {
+  const query = String(search || "").trim();
+  if (!query) return null;
+
+  const regex = new RegExp(escapeRegex(query), "i");
+  return {
+    $or: [
+      { title: regex },
+      { description: regex },
+      { category: regex },
+      { learningOutcomes: regex }
+    ]
+  };
+}
 function normalizeSearchTokens(value) {
   return String(value || "")
     .normalize("NFKC")
@@ -149,7 +164,7 @@ function standaloneCourseFromModule(parent, module) {
   };
 }
 
-async function getStandaloneModuleCourses(search) {
+async function getStandaloneModuleCourses(search, { category, level } = {}) {
   const searchTokens = normalizeSearchTokens(search);
   if (!searchTokens.length) {
     return { courses: [], sourceCourseIds: [], standaloneIds: [] };
@@ -158,6 +173,8 @@ async function getStandaloneModuleCourses(search) {
   const candidateFilter = {
     isPublished: true,
     "generation.mode": { $ne: "module" },
+    ...(category ? { category } : {}),
+    ...(level ? { level } : {}),
     $or: [
       { "modules.title": new RegExp(escapeRegex(search), "i") },
       { "modules.description": new RegExp(escapeRegex(search), "i") },
@@ -264,103 +281,114 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   if (category) filter.category = category;
   if (level) filter.level = level;
 
-  const standalone = search ? await getStandaloneModuleCourses(search) : {
-    courses: [],
-    sourceCourseIds: [],
-    standaloneIds: []
-  };
+  const normalizedSearch = String(search || "").trim();
 
-  if (standalone.sourceCourseIds.length || standalone.standaloneIds.length) {
-    const excludedIds = [...new Set([
-      ...standalone.sourceCourseIds,
-      ...standalone.standaloneIds
-    ])].map((id) => new mongoose.Types.ObjectId(id));
-    filter._id = { $nin: excludedIds };
+  if (normalizedSearch) {
+    const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
+    const directCourses = directFilter
+      ? await Course.find({ ...filter, ...directFilter })
+          .select("-modules")
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean()
+      : [];
+
+    if (directCourses.length) {
+      const total = await Course.countDocuments({ ...filter, ...directFilter });
+      return {
+        courses: directCourses,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+      };
+    }
+
+    const standalone = await getStandaloneModuleCourses(normalizedSearch, { category, level });
+    if (standalone.courses.length) {
+      const skip = (page - 1) * limit;
+      const courses = standalone.courses.slice(skip, skip + limit);
+      return {
+        courses,
+        pagination: {
+          page,
+          limit,
+          total: standalone.courses.length,
+          pages: Math.ceil(standalone.courses.length / limit)
+        }
+      };
+    }
+
+    let youtubeCourseRecommendations = [];
+    let youtubeError = "";
+    try {
+      youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(normalizedSearch, 3);
+    } catch (error) {
+      youtubeError = error instanceof Error ? error.message : "YouTube course search is unavailable";
+      console.error("YouTube fallback course search failed", {
+        query: normalizedSearch,
+        message: youtubeError
+      });
+    }
+
+    return {
+      courses: [],
+      pagination: { page, limit, total: 0, pages: 0 },
+      discovery: {
+        mode: "youtube_fallback",
+        query: normalizedSearch,
+        courseRecommendations: youtubeCourseRecommendations,
+        youtubeError
+      }
+    };
   }
 
-  const searchFilter = buildCourseSearchFilter(search);
-  if (searchFilter) Object.assign(filter, searchFilter);
-
-  const standaloneCourses = standalone.courses;
-  const standaloneCount = standaloneCourses.length;
-  const skip = (page - 1) * limit;
-  const regularSkip = Math.max(skip - standaloneCount, 0);
-  const pageStandalone = standaloneCourses.slice(skip, skip + limit);
-  const regularLimit = Math.max(limit - pageStandalone.length, 0);
-
-  const fetchRegular = async () => {
-    if (regularLimit === 0 && standaloneCount > skip) {
-      return { courses: [], total: 0 };
-    }
-
-    if (sort === "popular") {
-      const [courses, total] = await Promise.all([
-        Course.aggregate([
-          { $match: filter },
-          {
-            $lookup: {
-              from: "enrollments",
-              let: { courseId: "$_id" },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: ["$course", "$$courseId"] },
-                        { $in: ["$status", ["active", "completed"]] }
-                      ]
-                    }
-                  }
-                },
-                { $count: "count" }
-              ],
-              as: "enrollmentStats"
-            }
-          },
-          {
-            $addFields: {
-              enrollmentCount: {
-                $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
-              }
-            }
-          },
-          { $project: { modules: 0, enrollmentStats: 0 } },
-          { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
-          ...(regularSkip ? [{ $skip: regularSkip }] : []),
-          ...(regularLimit ? [{ $limit: regularLimit }] : [])
-        ]),
-        Course.countDocuments(filter)
-      ]);
-
-      return { courses, total };
-    }
-
+  if (sort === "popular") {
     const [courses, total] = await Promise.all([
-      Course.find(filter)
-        .select("-modules")
-        .sort({ createdAt: -1 })
-        .skip(regularSkip)
-        .limit(regularLimit || limit)
-        .lean(),
+      Course.aggregate([
+        { $match: filter },
+        {
+          $lookup: {
+            from: "enrollments",
+            let: { courseId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$course", "$$courseId"] },
+                      { $in: ["$status", ["active", "completed"]] }
+                    ]
+                  }
+                }
+              },
+              { $count: "count" }
+            ],
+            as: "enrollmentStats"
+          }
+        },
+        {
+          $addFields: {
+            enrollmentCount: {
+              $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
+            }
+          }
+        },
+        { $project: { modules: 0, enrollmentStats: 0 } },
+        { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
+        { $skip: (page - 1) * limit },
+        { $limit: limit }
+      ]),
       Course.countDocuments(filter)
     ]);
 
-    return { courses, total };
-  };
+    return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  }
 
-  const regular = await fetchRegular();
-  const courses = [...pageStandalone, ...regular.courses];
-  const total = standaloneCount + regular.total;
+  const [courses, total] = await Promise.all([
+    Course.find(filter).select("-modules").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    Course.countDocuments(filter)
+  ]);
 
-  return {
-    courses,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit)
-    }
-  };
+  return { courses, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 }
 export async function getPublished(courseId) {
   const key = `course:${courseId}`;

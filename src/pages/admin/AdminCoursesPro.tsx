@@ -26,6 +26,13 @@ type ResourceForm = {
   error: string;
 };
 
+type LearningItemForm = {
+  title: string;
+  type: "tutorial" | "project" | "quiz";
+  saving: boolean;
+  error: string;
+};
+
 type CourseMetaForm = {
   title: string;
   description: string;
@@ -78,6 +85,7 @@ export default function AdminCoursesPro() {
   const [newModuleForms, setNewModuleForms] = useState<Record<string, ModuleForm>>({});
   const [resourceForms, setResourceForms] = useState<Record<string, ResourceForm>>({});
   const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
+  const [learningItemForms, setLearningItemForms] = useState<Record<string, LearningItemForm>>({});
   const [courseQuery, setCourseQuery] = useState("");
 
   async function load(query = courseQuery) {
@@ -214,6 +222,49 @@ export default function AdminCoursesPro() {
       saving: false,
       error: "",
     };
+  }
+
+  function learningItemForm(moduleId: string): LearningItemForm {
+    return learningItemForms[moduleId] || {
+      title: "",
+      type: "tutorial",
+      saving: false,
+      error: "",
+    };
+  }
+
+  async function addLearningItem(courseId: string, module: any) {
+    const form = learningItemForm(module._id);
+    if (!form.title.trim()) return;
+
+    setLearningItemForms((current) => ({
+      ...current,
+      [module._id]: { ...form, saving: true, error: "" },
+    }));
+
+    try {
+      const data = await adminFetch(
+        `/api/admin/courses/${courseId}/modules/${module._id}/lessons`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title: form.title.trim(), type: form.type }),
+        }
+      );
+      patchDetail(courseId, data.course);
+      setLearningItemForms((current) => ({
+        ...current,
+        [module._id]: { title: "", type: form.type, saving: false, error: "" },
+      }));
+    } catch (error) {
+      setLearningItemForms((current) => ({
+        ...current,
+        [module._id]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to add learning item",
+        },
+      }));
+    }
   }
 
   async function addModule(courseId: string) {
@@ -864,6 +915,54 @@ export default function AdminCoursesPro() {
                                   );
                                 })()
                               )}
+                            </div>
+
+                            <div className="border-t border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-center gap-2">
+                                <Plus className="h-4 w-4 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">Add learning item</p>
+                                  <p className="text-xs text-slate-500">Add a tutorial placeholder, project, or quiz to this module.</p>
+                                </div>
+                              </div>
+                              {(() => {
+                                const form = learningItemForm(module._id);
+                                return (
+                                  <div className="mt-3 grid gap-2 lg:grid-cols-[150px_1fr_auto]">
+                                    <select
+                                      className="input-field"
+                                      value={form.type}
+                                      onChange={(e) => setLearningItemForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, type: e.target.value as LearningItemForm["type"] },
+                                      }))}
+                                    >
+                                      <option value="tutorial">Tutorial</option>
+                                      <option value="project">Project</option>
+                                      <option value="quiz">Quiz</option>
+                                    </select>
+                                    <input
+                                      className="input-field"
+                                      placeholder="Learning item title"
+                                      value={form.title}
+                                      onChange={(e) => setLearningItemForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, title: e.target.value },
+                                      }))}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn-primary justify-center whitespace-nowrap"
+                                      onClick={() => void addLearningItem(course._id, module)}
+                                      disabled={form.saving || !form.title.trim()}
+                                    >
+                                      {form.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                      Add Item
+                                    </button>
+                                    {form.error && <p className="lg:col-span-3 text-xs font-semibold text-red-600">{form.error}</p>}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             <div className="border-t border-slate-200 bg-white p-4">

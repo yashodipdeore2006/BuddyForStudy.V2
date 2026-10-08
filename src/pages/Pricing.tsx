@@ -7,7 +7,7 @@ export default function Pricing() {
   const { session } = useAuth();
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [message, setMessage] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     apiFetch("/api/billing/plans").then((data) => setPlans(data.plans || [])).catch(() => setError("Unable to load plans"));
@@ -17,26 +17,93 @@ export default function Pricing() {
     const plan = plans.find((item) => item._id === planId);
     if (plan?.price === 0) return;
     if (!session) { window.location.href = "/login"; return; }
-    setLoading(planId); setError("");
+    setLoading(planId);
+    setMessage(null);
     try {
-      const data = await apiFetch("/api/payments/subscription/order", { method: "POST", body: JSON.stringify({ planId }) });
+      const data = await apiFetch("/api/payments/subscription/order", {
+        method: "POST",
+        body: JSON.stringify({ planId })
+      });
       await loadRazorpay();
+
+      const subscriptionId = String(data.subscriptionId || "");
+      const reconcile = async () => {
+        try {
+          const sync = await apiFetch("/api/billing/subscription/sync", {
+            method: "POST",
+            body: JSON.stringify({ subscriptionId })
+          });
+
+          if (sync.activated) {
+            setMessage({ type: "success", text: "Payment successful. Your subscription is now active." });
+            return true;
+          }
+
+          setMessage({
+            type: "info",
+            text: "Payment received. Waiting for Razorpay to confirm the subscription..."
+          });
+        } catch {
+          // The webhook may activate the subscription shortly. Keep polling.
+        }
+        return false;
+      };
+
+      const waitForActivation = async () => {
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          if (await reconcile()) return;
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        }
+        setMessage({
+          type: "info",
+          text: "Payment successful. Subscription activation is still being confirmed; please refresh in a moment."
+        });
+      };
+
       const checkout = new window.Razorpay({
         key: data.keyId,
-        subscription_id: data.subscriptionId,
+        subscription_id: subscriptionId,
         name: "BuddyForStudy",
         description: data.plan.name,
         prefill: { name: session.user.name, email: session.user.email },
         theme: { color: "#2563eb" },
-        handler: () => setError("Subscription payment submitted. Activation is finalized by payment reconciliation.")
+        handler: () => {
+          setMessage({
+            type: "success",
+            text: "Payment successful. Confirming your subscription..."
+          });
+          void waitForActivation();
+        },
+        modal: {
+          ondismiss: () => {
+            setMessage({ type: "info", text: "Checkout closed. No subscription was activated by this action." });
+          }
+        },
       });
+
       checkout.open();
-    } catch (e) { setError(e instanceof Error ? e.message : "Unable to start subscription checkout"); }
-    finally { setLoading(null); }
+    } catch (e) {
+      setMessage({
+        type: "error",
+        text: e instanceof Error ? e.message : "Unable to start subscription checkout"
+      });
+    } finally {
+      setLoading(null);
+    }
   }
 
   return <div className="mx-auto max-w-6xl px-4 py-12"><div className="text-center"><h1 className="text-3xl font-bold text-slate-900">Choose your plan</h1><p className="mt-2 text-slate-500">Unlock more from BuddyForStudy.</p></div>
-    {error && <div className="mx-auto mt-6 max-w-xl rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    {message && (
+      <div className={`mx-auto mt-6 max-w-xl rounded-lg p-3 text-sm ${
+        message.type === "success"
+          ? "bg-green-50 text-green-700"
+          : message.type === "info"
+            ? "bg-blue-50 text-blue-700"
+            : "bg-red-50 text-red-700"
+      }`}>
+        {message.text}
+      </div>
+    )}
     <div className="mt-10 grid gap-6 md:grid-cols-3">{plans.map((plan) => <div key={plan._id} className="card p-6"><h2 className="text-xl font-semibold">{plan.name}</h2><p className="mt-2 text-3xl font-bold">₹{plan.price}<span className="text-sm font-normal text-slate-500">/{plan.billingInterval}</span></p><p className="mt-3 text-sm text-slate-500">{plan.description}</p><ul className="mt-5 space-y-2 text-sm text-slate-600">{(plan.features || []).map((f:string)=><li key={f}>✓ {f}</li>)}</ul><button
   disabled={loading===plan._id || plan.price===0}
   onClick={()=>subscribe(plan._id)}

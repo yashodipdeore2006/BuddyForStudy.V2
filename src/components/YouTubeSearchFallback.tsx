@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
   CheckCircle2,
@@ -101,6 +103,12 @@ export default function YouTubeSearchFallback({
   const [viewer, setViewer] = useState<Viewer | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [viewerError, setViewerError] = useState("");
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [enrollingId, setEnrollingId] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const { session } = useAuth();
+  const navigate = useNavigate();
 
   const builtCourses = useMemo<BuiltCourse[]>(() => {
     const playlistCourses = playlists.slice(0, 3).map((playlist, index) => ({
@@ -144,6 +152,73 @@ export default function YouTubeSearchFallback({
 
     return [...playlistCourses, ...videoCourses];
   }, [courses, playlists, query]);
+
+  const requireSignIn = () => {
+    navigate("/login", {
+      state: { from: { pathname: "/courses" } }
+    });
+  };
+
+  const saveCourse = async (course: BuiltCourse) => {
+    if (!session) {
+      requireSignIn();
+      return;
+    }
+
+    setSavingId(course.id);
+    setViewerError("");
+
+    try {
+      await apiFetch("/api/discovery/youtube-course/save", {
+        method: "POST",
+        body: JSON.stringify({
+          query,
+          resourceType: course.sourceType,
+          resourceId: course.sourceId,
+        }),
+      });
+      setSavedIds((current) => new Set(current).add(course.id));
+    } catch (error) {
+      setViewerError(
+        error instanceof Error ? error.message : "Unable to save this course."
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const enrollCourse = async (course: BuiltCourse) => {
+    if (!session) {
+      requireSignIn();
+      return;
+    }
+
+    setEnrollingId(course.id);
+    setViewerError("");
+
+    try {
+      const data = await apiFetch("/api/discovery/youtube-course/enroll", {
+        method: "POST",
+        body: JSON.stringify({
+          query,
+          resourceType: course.sourceType,
+          resourceId: course.sourceId,
+        }),
+      });
+
+      const courseId = data?.course?._id;
+      if (!courseId) throw new Error("The course could not be added to My Learning.");
+
+      setEnrolledIds((current) => new Set(current).add(course.id));
+      navigate(`/courses/${courseId}/roadmap`);
+    } catch (error) {
+      setViewerError(
+        error instanceof Error ? error.message : "Unable to enroll in this course."
+      );
+    } finally {
+      setEnrollingId(null);
+    }
+  };
 
   const openCourse = async (course: BuiltCourse) => {
     setViewerError("");
@@ -281,7 +356,7 @@ export default function YouTubeSearchFallback({
                 {builtCourses.map((course, index) => (
                   <article
                     key={course.id}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                   >
                     <div className="relative aspect-video overflow-hidden bg-slate-100">
                       {course.thumbnail ? (
@@ -296,21 +371,62 @@ export default function YouTubeSearchFallback({
                       </span>
                     </div>
 
-                    <div className="p-4">
-                      <p className="line-clamp-2 text-sm font-extrabold leading-5 text-slate-900">
-                        {course.title}
-                      </p>
-                      <p className="mt-2 truncate text-xs font-semibold text-slate-500">
-                        {course.channelTitle}
-                      </p>
-                      <p className="mt-3 text-[11px] text-slate-500">
-                        {course.itemCount} {course.sourceType === "playlist" ? "videos" : "lesson"}
-                      </p>
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="flex-1">
+                        <p className="line-clamp-2 text-sm font-extrabold leading-5 text-slate-900">
+                          {course.title}
+                        </p>
+                        <p className="mt-2 truncate text-xs font-semibold text-slate-500">
+                          {course.channelTitle}
+                        </p>
+                        <p className="mt-3 text-[11px] text-slate-500">
+                          {course.itemCount} {course.sourceType === "playlist" ? "videos" : "lesson"}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void saveCourse(course)}
+                          disabled={savingId === course.id || enrolledIds.has(course.id)}
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                            savedIds.has(course.id)
+                              ? "border-green-200 bg-green-50 text-green-700"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          }`}
+                        >
+                          {savingId === course.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <BookOpen className="h-3.5 w-3.5" />
+                          )}
+                          {savedIds.has(course.id) ? "Saved" : "Save Course"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void enrollCourse(course)}
+                          disabled={enrollingId === course.id || enrolledIds.has(course.id)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {enrollingId === course.id ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Adding...
+                            </>
+                          ) : enrolledIds.has(course.id) ? (
+                            "Enrolled"
+                          ) : (
+                            "Enroll Now"
+                          )}
+                        </button>
+                      </div>
+
                       <button
                         type="button"
                         onClick={() => void openCourse(course)}
                         disabled={openingId === course.id}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
                       >
                         {openingId === course.id ? (
                           <>
@@ -320,7 +436,7 @@ export default function YouTubeSearchFallback({
                         ) : (
                           <>
                             <PlayCircle className="h-4 w-4" />
-                            Open Course in BuddyForStudy
+                            Preview in BuddyForStudy
                           </>
                         )}
                       </button>
@@ -349,7 +465,7 @@ export default function YouTubeSearchFallback({
                     key={course.videoId}
                     type="button"
                     onClick={() => openVideo(course)}
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                    className="group flex h-full min-h-[390px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
                   >
                     <div className="relative aspect-video overflow-hidden bg-slate-100">
                       {course.thumbnail ? (
@@ -366,7 +482,7 @@ export default function YouTubeSearchFallback({
                         {course.duration}
                       </span>
                     </div>
-                    <div className="p-4">
+                    <div className="flex flex-1 flex-col p-4">
                       <p className="line-clamp-2 text-sm font-bold leading-5 text-slate-900">
                         {course.title}
                       </p>
@@ -380,7 +496,7 @@ export default function YouTubeSearchFallback({
                         <span>·</span>
                         <span>Score {Math.round(course.score)}</span>
                       </div>
-                      <p className="mt-4 text-xs font-bold text-blue-600">
+                      <p className="mt-auto pt-4 text-xs font-bold text-blue-600">
                         Watch inside BuddyForStudy →
                       </p>
                     </div>
@@ -434,7 +550,7 @@ export default function YouTubeSearchFallback({
                         )
                       }
                       disabled={openingId === (built?.id || `playlist-resource-${playlist.playlistId}`)}
-                      className="group flex gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                      className="group flex h-full min-h-[120px] gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
                     >
                       <div className="relative h-20 w-28 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
                         {playlist.thumbnail ? (

@@ -50,11 +50,13 @@ const courseSchema = new mongoose.Schema({
   certificateEnabled: { type: Boolean, default: true },
   featured: { type: Boolean, default: false },
   generation: {
-    mode: { type: String, enum: ["normal", "ai", "module"] },
+    mode: { type: String, enum: ["normal", "ai", "module", "discovery"] },
     query: { type: String, default: "" },
     topicKeys: { type: [String], default: [] },
     sourceCourse: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
     sourceModuleId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    sourceResourceType: { type: String, enum: ["video", "playlist"], default: null },
+    sourceResourceId: { type: String, default: "" },
     snapshot: { type: mongoose.Schema.Types.Mixed, default: null }
   }
 }, { timestamps: true, collection: "courses" });

@@ -43,6 +43,7 @@ router.post("/coupons", controller.createCoupon);
 router.put("/coupons/:couponId", controller.updateCoupon);
 
 router.get("/audit-logs", controller.auditLogs);
+router.get("/analytics", controller.analytics);
 router.get("/health", controller.health);
 
 export default router;

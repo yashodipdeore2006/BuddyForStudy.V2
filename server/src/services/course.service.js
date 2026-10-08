@@ -256,6 +256,97 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
   };
 }
 
+
+function hasMultipleTutorialVideos(course) {
+  return (course?.modules || []).some((module) =>
+    (module.lessons || []).some(
+      (lesson) => lesson.type === "tutorial" && (lesson.tutorial?.videos || []).length > 1
+    )
+  );
+}
+
+function normalizeMultiVideoLessons(course) {
+  let changed = false;
+
+  for (const module of course.modules || []) {
+    const originalLessons = module.lessons || [];
+    const rebuilt = [];
+
+    for (let index = 0; index < originalLessons.length; index += 1) {
+      const lesson = originalLessons[index];
+      const videos = lesson.type === "tutorial" ? (lesson.tutorial?.videos || []) : [];
+      
+      if (videos.length <= 1) {
+        rebuilt.push(lesson);
+        continue;
+      }
+
+      changed = true;
+      const nextLesson = originalLessons[index + 1];
+      const shouldCloneLessonQuiz =
+        nextLesson?.type === "quiz" &&
+        nextLesson.quiz?.scope === "lesson";
+
+      for (let videoIndex = 0; videoIndex < videos.length; videoIndex += 1) {
+        const video = videos[videoIndex];
+        const tutorial = {
+          ...(lesson.toObject ? lesson.toObject() : { ...lesson }),
+          title:
+            videoIndex === 0
+              ? lesson.title
+              : `${lesson.title} — Part ${videoIndex + 1}`,
+          type: "tutorial",
+          tutorial: {
+            ...(lesson.tutorial?.toObject
+              ? lesson.tutorial.toObject()
+              : { ...(lesson.tutorial || {}) }),
+            videos: [video],
+            resources: video.url ? [video.url] : [],
+            resourceStatus: "ready",
+            selection: {
+              ...(lesson.tutorial?.selection?.toObject
+                ? lesson.tutorial.selection.toObject()
+                : { ...(lesson.tutorial?.selection || {}) }),
+              selectedVideoId: video.videoId,
+              selectedVideoTitle: video.title || ""
+            }
+          }
+        };
+
+        if (videoIndex > 0) delete tutorial._id;
+
+        rebuilt.push(tutorial);
+
+        if (shouldCloneLessonQuiz) {
+          const quiz = {
+            ...(nextLesson.toObject ? nextLesson.toObject() : { ...nextLesson }),
+            title:
+              videoIndex === 0
+                ? nextLesson.title || `${lesson.title} Quiz`
+                : `${lesson.title} — Part ${videoIndex + 1} Quiz`,
+            type: "quiz",
+            quiz: nextLesson.quiz?.toObject
+              ? nextLesson.quiz.toObject()
+              : { ...(nextLesson.quiz || {}) }
+          };
+
+          if (videoIndex > 0) delete quiz._id;
+          rebuilt.push(quiz);
+        }
+      }
+
+      if (shouldCloneLessonQuiz) index += 1;
+    }
+
+    rebuilt.forEach((item, itemIndex) => {
+      item.order = itemIndex + 1;
+    });
+    module.lessons = rebuilt;
+  }
+
+  return changed;
+}
+
 function totalLessons(course) {
   return course.modules.reduce((count, module) => count + module.lessons.length, 0);
 }
@@ -415,9 +506,29 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
 export async function getPublished(courseId) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);
-  if (cached) return cached;
-  const course = await Course.findOne({ _id: courseId, isPublished: true }).lean();
-  if (course) void cacheSet(key, course, 120);
+  if (cached) {
+    if (!hasMultipleTutorialVideos(cached)) return cached;
+
+    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
+    if (!courseDoc) return null;
+    if (normalizeMultiVideoLessons(courseDoc)) {
+      await courseDoc.save();
+      await cacheDelete(key);
+    }
+    const normalized = courseDoc.toObject();
+    void cacheSet(key, normalized, 120);
+    return normalized;
+  }
+
+  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
+  if (!courseDoc) return null;
+
+  if (normalizeMultiVideoLessons(courseDoc)) {
+    await courseDoc.save();
+  }
+
+  const course = courseDoc.toObject();
+  void cacheSet(key, course, 120);
   return course;
 }
 

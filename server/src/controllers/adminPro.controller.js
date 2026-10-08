@@ -585,7 +585,38 @@ export async function updateCourse(req, res, next) {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
-    const before = { isPublished: course.isPublished, pricing: course.pricing, enrollmentEnabled: course.enrollmentEnabled, certificateEnabled: course.certificateEnabled, featured: course.featured };
+    const before = {
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      duration: course.duration,
+      thumbnail: course.thumbnail,
+      learningOutcomes: course.learningOutcomes,
+      isPublished: course.isPublished,
+      pricing: course.pricing,
+      enrollmentEnabled: course.enrollmentEnabled,
+      certificateEnabled: course.certificateEnabled,
+      featured: course.featured
+    };
+
+    if (req.body.title !== undefined) {
+      const value = String(req.body.title).trim();
+      if (!value) return failure(res, "Course title cannot be empty", 400);
+      course.title = value;
+    }
+    if (req.body.description !== undefined) {
+      const value = String(req.body.description).trim();
+      if (!value) return failure(res, "Course description cannot be empty", 400);
+      course.description = value;
+    }
+    if (req.body.category !== undefined) course.category = String(req.body.category).trim();
+    if (req.body.level !== undefined && ["Beginner", "Intermediate", "Advanced"].includes(req.body.level)) course.level = req.body.level;
+    if (req.body.duration !== undefined) course.duration = String(req.body.duration).trim();
+    if (req.body.thumbnail !== undefined) course.thumbnail = String(req.body.thumbnail).trim();
+    if (Array.isArray(req.body.learningOutcomes)) {
+      course.learningOutcomes = req.body.learningOutcomes.map((item) => String(item).trim()).filter(Boolean).slice(0, 20);
+    }
     for (const key of ["isPublished", "enrollmentEnabled", "certificateEnabled", "featured"]) if (typeof req.body[key] === "boolean") course[key] = req.body[key];
     if (req.body.pricing) {
       const p = req.body.pricing;
@@ -597,7 +628,20 @@ export async function updateCourse(req, res, next) {
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
     await course.save();
-    await audit(req, "course.settings.updated", "Course", course._id, before, { isPublished: course.isPublished, pricing: course.pricing, enrollmentEnabled: course.enrollmentEnabled, certificateEnabled: course.certificateEnabled, featured: course.featured }, req.body.reason);
+    await audit(req, "course.updated", "Course", course._id, before, {
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      duration: course.duration,
+      thumbnail: course.thumbnail,
+      learningOutcomes: course.learningOutcomes,
+      isPublished: course.isPublished,
+      pricing: course.pricing,
+      enrollmentEnabled: course.enrollmentEnabled,
+      certificateEnabled: course.certificateEnabled,
+      featured: course.featured
+    }, req.body.reason);
     return success(res, { course }, "Course controls updated");
   } catch (e) { next(e); }
 }

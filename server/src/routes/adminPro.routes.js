@@ -14,6 +14,14 @@ router.get("/courses/:courseId", controller.courseDetail);
 router.put("/courses/:courseId", controller.updateCourse);
 router.put("/courses/:courseId/tutorial", controller.updateCourseTutorial);
 
+router.post("/courses/:courseId/modules", controller.addCourseModule);
+router.put("/courses/:courseId/modules/:moduleId", controller.updateCourseModule);
+router.delete("/courses/:courseId/modules/:moduleId", controller.deleteCourseModule);
+router.post("/courses/:courseId/modules/:moduleId/videos", controller.addCourseVideo);
+router.delete("/courses/:courseId/modules/:moduleId/lessons/:lessonId", controller.deleteCourseLesson);
+router.post("/courses/:courseId/modules/:moduleId/resources", controller.addModuleResource);
+router.delete("/courses/:courseId/modules/:moduleId/resources/:resourceId", controller.deleteModuleResource);
+
 router.get("/plans", controller.plans);
 router.post("/plans", controller.createPlan);
 router.put("/plans/:planId", controller.updatePlan);

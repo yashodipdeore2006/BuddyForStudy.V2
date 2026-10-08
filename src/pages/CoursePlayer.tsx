@@ -449,13 +449,13 @@ export default function CoursePlayer() {
                 {currentLesson.lesson.type === "tutorial" && (
                   <div className="bg-black">
                     {currentLesson.lesson.tutorial?.videos?.length ? (
-                      currentLesson.lesson.tutorial.videos.map((video: any, videoIndex: number) => (
-                        <div key={"video-" + (video.videoId || video.url || "resource") + "-" + videoIndex}>
-                          {video.videoId ? (
+                      {currentLesson.lesson.tutorial.videos?.[0] ? (
+                        <div>
+                          {currentLesson.lesson.tutorial.videos[0].videoId ? (
                             <div className="aspect-video w-full">
                               <iframe
-                                title={video.title || "Course video"}
-                                src={`https://www.youtube.com/embed/${encodeURIComponent(video.videoId)}?rel=0&playsinline=1`}
+                                title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
+                                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(currentLesson.lesson.tutorial.videos[0].videoId)}?rel=0&playsinline=1`}
                                 className="h-full w-full"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 allowFullScreen
@@ -468,7 +468,11 @@ export default function CoursePlayer() {
                             </div>
                           )}
                         </div>
-                      ))
+                      ) : (
+                        <div className="flex aspect-video items-center justify-center px-6 text-sm text-slate-300">
+                          No video is available for this lesson.
+                        </div>
+                      )}
                     ) : (
                       <div className="flex aspect-video items-center justify-center px-6 text-sm text-slate-300">
                         No video is available for this lesson.
@@ -736,6 +740,8 @@ export default function CoursePlayer() {
                       <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                         {lesson.type === "project" ? (
                           <ListChecks className="h-3.5 w-3.5" />
+                        ) : lesson.type === "quiz" ? (
+                          <CircleHelp className="h-3.5 w-3.5" />
                         ) : (
                           <Play className="h-3.5 w-3.5" />
                         )}

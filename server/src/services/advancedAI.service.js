@@ -273,7 +273,6 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   const contextHash = hash(JSON.stringify(context));
 
   const existing = await AILessonInsight.findOne({
-    user: userId,
     course: course._id,
     lesson: lesson._id,
     contentHash: contextHash
@@ -357,9 +356,9 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
           generatedAt: new Date()
         },
         $setOnInsert: {
-          user: userId,
           course: course._id,
-          lesson: lesson._id
+          lesson: lesson._id,
+          generatedBy: userId
         }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }

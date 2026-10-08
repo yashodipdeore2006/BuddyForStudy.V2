@@ -454,8 +454,7 @@ export async function updateCourseTutorial(req, res, next) {
       if (!playlist.lessons?.length) return failure(res, "The YouTube playlist contains no usable embeddable videos", 400);
 
       targetModule.lessons ||= [];
-      const nonTutorialLessons = targetModule.lessons.filter((lesson) => lesson.type !== "tutorial");
-      const playlistLessons = playlist.lessons.map((video, index) => targetModule.lessons.create({
+      const playlistLessons = playlist.lessons.map((video) => targetModule.lessons.create({
         title: video.title,
         description: video.description || "",
         type: "tutorial",
@@ -477,7 +476,8 @@ export async function updateCourseTutorial(req, res, next) {
           playlistTitle: playlist.title
         }
       }));
-      targetModule.lessons = [...nonTutorialLessons, ...playlistLessons];
+      targetModule.lessons.push(...playlistLessons);
+      renumberModules(course);
     } else {
       const videoId = extractYouTubeVideoId(resourceUrl);
       if (!videoId) return failure(res, "Enter a valid YouTube video or playlist URL", 400);

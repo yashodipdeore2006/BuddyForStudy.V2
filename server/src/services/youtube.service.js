@@ -190,6 +190,67 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
   };
 }
 
+export async function searchYouTubeCourseRecommendations(query, maxResults = 3) {
+  if (!env.youtubeApiKey) return [];
+
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) return [];
+
+  const searchQuery = normalizedQuery + " complete course tutorial";
+  const data = await searchVideos(searchQuery, 20);
+  const items = data?.items || [];
+
+  const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];
+  const videoDetails = await getVideoDetails(uniqueIds);
+  const channelIds = [...new Set(videoDetails.map((video) => video.snippet?.channelId).filter(Boolean))];
+  const channels = await getChannelDetails(channelIds);
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+  const byId = new Map(videoDetails.map((video) => [video.id, video]));
+
+  const searchPolicy = {
+    minDurationMinutes: 45,
+    targetDurationMinutes: 360,
+    maxDurationMinutes: 1440,
+    excludeShorts: true,
+    requireEmbeddable: true,
+    preferProjectBased: true,
+    preferredLanguage: "en",
+    requiredTopics: [normalizedQuery]
+  };
+
+  const candidates = uniqueIds
+    .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
+    .filter((video) =>
+      video &&
+      !video.isShort &&
+      video.embeddable &&
+      video.durationSeconds >= searchPolicy.minDurationMinutes * 60 &&
+      video.durationSeconds <= searchPolicy.maxDurationMinutes * 60
+    );
+
+  const lesson = {
+    title: normalizedQuery,
+    tutorial: {
+      searchQuery,
+      requiredTopics: searchPolicy.requiredTopics,
+      searchPolicy
+    }
+  };
+
+  return candidates
+    .map((video) => ({
+      ...video,
+      ...scoreCandidate(video, lesson, candidates),
+      selection: {
+        algorithm: "youtube-fallback-course-v1",
+        query: normalizedQuery,
+        searchQuery,
+        durationPolicy: searchPolicy
+      }
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, Math.min(Number(maxResults) || 3, 5)));
+}
 export async function attachYouTubeResources(course){
   if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return [];}
   const lessonRequests=[];

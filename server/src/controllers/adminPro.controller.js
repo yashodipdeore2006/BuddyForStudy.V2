@@ -973,6 +973,60 @@ export async function auditLogs(req, res, next) {
   } catch (e) { next(e); }
 }
 
+
+export async function analytics(req, res, next) {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90);
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
+
+    const [enrollmentsDaily, revenueDaily, coursePerformance, subscriptionBreakdown, completionBreakdown] = await Promise.all([
+      Enrollment.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: since }, status: { $in: ["paid", "partially_refunded"] } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]),
+      Enrollment.aggregate([
+        { $group: { _id: "$course", enrollments: { $sum: 1 } } },
+        { $sort: { enrollments: -1 } },
+        { $limit: 10 },
+        { $lookup: { from: "courses", localField: "_id", foreignField: "_id", as: "course" } },
+        { $unwind: { path: "$course", preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, enrollments: 1, title: "$course.title", published: "$course.isPublished", pricingMode: "$course.pricing.mode" } }
+      ]),
+      UserSubscription.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Progress.aggregate([
+        { $bucket: { groupBy: "$percentage", boundaries: [0, 25, 50, 75, 100, 101], default: "other", output: { count: { $sum: 1 } } } }
+      ])
+    ]);
+
+    const totalEnrollmentPeriod = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
+    const totalRevenuePeriod = revenueDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    return success(res, {
+      period: { days, since, until: new Date() },
+      enrollmentsDaily,
+      revenueDaily,
+      coursePerformance,
+      subscriptionBreakdown,
+      completionBreakdown,
+      totals: {
+        enrollments: totalEnrollmentPeriod,
+        recordedRevenue: totalRevenuePeriod
+      }
+    });
+  } catch (e) { next(e); }
+}
+
 export async function health(req, res, next) {
   try {
     const dbState = mongoose.connection.readyState === 1;

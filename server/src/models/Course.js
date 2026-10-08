@@ -65,6 +65,10 @@ courseSchema.index({ isPublished: 1, category: 1, level: 1 });
 courseSchema.index({ "pricing.mode": 1, isPublished: 1 });
 courseSchema.index({ "generation.mode": 1, "generation.topicKeys": 1, createdAt: -1 });
 courseSchema.index({ "generation.mode": 1, "generation.sourceCourse": 1, "generation.sourceModuleId": 1 });
+courseSchema.index(
+  { "generation.sourceResourceType": 1, "generation.sourceResourceId": 1 },
+  { unique: true, partialFilterExpression: { "generation.mode": "discovery" } }
+);
 courseSchema.index({ title: "text", description: "text", category: "text" });
 
 export const Course = mongoose.model("Course", courseSchema);

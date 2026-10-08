@@ -22,12 +22,30 @@ export interface TutorialContent {
   resources?: Array<{ title?: string; url?: string; type?: string }>;
 }
 
+export interface ProjectVideo {
+  title?: string;
+  url?: string;
+  videoId?: string;
+  thumbnail?: string;
+  channelTitle?: string;
+  durationSeconds?: number;
+  score?: number;
+}
+
 export interface ProjectContent {
   description: string;
   objectives?: string[];
   requirements: string[];
   instructions: string;
   expectedOutcome: string;
+  realWorldScenario?: string;
+  features?: string[];
+  architecture?: string[];
+  milestones?: string[];
+  testingChecklist?: string[];
+  industrySkills?: string[];
+  githubWorkflow?: string[];
+  videos?: ProjectVideo[];
   starterCodeUrl?: string;
 }
 

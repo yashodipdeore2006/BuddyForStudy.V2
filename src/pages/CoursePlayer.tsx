@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, Menu, X, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
 import { classNames } from "@/lib/utils";
 
 function mapCourse(raw: any): Course {
@@ -448,8 +448,7 @@ export default function CoursePlayer() {
 
                 {currentLesson.lesson.type === "tutorial" && (
                   <div className="bg-black">
-                    {currentLesson.lesson.tutorial?.videos?.length ? (
-                      {currentLesson.lesson.tutorial.videos?.[0] ? (
+                    {currentLesson.lesson.tutorial?.videos?.[0] ? (
                         <div>
                           {currentLesson.lesson.tutorial.videos[0].videoId ? (
                             <div className="aspect-video w-full">
@@ -473,11 +472,6 @@ export default function CoursePlayer() {
                           No video is available for this lesson.
                         </div>
                       )}
-                    ) : (
-                      <div className="flex aspect-video items-center justify-center px-6 text-sm text-slate-300">
-                        No video is available for this lesson.
-                      </div>
-                    )}
                   </div>
                 )}
 

@@ -61,6 +61,7 @@ function App() {
 
     <Route path="/admin/login" element={<Navigate to="/login" replace />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />
+    <Route path="/admin/analytics" element={<AdminPage><AdminAnalytics /></AdminPage>} />
     <Route path="/admin/users" element={<AdminPage><AdminUsersPro /></AdminPage>} />
     <Route path="/admin/courses" element={<AdminPage><AdminCoursesPro /></AdminPage>} />
     <Route path="/admin/plans" element={<AdminPage><AdminPlans /></AdminPage>} />

@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const completedLessonSchema = new mongoose.Schema({
   lessonId: { type: mongoose.Schema.Types.ObjectId, required: true },
-  type: { type: String, enum: ["tutorial", "project"], required: true },
+  type: { type: String, enum: ["tutorial", "project", "quiz"], required: true },
   completedAt: { type: Date, default: Date.now, required: true }
 }, { _id: false });
 

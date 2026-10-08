@@ -789,6 +789,7 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
   ].join("\n");
 
   try {
+    try {
     const response = await client.models.generateContent({
     model: env.geminiModel,
     contents: prompt,

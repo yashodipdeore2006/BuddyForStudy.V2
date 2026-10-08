@@ -17,8 +17,22 @@ const tutorialSchema = new mongoose.Schema({
   playlistTitle: { type: String, default: "" }
 }, { _id: false });
 const projectSchema = new mongoose.Schema({
-  description: { type: String, default: "" }, objectives: { type: [String], default: [] }, requirements: { type: [String], default: [] },
-  instructions: { type: String, default: "" }, expectedOutcome: { type: String, default: "" }, resources: { type: [String], default: [] }, submissionRequirements: { type: [String], default: [] }
+  description: { type: String, default: "" },
+  objectives: { type: [String], default: [] },
+  requirements: { type: [String], default: [] },
+  instructions: { type: String, default: "" },
+  expectedOutcome: { type: String, default: "" },
+  realWorldScenario: { type: String, default: "" },
+  features: { type: [String], default: [] },
+  architecture: { type: [String], default: [] },
+  milestones: { type: [String], default: [] },
+  testingChecklist: { type: [String], default: [] },
+  industrySkills: { type: [String], default: [] },
+  githubWorkflow: { type: [String], default: [] },
+  videoSearchQueries: { type: [String], default: [] },
+  videos: { type: [videoResourceSchema], default: [] },
+  resources: { type: [String], default: [] },
+  submissionRequirements: { type: [String], default: [] }
 }, { _id: false });
 const quizQuestionOptionSchema = new mongoose.Schema({
   id: { type: String, required: true },

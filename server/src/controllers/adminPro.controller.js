@@ -152,6 +152,262 @@ function extractYouTubeVideoId(value) {
   return null;
 }
 
+
+function renumberModules(course) {
+  (course.modules || []).forEach((module, moduleIndex) => {
+    module.order = moduleIndex + 1;
+    (module.lessons || []).forEach((lesson, lessonIndex) => {
+      lesson.order = lessonIndex + 1;
+    });
+  });
+}
+
+function extractYouTubeVideoIdFromUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "youtu.be") return parsed.pathname.split("/").filter(Boolean)[0] || null;
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const id = parsed.searchParams.get("v");
+      if (id) return id;
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      return ["embed", "shorts", "live"].includes(parts[0]) ? parts[1] || null : null;
+    }
+  } catch {}
+  return null;
+}
+
+export async function addCourseModule(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+
+    const title = String(req.body.title || "").trim();
+    if (!title) return failure(res, "Module title is required", 400);
+
+    const module = course.modules.create({
+      title,
+      description: String(req.body.description || "").trim(),
+      order: (course.modules || []).length + 1,
+      resources: [],
+      lessons: []
+    });
+    course.modules.push(module);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.created", "Course", course._id, null, {
+      moduleId: String(module._id), title: module.title, order: module.order
+    });
+    return success(res, { course, module }, "Module added", 201);
+  } catch (e) { next(e); }
+}
+
+export async function updateCourseModule(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const before = { title: module.title, description: module.description, resources: module.resources };
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim();
+      if (!title) return failure(res, "Module title cannot be empty", 400);
+      module.title = title;
+    }
+    if (req.body.description !== undefined) module.description = String(req.body.description || "").trim();
+
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.updated", "Course", course._id, before, {
+      moduleId: String(module._id), title: module.title, description: module.description
+    }, req.body.reason || "");
+    return success(res, { course, module }, "Module updated");
+  } catch (e) { next(e); }
+}
+
+export async function deleteCourseModule(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const index = (course.modules || []).findIndex((item) => String(item._id) === String(req.params.moduleId));
+    if (index < 0) return failure(res, "Course module not found", 404);
+
+    const removed = course.modules[index].toObject();
+    course.modules.splice(index, 1);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.deleted", "Course", course._id, {
+      moduleId: String(removed._id), title: removed.title
+    }, null, req.body?.reason || "");
+    return success(res, { course }, "Module removed");
+  } catch (e) { next(e); }
+}
+
+export async function addCourseVideo(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const resourceUrl = String(req.body.resourceUrl || req.body.videoUrl || "").trim();
+    if (!resourceUrl) return failure(res, "YouTube video or playlist URL is required", 400);
+
+    const url = new URL(resourceUrl);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const playlistId = (host === "youtube.com" || host === "m.youtube.com") ? url.searchParams.get("list") : null;
+
+    if (playlistId) {
+      const playlist = await getPlaylistCourse(playlistId);
+      if (!playlist.lessons?.length) return failure(res, "The YouTube playlist contains no usable videos", 400);
+
+      const imported = playlist.lessons.map((video) => module.lessons.create({
+        title: video.title,
+        description: video.description || "",
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          content: video.description || "",
+          resources: video.url ? [video.url] : [],
+          videos: [{
+            videoId: video.videoId,
+            title: video.title,
+            description: video.description || "",
+            channelTitle: video.channelTitle || "",
+            publishedAt: video.publishedAt || null,
+            url: video.url || "",
+            thumbnail: video.thumbnail || "",
+            embedUrl: video.embedUrl || ""
+          }],
+          playlistId,
+          playlistTitle: playlist.title || ""
+        }
+      }));
+      module.lessons.push(...imported);
+      renumberModules(course);
+      course.markModified("modules");
+      await course.save();
+      await cacheDelete(`course:${course._id}`);
+      await audit(req, "course.videos.playlist.imported", "Course", course._id, null, {
+        moduleId: String(module._id), playlistId, count: imported.length
+      }, req.body.reason || "");
+      return success(res, { course, module, addedCount: imported.length, mode: "playlist" }, "Playlist videos added", 201);
+    }
+
+    const videoId = extractYouTubeVideoIdFromUrl(resourceUrl);
+    if (!videoId) return failure(res, "Enter a valid YouTube video or playlist URL", 400);
+
+    const title = String(req.body.title || `Learn ${module.title}`).trim();
+    const lesson = module.lessons.create({
+      title,
+      description: String(req.body.description || "").trim(),
+      type: "tutorial",
+      order: (module.lessons || []).length + 1,
+      tutorial: {
+        content: String(req.body.description || "").trim(),
+        resources: [`https://www.youtube.com/watch?v=${videoId}`],
+        videos: [{
+          videoId,
+          title,
+          description: String(req.body.description || "").trim(),
+          channelTitle: "",
+          publishedAt: null,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`
+        }]
+      }
+    });
+    module.lessons.push(lesson);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.video.added", "Course", course._id, null, {
+      moduleId: String(module._id), lessonId: String(lesson._id), videoId
+    }, req.body.reason || "");
+    return success(res, { course, module, lesson, mode: "video" }, "Video added", 201);
+  } catch (e) {
+    if (e instanceof TypeError || e?.code === "ERR_INVALID_URL") return failure(res, "Enter a valid YouTube video or playlist URL", 400);
+    next(e);
+  }
+}
+
+export async function deleteCourseLesson(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+    const index = (module.lessons || []).findIndex((item) => String(item._id) === String(req.params.lessonId));
+    if (index < 0) return failure(res, "Lesson not found", 404);
+
+    const removed = module.lessons[index].toObject();
+    module.lessons.splice(index, 1);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.lesson.deleted", "Course", course._id, {
+      moduleId: String(module._id), lessonId: String(removed._id), title: removed.title, type: removed.type
+    }, null, req.body?.reason || "");
+    return success(res, { course, module }, "Learning item removed");
+  } catch (e) { next(e); }
+}
+
+export async function addModuleResource(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const title = String(req.body.title || "").trim();
+    const resourceUrl = String(req.body.url || "").trim();
+    const type = ["link", "document", "repository", "article"].includes(req.body.type) ? req.body.type : "link";
+    if (!title || !resourceUrl) return failure(res, "Resource title and URL are required", 400);
+
+    let parsed;
+    try { parsed = new URL(resourceUrl); } catch { return failure(res, "Resource URL is invalid", 400); }
+    if (!parsed.protocol.startsWith("http")) return failure(res, "Resource URL must be http or https", 400);
+
+    const resource = module.resources.create({ title, url: resourceUrl, type });
+    module.resources.push(resource);
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.resource.added", "Course", course._id, null, {
+      moduleId: String(module._id), resourceId: String(resource._id), title, type, url: resourceUrl
+    });
+    return success(res, { course, module, resource }, "Module resource added", 201);
+  } catch (e) { next(e); }
+}
+
+export async function deleteModuleResource(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+    const index = (module.resources || []).findIndex((item) => String(item._id) === String(req.params.resourceId));
+    if (index < 0) return failure(res, "Module resource not found", 404);
+
+    const removed = module.resources[index].toObject();
+    module.resources.splice(index, 1);
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.resource.deleted", "Course", course._id, {
+      moduleId: String(module._id), resourceId: String(removed._id), title: removed.title
+    }, null);
+    return success(res, { course, module }, "Module resource removed");
+  } catch (e) { next(e); }
+}
+
 export async function updateCourseTutorial(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);

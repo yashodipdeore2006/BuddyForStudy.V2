@@ -336,7 +336,7 @@ export default function CoursePlayer() {
                               </div>
 
                               <div className="mt-4 grid gap-2">
-                                {(question.options || []).map((option: any) => {
+                                {(question.options || []).map((option: any, optionIndex: number) => {
                                   const selected = quizAnswers[question.id] === option.id;
                                   const correctOption = question.correctOptionId === option.id;
                                   const showResult = quizSubmitted;
@@ -352,7 +352,7 @@ export default function CoursePlayer() {
 
                                   return (
                                     <button
-                                      key={option.id}
+                                      key={"option-" + (option.id || optionIndex) + "-" + optionIndex}
                                       type="button"
                                       disabled={quizSubmitted}
                                       onClick={() =>
@@ -449,8 +449,8 @@ export default function CoursePlayer() {
                 {currentLesson.lesson.type === "tutorial" && (
                   <div className="bg-black">
                     {currentLesson.lesson.tutorial?.videos?.length ? (
-                      currentLesson.lesson.tutorial.videos.map((video: any) => (
-                        <div key={video.videoId || video.url}>
+                      currentLesson.lesson.tutorial.videos.map((video: any, videoIndex: number) => (
+                        <div key={"video-" + (video.videoId || video.url || "resource") + "-" + videoIndex}>
                           {video.videoId ? (
                             <div className="aspect-video w-full">
                               <iframe
@@ -566,9 +566,9 @@ export default function CoursePlayer() {
                             </summary>
                             <div className="border-t border-slate-200 bg-white px-5 py-4">
                               <div className="space-y-3">
-                                {currentLesson.lesson.tutorial.resources.map((resource) => (
+                                {currentLesson.lesson.tutorial.resources.map((resource, resourceIndex) => (
                                   <a
-                                    key={resource.url || resource.title}
+                                    key={"resource-" + (resource.url || resource.title || "item") + "-" + resourceIndex}
                                     href={resource.url}
                                     target="_blank"
                                     rel="noreferrer"
@@ -593,15 +593,15 @@ export default function CoursePlayer() {
 
                         <h3 className="mt-6 font-bold text-slate-900">Objectives</h3>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {(currentLesson.lesson.project?.objectives || []).map((item: string) => (
-                            <li key={item}>{item}</li>
+                          {(currentLesson.lesson.project?.objectives || []).map((item: string, itemIndex: number) => (
+                            <li key={"objective-" + itemIndex + "-" + item}>{item}</li>
                           ))}
                         </ul>
 
                         <h3 className="mt-6 font-bold text-slate-900">Requirements</h3>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {(currentLesson.lesson.project?.requirements || []).map((item: string) => (
-                            <li key={item}>{item}</li>
+                          {(currentLesson.lesson.project?.requirements || []).map((item: string, itemIndex: number) => (
+                            <li key={"requirement-" + itemIndex + "-" + item}>{item}</li>
                           ))}
                         </ul>
 

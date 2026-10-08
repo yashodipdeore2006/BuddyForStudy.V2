@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, Power, Plus, RefreshCcw, Save, Tag } from "lucide-react";
+import { CalendarClock, Power, Plus, RefreshCcw, Tag } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 const emptyForm = {

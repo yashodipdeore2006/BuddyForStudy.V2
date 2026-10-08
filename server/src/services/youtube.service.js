@@ -129,6 +129,27 @@ function toCandidate(video,channel){
   };
 }
 
+export async function getYouTubeVideoResource(videoId) {
+  const id = String(videoId || "").trim();
+  if (!id) throw new Error("YouTube videoId is required");
+
+  const data = await youtubeRequest("videos", {
+    part: "snippet,contentDetails,statistics,status",
+    id
+  });
+  const video = data?.items?.[0];
+  if (!video) {
+    const error = new Error("YouTube video not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const channelIds = video.snippet?.channelId ? [video.snippet.channelId] : [];
+  const channels = await getChannelDetails(channelIds);
+  const channel = channels[0];
+  return toCandidate(video, channel);
+}
+
 export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy }) {
   if (!env.youtubeApiKey) return null;
 

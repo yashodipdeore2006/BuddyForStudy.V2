@@ -132,7 +132,7 @@ export default function CoursePlayer() {
     }
 
     void loadQuiz();
-  }, [currentLesson?.lesson.type, courseId, lessonId, progress?.completed_lessons]);
+  }, [currentLesson?.lesson.type, courseId, lessonId]);
 
   useEffect(() => {
     if (!course || lessonId || allLessons.length === 0) return;

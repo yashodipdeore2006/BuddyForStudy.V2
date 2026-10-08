@@ -34,7 +34,7 @@ export default function CourseCard({
   return (
     <Link
       to={`/courses/${course.id}`}
-      className="group flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(13,18,32,.045)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_60px_rgba(13,18,32,.10)]"
+      className="group flex min-h-[420px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(13,18,32,.045)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_60px_rgba(13,18,32,.10)]"
     >
       <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600">
         {course.thumbnail ? (

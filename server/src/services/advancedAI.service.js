@@ -204,6 +204,16 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
     "month"
   );
 
+  const recentAsks = await AIQuestionAsk.find({
+    user: userId,
+    course: course._id,
+    lesson: lesson._id
+  })
+    .sort({ askedAt: -1 })
+    .limit(10)
+    .populate("answerCacheId", "question answer hitCount")
+    .lean();
+
   return {
     enabled: true,
     plan: {
@@ -224,7 +234,13 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
       monthlyLimit,
       monthlyUsed,
       monthlyRemaining: monthlyLimit === -1 ? -1 : Math.max(0, monthlyLimit - monthlyUsed)
-    }
+    },
+    recentQuestions: recentAsks.map((item) => ({
+      question: item.answerCacheId?.question || "",
+      answer: item.answerCacheId?.answer || "",
+      askedAt: item.askedAt,
+      cachedHits: item.answerCacheId?.hitCount || 0
+    })).filter((item) => item.question && item.answer)
   };
 }
 

@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(()=>{ void hydrate(); },[]);
 
-  const signIn=async(email:string,password:string)=>{
+  const signIn: AuthContextValue["signIn"] = async(email:string,password:string)=>{
     const data=await apiFetch('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
     if (data.requiresOtp === true) {
       return {
@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return profileFromUser(data.user);
   };
 
-  const signUp=async(name:string,email:string,password:string)=>{
+  const signUp: AuthContextValue["signUp"] = async(name:string,email:string,password:string)=>{
     const data=await apiFetch('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
     if (data.requiresVerification === true) {
       return {

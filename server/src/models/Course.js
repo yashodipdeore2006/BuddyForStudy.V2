@@ -7,7 +7,9 @@ const videoResourceSchema = new mongoose.Schema({
   channelTitle: { type: String, default: "" },
   publishedAt: { type: Date, default: null },
   url: { type: String, default: "" },
-  thumbnail: { type: String, default: "" }
+  thumbnail: { type: String, default: "" },
+  durationSeconds: { type: Number, default: 0, min: 0 },
+  duration: { type: String, default: "" }
 }, { _id: false });
 const tutorialSchema = new mongoose.Schema({
   content: { type: String, default: "" },

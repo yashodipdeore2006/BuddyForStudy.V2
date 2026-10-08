@@ -134,7 +134,7 @@ export default function AdminAnalytics() {
           <section className="card mt-6 p-5">
             <div><h2 className="font-bold">Learning completion</h2><p className="mt-1 text-xs text-slate-500">Progress distribution across saved learner progress records.</p></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-5">
-              {completions.map((item) => (
+              {completions.map((item: { label: string; count: number }) => (
                 <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center"><p className="text-xs text-slate-500">{item.label}</p><p className="mt-2 text-xl font-bold">{item.count}</p></div>
               ))}
             </div>

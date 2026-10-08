@@ -571,4 +571,4 @@ export function findLearningItem(course, itemId) {
   return null;
 }
 
-export { courseSummary, totalLessons };
+export { courseSummary, totalLessons, normalizeMultiVideoLessons, hasMultipleTutorialVideos };

@@ -788,9 +788,7 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     `Already known skills: ${JSON.stringify(knownSkills || [])}`
   ].join("\n");
 
-  try {
-    try {
-    const response = await client.models.generateContent({
+  const response = await client.models.generateContent({
     model: env.geminiModel,
     contents: prompt,
     config: {
@@ -816,7 +814,6 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     throw error;
   }
   return value;
-}
 
 function generatedAiSlug(title) {
   const base = String(title || "ai-course").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");

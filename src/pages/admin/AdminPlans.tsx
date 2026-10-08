@@ -20,6 +20,7 @@ type Plan = {
   isPopular: boolean;
   trialDays?: number;
   sortOrder?: number;
+  limits?: Record<string, number>;
 };
 
 type PlanForm = {
@@ -34,6 +35,7 @@ type PlanForm = {
   isPopular: boolean;
   trialDays: number;
   sortOrder: number;
+  limits: Record<string, number>;
 };
 
 const emptyForm: PlanForm = {
@@ -48,6 +50,12 @@ const emptyForm: PlanForm = {
   isPopular: false,
   trialDays: 0,
   sortOrder: 0,
+  limits: {
+    ai_course_builds_per_month: 0,
+    advanced_ai_questions_per_month: 0,
+    advanced_ai_insights_per_month: 0,
+    ai_quiz_generations_per_month: 20,
+  },
 };
 
 export default function AdminPlans() {
@@ -91,6 +99,7 @@ export default function AdminPlans() {
         body: JSON.stringify({
           ...form,
           features: form.features,
+          limits: form.limits,
         }),
       });
       setForm(emptyForm);
@@ -151,6 +160,19 @@ export default function AdminPlans() {
     );
   }
 
+  function updatePlanLimit(planId: string, key: string, value: number) {
+    setPlans((current) => current.map((plan) =>
+      plan._id === planId
+        ? { ...plan, limits: { ...(plan.limits || {}), [key]: value } }
+        : plan
+    ));
+  }
+
+  function planLimit(plan: Plan, key: string, fallback = 0) {
+    const value = Number(plan.limits?.[key]);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
   async function savePlanDetails(plan: Plan) {
     setSavingPlan(plan._id);
     setError("");
@@ -164,6 +186,7 @@ export default function AdminPlans() {
           trialDays: Math.max(Number(plan.trialDays || 0), 0),
           sortOrder: Number(plan.sortOrder || 0),
           isPopular: Boolean(plan.isPopular),
+          limits: plan.limits || {},
         }),
       });
       setEditingPlan(null);
@@ -288,6 +311,30 @@ export default function AdminPlans() {
           </div>
         )}
 
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">AI usage limits / month</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["ai_course_builds_per_month", "AI course builds"],
+              ["advanced_ai_questions_per_month", "Advanced AI questions"],
+              ["advanced_ai_insights_per_month", "Advanced AI summaries"],
+              ["ai_quiz_generations_per_month", "AI quiz generations"],
+            ].map(([key, label]) => (
+              <label key={key} className="block text-xs font-semibold text-slate-500">
+                {label}
+                <input
+                  className="input-field mt-1"
+                  type="number"
+                  min="-1"
+                  value={form.limits[key] ?? -1}
+                  onChange={(e) => setForm({ ...form, limits: { ...form.limits, [key]: Number(e.target.value) } })}
+                />
+              </label>
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-slate-400">0 = blocked by quota; -1 = unlimited.</p>
+        </div>
+
         <button className="btn-primary mt-4" onClick={() => void create()}>
           <Plus className="h-4 w-4" />
           Create Plan
@@ -338,6 +385,16 @@ export default function AdminPlans() {
                         <p className="mt-1 line-clamp-2 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
                         <p className="mt-3 text-3xl font-extrabold text-slate-950">₹{plan.price}<span className="text-xs font-normal text-slate-500">{plan.price === 0 ? " · free" : " / " + plan.billingInterval}</span></p>
                         <p className="mt-1 text-xs text-slate-400">Trial {plan.trialDays || 0} days · Sort {plan.sortOrder || 0}</p>
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">AI usage limits / month</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                            <label className="block"><span className="text-slate-500">AI course builds</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_course_builds_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_course_builds_per_month", Number(e.target.value))} /></label>
+                            <label className="block"><span className="text-slate-500">Adv. AI questions</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_questions_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_questions_per_month", Number(e.target.value))} /></label>
+                            <label className="block"><span className="text-slate-500">Adv. AI insights</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_insights_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_insights_per_month", Number(e.target.value))} /></label>
+                            <label className="block"><span className="text-slate-500">AI quiz generations</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_quiz_generations_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_quiz_generations_per_month", Number(e.target.value))} /></label>
+                          </div>
+                          <p className="mt-2 text-[10px] text-slate-400">Use 0 to block the capability and -1 for unlimited.</p>
+                        </div>
                       </>
                     )}
                   </div>

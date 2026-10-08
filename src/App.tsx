@@ -32,6 +32,7 @@ import AdminCommunications from '@/pages/admin/AdminCommunications';
 import AdminSettings from '@/pages/admin/AdminSettings';
 import AdminAudit from '@/pages/admin/AdminAudit';
 import AdminCoupons from '@/pages/admin/AdminCoupons';
+import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();

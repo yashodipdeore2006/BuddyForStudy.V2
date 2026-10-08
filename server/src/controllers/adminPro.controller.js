@@ -52,15 +52,46 @@ async function notificationAudienceUsers(audience) {
 
 export async function overview(req, res, next) {
   try {
-    const [users, activeUsers, courses, published, enrollments, subscribers, revenue, pendingRefunds, unread] = await Promise.all([
-      User.countDocuments(), User.countDocuments({ isActive: true }), Course.countDocuments(), Course.countDocuments({ isPublished: true }),
-      Enrollment.countDocuments(), UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
+    const [users, activeUsers, admins, courses, published, unpublished, emptyCourses, enrollments, activeSubscribers, pastDueSubscribers, revenue, failedPayments, pendingRefunds, unread] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ isActive: true }),
+      User.countDocuments({ role: "admin" }),
+      Course.countDocuments(),
+      Course.countDocuments({ isPublished: true }),
+      Course.countDocuments({ isPublished: false }),
+      Course.countDocuments({ $or: [{ modules: { $size: 0 } }, { "modules.lessons": { $size: 0 } }] }),
+      Enrollment.countDocuments(),
+      UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
+      UserSubscription.countDocuments({ status: "past_due" }),
       Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-      RefundRequest.countDocuments({ status: "pending" }), Notification.countDocuments({ readAt: null })
+      Payment.countDocuments({ status: "failed" }),
+      RefundRequest.countDocuments({ status: "pending" }),
+      Notification.countDocuments({ readAt: null })
     ]);
-    const recentUsers = await User.find().select("name email role isActive createdAt").sort({ createdAt: -1 }).limit(8).lean();
-    const recentPayments = await Payment.find().populate("user", "name email").sort({ createdAt: -1 }).limit(8).lean();
-    return success(res, { stats: { users, activeUsers, courses, published, enrollments, subscribers, revenue: revenue[0]?.total || 0, pendingRefunds, unread }, recentUsers, recentPayments });
+
+    const [recentUsers, recentPayments, recentAudit, topCourses] = await Promise.all([
+      User.find().select("name email role isActive authProvider emailVerified createdAt").sort({ createdAt: -1 }).limit(8).lean(),
+      Payment.find().populate("user", "name email").populate("course", "title").populate("plan", "name").sort({ createdAt: -1 }).limit(8).lean(),
+      AuditLog.find().populate("actor", "name email").sort({ createdAt: -1 }).limit(8).lean(),
+      Enrollment.aggregate([
+        { $group: { _id: "$course", enrollments: { $sum: 1 } } },
+        { $sort: { enrollments: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: "courses", localField: "_id", foreignField: "_id", as: "course" } },
+        { $unwind: { path: "$course", preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, enrollments: 1, title: "$course.title" } }
+      ])
+    ]);
+
+    return success(res, {
+      stats: {
+        users, activeUsers, admins, courses, published, unpublished, emptyCourses,
+        enrollments, activeSubscribers, pastDueSubscribers,
+        revenue: revenue[0]?.total || 0,
+        failedPayments, pendingRefunds, unread
+      },
+      recentUsers, recentPayments, recentAudit, topCourses
+    });
   } catch (e) { next(e); }
 }
 
@@ -68,7 +99,14 @@ export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
     const q = String(req.query.q || "").trim();
-    const filter = q ? { $or: [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }] } : {};
+    const filter = {};
+    if (q) filter.$or = [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }];
+    if (req.query.status === "active") filter.isActive = true;
+    if (req.query.status === "disabled") filter.isActive = false;
+    if (req.query.role === "admin" || req.query.role === "user") filter.role = req.query.role;
+    if (["local", "google", "local_google"].includes(String(req.query.authProvider || ""))) {
+      filter.authProvider = req.query.authProvider;
+    }
     const [items, total] = await Promise.all([
       User.find(filter).select("-password").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       User.countDocuments(filter)

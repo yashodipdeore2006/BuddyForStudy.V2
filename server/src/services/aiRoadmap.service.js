@@ -39,9 +39,19 @@ const roadmapSchema = {
             required: ["minMinutes", "targetMinutes", "maxMinutes"]
           },
           practiceProject: { type: "string" },
+          projectPlacement: { type: "string", enum: ["none", "skill", "milestone"] },
+          quizPolicy: {
+            type: "object",
+            properties: {
+              lessonQuestionCount: { type: "integer", minimum: 3, maximum: 10 },
+              moduleQuestionCount: { type: "integer", minimum: 0, maximum: 15 },
+              passingScore: { type: "integer", minimum: 50, maximum: 90 }
+            },
+            required: ["lessonQuestionCount", "moduleQuestionCount", "passingScore"]
+          },
           durationMinutes: { type: "integer" }
         },
-        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject"]
+        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject", "projectPlacement", "quizPolicy"]
       }
     }
   },
@@ -57,6 +67,33 @@ function normalizeCourseDuration(value) {
   const targetMinutes = Math.max(minMinutes, Math.min(3000, Number(value?.targetMinutes) || minMinutes));
   const maxMinutes = Math.max(targetMinutes, Math.min(3600, Number(value?.maxMinutes) || targetMinutes));
   return { minMinutes, targetMinutes, maxMinutes };
+}
+
+function normalizeQuizPolicy(value, topicCount = 1) {
+  const defaultLesson = topicCount >= 8 ? 7 : topicCount >= 5 ? 5 : 3;
+  const lessonQuestionCount = Math.max(
+    3,
+    Math.min(10, Number(value?.lessonQuestionCount) || defaultLesson)
+  );
+  const moduleQuestionCount = Math.max(
+    0,
+    Math.min(15, Number(value?.moduleQuestionCount) || (topicCount >= 5 ? 8 : 5))
+  );
+  const passingScore = Math.max(
+    50,
+    Math.min(90, Number(value?.passingScore) || 70)
+  );
+  return { lessonQuestionCount, moduleQuestionCount, passingScore };
+}
+
+function splitTopics(topics, maxItems = 5) {
+  const clean = [...new Set((topics || []).map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!clean.length) return [["Core concepts"]];
+  const chunks = [];
+  for (let index = 0; index < clean.length; index += maxItems) {
+    chunks.push(clean.slice(index, index + maxItems));
+  }
+  return chunks;
 }
 
 function topoSort(skills) {
@@ -89,7 +126,11 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
     prerequisites: (skill.prerequisites || []).map(normalizeId),
     courseDuration: normalizeCourseDuration(skill.courseDuration),
     topics: skill.topics?.slice(0, 12) || [],
-    searchQueries: (skill.searchQueries?.length ? skill.searchQueries : [`${skill.name} complete course tutorial`]).slice(0, 2)
+    searchQueries: (skill.searchQueries?.length
+      ? skill.searchQueries
+      : [`${skill.name} complete course tutorial`]).slice(0, 2),
+    projectPlacement: skill.projectPlacement || "skill",
+    quizPolicy: normalizeQuizPolicy(skill.quizPolicy, skill.topics?.length || 1)
   })));
 
   const known = new Set((knownSkills || []).map((item) => String(item).trim().toLowerCase()));
@@ -102,55 +143,126 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
     return true;
   });
 
-  const modules = activeSkills.map((skill, index) => ({
-    title: skill.name,
-    description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after its prerequisites.`,
-    skillIds: [skill.id],
-    order: index + 1,
-    quiz: null,
-    lessons: [
-      {
-        id: `${skill.id}-tutorial`,
-        title: `Learn ${skill.name}`,
-        description: `Master ${skill.topics.slice(0, 5).join(", ")}.`,
+  const modules = [];
+  let globalOrder = 1;
+
+  for (let skillIndex = 0; skillIndex < activeSkills.length; skillIndex += 1) {
+    const skill = activeSkills[skillIndex];
+    const topicChunks = splitTopics(skill.topics, skill.topics.length > 8 ? 4 : 5);
+    const moduleLessons = [];
+    let lessonOrder = 1;
+
+    topicChunks.forEach((topicChunk, chunkIndex) => {
+      const query = `${skill.name}: ${topicChunk.join(", ")} complete tutorial`;
+
+      moduleLessons.push({
+        id: `${skill.id}-tutorial-${chunkIndex + 1}`,
+        title: topicChunks.length > 1
+          ? `${skill.name} — Part ${chunkIndex + 1}: ${topicChunk.slice(0, 2).join(" & ")}`
+          : `Learn ${skill.name}`,
+        description: `Cover ${topicChunk.join(", ")} in a prerequisite-aware ${level} lesson.`,
         type: "tutorial",
+        order: lessonOrder++,
         tutorial: {
-          content: `Core topics: ${skill.topics.join(", ")}.`,
-          searchQuery: skill.searchQueries[0],
-          searchQueries: skill.searchQueries,
-          requiredTopics: skill.topics,
-          durationMinutes: skill.courseDuration,
+          content: `Core topics: ${topicChunk.join(", ")}.`,
+          searchQuery: query,
+          searchQueries: [query, ...skill.searchQueries.filter((item) => item !== query)].slice(0, 2),
+          requiredTopics: topicChunk,
+          durationMinutes: {
+            minMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
+            targetMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
+            maxMinutes: Math.max(
+              60,
+              Math.round(skill.courseDuration.maxMinutes / topicChunks.length)
+            )
+          },
           searchPolicy: {
             contentType: "complete-course",
-            minDurationMinutes: skill.courseDuration.minMinutes,
-            targetDurationMinutes: skill.courseDuration.targetMinutes,
-            maxDurationMinutes: skill.courseDuration.maxMinutes,
+            minDurationMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
+            targetDurationMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
+            maxDurationMinutes: Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length)),
             excludeShorts: true,
             requireEmbeddable: true,
             preferProjectBased: true,
             preferredLanguage: "en"
           }
         }
-      },
-      {
+      });
+
+      moduleLessons.push({
+        id: `${skill.id}-quiz-${chunkIndex + 1}`,
+        title: topicChunks.length > 1
+          ? `${skill.name} — Part ${chunkIndex + 1} Quiz`
+          : `${skill.name} Lesson Quiz`,
+        description: `Check your understanding of ${topicChunk.join(", ")} before continuing.`,
+        type: "quiz",
+        order: lessonOrder++,
+        quiz: {
+          scope: "lesson",
+          questionCount: skill.quizPolicy.lessonQuestionCount,
+          passingScore: skill.quizPolicy.passingScore,
+          focusTopics: topicChunk,
+          instructions: "Pass this quiz before moving to the next learning item. Questions are generated from the lesson topics."
+        }
+      });
+    });
+
+    const shouldAddProject =
+      skill.projectPlacement === "skill" ||
+      (skill.projectPlacement === "milestone" && (skillIndex + 1) % 2 === 0);
+
+    if (shouldAddProject && skill.practiceProject) {
+      moduleLessons.push({
         id: `${skill.id}-project`,
         title: skill.practiceProject,
-        description: "Apply this stage before moving to the next prerequisite-dependent skill.",
+        description: "Apply the skills from this stage before moving deeper into the stack.",
         type: "project",
+        order: lessonOrder++,
         project: {
           description: skill.practiceProject,
-          objectives: skill.topics.slice(0, 5).map((topic) => `Use ${topic}`),
-          requirements: skill.topics.slice(0, 5),
-          instructions: `Build the project using the skills introduced up to ${skill.name}. Test the main flows and document the result.`,
+          objectives: skill.topics.slice(0, 6).map((topic) => `Use ${topic}`),
+          requirements: skill.topics.slice(0, 6),
+          instructions: `Build the project using the skills introduced in ${skill.name}. Test the main flows, explain your decisions, and document the result.`,
           expectedOutcome: `A working project demonstrating practical ${skill.name} skills.`,
           submissionRequirements: ["Source code repository", "README with setup instructions", "Short project demonstration"]
         }
-      }
-    ]
-  }));
+      });
+    }
 
-  const totalMinutes = activeSkills.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0);
-  const days = Math.max(1, Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60)));
+    if (skill.quizPolicy.moduleQuestionCount > 0) {
+      moduleLessons.push({
+        id: `${skill.id}-module-quiz`,
+        title: `${skill.name} Module Assessment`,
+        description: `A module-level assessment covering the key topics from ${skill.name}.`,
+        type: "quiz",
+        order: lessonOrder++,
+        quiz: {
+          scope: "module",
+          questionCount: skill.quizPolicy.moduleQuestionCount,
+          passingScore: skill.quizPolicy.passingScore,
+          focusTopics: skill.topics,
+          instructions: "Use the assessment to validate the whole module before moving to the next technology."
+        }
+      });
+    }
+
+    modules.push({
+      title: skill.name,
+      description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after its prerequisites.`,
+      skillIds: [skill.id],
+      order: globalOrder++,
+      lessons: moduleLessons
+    });
+  }
+
+  const totalMinutes = activeSkills.reduce(
+    (sum, skill) => sum + skill.courseDuration.targetMinutes,
+    0
+  );
+  const days = Math.max(
+    1,
+    Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60))
+  );
 
   return {
     course: {
@@ -168,7 +280,9 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       category: skill.category,
       importance: skill.importance,
       prerequisites: skill.prerequisites,
-      practiceProject: skill.practiceProject
+      practiceProject: skill.practiceProject,
+      projectPlacement: skill.projectPlacement,
+      quizPolicy: skill.quizPolicy
     })),
     personalization: {
       goals,
@@ -176,13 +290,49 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       knownSkills: knownSkills || [],
       skippedSkills,
       rationale: [
-        `Ordered skills by prerequisites for a ${level} learner.`,
+        `Ordered technologies by prerequisites for a ${level} learner.`,
+        `Created lesson quizzes from each lesson's topic depth and module assessments for broader technology coverage.`,
         goals.length ? `Prioritized the roadmap around: ${goals.join(", ")}.` : "Used a balanced learning progression.",
         `Estimated the plan around ${studyTimeMinutesPerDay || 60} minutes per day.`
       ]
     }
   };
 }
+
+const quizResponseSchema = {
+  type: "object",
+  properties: {
+    questions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          topic: { type: "string" },
+          question: { type: "string" },
+          options: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                text: { type: "string" }
+              },
+              required: ["id", "text"]
+            },
+            minItems: 4,
+            maxItems: 4
+          },
+          correctOptionId: { type: "string" },
+          explanation: { type: "string" }
+        },
+        required: ["id", "topic", "question", "options", "correctOptionId", "explanation"]
+      }
+    }
+  },
+  required: ["questions"]
+};
+
 
 async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }) {
   if (!client) {
@@ -200,11 +350,15 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
     "Do not add a prerequisite that is not needed.",
     "Include practical projects after major skill stages.",
-    "Create 5-12 skills for broad technologies/careers and 3-8 for focused topics.",
-    "Create useful YouTube search queries for each skill; do not invent video URLs.",
+    "Create 5-12 technologies/stages for broad stacks/careers and 3-8 for focused topics.",
+    "Treat the topic as a complete stack/career when appropriate: identify the major technologies, modules, prerequisites, and project milestones needed to finish the stack.",
+    "For every technology/stage, decide whether a practical project should follow it: use projectPlacement=skill for a meaningful project, milestone for a larger project after two stages, or none when a project would add little value.",
     "For EVERY skill, decide a realistic complete-course duration range based on the depth required to become competent in that skill.",
     "Return minMinutes, targetMinutes, and maxMinutes for each skill.",
     "Do not use one generic duration for every skill. A deeper technology such as JavaScript may require a much longer course than a smaller focused skill.",
+    "For EVERY skill, decide quiz density with quizPolicy: lessonQuestionCount (3-10) based on topic count and lesson depth, moduleQuestionCount (0-15) based on overall module breadth, and passingScore (50-90).",
+    "Lesson quizzes should validate the immediate topic after the lesson. Module assessments should cover the combined technology/module topics.",
+    "The duration and topic count should drive quiz counts; do not use the same quiz count for every technology.",
     "The duration range is a SEARCH CONSTRAINT for YouTube resources, not the learner's total study duration.",
     "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists.",
     "",

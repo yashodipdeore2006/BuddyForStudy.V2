@@ -2,6 +2,7 @@ import { z } from "zod";
 import { failure, success } from "../utils/response.js";
 import { getPlaylistCourse, searchStructuredPlaylists, searchCourseBySkills, createCourseFromSearch, getOrCreateYouTubeResourceCourse } from "../services/discovery.service.js";
 import { SavedCourse } from "../models/SavedCourse.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { enroll } from "../services/enrollment.service.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
@@ -63,9 +64,7 @@ export async function enrollYouTubeResource(req, res, next) {
       enrollment = await enroll(req.user.userId, course._id);
     } catch (error) {
       if (error?.status === 409) {
-        enrollment = await import("../models/Enrollment.js").then(({ Enrollment }) =>
-          Enrollment.findOne({ user: req.user.userId, course: course._id })
-        );
+        enrollment = await Enrollment.findOne({ user: req.user.userId, course: course._id });
       } else {
         throw error;
       }

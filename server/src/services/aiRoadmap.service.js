@@ -1029,7 +1029,7 @@ export async function generateCourseQuiz({ courseId, lessonId }) {
 
 
 export async function generateAIRoadmap(input) {
-  const topicKeys = buildTopicKeys(input.topic);
+  const topicKeys = buildTopicKeys(input.topic, "industry-ready-v2");
   const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
   if (existing) return cachedRoadmapFromCourse(existing, input);
 
@@ -1046,7 +1046,7 @@ export async function generateAIRoadmap(input) {
       generation: {
         mode: "ai",
         query: input.topic,
-        topicKeys: buildTopicKeys(input.topic, ai.canonicalTopic, ai.title, ai.category),
+        topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", ai.canonicalTopic, ai.title, ai.category),
         snapshot: {
           intent: "ai_personalized_path",
           canonicalTopic: ai.canonicalTopic,
@@ -1090,7 +1090,7 @@ export async function generateAIRoadmap(input) {
       generation: {
         mode: "ai",
         query: input.topic,
-        topicKeys: buildTopicKeys(input.topic, fallback.canonicalTopic, fallback.course.title),
+        topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
         snapshot: {
           intent: "ai_personalized_path_fallback",
           canonicalTopic: fallback.canonicalTopic,

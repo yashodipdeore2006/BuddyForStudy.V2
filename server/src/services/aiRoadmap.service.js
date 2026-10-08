@@ -814,6 +814,7 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     throw error;
   }
   return value;
+}
 
 function generatedAiSlug(title) {
   const base = String(title || "ai-course").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");

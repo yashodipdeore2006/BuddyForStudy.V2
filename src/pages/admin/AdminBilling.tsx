@@ -1,7 +1,188 @@
-import { useEffect,useState } from "react";
-import { RefreshCcw,CheckCircle2,XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, CreditCard, IndianRupee, RefreshCcw, Search, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-export default function AdminBilling(){const [refunds,setRefunds]=useState<any[]>([]),[payments,setPayments]=useState<any[]>([]);
- async function load(){const [r,p]=await Promise.all([adminFetch("/api/admin/refunds"),adminFetch("/api/admin/payments")]);setRefunds(r.refunds);setPayments(p.payments)}useEffect(()=>{load()},[]);
- async function act(id:string,status:string){const note=prompt("Admin note / reason")||"";await adminFetch(`/api/admin/refunds/${id}`,{method:"PUT",body:JSON.stringify({status,adminNote:note})});load()}
- return <div className="mx-auto max-w-7xl"><h1 className="text-3xl font-bold">Billing & Refunds</h1><p className="mt-2 text-slate-500">Review payments and resolve refund requests with an auditable decision.</p><section className="card mt-6 overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Refund queue</h2></div><div className="divide-y">{refunds.length===0?<p className="p-6 text-sm text-slate-500">No refund requests.</p>:refunds.map(r=><div className="flex flex-col gap-3 p-5 md:flex-row md:items-center" key={r._id}><div className="flex-1"><p className="font-medium">{r.user?.name} · ₹{r.amount}</p><p className="text-sm text-slate-500">{r.user?.email}</p><p className="mt-1 text-sm">{r.reason}</p></div><span className="badge bg-amber-50 text-amber-700">{r.status}</span>{r.status==="pending"&&<div className="flex gap-2"><button onClick={()=>act(r._id,"approved")} className="btn-secondary"><CheckCircle2 className="h-4 w-4"/>Approve</button><button onClick={()=>act(r._id,"rejected")} className="btn-danger"><XCircle className="h-4 w-4"/>Reject</button></div>}</div>)}</div></section><section className="card mt-6 overflow-hidden"><div className="border-b p-5"><h2 className="font-semibold">Payment ledger</h2></div><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-4">User</th><th className="p-4">Amount</th><th className="p-4">Provider</th><th className="p-4">Status</th></tr></thead><tbody className="divide-y">{payments.map(p=><tr key={p._id}><td className="p-4">{p.user?.name}<div className="text-xs text-slate-500">{p.user?.email}</div></td><td className="p-4">₹{p.amount}</td><td className="p-4">{p.provider}</td><td className="p-4">{p.status}</td></tr>)}</tbody></table></div></section></div>}
+
+function money(value: number) {
+  return "₹" + Number(value || 0).toLocaleString("en-IN");
+}
+
+export default function AdminBilling() {
+  const [refunds, setRefunds] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [refundFilter, setRefundFilter] = useState("pending");
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const [refundData, paymentData] = await Promise.all([
+        adminFetch("/api/admin/refunds"),
+        adminFetch("/api/admin/payments?limit=200"),
+      ]);
+      setRefunds(refundData.refunds || []);
+      setPayments(paymentData.payments || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load billing data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function act(id: string, status: string) {
+    const note = window.prompt("Admin note / reason") || "";
+    if (status === "rejected" && !note.trim()) {
+      setError("Add a reason before rejecting a refund.");
+      return;
+    }
+
+    setActionId(id);
+    setError("");
+    try {
+      await adminFetch("/api/admin/refunds/" + id, {
+        method: "PUT",
+        body: JSON.stringify({ status, adminNote: note }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update refund");
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  const filteredRefunds = useMemo(
+    () => refunds.filter((item) => refundFilter === "all" || item.status === refundFilter),
+    [refunds, refundFilter]
+  );
+
+  const filteredPayments = useMemo(() => {
+    const q = paymentSearch.trim().toLowerCase();
+    return payments.filter((item) => {
+      const matchesStatus = !paymentStatus || item.status === paymentStatus;
+      const text = [
+        item.user?.name,
+        item.user?.email,
+        item.provider,
+        item.providerPaymentId,
+        item.providerOrderId,
+        item.course?.title,
+        item.plan?.name,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return matchesStatus && (!q || text.includes(q));
+    });
+  }, [payments, paymentSearch, paymentStatus]);
+
+  const paidTotal = payments
+    .filter((item) => item.status === "paid" || item.status === "partially_refunded")
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  return (
+    <div className="mx-auto max-w-7xl">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Revenue operations</p>
+          <h1 className="mt-1 text-3xl font-bold text-slate-950">Billing & Refunds</h1>
+          <p className="mt-2 text-slate-500">Review payments, refund requests and payment-provider references without leaving the admin panel.</p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}>
+          <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
+        </button>
+      </div>
+
+      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="card p-5"><IndianRupee className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{money(paidTotal)}</p><p className="text-sm text-slate-500">Recorded paid value</p></div>
+        <div className="card p-5"><CreditCard className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{payments.length}</p><p className="text-sm text-slate-500">Recent payment records</p></div>
+        <div className="card p-5"><CheckCircle2 className="h-5 w-5 text-green-600" /><p className="mt-3 text-2xl font-bold">{refunds.filter((r) => r.status === "processed").length}</p><p className="text-sm text-slate-500">Processed refunds</p></div>
+        <div className="card p-5"><XCircle className="h-5 w-5 text-amber-600" /><p className="mt-3 text-2xl font-bold">{refunds.filter((r) => r.status === "pending").length}</p><p className="text-sm text-slate-500">Pending refunds</p></div>
+      </div>
+
+      <section className="card mt-6 overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div><h2 className="font-bold text-slate-900">Refund queue</h2><p className="mt-1 text-xs text-slate-500">Every decision is recorded in the audit log.</p></div>
+          <select className="input-field w-auto" value={refundFilter} onChange={(e) => setRefundFilter(e.target.value)}>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="processed">Processed</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All statuses</option>
+          </select>
+        </div>
+        {loading ? <div className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
+          <div className="divide-y divide-slate-100">
+            {!filteredRefunds.length && <p className="p-8 text-center text-sm text-slate-500">No refund requests match this filter.</p>}
+            {filteredRefunds.map((item) => (
+              <div className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center" key={item._id}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.user?.name || "Unknown user"}</p><span className="badge bg-slate-100 text-slate-600">{item.status}</span></div>
+                  <p className="text-sm text-slate-500">{item.user?.email}</p>
+                  <p className="mt-2 text-sm text-slate-700">{item.reason || "No reason provided."}</p>
+                  <p className="mt-2 text-xs text-slate-400">{money(item.amount)} · {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</p>
+                </div>
+                {item.status === "pending" && (
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" className="btn-secondary" disabled={actionId === item._id} onClick={() => void act(item._id, "approved")}>
+                      {actionId === item._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Approve & refund
+                    </button>
+                    <button type="button" className="btn-danger" disabled={actionId === item._id} onClick={() => void act(item._id, "rejected")}>
+                      <XCircle className="h-4 w-4" /> Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card mt-6 overflow-hidden">
+        <div className="border-b border-slate-100 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div><h2 className="font-bold text-slate-900">Payment ledger</h2><p className="mt-1 text-xs text-slate-500">Search by user, course, plan or provider reference.</p></div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input className="input-field pl-10" placeholder="Search payments" value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} /></div>
+              <select className="input-field w-auto" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                <option value="paid">Paid</option>
+                <option value="failed">Failed</option>
+                <option value="pending">Pending</option>
+                <option value="created">Created</option>
+                <option value="refunded">Refunded</option>
+                <option value="partially_refunded">Partially refunded</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">User</th><th className="p-4">Product</th><th className="p-4">Amount</th><th className="p-4">Provider</th><th className="p-4">Status</th><th className="p-4">Reference</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredPayments.map((item) => (
+                <tr key={item._id} className="hover:bg-slate-50/70">
+                  <td className="p-4"><p className="font-semibold">{item.user?.name || "Unknown"}</p><p className="text-xs text-slate-500">{item.user?.email}</p></td>
+                  <td className="p-4 text-xs text-slate-600">{item.course?.title || item.plan?.name || "—"}</td>
+                  <td className="p-4 font-bold">{money(item.amount)}</td>
+                  <td className="p-4 capitalize text-slate-600">{item.provider}</td>
+                  <td className="p-4"><span className="badge bg-slate-100 text-slate-600">{item.status}</span></td>
+                  <td className="max-w-xs truncate p-4 font-mono text-[11px] text-slate-500">{item.providerPaymentId || item.providerOrderId || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!filteredPayments.length && <p className="p-8 text-center text-sm text-slate-500">No payment records match the filters.</p>}
+        </div>
+      </section>
+    </div>
+  );
+}

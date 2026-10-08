@@ -117,7 +117,11 @@ export default function CoursePlayer() {
       setQuizAnswers({});
       setQuizSubmitted(false);
       setQuizScore(null);
-      setQuizPassed(isLessonCompleted(progress?.completed_lessons || [], lessonId));
+      if (lessonId) {
+        setQuizPassed(isLessonCompleted(progress?.completed_lessons || [], lessonId));
+      } else {
+        setQuizPassed(false);
+      }
 
       try {
         const data = await apiFetch("/api/ai/quiz", {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import * as courseService from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
 
 const courseSchema = z.object({
   title: z.string().trim().min(2),
@@ -87,6 +88,18 @@ export async function learn(req, res, next) {
       user: req.user.userId, course: req.params.courseId, status: { $in: ["active", "completed"] }
     });
     if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
+
+    const projectsAllowed =
+      req.user.role === "admin" ||
+      (await getEntitlement(req.user.userId, "project_based_learning")).allowed;
+
+    if (!projectsAllowed) {
+      course.modules = (course.modules || []).map((module) => ({
+        ...module,
+        lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
+      }));
+    }
+
     return success(res, { course });
   } catch (e) { next(e); }
 }
@@ -103,6 +116,15 @@ export async function learningItem(req, res, next) {
     if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
     const located = courseService.findLearningItem(course, itemId);
     if (!located) return failure(res, "Learning item not found", 404);
+
+    if (
+      located.item.type === "project" &&
+      req.user.role !== "admin" &&
+      !(await getEntitlement(req.user.userId, "project_based_learning")).allowed
+    ) {
+      return failure(res, "Project-based learning is not included in your current plan.", 403);
+    }
+
     const progress = await (await import("../models/Progress.js")).Progress.findOne({ user: req.user.userId, course: courseId });
     const completed = !!progress?.completedLessons.some(x => x.lessonId.toString() === itemId);
     return success(res, { item: located.item, completed });

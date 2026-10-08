@@ -70,18 +70,21 @@ export default function Courses() {
         const rows = data.courses || data.items || [];
         setCourses(rows.map(mapCourse));
 
-        if (data.discovery?.mode === 'youtube_fallback') {
-          const fallback = data.discovery;
-          setYoutubeDiscovery(fallback);
+        if (
+          data.discovery?.mode === 'youtube_fallback' ||
+          data.discovery?.mode === 'youtube_supplementary'
+        ) {
+          const discovery = data.discovery;
+          setYoutubeDiscovery(discovery);
           setYoutubePlaylistsLoading(true);
           setYoutubePlaylistError("");
 
           try {
             const playlistData = await apiFetch(
-              `/api/discovery/search?q=${encodeURIComponent(fallback.query)}`
+              `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`
             );
             setYoutubeDiscovery({
-              ...fallback,
+              ...discovery,
               playlists: playlistData.playlists || [],
             });
           } catch (playlistError) {
@@ -486,30 +489,37 @@ export default function Courses() {
                 <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
               ))}
             </div>
-          ) : filteredCourses.length === 0 ? (
-            youtubeDiscovery ? (
-              <YouTubeSearchFallback
-                query={youtubeDiscovery.query}
-                courses={youtubeDiscovery.courseRecommendations || []}
-                playlists={youtubeDiscovery.playlists || []}
-                loadingPlaylists={youtubePlaylistsLoading}
-                error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}
-              />
-            ) : (
-              <div className="mt-5">
-                <EmptyState
-                  icon={<BookOpen className="h-8 w-8" />}
-                  title="No matching courses"
-                  description="Try another search term or use Build with AI to create a personalized learning path."
-                />
-              </div>
-            )
           ) : (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
-            </div>
+            <>
+              {filteredCourses.length > 0 && (
+                <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredCourses.map((course) => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
+                </div>
+              )}
+
+              {youtubeDiscovery && (
+                <YouTubeSearchFallback
+                  query={youtubeDiscovery.query}
+                  courses={youtubeDiscovery.courseRecommendations || []}
+                  playlists={youtubeDiscovery.playlists || []}
+                  loadingPlaylists={youtubePlaylistsLoading}
+                  error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}
+                  hasLocalResults={filteredCourses.length > 0}
+                />
+              )}
+
+              {filteredCourses.length === 0 && !youtubeDiscovery && (
+                <div className="mt-5">
+                  <EmptyState
+                    icon={<BookOpen className="h-8 w-8" />}
+                    title="No matching courses"
+                    description="Try another search term or use Build with AI to create a personalized learning path."
+                  />
+                </div>
+              )}
+            </>
           )}
         </section>
       ) : (

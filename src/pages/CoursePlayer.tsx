@@ -64,6 +64,12 @@ export default function CoursePlayer() {
   const [completing, setCompleting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState("");
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizData, setQuizData] = useState<any>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState<number | null>(null);
+  const [quizPassed, setQuizPassed] = useState(false);
 
   useEffect(() => {
     if (!courseId) {
@@ -95,6 +101,40 @@ export default function CoursePlayer() {
   );
 
   useEffect(() => {
+    if (currentLesson?.lesson.type !== "quiz" || !courseId || !lessonId) {
+      setQuizData(null);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizScore(null);
+      setQuizPassed(false);
+      return;
+    }
+
+    async function loadQuiz() {
+      setQuizLoading(true);
+      setQuizData(null);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizScore(null);
+      setQuizPassed(isLessonCompleted(progress?.completed_lessons || [], lessonId));
+
+      try {
+        const data = await apiFetch("/api/ai/quiz", {
+          method: "POST",
+          body: JSON.stringify({ courseId, lessonId }),
+        });
+        setQuizData(data.quiz);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to load this quiz.");
+      } finally {
+        setQuizLoading(false);
+      }
+    }
+
+    void loadQuiz();
+  }, [currentLesson?.lesson.type, courseId, lessonId, progress?.completed_lessons]);
+
+  useEffect(() => {
     if (!course || lessonId || allLessons.length === 0) return;
     const targetId =
       progress?.last_lesson_id ||
@@ -121,6 +161,35 @@ export default function CoursePlayer() {
       setCompleting(false);
     }
   };
+
+  const handleQuizSubmit = async () => {
+    if (!courseId || !lessonId || !quizData?.questions?.length) return;
+
+    const questions = quizData.questions || [];
+    const correct = questions.filter(
+      (question: any) => quizAnswers[question.id] === question.correctOptionId
+    ).length;
+    const score = Math.round((correct / questions.length) * 100);
+    setQuizScore(score);
+    setQuizSubmitted(true);
+
+    const passed = score >= Number(quizData.passingScore || currentLesson?.lesson.quiz?.passingScore || 70);
+    setQuizPassed(passed);
+
+    if (!passed || currentCompleted) return;
+
+    setCompleting(true);
+    setError("");
+    try {
+      const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
+      setProgress(mapProgress(data.progress));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Quiz passed, but progress could not be saved.");
+    } finally {
+      setCompleting(false);
+    }
+  };
+
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" /></div>;
@@ -185,7 +254,7 @@ export default function CoursePlayer() {
             </div>
           </div>
 
-          {currentLesson && (
+          {currentLesson && currentLesson.lesson.type !== "quiz" && (
             <button
               onClick={handleComplete}
               disabled={completing || currentCompleted}
@@ -221,6 +290,162 @@ export default function CoursePlayer() {
           <div className="mx-auto max-w-5xl">
             {currentLesson ? (
               <>
+                {currentLesson.lesson.type === "quiz" && (
+                  <section className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
+                    <div className="mx-auto max-w-4xl">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[.14em] text-blue-600">
+                            {currentLesson.lesson.quiz?.scope === "module" ? "Module assessment" : "Lesson quiz"}
+                          </p>
+                          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                            {currentLesson.lesson.title}
+                          </h1>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">
+                            {currentLesson.lesson.description}
+                          </p>
+                        </div>
+                        <span className="inline-flex w-fit rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                          {currentLesson.lesson.quiz?.questionCount || 0} questions
+                        </span>
+                      </div>
+
+                      {quizLoading ? (
+                        <div className="mt-8 flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-10">
+                          <div className="flex items-center gap-3 text-sm font-semibold text-slate-500">
+                            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                            Building your quiz with Gemini...
+                          </div>
+                        </div>
+                      ) : quizData?.questions?.length ? (
+                        <div className="mt-8 space-y-5">
+                          {quizData.questions.map((question: any, questionIndex: number) => (
+                            <article key={question.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                              <div className="flex items-start gap-3">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
+                                  {questionIndex + 1}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-bold leading-6 text-slate-900">{question.question}</p>
+                                  {question.topic && (
+                                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-[.12em] text-slate-400">
+                                      {question.topic}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid gap-2">
+                                {(question.options || []).map((option: any) => {
+                                  const selected = quizAnswers[question.id] === option.id;
+                                  const correctOption = question.correctOptionId === option.id;
+                                  const showResult = quizSubmitted;
+                                  const tone = showResult
+                                    ? correctOption
+                                      ? "border-green-200 bg-green-50 text-green-800"
+                                      : selected
+                                        ? "border-red-200 bg-red-50 text-red-800"
+                                        : "border-slate-200 bg-white text-slate-600"
+                                    : selected
+                                      ? "border-blue-300 bg-blue-50 text-blue-800"
+                                      : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50";
+
+                                  return (
+                                    <button
+                                      key={option.id}
+                                      type="button"
+                                      disabled={quizSubmitted}
+                                      onClick={() =>
+                                        setQuizAnswers((current) => ({
+                                          ...current,
+                                          [question.id]: option.id,
+                                        }))
+                                      }
+                                      className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${tone}`}
+                                    >
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-current/20 text-[11px]">
+                                        {option.id}
+                                      </span>
+                                      <span>{option.text}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {quizSubmitted && (
+                                <div className="mt-4 rounded-xl bg-white p-4">
+                                  <p className="text-sm font-bold text-slate-900">
+                                    {quizAnswers[question.id] === question.correctOptionId ? "Correct" : "Review this one"}
+                                  </p>
+                                  {question.explanation && (
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                                      {question.explanation}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </article>
+                          ))}
+
+                          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">
+                                Passing score: {quizData.passingScore || currentLesson.lesson.quiz?.passingScore || 70}%
+                              </p>
+                              {quizSubmitted && (
+                                <p className={`mt-1 text-sm font-semibold ${quizPassed ? "text-green-600" : "text-red-600"}`}>
+                                  Your score: {quizScore}%
+                                </p>
+                              )}
+                            </div>
+
+                            {!quizSubmitted ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleQuizSubmit()}
+                                disabled={
+                                  quizLoading ||
+                                  Object.keys(quizAnswers).length !== quizData.questions.length ||
+                                  completing
+                                }
+                                className="btn-primary justify-center"
+                              >
+                                Submit Quiz
+                              </button>
+                            ) : quizPassed ? (
+                              <button
+                                type="button"
+                                onClick={() => navigation.next && handleNavigate(navigation.next.id)}
+                                className="btn-primary justify-center"
+                                disabled={completing}
+                              >
+                                {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuizSubmitted(false);
+                                  setQuizScore(null);
+                                  setQuizPassed(false);
+                                  setQuizAnswers({});
+                                }}
+                                className="btn-primary justify-center"
+                              >
+                                Try Again
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">
+                          This quiz could not be generated. Try opening the lesson again.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
+
                 {currentLesson.lesson.type === "tutorial" && (
                   <div className="bg-black">
                     {currentLesson.lesson.tutorial?.videos?.length ? (

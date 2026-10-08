@@ -567,7 +567,7 @@ export default function YouTubeSearchFallback({
                         <PlayCircle className="h-4 w-4" />
                         Preview in BuddyForStudy
                       </button>
-                    </div>                    </div>
+                    </div>
                   </button>
                 ))}
               </div>

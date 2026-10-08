@@ -18,6 +18,7 @@ router.post("/courses/:courseId/modules", controller.addCourseModule);
 router.put("/courses/:courseId/modules/:moduleId", controller.updateCourseModule);
 router.delete("/courses/:courseId/modules/:moduleId", controller.deleteCourseModule);
 router.post("/courses/:courseId/modules/:moduleId/videos", controller.addCourseVideo);
+router.post("/courses/:courseId/modules/:moduleId/lessons", controller.addCourseLesson);
 router.delete("/courses/:courseId/modules/:moduleId/lessons/:lessonId", controller.deleteCourseLesson);
 router.post("/courses/:courseId/modules/:moduleId/resources", controller.addModuleResource);
 router.delete("/courses/:courseId/modules/:moduleId/resources/:resourceId", controller.deleteModuleResource);

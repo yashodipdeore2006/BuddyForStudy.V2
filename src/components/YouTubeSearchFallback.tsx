@@ -310,7 +310,7 @@ export default function YouTubeSearchFallback({
   return (
     <>
       <section className="mt-6">
-        <div className="max-h-[72vh] overflow-y-auto rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 pr-3 sm:p-7 sm:pr-4">
+        <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 sm:p-7">
           <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">
             Learning discovery
           </p>

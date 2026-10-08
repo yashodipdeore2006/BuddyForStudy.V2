@@ -112,29 +112,48 @@ export default function YouTubeSearchFallback({
   const { session } = useAuth();
   const navigate = useNavigate();
 
-  const builtCourses = useMemo<BuiltCourse[]>(() => (
-    courses.slice(0, 3).map((video, index) => ({
-      id: `video-course-${video.videoId}`,
-      title: `${query} Course ${index + 1}`,
-      description:
-        `BuddyForStudy course built from the #${index + 1} ranked YouTube learning resource.`,
-      thumbnail: video.thumbnail,
-      channelTitle: video.channelTitle,
-      sourceType: "video" as const,
-      sourceId: video.videoId,
-      lessons: [{
-        videoId: video.videoId,
-        title: video.title,
-        description: video.description,
-        channelTitle: video.channelTitle,
-        duration: video.duration,
-        durationSeconds: video.durationSeconds,
+  const builtCourses = useMemo<BuiltCourse[]>(() => {
+    const playlistCourses: BuiltCourse[] = playlists.slice(0, 3).map((playlist, index) => ({
+      id: `playlist-course-${playlist.playlistId}`,
+      title: playlist.title,
+      description: `BuddyForStudy course built from the #${index + 1} ranked YouTube playlist for “${query}”.`,
+      thumbnail: playlist.thumbnail,
+      channelTitle: playlist.channelTitle,
+      sourceType: "playlist",
+      sourceId: playlist.playlistId,
+      lessons: [],
+      itemCount: playlist.itemCount,
+    }));
+
+    if (playlistCourses.length >= 3) return playlistCourses;
+
+    const usedResourceIds = new Set(playlistCourses.map((course) => course.sourceId));
+    const videoCourses: BuiltCourse[] = courses
+      .filter((video) => !usedResourceIds.has(video.videoId))
+      .slice(0, 3 - playlistCourses.length)
+      .map((video, index) => ({
+        id: `video-course-${video.videoId}`,
+        title: `${query} Course ${index + playlistCourses.length + 1}`,
+        description: `BuddyForStudy course built from the #${index + playlistCourses.length + 1} ranked YouTube learning resource.`,
         thumbnail: video.thumbnail,
-        embedUrl: toEmbedUrl(video.videoId),
-      }],
-      itemCount: 1,
-    }))
-  ), [courses, query]);
+        channelTitle: video.channelTitle,
+        sourceType: "video",
+        sourceId: video.videoId,
+        lessons: [{
+          videoId: video.videoId,
+          title: video.title,
+          description: video.description,
+          channelTitle: video.channelTitle,
+          duration: video.duration,
+          durationSeconds: video.durationSeconds,
+          thumbnail: video.thumbnail,
+          embedUrl: toEmbedUrl(video.videoId),
+        }],
+        itemCount: 1,
+      }));
+
+    return [...playlistCourses, ...videoCourses];
+  }, [courses, playlists, query]);
 
   const requireSignIn = () => {
     navigate("/login", {
@@ -467,24 +486,88 @@ export default function YouTubeSearchFallback({
                         {course.duration}
                       </span>
                     </div>
-                    <div className="flex flex-1 flex-col p-4">
-                      <p className="line-clamp-2 text-sm font-bold leading-5 text-slate-900">
-                        {course.title}
-                      </p>
-                      <p className="mt-2 truncate text-xs font-semibold text-slate-500">
-                        {course.channelTitle}
-                      </p>
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                        <span>{formatCount(course.viewCount)} views</span>
-                        <span>·</span>
-                        <span>{formatCount(course.likeCount)} likes</span>
-                        <span>·</span>
-                        <span>Score {Math.round(course.score)}</span>
+                                        <div className="flex flex-1 flex-col p-4">
+                      <div className="flex-1">
+                        <p className="line-clamp-2 text-sm font-bold leading-5 text-slate-900">
+                          {course.title}
+                        </p>
+                        <p className="mt-2 truncate text-xs font-semibold text-slate-500">
+                          {course.channelTitle}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                          <span>{formatCount(course.viewCount)} views</span>
+                          <span>·</span>
+                          <span>{formatCount(course.likeCount)} likes</span>
+                          <span>·</span>
+                          <span>Score {Math.round(course.score)}</span>
+                        </div>
                       </div>
-                      <p className="mt-auto pt-4 text-xs font-bold text-blue-600">
-                        Watch inside BuddyForStudy →
-                      </p>
-                    </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void saveCourse({
+                              id: `video-course-${course.videoId}`,
+                              title: `${query} Course`,
+                              description: course.description,
+                              thumbnail: course.thumbnail,
+                              channelTitle: course.channelTitle,
+                              sourceType: "video",
+                              sourceId: course.videoId,
+                              lessons: [],
+                              itemCount: 1,
+                            });
+                          }}
+                          disabled={savingId === `video-course-${course.videoId}`}
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                            savedIds.has(`video-course-${course.videoId}`)
+                              ? "border-green-200 bg-green-50 text-green-700"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          }`}
+                        >
+                          {savingId === `video-course-${course.videoId}` ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          {savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save Course"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void enrollCourse({
+                              id: `video-course-${course.videoId}`,
+                              title: `${query} Course`,
+                              description: course.description,
+                              thumbnail: course.thumbnail,
+                              channelTitle: course.channelTitle,
+                              sourceType: "video",
+                              sourceId: course.videoId,
+                              lessons: [],
+                              itemCount: 1,
+                            });
+                          }}
+                          disabled={enrollingId === `video-course-${course.videoId}` || enrolledIds.has(`video-course-${course.videoId}`)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {enrollingId === `video-course-${course.videoId}` ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : null}
+                          {enrolledIds.has(`video-course-${course.videoId}`) ? "Enrolled" : "Enroll Now"}
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openVideo(course)}
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        Preview in BuddyForStudy
+                      </button>
+                    </div>                    </div>
                   </button>
                 ))}
               </div>
@@ -516,28 +599,11 @@ export default function YouTubeSearchFallback({
                   );
 
                   return (
-                    <button
+                    <article
                       key={playlist.playlistId}
-                      type="button"
-                      onClick={() =>
-                        void openCourse(
-                          built || {
-                            id: `playlist-resource-${playlist.playlistId}`,
-                            title: playlist.title,
-                            description: playlist.description,
-                            thumbnail: playlist.thumbnail,
-                            channelTitle: playlist.channelTitle,
-                            sourceType: "playlist",
-                            sourceId: playlist.playlistId,
-                            lessons: [],
-                            itemCount: playlist.itemCount,
-                          }
-                        )
-                      }
-                      disabled={openingId === (built?.id || `playlist-resource-${playlist.playlistId}`)}
-                      className="group flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                      className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
                     >
-                      <div className="relative aspect-video w-full flex-shrink-0 overflow-hidden bg-slate-100">
+                      <div className="relative aspect-video overflow-hidden bg-slate-100">
                         {playlist.thumbnail ? (
                           <img src={playlist.thumbnail} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -545,31 +611,134 @@ export default function YouTubeSearchFallback({
                             <ListVideo className="h-7 w-7 text-slate-300" />
                           </div>
                         )}
-                        <span className="absolute left-1.5 top-1.5 rounded-full bg-slate-950/80 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                          #{index + 1}
+                        <span className="absolute left-3 top-3 rounded-full bg-slate-950/80 px-2 py-1 text-[10px] font-bold text-white">
+                          #{index + 1} ranked
                         </span>
                       </div>
+
                       <div className="flex flex-1 flex-col p-4">
-                        <p className="line-clamp-2 text-sm font-bold text-slate-900">
-                          {playlist.title}
-                        </p>
-                        <p className="mt-1 truncate text-xs font-semibold text-slate-500">
-                          {playlist.channelTitle}
-                        </p>
-                        <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
-                          <span>{playlist.itemCount} videos</span>
-                          {playlist.score !== undefined && (
+                        <div className="flex-1">
+                          <p className="line-clamp-2 text-sm font-bold text-slate-900">
+                            {playlist.title}
+                          </p>
+                          <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                            {playlist.channelTitle}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-slate-400">
+                            <span>{playlist.itemCount} videos</span>
+                            {playlist.score !== undefined && (
+                              <>
+                                <span>·</span>
+                                <span>Score {Math.round(playlist.score)}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const course = builtCourses.find(
+                                (item) =>
+                                  item.sourceType === "playlist" &&
+                                  item.sourceId === playlist.playlistId
+                              ) || {
+                                id: `playlist-course-${playlist.playlistId}`,
+                                title: playlist.title,
+                                description: playlist.description,
+                                thumbnail: playlist.thumbnail,
+                                channelTitle: playlist.channelTitle,
+                                sourceType: "playlist" as const,
+                                sourceId: playlist.playlistId,
+                                lessons: [],
+                                itemCount: playlist.itemCount,
+                              };
+                              void saveCourse(course);
+                            }}
+                            disabled={savingId === `playlist-course-${playlist.playlistId}`}
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                              savedIds.has(`playlist-course-${playlist.playlistId}`)
+                                ? "border-green-200 bg-green-50 text-green-700"
+                                : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                            }`}
+                          >
+                            {savingId === `playlist-course-${playlist.playlistId}` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : null}
+                            {savedIds.has(`playlist-course-${playlist.playlistId}`) ? "Saved" : "Save Course"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const course = builtCourses.find(
+                                (item) =>
+                                  item.sourceType === "playlist" &&
+                                  item.sourceId === playlist.playlistId
+                              ) || {
+                                id: `playlist-course-${playlist.playlistId}`,
+                                title: playlist.title,
+                                description: playlist.description,
+                                thumbnail: playlist.thumbnail,
+                                channelTitle: playlist.channelTitle,
+                                sourceType: "playlist" as const,
+                                sourceId: playlist.playlistId,
+                                lessons: [],
+                                itemCount: playlist.itemCount,
+                              };
+                              void enrollCourse(course);
+                            }}
+                            disabled={
+                              enrollingId === `playlist-course-${playlist.playlistId}` ||
+                              enrolledIds.has(`playlist-course-${playlist.playlistId}`)
+                            }
+                            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                          >
+                            {enrollingId === `playlist-course-${playlist.playlistId}` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : null}
+                            {enrolledIds.has(`playlist-course-${playlist.playlistId}`) ? "Enrolled" : "Enroll Now"}
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const course = builtCourses.find(
+                              (item) =>
+                                item.sourceType === "playlist" &&
+                                item.sourceId === playlist.playlistId
+                            ) || {
+                              id: `playlist-course-${playlist.playlistId}`,
+                              title: playlist.title,
+                              description: playlist.description,
+                              thumbnail: playlist.thumbnail,
+                              channelTitle: playlist.channelTitle,
+                              sourceType: "playlist" as const,
+                              sourceId: playlist.playlistId,
+                              lessons: [],
+                              itemCount: playlist.itemCount,
+                            };
+                            void openCourse(course);
+                          }}
+                          disabled={openingId === `playlist-course-${playlist.playlistId}`}
+                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                        >
+                          {openingId === `playlist-course-${playlist.playlistId}` ? (
                             <>
-                              <span>·</span>
-                              <span>Score {Math.round(playlist.score)}</span>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Opening...
+                            </>
+                          ) : (
+                            <>
+                              <PlayCircle className="h-4 w-4" />
+                              Preview in BuddyForStudy
                             </>
                           )}
-                        </div>
-                        <p className="mt-auto pt-4 text-xs font-bold text-blue-600">
-                          Open inside BuddyForStudy →
-                        </p>
+                        </button>
                       </div>
-                    </button>
+                    </article>
                   );
                 })}
               </div>

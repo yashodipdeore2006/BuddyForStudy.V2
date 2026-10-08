@@ -76,8 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp=async(name:string,email:string,password:string)=>{
     const data=await apiFetch('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
-    if (data.requiresVerification) {
-      return { requiresVerification: true, email: data.email };
+    if (data.requiresVerification === true) {
+      return {
+        requiresVerification: true,
+        email: String(data.email || email),
+      };
     }
     setAuth(data.token,data.user);
     applyUser(data.user);

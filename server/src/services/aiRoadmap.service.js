@@ -468,6 +468,149 @@ function cachedRoadmapFromCourse(course, input) {
   };
 }
 
+function getQuizContext(module, lesson) {
+  const sourceLessons =
+    lesson.quiz?.scope === "module"
+      ? (module.lessons || []).filter((item) => item.type !== "quiz")
+      : (module.lessons || []).filter(
+          (item) => item.type === "tutorial" && Number(item.order || 0) < Number(lesson.order || 0)
+        ).slice(-1);
+
+  return sourceLessons.map((item) => ({
+    title: item.title,
+    type: item.type,
+    description: item.description || "",
+    topics: item.tutorial?.requiredTopics || [],
+    content: item.tutorial?.content || "",
+    project: item.project || null
+  }));
+}
+
+function validateQuizQuestions(questions, expectedCount) {
+  const valid = Array.isArray(questions)
+    ? questions.filter((item) =>
+        item &&
+        String(item.id || "").trim() &&
+        String(item.question || "").trim() &&
+        Array.isArray(item.options) &&
+        item.options.length === 4 &&
+        item.options.every((option) => option?.id && option?.text) &&
+        item.options.some((option) => option.id === item.correctOptionId)
+      )
+    : [];
+
+  if (valid.length < expectedCount) {
+    const error = new Error("Gemini returned fewer valid quiz questions than requested");
+    error.status = 502;
+    throw error;
+  }
+
+  return valid.slice(0, expectedCount);
+}
+
+export async function generateCourseQuiz({ courseId, lessonId }) {
+  if (!client) {
+    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
+    error.status = 503;
+    throw error;
+  }
+
+  const course = await Course.findOne({ _id: courseId, isPublished: true });
+  if (!course) {
+    const error = new Error("Course not found");
+    error.status = 404;
+    throw error;
+  }
+
+  let located = null;
+  for (const module of course.modules || []) {
+    const lessonIndex = (module.lessons || []).findIndex(
+      (lesson) => String(lesson._id) === String(lessonId)
+    );
+    if (lessonIndex >= 0) {
+      located = { module, lesson: module.lessons[lessonIndex], lessonIndex };
+      break;
+    }
+  }
+
+  if (!located?.lesson || located.lesson.type !== "quiz" || !located.lesson.quiz) {
+    const error = new Error("Quiz lesson not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const requestedCount = Math.max(3, Math.min(15, Number(located.lesson.quiz.questionCount) || 5));
+  const existingQuestions = located.lesson.quiz.questions || [];
+  if (existingQuestions.length >= requestedCount) {
+    return {
+      courseId: String(course._id),
+      lessonId: String(located.lesson._id),
+      quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
+    };
+  }
+
+  const context = getQuizContext(located.module, located.lesson);
+  const prompt = [
+    "You are BuddyForStudy's assessment designer.",
+    "Generate a high-quality multiple-choice assessment from the supplied learning context.",
+    `Create exactly ${requestedCount} questions.`,
+    "Each question must test a distinct concept from the supplied topics.",
+    "Use four plausible options and exactly one correct option.",
+    "Do not ask about information that is not supported by the supplied learning context or established programming knowledge.",
+    "Avoid trick wording. Prefer applied understanding, debugging, architecture, syntax, trade-offs, or concept selection where appropriate.",
+    "Return concise explanations for the correct answer.",
+    "",
+    `Course: ${course.title}`,
+    `Level: ${course.level}`,
+    `Quiz scope: ${located.lesson.quiz.scope}`,
+    `Focus topics: ${JSON.stringify(located.lesson.quiz.focusTopics || [])}`,
+    `Learning context: ${JSON.stringify(context)}`
+  ].join("\n");
+
+  const response = await client.models.generateContent({
+    model: env.geminiModel,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: quizResponseSchema,
+      thinkingConfig: { thinkingLevel: "MINIMAL" },
+      maxOutputTokens: Math.max(5000, requestedCount * 550)
+    }
+  });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.text);
+  } catch {
+    const error = new Error("Gemini quiz provider returned invalid structured data");
+    error.status = 502;
+    throw error;
+  }
+
+  const questions = validateQuizQuestions(parsed?.questions, requestedCount).map((question, index) => ({
+    id: normalizeId(question.id || `q-${index + 1}`) || `q-${index + 1}`,
+    topic: String(question.topic || located.lesson.quiz.focusTopics?.[index % Math.max(1, located.lesson.quiz.focusTopics?.length || 1)] || "").trim(),
+    question: String(question.question).trim(),
+    options: question.options.slice(0, 4).map((option, optionIndex) => ({
+      id: normalizeId(option.id || `option-${optionIndex + 1}`) || `option-${optionIndex + 1}`,
+      text: String(option.text).trim()
+    })),
+    correctOptionId: normalizeId(question.correctOptionId),
+    explanation: String(question.explanation || "").trim()
+  }));
+
+  located.lesson.quiz.questions = questions;
+  located.lesson.quiz.generatedAt = new Date();
+  await course.save();
+
+  return {
+    courseId: String(course._id),
+    lessonId: String(located.lesson._id),
+    quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
+  };
+}
+
+
 export async function generateAIRoadmap(input) {
   const topicKeys = buildTopicKeys(input.topic);
   const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });

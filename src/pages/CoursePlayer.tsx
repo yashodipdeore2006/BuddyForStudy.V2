@@ -6,6 +6,7 @@ import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github } from "lucide-react";
 import { classNames } from "@/lib/utils";
+import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
 
 function mapCourse(raw: any): Course {
   return {
@@ -516,6 +517,10 @@ export default function CoursePlayer() {
                   </div>
 
                   <div className="py-5">
+                    {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
+                      <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
+                    )}
+
                     {currentLesson.lesson.type === "tutorial" && (
                       <div className="space-y-4">
                         {(currentLesson.lesson.description ||

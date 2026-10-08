@@ -378,6 +378,59 @@ export async function addCourseVideo(req, res, next) {
   }
 }
 
+
+export async function addCourseLesson(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const title = String(req.body.title || "").trim();
+    const type = ["tutorial", "project", "quiz"].includes(req.body.type) ? req.body.type : "tutorial";
+    if (!title) return failure(res, "Learning item title is required", 400);
+
+    const lessonInput = {
+      title,
+      description: String(req.body.description || "").trim(),
+      type,
+      order: (module.lessons || []).length + 1
+    };
+
+    if (type === "tutorial") {
+      lessonInput.tutorial = { content: "", resources: [], videos: [] };
+    } else if (type === "project") {
+      lessonInput.project = {
+        description: String(req.body.description || "").trim(),
+        objectives: [],
+        requirements: [],
+        instructions: "",
+        expectedOutcome: ""
+      };
+    } else {
+      lessonInput.quiz = {
+        scope: "lesson",
+        questionCount: Math.max(3, Math.min(15, Number(req.body.questionCount) || 5)),
+        passingScore: Math.max(50, Math.min(90, Number(req.body.passingScore) || 70)),
+        focusTopics: [],
+        instructions: "Complete the quiz to validate understanding.",
+        questions: []
+      };
+    }
+
+    const lesson = module.lessons.create(lessonInput);
+    module.lessons.push(lesson);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.lesson.created", "Course", course._id, null, {
+      moduleId: String(module._id), lessonId: String(lesson._id), title, type
+    });
+    return success(res, { course, module, lesson }, "Learning item added", 201);
+  } catch (e) { next(e); }
+}
+
 export async function deleteCourseLesson(req, res, next) {
   try {
     const course = await Course.findById(req.params.courseId);

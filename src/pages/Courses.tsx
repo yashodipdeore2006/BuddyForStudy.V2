@@ -550,10 +550,12 @@ export default function Courses() {
               />
             </div>
           ) : (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {popularCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
+            <div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[72vh]">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {popularCourses.map((course) => (
+                  <CourseCard key={course.id} course={course} />
+                ))}
+              </div>
             </div>
           )}
         </section>

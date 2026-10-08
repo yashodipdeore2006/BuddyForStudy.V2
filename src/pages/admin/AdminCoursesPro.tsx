@@ -610,6 +610,45 @@ export default function AdminCoursesPro() {
                       <p className="py-8 text-center text-sm text-red-600">Unable to load course curriculum.</p>
                     ) : (
                       <div className="space-y-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Course information</p>
+                              <h3 className="mt-1 text-lg font-extrabold text-slate-950">Edit course metadata</h3>
+                            </div>
+                            <p className="text-xs text-slate-400">Changes are audited and reflected on learner-facing course pages.</p>
+                          </div>
+                          {(() => {
+                            const meta = courseMeta(detail);
+                            const patch = (next: Partial<CourseMetaForm>) => setCourseMetaForms((current) => ({
+                              ...current,
+                              [detail._id]: { ...meta, ...next, error: "" },
+                            }));
+                            return (
+                              <>
+                                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                                  <input className="input-field" placeholder="Course title" value={meta.title} onChange={(e) => patch({ title: e.target.value })} />
+                                  <input className="input-field" placeholder="Category" value={meta.category} onChange={(e) => patch({ category: e.target.value })} />
+                                  <select className="input-field" value={meta.level} onChange={(e) => patch({ level: e.target.value as CourseMetaForm["level"] })}>
+                                    <option value="Beginner">Beginner</option>
+                                    <option value="Intermediate">Intermediate</option>
+                                    <option value="Advanced">Advanced</option>
+                                  </select>
+                                  <input className="input-field" placeholder="Duration" value={meta.duration} onChange={(e) => patch({ duration: e.target.value })} />
+                                  <input className="input-field lg:col-span-2" placeholder="Thumbnail URL" value={meta.thumbnail} onChange={(e) => patch({ thumbnail: e.target.value })} />
+                                  <textarea className="input-field lg:col-span-2 min-h-24" placeholder="Description" value={meta.description} onChange={(e) => patch({ description: e.target.value })} />
+                                  <textarea className="input-field lg:col-span-2 min-h-24" placeholder="Learning outcomes — one per line" value={meta.learningOutcomes} onChange={(e) => patch({ learningOutcomes: e.target.value })} />
+                                </div>
+                                {meta.error && <p className="mt-2 text-xs font-semibold text-red-600">{meta.error}</p>}
+                                <button type="button" className="btn-primary mt-4" onClick={() => void saveCourseMeta(detail._id, detail)} disabled={meta.saving}>
+                                  {meta.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                  Save course information
+                                </button>
+                              </>
+                            );
+                          })()}
+                        </div>
+
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
                           <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Add module</p>
                           <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1.4fr_auto]">

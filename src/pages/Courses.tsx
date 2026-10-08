@@ -6,6 +6,7 @@ import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp } from 'lucide-react';
+import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -35,6 +36,9 @@ export default function Courses() {
   const [popularCourses, setPopularCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
+  const [youtubeDiscovery, setYoutubeDiscovery] = useState<any>(null);
+  const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
+  const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
   const [popularLoading, setPopularLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [catalogQuery, setCatalogQuery] = useState('');
@@ -54,6 +58,9 @@ export default function Courses() {
       setLoading(true);
       try {
         setCatalogError("");
+        setYoutubeDiscovery(null);
+        setYoutubePlaylistsLoading(false);
+        setYoutubePlaylistError("");
         const params = new URLSearchParams({ page: '1', limit: '50' });
         if (selectedLevel !== 'all') params.set('level', selectedLevel);
         if (selectedCategory !== 'all') params.set('category', selectedCategory);
@@ -62,6 +69,35 @@ export default function Courses() {
         const data = await apiFetch(`/api/courses?${params.toString()}`);
         const rows = data.courses || data.items || [];
         setCourses(rows.map(mapCourse));
+
+        if (data.discovery?.mode === 'youtube_fallback') {
+          const fallback = data.discovery;
+          setYoutubeDiscovery(fallback);
+          setYoutubePlaylistsLoading(true);
+          setYoutubePlaylistError("");
+
+          try {
+            const playlistData = await apiFetch(
+              `/api/discovery/search?q=${encodeURIComponent(fallback.query)}`
+            );
+            setYoutubeDiscovery({
+              ...fallback,
+              playlists: playlistData.playlists || [],
+            });
+          } catch (playlistError) {
+            setYoutubePlaylistError(
+              playlistError instanceof Error
+                ? playlistError.message
+                : "Unable to load YouTube playlists"
+            );
+          } finally {
+            setYoutubePlaylistsLoading(false);
+          }
+        } else {
+          setYoutubeDiscovery(null);
+          setYoutubePlaylistsLoading(false);
+          setYoutubePlaylistError("");
+        }
       } catch (error) {
         setCourses([]);
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
@@ -451,13 +487,23 @@ export default function Courses() {
               ))}
             </div>
           ) : filteredCourses.length === 0 ? (
-            <div className="mt-5">
-              <EmptyState
-                icon={<BookOpen className="h-8 w-8" />}
-                title="No matching courses"
-                description="Try another search term or use Build with AI to create a personalized learning path."
+            youtubeDiscovery ? (
+              <YouTubeSearchFallback
+                query={youtubeDiscovery.query}
+                courses={youtubeDiscovery.courseRecommendations || []}
+                playlists={youtubeDiscovery.playlists || []}
+                loadingPlaylists={youtubePlaylistsLoading}
+                error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}
               />
-            </div>
+            ) : (
+              <div className="mt-5">
+                <EmptyState
+                  icon={<BookOpen className="h-8 w-8" />}
+                  title="No matching courses"
+                  description="Try another search term or use Build with AI to create a personalized learning path."
+                />
+              </div>
+            )
           ) : (
             <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {filteredCourses.map((course) => (

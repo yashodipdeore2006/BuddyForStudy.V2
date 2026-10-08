@@ -41,6 +41,31 @@ const roadmapSchema = {
           },
           practiceProject: { type: "string" },
           projectPlacement: { type: "string", enum: ["none", "skill", "milestone"] },
+          projectPlan: {
+            type: "object",
+            properties: {
+              scenario: { type: "string" },
+              whyThisProject: { type: "string" },
+              features: { type: "array", items: { type: "string" } },
+              architecture: { type: "array", items: { type: "string" } },
+              milestones: { type: "array", items: { type: "string" } },
+              testingChecklist: { type: "array", items: { type: "string" } },
+              industrySkills: { type: "array", items: { type: "string" } },
+              githubWorkflow: { type: "array", items: { type: "string" } },
+              videoSearchQueries: { type: "array", items: { type: "string" } }
+            },
+            required: [
+              "scenario",
+              "whyThisProject",
+              "features",
+              "architecture",
+              "milestones",
+              "testingChecklist",
+              "industrySkills",
+              "githubWorkflow",
+              "videoSearchQueries"
+            ]
+          },
           quizPolicy: {
             type: "object",
             properties: {
@@ -52,11 +77,44 @@ const roadmapSchema = {
           },
           durationMinutes: { type: "integer" }
         },
-        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject", "projectPlacement", "quizPolicy"]
+        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject", "projectPlacement", "projectPlan", "quizPolicy"]
       }
     }
   },
-  required: ["canonicalTopic", "title", "description", "careerOutcome", "category", "learningOutcomes", "skills"]
+    capstoneProjects: {
+      type: "array",
+      minItems: 0,
+      maxItems: 2,
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          scenario: { type: "string" },
+          whyThisProject: { type: "string" },
+          features: { type: "array", items: { type: "string" } },
+          architecture: { type: "array", items: { type: "string" } },
+          milestones: { type: "array", items: { type: "string" } },
+          testingChecklist: { type: "array", items: { type: "string" } },
+          industrySkills: { type: "array", items: { type: "string" } },
+          githubWorkflow: { type: "array", items: { type: "string" } },
+          videoSearchQueries: { type: "array", items: { type: "string" } }
+        },
+        required: [
+          "title",
+          "scenario",
+          "whyThisProject",
+          "features",
+          "architecture",
+          "milestones",
+          "testingChecklist",
+          "industrySkills",
+          "githubWorkflow",
+          "videoSearchQueries"
+        ]
+      }
+    }
+  },
+  required: ["canonicalTopic", "title", "description", "careerOutcome", "category", "learningOutcomes", "skills", "capstoneProjects"]
 };
 
 function normalizeId(value) {

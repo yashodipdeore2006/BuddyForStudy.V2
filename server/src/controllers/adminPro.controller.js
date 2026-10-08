@@ -52,7 +52,7 @@ async function notificationAudienceUsers(audience) {
 
 export async function overview(req, res, next) {
   try {
-    const [users, activeUsers, admins, courses, published, unpublished, emptyCourses, enrollments, activeSubscribers, pastDueSubscribers, revenue, failedPayments, pendingRefunds, unread] = await Promise.all([
+    const [users, activeUsers, admins, courses, published, unpublished, emptyCourses, enrollments, activeSubscribers, pastDueSubscribers, grossRevenue, processedRefunds, failedPayments, pendingRefunds, unread] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isActive: true }),
       User.countDocuments({ role: "admin" }),
@@ -64,6 +64,7 @@ export async function overview(req, res, next) {
       UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
       UserSubscription.countDocuments({ status: "past_due" }),
       Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      RefundRequest.aggregate([{ $match: { status: "processed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Payment.countDocuments({ status: "failed" }),
       RefundRequest.countDocuments({ status: "pending" }),
       Notification.countDocuments({ readAt: null })
@@ -87,7 +88,7 @@ export async function overview(req, res, next) {
       stats: {
         users, activeUsers, admins, courses, published, unpublished, emptyCourses,
         enrollments, activeSubscribers, pastDueSubscribers,
-        revenue: revenue[0]?.total || 0,
+        revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)),
         failedPayments, pendingRefunds, unread
       },
       recentUsers, recentPayments, recentAudit, topCourses

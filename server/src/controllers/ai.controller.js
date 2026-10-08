@@ -3,7 +3,7 @@ import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.ser
 import { createCourse } from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
 import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
-import { readPlanLimit, getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
+import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 
 const schema = z.object({
   topic: z.string().trim().min(2).max(200),

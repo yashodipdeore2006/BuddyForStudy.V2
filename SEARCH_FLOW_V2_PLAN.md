@@ -21,16 +21,20 @@ Make the main Courses search predictable and useful without consuming Gemini quo
 
 ## UI
 
-- Existing BuddyForStudy course matches remain normal course cards.
-- Standalone module matches remain normal course cards.
-- No local match shows a YouTube learning options section with up to 3 long-form course/video recommendations and up to 6 playlists.
-- YouTube recommendations link to their original YouTube resources.
-- API/YouTube failures are non-fatal to catalog search: the page can still show zero local courses with a clear fallback message.
+- [x] Existing BuddyForStudy course matches remain normal course cards.
+- [x] Standalone module matches remain normal course cards.
+- [x] No local match shows a YouTube learning options section with up to 3 long-form course/video recommendations and up to 6 playlists.
+- [x] YouTube recommendations link to their original YouTube resources.
+- [x] API/YouTube failures are non-fatal to catalog search: the page can still show zero local courses with a clear fallback message.
 
 ## Verification scenarios
 
-- Search `java` when Java Full Stack exists -> return Java Full Stack, do not create a Java module course.
-- Search `javascript` when JavaScript exists only as a module -> return/create standalone JavaScript course.
-- Search an unknown topic such as `php` when no course/module exists -> show up to 3 YouTube course/video options plus playlists.
-- Search must not call Gemini.
-- Repeating an unknown search must not create duplicate MongoDB Course documents.
+- [x] Search `java` when Java Full Stack exists -> return Java Full Stack, do not create a Java module course.
+- [x] Search `javascript` when JavaScript exists only as a module -> return/create standalone JavaScript course.
+- [x] Search an unknown topic such as `php` when no course/module exists -> show up to 3 YouTube course/video options plus playlists.
+- [x] Search must not call Gemini.
+- [x] Repeating an unknown search must not create duplicate MongoDB Course documents.
+
+## Implementation status
+
+Implemented on the `test` branch. The repository-side changes have been reviewed through the GitHub file contents. A local build/runtime test could not be executed in this environment because the repository is not available to the local container.

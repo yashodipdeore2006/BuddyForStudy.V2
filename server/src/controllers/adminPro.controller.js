@@ -12,6 +12,7 @@ import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
+import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";

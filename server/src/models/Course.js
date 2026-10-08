@@ -20,10 +20,34 @@ const projectSchema = new mongoose.Schema({
   description: { type: String, default: "" }, objectives: { type: [String], default: [] }, requirements: { type: [String], default: [] },
   instructions: { type: String, default: "" }, expectedOutcome: { type: String, default: "" }, resources: { type: [String], default: [] }, submissionRequirements: { type: [String], default: [] }
 }, { _id: false });
+const quizQuestionOptionSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  text: { type: String, required: true },
+}, { _id: false });
+
+const quizQuestionSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  topic: { type: String, default: "" },
+  question: { type: String, required: true },
+  options: { type: [quizQuestionOptionSchema], default: [] },
+  correctOptionId: { type: String, required: true },
+  explanation: { type: String, default: "" },
+}, { _id: false });
+
+const quizSchema = new mongoose.Schema({
+  scope: { type: String, enum: ["lesson", "module"], required: true },
+  questionCount: { type: Number, required: true, min: 1, max: 20 },
+  passingScore: { type: Number, default: 70, min: 50, max: 100 },
+  focusTopics: { type: [String], default: [] },
+  instructions: { type: String, default: "" },
+  questions: { type: [quizQuestionSchema], default: [] },
+  generatedAt: { type: Date, default: null },
+}, { _id: false });
+
 const lessonSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 }, description: { type: String, default: "", trim: true },
-  type: { type: String, enum: ["tutorial", "project"], required: true }, order: { type: Number, required: true, min: 1 },
-  tutorial: { type: tutorialSchema }, project: { type: projectSchema }
+  type: { type: String, enum: ["tutorial", "project", "quiz"], required: true }, order: { type: Number, required: true, min: 1 },
+  tutorial: { type: tutorialSchema }, project: { type: projectSchema }, quiz: { type: quizSchema }
 });
 const moduleSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 }, description: { type: String, default: "", trim: true },

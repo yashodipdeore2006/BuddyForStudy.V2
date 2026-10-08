@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github } from "lucide-react";
 import { classNames } from "@/lib/utils";
 
 function mapCourse(raw: any): Course {
@@ -830,6 +830,37 @@ export default function CoursePlayer() {
                     {module.title}
                   </p>
                 </div>
+
+                {(module.resources || []).length > 0 && (
+                  <div className="border-t border-slate-100 bg-white px-3 py-2">
+                    <p className="px-1 pb-1 text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">
+                      Resources
+                    </p>
+                    <div className="space-y-1">
+                      {(module.resources || []).map((resource) => {
+                        const Icon =
+                          resource.type === "repository"
+                            ? Github
+                            : resource.type === "document"
+                              ? FileText
+                              : ExternalLink;
+                        return (
+                          <a
+                            key={resource.id}
+                            href={resource.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+                          >
+                            <Icon className="h-3.5 w-3.5 shrink-0" />
+                            <span className="min-w-0 truncate">{resource.title}</span>
+                            <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-50" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {module.lessons.map((lesson) => {
                   const done = isLessonCompleted(completedLessons, lesson.id);

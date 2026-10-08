@@ -1008,6 +1008,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     `Learning context: ${JSON.stringify(context)}`
   ].join("\n");
 
+  try {
   const response = await client.models.generateContent({
     model: env.geminiModel,
     contents: prompt,

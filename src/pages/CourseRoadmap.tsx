@@ -14,6 +14,7 @@ import {
 import { apiFetch } from '@/lib/api';
 import type { Course, Progress } from '@/types';
 import { countAllLessons, getAllLessonsFlat } from '@/lib/courseUtils';
+import ExpandableText from '@/components/ExpandableText';
 
 function mapCourse(raw: any): Course {
   return {

@@ -5,6 +5,7 @@ import { attachYouTubeResources } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 import { randomUUID } from "node:crypto";
+import { normalizeMultiVideoLessons } from "./course.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -621,6 +622,7 @@ export async function generateAIRoadmap(input) {
     const ai = await generateWithGemini(input);
     const built = buildCourse(ai, input);
     const sources = await attachYouTubeResources(built.course);
+    normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 
     const course = await Course.create({

@@ -195,6 +195,9 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "You are BuddyForStudy's curriculum architect.",
     "Create a realistic prerequisite-ordered learning curriculum for the learner.",
     "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
+    "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
+    "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
+    "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
     "Infer the important skills even when the topic is broad or uncommon.",
     "Use concise skill IDs in lowercase kebab-case.",
     "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
@@ -316,7 +319,7 @@ function cachedRoadmapFromCourse(course, input) {
 
 export async function generateAIRoadmap(input) {
   const topicKeys = buildTopicKeys(input.topic);
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
   if (existing) return cachedRoadmapFromCourse(existing, input);
 
   try {

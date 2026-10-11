@@ -195,9 +195,6 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "You are BuddyForStudy's curriculum architect.",
     "Create a realistic prerequisite-ordered learning curriculum for the learner.",
     "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
-    "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
-    "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
-    "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
     "Infer the important skills even when the topic is broad or uncommon.",
     "Use concise skill IDs in lowercase kebab-case.",
     "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
@@ -317,23 +314,10 @@ function cachedRoadmapFromCourse(course, input) {
   };
 }
 
-function courseHasTutorialVideos(course) {
-  return (course?.modules || []).some((module) =>
-    (module.lessons || []).some((lesson) =>
-      lesson.type === "tutorial" && (lesson.tutorial?.videos || []).length > 0
-    )
-  );
-}
-
 export async function generateAIRoadmap(input) {
   const topicKeys = buildTopicKeys(input.topic);
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
-
-  // Rebuild a cached roadmap that has no video resources when YouTube is
-  // configured, so the improved resource-selection fallback can repair it.
-  if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
-    return cachedRoadmapFromCourse(existing, input);
-  }
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
+  if (existing) return cachedRoadmapFromCourse(existing, input);
 
   try {
     const ai = await generateWithGemini(input);

@@ -371,18 +371,24 @@ export async function attachYouTubeResources(course){
     const policy = lesson.tutorial?.searchPolicy || {};
     const minDuration = Number(policy.minDurationMinutes || 0);
     const maxDuration = Number(policy.maxDurationMinutes || Number.MAX_SAFE_INTEGER);
-    const candidates=[...new Set(items.map((item)=>item.id?.videoId).filter(Boolean))]
+    const allCandidates=[...new Set(items.map((item)=>item.id?.videoId).filter(Boolean))]
       .map((id)=>toCandidate(byId.get(id),channelMap.get(byId.get(id)?.snippet?.channelId)))
       .filter((video)=>video
         && (!policy.excludeShorts || !video.isShort)
         && (!policy.requireEmbeddable || video.embeddable)
-        && video.durationSeconds >= minDuration * 60
-        && video.durationSeconds <= maxDuration * 60
       );
+    const durationMatched=allCandidates.filter((video)=>
+      video.durationSeconds >= minDuration * 60
+      && video.durationSeconds <= maxDuration * 60
+    );
+
+    // Prefer duration-matched videos, but use relevant eligible videos as a fallback
+    // instead of leaving an entire tutorial lesson without a resource.
+    const candidates=durationMatched.length ? durationMatched : allCandidates;
     const ranked=candidates.map((video)=>({...video,...scoreCandidate(video,lesson,candidates)})).sort((a,b)=>b.score-a.score).slice(0,3);
     lesson.tutorial.videos=ranked;
     lesson.tutorial.resources=ranked.map((video)=>video.url);
-    lesson.tutorial.resourceStatus=ranked.length?"ready":"unavailable";
+    lesson.tutorial.resourceStatus=ranked.length?(durationMatched.length?"ready":"fallback-duration"):"unavailable";
     lesson.tutorial.selection=ranked[0]?{
       algorithm:"metadata-v2-hard-duration",
       weights:{relevance:.30,coverage:.30,duration:.10,views:.08,likeRatio:.08,subscribers:.05,recency:.05,embeddable:.04},
@@ -390,7 +396,7 @@ export async function attachYouTubeResources(course){
     }:null;
     delete lesson.tutorial.searchQuery;
     allSources.push(...ranked);
-    console.log("YouTube resources ranked",{lesson:lesson.title,candidates:candidates.length,selected:ranked.length,topScore:ranked[0]?.score||0,topVideo:ranked[0]?.title||null});
+    console.log("YouTube resources ranked",{lesson:lesson.title,candidates:candidates.length,durationMatched:durationMatched.length,selected:ranked.length,resourceStatus:lesson.tutorial.resourceStatus,topScore:ranked[0]?.score||0,topVideo:ranked[0]?.title||null});
   }
   for (const { lesson } of projectRequests) {
     try {

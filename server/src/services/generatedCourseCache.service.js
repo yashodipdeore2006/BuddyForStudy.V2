@@ -24,14 +24,21 @@ function generatedCourseCutoff(days = GENERATED_COURSE_REUSE_DAYS) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
-export async function findRecentGeneratedCourse({ mode, topicKeys }) {
+export async function findRecentGeneratedCourse({ mode, topicKeys, exactQuery }) {
   const keys = buildTopicKeys(topicKeys);
   if (!keys.length) return null;
 
-  return Course.findOne({
+  const filter = {
     isPublished: true,
     "generation.mode": mode,
     "generation.topicKeys": { $in: keys },
     createdAt: { $gte: generatedCourseCutoff() }
-  }).sort({ createdAt: -1 });
+  };
+
+  // Do not reuse a roadmap for a different user query with overlapping topic keys.
+  if (typeof exactQuery === "string" && exactQuery.trim()) {
+    filter["generation.query"] = exactQuery.trim();
+  }
+
+  return Course.findOne(filter).sort({ createdAt: -1 });
 }

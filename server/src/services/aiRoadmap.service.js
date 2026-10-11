@@ -500,8 +500,100 @@ function defaultWebCapstoneProjects(topic, ai) {
   ];
 }
 
+
+function isDataAnalyticsTopic(topic, ai) {
+  const text = String(topic || "") + " " + String(ai?.title || "") + " " + String(ai?.canonicalTopic || "");
+  return /data analytics|data analyst|business analytics|business intelligence/i.test(text);
+}
+
+function ensureDataAnalyticsStages(skills, topic, ai) {
+  if (!isDataAnalyticsTopic(topic, ai)) return skills;
+  const result = skills.map((skill) => ({
+    ...skill,
+    id: normalizeId(skill.id || skill.name),
+    prerequisites: (skill.prerequisites || []).map(normalizeId)
+  }));
+  const stages = [
+    { id:"spreadsheet-analysis", name:"Spreadsheet Analysis with Excel", category:"Data Analytics", topics:["workbooks and tables","data types and formatting","sorting and filtering","IF and lookup formulas","SUMIFS and COUNTIFS","pivot tables and pivot charts","data validation","spreadsheet reporting"], searchQueries:["Microsoft Excel for Data Analysis complete course pivot tables formulas","Excel data analysis full course for beginners"], courseDuration:{minMinutes:240,targetMinutes:360,maxMinutes:600}, practiceProject:"Analyze sales data and build an Excel KPI report", projectPlacement:"skill" },
+    { id:"sql-for-analytics", name:"SQL for Data Analytics", category:"Data Analytics", topics:["relational tables and keys","SELECT and filtering","sorting and limiting","aggregate functions","GROUP BY and HAVING","INNER and OUTER JOINs","CASE expressions","CTEs and subqueries","window functions","date and text functions"], searchQueries:["SQL for Data Analytics complete course joins CTE window functions","SQL full course for data analysts with projects"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Answer business questions using a relational sales database", projectPlacement:"skill" },
+    { id:"statistics-for-analytics", name:"Statistics and Probability for Analytics", category:"Statistics", topics:["mean median mode","variance and standard deviation","distributions","sampling and bias","confidence intervals","hypothesis testing","correlation versus causation","A/B testing fundamentals"], searchQueries:["statistics for data analytics complete course hypothesis testing confidence intervals","probability and statistics for data analysts beginner course"], courseDuration:{minMinutes:240,targetMinutes:360,maxMinutes:600}, practiceProject:"Interpret an experiment and explain statistical uncertainty", projectPlacement:"skill" },
+    { id:"python-for-analytics", name:"Python Fundamentals for Data Analytics", category:"Programming", topics:["Python syntax and variables","collections and loops","functions","modules and virtual environments","reading CSV and Excel files","exceptions","Jupyter notebooks","writing reusable analysis code"], searchQueries:["Python for Data Analysis complete beginner course Jupyter CSV Excel","Python full course for data analysts with practical exercises"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Automate a repeatable data-cleaning report with Python", projectPlacement:"skill" },
+    { id:"numpy-pandas", name:"Data Manipulation with NumPy and Pandas", category:"Python Data Analysis", topics:["NumPy arrays","Pandas Series and DataFrames","loading CSV and Excel","selecting and filtering rows","missing values","duplicates and inconsistent values","groupby and aggregation","merge and concatenate","datetime analysis","exporting clean datasets"], searchQueries:["Pandas NumPy for Data Analysis complete course data cleaning groupby merge","Python Pandas full course for data analysts project"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Clean and combine multiple messy business datasets", projectPlacement:"skill" },
+    { id:"exploratory-data-analysis", name:"Data Cleaning and Exploratory Data Analysis", category:"Data Analysis", topics:["data quality checks","missing data strategy","outlier investigation","univariate analysis","bivariate analysis","segmentation","trend and seasonality","feature relationships","documenting assumptions","reproducible analysis"], searchQueries:["exploratory data analysis EDA complete course Python Pandas real dataset","data cleaning and EDA end to end data analyst project"], courseDuration:{minMinutes:300,targetMinutes:480,maxMinutes:720}, practiceProject:"Explore a real-world dataset and publish an analysis notebook", projectPlacement:"skill" },
+    { id:"data-visualization-bi", name:"Data Visualization and BI Dashboards", category:"Business Intelligence", topics:["chart selection","visual encoding","matplotlib and seaborn basics","Power BI or Tableau fundamentals","data modeling for dashboards","measures and calculated fields","filters and drill-down","dashboard layout","accessibility and misleading charts"], searchQueries:["Power BI complete course dashboard project for data analysts","Tableau data visualization full course dashboard project","Python data visualization Matplotlib Seaborn complete tutorial"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Build an interactive business performance dashboard", projectPlacement:"skill" },
+    { id:"business-insights-storytelling", name:"Business Metrics and Data Storytelling", category:"Business Analytics", topics:["business questions and hypotheses","KPIs and metric definitions","funnel and cohort analysis","revenue and retention metrics","root-cause analysis","communicating uncertainty","writing executive summaries","recommendations and impact"], searchQueries:["business analytics KPIs data storytelling complete course for data analysts","data analysis business case study end to end tutorial"], courseDuration:{minMinutes:180,targetMinutes:300,maxMinutes:480}, practiceProject:"Turn analysis findings into a concise stakeholder recommendation", projectPlacement:"skill" }
+  ];
+  const matches = (stage, skill) => {
+    const n = String(skill.name || "").toLowerCase();
+    if (skill.id === stage.id || n === stage.name.toLowerCase()) return true;
+    if (stage.id === "spreadsheet-analysis") return /excel|spreadsheet/.test(n);
+    if (stage.id === "sql-for-analytics") return /\bsql\b/.test(n);
+    if (stage.id === "statistics-for-analytics") return /statistics|probability/.test(n);
+    if (stage.id === "python-for-analytics") return /python/.test(n);
+    if (stage.id === "numpy-pandas") return /pandas|numpy/.test(n);
+    if (stage.id === "exploratory-data-analysis") return /exploratory|data cleaning|\beda\b/.test(n);
+    if (stage.id === "data-visualization-bi") return /visualization|power bi|tableau|business intelligence/.test(n);
+    if (stage.id === "business-insights-storytelling") return /business analytics|data storytelling|business metrics/.test(n);
+    return false;
+  };
+  for (const stage of stages) {
+    if (result.some((skill) => matches(stage, skill))) continue;
+    const preceding = stages.slice(0, stages.indexOf(stage)).reverse().find((candidate) =>
+      result.some((skill) => skill.id === candidate.id || matches(candidate, skill))
+    );
+    result.push({
+      id:stage.id, name:stage.name, category:stage.category, importance:"Critical",
+      prerequisites:preceding ? [preceding.id] : [], topics:stage.topics, searchQueries:stage.searchQueries,
+      courseDuration:stage.courseDuration, practiceProject:stage.practiceProject, projectPlacement:stage.projectPlacement,
+      projectPlan:{
+        scenario:"Analyze a realistic business dataset using " + stage.name + ".",
+        whyThisProject:"Build practical evidence that the learner can turn data into reliable decisions.",
+        features:stage.topics.slice(0,6).map((item)=>"Apply " + item),
+        architecture:["Document the dataset and data dictionary","Create a repeatable analysis workflow","Validate findings before communicating results"],
+        milestones:["Define the business question","Prepare and analyze the data","Validate results","Present findings and recommendations"],
+        testingChecklist:["Check data types and missing values","Validate calculations against sample rows","Document assumptions and limitations"],
+        industrySkills:["Data quality","Analytical reasoning","Business communication","Reproducible workflow"],
+        githubWorkflow:["Create a repository","Commit notebooks and documentation","Write a README with findings and setup"],
+        videoSearchQueries:stage.searchQueries
+      },
+      quizPolicy:{lessonQuestionCount:5,moduleQuestionCount:8,passingScore:70}
+    });
+  }
+  if (!result.some((skill) => /capstone|portfolio project/i.test(skill.name))) {
+    result.push({
+      id:"data-analytics-portfolio", name:"Data Analytics Portfolio Capstone", category:"Portfolio Project", importance:"Critical",
+      prerequisites:stages.map((stage)=>stage.id).filter((id)=>result.some((skill)=>skill.id===id)),
+      topics:["choose a business problem","load and validate a real dataset","clean and transform data","analyze with SQL or Python","build visualizations and KPIs","write evidence-based recommendations","publish a reproducible portfolio"],
+      searchQueries:["end to end data analytics portfolio project SQL Excel Python Power BI","data analyst capstone project complete tutorial real dataset"],
+      courseDuration:{minMinutes:360,targetMinutes:600,maxMinutes:1200},
+      practiceProject:"Complete an end-to-end data analytics portfolio case study", projectPlacement:"none",
+      projectPlan:{
+        scenario:"A business team needs to understand performance trends and decide what to improve next.",
+        whyThisProject:"Demonstrate the complete analytics workflow from raw data to decision-ready insights.",
+        features:["Dataset sourcing and documentation","Data cleaning and validation","SQL/Python analysis","KPI dashboard","Written insights and recommendations"],
+        architecture:["Raw dataset","Cleaning and analysis notebook or SQL scripts","Dashboard","Executive summary and README"],
+        milestones:["Define the business question","Prepare data","Analyze and validate","Build dashboard","Present recommendations and limitations"],
+        testingChecklist:["Reconcile key totals","Validate transformations","Check charts against source data","Document limitations"],
+        industrySkills:["SQL","Excel","Python","Visualization","Business storytelling","GitHub documentation"],
+        githubWorkflow:["Publish source data or a permitted sample","Commit analysis steps","Document reproduction instructions","Add dashboard screenshots and conclusions"],
+        videoSearchQueries:["end to end data analytics portfolio project SQL Excel Python Power BI","data analyst capstone project complete tutorial real dataset"]
+      },
+      quizPolicy:{lessonQuestionCount:5,moduleQuestionCount:8,passingScore:70}
+    });
+  }
+  if (isDataAnalyticsTopic(topic, ai)) {
+    ai.title = "Data Analytics Complete Career Path";
+    ai.canonicalTopic = "Data Analytics";
+    ai.category = "Data Analytics";
+    ai.description = "A complete, prerequisite-ordered Data Analytics course covering spreadsheets, SQL, statistics, Python, data cleaning, visualization, business insights, and portfolio projects.";
+    ai.careerOutcome = "Build job-ready data analysis skills and a portfolio of evidence-based business insights.";
+  }
+  return result;
+}
+
 function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
-  const enrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
+  const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
+  const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
   const orderedSkills = topoSort(enrichedSkills.map((skill) => ({
     ...skill,
     id: normalizeId(skill.id || skill.name),
@@ -756,6 +848,9 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "Create a realistic prerequisite-ordered learning curriculum for the learner.",
     "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
     "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
+    "For Data Analytics requests, generate a complete Data Analytics curriculum rather than a generic Data Science curriculum. It must cover spreadsheet analysis (Excel or equivalent), SQL and relational querying, descriptive statistics and probability basics, Python for analytics, NumPy and Pandas, data cleaning and exploratory data analysis, visualization and dashboards (Power BI or Tableau), business metrics and communicating insights, and portfolio projects.",
+    "For a broad career or full-course request such as Data Analytics, target 8-12 ordered skill modules unless the learner explicitly says they already know or want to skip parts. Each module must contain multiple concrete topics, a suitable long-form tutorial search query, a lesson quiz, and an applied project at meaningful milestones. Include a final capstone that uses a realistic dataset and ends with actionable business recommendations.",
+    "Do not return only a high-level roadmap or a list of skill names. The generated course must be learner-ready: ordered modules, specific topic-level lessons, real tutorial/video resources attached by the resource service, quizzes/assessments, practical projects, and a final portfolio capstone.",
     "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
     "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
     "Infer the important skills even when the topic is broad or uncommon.",

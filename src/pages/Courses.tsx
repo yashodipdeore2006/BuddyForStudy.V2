@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -32,6 +33,7 @@ function mapCourse(raw: any): Course {
 }
 
 export default function Courses() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [popularCourses, setPopularCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,9 @@ export default function Courses() {
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiKnownSkills, setAiKnownSkills] = useState('');
   const [aiUsage, setAiUsage] = useState<any>(null);
+  const [aiEnrolling, setAiEnrolling] = useState(false);
+  const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
+  const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
 
   useEffect(() => {
     async function fetchCourses() {
@@ -188,10 +193,39 @@ export default function Courses() {
         }),
       });
       setAiRoadmap(data);
+      setExpandedAiModules(new Set([0]));
+      setAiEnrollError(null);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const enrollGeneratedCourse = async () => {
+    const courseId = String(aiRoadmap?.course?._id ?? aiRoadmap?.course?.id ?? '');
+    if (!courseId || courseId === 'undefined' || courseId === 'null') {
+      setAiEnrollError('This generated course has no saved course ID. Build it again and retry.');
+      return;
+    }
+    setAiEnrolling(true);
+    setAiEnrollError(null);
+    try {
+      await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+      navigate(`/learn/${courseId}`);
+    } catch (err) {
+      try {
+        const existing = await apiFetch(`/api/enrollments/course/${courseId}`);
+        if (existing?.enrollment?.status === 'active' || existing?.enrollment?.status === 'completed') {
+          navigate(`/learn/${courseId}`);
+          return;
+        }
+      } catch {
+        // Keep the original enrollment error for display.
+      }
+      setAiEnrollError(err instanceof Error ? err.message : 'Unable to enroll in this course.');
+    } finally {
+      setAiEnrolling(false);
     }
   };
 
@@ -439,64 +473,117 @@ export default function Courses() {
           <div className="border-b border-slate-100 bg-slate-950 px-5 py-6 text-white sm:px-7">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">Personalized Learning Roadmap</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.canonicalTopic || aiRoadmap.course.title}</h2>
+                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI-generated complete course</p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.course.title}</h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{aiRoadmap.course.description}</p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">
+                    {(aiRoadmap.course.modules || []).reduce((sum: number, module: any) => sum + (module.lessons || []).length, 0)} lessons and assessments
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.duration || 'Self-paced'}</span>
+                </div>
               </div>
-
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-slate-300">
-                  Personalized for your goal
-                </span>
-                <button onClick={() => setAiRoadmap(null)} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">
-                  Close
+                <button type="button" onClick={() => navigate(`/courses/${String(aiRoadmap.course._id ?? aiRoadmap.course.id)}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
+                  <ExternalLink className="h-4 w-4" /> Course details
                 </button>
+                <button onClick={() => { setAiRoadmap(null); setAiEnrollError(null); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">Close</button>
               </div>
             </div>
           </div>
 
           {aiRoadmap.personalization && (
             <div className="m-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:m-7">
-              <p className="text-sm font-extrabold text-slate-900">Why this path was generated</p>
+              <p className="text-sm font-extrabold text-slate-900">Why this course was generated</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">{aiRoadmap.personalization.studyTimeMinutesPerDay} min/day</span>
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
-                {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => (
-                  <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>
-                ))}
+                {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>)}
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">{aiRoadmap.personalization.rationale?.join(' ')}</p>
             </div>
           )}
 
-          <div className="grid gap-6 px-5 pb-6 sm:px-7 lg:grid-cols-[.85fr_1.15fr]">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Skill graph</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                {(aiRoadmap.skillGraph || []).map((skill: any) => (
-                  <div key={skill.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                    <p className="font-bold text-slate-800">{skill.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{skill.category} · {skill.importance}</p>
-                  </div>
-                ))}
+          <div className="px-5 pb-7 sm:px-7">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Learning path</p>
+                <h3 className="mt-1 text-xl font-extrabold text-slate-900">Course modules and lessons</h3>
+                <p className="mt-1 text-sm text-slate-500">Expand a module to see tutorials, MCQ quizzes, projects, and assessments.</p>
               </div>
+              <span className="text-xs font-semibold text-slate-500">MCQ questions are generated when you open each quiz in the course player.</span>
             </div>
 
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Curriculum</p>
-              <div className="mt-3 space-y-2">
-                {aiRoadmap.course.modules.map((module: any) => (
-                  <div key={module.title} className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-100 hover:shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xs font-extrabold text-blue-700">{module.order}</span>
-                      <div>
-                        <p className="font-bold text-slate-900">{module.title}</p>
-                        <p className="mt-1 text-xs text-slate-500">{module.lessons?.length || 0} learning activities</p>
+            <div className="space-y-3">
+              {(aiRoadmap.course.modules || []).map((module: any, moduleIndex: number) => {
+                const expanded = expandedAiModules.has(moduleIndex);
+                const lessons = module.lessons || [];
+                const tutorialCount = lessons.filter((lesson: any) => lesson.type === 'tutorial').length;
+                const quizCount = lessons.filter((lesson: any) => lesson.type === 'quiz').length;
+                const projectCount = lessons.filter((lesson: any) => lesson.type === 'project').length;
+                return (
+                  <div key={module._id || module.id || module.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <button type="button" onClick={() => setExpandedAiModules((previous) => {
+                      const next = new Set(previous);
+                      if (next.has(moduleIndex)) next.delete(moduleIndex);
+                      else next.add(moduleIndex);
+                      return next;
+                    })} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-slate-50" aria-expanded={expanded}>
+                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xs font-extrabold text-blue-700">{module.order || moduleIndex + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-slate-900">{module.title}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{lessons.length} activities · {tutorialCount} tutorials · {quizCount} quizzes · {projectCount} projects</span>
+                        {module.description && <span className="mt-1 block text-xs leading-5 text-slate-500">{module.description}</span>}
+                      </span>
+                      {expanded ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-500" /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-500" />}
+                    </button>
+                    {expanded && (
+                      <div className="border-t border-slate-100">
+                        {lessons.map((lesson: any, lessonIndex: number) => {
+                          const isTutorial = lesson.type === 'tutorial';
+                          const isQuiz = lesson.type === 'quiz';
+                          const videos = lesson.tutorial?.videos || [];
+                          const questionCount = lesson.quiz?.questionCount || (lesson.quiz?.scope === 'module' ? 8 : 5);
+                          const Icon = isTutorial ? Play : isQuiz ? CircleHelp : FolderKanban;
+                          return (
+                            <div key={lesson._id || lesson.id || `${moduleIndex}-${lessonIndex}`} className="flex items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 sm:px-5">
+                              <span className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${isTutorial ? 'bg-blue-50 text-blue-600' : isQuiz ? 'bg-violet-50 text-violet-600' : 'bg-emerald-50 text-emerald-600'}`}><Icon className="h-4 w-4" /></span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-slate-800">{lessonIndex + 1}. {lesson.title}</p>
+                                {lesson.description && <p className="mt-1 text-xs leading-5 text-slate-500">{lesson.description}</p>}
+                                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
+                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{isTutorial ? 'Tutorial' : isQuiz ? 'MCQ quiz' : 'Practical project'}</span>
+                                  {isQuiz && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-violet-700">{questionCount} questions · pass {lesson.quiz?.passingScore || 70}%</span>}
+                                  {isTutorial && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">{videos.length ? `${videos.length} video resources attached` : 'Video resources load when available'}</span>}
+                                  {lesson.type === 'project' && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">Hands-on practice</span>}
+                                </div>
+                                {isTutorial && videos.length > 0 && (
+                                  <div className="mt-3 space-y-2">
+                                    {videos.slice(0, 3).map((video: any) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))}
+                );
+              })}
+            </div>
+
+            {aiEnrollError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{aiEnrollError}</div>}
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-extrabold text-slate-900">Ready to start learning?</p>
+                <p className="mt-1 text-sm text-slate-600">Enroll to track progress, take generated MCQ quizzes, and continue learning from My Learning.</p>
               </div>
+              <button type="button" onClick={enrollGeneratedCourse} disabled={aiEnrolling} className="btn-primary min-w-48 justify-center">
+                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Enrolling...</> : <><GraduationCap className="h-4 w-4" /> Enroll and start learning</>}
+              </button>
             </div>
           </div>
         </section>

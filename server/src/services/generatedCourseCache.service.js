@@ -24,24 +24,14 @@ function generatedCourseCutoff(days = GENERATED_COURSE_REUSE_DAYS) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 }
 
-export async function findRecentGeneratedCourse({ mode, topicKeys, exactQuery }) {
+export async function findRecentGeneratedCourse({ mode, topicKeys }) {
   const keys = buildTopicKeys(topicKeys);
   if (!keys.length) return null;
 
-  const filter = {
+  return Course.findOne({
     isPublished: true,
     "generation.mode": mode,
     "generation.topicKeys": { $in: keys },
     createdAt: { $gte: generatedCourseCutoff() }
-  };
-
-  // AI roadmaps are personalized to the exact user request. Do not reuse a
-  // neighboring topic just because its canonical title/category shares a key.
-  if (typeof exactQuery === "string" && exactQuery.trim()) {
-    // Exact query matching prevents a Data Science roadmap from being reused
-    // for a distinct request such as Data Analytics.
-    filter["generation.query"] = exactQuery.trim();
-  }
-
-  return Course.findOne(filter).sort({ createdAt: -1 });
+  }).sort({ createdAt: -1 });
 }

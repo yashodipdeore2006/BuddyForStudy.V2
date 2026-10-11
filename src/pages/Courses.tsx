@@ -5,7 +5,8 @@ import type { Course, CourseLevel } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp, Play, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -41,6 +42,8 @@ export default function Courses() {
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const { session } = useAuth();
+  const navigate = useNavigate();
+  const [aiStarting, setAiStarting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRoadmap, setAiRoadmap] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -364,19 +367,89 @@ export default function Courses() {
 
       {aiRoadmap?.course && (
         <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-950 px-5 py-6 text-white sm:px-7">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">Personalized Learning Roadmap</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.canonicalTopic || aiRoadmap.course.title}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{aiRoadmap.course.description}</p>
+          <div className="relative overflow-hidden bg-slate-950 px-5 py-7 text-white sm:px-7 lg:px-9">
+            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI Course Ready</p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                  {aiRoadmap.course.title || aiRoadmap.canonicalTopic}
+                </h2>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+                  {aiRoadmap.course.description}
+                </p>
+
+                <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">
+                    {aiRoadmap.course.modules?.length || 0} modules
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">
+                    {aiRoadmap.course.duration || 'Self-paced'}
+                  </span>
+                  <span className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-emerald-200">
+                    Video lessons included
+                  </span>
+                  <span className="rounded-full bg-purple-500/15 px-3 py-1.5 text-purple-200">
+                    Projects included
+                  </span>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-slate-300">
-                  Personalized for your goal
-                </span>
-                <button onClick={() => setAiRoadmap(null)} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">
+                {aiRoadmap.course?._id && (
+                  <Link
+                    to={`/courses/${aiRoadmap.course._id}`}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/10"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View Course
+                  </Link>
+                )}
+
+                <button
+                  type="button"
+                  disabled={aiStarting || !aiRoadmap.course?._id}
+                  onClick={async () => {
+                    const courseId = aiRoadmap.course?._id || aiRoadmap.course?.id;
+                    if (!courseId) return;
+
+                    setAiStarting(true);
+                    setAiError(null);
+
+                    try {
+                      try {
+                        await apiFetch(`/api/enrollments/course/${courseId}`);
+                      } catch {
+                        await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+                      }
+
+                      navigate(`/learn/${courseId}`);
+                    } catch (err) {
+                      setAiError(err instanceof Error ? err.message : 'Unable to start the AI course');
+                    } finally {
+                      setAiStarting(false);
+                    }
+                  }}
+                  className="btn-primary justify-center"
+                >
+                  {aiStarting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Opening course...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Start Learning
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAiRoadmap(null)}
+                  className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
+                >
                   Close
                 </button>
               </div>
@@ -384,47 +457,130 @@ export default function Courses() {
           </div>
 
           {aiRoadmap.personalization && (
-            <div className="m-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:m-7">
-              <p className="text-sm font-extrabold text-slate-900">Why this path was generated</p>
+            <div className="mx-5 mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:mx-7">
+              <p className="text-sm font-extrabold text-slate-900">Personalized for you</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">{aiRoadmap.personalization.studyTimeMinutesPerDay} min/day</span>
-                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
+                  {aiRoadmap.personalization.studyTimeMinutesPerDay} min/day
+                </span>
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
+                  Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}
+                </span>
                 {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => (
-                  <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>
+                  <span key={skill} className="rounded-full bg-emerald-50 px-3 py-1.5 font-bold text-emerald-700">
+                    Known: {skill}
+                  </span>
                 ))}
               </div>
-              <p className="mt-3 text-xs leading-5 text-slate-500">{aiRoadmap.personalization.rationale?.join(' ')}</p>
             </div>
           )}
 
-          <div className="grid gap-6 px-5 pb-6 sm:px-7 lg:grid-cols-[.85fr_1.15fr]">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Skill graph</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                {(aiRoadmap.skillGraph || []).map((skill: any) => (
-                  <div key={skill.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-                    <p className="font-bold text-slate-800">{skill.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{skill.category} · {skill.importance}</p>
-                  </div>
-                ))}
+          <div className="p-5 sm:p-7">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="bfs-eyebrow">Actual course content</p>
+                <h3 className="mt-2 text-xl font-extrabold text-slate-950">Modules, video lessons and projects</h3>
               </div>
+              <p className="text-xs text-slate-500">The same content opens in the unified Course Player.</p>
             </div>
 
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Curriculum</p>
-              <div className="mt-3 space-y-2">
-                {aiRoadmap.course.modules.map((module: any) => (
-                  <div key={module.title} className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-100 hover:shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xs font-extrabold text-blue-700">{module.order}</span>
-                      <div>
-                        <p className="font-bold text-slate-900">{module.title}</p>
-                        <p className="mt-1 text-xs text-slate-500">{module.lessons?.length || 0} learning activities</p>
+            <div className="mt-5 space-y-3">
+              {(aiRoadmap.course.modules || []).map((module: any, moduleIndex: number) => {
+                const tutorialLessons = (module.lessons || []).filter((lesson: any) => lesson.type === 'tutorial');
+                const projectLessons = (module.lessons || []).filter((lesson: any) => lesson.type === 'project');
+                const videoLessons = tutorialLessons.filter((lesson: any) => lesson.tutorial?.videos?.length);
+
+                return (
+                  <div key={module.title || moduleIndex} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xs font-extrabold text-blue-700">
+                          {module.order || moduleIndex + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900">{module.title}</h4>
+                          <p className="mt-1 text-xs text-slate-500">{module.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 gap-2 text-[11px] font-bold">
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
+                          {videoLessons.length} video
+                        </span>
+                        <span className="rounded-full bg-purple-50 px-2.5 py-1 text-purple-700">
+                          {projectLessons.length} project
+                        </span>
                       </div>
                     </div>
+
+                    <div className="divide-y divide-slate-100">
+                      {(module.lessons || []).map((lesson: any, lessonIndex: number) => {
+                        const video = lesson.tutorial?.videos?.[0];
+
+                        return (
+                          <div key={lesson.id || lesson._id || lessonIndex} className="p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                              {video?.thumbnail ? (
+                                <img
+                                  src={video.thumbnail}
+                                  alt=""
+                                  className="aspect-video w-full shrink-0 rounded-xl object-cover sm:h-20 sm:w-32"
+                                />
+                              ) : (
+                                <div className="flex aspect-video w-full shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 sm:h-20 sm:w-32">
+                                  {lesson.type === 'project' ? (
+                                    <CheckCircle2 className="h-6 w-6 text-purple-400" />
+                                  ) : (
+                                    <Play className="h-6 w-6" />
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-slate-500">
+                                    {lesson.type}
+                                  </span>
+                                  {video && (
+                                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+                                      Video ready
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="mt-2 font-semibold text-slate-900">{lesson.title}</p>
+                                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                                  {lesson.description}
+                                </p>
+
+                                {video && (
+                                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                                    <span>{video.channelTitle || 'YouTube'}</span>
+                                    <a
+                                      href={video.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-semibold text-blue-600 hover:text-blue-700"
+                                    >
+                                      Open video
+                                    </a>
+                                  </div>
+                                )}
+
+                                {lesson.tutorial?.videos?.length > 1 && (
+                                  <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                                    + {lesson.tutorial.videos.length - 1} additional resource{lesson.tutorial.videos.length - 1 === 1 ? '' : 's'}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
         </section>

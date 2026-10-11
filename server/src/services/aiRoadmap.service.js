@@ -317,10 +317,23 @@ function cachedRoadmapFromCourse(course, input) {
   };
 }
 
+function courseHasTutorialVideos(course) {
+  return (course?.modules || []).some((module) =>
+    (module.lessons || []).some((lesson) =>
+      lesson.type === "tutorial" && (lesson.tutorial?.videos || []).length > 0
+    )
+  );
+}
+
 export async function generateAIRoadmap(input) {
   const topicKeys = buildTopicKeys(input.topic);
   const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
-  if (existing) return cachedRoadmapFromCourse(existing, input);
+
+  // Rebuild a cached roadmap that has no video resources when YouTube is
+  // configured, so the improved resource-selection fallback can repair it.
+  if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
+    return cachedRoadmapFromCourse(existing, input);
+  }
 
   try {
     const ai = await generateWithGemini(input);

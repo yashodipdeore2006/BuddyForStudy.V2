@@ -587,6 +587,49 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
     ai.category = "Data Analytics";
     ai.description = "A complete, prerequisite-ordered Data Analytics course covering spreadsheets, SQL, statistics, Python, data cleaning, visualization, business insights, and portfolio projects.";
     ai.careerOutcome = "Build job-ready data analysis skills and a portfolio of evidence-based business insights.";
+    const existingCapstones = Array.isArray(ai.capstoneProjects) ? ai.capstoneProjects : [];
+    if (!existingCapstones.length) {
+      ai.capstoneProjects = [{
+        title: "End-to-End Data Analytics Business Case Study",
+        scenario: "Analyze a realistic sales, customer, or operations dataset and recommend evidence-based actions to improve business performance.",
+        whyThisProject: "Demonstrate the full analytics workflow from raw data through validated analysis, dashboards, and clear business recommendations.",
+        features: [
+          "Define a business question and measurable KPIs",
+          "Document, clean, and validate a real dataset",
+          "Use SQL and/or Python with Pandas to analyze the data",
+          "Build an interactive Power BI or Tableau dashboard",
+          "Explain trends, segments, risks, and limitations",
+          "Present prioritized recommendations in an executive summary"
+        ],
+        architecture: [
+          "Dataset and data dictionary",
+          "SQL queries and/or reproducible Python notebook",
+          "Cleaned analysis-ready dataset",
+          "Dashboard with KPI definitions",
+          "Executive summary and project README"
+        ],
+        milestones: [
+          "Choose a dataset and define the business question",
+          "Audit and clean the data",
+          "Perform exploratory and statistical analysis",
+          "Build and validate KPIs and visualizations",
+          "Write recommendations supported by evidence",
+          "Publish the portfolio project with reproduction instructions"
+        ],
+        testingChecklist: [
+          "Reconcile key metrics against source data",
+          "Check missing values, duplicates, and outliers",
+          "Validate SQL/Python transformations",
+          "Check that dashboard filters and calculations work",
+          "Document assumptions and analytical limitations"
+        ],
+        industrySkills: ["Excel", "SQL", "Python", "Pandas", "Statistics", "Power BI or Tableau", "Data storytelling", "GitHub documentation"],
+        githubWorkflow: ["Create a repository with a clear README", "Commit SQL scripts and notebooks", "Document dataset provenance and setup", "Include dashboard screenshots", "Publish findings and limitations"],
+        videoSearchQueries: ["end to end data analytics project SQL Excel Python Power BI full tutorial", "data analyst portfolio capstone real dataset dashboard business insights"]
+      }];
+    } else {
+      ai.capstoneProjects = existingCapstones;
+    }
   }
   return result;
 }

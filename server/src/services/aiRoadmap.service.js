@@ -755,6 +755,9 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "You are BuddyForStudy's curriculum architect.",
     "Create a realistic prerequisite-ordered learning curriculum for the learner.",
     "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
+    "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
+    "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
+    "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
     "Infer the important skills even when the topic is broad or uncommon.",
     "Use concise skill IDs in lowercase kebab-case.",
     "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
@@ -1062,6 +1065,14 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
 }
 
 
+function courseHasTutorialVideos(course) {
+  return (course?.modules || []).some((module) =>
+    (module.lessons || []).some((lesson) =>
+      lesson.type === "tutorial" && (lesson.tutorial?.videos || []).length > 0
+    )
+  );
+}
+
 export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
@@ -1074,8 +1085,8 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? JSON.stringify(input.knownSkills || []) : "",
     personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
   );
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
-  if (existing) {
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
+  if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {
       cached.course.modules = (cached.course.modules || []).map((module) => ({

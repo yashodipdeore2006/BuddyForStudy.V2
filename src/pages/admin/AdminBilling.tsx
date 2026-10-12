@@ -93,12 +93,12 @@ export default function AdminBilling() {
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Billing & Refunds</h1>
           <p className="mt-2 text-slate-500">Review payments, refund requests and payment-provider references without leaving the admin panel.</p>
         </div>
-        <button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}>
+        <button type="button" aria-label="Refresh billing data" className="btn-secondary" onClick={() => void load()} disabled={loading}>
           <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
         </button>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="card p-5"><IndianRupee className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{money(paidTotal)}</p><p className="text-sm text-slate-500">Recorded paid value</p></div>
@@ -110,7 +110,7 @@ export default function AdminBilling() {
       <section className="card mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div><h2 className="font-bold text-slate-900">Refund queue</h2><p className="mt-1 text-xs text-slate-500">Every decision is recorded in the audit log.</p></div>
-          <select className="input-field w-auto" value={refundFilter} onChange={(e) => setRefundFilter(e.target.value)}>
+          <select aria-label="Filter refunds by status" className="input-field w-auto" value={refundFilter} onChange={(e) => setRefundFilter(e.target.value)}>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="processed">Processed</option>
@@ -118,7 +118,7 @@ export default function AdminBilling() {
             <option value="all">All statuses</option>
           </select>
         </div>
-        {loading ? <div className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
+        {loading ? <div role="status" aria-live="polite" aria-label="Loading billing data" className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading billing data</span></div> : (
           <div className="divide-y divide-slate-100">
             {!filteredRefunds.length && <p className="p-8 text-center text-sm text-slate-500">No refund requests match this filter.</p>}
             {filteredRefunds.map((item) => (
@@ -150,8 +150,8 @@ export default function AdminBilling() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div><h2 className="font-bold text-slate-900">Payment ledger</h2><p className="mt-1 text-xs text-slate-500">Search by user, course, plan or provider reference.</p></div>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input className="input-field pl-10" placeholder="Search payments" value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} /></div>
-              <select className="input-field w-auto" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
+              <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Search payments" className="input-field pl-10" placeholder="Search payments" value={paymentSearch} onChange={(e) => setPaymentSearch(e.target.value)} /></div>
+              <select aria-label="Filter payments by status" className="input-field w-auto" value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value)}>
                 <option value="">All statuses</option>
                 <option value="paid">Paid</option>
                 <option value="failed">Failed</option>

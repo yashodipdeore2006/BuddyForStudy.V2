@@ -62,7 +62,7 @@ export default function AdminAudit() {
           <select className="input-field" value={targetType} onChange={(e) => { const nextTargetType = e.target.value; setTargetType(nextTargetType); void load({ q, action, targetType: nextTargetType }); }}><option value="">All targets</option>{targets.map((item) => <option key={item} value={item}>{item}</option>)}</select>
           <button type="button" className="btn-secondary" onClick={() => { setQ(""); setAction(""); setTargetType(""); void load({ q: "", action: "", targetType: "" }); }}>Clear</button>
         </div>
-        <p className="mt-3 text-xs text-slate-400">{logs.length} events loaded</p>
+        <p className="mt-3 text-xs text-slate-400" role="status" aria-live="polite">{logs.length} events loaded</p>
       </div>
 
       <div className="card mt-6 overflow-hidden">

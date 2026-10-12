@@ -1003,21 +1003,9 @@ export async function updateCoupon(req, res, next) {
 export async function auditLogs(req, res, next) {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
-    // Treat the search term as literal text, not a user-supplied regular expression.
+    // Treat search input as literal text, not a user-supplied regular expression.
     const q = String(req.query.q || "").trim().slice(0, 100);
     const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const filter = {};
-    if (escapedQuery) {
-      const searchPattern = new RegExp(escapedQuery, "i");
-      filter.$or = [
-        { action: searchPattern },
-        { targetType: searchPattern },
-        { targetId: searchPattern },
-        { reason: searchPattern }
-      ];
-    }
-    if (req.query.action) filter.action = String(req.query.action);
-    if (req.query.targetType) filter.targetType = String(req.query.targetType);");
     const filter = {};
     if (escapedQuery) {
       const searchPattern = new RegExp(escapedQuery, "i");

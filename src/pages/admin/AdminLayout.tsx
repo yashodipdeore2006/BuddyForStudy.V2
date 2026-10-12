@@ -80,7 +80,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   const navigation = (
-    <nav className="space-y-1 p-3">
+    <nav aria-label="Admin navigation" className="space-y-1 p-3">
       {links.map(([to, label, Icon]) => (
         <NavLink
           key={to}

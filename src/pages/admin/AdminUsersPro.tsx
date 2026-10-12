@@ -34,17 +34,17 @@ export default function AdminUsersPro() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  async function load(page = 1) {
+  async function load(page = 1, filters = { q, status, role, authProvider }) {
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams();
       params.set("page", String(page));
       params.set("limit", String(pageSize));
-      if (q.trim()) params.set("q", q.trim());
-      if (status) params.set("status", status);
-      if (role) params.set("role", role);
-      if (authProvider) params.set("authProvider", authProvider);
+      if (filters.q.trim()) params.set("q", filters.q.trim());
+      if (filters.status) params.set("status", filters.status);
+      if (filters.role) params.set("role", filters.role);
+      if (filters.authProvider) params.set("authProvider", filters.authProvider);
 
       const data = await adminFetch("/api/admin/users?" + params.toString());
       setUsers(data.users || []);
@@ -125,17 +125,17 @@ export default function AdminUsersPro() {
               placeholder="Search name or email"
             />
           </div>
-          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); void load(1); }}>
+          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => { const nextStatus = e.target.value; setStatus(nextStatus); void load(1, { q, status: nextStatus, role, authProvider }); }}>
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="disabled">Disabled</option>
           </select>
-          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => { setRole(e.target.value); void load(1); }}>
+          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => { const nextRole = e.target.value; setRole(nextRole); void load(1, { q, status, role: nextRole, authProvider }); }}>
             <option value="">All roles</option>
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => { setAuthProvider(e.target.value); void load(1); }}>
+          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => { const nextProvider = e.target.value; setAuthProvider(nextProvider); void load(1, { q, status, role, authProvider: nextProvider }); }}>
             <option value="">All sign-in methods</option>
             <option value="local">Email & password</option>
             <option value="google">Google</option>

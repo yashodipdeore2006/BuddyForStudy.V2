@@ -480,8 +480,15 @@ export async function addModuleResource(req, res, next) {
     module.resources.push(resource);
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    let resourceHost = "";
+    try { resourceHost = new URL(resourceUrl).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* URL validation is handled by the resource endpoint. */ }
     await audit(req, "course.module.resource.added", "Course", course._id, null, {
-      moduleId: String(module._id), resourceId: String(resource._id), title, type, url: resourceUrl
+      moduleId: String(module._id),
+      resourceId: String(resource._id),
+      title,
+      type,
+      hasUrl: Boolean(resourceUrl),
+      urlHost: resourceHost
     });
     return success(res, { course, module, resource }, "Module resource added", 201);
   } catch (e) { next(e); }

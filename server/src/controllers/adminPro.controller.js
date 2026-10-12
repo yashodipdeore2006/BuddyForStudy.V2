@@ -252,7 +252,13 @@ export async function updateCourseModule(req, res, next) {
     const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
     if (!module) return failure(res, "Course module not found", 404);
 
-    const before = { title: module.title, description: module.description, resources: module.resources };
+    const summarizeModuleForAudit = (item) => ({
+      moduleId: String(item._id),
+      title: item.title,
+      descriptionLength: String(item.description || "").length,
+      resourceCount: Array.isArray(item.resources) ? item.resources.length : 0
+    });
+    const before = summarizeModuleForAudit(module);
     if (req.body.title !== undefined) {
       const title = String(req.body.title).trim();
       if (!title) return failure(res, "Module title cannot be empty", 400);
@@ -262,9 +268,7 @@ export async function updateCourseModule(req, res, next) {
 
     await course.save();
     await cacheDelete(`course:${course._id}`);
-    await audit(req, "course.module.updated", "Course", course._id, before, {
-      moduleId: String(module._id), title: module.title, description: module.description
-    }, req.body.reason || "");
+    await audit(req, "course.module.updated", "Course", course._id, before, summarizeModuleForAudit(module), req.body.reason || "");
     return success(res, { course, module }, "Module updated");
   } catch (e) { next(e); }
 }

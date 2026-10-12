@@ -1005,14 +1005,17 @@ export async function auditLogs(req, res, next) {
     const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
     // Treat the search term as literal text, not a user-supplied regular expression.
     const q = String(req.query.q || "").trim().slice(0, 100);
-    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\    const q = String(req.query.q || "").trim();
+    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const filter = {};
-    if (q) filter.$or = [
-      { action: new RegExp(q, "i") },
-      { targetType: new RegExp(q, "i") },
-      { targetId: new RegExp(q, "i") },
-      { reason: new RegExp(q, "i") }
-    ];
+    if (escapedQuery) {
+      const searchPattern = new RegExp(escapedQuery, "i");
+      filter.$or = [
+        { action: searchPattern },
+        { targetType: searchPattern },
+        { targetId: searchPattern },
+        { reason: searchPattern }
+      ];
+    }
     if (req.query.action) filter.action = String(req.query.action);
     if (req.query.targetType) filter.targetType = String(req.query.targetType);");
     const filter = {};

@@ -43,12 +43,31 @@ export default function AdminCoupons() {
   async function create() {
     const code = String(form.code || "").trim().toUpperCase();
     const value = Number(form.value);
+    const maxDiscount = form.maxDiscount === "" ? null : Number(form.maxDiscount);
+    const minOrderAmount = Number(form.minOrderAmount || 0);
+    const usageLimit = form.usageLimit === "" ? null : Number(form.usageLimit);
     if (!code || !Number.isFinite(value) || value <= 0) {
       setError("Enter a valid coupon code and discount value.");
       return;
     }
     if (form.type === "percentage" && value > 100) {
       setError("Percentage discount cannot exceed 100%.");
+      return;
+    }
+    if (maxDiscount !== null && (!Number.isFinite(maxDiscount) || maxDiscount <= 0)) {
+      setError("Maximum discount must be greater than ₹0, or leave it blank.");
+      return;
+    }
+    if (!Number.isFinite(minOrderAmount) || minOrderAmount < 0) {
+      setError("Minimum order cannot be negative.");
+      return;
+    }
+    if (usageLimit !== null && (!Number.isInteger(usageLimit) || usageLimit < 1)) {
+      setError("Usage limit must be a whole number of at least 1, or leave it blank.");
+      return;
+    }
+    if (form.expiresAt && new Date(form.expiresAt).getTime() <= Date.now()) {
+      setError("Expiry date and time must be in the future.");
       return;
     }
 
@@ -61,9 +80,9 @@ export default function AdminCoupons() {
           code,
           type: form.type,
           value,
-          maxDiscount: form.maxDiscount === "" ? null : Number(form.maxDiscount),
-          minOrderAmount: Number(form.minOrderAmount || 0),
-          usageLimit: form.usageLimit === "" ? null : Number(form.usageLimit),
+          maxDiscount,
+          minOrderAmount,
+          usageLimit,
           expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
           course: form.course || null,
           isActive: true,
@@ -105,21 +124,53 @@ export default function AdminCoupons() {
 
       <section className="card mt-6 p-5">
         <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-blue-600" /><div><h2 className="font-bold">Create promotion</h2><p className="text-xs text-slate-500">Use caps and expiry dates to prevent accidental open-ended discounts.</p></div></div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <input className="input-field" placeholder="Coupon code e.g. WELCOME10" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
-          <select className="input-field" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-            <option value="percentage">Percentage</option>
-            <option value="fixed">Fixed ₹</option>
-          </select>
-          <input className="input-field" type="number" min="0" value={form.value} onChange={(e) => setForm({ ...form, value: Number(e.target.value) })} placeholder="Discount" />
-          <input className="input-field" type="number" min="0" value={form.maxDiscount} onChange={(e) => setForm({ ...form, maxDiscount: e.target.value })} placeholder="Max discount ₹ (optional)" />
-          <input className="input-field" type="number" min="0" value={form.minOrderAmount} onChange={(e) => setForm({ ...form, minOrderAmount: Number(e.target.value) })} placeholder="Minimum order ₹" />
-          <input className="input-field" type="number" min="1" value={form.usageLimit} onChange={(e) => setForm({ ...form, usageLimit: e.target.value })} placeholder="Usage limit (optional)" />
-          <label className="relative"><CalendarClock className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input className="input-field pl-10" type="datetime-local" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></label>
-          <select className="input-field" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })}>
-            <option value="">All courses</option>
-            {courses.map((course) => <option key={course._id} value={course._id}>{course.title}</option>)}
-          </select>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="block text-sm font-medium text-slate-700">
+            Coupon code
+            <input className="input-field mt-1" placeholder="e.g. WELCOME10" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
+            <span className="mt-1 block text-xs font-normal text-slate-500">The code learners enter at checkout.</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Discount type
+            <select className="input-field mt-1" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              <option value="percentage">Percentage (%)</option>
+              <option value="fixed">Fixed amount (₹)</option>
+            </select>
+            <span className="mt-1 block text-xs font-normal text-slate-500">Choose a percentage or fixed-rupee discount.</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Discount value
+            <input className="input-field mt-1" type="number" min="0.01" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value === "" ? "" : Number(e.target.value) })} placeholder={form.type === "percentage" ? "e.g. 10 for 10%" : "e.g. 100 for ₹100"} />
+            <span className="mt-1 block text-xs font-normal text-slate-500">{form.type === "percentage" ? "Enter 1–100; 10 means 10% off." : "Enter the amount to subtract in rupees."}</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Maximum discount (₹) <span className="font-normal text-slate-400">Optional</span>
+            <input className="input-field mt-1" type="number" min="0" step="0.01" value={form.maxDiscount} onChange={(e) => setForm({ ...form, maxDiscount: e.target.value })} placeholder="e.g. 100" />
+            <span className="mt-1 block text-xs font-normal text-slate-500">Caps a percentage discount; leave blank for no cap.</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Minimum order (₹)
+            <input className="input-field mt-1" type="number" min="0" step="0.01" value={form.minOrderAmount} onChange={(e) => setForm({ ...form, minOrderAmount: e.target.value === "" ? "" : Number(e.target.value) })} />
+            <span className="mt-1 block text-xs font-normal text-slate-500">Minimum eligible purchase; use 0 for no minimum.</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Total usage limit <span className="font-normal text-slate-400">Optional</span>
+            <input className="input-field mt-1" type="number" min="1" step="1" value={form.usageLimit} onChange={(e) => setForm({ ...form, usageLimit: e.target.value })} placeholder="e.g. 100" />
+            <span className="mt-1 block text-xs font-normal text-slate-500">Maximum total redemptions; blank means unlimited.</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Expiry date & time <span className="font-normal text-slate-400">Optional</span>
+            <span className="relative mt-1 block"><CalendarClock className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Expiry date and time" className="input-field pl-10" type="datetime-local" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></span>
+            <span className="mt-1 block text-xs font-normal text-slate-500">Coupon becomes invalid after this time; blank means no expiry.</span>
+          </label>
+          <label className="block text-sm font-medium text-slate-700">
+            Course scope
+            <select className="input-field mt-1" value={form.course} onChange={(e) => setForm({ ...form, course: e.target.value })}>
+              <option value="">All courses</option>
+              {courses.map((course) => <option key={course._id} value={course._id}>{course.title}</option>)}
+            </select>
+            <span className="mt-1 block text-xs font-normal text-slate-500">Choose one course or apply the coupon to all courses.</span>
+          </label>
         </div>
         <button type="button" className="btn-primary mt-4" onClick={() => void create()} disabled={saving}>
           {saving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create Coupon

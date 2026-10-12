@@ -836,7 +836,19 @@ export async function createPlan(req, res, next) {
       isActive: req.body.isActive !== false,
       isPopular: Boolean(req.body.isPopular), trialDays: Number(req.body.trialDays) || 0, sortOrder: Number(req.body.sortOrder) || 0
     });
-    await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, plan.toObject());
+    await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, {
+      name: plan.name,
+      slug: plan.slug,
+      price: plan.price,
+      currency: plan.currency,
+      billingInterval: plan.billingInterval,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      trialDays: plan.trialDays,
+      sortOrder: plan.sortOrder,
+      featuresCount: plan.features.length,
+      limitKeys: [...plan.limits.keys()]
+    });
     return success(res, { plan }, "Plan created", 201);
   } catch (e) { next(e); }
 }
@@ -845,7 +857,19 @@ export async function updatePlan(req, res, next) {
   try {
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
-    const before = plan.toObject();
+    const before = {
+      name: plan.name,
+      slug: plan.slug,
+      price: plan.price,
+      currency: plan.currency,
+      billingInterval: plan.billingInterval,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      trialDays: plan.trialDays,
+      sortOrder: plan.sortOrder,
+      featuresCount: plan.features.length,
+      limitKeys: [...plan.limits.keys()]
+    };
     const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isPopular", "trialDays", "sortOrder"];
     for (const key of allowed) {
       if (req.body[key] === undefined) continue;
@@ -853,7 +877,19 @@ export async function updatePlan(req, res, next) {
       else if (key === "limits") plan[key] = normalizePlanLimits(req.body[key]);
       else plan[key] = req.body[key];
     }
-    await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, plan.toObject(), req.body.reason);
+    await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, {
+      name: plan.name,
+      slug: plan.slug,
+      price: plan.price,
+      currency: plan.currency,
+      billingInterval: plan.billingInterval,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      trialDays: plan.trialDays,
+      sortOrder: plan.sortOrder,
+      featuresCount: plan.features.length,
+      limitKeys: [...plan.limits.keys()]
+    }, req.body.reason);
     return success(res, { plan }, "Plan updated");
   } catch (e) { next(e); }
 }
@@ -881,7 +917,12 @@ export async function updateRefund(req, res, next) {
     const payment = await Payment.findById(refund.payment);
     if (!payment) return failure(res, "Payment record not found", 404);
 
-    const before = refund.toObject();
+    const before = {
+      status: refund.status,
+      amount: refund.amount,
+      hasAdminNote: Boolean(refund.adminNote),
+      processedAt: refund.processedAt
+    };
     refund.adminNote = req.body.adminNote || refund.adminNote;
     refund.processedBy = req.user.user._id;
 
@@ -908,7 +949,12 @@ export async function updateRefund(req, res, next) {
       await payment.save();
     }
     await refund.save();
-    await audit(req, "refund.updated", "RefundRequest", refund._id, before, refund.toObject(), req.body.adminNote);
+    await audit(req, "refund.updated", "RefundRequest", refund._id, before, {
+      status: refund.status,
+      amount: refund.amount,
+      hasAdminNote: Boolean(refund.adminNote),
+      processedAt: refund.processedAt
+    }, req.body.reason || "Refund status updated");
     return success(res, { refund }, "Refund updated");
   } catch (e) { next(e); }
 }

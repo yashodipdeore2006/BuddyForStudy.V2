@@ -993,12 +993,25 @@ export async function updateRefund(req, res, next) {
 
 export async function sendNotification(req, res, next) {
   try {
+    const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+    const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
+    const type = req.body.type || "system";
+    const link = typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "";
+    if (!title || !message) return failure(res, "title and message are required", 400);
+    if (title.length > 200) return failure(res, "title must be 200 characters or fewer", 400);
+    if (message.length > 5000) return failure(res, "message must be 5000 characters or fewer", 400);
+    if (!["system", "course", "billing", "promotion", "security"].includes(type)) {
+      return failure(res, "Invalid notification type", 400);
+    }
+    if (Array.isArray(req.body.userIds) && req.body.userIds.length > 500) {
+      return failure(res, "Send to at most 500 selected users at a time", 400);
+    }
+
     const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
     const users = ids.length ? await User.find({ _id: { $in: ids } }).select("_id") : await notificationAudienceUsers(req.body.audience || "all");
-    if (!req.body.title || !req.body.message) return failure(res, "title and message are required", 400);
-    const docs = users.map(u => ({ user: u._id, title: req.body.title, message: req.body.message, type: req.body.type || "system", link: req.body.link || "", sentBy: req.user.user._id }));
+    const docs = users.map(u => ({ user: u._id, title, message, type, link, sentBy: req.user.user._id }));
     if (docs.length) await Notification.insertMany(docs);
-    await audit(req, "notification.sent", "Notification", "", null, { recipients: docs.length, title: req.body.title });
+    await audit(req, "notification.sent", "Notification", "", null, { recipients: docs.length, title, type });
     return success(res, { sent: docs.length }, "Notification sent");
   } catch (e) { next(e); }
 }

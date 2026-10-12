@@ -60,11 +60,11 @@ export default function AdminControlCenter() {
   }, []);
 
   if (loading && !data) {
-    return <div className="flex min-h-[60vh] items-center justify-center"><RefreshCcw className="animate-spin text-blue-600" /></div>;
+    return <div role="status" aria-live="polite" className="flex min-h-[60vh] items-center justify-center"><RefreshCcw className="animate-spin text-blue-600" /><span className="sr-only">Loading admin dashboard</span></div>;
   }
 
   if (error && !data) {
-    return <div className="card p-6 text-red-600">{error}</div>;
+    return <div role="alert" className="card p-6 text-red-600">{error}</div>;
   }
 
   const s = data?.stats || {};
@@ -97,14 +97,14 @@ export default function AdminControlCenter() {
           <p className="mt-2 text-slate-500">Monitor content, learners, revenue, operations and platform health from one place.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading}>
+          <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading} aria-label={loading ? "Refreshing admin dashboard" : "Refresh admin dashboard"}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
           </button>
           <Link to="/admin/courses" className="btn-primary">Manage content <ArrowRight className="h-4 w-4" /></Link>
         </div>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([Icon, label, value, sub]: any) => (
@@ -142,7 +142,7 @@ export default function AdminControlCenter() {
           <div className="border-b border-slate-100 p-5"><h2 className="font-bold text-slate-900">System health</h2><p className="mt-1 text-xs text-slate-500">Operational signals that need attention.</p></div>
           <div className="divide-y divide-slate-100">
             {healthError ? (
-              <p className="p-4 text-sm text-amber-700">{healthError} Other dashboard data remains available.</p>
+              <p role="status" aria-live="polite" className="p-4 text-sm text-amber-700">{healthError} Other dashboard data remains available.</p>
             ) : checks.map((item) => (
               <div key={item.label} className="flex items-center gap-3 p-4">
                 {item.ok ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-500" />}

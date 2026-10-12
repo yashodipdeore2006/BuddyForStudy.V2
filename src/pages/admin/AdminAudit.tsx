@@ -83,7 +83,7 @@ export default function AdminAudit() {
                 ))}
               </tbody>
             </table>
-            {!logs.length && <div className="p-10 text-center text-sm text-slate-500">No audit events match these filters.</div>}
+            {!logs.length && <div role="status" aria-live="polite" className="p-10 text-center text-sm text-slate-500">No audit events match these filters.</div>}
           </div>
         )}
       </div>

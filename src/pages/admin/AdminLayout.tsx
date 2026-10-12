@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Navigate, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -62,6 +62,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const nav = useNavigate();
   const { session, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
 
   const handleSignOut = async () => {
     await signOut();

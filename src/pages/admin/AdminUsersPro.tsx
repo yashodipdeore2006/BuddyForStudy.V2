@@ -105,7 +105,7 @@ export default function AdminUsersPro() {
             Search, inspect and control accounts, roles, verification and access status.
           </p>
         </div>
-        <button type="button" className="btn-secondary" onClick={() => void load(pagination.page || 1)}>
+        <button type="button" aria-label="Refresh users" className="btn-secondary" onClick={() => void load(pagination.page || 1)} disabled={loading}>
           <RefreshCcw className="h-4 w-4" />
           Refresh
         </button>
@@ -116,6 +116,7 @@ export default function AdminUsersPro() {
           <div className="relative xl:col-span-2">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             <input
+              aria-label="Search users by name or email"
               className="input-field pl-10"
               value={q}
               maxLength={100}
@@ -124,17 +125,17 @@ export default function AdminUsersPro() {
               placeholder="Search name or email"
             />
           </div>
-          <select className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); void load(1); }}>
+          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); void load(1); }}>
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="disabled">Disabled</option>
           </select>
-          <select className="input-field" value={role} onChange={(e) => { setRole(e.target.value); void load(1); }}>
+          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => { setRole(e.target.value); void load(1); }}>
             <option value="">All roles</option>
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-          <select className="input-field" value={authProvider} onChange={(e) => { setAuthProvider(e.target.value); void load(1); }}>
+          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => { setAuthProvider(e.target.value); void load(1); }}>
             <option value="">All sign-in methods</option>
             <option value="local">Email & password</option>
             <option value="google">Google</option>
@@ -147,11 +148,11 @@ export default function AdminUsersPro() {
         </div>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <div className="card mt-6 overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div>
+          <div role="status" aria-live="polite" aria-label="Loading users" className="p-12 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading users</span></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

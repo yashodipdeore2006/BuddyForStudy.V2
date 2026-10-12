@@ -103,14 +103,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             type="button"
             onClick={() => setMobileOpen((value) => !value)}
             className="rounded-lg p-2 hover:bg-white/10"
-            aria-label="Toggle admin navigation"
+            aria-label={mobileOpen ? "Close admin navigation" : "Open admin navigation"}
+            aria-expanded={mobileOpen}
+            aria-controls="admin-mobile-navigation"
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
 
         {mobileOpen && (
-          <div className="max-h-[calc(100vh-56px)] overflow-y-auto border-t border-white/10">
+          <div
+            id="admin-mobile-navigation"
+            className="max-h-[calc(100vh-56px)] overflow-y-auto border-t border-white/10"
+          >
             {navigation}
             <div className="border-t border-white/10 p-3">
               <NavLink

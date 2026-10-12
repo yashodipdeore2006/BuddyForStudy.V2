@@ -96,7 +96,7 @@ export default function AdminControlCenter() {
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Platform Overview</h1>
           <p className="mt-2 text-slate-500">Monitor content, learners, revenue, operations and platform health from one place.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
           </button>

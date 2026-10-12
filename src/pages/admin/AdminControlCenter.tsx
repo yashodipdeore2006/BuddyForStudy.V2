@@ -121,6 +121,7 @@ export default function AdminControlCenter() {
                 <span className={"badge " + (user.isActive ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700")}>{user.isActive ? "Active" : "Disabled"}</span>
               </div>
             ))}
+            {!data?.recentUsers?.length && <p className="p-5 text-sm text-slate-500">No user accounts to display yet.</p>}
           </div>
         </section>
 
@@ -149,6 +150,7 @@ export default function AdminControlCenter() {
                 <span className="text-sm font-bold">{money(payment.amount)}</span>
               </div>
             ))}
+            {!data?.recentPayments?.length && <p className="p-5 text-sm text-slate-500">No payment activity to display yet.</p>}
           </div>
         </section>
 

@@ -22,8 +22,10 @@ import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
+  // Keep audit explanations bounded and plain-text; callers may pass untrusted request data.
+  const safeReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
   await AuditLog.create({
-    actor: req.user.user._id, action, targetType, targetId: String(targetId || ""), before, after, reason,
+    actor: req.user.user._id, action, targetType, targetId: String(targetId || ""), before, after, reason: safeReason,
     ip: req.ip || "", userAgent: req.get("user-agent") || ""
   });
 }

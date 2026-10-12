@@ -226,7 +226,7 @@ export default function AdminPlans() {
       </div>
 
       {error && (
-        <div className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
@@ -239,18 +239,21 @@ export default function AdminPlans() {
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <input
+            aria-label="Plan name"
             className="input-field"
             placeholder="Plan name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <input
+            aria-label="Plan slug"
             className="input-field"
             placeholder="Slug"
             value={form.slug}
             onChange={(e) => setForm({ ...form, slug: e.target.value })}
           />
           <input
+            aria-label="Plan price"
             className="input-field"
             type="number"
             min="0"
@@ -259,6 +262,7 @@ export default function AdminPlans() {
             onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
           />
           <select
+            aria-label="Plan billing interval"
             className="input-field"
             value={form.billingInterval}
             onChange={(e) => setForm({ ...form, billingInterval: e.target.value })}
@@ -343,11 +347,11 @@ export default function AdminPlans() {
 
       <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
-          <div className="card col-span-full p-12 text-center">
-            <RefreshCcw className="mx-auto animate-spin text-slate-400" />
+          <div role="status" aria-live="polite" aria-label="Loading subscription plans" className="card col-span-full p-12 text-center">
+            <RefreshCcw className="mx-auto animate-spin text-slate-400" /><span className="sr-only">Loading subscription plans</span>
           </div>
         ) : plans.length === 0 ? (
-          <div className="card col-span-full p-12 text-center text-sm text-slate-500">
+          <div role="status" aria-live="polite" className="card col-span-full p-12 text-center text-sm text-slate-500">
             No plans found.
           </div>
         ) : (

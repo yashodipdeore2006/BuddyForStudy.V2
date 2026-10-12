@@ -171,7 +171,7 @@ export default function AdminCommunications() {
             </button>
           </div>
 
-          {status && <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">{status}</p>}
+          {status && <p role="status" aria-live="polite" className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">{status}</p>}
         </section>
 
         {preview ? renderPreview() : (

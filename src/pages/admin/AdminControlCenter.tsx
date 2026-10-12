@@ -66,7 +66,15 @@ export default function AdminControlCenter() {
   }
 
   if (error && !data) {
-    return <div role="alert" className="card p-6 text-red-600">{error}</div>;
+    return (
+      <div className="card flex flex-col items-start gap-4 p-6">
+        <p role="alert" className="text-red-600">{error}</p>
+        <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading}>
+          <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          {loading ? "Retrying…" : "Try again"}
+        </button>
+      </div>
+    );
   }
 
   const s = data?.stats || {};

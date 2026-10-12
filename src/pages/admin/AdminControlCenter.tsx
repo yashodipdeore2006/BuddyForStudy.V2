@@ -25,6 +25,7 @@ export default function AdminControlCenter() {
   const [error, setError] = useState("");
   const [healthError, setHealthError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   async function load() {
     setLoading(true);
@@ -40,6 +41,7 @@ export default function AdminControlCenter() {
       }
 
       setData(overviewResult.value);
+      setLastUpdated(new Date());
 
       if (healthResult.status === "fulfilled") {
         setHealth(healthResult.value);
@@ -64,7 +66,15 @@ export default function AdminControlCenter() {
   }
 
   if (error && !data) {
-    return <div role="alert" className="card p-6 text-red-600">{error}</div>;
+    return (
+      <div className="card flex flex-col items-start gap-4 p-6">
+        <p role="alert" className="text-red-600">{error}</p>
+        <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading}>
+          <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          {loading ? "Retrying…" : "Try again"}
+        </button>
+      </div>
+    );
   }
 
   const s = data?.stats || {};
@@ -96,7 +106,8 @@ export default function AdminControlCenter() {
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Platform Overview</h1>
           <p className="mt-2 text-slate-500">Monitor content, learners, revenue, operations and platform health from one place.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {lastUpdated && <span className="text-xs text-slate-500" aria-live="polite">Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
           <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading} aria-label={loading ? "Refreshing admin dashboard" : "Refresh admin dashboard"}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
           </button>

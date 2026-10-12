@@ -49,6 +49,9 @@ async function shutdown(signal) {
   console.info(`[worker] received ${signal}; stopping maintenance scheduler`);
   if (intervalHandle) clearInterval(intervalHandle);
   try {
+    while (maintenanceInProgress) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
     await mongoose.disconnect();
     console.info("[worker] database connection closed");
     process.exitCode = 0;

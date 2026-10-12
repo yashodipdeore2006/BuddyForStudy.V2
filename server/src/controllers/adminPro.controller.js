@@ -966,7 +966,14 @@ export async function upsertSetting(req, res, next) {
     const current = await PlatformSetting.findOne({ key: req.body.key });
     const before = current?.value ?? null;
     const setting = await PlatformSetting.findOneAndUpdate({ key: req.body.key }, { $set: { value: req.body.value, description: req.body.description || "", isPublic: Boolean(req.body.isPublic), updatedBy: req.user.user._id } }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    await audit(req, "setting.updated", "PlatformSetting", setting._id, { value: before }, { value: setting.value }, req.body.reason);
+    await audit(req, "setting.updated", "PlatformSetting", setting._id, {
+      valueChanged: true,
+      valueType: before === null ? "null" : Array.isArray(before) ? "array" : typeof before
+    }, {
+      valueChanged: true,
+      valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
+      isPublic: setting.isPublic
+    }, req.body.reason);
     return success(res, { setting }, "Setting updated");
   } catch (e) { next(e); }
 }

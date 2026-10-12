@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
 import * as controller from "../controllers/adminPro.controller.js";
 import * as messageTemplateController from "../controllers/messageTemplate.controller.js";
+import * as operationalAlertController from "../controllers/operationalAlert.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -52,5 +53,7 @@ router.put("/coupons/:couponId", controller.updateCoupon);
 router.get("/audit-logs", controller.auditLogs);
 router.get("/analytics", controller.analytics);
 router.get("/health", controller.health);
+router.get("/operations/alerts", operationalAlertController.operationalAlerts);
+router.post("/operations/alerts/:alertId/acknowledge", operationalAlertController.acknowledgeOperationalAlert);
 
 export default router;

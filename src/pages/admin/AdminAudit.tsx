@@ -58,7 +58,7 @@ export default function AdminAudit() {
       <div className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto]">
           <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Search audit events" className="input-field pl-10" value={q} maxLength={100} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void load()} placeholder="Search action, target, ID or reason" /></div>
-          <select className="input-field" value={action} onChange={(e) => { const nextAction = e.target.value; setAction(nextAction); void load({ q, action: nextAction, targetType }); }}><option value="">All actions</option>{actions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <select aria-label="Filter audit events by action" className="input-field" value={action} onChange={(e) => { const nextAction = e.target.value; setAction(nextAction); void load({ q, action: nextAction, targetType }); }}><option value="">All actions</option>{actions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
           <select className="input-field" value={targetType} onChange={(e) => { const nextTargetType = e.target.value; setTargetType(nextTargetType); void load({ q, action, targetType: nextTargetType }); }}><option value="">All targets</option>{targets.map((item) => <option key={item} value={item}>{item}</option>)}</select>
           <button type="button" className="btn-secondary" onClick={() => { setQ(""); setAction(""); setTargetType(""); void load({ q: "", action: "", targetType: "" }); }}>Clear</button>
         </div>

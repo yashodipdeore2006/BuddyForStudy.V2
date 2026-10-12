@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
 import * as controller from "../controllers/adminPro.controller.js";
+import * as messageTemplateController from "../controllers/messageTemplate.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -34,6 +35,11 @@ router.put("/refunds/:refundId", controller.updateRefund);
 router.post("/notifications/send", controller.sendNotification);
 router.post("/emails/send", controller.sendEmail);
 router.post("/announcements/send", controller.sendAnnouncement);
+
+router.get("/message-templates", messageTemplateController.listMessageTemplates);
+router.post("/message-templates", messageTemplateController.createMessageTemplate);
+router.put("/message-templates/:templateId", messageTemplateController.updateMessageTemplate);
+router.delete("/message-templates/:templateId", messageTemplateController.deleteMessageTemplate);
 
 router.get("/settings", controller.settings);
 router.put("/settings", controller.upsertSetting);

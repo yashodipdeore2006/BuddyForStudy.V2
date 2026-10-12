@@ -149,7 +149,11 @@ export default function AdminControlCenter() {
                 <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-800">{item.label}</p><p className="text-xs text-slate-500">{item.value}</p></div>
               </div>
             ))}
-            <div className="p-4 text-xs text-slate-400">Node {health?.node || "—"} · {health?.environment || "—"} · uptime {health?.uptimeSeconds || 0}s</div>
+            {!healthError && (
+              <div className="p-4 text-xs text-slate-400">
+                Node {health?.node || "—"} · {health?.environment || "—"} · uptime {health?.uptimeSeconds ?? "—"}s
+              </div>
+            )}
           </div>
         </section>
       </div>

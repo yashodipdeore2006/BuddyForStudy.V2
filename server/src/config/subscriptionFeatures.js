@@ -5,7 +5,7 @@ export const SUBSCRIPTION_FEATURES = [
   { key: "ai_course_builder", label: "Build with AI" },
   { key: "personalized_roadmaps", label: "Personalized learning roadmaps" },
   { key: "project_based_learning", label: "Project-based learning" },
-  { key: "advanced_ai_paths", label: "Advanced AI learning paths" },
+  { key: "advanced_ai_paths", label: "Advanced AI learning assistant (summary, notes & lesson Q&A)" },
   { key: "study_planning", label: "Personalized study planning" },
   { key: "priority_recommendations", label: "Priority learning recommendations" },
 ];
@@ -25,6 +25,9 @@ const LEGACY_FEATURE_ALIASES = {
     "Build with AI",
     "Personalized learning roadmaps",
     "Project-based learning",
+  ],
+  "Advanced AI learning paths": [
+    "Advanced AI learning assistant (summary, notes & lesson Q&A)"
   ],
 };
 

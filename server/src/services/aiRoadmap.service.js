@@ -5,6 +5,9 @@ import { attachYouTubeResources } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 import { randomUUID } from "node:crypto";
+import { normalizeMultiVideoLessons } from "./course.service.js";
+import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
+import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -39,15 +42,103 @@ const roadmapSchema = {
             required: ["minMinutes", "targetMinutes", "maxMinutes"]
           },
           practiceProject: { type: "string" },
+          projectPlacement: { type: "string", enum: ["none", "skill", "milestone"] },
+          projectPlan: {
+            type: "object",
+            properties: {
+              scenario: { type: "string" },
+              whyThisProject: { type: "string" },
+              features: { type: "array", items: { type: "string" } },
+              architecture: { type: "array", items: { type: "string" } },
+              milestones: { type: "array", items: { type: "string" } },
+              testingChecklist: { type: "array", items: { type: "string" } },
+              industrySkills: { type: "array", items: { type: "string" } },
+              githubWorkflow: { type: "array", items: { type: "string" } },
+              videoSearchQueries: { type: "array", items: { type: "string" } }
+            },
+            required: [
+              "scenario",
+              "whyThisProject",
+              "features",
+              "architecture",
+              "milestones",
+              "testingChecklist",
+              "industrySkills",
+              "githubWorkflow",
+              "videoSearchQueries"
+            ]
+          },
+          quizPolicy: {
+            type: "object",
+            properties: {
+              lessonQuestionCount: { type: "integer", minimum: 3, maximum: 10 },
+              moduleQuestionCount: { type: "integer", minimum: 0, maximum: 15 },
+              passingScore: { type: "integer", minimum: 50, maximum: 90 }
+            },
+            required: ["lessonQuestionCount", "moduleQuestionCount", "passingScore"]
+          },
           durationMinutes: { type: "integer" }
         },
-        required: ["id", "name", "category", "importance", "prerequisites", "topics", "searchQueries", "courseDuration", "practiceProject"]
+        required: [
+          "id",
+          "name",
+          "category",
+          "importance",
+          "prerequisites",
+          "topics",
+          "searchQueries",
+          "courseDuration",
+          "practiceProject",
+          "projectPlacement",
+          "projectPlan",
+          "quizPolicy"
+        ]
+      }
+    },
+    capstoneProjects: {
+      type: "array",
+      minItems: 0,
+      maxItems: 2,
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          scenario: { type: "string" },
+          whyThisProject: { type: "string" },
+          features: { type: "array", items: { type: "string" } },
+          architecture: { type: "array", items: { type: "string" } },
+          milestones: { type: "array", items: { type: "string" } },
+          testingChecklist: { type: "array", items: { type: "string" } },
+          industrySkills: { type: "array", items: { type: "string" } },
+          githubWorkflow: { type: "array", items: { type: "string" } },
+          videoSearchQueries: { type: "array", items: { type: "string" } }
+        },
+        required: [
+          "title",
+          "scenario",
+          "whyThisProject",
+          "features",
+          "architecture",
+          "milestones",
+          "testingChecklist",
+          "industrySkills",
+          "githubWorkflow",
+          "videoSearchQueries"
+        ]
       }
     }
   },
-  required: ["canonicalTopic", "title", "description", "careerOutcome", "category", "learningOutcomes", "skills"]
+  required: [
+    "canonicalTopic",
+    "title",
+    "description",
+    "careerOutcome",
+    "category",
+    "learningOutcomes",
+    "skills",
+    "capstoneProjects"
+  ]
 };
-
 function normalizeId(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 }
@@ -57,6 +148,34 @@ function normalizeCourseDuration(value) {
   const targetMinutes = Math.max(minMinutes, Math.min(3000, Number(value?.targetMinutes) || minMinutes));
   const maxMinutes = Math.max(targetMinutes, Math.min(3600, Number(value?.maxMinutes) || targetMinutes));
   return { minMinutes, targetMinutes, maxMinutes };
+}
+
+function normalizeQuizPolicy(value, topicCount = 1) {
+  const defaultLesson = topicCount >= 8 ? 7 : topicCount >= 5 ? 5 : 3;
+  const lessonQuestionCount = Math.max(
+    3,
+    Math.min(10, Number(value?.lessonQuestionCount) || defaultLesson)
+  );
+  const moduleRaw =
+    value?.moduleQuestionCount === undefined
+      ? (topicCount >= 5 ? 8 : 5)
+      : Number(value.moduleQuestionCount);
+  const moduleQuestionCount = Math.max(0, Math.min(15, Number.isFinite(moduleRaw) ? moduleRaw : 5));
+  const passingScore = Math.max(
+    50,
+    Math.min(90, Number(value?.passingScore) || 70)
+  );
+  return { lessonQuestionCount, moduleQuestionCount, passingScore };
+}
+
+function splitTopics(topics, maxItems = 5) {
+  const clean = [...new Set((topics || []).map((item) => String(item || "").trim()).filter(Boolean))];
+  if (!clean.length) return [["Core concepts"]];
+  const chunks = [];
+  for (let index = 0; index < clean.length; index += maxItems) {
+    chunks.push(clean.slice(index, index + maxItems));
+  }
+  return chunks;
 }
 
 function topoSort(skills) {
@@ -82,14 +201,454 @@ function topoSort(skills) {
   return result;
 }
 
-function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) {
-  const orderedSkills = topoSort(ai.skills.map((skill) => ({
+function projectPlanToContent(plan, skill, fallbackProject) {
+  const value = plan || {};
+  return {
+    description: value.whyThisProject || fallbackProject || `Build a practical project using ${skill}.`,
+    realWorldScenario: value.scenario || `Solve a realistic problem with ${skill}.`,
+    objectives: (value.features || []).slice(0, 8).length
+      ? (value.features || []).slice(0, 8).map((feature) => `Implement: ${feature}`)
+      : [`Apply the core ${skill} concepts in a working application.`],
+    requirements: (value.industrySkills || []).length
+      ? value.industrySkills.slice(0, 8)
+      : [skill],
+    instructions: [
+      value.scenario ? `Scenario: ${value.scenario}` : "",
+      value.whyThisProject ? `Why this project: ${value.whyThisProject}` : "",
+      value.architecture?.length ? `Architecture: ${value.architecture.join(" | ")}` : "",
+      value.milestones?.length ? `Milestones: ${value.milestones.map((item, index) => `${index + 1}. ${item}`).join(" | ")}` : "",
+      "Implement the project incrementally. Use clean code, meaningful Git commits, validation, error handling, and documentation.",
+      value.testingChecklist?.length ? `Testing checklist: ${value.testingChecklist.join(" | ")}` : "",
+      value.githubWorkflow?.length ? `GitHub workflow: ${value.githubWorkflow.join(" | ")}` : ""
+    ].filter(Boolean).join("\n\n"),
+    expectedOutcome:
+      value.scenario
+        ? `A working project that solves the scenario: ${value.scenario}`
+        : `A working project demonstrating practical ${skill} skills.`,
+    features: (value.features || []).slice(0, 12),
+    architecture: (value.architecture || []).slice(0, 10),
+    milestones: (value.milestones || []).slice(0, 12),
+    testingChecklist: (value.testingChecklist || []).slice(0, 12),
+    industrySkills: (value.industrySkills || []).slice(0, 12),
+    githubWorkflow: (value.githubWorkflow || []).slice(0, 10),
+    videoSearchQueries: (value.videoSearchQueries || []).slice(0, 3),
+    resources: [],
+    videos: [],
+    submissionRequirements: [
+      "Source code repository on GitHub",
+      "README with setup, architecture, and usage",
+      "Test evidence or test suite",
+      "Deployed application or recorded demo where applicable",
+      "Short explanation of technical decisions"
+    ]
+  };
+}
+
+function isWebOrFullStackTopic(topic, ai) {
+  const text = `${topic || ""} ${ai?.title || ""} ${ai?.category || ""}`.toLowerCase();
+  return /(mern|mean|full.?stack|web development|frontend|backend|react|node\.js|express|next\.js|java full stack|\.net|web app)/i.test(text);
+}
+
+function ensureWebIndustryStage(skills, topic, ai) {
+  if (!isWebOrFullStackTopic(topic, ai)) return skills;
+
+  const normalized = skills.map((skill) => ({
+    ...skill,
+    id: normalizeId(skill.id || skill.name),
+    prerequisites: (skill.prerequisites || []).map(normalizeId)
+  }));
+
+  const ensureStage = (name, id, topics, queries, afterNames = []) => {
+    if (normalized.some((skill) => normalizeId(skill.id || skill.name) === id || String(skill.name).toLowerCase() === name.toLowerCase())) return;
+    const preceding = normalized.filter((skill) =>
+      afterNames.some((after) => String(skill.name).toLowerCase().includes(after))
+    );
+    const prerequisites = preceding.length ? [normalizeId(preceding[preceding.length - 1].id || preceding[preceding.length - 1].name)] : [];
+    normalized.push({
+      id,
+      name,
+      category: "Engineering Workflow",
+      importance: "High",
+      prerequisites,
+      topics,
+      searchQueries: queries,
+      courseDuration: {
+        minMinutes: 120,
+        targetMinutes: 180,
+        maxMinutes: 300
+      },
+      practiceProject: `Apply ${name} in a small professional workflow.`,
+      projectPlacement: "none",
+      projectPlan: {
+        scenario: `Use ${name} to work on the codebase professionally.`,
+        whyThisProject: `Build the habits needed to collaborate, ship, and maintain software reliably.`,
+        features: [],
+        architecture: [],
+        milestones: [],
+        testingChecklist: ["Verify the workflow on a real repository."],
+        industrySkills: ["Version control", "Documentation", "Professional collaboration"],
+        githubWorkflow: [
+          "Create a Git repository",
+          "Use meaningful commits",
+          "Create feature branches",
+          "Open and review pull requests",
+          "Write a useful README"
+        ],
+        videoSearchQueries: queries
+      },
+      quizPolicy: { lessonQuestionCount: 4, moduleQuestionCount: 5, passingScore: 70 }
+    });
+  };
+
+  const jsIndex = normalized.findIndex((skill) => /javascript|typescript/i.test(skill.name || ""));
+  if (jsIndex >= 0) {
+    const hasGitHub = normalized.some((skill) => /git.?hub|version control/i.test(skill.name || ""));
+    if (!hasGitHub) {
+      normalized.splice(jsIndex + 1, 0, {
+        id: "git-github-workflow",
+        name: "Git & GitHub Workflow",
+        category: "Engineering Workflow",
+        importance: "Critical",
+        prerequisites: [normalizeId(normalized[jsIndex].id || normalized[jsIndex].name)],
+        topics: [
+          "Git fundamentals",
+          "branching",
+          "commits",
+          "merge and rebase basics",
+          "pull requests",
+          "GitHub repositories",
+          "issues",
+          "README and collaboration"
+        ],
+        searchQueries: [
+          "Git and GitHub for beginners complete tutorial",
+          "GitHub workflow pull requests branches tutorial"
+        ],
+        courseDuration: { minMinutes: 180, targetMinutes: 300, maxMinutes: 480 },
+        practiceProject: "",
+        projectPlacement: "none",
+        projectPlan: {
+          scenario: "Manage a real web-project repository with professional Git and GitHub practices.",
+          whyThisProject: "Every industry-ready developer must be able to collaborate, review changes, and ship code safely.",
+          features: [],
+          architecture: [],
+          milestones: [],
+          testingChecklist: ["Create a branch", "Commit changes", "Open a pull request", "Review and merge"],
+          industrySkills: ["Git", "GitHub", "Code review", "Collaboration", "Documentation"],
+          githubWorkflow: [
+            "Initialize and structure the repository",
+            "Create feature branches",
+            "Use atomic commits",
+            "Open pull requests",
+            "Review and merge changes",
+            "Track work with issues",
+            "Maintain a professional README"
+          ],
+          videoSearchQueries: [
+            "Git and GitHub for beginners complete tutorial",
+            "GitHub workflow pull requests branches tutorial"
+          ]
+        },
+        quizPolicy: { lessonQuestionCount: 5, moduleQuestionCount: 8, passingScore: 70 }
+      });
+    }
+  }
+
+  ensureStage(
+    "Testing, Debugging & Quality",
+    "testing-debugging-quality",
+    ["unit testing", "integration testing", "debugging", "linting", "validation", "error handling"],
+    ["web application testing debugging complete tutorial", "JavaScript Node React testing debugging tutorial"],
+    ["react", "node", "express", "backend", "full"]
+  );
+  ensureStage(
+    "Deployment, Security & Production",
+    "deployment-security-production",
+    ["deployment", "environment variables", "security basics", "HTTPS", "production configuration", "monitoring"],
+    ["web app deployment security production complete tutorial", "MERN production deployment security tutorial"],
+    ["testing", "backend", "express", "node"]
+  );
+
+  return normalized;
+}
+
+function defaultWebCapstoneProjects(topic, ai) {
+  const text = `${topic || ""} ${ai?.title || ""}`.toLowerCase();
+  if (!isWebOrFullStackTopic(topic, ai)) return [];
+
+  const mern = text.includes("mern");
+  const stackName = mern ? "MERN" : (ai?.canonicalTopic || topic || "full-stack");
+  return [
+    {
+      title: `${stackName} Production E-Commerce Platform`,
+      scenario: "Build a realistic commerce platform where users can browse products, authenticate, manage carts, place orders, and administrators can manage inventory.",
+      whyThisProject: "It combines frontend, backend, database, authentication, APIs, validation, testing, deployment, and professional GitHub workflow into one portfolio-grade application.",
+      features: [
+        "User registration, login, logout, and protected routes",
+        "Product catalog with search, filters, pagination, and details",
+        "Cart and checkout/order workflow",
+        "Admin dashboard for products and orders",
+        "Input validation, authorization, and secure error handling",
+        "Responsive frontend with loading, empty, and error states",
+        "API documentation and environment-based configuration"
+      ],
+      architecture: [
+        `${stackName} frontend application`,
+        "REST API with controllers, services, validation, and middleware",
+        "MongoDB persistence with normalized domain models",
+        "Authentication and authorization layer",
+        "Testing and deployment pipeline"
+      ],
+      milestones: [
+        "Plan requirements and create the GitHub repository",
+        "Build the frontend shell and reusable UI components",
+        "Design the API and database models",
+        "Implement authentication and authorization",
+        "Build catalog and cart flows",
+        "Implement orders and admin workflows",
+        "Add tests, validation, security hardening, and error handling",
+        "Deploy and document the finished application"
+      ],
+      testingChecklist: [
+        "Authentication and authorization tests",
+        "API validation and error-path tests",
+        "Critical user-flow tests",
+        "Responsive and accessibility checks",
+        "Production environment configuration check"
+      ],
+      industrySkills: [
+        "REST API design",
+        "Authentication and authorization",
+        "Database modeling",
+        "Testing",
+        "Git and GitHub collaboration",
+        "Deployment",
+        "Debugging",
+        "Technical documentation"
+      ],
+      githubWorkflow: [
+        "Create a professional repository and README",
+        "Use feature branches and atomic commits",
+        "Open pull requests for meaningful changes",
+        "Review and merge changes",
+        "Track tasks with issues",
+        "Tag a release after deployment"
+      ],
+      videoSearchQueries: [
+        `${stackName} full stack e-commerce project tutorial complete`,
+        `${stackName} full stack project from scratch deployment`
+      ]
+    },
+    {
+      title: `${stackName} SaaS Project Management Application`,
+      scenario: "Build a team project-management SaaS where users can create workspaces, manage projects and tasks, collaborate, and track progress.",
+      whyThisProject: "It forces the learner to integrate the stack around realistic product requirements instead of following isolated tutorials.",
+      features: [
+        "User and workspace management",
+        "Projects, tasks, statuses, priorities, and due dates",
+        "Role-based access control",
+        "Search, filtering, sorting, and pagination",
+        "Activity history and notifications",
+        "Dashboard analytics",
+        "Responsive UI and robust loading/error handling"
+      ],
+      architecture: [
+        `${stackName} frontend`,
+        "REST API and service layer",
+        "MongoDB data model with relationships",
+        "Authentication, authorization, and validation",
+        "Testing, deployment, and monitoring"
+      ],
+      milestones: [
+        "Define product requirements and architecture",
+        "Create the repository and branching strategy",
+        "Build authentication and workspace management",
+        "Build project and task workflows",
+        "Add role-based access and collaboration features",
+        "Test critical paths and harden security",
+        "Deploy, monitor, and document the application"
+      ],
+      testingChecklist: [
+        "Protected-route and role tests",
+        "CRUD and validation tests",
+        "Critical end-to-end workflow checks",
+        "Performance and error handling checks",
+        "Production smoke test"
+      ],
+      industrySkills: [
+        "Full-stack integration",
+        "API design",
+        "Database modeling",
+        "RBAC",
+        "Testing",
+        "Deployment",
+        "GitHub collaboration",
+        "Product thinking"
+      ],
+      githubWorkflow: [
+        "Maintain issues for product work",
+        "Use feature branches",
+        "Write atomic commits",
+        "Open pull requests and review changes",
+        "Maintain release notes and a professional README"
+      ],
+      videoSearchQueries: [
+        `${stackName} full stack project management app tutorial complete`,
+        `${stackName} full stack SaaS project tutorial from scratch`
+      ]
+    }
+  ];
+}
+
+
+function isDataAnalyticsTopic(topic, ai) {
+  const text = String(topic || "") + " " + String(ai?.title || "") + " " + String(ai?.canonicalTopic || "");
+  return /data analytics|data analyst|business analytics|business intelligence/i.test(text);
+}
+
+function ensureDataAnalyticsStages(skills, topic, ai) {
+  if (!isDataAnalyticsTopic(topic, ai)) return skills;
+  const result = skills.map((skill) => ({
+    ...skill,
+    id: normalizeId(skill.id || skill.name),
+    prerequisites: (skill.prerequisites || []).map(normalizeId)
+  }));
+  const stages = [
+    { id:"spreadsheet-analysis", name:"Spreadsheet Analysis with Excel", category:"Data Analytics", topics:["workbooks and tables","data types and formatting","sorting and filtering","IF and lookup formulas","SUMIFS and COUNTIFS","pivot tables and pivot charts","data validation","spreadsheet reporting"], searchQueries:["Microsoft Excel for Data Analysis complete course pivot tables formulas","Excel data analysis full course for beginners"], courseDuration:{minMinutes:240,targetMinutes:360,maxMinutes:600}, practiceProject:"Analyze sales data and build an Excel KPI report", projectPlacement:"skill" },
+    { id:"sql-for-analytics", name:"SQL for Data Analytics", category:"Data Analytics", topics:["relational tables and keys","SELECT and filtering","sorting and limiting","aggregate functions","GROUP BY and HAVING","INNER and OUTER JOINs","CASE expressions","CTEs and subqueries","window functions","date and text functions"], searchQueries:["SQL for Data Analytics complete course joins CTE window functions","SQL full course for data analysts with projects"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Answer business questions using a relational sales database", projectPlacement:"skill" },
+    { id:"statistics-for-analytics", name:"Statistics and Probability for Analytics", category:"Statistics", topics:["mean median mode","variance and standard deviation","distributions","sampling and bias","confidence intervals","hypothesis testing","correlation versus causation","A/B testing fundamentals"], searchQueries:["statistics for data analytics complete course hypothesis testing confidence intervals","probability and statistics for data analysts beginner course"], courseDuration:{minMinutes:240,targetMinutes:360,maxMinutes:600}, practiceProject:"Interpret an experiment and explain statistical uncertainty", projectPlacement:"skill" },
+    { id:"python-for-analytics", name:"Python Fundamentals for Data Analytics", category:"Programming", topics:["Python syntax and variables","collections and loops","functions","modules and virtual environments","reading CSV and Excel files","exceptions","Jupyter notebooks","writing reusable analysis code"], searchQueries:["Python for Data Analysis complete beginner course Jupyter CSV Excel","Python full course for data analysts with practical exercises"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Automate a repeatable data-cleaning report with Python", projectPlacement:"skill" },
+    { id:"numpy-pandas", name:"Data Manipulation with NumPy and Pandas", category:"Python Data Analysis", topics:["NumPy arrays","Pandas Series and DataFrames","loading CSV and Excel","selecting and filtering rows","missing values","duplicates and inconsistent values","groupby and aggregation","merge and concatenate","datetime analysis","exporting clean datasets"], searchQueries:["Pandas NumPy for Data Analysis complete course data cleaning groupby merge","Python Pandas full course for data analysts project"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Clean and combine multiple messy business datasets", projectPlacement:"skill" },
+    { id:"exploratory-data-analysis", name:"Data Cleaning and Exploratory Data Analysis", category:"Data Analysis", topics:["data quality checks","missing data strategy","outlier investigation","univariate analysis","bivariate analysis","segmentation","trend and seasonality","feature relationships","documenting assumptions","reproducible analysis"], searchQueries:["exploratory data analysis EDA complete course Python Pandas real dataset","data cleaning and EDA end to end data analyst project"], courseDuration:{minMinutes:300,targetMinutes:480,maxMinutes:720}, practiceProject:"Explore a real-world dataset and publish an analysis notebook", projectPlacement:"skill" },
+    { id:"data-visualization-bi", name:"Data Visualization and BI Dashboards", category:"Business Intelligence", topics:["chart selection","visual encoding","matplotlib and seaborn basics","Power BI or Tableau fundamentals","data modeling for dashboards","measures and calculated fields","filters and drill-down","dashboard layout","accessibility and misleading charts"], searchQueries:["Power BI complete course dashboard project for data analysts","Tableau data visualization full course dashboard project","Python data visualization Matplotlib Seaborn complete tutorial"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Build an interactive business performance dashboard", projectPlacement:"skill" },
+    { id:"business-insights-storytelling", name:"Business Metrics and Data Storytelling", category:"Business Analytics", topics:["business questions and hypotheses","KPIs and metric definitions","funnel and cohort analysis","revenue and retention metrics","root-cause analysis","communicating uncertainty","writing executive summaries","recommendations and impact"], searchQueries:["business analytics KPIs data storytelling complete course for data analysts","data analysis business case study end to end tutorial"], courseDuration:{minMinutes:180,targetMinutes:300,maxMinutes:480}, practiceProject:"Turn analysis findings into a concise stakeholder recommendation", projectPlacement:"skill" }
+  ];
+  const matches = (stage, skill) => {
+    const n = String(skill.name || "").toLowerCase();
+    if (skill.id === stage.id || n === stage.name.toLowerCase()) return true;
+    if (stage.id === "spreadsheet-analysis") return /excel|spreadsheet/.test(n);
+    if (stage.id === "sql-for-analytics") return /\bsql\b/.test(n);
+    if (stage.id === "statistics-for-analytics") return /statistics|probability/.test(n);
+    if (stage.id === "python-for-analytics") return /python/.test(n);
+    if (stage.id === "numpy-pandas") return /pandas|numpy/.test(n);
+    if (stage.id === "exploratory-data-analysis") return /exploratory|data cleaning|\beda\b/.test(n);
+    if (stage.id === "data-visualization-bi") return /visualization|power bi|tableau|business intelligence/.test(n);
+    if (stage.id === "business-insights-storytelling") return /business analytics|data storytelling|business metrics/.test(n);
+    return false;
+  };
+  for (const stage of stages) {
+    if (result.some((skill) => matches(stage, skill))) continue;
+    const preceding = stages.slice(0, stages.indexOf(stage)).reverse().find((candidate) =>
+      result.some((skill) => skill.id === candidate.id || matches(candidate, skill))
+    );
+    result.push({
+      id:stage.id, name:stage.name, category:stage.category, importance:"Critical",
+      prerequisites:preceding ? [preceding.id] : [], topics:stage.topics, searchQueries:stage.searchQueries,
+      courseDuration:stage.courseDuration, practiceProject:stage.practiceProject, projectPlacement:stage.projectPlacement,
+      projectPlan:{
+        scenario:"Analyze a realistic business dataset using " + stage.name + ".",
+        whyThisProject:"Build practical evidence that the learner can turn data into reliable decisions.",
+        features:stage.topics.slice(0,6).map((item)=>"Apply " + item),
+        architecture:["Document the dataset and data dictionary","Create a repeatable analysis workflow","Validate findings before communicating results"],
+        milestones:["Define the business question","Prepare and analyze the data","Validate results","Present findings and recommendations"],
+        testingChecklist:["Check data types and missing values","Validate calculations against sample rows","Document assumptions and limitations"],
+        industrySkills:["Data quality","Analytical reasoning","Business communication","Reproducible workflow"],
+        githubWorkflow:["Create a repository","Commit notebooks and documentation","Write a README with findings and setup"],
+        videoSearchQueries:stage.searchQueries
+      },
+      quizPolicy:{lessonQuestionCount:5,moduleQuestionCount:8,passingScore:70}
+    });
+  }
+  if (!result.some((skill) => /capstone|portfolio project/i.test(skill.name))) {
+    result.push({
+      id:"data-analytics-portfolio", name:"Data Analytics Portfolio Capstone", category:"Portfolio Project", importance:"Critical",
+      prerequisites:stages.map((stage)=>stage.id).filter((id)=>result.some((skill)=>skill.id===id)),
+      topics:["choose a business problem","load and validate a real dataset","clean and transform data","analyze with SQL or Python","build visualizations and KPIs","write evidence-based recommendations","publish a reproducible portfolio"],
+      searchQueries:["end to end data analytics portfolio project SQL Excel Python Power BI","data analyst capstone project complete tutorial real dataset"],
+      courseDuration:{minMinutes:360,targetMinutes:600,maxMinutes:1200},
+      practiceProject:"Complete an end-to-end data analytics portfolio case study", projectPlacement:"none",
+      projectPlan:{
+        scenario:"A business team needs to understand performance trends and decide what to improve next.",
+        whyThisProject:"Demonstrate the complete analytics workflow from raw data to decision-ready insights.",
+        features:["Dataset sourcing and documentation","Data cleaning and validation","SQL/Python analysis","KPI dashboard","Written insights and recommendations"],
+        architecture:["Raw dataset","Cleaning and analysis notebook or SQL scripts","Dashboard","Executive summary and README"],
+        milestones:["Define the business question","Prepare data","Analyze and validate","Build dashboard","Present recommendations and limitations"],
+        testingChecklist:["Reconcile key totals","Validate transformations","Check charts against source data","Document limitations"],
+        industrySkills:["SQL","Excel","Python","Visualization","Business storytelling","GitHub documentation"],
+        githubWorkflow:["Publish source data or a permitted sample","Commit analysis steps","Document reproduction instructions","Add dashboard screenshots and conclusions"],
+        videoSearchQueries:["end to end data analytics portfolio project SQL Excel Python Power BI","data analyst capstone project complete tutorial real dataset"]
+      },
+      quizPolicy:{lessonQuestionCount:5,moduleQuestionCount:8,passingScore:70}
+    });
+  }
+  if (isDataAnalyticsTopic(topic, ai)) {
+    ai.title = "Data Analytics Complete Career Path";
+    ai.canonicalTopic = "Data Analytics";
+    ai.category = "Data Analytics";
+    ai.description = "A complete, prerequisite-ordered Data Analytics course covering spreadsheets, SQL, statistics, Python, data cleaning, visualization, business insights, and portfolio projects.";
+    ai.careerOutcome = "Build job-ready data analysis skills and a portfolio of evidence-based business insights.";
+    const existingCapstones = Array.isArray(ai.capstoneProjects) ? ai.capstoneProjects : [];
+    if (!existingCapstones.length) {
+      ai.capstoneProjects = [{
+        title: "End-to-End Data Analytics Business Case Study",
+        scenario: "Analyze a realistic sales, customer, or operations dataset and recommend evidence-based actions to improve business performance.",
+        whyThisProject: "Demonstrate the full analytics workflow from raw data through validated analysis, dashboards, and clear business recommendations.",
+        features: [
+          "Define a business question and measurable KPIs",
+          "Document, clean, and validate a real dataset",
+          "Use SQL and/or Python with Pandas to analyze the data",
+          "Build an interactive Power BI or Tableau dashboard",
+          "Explain trends, segments, risks, and limitations",
+          "Present prioritized recommendations in an executive summary"
+        ],
+        architecture: [
+          "Dataset and data dictionary",
+          "SQL queries and/or reproducible Python notebook",
+          "Cleaned analysis-ready dataset",
+          "Dashboard with KPI definitions",
+          "Executive summary and project README"
+        ],
+        milestones: [
+          "Choose a dataset and define the business question",
+          "Audit and clean the data",
+          "Perform exploratory and statistical analysis",
+          "Build and validate KPIs and visualizations",
+          "Write recommendations supported by evidence",
+          "Publish the portfolio project with reproduction instructions"
+        ],
+        testingChecklist: [
+          "Reconcile key metrics against source data",
+          "Check missing values, duplicates, and outliers",
+          "Validate SQL/Python transformations",
+          "Check that dashboard filters and calculations work",
+          "Document assumptions and analytical limitations"
+        ],
+        industrySkills: ["Excel", "SQL", "Python", "Pandas", "Statistics", "Power BI or Tableau", "Data storytelling", "GitHub documentation"],
+        githubWorkflow: ["Create a repository with a clear README", "Commit SQL scripts and notebooks", "Document dataset provenance and setup", "Include dashboard screenshots", "Publish findings and limitations"],
+        videoSearchQueries: ["end to end data analytics project SQL Excel Python Power BI full tutorial", "data analyst portfolio capstone real dataset dashboard business insights"]
+      }];
+    } else {
+      ai.capstoneProjects = existingCapstones;
+    }
+  }
+  return result;
+}
+
+function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
+  const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
+  const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
+  const orderedSkills = topoSort(enrichedSkills.map((skill) => ({
     ...skill,
     id: normalizeId(skill.id || skill.name),
     prerequisites: (skill.prerequisites || []).map(normalizeId),
     courseDuration: normalizeCourseDuration(skill.courseDuration),
-    topics: skill.topics?.slice(0, 12) || [],
-    searchQueries: (skill.searchQueries?.length ? skill.searchQueries : [`${skill.name} complete course tutorial`]).slice(0, 2)
+    topics: skill.topics?.slice(0, 16) || [],
+    searchQueries: (skill.searchQueries?.length
+      ? skill.searchQueries
+      : [`${skill.name} complete course tutorial`]).slice(0, 3),
+    projectPlacement: skill.projectPlacement || "skill",
+    projectPlan: skill.projectPlan || {},
+    quizPolicy: normalizeQuizPolicy(skill.quizPolicy, skill.topics?.length || 1)
   })));
 
   const known = new Set((knownSkills || []).map((item) => String(item).trim().toLowerCase()));
@@ -102,55 +661,143 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
     return true;
   });
 
-  const modules = activeSkills.map((skill, index) => ({
-    title: skill.name,
-    description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after its prerequisites.`,
-    skillIds: [skill.id],
-    order: index + 1,
-    quiz: null,
-    lessons: [
-      {
-        id: `${skill.id}-tutorial`,
-        title: `Learn ${skill.name}`,
-        description: `Master ${skill.topics.slice(0, 5).join(", ")}.`,
+  const modules = [];
+  let globalOrder = 1;
+
+  for (let skillIndex = 0; skillIndex < activeSkills.length; skillIndex += 1) {
+    const skill = activeSkills[skillIndex];
+    const topicChunks = splitTopics(skill.topics, skill.topics.length > 10 ? 4 : 5);
+    const moduleLessons = [];
+    let lessonOrder = 1;
+
+    topicChunks.forEach((topicChunk, chunkIndex) => {
+      const query = `${skill.name}: ${topicChunk.join(", ")} complete tutorial`;
+
+      moduleLessons.push({
+        id: `${skill.id}-tutorial-${chunkIndex + 1}`,
+        title: topicChunks.length > 1
+          ? `${skill.name} — Part ${chunkIndex + 1}: ${topicChunk.slice(0, 2).join(" & ")}`
+          : `Learn ${skill.name}`,
+        description: `Cover ${topicChunk.join(", ")} in a ${level}-level lesson with practical context.`,
         type: "tutorial",
+        order: lessonOrder++,
         tutorial: {
-          content: `Core topics: ${skill.topics.join(", ")}.`,
-          searchQuery: skill.searchQueries[0],
-          searchQueries: skill.searchQueries,
-          requiredTopics: skill.topics,
-          durationMinutes: skill.courseDuration,
+          content: `Core topics: ${topicChunk.join(", ")}.`,
+          searchQuery: query,
+          searchQueries: [query, ...skill.searchQueries.filter((item) => item !== query)].slice(0, 3),
+          requiredTopics: topicChunk,
+          durationMinutes: {
+            minMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
+            targetMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
+            maxMinutes: Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length))
+          },
           searchPolicy: {
             contentType: "complete-course",
-            minDurationMinutes: skill.courseDuration.minMinutes,
-            targetDurationMinutes: skill.courseDuration.targetMinutes,
-            maxDurationMinutes: skill.courseDuration.maxMinutes,
+            minDurationMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
+            targetDurationMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
+            maxDurationMinutes: Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length)),
             excludeShorts: true,
             requireEmbeddable: true,
             preferProjectBased: true,
             preferredLanguage: "en"
           }
         }
-      },
-      {
+      });
+
+      moduleLessons.push({
+        id: `${skill.id}-quiz-${chunkIndex + 1}`,
+        title: topicChunks.length > 1
+          ? `${skill.name} — Part ${chunkIndex + 1} Quiz`
+          : `${skill.name} Lesson Quiz`,
+        description: `Check your understanding of ${topicChunk.join(", ")} before continuing.`,
+        type: "quiz",
+        order: lessonOrder++,
+        quiz: {
+          scope: "lesson",
+          questionCount: skill.quizPolicy.lessonQuestionCount,
+          passingScore: skill.quizPolicy.passingScore,
+          focusTopics: topicChunk,
+          instructions: "Pass this quiz before moving to the next learning item. Questions are generated from the lesson topics."
+        }
+      });
+    });
+
+    const shouldAddProject =
+      skill.projectPlacement === "skill" ||
+      (skill.projectPlacement === "milestone" && (skillIndex + 1) % 2 === 0);
+
+    if (shouldAddProject && skill.practiceProject) {
+      moduleLessons.push({
         id: `${skill.id}-project`,
         title: skill.practiceProject,
-        description: "Apply this stage before moving to the next prerequisite-dependent skill.",
+        description: skill.projectPlan?.scenario || "Apply the skills from this stage in a realistic project.",
         type: "project",
-        project: {
-          description: skill.practiceProject,
-          objectives: skill.topics.slice(0, 5).map((topic) => `Use ${topic}`),
-          requirements: skill.topics.slice(0, 5),
-          instructions: `Build the project using the skills introduced up to ${skill.name}. Test the main flows and document the result.`,
-          expectedOutcome: `A working project demonstrating practical ${skill.name} skills.`,
-          submissionRequirements: ["Source code repository", "README with setup instructions", "Short project demonstration"]
-        }
-      }
-    ]
-  }));
+        order: lessonOrder++,
+        project: projectPlanToContent(skill.projectPlan, skill.name, skill.practiceProject)
+      });
+    }
 
-  const totalMinutes = activeSkills.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0);
-  const days = Math.max(1, Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60)));
+    if (skill.quizPolicy.moduleQuestionCount > 0) {
+      moduleLessons.push({
+        id: `${skill.id}-module-quiz`,
+        title: `${skill.name} Module Assessment`,
+        description: `An assessment covering the major topics of ${skill.name}.`,
+        type: "quiz",
+        order: lessonOrder++,
+        quiz: {
+          scope: "module",
+          questionCount: skill.quizPolicy.moduleQuestionCount,
+          passingScore: skill.quizPolicy.passingScore,
+          focusTopics: skill.topics,
+          instructions: "Validate the whole module before continuing to the next technology."
+        }
+      });
+    }
+
+    modules.push({
+      title: skill.name,
+      description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after prerequisites.`,
+      skillIds: [skill.id],
+      order: globalOrder++,
+      lessons: moduleLessons
+    });
+  }
+
+  let capstones = (ai.capstoneProjects || []).slice(0, 2);
+  if (isWebOrFullStackTopic(topic, ai) && capstones.length === 0) {
+    capstones = defaultWebCapstoneProjects(topic, ai).slice(0, 2);
+  }
+  if (capstones.length) {
+    const capstoneLessons = [];
+
+    capstones.forEach((project, index) => {
+      capstoneLessons.push({
+        id: `capstone-project-${index + 1}`,
+        title: project.title,
+        description: project.scenario,
+        type: "project",
+        order: capstoneLessons.length + 1,
+        project: projectPlanToContent(project, ai.title, project.title)
+      });
+    });
+
+    modules.push({
+      title: "Final Capstone Projects",
+      description: "Build portfolio-grade projects that combine the technologies learned across the roadmap.",
+      skillIds: activeSkills.map((skill) => skill.id),
+      order: globalOrder++,
+      lessons: capstoneLessons
+    });
+  }
+
+  const totalMinutes = activeSkills.reduce(
+    (sum, skill) => sum + skill.courseDuration.targetMinutes,
+    0
+  );
+  const days = Math.max(
+    1,
+    Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60))
+  );
 
   return {
     course: {
@@ -159,7 +806,12 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       category: ai.category,
       level,
       duration: `${days} study days at ${studyTimeMinutesPerDay || 60} min/day`,
-      learningOutcomes: ai.learningOutcomes,
+      learningOutcomes: [
+        ...(ai.learningOutcomes || []),
+        "Build practical projects that prove your ability to apply the stack.",
+        "Use Git and GitHub with professional collaboration and documentation practices.",
+        "Test, debug, secure, and deploy applications instead of stopping at tutorial completion."
+      ],
       modules
     },
     skillGraph: activeSkills.map((skill) => ({
@@ -168,7 +820,9 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       category: skill.category,
       importance: skill.importance,
       prerequisites: skill.prerequisites,
-      practiceProject: skill.practiceProject
+      practiceProject: skill.practiceProject,
+      projectPlacement: skill.projectPlacement,
+      quizPolicy: skill.quizPolicy
     })),
     personalization: {
       goals,
@@ -176,13 +830,54 @@ function buildCourse(ai, { level, studyTimeMinutesPerDay, goals, knownSkills }) 
       knownSkills: knownSkills || [],
       skippedSkills,
       rationale: [
-        `Ordered skills by prerequisites for a ${level} learner.`,
+        `Ordered technologies by prerequisites for a ${level} learner.`,
+        "Inserted professional workflow stages where appropriate for software/web stacks.",
+        "Added practical project briefs with architecture, milestones, testing, GitHub workflow, and industry skills.",
+        "Added adaptive lesson and module assessments based on topic depth.",
+        capstones.length
+          ? `Added ${capstones.length} final portfolio capstone project(s) at the end of the curriculum.`
+          : "Used the AI-selected practical project progression for this learning path.",
         goals.length ? `Prioritized the roadmap around: ${goals.join(", ")}.` : "Used a balanced learning progression.",
         `Estimated the plan around ${studyTimeMinutesPerDay || 60} minutes per day.`
       ]
     }
   };
 }
+
+const quizResponseSchema = {
+  type: "object",
+  properties: {
+    questions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          topic: { type: "string" },
+          question: { type: "string" },
+          options: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                text: { type: "string" }
+              },
+              required: ["id", "text"]
+            },
+            minItems: 4,
+            maxItems: 4
+          },
+          correctOptionId: { type: "string" },
+          explanation: { type: "string" }
+        },
+        required: ["id", "topic", "question", "options", "correctOptionId", "explanation"]
+      }
+    }
+  },
+  required: ["questions"]
+};
+
 
 async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }) {
   if (!client) {
@@ -195,16 +890,35 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     "You are BuddyForStudy's curriculum architect.",
     "Create a realistic prerequisite-ordered learning curriculum for the learner.",
     "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
+    "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
+    "For Data Analytics requests, generate a complete Data Analytics curriculum rather than a generic Data Science curriculum. It must cover spreadsheet analysis (Excel or equivalent), SQL and relational querying, descriptive statistics and probability basics, Python for analytics, NumPy and Pandas, data cleaning and exploratory data analysis, visualization and dashboards (Power BI or Tableau), business metrics and communicating insights, and portfolio projects.",
+    "For a broad career or full-course request such as Data Analytics, target 8-12 ordered skill modules unless the learner explicitly says they already know or want to skip parts. Each module must contain multiple concrete topics, a suitable long-form tutorial search query, a lesson quiz, and an applied project at meaningful milestones. Include a final capstone that uses a realistic dataset and ends with actionable business recommendations.",
+    "Do not return only a high-level roadmap or a list of skill names. The generated course must be learner-ready: ordered modules, specific topic-level lessons, real tutorial/video resources attached by the resource service, quizzes/assessments, practical projects, and a final portfolio capstone.",
+    "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
+    "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
     "Infer the important skills even when the topic is broad or uncommon.",
     "Use concise skill IDs in lowercase kebab-case.",
     "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
     "Do not add a prerequisite that is not needed.",
     "Include practical projects after major skill stages.",
-    "Create 5-12 skills for broad technologies/careers and 3-8 for focused topics.",
-    "Create useful YouTube search queries for each skill; do not invent video URLs.",
+    "For software/web/full-stack learning paths, explicitly include a Git & GitHub workflow stage after the core programming/foundation stage and before heavy framework work. Teach repositories, branches, commits, pull requests, issues, README/documentation, code review, and collaborative workflow.",
+    "For web/full-stack paths, include production readiness: HTTP and APIs, validation, authentication/authorization, security basics, testing/debugging, environment configuration, deployment, monitoring, and performance where relevant.",
+    "Also teach software engineering fundamentals that transfer across stacks: clean code, debugging strategy, API contracts/documentation, data modeling, security, testing strategy, deployment, observability, performance trade-offs, and basic system design when relevant.",
+    "Do not assume a learner becomes job-ready by watching videos alone. Sequence learning so each major stage has hands-on application, feedback/assessment, and professional engineering practice.",
+    "Project plans must be detailed enough for a complete beginner to understand the problem, why it matters, what to build, architecture, feature milestones, testing, GitHub workflow, industry skills, and a sensible definition of done.",
+    "At the END of a web/full-stack curriculum, provide 1-2 portfolio-grade capstone projects that combine the major technologies. For MERN, these must be full-stack MERN applications. Generate one strong YouTube search query per capstone for a long-form project build tutorial.",
+    "Never invent GitHub repository URLs or YouTube URLs. Return search queries only; the resource search layer will select real embeddable resources.",
+    "Adapt the sequence to the learner's topic rather than forcing MERN-specific technologies onto unrelated careers.",
+
+    "Create 5-12 technologies/stages for broad stacks/careers and 3-8 for focused topics.",
+    "Treat the topic as a complete stack/career when appropriate: identify the major technologies, modules, prerequisites, and project milestones needed to finish the stack.",
+    "For every technology/stage, decide whether a practical project should follow it: use projectPlacement=skill for a meaningful project, milestone for a larger project after two stages, or none when a project would add little value.",
     "For EVERY skill, decide a realistic complete-course duration range based on the depth required to become competent in that skill.",
     "Return minMinutes, targetMinutes, and maxMinutes for each skill.",
     "Do not use one generic duration for every skill. A deeper technology such as JavaScript may require a much longer course than a smaller focused skill.",
+    "For EVERY skill, decide quiz density with quizPolicy: lessonQuestionCount (3-10) based on topic count and lesson depth, moduleQuestionCount (0-15) based on overall module breadth, and passingScore (50-90).",
+    "Lesson quizzes should validate the immediate topic after the lesson. Module assessments should cover the combined technology/module topics.",
+    "The duration and topic count should drive quiz counts; do not use the same quiz count for every technology.",
     "The duration range is a SEARCH CONSTRAINT for YouTube resources, not the learner's total study duration.",
     "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists.",
     "",
@@ -314,15 +1028,247 @@ function cachedRoadmapFromCourse(course, input) {
   };
 }
 
-export async function generateAIRoadmap(input) {
-  const topicKeys = buildTopicKeys(input.topic);
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
-  if (existing) return cachedRoadmapFromCourse(existing, input);
+function getQuizContext(module, lesson) {
+  const sourceLessons =
+    lesson.quiz?.scope === "module"
+      ? (module.lessons || []).filter((item) => item.type !== "quiz")
+      : (module.lessons || []).filter(
+          (item) => item.type === "tutorial" && Number(item.order || 0) < Number(lesson.order || 0)
+        ).slice(-1);
+
+  return sourceLessons.map((item) => ({
+    title: item.title,
+    type: item.type,
+    description: item.description || "",
+    topics: item.tutorial?.requiredTopics || [],
+    content: item.tutorial?.content || "",
+    project: item.project || null
+  }));
+}
+
+function validateQuizQuestions(questions, expectedCount) {
+  const valid = Array.isArray(questions)
+    ? questions.filter((item) =>
+        item &&
+        String(item.id || "").trim() &&
+        String(item.question || "").trim() &&
+        Array.isArray(item.options) &&
+        item.options.length === 4 &&
+        item.options.every((option) => option?.id && option?.text) &&
+        item.options.some((option) => option.id === item.correctOptionId)
+      )
+    : [];
+
+  if (valid.length < expectedCount) {
+    const error = new Error("Gemini returned fewer valid quiz questions than requested");
+    error.status = 502;
+    throw error;
+  }
+
+  return valid.slice(0, expectedCount);
+}
+
+export async function generateCourseQuiz({ courseId, lessonId, userId = null }) {
+  if (!client) {
+    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
+    error.status = 503;
+    throw error;
+  }
+
+  const course = await Course.findOne({ _id: courseId, isPublished: true });
+  if (!course) {
+    const error = new Error("Course not found");
+    error.status = 404;
+    throw error;
+  }
+
+  let located = null;
+  for (const module of course.modules || []) {
+    const lessonIndex = (module.lessons || []).findIndex(
+      (lesson) => String(lesson._id) === String(lessonId)
+    );
+    if (lessonIndex >= 0) {
+      located = { module, lesson: module.lessons[lessonIndex], lessonIndex };
+      break;
+    }
+  }
+
+  if (!located?.lesson || located.lesson.type !== "quiz" || !located.lesson.quiz) {
+    const error = new Error("Quiz lesson not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const requestedCount = Math.max(3, Math.min(15, Number(located.lesson.quiz.questionCount) || 5));
+  const existingQuestions = located.lesson.quiz.questions || [];
+  if (existingQuestions.length >= requestedCount) {
+    return {
+      courseId: String(course._id),
+      lessonId: String(located.lesson._id),
+      quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
+    };
+  }
+
+  let usageReserved = false;
+  if (userId) {
+    const plan = await getActivePlanForUser(userId);
+    const limit = readPlanLimit(plan, "ai_quiz_generations_per_month", -1);
+    const usage = await consumeUsage({
+      userId,
+      feature: "ai_quiz_generations",
+      period: "month",
+      limit,
+      amount: 1
+    });
+    if (!usage.allowed) {
+      const error = new Error("You have reached your AI quiz-generation limit for this month.");
+      error.status = 429;
+      error.code = "AI_USAGE_LIMIT";
+      throw error;
+    }
+    usageReserved = true;
+  }
+
+  const context = getQuizContext(located.module, located.lesson);
+  const prompt = [
+    "You are BuddyForStudy's assessment designer.",
+    "Generate a high-quality multiple-choice assessment from the supplied learning context.",
+    `Create exactly ${requestedCount} questions.`,
+    "Each question must test a distinct concept from the supplied topics.",
+    "Use four plausible options and exactly one correct option.",
+    "Do not ask about information that is not supported by the supplied learning context or established programming knowledge.",
+    "Avoid trick wording. Prefer applied understanding, debugging, architecture, syntax, trade-offs, or concept selection where appropriate.",
+    "Return concise explanations for the correct answer.",
+    "",
+    `Course: ${course.title}`,
+    `Level: ${course.level}`,
+    `Quiz scope: ${located.lesson.quiz.scope}`,
+    `Focus topics: ${JSON.stringify(located.lesson.quiz.focusTopics || [])}`,
+    `Learning context: ${JSON.stringify(context)}`
+  ].join("\n");
 
   try {
-    const ai = await generateWithGemini(input);
-    const built = buildCourse(ai, input);
+  const response = await client.models.generateContent({
+    model: env.geminiModel,
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: quizResponseSchema,
+      thinkingConfig: { thinkingLevel: "MINIMAL" },
+      maxOutputTokens: Math.max(5000, requestedCount * 550)
+    }
+  });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.text);
+  } catch {
+    const error = new Error("Gemini quiz provider returned invalid structured data");
+    error.status = 502;
+    throw error;
+  }
+
+  const questions = validateQuizQuestions(parsed?.questions, requestedCount).map((question, index) => ({
+    id: normalizeId(question.id || `q-${index + 1}`) || `q-${index + 1}`,
+    topic: String(question.topic || located.lesson.quiz.focusTopics?.[index % Math.max(1, located.lesson.quiz.focusTopics?.length || 1)] || "").trim(),
+    question: String(question.question).trim(),
+    options: question.options.slice(0, 4).map((option, optionIndex) => ({
+      id: normalizeId(option.id || `option-${optionIndex + 1}`) || `option-${optionIndex + 1}`,
+      text: String(option.text).trim()
+    })),
+    correctOptionId: normalizeId(question.correctOptionId),
+    explanation: String(question.explanation || "").trim()
+  }));
+
+  located.lesson.quiz.questions = questions;
+  located.lesson.quiz.generatedAt = new Date();
+  await course.save();
+
+  return {
+    courseId: String(course._id),
+    lessonId: String(located.lesson._id),
+    quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
+  };
+  } catch (error) {
+    if (usageReserved && userId) {
+      await releaseUsage({ userId, feature: "ai_quiz_generations", period: "month", amount: 1 }).catch(() => {});
+    }
+    if (/429|RESOURCE_EXHAUSTED|quota/i.test(String(error?.message || ""))) {
+      const e = new Error("Quiz generation is temporarily unavailable because the Gemini API quota has been reached.");
+      e.status = 429;
+      throw e;
+    }
+    throw error;
+  }
+}
+
+
+function courseHasTutorialVideos(course) {
+  return (course?.modules || []).some((module) =>
+    (module.lessons || []).some((lesson) =>
+      lesson.type === "tutorial" && (lesson.tutorial?.videos || []).length > 0
+    )
+  );
+}
+
+export async function generateAIRoadmap(input, options = {}) {
+  const userId = options.userId || null;
+  const personalized = options.personalized !== false;
+  const projectsEnabled = options.projectsEnabled !== false;
+  const plan = options.plan || null;
+  const topicKeys = buildTopicKeys(
+    input.topic,
+    "industry-ready-v2",
+    personalized ? JSON.stringify(input.goals || []) : "",
+    personalized ? JSON.stringify(input.knownSkills || []) : "",
+    personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
+  );
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
+  if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
+    const cached = cachedRoadmapFromCourse(existing, input);
+    if (!projectsEnabled) {
+      cached.course.modules = (cached.course.modules || []).map((module) => ({
+        ...module,
+        lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
+      }));
+    }
+    return cached;
+  }
+
+  let reservation = false;
+  if (userId) {
+    const limit = readPlanLimit(options.plan, "ai_course_builds_per_month", -1);
+    const result = await consumeUsage({
+      userId,
+      feature: "ai_course_builds",
+      period: "month",
+      limit,
+      amount: 1
+    });
+    if (!result.allowed) {
+      const error = new Error("You have reached your AI course-builder limit for this month.");
+      error.status = 429;
+      error.code = "AI_USAGE_LIMIT";
+      throw error;
+    }
+    reservation = true;
+  }
+
+  const generationInput = personalized
+    ? input
+    : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60 };
+
+  try {
+    const ai = await generateWithGemini(generationInput);
+    const built = buildCourse(ai, generationInput);
+    if (!projectsEnabled) {
+      built.course.modules = (built.course.modules || []).map((module) => ({
+        ...module,
+        lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
+      }));
+    }
     const sources = await attachYouTubeResources(built.course);
+    normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 
     const course = await Course.create({
@@ -331,7 +1277,7 @@ export async function generateAIRoadmap(input) {
       generation: {
         mode: "ai",
         query: input.topic,
-        topicKeys: buildTopicKeys(input.topic, ai.canonicalTopic, ai.title, ai.category),
+        topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", ai.canonicalTopic, ai.title, ai.category),
         snapshot: {
           intent: "ai_personalized_path",
           canonicalTopic: ai.canonicalTopic,
@@ -360,6 +1306,9 @@ export async function generateAIRoadmap(input) {
       cached: false
     };
   } catch (error) {
+    if (reservation && userId) {
+      await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+    }
     if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) throw error;
     const fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
     const fallbackPersonalization = {
@@ -375,7 +1324,7 @@ export async function generateAIRoadmap(input) {
       generation: {
         mode: "ai",
         query: input.topic,
-        topicKeys: buildTopicKeys(input.topic, fallback.canonicalTopic, fallback.course.title),
+        topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
         snapshot: {
           intent: "ai_personalized_path_fallback",
           canonicalTopic: fallback.canonicalTopic,

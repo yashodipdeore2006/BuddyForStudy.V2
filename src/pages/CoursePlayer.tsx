@@ -4,8 +4,9 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, Menu, X, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github } from "lucide-react";
 import { classNames } from "@/lib/utils";
+import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
 
 function mapCourse(raw: any): Course {
   return {
@@ -64,6 +65,13 @@ export default function CoursePlayer() {
   const [completing, setCompleting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState("");
+  const [progressUnavailable, setProgressUnavailable] = useState(false);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizData, setQuizData] = useState<any>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState<number | null>(null);
+  const [quizPassed, setQuizPassed] = useState(false);
 
   useEffect(() => {
     if (!courseId) {
@@ -73,12 +81,18 @@ export default function CoursePlayer() {
     }
     async function load() {
       try {
-        const [courseData, progressData] = await Promise.all([
-          apiFetch(`/api/courses/${courseId}/learn`),
-          apiFetch(`/api/progress/${courseId}`),
-        ]);
+        const courseData = await apiFetch(`/api/courses/${courseId}/learn`);
         setCourse(mapCourse(courseData.course));
-        setProgress(mapProgress(progressData.progress));
+
+        try {
+          const progressData = await apiFetch(`/api/progress/${courseId}`);
+          setProgress(mapProgress(progressData.progress));
+          setProgressUnavailable(false);
+        } catch {
+          // Progress is independently plan-controlled; do not block course access when disabled.
+          setProgress(null);
+          setProgressUnavailable(true);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load this course.");
       } finally {
@@ -93,6 +107,44 @@ export default function CoursePlayer() {
     () => course && lessonId ? findLessonById(course.modules, lessonId) : null,
     [course, lessonId]
   );
+
+  useEffect(() => {
+    if (currentLesson?.lesson.type !== "quiz" || !courseId || !lessonId) {
+      setQuizData(null);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizScore(null);
+      setQuizPassed(false);
+      return;
+    }
+
+    async function loadQuiz() {
+      setQuizLoading(true);
+      setQuizData(null);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizScore(null);
+      if (lessonId) {
+        setQuizPassed(isLessonCompleted(progress?.completed_lessons || [], lessonId));
+      } else {
+        setQuizPassed(false);
+      }
+
+      try {
+        const data = await apiFetch("/api/ai/quiz", {
+          method: "POST",
+          body: JSON.stringify({ courseId, lessonId }),
+        });
+        setQuizData(data.quiz);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to load this quiz.");
+      } finally {
+        setQuizLoading(false);
+      }
+    }
+
+    void loadQuiz();
+  }, [currentLesson?.lesson.type, courseId, lessonId]);
 
   useEffect(() => {
     if (!course || lessonId || allLessons.length === 0) return;
@@ -121,6 +173,35 @@ export default function CoursePlayer() {
       setCompleting(false);
     }
   };
+
+  const handleQuizSubmit = async () => {
+    if (!courseId || !lessonId || !quizData?.questions?.length) return;
+
+    const questions = quizData.questions || [];
+    const correct = questions.filter(
+      (question: any) => quizAnswers[question.id] === question.correctOptionId
+    ).length;
+    const score = Math.round((correct / questions.length) * 100);
+    setQuizScore(score);
+    setQuizSubmitted(true);
+
+    const passed = score >= Number(quizData.passingScore || currentLesson?.lesson.quiz?.passingScore || 70);
+    setQuizPassed(passed);
+
+    if (!passed || currentCompleted) return;
+
+    setCompleting(true);
+    setError("");
+    try {
+      const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
+      setProgress(mapProgress(data.progress));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Quiz passed, but progress could not be saved.");
+    } finally {
+      setCompleting(false);
+    }
+  };
+
 
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" /></div>;
@@ -173,7 +254,7 @@ export default function CoursePlayer() {
             <p className="truncate text-sm font-extrabold text-slate-900">{course.title}</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
-                {progress?.completed_count || 0}/{allLessons.length} lessons
+                {progressUnavailable ? "Progress unavailable on this plan" : `${progress?.completed_count || 0}/${allLessons.length} lessons`}
               </span>
               <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200 sm:w-32">
                 <div
@@ -185,7 +266,7 @@ export default function CoursePlayer() {
             </div>
           </div>
 
-          {currentLesson && (
+          {currentLesson && currentLesson.lesson.type !== "quiz" && !progressUnavailable && (
             <button
               onClick={handleComplete}
               disabled={completing || currentCompleted}
@@ -221,16 +302,171 @@ export default function CoursePlayer() {
           <div className="mx-auto max-w-5xl">
             {currentLesson ? (
               <>
+                {currentLesson.lesson.type === "quiz" && (
+                  <section className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
+                    <div className="mx-auto max-w-4xl">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[.14em] text-blue-600">
+                            {currentLesson.lesson.quiz?.scope === "module" ? "Module assessment" : "Lesson quiz"}
+                          </p>
+                          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                            {currentLesson.lesson.title}
+                          </h1>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">
+                            {currentLesson.lesson.description}
+                          </p>
+                        </div>
+                        <span className="inline-flex w-fit rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                          {currentLesson.lesson.quiz?.questionCount || 0} questions
+                        </span>
+                      </div>
+
+                      {quizLoading ? (
+                        <div className="mt-8 flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-10">
+                          <div className="flex items-center gap-3 text-sm font-semibold text-slate-500">
+                            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                            Building your quiz with Gemini...
+                          </div>
+                        </div>
+                      ) : quizData?.questions?.length ? (
+                        <div className="mt-8 space-y-5">
+                          {quizData.questions.map((question: any, questionIndex: number) => (
+                            <article key={question.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                              <div className="flex items-start gap-3">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
+                                  {questionIndex + 1}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-bold leading-6 text-slate-900">{question.question}</p>
+                                  {question.topic && (
+                                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-[.12em] text-slate-400">
+                                      {question.topic}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid gap-2">
+                                {(question.options || []).map((option: any, optionIndex: number) => {
+                                  const selected = quizAnswers[question.id] === option.id;
+                                  const correctOption = question.correctOptionId === option.id;
+                                  const showResult = quizSubmitted;
+                                  const tone = showResult
+                                    ? correctOption
+                                      ? "border-green-200 bg-green-50 text-green-800"
+                                      : selected
+                                        ? "border-red-200 bg-red-50 text-red-800"
+                                        : "border-slate-200 bg-white text-slate-600"
+                                    : selected
+                                      ? "border-blue-300 bg-blue-50 text-blue-800"
+                                      : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50";
+
+                                  return (
+                                    <button
+                                      key={"option-" + (option.id || optionIndex) + "-" + optionIndex}
+                                      type="button"
+                                      disabled={quizSubmitted}
+                                      onClick={() =>
+                                        setQuizAnswers((current) => ({
+                                          ...current,
+                                          [question.id]: option.id,
+                                        }))
+                                      }
+                                      className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${tone}`}
+                                    >
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-current/20 text-[11px]">
+                                        {option.id}
+                                      </span>
+                                      <span>{option.text}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {quizSubmitted && (
+                                <div className="mt-4 rounded-xl bg-white p-4">
+                                  <p className="text-sm font-bold text-slate-900">
+                                    {quizAnswers[question.id] === question.correctOptionId ? "Correct" : "Review this one"}
+                                  </p>
+                                  {question.explanation && (
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                                      {question.explanation}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </article>
+                          ))}
+
+                          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">
+                                Passing score: {quizData.passingScore || currentLesson.lesson.quiz?.passingScore || 70}%
+                              </p>
+                              {quizSubmitted && (
+                                <p className={`mt-1 text-sm font-semibold ${quizPassed ? "text-green-600" : "text-red-600"}`}>
+                                  Your score: {quizScore}%
+                                </p>
+                              )}
+                            </div>
+
+                            {!quizSubmitted ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleQuizSubmit()}
+                                disabled={
+                                  quizLoading ||
+                                  Object.keys(quizAnswers).length !== quizData.questions.length ||
+                                  completing
+                                }
+                                className="btn-primary justify-center"
+                              >
+                                Submit Quiz
+                              </button>
+                            ) : quizPassed ? (
+                              <button
+                                type="button"
+                                onClick={() => navigation.next && handleNavigate(navigation.next.id)}
+                                className="btn-primary justify-center"
+                                disabled={completing}
+                              >
+                                {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuizSubmitted(false);
+                                  setQuizScore(null);
+                                  setQuizPassed(false);
+                                  setQuizAnswers({});
+                                }}
+                                className="btn-primary justify-center"
+                              >
+                                Try Again
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">
+                          This quiz could not be generated. Try opening the lesson again.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
+
                 {currentLesson.lesson.type === "tutorial" && (
                   <div className="bg-black">
-                    {currentLesson.lesson.tutorial?.videos?.length ? (
-                      currentLesson.lesson.tutorial.videos.map((video: any) => (
-                        <div key={video.videoId || video.url}>
-                          {video.videoId ? (
+                    {currentLesson.lesson.tutorial?.videos?.[0] ? (
+                        <div>
+                          {currentLesson.lesson.tutorial.videos[0].videoId ? (
                             <div className="aspect-video w-full">
                               <iframe
-                                title={video.title || "Course video"}
-                                src={`https://www.youtube.com/embed/${encodeURIComponent(video.videoId)}?rel=0&playsinline=1`}
+                                title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
+                                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(currentLesson.lesson.tutorial.videos[0].videoId)}?rel=0&playsinline=1`}
                                 className="h-full w-full"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 allowFullScreen
@@ -243,12 +479,11 @@ export default function CoursePlayer() {
                             </div>
                           )}
                         </div>
-                      ))
-                    ) : (
-                      <div className="flex aspect-video items-center justify-center px-6 text-sm text-slate-300">
-                        No video is available for this lesson.
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex aspect-video items-center justify-center px-6 text-sm text-slate-300">
+                          No video is available for this lesson.
+                        </div>
+                      )}
                   </div>
                 )}
 
@@ -293,6 +528,10 @@ export default function CoursePlayer() {
                   </div>
 
                   <div className="py-5">
+                    {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
+                      <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
+                    )}
+
                     {currentLesson.lesson.type === "tutorial" && (
                       <div className="space-y-4">
                         {(currentLesson.lesson.description ||
@@ -341,9 +580,9 @@ export default function CoursePlayer() {
                             </summary>
                             <div className="border-t border-slate-200 bg-white px-5 py-4">
                               <div className="space-y-3">
-                                {currentLesson.lesson.tutorial.resources.map((resource) => (
+                                {currentLesson.lesson.tutorial.resources.map((resource, resourceIndex) => (
                                   <a
-                                    key={resource.url || resource.title}
+                                    key={"resource-" + (resource.url || resource.title || "item") + "-" + resourceIndex}
                                     href={resource.url}
                                     target="_blank"
                                     rel="noreferrer"
@@ -360,38 +599,161 @@ export default function CoursePlayer() {
                     )}
 
                     {currentLesson.lesson.type === "project" && (
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                        <h2 className="font-extrabold text-slate-900">Project</h2>
-                        <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                          {currentLesson.lesson.project?.description}
-                        </p>
-
-                        <h3 className="mt-6 font-bold text-slate-900">Objectives</h3>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {(currentLesson.lesson.project?.objectives || []).map((item: string) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-
-                        <h3 className="mt-6 font-bold text-slate-900">Requirements</h3>
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
-                          {(currentLesson.lesson.project?.requirements || []).map((item: string) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-
-                        <p className="mt-6 whitespace-pre-wrap text-sm leading-7 text-slate-700">
-                          {currentLesson.lesson.project?.instructions}
-                        </p>
-
-                        <div className="mt-6 rounded-xl bg-green-50 p-4">
-                          <p className="text-xs font-bold uppercase tracking-[.14em] text-green-700">
-                            Expected outcome
+                      <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">
+                            Project brief
                           </p>
-                          <p className="mt-1 text-sm font-semibold leading-6 text-green-900">
-                            {currentLesson.lesson.project?.expectedOutcome}
+                          <h2 className="mt-1 text-xl font-extrabold text-slate-950">
+                            {currentLesson.lesson.title}
+                          </h2>
+                          <p className="mt-3 text-sm leading-7 text-slate-700">
+                            {currentLesson.lesson.project?.description}
                           </p>
                         </div>
+
+                        {currentLesson.lesson.project?.realWorldScenario && (
+                          <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                            <h3 className="font-bold text-slate-900">Real-world scenario</h3>
+                            <p className="mt-2 text-sm leading-6 text-slate-700">
+                              {currentLesson.lesson.project.realWorldScenario}
+                            </p>
+                          </section>
+                        )}
+
+                        {currentLesson.lesson.project?.features?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">What you will build</h3>
+                            <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                              {currentLesson.lesson.project.features.map((item: string, index: number) => (
+                                <li key={"feature-" + index + "-" + item} className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.architecture?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Suggested architecture</h3>
+                            <ul className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.architecture.map((item: string, index: number) => (
+                                <li key={"architecture-" + index + "-" + item} className="text-sm leading-6 text-slate-700">
+                                  <span className="mr-2 text-blue-600">•</span>{item}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.milestones?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Build milestones</h3>
+                            <ol className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.milestones.map((item: string, index: number) => (
+                                <li key={"milestone-" + index + "-" + item} className="flex gap-3 text-sm leading-6 text-slate-700">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">
+                                    {index + 1}
+                                  </span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </section>
+                        ) : null}
+
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Objectives</h3>
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                              {(currentLesson.lesson.project?.objectives || []).map((item: string, index: number) => (
+                                <li key={"objective-" + index + "-" + item}>{item}</li>
+                              ))}
+                            </ul>
+                          </section>
+
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Technical requirements</h3>
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-600">
+                              {(currentLesson.lesson.project?.requirements || []).map((item: string, index: number) => (
+                                <li key={"requirement-" + index + "-" + item}>{item}</li>
+                              ))}
+                            </ul>
+                          </section>
+                        </div>
+
+                        {currentLesson.lesson.project?.testingChecklist?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Testing & quality checklist</h3>
+                            <ul className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.testingChecklist.map((item: string, index: number) => (
+                                <li key={"test-" + index + "-" + item} className="text-sm leading-6 text-slate-700">
+                                  <span className="mr-2 text-green-600">✓</span>{item}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.industrySkills?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Industry skills</h3>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {currentLesson.lesson.project.industrySkills.map((item: string, index: number) => (
+                                <span key={"industry-" + index + "-" + item} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.githubWorkflow?.length ? (
+                          <section className="rounded-2xl border border-slate-200 bg-white p-4">
+                            <h3 className="font-bold text-slate-900">Git & GitHub workflow</h3>
+                            <ol className="mt-2 space-y-2">
+                              {currentLesson.lesson.project.githubWorkflow.map((item: string, index: number) => (
+                                <li key={"github-" + index + "-" + item} className="flex gap-3 text-sm leading-6 text-slate-700">
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                                    {index + 1}
+                                  </span>
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          </section>
+                        ) : null}
+
+                        {currentLesson.lesson.project?.videos?.length ? (
+                          <section className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                            <h3 className="font-bold text-slate-900">Project tutorial</h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Watch the selected long-form project walkthrough inside BuddyForStudy.
+                            </p>
+                            <div className="mt-3 overflow-hidden rounded-xl bg-black">
+                              <div className="aspect-video">
+                                <iframe
+                                  title={currentLesson.lesson.project.videos[0].title || "Project tutorial"}
+                                  src={"https://www.youtube-nocookie.com/embed/" + encodeURIComponent(String(currentLesson.lesson.project.videos[0].videoId || "")) + "?rel=0&playsinline=1"}
+                                  className="h-full w-full"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                  allowFullScreen
+                                  referrerPolicy="strict-origin-when-cross-origin"
+                                />
+                              </div>
+                            </div>
+                          </section>
+                        ) : null}
+
+                        <section className="rounded-2xl border border-green-100 bg-green-50 p-4">
+                          <p className="text-xs font-bold uppercase tracking-[.14em] text-green-700">
+                            Definition of done
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-green-900">
+                            {currentLesson.lesson.project?.expectedOutcome}
+                          </p>
+                        </section>
                       </div>
                     )}
                   </div>
@@ -485,6 +847,37 @@ export default function CoursePlayer() {
                   </p>
                 </div>
 
+                {(module.resources || []).length > 0 && (
+                  <div className="border-t border-slate-100 bg-white px-3 py-2">
+                    <p className="px-1 pb-1 text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">
+                      Resources
+                    </p>
+                    <div className="space-y-1">
+                      {(module.resources || []).map((resource) => {
+                        const Icon =
+                          resource.type === "repository"
+                            ? Github
+                            : resource.type === "document"
+                              ? FileText
+                              : ExternalLink;
+                        return (
+                          <a
+                            key={resource.id}
+                            href={resource.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+                          >
+                            <Icon className="h-3.5 w-3.5 shrink-0" />
+                            <span className="min-w-0 truncate">{resource.title}</span>
+                            <ExternalLink className="ml-auto h-3 w-3 shrink-0 opacity-50" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {module.lessons.map((lesson) => {
                   const done = isLessonCompleted(completedLessons, lesson.id);
                   const active = lesson.id === lessonId;
@@ -511,6 +904,8 @@ export default function CoursePlayer() {
                       <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
                         {lesson.type === "project" ? (
                           <ListChecks className="h-3.5 w-3.5" />
+                        ) : lesson.type === "quiz" ? (
+                          <CircleHelp className="h-3.5 w-3.5" />
                         ) : (
                           <Play className="h-3.5 w-3.5" />
                         )}

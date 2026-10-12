@@ -100,10 +100,10 @@ export default function VerifyLogin() {
           <label className="mb-1.5 block text-sm font-medium text-slate-700">Login code</label>
           <input
             inputMode="numeric"
-            pattern="\\d{6}"
+            pattern="[0-9]{6}"
             maxLength={6}
             value={otp}
-            onChange={(event) => setOtp(event.target.value.replace(/\\D/g, "").slice(0, 6))}
+            onChange={(event) => setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))}
             className="input-field text-center text-xl font-extrabold tracking-[0.45em]"
             placeholder="000000"
             required

@@ -1,14 +1,49 @@
 import { useEffect, useState } from "react";
-import { BookOpen, ChevronDown, ChevronRight, ExternalLink, Loader2, RefreshCcw, Save, Video } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, ExternalLink, FileText, Github, Link as LinkIcon, Loader2, Plus, RefreshCcw, Save, Trash2, Video } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 type TutorialEditor = {
   lessonId: string;
   sourceType: "video" | "playlist";
+  title?: string;
   url: string;
   saving: boolean;
   error: string;
   success: string;
+};
+
+type ModuleForm = {
+  title: string;
+  description: string;
+  saving: boolean;
+  error: string;
+};
+
+type ResourceForm = {
+  title: string;
+  url: string;
+  type: "link" | "document" | "repository" | "article";
+  saving: boolean;
+  error: string;
+};
+
+type LearningItemForm = {
+  title: string;
+  type: "tutorial" | "project" | "quiz";
+  saving: boolean;
+  error: string;
+};
+
+type CourseMetaForm = {
+  title: string;
+  description: string;
+  category: string;
+  level: "Beginner" | "Intermediate" | "Advanced";
+  duration: string;
+  thumbnail: string;
+  learningOutcomes: string;
+  saving: boolean;
+  error: string;
 };
 
 function isYouTubePlaylistUrl(url: string) {
@@ -47,11 +82,18 @@ export default function AdminCoursesPro() {
   const [courseDetails, setCourseDetails] = useState<Record<string, any>>({});
   const [detailLoading, setDetailLoading] = useState<Record<string, boolean>>({});
   const [editors, setEditors] = useState<Record<string, TutorialEditor>>({});
+  const [moduleForms, setModuleForms] = useState<Record<string, ModuleForm>>({});
+  const [newModuleForms, setNewModuleForms] = useState<Record<string, ModuleForm>>({});
+  const [resourceForms, setResourceForms] = useState<Record<string, ResourceForm>>({});
+  const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
+  const [learningItemForms, setLearningItemForms] = useState<Record<string, LearningItemForm>>({});
+  const [courseQuery, setCourseQuery] = useState("");
 
-  async function load() {
+  async function load(query = courseQuery) {
     setLoading(true);
     try {
-      const data = await adminFetch("/api/admin/courses");
+      const suffix = query.trim() ? "?q=" + encodeURIComponent(query.trim()) : "";
+      const data = await adminFetch("/api/admin/courses" + suffix);
       setCourses(data.courses || []);
     } finally {
       setLoading(false);
@@ -101,6 +143,312 @@ export default function AdminCoursesPro() {
         success: "",
       },
     }));
+  }
+
+  function courseMeta(course: any): CourseMetaForm {
+    return courseMetaForms[course._id] || {
+      title: course.title || "",
+      description: course.description || "",
+      category: course.category || "",
+      level: course.level || "Beginner",
+      duration: course.duration || "",
+      thumbnail: course.thumbnail || "",
+      learningOutcomes: Array.isArray(course.learningOutcomes) ? course.learningOutcomes.join("\n") : "",
+      saving: false,
+      error: "",
+    };
+  }
+
+  async function saveCourseMeta(courseId: string, course: any) {
+    const form = courseMeta(course);
+    if (!form.title.trim() || !form.description.trim() || !form.category.trim()) return;
+
+    setCourseMetaForms((current) => ({ ...current, [courseId]: { ...form, saving: true, error: "" } }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          category: form.category.trim(),
+          level: form.level,
+          duration: form.duration.trim(),
+          thumbnail: form.thumbnail.trim(),
+          learningOutcomes: form.learningOutcomes.split("\n").map((item) => item.trim()).filter(Boolean),
+          reason: "Admin course metadata update",
+        }),
+      });
+      patchDetail(courseId, data.course);
+      await load();
+      setCourseMetaForms((current) => ({ ...current, [courseId]: { ...form, saving: false, error: "" } }));
+    } catch (error) {
+      setCourseMetaForms((current) => ({
+        ...current,
+        [courseId]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to save course metadata",
+        },
+      }));
+    }
+  }
+
+  function patchDetail(courseId: string, course: any) {
+    setCourseDetails((current) => ({ ...current, [courseId]: course }));
+  }
+
+  function moduleForm(module: any): ModuleForm {
+    return moduleForms[module._id] || {
+      title: module.title || "",
+      description: module.description || "",
+      saving: false,
+      error: "",
+    };
+  }
+
+  function newModuleForm(courseId: string): ModuleForm {
+    return newModuleForms[courseId] || {
+      title: "",
+      description: "",
+      saving: false,
+      error: "",
+    };
+  }
+
+  function resourceForm(moduleId: string): ResourceForm {
+    return resourceForms[moduleId] || {
+      title: "",
+      url: "",
+      type: "link",
+      saving: false,
+      error: "",
+    };
+  }
+
+  function learningItemForm(moduleId: string): LearningItemForm {
+    return learningItemForms[moduleId] || {
+      title: "",
+      type: "tutorial",
+      saving: false,
+      error: "",
+    };
+  }
+
+  async function addLearningItem(courseId: string, module: any) {
+    const form = learningItemForm(module._id);
+    if (!form.title.trim()) return;
+
+    setLearningItemForms((current) => ({
+      ...current,
+      [module._id]: { ...form, saving: true, error: "" },
+    }));
+
+    try {
+      const data = await adminFetch(
+        `/api/admin/courses/${courseId}/modules/${module._id}/lessons`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title: form.title.trim(), type: form.type }),
+        }
+      );
+      patchDetail(courseId, data.course);
+      setLearningItemForms((current) => ({
+        ...current,
+        [module._id]: { title: "", type: form.type, saving: false, error: "" },
+      }));
+    } catch (error) {
+      setLearningItemForms((current) => ({
+        ...current,
+        [module._id]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to add learning item",
+        },
+      }));
+    }
+  }
+
+  async function addModule(courseId: string) {
+    const form = newModuleForm(courseId);
+    if (!form.title.trim()) return;
+
+    setNewModuleForms((current) => ({
+      ...current,
+      [courseId]: { ...form, saving: true, error: "" },
+    }));
+
+    try {
+      const data = await adminFetch(`/api/admin/courses/${courseId}/modules`, {
+        method: "POST",
+        body: JSON.stringify({ title: form.title.trim(), description: form.description.trim() }),
+      });
+      patchDetail(courseId, data.course);
+      setNewModuleForms((current) => ({
+        ...current,
+        [courseId]: { title: "", description: "", saving: false, error: "" },
+      }));
+    } catch (error) {
+      setNewModuleForms((current) => ({
+        ...current,
+        [courseId]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to add module",
+        },
+      }));
+    }
+  }
+
+  async function updateModule(courseId: string, module: any) {
+    const form = moduleForm(module);
+    if (!form.title.trim()) return;
+
+    setModuleForms((current) => ({
+      ...current,
+      [module._id]: { ...form, saving: true, error: "" },
+    }));
+
+    try {
+      const data = await adminFetch(`/api/admin/courses/${courseId}/modules/${module._id}`, {
+        method: "PUT",
+        body: JSON.stringify({ title: form.title.trim(), description: form.description.trim() }),
+      });
+      patchDetail(courseId, data.course);
+      setModuleForms((current) => ({
+        ...current,
+        [module._id]: { ...form, saving: false, error: "" },
+      }));
+    } catch (error) {
+      setModuleForms((current) => ({
+        ...current,
+        [module._id]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to update module",
+        },
+      }));
+    }
+  }
+
+  async function deleteModule(courseId: string, module: any) {
+    if (!window.confirm(`Remove module "${module.title}" and all its lessons/resources?`)) return;
+
+    try {
+      const data = await adminFetch(`/api/admin/courses/${courseId}/modules/${module._id}`, {
+        method: "DELETE",
+      });
+      patchDetail(courseId, data.course);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to remove module");
+    }
+  }
+
+  async function addVideoToModule(courseId: string, module: any) {
+    const key = `add-video:${module._id}`;
+    const editor = editors[key];
+    if (!editor?.url.trim()) return;
+
+    setEditors((current) => ({
+      ...current,
+      [key]: { ...editor, saving: true, error: "", success: "" },
+    }));
+
+    try {
+      const data = await adminFetch(
+        `/api/admin/courses/${courseId}/modules/${module._id}/videos`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            resourceUrl: editor.url.trim(),
+            title: editor.title?.trim() || "",
+          }),
+        }
+      );
+      patchDetail(courseId, data.course);
+      setEditors((current) => ({
+        ...current,
+        [key]: {
+          ...editor,
+          url: "",
+          title: "",
+          saving: false,
+          error: "",
+          success: data.mode === "playlist"
+            ? `Added ${data.addedCount} playlist videos`
+            : "Video added to module",
+        },
+      }));
+    } catch (error) {
+      setEditors((current) => ({
+        ...current,
+        [key]: {
+          ...editor,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to add video",
+          success: "",
+        },
+      }));
+    }
+  }
+
+  async function deleteLesson(courseId: string, module: any, lesson: any) {
+    if (!window.confirm(`Remove "${lesson.title}" from "${module.title}"?`)) return;
+    try {
+      const data = await adminFetch(
+        `/api/admin/courses/${courseId}/modules/${module._id}/lessons/${lesson._id}`,
+        { method: "DELETE" }
+      );
+      patchDetail(courseId, data.course);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to remove learning item");
+    }
+  }
+
+  async function addModuleResource(courseId: string, module: any) {
+    const form = resourceForm(module._id);
+    if (!form.title.trim() || !form.url.trim()) return;
+
+    setResourceForms((current) => ({
+      ...current,
+      [module._id]: { ...form, saving: true, error: "" },
+    }));
+
+    try {
+      const data = await adminFetch(
+        `/api/admin/courses/${courseId}/modules/${module._id}/resources`,
+        {
+          method: "POST",
+          body: JSON.stringify({ title: form.title.trim(), url: form.url.trim(), type: form.type }),
+        }
+      );
+      patchDetail(courseId, data.course);
+      setResourceForms((current) => ({
+        ...current,
+        [module._id]: { title: "", url: "", type: form.type, saving: false, error: "" },
+      }));
+    } catch (error) {
+      setResourceForms((current) => ({
+        ...current,
+        [module._id]: {
+          ...form,
+          saving: false,
+          error: error instanceof Error ? error.message : "Unable to add resource",
+        },
+      }));
+    }
+  }
+
+  async function deleteModuleResource(courseId: string, module: any, resource: any) {
+    if (!window.confirm(`Remove module resource "${resource.title}"?`)) return;
+    try {
+      const data = await adminFetch(
+        `/api/admin/courses/${courseId}/modules/${module._id}/resources/${resource._id}`,
+        { method: "DELETE" }
+      );
+      patchDetail(courseId, data.course);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Unable to remove resource");
+    }
   }
 
   async function updateTutorialVideo(
@@ -157,7 +505,26 @@ export default function AdminCoursesPro() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-950">Course Commerce Control</h1>
-          <p className="mt-2 text-slate-500">Publish, feature, price, and update course content.</p>
+          <p className="mt-2 text-slate-500">Publish, price, and fully manage modules, videos, playlists, and learning resources.</p>
+        </div>
+      </div>
+
+      <div className="card mt-6 p-4">
+        <div className="flex flex-col gap-3 md:flex-row">
+          <input
+            className="input-field flex-1"
+            value={courseQuery}
+            onChange={(e) => setCourseQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void load()}
+            placeholder="Search courses by title or category"
+          />
+          <button type="button" className="btn-primary" onClick={() => void load()} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+            Search courses
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => { setCourseQuery(""); void load(""); }}>
+            Clear
+          </button>
         </div>
       </div>
 
@@ -174,6 +541,7 @@ export default function AdminCoursesPro() {
           courses.map((course) => {
             const open = openCourseId === course._id;
             const detail = courseDetails[course._id];
+            const newModuleFormValue = newModuleForm(course._id);
 
             return (
               <div key={course._id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -226,7 +594,7 @@ export default function AdminCoursesPro() {
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                     >
                       <Video className="h-4 w-4" />
-                      Edit Tutorials
+                      Manage Curriculum
                       {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </button>
                   </div>
@@ -243,22 +611,198 @@ export default function AdminCoursesPro() {
                       <p className="py-8 text-center text-sm text-red-600">Unable to load course curriculum.</p>
                     ) : (
                       <div className="space-y-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Course information</p>
+                              <h3 className="mt-1 text-lg font-extrabold text-slate-950">Edit course metadata</h3>
+                            </div>
+                            <p className="text-xs text-slate-400">Changes are audited and reflected on learner-facing course pages.</p>
+                          </div>
+                          {(() => {
+                            const meta = courseMeta(detail);
+                            const patch = (next: Partial<CourseMetaForm>) => setCourseMetaForms((current) => ({
+                              ...current,
+                              [detail._id]: { ...meta, ...next, error: "" },
+                            }));
+                            return (
+                              <>
+                                <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                                  <input className="input-field" placeholder="Course title" value={meta.title} onChange={(e) => patch({ title: e.target.value })} />
+                                  <input className="input-field" placeholder="Category" value={meta.category} onChange={(e) => patch({ category: e.target.value })} />
+                                  <select className="input-field" value={meta.level} onChange={(e) => patch({ level: e.target.value as CourseMetaForm["level"] })}>
+                                    <option value="Beginner">Beginner</option>
+                                    <option value="Intermediate">Intermediate</option>
+                                    <option value="Advanced">Advanced</option>
+                                  </select>
+                                  <input className="input-field" placeholder="Duration" value={meta.duration} onChange={(e) => patch({ duration: e.target.value })} />
+                                  <input className="input-field lg:col-span-2" placeholder="Thumbnail URL" value={meta.thumbnail} onChange={(e) => patch({ thumbnail: e.target.value })} />
+                                  <textarea className="input-field lg:col-span-2 min-h-24" placeholder="Description" value={meta.description} onChange={(e) => patch({ description: e.target.value })} />
+                                  <textarea className="input-field lg:col-span-2 min-h-24" placeholder="Learning outcomes — one per line" value={meta.learningOutcomes} onChange={(e) => patch({ learningOutcomes: e.target.value })} />
+                                </div>
+                                {meta.error && <p className="mt-2 text-xs font-semibold text-red-600">{meta.error}</p>}
+                                <button type="button" className="btn-primary mt-4" onClick={() => void saveCourseMeta(detail._id, detail)} disabled={meta.saving}>
+                                  {meta.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                  Save course information
+                                </button>
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Add module</p>
+                          <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1.4fr_auto]">
+                            <input
+                              className="input-field"
+                              placeholder="Module title"
+                              value={newModuleFormValue.title}
+                              onChange={(e) => setNewModuleForms((current) => ({
+                                ...current,
+                                [course._id]: { ...newModuleFormValue, title: e.target.value, error: "" },
+                              }))}
+                            />
+                            <input
+                              className="input-field"
+                              placeholder="Short module description"
+                              value={newModuleFormValue.description}
+                              onChange={(e) => setNewModuleForms((current) => ({
+                                ...current,
+                                [course._id]: { ...newModuleFormValue, description: e.target.value, error: "" },
+                              }))}
+                            />
+                            <button
+                              type="button"
+                              className="btn-primary justify-center"
+                              onClick={() => void addModule(course._id)}
+                              disabled={newModuleFormValue.saving || !newModuleFormValue.title.trim()}
+                            >
+                              {newModuleFormValue.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                              Add Module
+                            </button>
+                          </div>
+                          {newModuleFormValue.error && <p className="mt-2 text-xs font-semibold text-red-600">{newModuleFormValue.error}</p>}
+                        </div>
+
                         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                           <div>
                             <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Curriculum editor</p>
-                            <h3 className="mt-1 text-xl font-extrabold text-slate-950">Replace tutorial videos</h3>
+                            <h3 className="mt-1 text-xl font-extrabold text-slate-950">Manage every learning resource</h3>
                           </div>
-                          <p className="text-xs text-slate-500">Paste a YouTube video URL for the tutorial you want to replace.</p>
+                          <p className="text-xs text-slate-500">Add or remove modules, tutorial videos/playlists, and module resources.</p>
                         </div>
 
                         {detail.modules?.map((module: any, moduleIndex: number) => (
                           <div key={module._id || moduleIndex} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
-                              <BookOpen className="h-4 w-4 text-blue-600" />
-                              <div>
-                                <p className="text-sm font-bold text-slate-900">Module {module.order || moduleIndex + 1}</p>
-                                <p className="text-sm text-slate-600">{module.title}</p>
+                            <div className="border-b border-slate-100 px-4 py-3">
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+                                <BookOpen className="mt-1 h-4 w-4 shrink-0 text-blue-600" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-bold uppercase tracking-[.12em] text-blue-600">Module {module.order || moduleIndex + 1}</p>
+                                  <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                                    <input
+                                      className="input-field"
+                                      value={moduleForm(module).title}
+                                      onChange={(e) => setModuleForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...moduleForm(module), title: e.target.value },
+                                      }))}
+                                    />
+                                    <input
+                                      className="input-field"
+                                      value={moduleForm(module).description}
+                                      onChange={(e) => setModuleForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...moduleForm(module), description: e.target.value },
+                                      }))}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => void updateModule(course._id, module)}
+                                    disabled={moduleForm(module).saving || !moduleForm(module).title.trim()}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                                  >
+                                    {moduleForm(module).saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                    Save Module
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteModule(course._id, module)}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Remove Module
+                                  </button>
+                                </div>
                               </div>
+                              {moduleForm(module).error && <p className="mt-2 text-xs font-semibold text-red-600">{moduleForm(module).error}</p>}
+                            </div>
+
+                            <div className="border-b border-slate-100 bg-blue-50/50 p-4">
+                              <div className="flex items-center gap-2">
+                                <Plus className="h-4 w-4 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">Add video or playlist</p>
+                                  <p className="text-xs text-slate-500">A video becomes one lesson. A playlist imports each video as its own lesson.</p>
+                                </div>
+                              </div>
+                              {(() => {
+                                const addKey = `add-video:${module._id}`;
+                                const addEditor = editors[addKey] || {
+                                  sourceType: "video",
+                                  url: "",
+                                  title: "",
+                                  saving: false,
+                                  error: "",
+                                  success: "",
+                                };
+                                return (
+                                  <div className="mt-3 grid gap-2 lg:grid-cols-[140px_1fr_1fr_auto]">
+                                    <select
+                                      className="input-field"
+                                      value={addEditor.sourceType}
+                                      onChange={(e) => setEditors((current) => ({
+                                        ...current,
+                                        [addKey]: { ...addEditor, sourceType: e.target.value as "video" | "playlist" },
+                                      }))}
+                                    >
+                                      <option value="video">Single Video</option>
+                                      <option value="playlist">Playlist</option>
+                                    </select>
+                                    <input
+                                      className="input-field"
+                                      placeholder={addEditor.sourceType === "playlist" ? "YouTube playlist URL" : "YouTube video URL"}
+                                      value={addEditor.url}
+                                      onChange={(e) => setVideoUrl(addKey, e.target.value)}
+                                      type="url"
+                                    />
+                                    <input
+                                      className="input-field"
+                                      placeholder="Lesson title (video)"
+                                      value={addEditor.title || ""}
+                                      onChange={(e) => setEditors((current) => ({
+                                        ...current,
+                                        [addKey]: { ...addEditor, title: e.target.value },
+                                      }))}
+                                      disabled={addEditor.sourceType === "playlist"}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn-primary justify-center whitespace-nowrap"
+                                      onClick={() => void addVideoToModule(course._id, module)}
+                                      disabled={addEditor.saving || !addEditor.url.trim()}
+                                    >
+                                      {addEditor.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                                      {addEditor.sourceType === "playlist" ? "Import Playlist" : "Add Video"}
+                                    </button>
+                                    {addEditor.success && <p className="lg:col-span-4 text-xs font-semibold text-green-600">{addEditor.success}</p>}
+                                    {addEditor.error && <p className="lg:col-span-4 text-xs font-semibold text-red-600">{addEditor.error}</p>}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             <div className="divide-y divide-slate-100">
@@ -330,9 +874,14 @@ export default function AdminCoursesPro() {
                                       )}
 
                                       {lesson.type !== "tutorial" && (
-                                        <span className="inline-flex items-center rounded-full bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700">
-                                          Project lesson — no video replacement
-                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => void deleteLesson(course._id, module, lesson)}
+                                          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                          Remove
+                                        </button>
                                       )}
                                     </div>
                                   </div>
@@ -406,6 +955,144 @@ export default function AdminCoursesPro() {
                                   );
                                 })()
                               )}
+                            </div>
+
+                            <div className="border-t border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-center gap-2">
+                                <Plus className="h-4 w-4 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">Add learning item</p>
+                                  <p className="text-xs text-slate-500">Add a tutorial placeholder, project, or quiz to this module.</p>
+                                </div>
+                              </div>
+                              {(() => {
+                                const form = learningItemForm(module._id);
+                                return (
+                                  <div className="mt-3 grid gap-2 lg:grid-cols-[150px_1fr_auto]">
+                                    <select
+                                      className="input-field"
+                                      value={form.type}
+                                      onChange={(e) => setLearningItemForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, type: e.target.value as LearningItemForm["type"] },
+                                      }))}
+                                    >
+                                      <option value="tutorial">Tutorial</option>
+                                      <option value="project">Project</option>
+                                      <option value="quiz">Quiz</option>
+                                    </select>
+                                    <input
+                                      className="input-field"
+                                      placeholder="Learning item title"
+                                      value={form.title}
+                                      onChange={(e) => setLearningItemForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, title: e.target.value },
+                                      }))}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn-primary justify-center whitespace-nowrap"
+                                      onClick={() => void addLearningItem(course._id, module)}
+                                      disabled={form.saving || !form.title.trim()}
+                                    >
+                                      {form.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                      Add Item
+                                    </button>
+                                    {form.error && <p className="lg:col-span-3 text-xs font-semibold text-red-600">{form.error}</p>}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+
+                            <div className="border-t border-slate-200 bg-white p-4">
+                              <div className="flex items-center gap-2">
+                                <LinkIcon className="h-4 w-4 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-900">Module resources</p>
+                                  <p className="text-xs text-slate-500">Control documentation, repositories, articles, and links for this module.</p>
+                                </div>
+                              </div>
+
+                              {(module.resources || []).length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {(module.resources || []).map((resource: any) => {
+                                    const Icon =
+                                      resource.type === "repository"
+                                        ? Github
+                                        : resource.type === "document"
+                                          ? FileText
+                                          : LinkIcon;
+                                    return (
+                                      <div key={resource._id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate text-xs font-bold text-slate-800">{resource.title}</p>
+                                          <p className="truncate text-[11px] text-slate-500">{resource.url}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => void deleteModuleResource(course._id, module, resource)}
+                                          className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700"
+                                          title="Remove resource"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {(() => {
+                                const form = resourceForm(module._id);
+                                return (
+                                  <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1.4fr_150px_auto]">
+                                    <input
+                                      className="input-field"
+                                      placeholder="Resource title"
+                                      value={form.title}
+                                      onChange={(e) => setResourceForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, title: e.target.value },
+                                      }))}
+                                    />
+                                    <input
+                                      className="input-field"
+                                      placeholder="https://..."
+                                      value={form.url}
+                                      onChange={(e) => setResourceForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, url: e.target.value },
+                                      }))}
+                                      type="url"
+                                    />
+                                    <select
+                                      className="input-field"
+                                      value={form.type}
+                                      onChange={(e) => setResourceForms((current) => ({
+                                        ...current,
+                                        [module._id]: { ...form, type: e.target.value as ResourceForm["type"] },
+                                      }))}
+                                    >
+                                      <option value="link">Link</option>
+                                      <option value="document">Document</option>
+                                      <option value="repository">Repository</option>
+                                      <option value="article">Article</option>
+                                    </select>
+                                    <button
+                                      type="button"
+                                      className="btn-primary justify-center whitespace-nowrap"
+                                      onClick={() => void addModuleResource(course._id, module)}
+                                      disabled={form.saving || !form.title.trim() || !form.url.trim()}
+                                    >
+                                      {form.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                      Add Resource
+                                    </button>
+                                    {form.error && <p className="lg:col-span-4 text-xs font-semibold text-red-600">{form.error}</p>}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         ))}

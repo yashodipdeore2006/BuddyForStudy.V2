@@ -1,13 +1,14 @@
 import { Router } from "express";
 import * as controller from "../controllers/course.controller.js";
-import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
+import { requireFeature, requireFeatureIfAuthenticated } from "../middleware/subscription.middleware.js";
+import { authMiddleware, adminMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 
 const router = Router();
 
-router.get("/", controller.list);
-router.get("/search", controller.search);
-router.get("/:courseId/learn/:itemId", authMiddleware, controller.learningItem);
-router.get("/:courseId/learn", authMiddleware, controller.learn);
+router.get("/", optionalAuthMiddleware, requireFeatureIfAuthenticated("course_search"), controller.list);
+router.get("/search", optionalAuthMiddleware, requireFeatureIfAuthenticated("course_search"), controller.search);
+router.get("/:courseId/learn/:itemId", authMiddleware, requireFeature("published_courses"), controller.learningItem);
+router.get("/:courseId/learn", authMiddleware, requireFeature("published_courses"), controller.learn);
 router.get("/:courseId", controller.details);
 
 router.post("/", authMiddleware, adminMiddleware, controller.create);

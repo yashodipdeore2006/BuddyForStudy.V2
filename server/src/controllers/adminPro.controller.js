@@ -12,6 +12,7 @@ import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
+import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -52,15 +53,47 @@ async function notificationAudienceUsers(audience) {
 
 export async function overview(req, res, next) {
   try {
-    const [users, activeUsers, courses, published, enrollments, subscribers, revenue, pendingRefunds, unread] = await Promise.all([
-      User.countDocuments(), User.countDocuments({ isActive: true }), Course.countDocuments(), Course.countDocuments({ isPublished: true }),
-      Enrollment.countDocuments(), UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
+    const [users, activeUsers, admins, courses, published, unpublished, emptyCourses, enrollments, activeSubscribers, pastDueSubscribers, grossRevenue, processedRefunds, failedPayments, pendingRefunds, unread] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ isActive: true }),
+      User.countDocuments({ role: "admin" }),
+      Course.countDocuments(),
+      Course.countDocuments({ isPublished: true }),
+      Course.countDocuments({ isPublished: false }),
+      Course.countDocuments({ "modules.0": { $exists: false } }),
+      Enrollment.countDocuments(),
+      UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
+      UserSubscription.countDocuments({ status: "past_due" }),
       Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
-      RefundRequest.countDocuments({ status: "pending" }), Notification.countDocuments({ readAt: null })
+      RefundRequest.aggregate([{ $match: { status: "processed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Payment.countDocuments({ status: "failed" }),
+      RefundRequest.countDocuments({ status: "pending" }),
+      Notification.countDocuments({ readAt: null })
     ]);
-    const recentUsers = await User.find().select("name email role isActive createdAt").sort({ createdAt: -1 }).limit(8).lean();
-    const recentPayments = await Payment.find().populate("user", "name email").sort({ createdAt: -1 }).limit(8).lean();
-    return success(res, { stats: { users, activeUsers, courses, published, enrollments, subscribers, revenue: revenue[0]?.total || 0, pendingRefunds, unread }, recentUsers, recentPayments });
+
+    const [recentUsers, recentPayments, recentAudit, topCourses] = await Promise.all([
+      User.find().select("name email role isActive authProvider emailVerified createdAt").sort({ createdAt: -1 }).limit(8).lean(),
+      Payment.find().populate("user", "name email").populate("course", "title").populate("plan", "name").sort({ createdAt: -1 }).limit(8).lean(),
+      AuditLog.find().populate("actor", "name email").sort({ createdAt: -1 }).limit(8).lean(),
+      Enrollment.aggregate([
+        { $group: { _id: "$course", enrollments: { $sum: 1 } } },
+        { $sort: { enrollments: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: "courses", localField: "_id", foreignField: "_id", as: "course" } },
+        { $unwind: { path: "$course", preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, enrollments: 1, title: "$course.title" } }
+      ])
+    ]);
+
+    return success(res, {
+      stats: {
+        users, activeUsers, admins, courses, published, unpublished, emptyCourses,
+        enrollments, activeSubscribers, pastDueSubscribers,
+        revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)),
+        failedPayments, pendingRefunds, unread
+      },
+      recentUsers, recentPayments, recentAudit, topCourses
+    });
   } catch (e) { next(e); }
 }
 
@@ -68,7 +101,14 @@ export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
     const q = String(req.query.q || "").trim();
-    const filter = q ? { $or: [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }] } : {};
+    const filter = {};
+    if (q) filter.$or = [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }];
+    if (req.query.status === "active") filter.isActive = true;
+    if (req.query.status === "disabled") filter.isActive = false;
+    if (req.query.role === "admin" || req.query.role === "user") filter.role = req.query.role;
+    if (["local", "google", "local_google"].includes(String(req.query.authProvider || ""))) {
+      filter.authProvider = req.query.authProvider;
+    }
     const [items, total] = await Promise.all([
       User.find(filter).select("-password").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       User.countDocuments(filter)
@@ -152,6 +192,317 @@ function extractYouTubeVideoId(value) {
   return null;
 }
 
+
+function renumberModules(course) {
+  (course.modules || []).forEach((module, moduleIndex) => {
+    module.order = moduleIndex + 1;
+    (module.lessons || []).forEach((lesson, lessonIndex) => {
+      lesson.order = lessonIndex + 1;
+    });
+  });
+}
+
+function extractYouTubeVideoIdFromUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "youtu.be") return parsed.pathname.split("/").filter(Boolean)[0] || null;
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const id = parsed.searchParams.get("v");
+      if (id) return id;
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      return ["embed", "shorts", "live"].includes(parts[0]) ? parts[1] || null : null;
+    }
+  } catch {}
+  return null;
+}
+
+export async function addCourseModule(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+
+    const title = String(req.body.title || "").trim();
+    if (!title) return failure(res, "Module title is required", 400);
+
+    const module = course.modules.create({
+      title,
+      description: String(req.body.description || "").trim(),
+      order: (course.modules || []).length + 1,
+      resources: [],
+      lessons: []
+    });
+    course.modules.push(module);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.created", "Course", course._id, null, {
+      moduleId: String(module._id), title: module.title, order: module.order
+    });
+    return success(res, { course, module }, "Module added", 201);
+  } catch (e) { next(e); }
+}
+
+export async function updateCourseModule(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const before = { title: module.title, description: module.description, resources: module.resources };
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim();
+      if (!title) return failure(res, "Module title cannot be empty", 400);
+      module.title = title;
+    }
+    if (req.body.description !== undefined) module.description = String(req.body.description || "").trim();
+
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.updated", "Course", course._id, before, {
+      moduleId: String(module._id), title: module.title, description: module.description
+    }, req.body.reason || "");
+    return success(res, { course, module }, "Module updated");
+  } catch (e) { next(e); }
+}
+
+export async function deleteCourseModule(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const index = (course.modules || []).findIndex((item) => String(item._id) === String(req.params.moduleId));
+    if (index < 0) return failure(res, "Course module not found", 404);
+
+    const removed = course.modules[index].toObject();
+    course.modules.splice(index, 1);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.deleted", "Course", course._id, {
+      moduleId: String(removed._id), title: removed.title
+    }, null, req.body?.reason || "");
+    return success(res, { course }, "Module removed");
+  } catch (e) { next(e); }
+}
+
+export async function addCourseVideo(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const resourceUrl = String(req.body.resourceUrl || req.body.videoUrl || "").trim();
+    if (!resourceUrl) return failure(res, "YouTube video or playlist URL is required", 400);
+
+    const url = new URL(resourceUrl);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const playlistId = (host === "youtube.com" || host === "m.youtube.com") ? url.searchParams.get("list") : null;
+
+    if (playlistId) {
+      const playlist = await getPlaylistCourse(playlistId);
+      if (!playlist.lessons?.length) return failure(res, "The YouTube playlist contains no usable videos", 400);
+
+      const imported = playlist.lessons.map((video) => module.lessons.create({
+        title: video.title,
+        description: video.description || "",
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          content: video.description || "",
+          resources: video.url ? [video.url] : [],
+          videos: [{
+            videoId: video.videoId,
+            title: video.title,
+            description: video.description || "",
+            channelTitle: video.channelTitle || "",
+            publishedAt: video.publishedAt || null,
+            url: video.url || "",
+            thumbnail: video.thumbnail || "",
+            embedUrl: video.embedUrl || ""
+          }],
+          playlistId,
+          playlistTitle: playlist.title || ""
+        }
+      }));
+      module.lessons.push(...imported);
+      renumberModules(course);
+      course.markModified("modules");
+      await course.save();
+      await cacheDelete(`course:${course._id}`);
+      await audit(req, "course.videos.playlist.imported", "Course", course._id, null, {
+        moduleId: String(module._id), playlistId, count: imported.length
+      }, req.body.reason || "");
+      return success(res, { course, module, addedCount: imported.length, mode: "playlist" }, "Playlist videos added", 201);
+    }
+
+    const videoId = extractYouTubeVideoIdFromUrl(resourceUrl);
+    if (!videoId) return failure(res, "Enter a valid YouTube video or playlist URL", 400);
+
+    const title = String(req.body.title || `Learn ${module.title}`).trim();
+    const lesson = module.lessons.create({
+      title,
+      description: String(req.body.description || "").trim(),
+      type: "tutorial",
+      order: (module.lessons || []).length + 1,
+      tutorial: {
+        content: String(req.body.description || "").trim(),
+        resources: [`https://www.youtube.com/watch?v=${videoId}`],
+        videos: [{
+          videoId,
+          title,
+          description: String(req.body.description || "").trim(),
+          channelTitle: "",
+          publishedAt: null,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`,
+          durationSeconds: 0,
+          duration: ""
+        }]
+      }
+    });
+    module.lessons.push(lesson);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.video.added", "Course", course._id, null, {
+      moduleId: String(module._id), lessonId: String(lesson._id), videoId
+    }, req.body.reason || "");
+    return success(res, { course, module, lesson, mode: "video" }, "Video added", 201);
+  } catch (e) {
+    if (e instanceof TypeError || e?.code === "ERR_INVALID_URL") return failure(res, "Enter a valid YouTube video or playlist URL", 400);
+    next(e);
+  }
+}
+
+
+export async function addCourseLesson(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const title = String(req.body.title || "").trim();
+    const type = ["tutorial", "project", "quiz"].includes(req.body.type) ? req.body.type : "tutorial";
+    if (!title) return failure(res, "Learning item title is required", 400);
+
+    const lessonInput = {
+      title,
+      description: String(req.body.description || "").trim(),
+      type,
+      order: (module.lessons || []).length + 1
+    };
+
+    if (type === "tutorial") {
+      lessonInput.tutorial = { content: "", resources: [], videos: [] };
+    } else if (type === "project") {
+      lessonInput.project = {
+        description: String(req.body.description || "").trim(),
+        objectives: [],
+        requirements: [],
+        instructions: "",
+        expectedOutcome: ""
+      };
+    } else {
+      lessonInput.quiz = {
+        scope: "lesson",
+        questionCount: Math.max(3, Math.min(15, Number(req.body.questionCount) || 5)),
+        passingScore: Math.max(50, Math.min(90, Number(req.body.passingScore) || 70)),
+        focusTopics: [],
+        instructions: "Complete the quiz to validate understanding.",
+        questions: []
+      };
+    }
+
+    const lesson = module.lessons.create(lessonInput);
+    module.lessons.push(lesson);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.lesson.created", "Course", course._id, null, {
+      moduleId: String(module._id), lessonId: String(lesson._id), title, type
+    });
+    return success(res, { course, module, lesson }, "Learning item added", 201);
+  } catch (e) { next(e); }
+}
+
+export async function deleteCourseLesson(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+    const index = (module.lessons || []).findIndex((item) => String(item._id) === String(req.params.lessonId));
+    if (index < 0) return failure(res, "Lesson not found", 404);
+
+    const removed = module.lessons[index].toObject();
+    module.lessons.splice(index, 1);
+    renumberModules(course);
+    course.markModified("modules");
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.lesson.deleted", "Course", course._id, {
+      moduleId: String(module._id), lessonId: String(removed._id), title: removed.title, type: removed.type
+    }, null, req.body?.reason || "");
+    return success(res, { course, module }, "Learning item removed");
+  } catch (e) { next(e); }
+}
+
+export async function addModuleResource(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+
+    const title = String(req.body.title || "").trim();
+    const resourceUrl = String(req.body.url || "").trim();
+    const type = ["link", "document", "repository", "article"].includes(req.body.type) ? req.body.type : "link";
+    if (!title || !resourceUrl) return failure(res, "Resource title and URL are required", 400);
+
+    let parsed;
+    try { parsed = new URL(resourceUrl); } catch { return failure(res, "Resource URL is invalid", 400); }
+    if (!parsed.protocol.startsWith("http")) return failure(res, "Resource URL must be http or https", 400);
+
+    const resource = module.resources.create({ title, url: resourceUrl, type });
+    module.resources.push(resource);
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.resource.added", "Course", course._id, null, {
+      moduleId: String(module._id), resourceId: String(resource._id), title, type, url: resourceUrl
+    });
+    return success(res, { course, module, resource }, "Module resource added", 201);
+  } catch (e) { next(e); }
+}
+
+export async function deleteModuleResource(req, res, next) {
+  try {
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
+    if (!module) return failure(res, "Course module not found", 404);
+    const index = (module.resources || []).findIndex((item) => String(item._id) === String(req.params.resourceId));
+    if (index < 0) return failure(res, "Module resource not found", 404);
+
+    const removed = module.resources[index].toObject();
+    module.resources.splice(index, 1);
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.module.resource.deleted", "Course", course._id, {
+      moduleId: String(module._id), resourceId: String(removed._id), title: removed.title
+    }, null);
+    return success(res, { course, module }, "Module resource removed");
+  } catch (e) { next(e); }
+}
+
 export async function updateCourseTutorial(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
@@ -198,12 +549,11 @@ export async function updateCourseTutorial(req, res, next) {
       if (!playlist.lessons?.length) return failure(res, "The YouTube playlist contains no usable embeddable videos", 400);
 
       targetModule.lessons ||= [];
-      const nonTutorialLessons = targetModule.lessons.filter((lesson) => lesson.type !== "tutorial");
       const playlistLessons = playlist.lessons.map((video, index) => targetModule.lessons.create({
         title: video.title,
         description: video.description || "",
         type: "tutorial",
-        order: nonTutorialLessons.length + index + 1,
+        order: targetModule.lessons.length + index + 1,
         tutorial: {
           content: video.description || "",
           resources: [video.url],
@@ -215,13 +565,16 @@ export async function updateCourseTutorial(req, res, next) {
             publishedAt: video.publishedAt || null,
             url: video.url,
             thumbnail: video.thumbnail || "",
-            embedUrl: video.embedUrl
+            embedUrl: video.embedUrl,
+            durationSeconds: Number(video.durationSeconds || 0),
+            duration: video.duration || ""
           }],
           playlistId,
           playlistTitle: playlist.title
         }
       }));
-      targetModule.lessons = [...nonTutorialLessons, ...playlistLessons];
+      targetModule.lessons.push(...playlistLessons);
+      renumberModules(course);
     } else {
       const videoId = extractYouTubeVideoId(resourceUrl);
       if (!videoId) return failure(res, "Enter a valid YouTube video or playlist URL", 400);
@@ -247,7 +600,9 @@ export async function updateCourseTutorial(req, res, next) {
         publishedAt: currentVideo.publishedAt || null,
         url: `https://www.youtube.com/watch?v=${videoId}`,
         thumbnail: currentVideo.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-        embedUrl: `https://www.youtube.com/embed/${videoId}`
+        embedUrl: `https://www.youtube.com/embed/${videoId}`,
+        durationSeconds: Number(currentVideo.durationSeconds || 0),
+        duration: currentVideo.duration || ""
       };
       targetLesson.tutorial ||= {};
       targetLesson.tutorial.videos = [updatedVideo];
@@ -291,7 +646,38 @@ export async function updateCourse(req, res, next) {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
-    const before = { isPublished: course.isPublished, pricing: course.pricing, enrollmentEnabled: course.enrollmentEnabled, certificateEnabled: course.certificateEnabled, featured: course.featured };
+    const before = {
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      duration: course.duration,
+      thumbnail: course.thumbnail,
+      learningOutcomes: course.learningOutcomes,
+      isPublished: course.isPublished,
+      pricing: course.pricing,
+      enrollmentEnabled: course.enrollmentEnabled,
+      certificateEnabled: course.certificateEnabled,
+      featured: course.featured
+    };
+
+    if (req.body.title !== undefined) {
+      const value = String(req.body.title).trim();
+      if (!value) return failure(res, "Course title cannot be empty", 400);
+      course.title = value;
+    }
+    if (req.body.description !== undefined) {
+      const value = String(req.body.description).trim();
+      if (!value) return failure(res, "Course description cannot be empty", 400);
+      course.description = value;
+    }
+    if (req.body.category !== undefined) course.category = String(req.body.category).trim();
+    if (req.body.level !== undefined && ["Beginner", "Intermediate", "Advanced"].includes(req.body.level)) course.level = req.body.level;
+    if (req.body.duration !== undefined) course.duration = String(req.body.duration).trim();
+    if (req.body.thumbnail !== undefined) course.thumbnail = String(req.body.thumbnail).trim();
+    if (Array.isArray(req.body.learningOutcomes)) {
+      course.learningOutcomes = req.body.learningOutcomes.map((item) => String(item).trim()).filter(Boolean).slice(0, 20);
+    }
     for (const key of ["isPublished", "enrollmentEnabled", "certificateEnabled", "featured"]) if (typeof req.body[key] === "boolean") course[key] = req.body[key];
     if (req.body.pricing) {
       const p = req.body.pricing;
@@ -303,7 +689,20 @@ export async function updateCourse(req, res, next) {
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
     await course.save();
-    await audit(req, "course.settings.updated", "Course", course._id, before, { isPublished: course.isPublished, pricing: course.pricing, enrollmentEnabled: course.enrollmentEnabled, certificateEnabled: course.certificateEnabled, featured: course.featured }, req.body.reason);
+    await audit(req, "course.updated", "Course", course._id, before, {
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      duration: course.duration,
+      thumbnail: course.thumbnail,
+      learningOutcomes: course.learningOutcomes,
+      isPublished: course.isPublished,
+      pricing: course.pricing,
+      enrollmentEnabled: course.enrollmentEnabled,
+      certificateEnabled: course.certificateEnabled,
+      featured: course.featured
+    }, req.body.reason);
     return success(res, { course }, "Course controls updated");
   } catch (e) { next(e); }
 }
@@ -325,7 +724,13 @@ async function ensureDefaultPlans() {
       isActive: true,
       isPopular: false,
       trialDays: 0,
-      sortOrder: 1
+      sortOrder: 1,
+      limits: {
+        ai_course_builds_per_month: 0,
+        advanced_ai_questions_per_month: 0,
+        advanced_ai_insights_per_month: 0,
+        ai_quiz_generations_per_month: 20
+      }
     },
     {
       name: "Pro",
@@ -345,7 +750,13 @@ async function ensureDefaultPlans() {
       isActive: true,
       isPopular: true,
       trialDays: 0,
-      sortOrder: 2
+      sortOrder: 2,
+      limits: {
+        ai_course_builds_per_month: 5,
+        advanced_ai_questions_per_month: 100,
+        advanced_ai_insights_per_month: 30,
+        ai_quiz_generations_per_month: 50
+      }
     },
     {
       name: "Premium",
@@ -368,7 +779,13 @@ async function ensureDefaultPlans() {
       isActive: true,
       isPopular: false,
       trialDays: 0,
-      sortOrder: 3
+      sortOrder: 3,
+      limits: {
+        ai_course_builds_per_month: 20,
+        advanced_ai_questions_per_month: 500,
+        advanced_ai_insights_per_month: 100,
+        ai_quiz_generations_per_month: 200
+      }
     }
   ];
 
@@ -378,7 +795,23 @@ async function ensureDefaultPlans() {
       { $setOnInsert: plan },
       { upsert: true }
     );
+
+    const current = await SubscriptionPlan.findOne({ slug: plan.slug }).select("limits").lean();
+    if (!current?.limits || Object.keys(current.limits).length === 0) {
+      await SubscriptionPlan.updateOne({ slug: plan.slug }, { $set: { limits: plan.limits } });
+    }
   }
+}
+
+function normalizePlanLimits(value) {
+  const input = value && typeof value === "object" ? value : {};
+  const output = {};
+  for (const [key, raw] of Object.entries(input)) {
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) continue;
+    output[key] = Math.trunc(parsed);
+  }
+  return output;
 }
 
 export async function plans(req, res, next) {
@@ -398,7 +831,9 @@ export async function createPlan(req, res, next) {
     const plan = await SubscriptionPlan.create({
       name: req.body.name, slug: req.body.slug, description: req.body.description || "", price: Number(req.body.price) || 0,
       currency: req.body.currency || "INR", billingInterval: req.body.billingInterval || "monthly",
-      features: normalizeSubscriptionFeatures(req.body.features), isActive: req.body.isActive !== false,
+      features: normalizeSubscriptionFeatures(req.body.features),
+      limits: normalizePlanLimits(req.body.limits),
+      isActive: req.body.isActive !== false,
       isPopular: Boolean(req.body.isPopular), trialDays: Number(req.body.trialDays) || 0, sortOrder: Number(req.body.sortOrder) || 0
     });
     await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, plan.toObject());
@@ -411,10 +846,12 @@ export async function updatePlan(req, res, next) {
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
     const before = plan.toObject();
-    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "isActive", "isPopular", "trialDays", "sortOrder"];
+    const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isPopular", "trialDays", "sortOrder"];
     for (const key of allowed) {
       if (req.body[key] === undefined) continue;
-      plan[key] = key === "features" ? normalizeSubscriptionFeatures(req.body[key]) : req.body[key];
+      if (key === "features") plan[key] = normalizeSubscriptionFeatures(req.body[key]);
+      else if (key === "limits") plan[key] = normalizePlanLimits(req.body[key]);
+      else plan[key] = req.body[key];
     }
     await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, plan.toObject(), req.body.reason);
     return success(res, { plan }, "Plan updated");
@@ -492,7 +929,7 @@ export async function sendEmail(req, res, next) {
   try {
     const transport = mailer(); if (!transport) return failure(res, "SMTP is not configured", 503);
     let users = [];
-    if (Array.isArray(req.body.userIds) && req.body.userIds.length) users = await User.find({ _id: { $in: req.body.userIds.filter(isValidObjectId) }, isActive: true }).select("email name");
+    if (Array.isArray(req.body.userIds) && req.body.userIds.length) users = await User.find({ _id: { $in: req.body.userIds.filter(isValidObjectId) } }).select("email name");
     else if (req.body.email) users = [{ email: req.body.email, name: "" }];
     else users = await audienceUsers(req.body.audience || "all");
     if (!req.body.subject || !req.body.html) return failure(res, "subject and html are required", 400);
@@ -566,8 +1003,72 @@ export async function updateCoupon(req, res, next) {
 export async function auditLogs(req, res, next) {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
-    const logs = await AuditLog.find().populate("actor", "name email").sort({ createdAt: -1 }).limit(limit).lean();
+    const q = String(req.query.q || "").trim();
+    const filter = {};
+    if (q) filter.$or = [
+      { action: new RegExp(q, "i") },
+      { targetType: new RegExp(q, "i") },
+      { targetId: new RegExp(q, "i") },
+      { reason: new RegExp(q, "i") }
+    ];
+    if (req.query.action) filter.action = String(req.query.action);
+    if (req.query.targetType) filter.targetType = String(req.query.targetType);
+    const logs = await AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).limit(limit).lean();
     return success(res, { logs });
+  } catch (e) { next(e); }
+}
+
+
+export async function analytics(req, res, next) {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90);
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    since.setDate(since.getDate() - (days - 1));
+
+    const [enrollmentsDaily, revenueDaily, coursePerformance, subscriptionBreakdown, completionBreakdown] = await Promise.all([
+      Enrollment.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: since }, status: { $in: ["paid", "partially_refunded"] } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+        { $sort: { _id: 1 } }
+      ]),
+      Enrollment.aggregate([
+        { $group: { _id: "$course", enrollments: { $sum: 1 } } },
+        { $sort: { enrollments: -1 } },
+        { $limit: 10 },
+        { $lookup: { from: "courses", localField: "_id", foreignField: "_id", as: "course" } },
+        { $unwind: { path: "$course", preserveNullAndEmptyArrays: true } },
+        { $project: { _id: 1, enrollments: 1, title: "$course.title", published: "$course.isPublished", pricingMode: "$course.pricing.mode" } }
+      ]),
+      UserSubscription.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      Progress.aggregate([
+        { $bucket: { groupBy: "$percentage", boundaries: [0, 25, 50, 75, 100, 101], default: "other", output: { count: { $sum: 1 } } } }
+      ])
+    ]);
+
+    const totalEnrollmentPeriod = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
+    const totalRevenuePeriod = revenueDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    return success(res, {
+      period: { days, since, until: new Date() },
+      enrollmentsDaily,
+      revenueDaily,
+      coursePerformance,
+      subscriptionBreakdown,
+      completionBreakdown,
+      totals: {
+        enrollments: totalEnrollmentPeriod,
+        recordedRevenue: totalRevenuePeriod
+      }
+    });
   } catch (e) { next(e); }
 }
 

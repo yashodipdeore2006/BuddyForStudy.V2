@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { GraduationCap, LayoutDashboard, BookOpen, LogOut, User as UserIcon, Settings, Users, BarChart3, Shield, Menu, X, Sparkles } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, Bookmark, LogOut, User as UserIcon, Settings, Users, BarChart3, Shield, Menu, X, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import NotificationMenu from '@/components/NotificationMenu';
 import { classNames } from '@/lib/utils';
@@ -16,7 +16,7 @@ export default function Navbar() {
   const handleSignOut = async () => { await signOut(); navigate('/'); };
   const links = isAdmin
     ? [{ to:'/admin',label:'Dashboard',icon:LayoutDashboard },{to:'/admin/users',label:'Users',icon:Users},{to:'/admin/courses',label:'Courses',icon:BookOpen},{to:'/admin/analytics',label:'Analytics',icon:BarChart3 }]
-    : [{to:'/courses',label:'Courses',icon:BookOpen },{to:'/my-courses',label:'My Learning',icon:GraduationCap },{ to:'/dashboard',label:'Dashboard',icon:LayoutDashboard }];
+    : [{to:'/courses',label:'Courses',icon:BookOpen },{to:'/my-courses',label:'My Learning',icon:GraduationCap },{to:'/saved-courses',label:'Saved',icon:Bookmark },{ to:'/dashboard',label:'Dashboard',icon:LayoutDashboard }];
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/85 backdrop-blur-xl">

@@ -1,7 +1,7 @@
 export type UserRole = 'user' | 'admin';
 export type AuthProvider = 'local' | 'google' | 'local_google';
 export type CourseLevel = 'Beginner' | 'Intermediate' | 'Advanced';
-export type LessonType = 'tutorial' | 'project';
+export type LessonType = 'tutorial' | 'project' | 'quiz';
 export type EnrollmentStatus = 'active' | 'completed' | 'cancelled';
 
 export interface Profile {
@@ -22,13 +22,54 @@ export interface TutorialContent {
   resources?: Array<{ title?: string; url?: string; type?: string }>;
 }
 
+export interface ProjectVideo {
+  title?: string;
+  url?: string;
+  videoId?: string;
+  thumbnail?: string;
+  channelTitle?: string;
+  durationSeconds?: number;
+  score?: number;
+}
+
 export interface ProjectContent {
   description: string;
   objectives?: string[];
   requirements: string[];
   instructions: string;
   expectedOutcome: string;
+  realWorldScenario?: string;
+  features?: string[];
+  architecture?: string[];
+  milestones?: string[];
+  testingChecklist?: string[];
+  industrySkills?: string[];
+  githubWorkflow?: string[];
+  videos?: ProjectVideo[];
   starterCodeUrl?: string;
+}
+
+export interface QuizQuestionOption {
+  id: string;
+  text: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  topic?: string;
+  question: string;
+  options: QuizQuestionOption[];
+  correctOptionId: string;
+  explanation?: string;
+}
+
+export interface QuizContent {
+  scope: 'lesson' | 'module';
+  questionCount: number;
+  passingScore: number;
+  focusTopics?: string[];
+  instructions?: string;
+  questions?: QuizQuestion[];
 }
 
 export interface Lesson {
@@ -39,6 +80,14 @@ export interface Lesson {
   order: number;
   tutorial?: TutorialContent;
   project?: ProjectContent;
+  quiz?: QuizContent;
+}
+
+export interface ModuleResource {
+  id: string;
+  title: string;
+  url: string;
+  type: 'link' | 'document' | 'repository' | 'article';
 }
 
 export interface Module {
@@ -46,6 +95,7 @@ export interface Module {
   title: string;
   description: string;
   order: number;
+  resources?: ModuleResource[];
   lessons: Lesson[];
 }
 

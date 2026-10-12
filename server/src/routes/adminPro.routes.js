@@ -14,6 +14,15 @@ router.get("/courses/:courseId", controller.courseDetail);
 router.put("/courses/:courseId", controller.updateCourse);
 router.put("/courses/:courseId/tutorial", controller.updateCourseTutorial);
 
+router.post("/courses/:courseId/modules", controller.addCourseModule);
+router.put("/courses/:courseId/modules/:moduleId", controller.updateCourseModule);
+router.delete("/courses/:courseId/modules/:moduleId", controller.deleteCourseModule);
+router.post("/courses/:courseId/modules/:moduleId/videos", controller.addCourseVideo);
+router.post("/courses/:courseId/modules/:moduleId/lessons", controller.addCourseLesson);
+router.delete("/courses/:courseId/modules/:moduleId/lessons/:lessonId", controller.deleteCourseLesson);
+router.post("/courses/:courseId/modules/:moduleId/resources", controller.addModuleResource);
+router.delete("/courses/:courseId/modules/:moduleId/resources/:resourceId", controller.deleteModuleResource);
+
 router.get("/plans", controller.plans);
 router.post("/plans", controller.createPlan);
 router.put("/plans/:planId", controller.updatePlan);
@@ -34,6 +43,7 @@ router.post("/coupons", controller.createCoupon);
 router.put("/coupons/:couponId", controller.updateCoupon);
 
 router.get("/audit-logs", controller.auditLogs);
+router.get("/analytics", controller.analytics);
 router.get("/health", controller.health);
 
 export default router;

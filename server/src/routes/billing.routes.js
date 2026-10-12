@@ -16,6 +16,75 @@ router.get("/plans", async (_req,res,next)=>{ try {
 router.use(authMiddleware);
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try { const { UserSubscription } = await import("../models/UserSubscription.js"); const subscription=await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean(); return success(res,{subscription}); } catch(e){next(e)} });
+
+router.post("/subscription/sync", async (req,res,next)=>{ try {
+  const subscriptionId = String(req.body?.subscriptionId || "").trim();
+  if (!subscriptionId) return failure(res, "subscriptionId is required", 400);
+
+  const payment = await Payment.findOne({
+    user: req.user.userId,
+    provider: "razorpay",
+    providerOrderId: subscriptionId,
+    status: "pending"
+  }).populate("plan");
+
+  if (!payment) return failure(res, "Pending subscription payment not found", 404);
+  if (!payment.plan?.providerPlanId) return failure(res, "Subscription plan is not linked to Razorpay", 409);
+
+  const providerSubscription = await razorpay.fetchSubscription(subscriptionId);
+
+  if (String(providerSubscription?.plan_id || "") !== String(payment.plan.providerPlanId)) {
+    return failure(res, "Subscription plan mismatch", 409);
+  }
+
+  const status = String(providerSubscription?.status || "").toLowerCase();
+  if (status !== "active") {
+    return success(res, {
+      activated: false,
+      status,
+      subscription: providerSubscription
+    }, "Subscription is not active yet");
+  }
+
+  const start = providerSubscription?.current_start
+    ? new Date(Number(providerSubscription.current_start) * 1000)
+    : new Date();
+  const end = providerSubscription?.current_end
+    ? new Date(Number(providerSubscription.current_end) * 1000)
+    : null;
+
+  payment.status = "paid";
+  payment.paidAt = payment.paidAt || new Date();
+  payment.metadata = {
+    ...Object.fromEntries(payment.metadata || []),
+    checkoutType: "subscription",
+    subscriptionId,
+    reconciled: "true"
+  };
+  await payment.save();
+
+  const { UserSubscription } = await import("../models/UserSubscription.js");
+  const subscription = await UserSubscription.findOneAndUpdate(
+    { user: req.user.userId },
+    {
+      $set: {
+        plan: payment.plan._id,
+        status: "active",
+        provider: "razorpay",
+        providerSubscriptionId: subscriptionId,
+        currentPeriodStart: start,
+        currentPeriodEnd: end,
+        cancelAtPeriodEnd: Boolean(providerSubscription?.end_at)
+      }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).populate("plan");
+
+  return success(res, {
+    activated: true,
+    subscription
+  }, "Subscription activated");
+} catch(e){next(e)} });
 router.post("/subscription/cancel", async (req,res,next)=>{ try {
   const { UserSubscription } = await import("../models/UserSubscription.js");
   const subscription=await UserSubscription.findOne({user:req.user.userId,provider:"razorpay",status:{$in:["trialing","active","past_due"]}});

@@ -4,6 +4,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
+import { searchYouTubeCourseRecommendations } from "./youtube.service.js";
 
 function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -38,6 +39,20 @@ function buildCourseSearchFilter(search) {
   };
 }
 
+function buildDirectCourseSearchFilter(search) {
+  const query = String(search || "").trim();
+  if (!query) return null;
+
+  const regex = new RegExp(escapeRegex(query), "i");
+  return {
+    $or: [
+      { title: regex },
+      { description: regex },
+      { category: regex },
+      { learningOutcomes: regex }
+    ]
+  };
+}
 function normalizeSearchTokens(value) {
   return String(value || "")
     .normalize("NFKC")
@@ -149,7 +164,7 @@ function standaloneCourseFromModule(parent, module) {
   };
 }
 
-async function getStandaloneModuleCourses(search) {
+async function getStandaloneModuleCourses(search, { category, level } = {}) {
   const searchTokens = normalizeSearchTokens(search);
   if (!searchTokens.length) {
     return { courses: [], sourceCourseIds: [], standaloneIds: [] };
@@ -158,6 +173,8 @@ async function getStandaloneModuleCourses(search) {
   const candidateFilter = {
     isPublished: true,
     "generation.mode": { $ne: "module" },
+    ...(category ? { category } : {}),
+    ...(level ? { level } : {}),
     $or: [
       { "modules.title": new RegExp(escapeRegex(search), "i") },
       { "modules.description": new RegExp(escapeRegex(search), "i") },
@@ -239,6 +256,97 @@ async function getStandaloneModuleCourses(search) {
   };
 }
 
+
+function hasMultipleTutorialVideos(course) {
+  return (course?.modules || []).some((module) =>
+    (module.lessons || []).some(
+      (lesson) => lesson.type === "tutorial" && (lesson.tutorial?.videos || []).length > 1
+    )
+  );
+}
+
+function normalizeMultiVideoLessons(course) {
+  let changed = false;
+
+  for (const module of course.modules || []) {
+    const originalLessons = module.lessons || [];
+    const rebuilt = [];
+
+    for (let index = 0; index < originalLessons.length; index += 1) {
+      const lesson = originalLessons[index];
+      const videos = lesson.type === "tutorial" ? (lesson.tutorial?.videos || []) : [];
+      
+      if (videos.length <= 1) {
+        rebuilt.push(lesson);
+        continue;
+      }
+
+      changed = true;
+      const nextLesson = originalLessons[index + 1];
+      const shouldCloneLessonQuiz =
+        nextLesson?.type === "quiz" &&
+        nextLesson.quiz?.scope === "lesson";
+
+      for (let videoIndex = 0; videoIndex < videos.length; videoIndex += 1) {
+        const video = videos[videoIndex];
+        const tutorial = {
+          ...(lesson.toObject ? lesson.toObject() : { ...lesson }),
+          title:
+            videoIndex === 0
+              ? lesson.title
+              : `${lesson.title} — Part ${videoIndex + 1}`,
+          type: "tutorial",
+          tutorial: {
+            ...(lesson.tutorial?.toObject
+              ? lesson.tutorial.toObject()
+              : { ...(lesson.tutorial || {}) }),
+            videos: [video],
+            resources: video.url ? [video.url] : [],
+            resourceStatus: "ready",
+            selection: {
+              ...(lesson.tutorial?.selection?.toObject
+                ? lesson.tutorial.selection.toObject()
+                : { ...(lesson.tutorial?.selection || {}) }),
+              selectedVideoId: video.videoId,
+              selectedVideoTitle: video.title || ""
+            }
+          }
+        };
+
+        if (videoIndex > 0) delete tutorial._id;
+
+        rebuilt.push(tutorial);
+
+        if (shouldCloneLessonQuiz) {
+          const quiz = {
+            ...(nextLesson.toObject ? nextLesson.toObject() : { ...nextLesson }),
+            title:
+              videoIndex === 0
+                ? nextLesson.title || `${lesson.title} Quiz`
+                : `${lesson.title} — Part ${videoIndex + 1} Quiz`,
+            type: "quiz",
+            quiz: nextLesson.quiz?.toObject
+              ? nextLesson.quiz.toObject()
+              : { ...(nextLesson.quiz || {}) }
+          };
+
+          if (videoIndex > 0) delete quiz._id;
+          rebuilt.push(quiz);
+        }
+      }
+
+      if (shouldCloneLessonQuiz) index += 1;
+    }
+
+    rebuilt.forEach((item, itemIndex) => {
+      item.order = itemIndex + 1;
+    });
+    module.lessons = rebuilt;
+  }
+
+  return changed;
+}
+
 function totalLessons(course) {
   return course.modules.reduce((count, module) => count + module.lessons.length, 0);
 }
@@ -264,110 +372,163 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   if (category) filter.category = category;
   if (level) filter.level = level;
 
-  const standalone = search ? await getStandaloneModuleCourses(search) : {
-    courses: [],
-    sourceCourseIds: [],
-    standaloneIds: []
-  };
+  const normalizedSearch = String(search || "").trim();
 
-  if (standalone.sourceCourseIds.length || standalone.standaloneIds.length) {
-    const excludedIds = [...new Set([
-      ...standalone.sourceCourseIds,
-      ...standalone.standaloneIds
-    ])].map((id) => new mongoose.Types.ObjectId(id));
-    filter._id = { $nin: excludedIds };
+  if (normalizedSearch) {
+    const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
+    const directCandidates = directFilter
+      ? await Course.find({ ...filter, ...directFilter })
+          .select("-modules")
+          .sort({ createdAt: -1 })
+          .lean()
+      : [];
+
+    const nonModuleDirectCourses = directCandidates.filter(
+      (course) => course.generation?.mode !== "module"
+    );
+    let localCourses = nonModuleDirectCourses.slice(
+      (page - 1) * limit,
+      page * limit
+    );
+
+    if (!localCourses.length) {
+      const standalone = await getStandaloneModuleCourses(normalizedSearch, {
+        category,
+        level
+      });
+
+      localCourses = standalone.courses.slice(
+        (page - 1) * limit,
+        page * limit
+      );
+    }
+
+    let youtubeCourseRecommendations = [];
+    let youtubeError = "";
+
+    try {
+      youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(
+        normalizedSearch,
+        3
+      );
+    } catch (error) {
+      youtubeError =
+        error instanceof Error
+          ? error.message
+          : "YouTube course search is unavailable";
+      console.error("YouTube supplementary search failed", {
+        query: normalizedSearch,
+        message: youtubeError
+      });
+    }
+
+    const localTotal = nonModuleDirectCourses.length || localCourses.length;
+    const hasLocalResults = localCourses.length > 0;
+
+    return {
+      courses: localCourses,
+      pagination: {
+        page,
+        limit,
+        total: hasLocalResults ? localTotal : 0,
+        pages: hasLocalResults ? Math.ceil(localTotal / limit) : 0
+      },
+      discovery: {
+        mode: "youtube_supplementary",
+        query: normalizedSearch,
+        courseRecommendations: youtubeCourseRecommendations,
+        youtubeError,
+        hasLocalResults
+      }
+    };
   }
 
-  const searchFilter = buildCourseSearchFilter(search);
-  if (searchFilter) Object.assign(filter, searchFilter);
-
-  const standaloneCourses = standalone.courses;
-  const standaloneCount = standaloneCourses.length;
-  const skip = (page - 1) * limit;
-  const regularSkip = Math.max(skip - standaloneCount, 0);
-  const pageStandalone = standaloneCourses.slice(skip, skip + limit);
-  const regularLimit = Math.max(limit - pageStandalone.length, 0);
-
-  const fetchRegular = async () => {
-    if (regularLimit === 0 && standaloneCount > skip) {
-      return { courses: [], total: 0 };
-    }
-
-    if (sort === "popular") {
-      const [courses, total] = await Promise.all([
-        Course.aggregate([
-          { $match: filter },
-          {
-            $lookup: {
-              from: "enrollments",
-              let: { courseId: "$_id" },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $and: [
-                        { $eq: ["$course", "$$courseId"] },
-                        { $in: ["$status", ["active", "completed"]] }
-                      ]
-                    }
-                  }
-                },
-                { $count: "count" }
-              ],
-              as: "enrollmentStats"
-            }
-          },
-          {
-            $addFields: {
-              enrollmentCount: {
-                $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
-              }
-            }
-          },
-          { $project: { modules: 0, enrollmentStats: 0 } },
-          { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
-          ...(regularSkip ? [{ $skip: regularSkip }] : []),
-          ...(regularLimit ? [{ $limit: regularLimit }] : [])
-        ]),
-        Course.countDocuments(filter)
-      ]);
-
-      return { courses, total };
-    }
-
+  if (sort === "popular") {
     const [courses, total] = await Promise.all([
-      Course.find(filter)
-        .select("-modules")
-        .sort({ createdAt: -1 })
-        .skip(regularSkip)
-        .limit(regularLimit || limit)
-        .lean(),
+      Course.aggregate([
+        { $match: filter },
+        {
+          $lookup: {
+            from: "enrollments",
+            let: { courseId: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$course", "$$courseId"] },
+                      { $in: ["$status", ["active", "completed"]] }
+                    ]
+                  }
+                }
+              },
+              { $count: "count" }
+            ],
+            as: "enrollmentStats"
+          }
+        },
+        {
+          $addFields: {
+            enrollmentCount: {
+              $ifNull: [{ $arrayElemAt: ["$enrollmentStats.count", 0] }, 0]
+            }
+          }
+        },
+        { $project: { modules: 0, enrollmentStats: 0 } },
+        { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
+        { $skip: (page - 1) * limit },
+        { $limit: limit }
+      ]),
       Course.countDocuments(filter)
     ]);
 
-    return { courses, total };
-  };
+    return {
+      courses,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+    };
+  }
 
-  const regular = await fetchRegular();
-  const courses = [...pageStandalone, ...regular.courses];
-  const total = standaloneCount + regular.total;
+  const [courses, total] = await Promise.all([
+    Course.find(filter)
+      .select("-modules")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    Course.countDocuments(filter)
+  ]);
 
   return {
     courses,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit)
-    }
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
   };
 }
 export async function getPublished(courseId) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);
-  if (cached) return cached;
-  const course = await Course.findOne({ _id: courseId, isPublished: true }).lean();
-  if (course) void cacheSet(key, course, 120);
+  if (cached) {
+    if (!hasMultipleTutorialVideos(cached)) return cached;
+
+    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
+    if (!courseDoc) return null;
+    if (normalizeMultiVideoLessons(courseDoc)) {
+      await courseDoc.save();
+      await cacheDelete(key);
+    }
+    const normalized = courseDoc.toObject();
+    void cacheSet(key, normalized, 120);
+    return normalized;
+  }
+
+  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
+  if (!courseDoc) return null;
+
+  if (normalizeMultiVideoLessons(courseDoc)) {
+    await courseDoc.save();
+  }
+
+  const course = courseDoc.toObject();
+  void cacheSet(key, course, 120);
   return course;
 }
 
@@ -410,4 +571,4 @@ export function findLearningItem(course, itemId) {
   return null;
 }
 
-export { courseSummary, totalLessons };
+export { courseSummary, totalLessons, normalizeMultiVideoLessons, hasMultipleTutorialVideos };

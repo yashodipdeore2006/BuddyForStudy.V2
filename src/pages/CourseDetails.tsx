@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import ExpandableText from '@/components/ExpandableText';
 
 const levelColors: Record<string, string> = {
   Beginner: 'bg-green-50 text-green-700',
@@ -252,7 +253,11 @@ export default function CourseDetails() {
           </span>
         </div>
         <h1 className="mt-4 text-3xl font-bold sm:text-4xl">{course.title}</h1>
-        <p className="mt-3 max-w-2xl text-blue-100">{course.description}</p>
+        <ExpandableText
+          text={course.description}
+          maxLength={220}
+          className="mt-3 max-w-2xl text-blue-100"
+        />
 
         <div className="mt-6 flex flex-wrap items-center gap-6 text-sm text-blue-100">
           <span className="flex items-center gap-1.5">

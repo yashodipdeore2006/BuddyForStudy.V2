@@ -1,12 +1,13 @@
 import { useEffect, useState, useMemo, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp, Play, ExternalLink, CheckCircle2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
+import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -32,18 +33,20 @@ function mapCourse(raw: any): Course {
 }
 
 export default function Courses() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [popularCourses, setPopularCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
+  const [youtubeDiscovery, setYoutubeDiscovery] = useState<any>(null);
+  const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
+  const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
   const [popularLoading, setPopularLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [catalogQuery, setCatalogQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const { session } = useAuth();
-  const navigate = useNavigate();
-  const [aiStarting, setAiStarting] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRoadmap, setAiRoadmap] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -51,12 +54,19 @@ export default function Courses() {
   const [aiGoal, setAiGoal] = useState('Get job-ready');
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiKnownSkills, setAiKnownSkills] = useState('');
+  const [aiUsage, setAiUsage] = useState<any>(null);
+  const [aiEnrolling, setAiEnrolling] = useState(false);
+  const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
+  const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
 
   useEffect(() => {
     async function fetchCourses() {
       setLoading(true);
       try {
         setCatalogError("");
+        setYoutubeDiscovery(null);
+        setYoutubePlaylistsLoading(false);
+        setYoutubePlaylistError("");
         const params = new URLSearchParams({ page: '1', limit: '50' });
         if (selectedLevel !== 'all') params.set('level', selectedLevel);
         if (selectedCategory !== 'all') params.set('category', selectedCategory);
@@ -65,6 +75,38 @@ export default function Courses() {
         const data = await apiFetch(`/api/courses?${params.toString()}`);
         const rows = data.courses || data.items || [];
         setCourses(rows.map(mapCourse));
+
+        if (
+          data.discovery?.mode === 'youtube_fallback' ||
+          data.discovery?.mode === 'youtube_supplementary'
+        ) {
+          const discovery = data.discovery;
+          setYoutubeDiscovery(discovery);
+          setYoutubePlaylistsLoading(true);
+          setYoutubePlaylistError("");
+
+          try {
+            const playlistData = await apiFetch(
+              `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`
+            );
+            setYoutubeDiscovery({
+              ...discovery,
+              playlists: playlistData.playlists || [],
+            });
+          } catch (playlistError) {
+            setYoutubePlaylistError(
+              playlistError instanceof Error
+                ? playlistError.message
+                : "Unable to load YouTube playlists"
+            );
+          } finally {
+            setYoutubePlaylistsLoading(false);
+          }
+        } else {
+          setYoutubeDiscovery(null);
+          setYoutubePlaylistsLoading(false);
+          setYoutubePlaylistError("");
+        }
       } catch (error) {
         setCourses([]);
         setCatalogError(error instanceof Error ? error.message : "Unable to search courses");
@@ -115,6 +157,17 @@ export default function Courses() {
     setAiError(null);
   };
 
+  useEffect(() => {
+    if (!aiOpen || !session) {
+      setAiUsage(null);
+      return;
+    }
+
+    apiFetch('/api/ai/usage')
+      .then((data) => setAiUsage(data))
+      .catch(() => setAiUsage(null));
+  }, [aiOpen, session]);
+
   const generateAiRoadmap = async () => {
     const topic = searchQuery.trim();
     if (!topic) {
@@ -140,10 +193,39 @@ export default function Courses() {
         }),
       });
       setAiRoadmap(data);
+      setExpandedAiModules(new Set([0]));
+      setAiEnrollError(null);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const enrollGeneratedCourse = async () => {
+    const courseId = String(aiRoadmap?.course?._id ?? aiRoadmap?.course?.id ?? '');
+    if (!courseId || courseId === 'undefined' || courseId === 'null') {
+      setAiEnrollError('This generated course has no saved course ID. Build it again and retry.');
+      return;
+    }
+    setAiEnrolling(true);
+    setAiEnrollError(null);
+    try {
+      await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+      navigate(`/learn/${courseId}`);
+    } catch (err) {
+      try {
+        const existing = await apiFetch(`/api/enrollments/course/${courseId}`);
+        if (existing?.enrollment?.status === 'active' || existing?.enrollment?.status === 'completed') {
+          navigate(`/learn/${courseId}`);
+          return;
+        }
+      } catch {
+        // Keep the original enrollment error for display.
+      }
+      setAiEnrollError(err instanceof Error ? err.message : 'Unable to enroll in this course.');
+    } finally {
+      setAiEnrolling(false);
     }
   };
 
@@ -280,6 +362,27 @@ export default function Courses() {
 
       {aiOpen && (
         <section className="mt-5 overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-sm">
+          {aiUsage && (
+            <div className="border-b border-blue-100/80 bg-white/70 px-5 py-4 sm:px-7">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">{aiUsage.plan?.name || "Current"} plan AI allowance</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {aiUsage.features?.aiCourseBuilder ? "AI Course Builder available" : "AI Course Builder unavailable"}
+                    {" · "}
+                    {aiUsage.features?.personalizedRoadmaps ? "personalized" : "standard"}
+                    {" · "}
+                    {aiUsage.features?.projectBasedLearning ? "projects included" : "projects excluded"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? "—"}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">Quizzes/month: {aiUsage.plan?.limits?.ai_quiz_generations_per_month ?? "—"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="border-b border-blue-100/80 px-5 py-5 sm:px-7">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -367,220 +470,120 @@ export default function Courses() {
 
       {aiRoadmap?.course && (
         <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="relative overflow-hidden bg-slate-950 px-5 py-7 text-white sm:px-7 lg:px-9">
-            <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI Course Ready</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-                  {aiRoadmap.course.title || aiRoadmap.canonicalTopic}
-                </h2>
-                <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-                  {aiRoadmap.course.description}
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold">
+          <div className="border-b border-slate-100 bg-slate-950 px-5 py-6 text-white sm:px-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI-generated complete course</p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.course.title}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{aiRoadmap.course.description}</p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {aiRoadmap.course.modules?.length || 0} modules
+                    {(aiRoadmap.course.modules || []).reduce((sum: number, module: any) => sum + (module.lessons || []).length, 0)} lessons and assessments
                   </span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {aiRoadmap.course.duration || 'Self-paced'}
-                  </span>
-                  <span className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-emerald-200">
-                    Video lessons included
-                  </span>
-                  <span className="rounded-full bg-purple-500/15 px-3 py-1.5 text-purple-200">
-                    Projects included
-                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.duration || 'Self-paced'}</span>
                 </div>
               </div>
-
               <div className="flex flex-wrap items-center gap-2">
-                {aiRoadmap.course?._id && (
-                  <Link
-                    to={`/courses/${aiRoadmap.course._id}`}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/10"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    View Course
-                  </Link>
-                )}
-
-                <button
-                  type="button"
-                  disabled={aiStarting || !aiRoadmap.course?._id}
-                  onClick={async () => {
-                    const courseId = aiRoadmap.course?._id || aiRoadmap.course?.id;
-                    if (!courseId) return;
-
-                    setAiStarting(true);
-                    setAiError(null);
-
-                    try {
-                      try {
-                        await apiFetch(`/api/enrollments/course/${courseId}`);
-                      } catch {
-                        await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
-                      }
-
-                      navigate(`/learn/${courseId}`);
-                    } catch (err) {
-                      setAiError(err instanceof Error ? err.message : 'Unable to start the AI course');
-                    } finally {
-                      setAiStarting(false);
-                    }
-                  }}
-                  className="btn-primary justify-center"
-                >
-                  {aiStarting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Opening course...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4" />
-                      Start Learning
-                    </>
-                  )}
+                <button type="button" onClick={() => navigate(`/courses/${String(aiRoadmap.course._id ?? aiRoadmap.course.id)}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
+                  <ExternalLink className="h-4 w-4" /> Course details
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAiRoadmap(null)}
-                  className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
-                >
-                  Close
-                </button>
+                <button onClick={() => { setAiRoadmap(null); setAiEnrollError(null); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">Close</button>
               </div>
             </div>
           </div>
 
           {aiRoadmap.personalization && (
-            <div className="mx-5 mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:mx-7">
-              <p className="text-sm font-extrabold text-slate-900">Personalized for you</p>
+            <div className="m-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:m-7">
+              <p className="text-sm font-extrabold text-slate-900">Why this course was generated</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
-                  {aiRoadmap.personalization.studyTimeMinutesPerDay} min/day
-                </span>
-                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">
-                  Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}
-                </span>
-                {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => (
-                  <span key={skill} className="rounded-full bg-emerald-50 px-3 py-1.5 font-bold text-emerald-700">
-                    Known: {skill}
-                  </span>
-                ))}
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">{aiRoadmap.personalization.studyTimeMinutesPerDay} min/day</span>
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
+                {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>)}
               </div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">{aiRoadmap.personalization.rationale?.join(' ')}</p>
             </div>
           )}
 
-          <div className="p-5 sm:p-7">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="px-5 pb-7 sm:px-7">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="bfs-eyebrow">Actual course content</p>
-                <h3 className="mt-2 text-xl font-extrabold text-slate-950">Modules, video lessons and projects</h3>
+                <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Learning path</p>
+                <h3 className="mt-1 text-xl font-extrabold text-slate-900">Course modules and lessons</h3>
+                <p className="mt-1 text-sm text-slate-500">Expand a module to see tutorials, MCQ quizzes, projects, and assessments.</p>
               </div>
-              <p className="text-xs text-slate-500">The same content opens in the unified Course Player.</p>
+              <span className="text-xs font-semibold text-slate-500">MCQ questions are generated when you open each quiz in the course player.</span>
             </div>
 
-            <div className="mt-5 space-y-3">
+            <div className="space-y-3">
               {(aiRoadmap.course.modules || []).map((module: any, moduleIndex: number) => {
-                const tutorialLessons = (module.lessons || []).filter((lesson: any) => lesson.type === 'tutorial');
-                const projectLessons = (module.lessons || []).filter((lesson: any) => lesson.type === 'project');
-                const videoLessons = tutorialLessons.filter((lesson: any) => lesson.tutorial?.videos?.length);
-
+                const expanded = expandedAiModules.has(moduleIndex);
+                const lessons = module.lessons || [];
+                const tutorialCount = lessons.filter((lesson: any) => lesson.type === 'tutorial').length;
+                const quizCount = lessons.filter((lesson: any) => lesson.type === 'quiz').length;
+                const projectCount = lessons.filter((lesson: any) => lesson.type === 'project').length;
                 return (
-                  <div key={module.title || moduleIndex} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                    <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xs font-extrabold text-blue-700">
-                          {module.order || moduleIndex + 1}
-                        </span>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-slate-900">{module.title}</h4>
-                          <p className="mt-1 text-xs text-slate-500">{module.description}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 gap-2 text-[11px] font-bold">
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
-                          {videoLessons.length} video
-                        </span>
-                        <span className="rounded-full bg-purple-50 px-2.5 py-1 text-purple-700">
-                          {projectLessons.length} project
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="divide-y divide-slate-100">
-                      {(module.lessons || []).map((lesson: any, lessonIndex: number) => {
-                        const video = lesson.tutorial?.videos?.[0];
-
-                        return (
-                          <div key={lesson.id || lesson._id || lessonIndex} className="p-4">
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                              {video?.thumbnail ? (
-                                <img
-                                  src={video.thumbnail}
-                                  alt=""
-                                  className="aspect-video w-full shrink-0 rounded-xl object-cover sm:h-20 sm:w-32"
-                                />
-                              ) : (
-                                <div className="flex aspect-video w-full shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-400 sm:h-20 sm:w-32">
-                                  {lesson.type === 'project' ? (
-                                    <CheckCircle2 className="h-6 w-6 text-purple-400" />
-                                  ) : (
-                                    <Play className="h-6 w-6" />
-                                  )}
-                                </div>
-                              )}
-
+                  <div key={module._id || module.id || module.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                    <button type="button" onClick={() => setExpandedAiModules((previous) => {
+                      const next = new Set(previous);
+                      if (next.has(moduleIndex)) next.delete(moduleIndex);
+                      else next.add(moduleIndex);
+                      return next;
+                    })} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-slate-50" aria-expanded={expanded}>
+                      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-50 text-xs font-extrabold text-blue-700">{module.order || moduleIndex + 1}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-bold text-slate-900">{module.title}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{lessons.length} activities · {tutorialCount} tutorials · {quizCount} quizzes · {projectCount} projects</span>
+                        {module.description && <span className="mt-1 block text-xs leading-5 text-slate-500">{module.description}</span>}
+                      </span>
+                      {expanded ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-500" /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-500" />}
+                    </button>
+                    {expanded && (
+                      <div className="border-t border-slate-100">
+                        {lessons.map((lesson: any, lessonIndex: number) => {
+                          const isTutorial = lesson.type === 'tutorial';
+                          const isQuiz = lesson.type === 'quiz';
+                          const videos = lesson.tutorial?.videos || [];
+                          const questionCount = lesson.quiz?.questionCount || (lesson.quiz?.scope === 'module' ? 8 : 5);
+                          const Icon = isTutorial ? Play : isQuiz ? CircleHelp : FolderKanban;
+                          return (
+                            <div key={lesson._id || lesson.id || `${moduleIndex}-${lessonIndex}`} className="flex items-start gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0 sm:px-5">
+                              <span className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${isTutorial ? 'bg-blue-50 text-blue-600' : isQuiz ? 'bg-violet-50 text-violet-600' : 'bg-emerald-50 text-emerald-600'}`}><Icon className="h-4 w-4" /></span>
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-slate-500">
-                                    {lesson.type}
-                                  </span>
-                                  {video && (
-                                    <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
-                                      Video ready
-                                    </span>
-                                  )}
+                                <p className="text-sm font-semibold text-slate-800">{lessonIndex + 1}. {lesson.title}</p>
+                                {lesson.description && <p className="mt-1 text-xs leading-5 text-slate-500">{lesson.description}</p>}
+                                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold">
+                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">{isTutorial ? 'Tutorial' : isQuiz ? 'MCQ quiz' : 'Practical project'}</span>
+                                  {isQuiz && <span className="rounded-full bg-violet-50 px-2.5 py-1 text-violet-700">{questionCount} questions · pass {lesson.quiz?.passingScore || 70}%</span>}
+                                  {isTutorial && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">{videos.length ? `${videos.length} video resources attached` : 'Video resources load when available'}</span>}
+                                  {lesson.type === 'project' && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">Hands-on practice</span>}
                                 </div>
-
-                                <p className="mt-2 font-semibold text-slate-900">{lesson.title}</p>
-                                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                                  {lesson.description}
-                                </p>
-
-                                {video && (
-                                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
-                                    <span>{video.channelTitle || 'YouTube'}</span>
-                                    <a
-                                      href={video.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="font-semibold text-blue-600 hover:text-blue-700"
-                                    >
-                                      Open video
-                                    </a>
+                                {isTutorial && videos.length > 0 && (
+                                  <div className="mt-3 space-y-2">
+                                    {videos.slice(0, 3).map((video: any) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
                                   </div>
-                                )}
-
-                                {lesson.tutorial?.videos?.length > 1 && (
-                                  <p className="mt-2 text-[11px] font-semibold text-slate-400">
-                                    + {lesson.tutorial.videos.length - 1} additional resource{lesson.tutorial.videos.length - 1 === 1 ? '' : 's'}
-                                  </p>
                                 )}
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
+            </div>
+
+            {aiEnrollError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{aiEnrollError}</div>}
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-extrabold text-slate-900">Ready to start learning?</p>
+                <p className="mt-1 text-sm text-slate-600">Enroll to track progress, take generated MCQ quizzes, and continue learning from My Learning.</p>
+              </div>
+              <button type="button" onClick={enrollGeneratedCourse} disabled={aiEnrolling} className="btn-primary min-w-48 justify-center">
+                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Enrolling...</> : <><GraduationCap className="h-4 w-4" /> Enroll and start learning</>}
+              </button>
             </div>
           </div>
         </section>
@@ -601,24 +604,43 @@ export default function Courses() {
           </div>
 
           {loading ? (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-              ))}
-            </div>
-          ) : filteredCourses.length === 0 ? (
-            <div className="mt-5">
-              <EmptyState
-                icon={<BookOpen className="h-8 w-8" />}
-                title="No matching courses"
-                description="Try another search term or use Build with AI to create a personalized learning path."
-              />
+            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2].map((item) => (
+                  <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
+            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
+              {filteredCourses.length > 0 && (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredCourses.map((course) => (
+                    <CourseCard key={course.id} course={course} showActions />
+                  ))}
+                </div>
+              )}
+
+              {youtubeDiscovery && (
+                <YouTubeSearchFallback
+                  query={youtubeDiscovery.query}
+                  courses={youtubeDiscovery.courseRecommendations || []}
+                  playlists={youtubeDiscovery.playlists || []}
+                  loadingPlaylists={youtubePlaylistsLoading}
+                  error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}
+                  hasLocalResults={filteredCourses.length > 0}
+                />
+              )}
+
+              {filteredCourses.length === 0 && !youtubeDiscovery && (
+                <div className="py-8">
+                  <EmptyState
+                    icon={<BookOpen className="h-8 w-8" />}
+                    title="No matching courses"
+                    description="Try another search term or use Build with AI to create a personalized learning path."
+                  />
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -650,10 +672,12 @@ export default function Courses() {
               />
             </div>
           ) : (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {popularCourses.map((course) => (
-                <CourseCard key={course.id} course={course} />
-              ))}
+            <div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[72vh]">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {popularCourses.map((course) => (
+                  <CourseCard key={course.id} course={course} showActions />
+                ))}
+              </div>
             </div>
           )}
         </section>

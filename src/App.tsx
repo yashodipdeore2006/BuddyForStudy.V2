@@ -14,6 +14,7 @@ import CourseDetails from '@/pages/CourseDetails';
 import CourseRoadmap from '@/pages/CourseRoadmap';
 import Dashboard from '@/pages/Dashboard';
 import MyCourses from '@/pages/MyCourses';
+import SavedCourses from '@/pages/SavedCourses';
 import CoursePlayer from '@/pages/CoursePlayer';
 import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
@@ -31,6 +32,7 @@ import AdminCommunications from '@/pages/admin/AdminCommunications';
 import AdminSettings from '@/pages/admin/AdminSettings';
 import AdminAudit from '@/pages/admin/AdminAudit';
 import AdminCoupons from '@/pages/admin/AdminCoupons';
+import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -50,6 +52,7 @@ function App() {
     <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
     <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
+    <Route path="/saved-courses" element={<ProtectedRoute><SavedCourses /></ProtectedRoute>} />
     <Route path="/learn/:courseId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
     <Route path="/learn/:courseId/:lessonId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -59,6 +62,7 @@ function App() {
 
     <Route path="/admin/login" element={<Navigate to="/login" replace />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />
+    <Route path="/admin/analytics" element={<AdminPage><AdminAnalytics /></AdminPage>} />
     <Route path="/admin/users" element={<AdminPage><AdminUsersPro /></AdminPage>} />
     <Route path="/admin/courses" element={<AdminPage><AdminCoursesPro /></AdminPage>} />
     <Route path="/admin/plans" element={<AdminPage><AdminPlans /></AdminPage>} />

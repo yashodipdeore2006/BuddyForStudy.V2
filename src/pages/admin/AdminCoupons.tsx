@@ -117,10 +117,10 @@ export default function AdminCoupons() {
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Coupons & Promotions</h1>
           <p className="mt-2 text-slate-500">Create targeted discounts with limits, expiry and course scope.</p>
         </div>
-        <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCcw className="h-4 w-4" /> Refresh</button>
+        <button type="button" aria-label="Refresh coupons" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className="h-4 w-4" /> Refresh</button>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <section className="card mt-6 p-5">
         <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-blue-600" /><div><h2 className="font-bold">Create promotion</h2><p className="text-xs text-slate-500">Use caps and expiry dates to prevent accidental open-ended discounts.</p></div></div>
@@ -179,7 +179,7 @@ export default function AdminCoupons() {
 
       <section className="card mt-6 overflow-hidden">
         <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Active & past promotions</h2><p className="mt-1 text-xs text-slate-500">{coupons.length} coupon records</p></div>
-        {loading ? <div className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
+        {loading ? <div role="status" aria-live="polite" aria-label="Loading coupons" className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading coupons</span></div> : (
           <div className="divide-y divide-slate-100">
             {!coupons.length && <p className="p-8 text-center text-sm text-slate-500">No coupons created yet.</p>}
             {coupons.map((coupon) => (

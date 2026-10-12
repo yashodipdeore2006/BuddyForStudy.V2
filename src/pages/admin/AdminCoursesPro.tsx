@@ -512,6 +512,7 @@ export default function AdminCoursesPro() {
       <div className="card mt-6 p-4">
         <div className="flex flex-col gap-3 md:flex-row">
           <input
+            aria-label="Search courses by title or category"
             className="input-field flex-1"
             value={courseQuery}
             maxLength={100}
@@ -523,7 +524,7 @@ export default function AdminCoursesPro() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
             Search courses
           </button>
-          <button type="button" className="btn-secondary" onClick={() => { setCourseQuery(""); void load(""); }}>
+          <button type="button" aria-label="Clear course search" className="btn-secondary" onClick={() => { setCourseQuery(""); void load(""); }}>
             Clear
           </button>
         </div>
@@ -531,11 +532,11 @@ export default function AdminCoursesPro() {
 
       <div className="mt-6 space-y-4">
         {loading ? (
-          <div className="rounded-2xl bg-white p-10 text-center shadow-sm">
-            <RefreshCcw className="mx-auto animate-spin text-slate-400" />
+          <div role="status" aria-live="polite" aria-label="Loading courses" className="rounded-2xl bg-white p-10 text-center shadow-sm">
+            <RefreshCcw className="mx-auto animate-spin text-slate-400" /><span className="sr-only">Loading courses</span>
           </div>
         ) : courses.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          <div role="status" aria-live="polite" className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
             No courses found.
           </div>
         ) : (
@@ -554,16 +555,17 @@ export default function AdminCoursesPro() {
                     </div>
 
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={course.isPublished} onChange={(e) => save(course, { isPublished: e.target.checked })} />
+                      <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} onChange={(e) => save(course, { isPublished: e.target.checked })} />
                       Published
                     </label>
 
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={course.featured} onChange={(e) => save(course, { featured: e.target.checked })} />
+                      <input type="checkbox" aria-label={`Feature ${course.title}`} checked={course.featured} onChange={(e) => save(course, { featured: e.target.checked })} />
                       Featured
                     </label>
 
                     <select
+                      aria-label={`Pricing mode for ${course.title}`}
                       className="input-field w-auto"
                       value={course.pricing?.mode || "free"}
                       onChange={(e) => save(course, { pricing: { ...course.pricing, mode: e.target.value } })}

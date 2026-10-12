@@ -37,6 +37,7 @@ router.post("/announcements/send", controller.sendAnnouncement);
 
 router.get("/settings", controller.settings);
 router.put("/settings", controller.upsertSetting);
+router.delete("/settings/:settingId", controller.deleteSetting);
 
 router.get("/coupons", controller.coupons);
 router.post("/coupons", controller.createCoupon);

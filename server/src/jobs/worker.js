@@ -3,6 +3,7 @@ import { connectDatabase } from "../config/db.js";
 import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Payment } from "../models/Payment.js";
+import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -30,9 +31,15 @@ async function runMaintenance() {
         { $set: { status: "cancelled" } }
       )
     ]);
+    await resolveOperationalAlert("background-maintenance-failure");
     console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; stale payments cancelled=${payments.modifiedCount}`);
   } catch (error) {
     // Do not dump provider payloads or raw objects into logs; the message is bounded.
+    try {
+      await recordOperationalAlert({ key: "background-maintenance-failure", severity: "critical", source: "background-worker", message: `Maintenance failed: ${String(error?.message || "Unknown error").slice(0, 700)}` });
+    } catch (alertError) {
+      console.error("[worker] failed to persist operational alert", { name: alertError?.name || "Error", code: alertError?.code });
+    }
     console.error("[worker] maintenance failed", {
       name: error?.name || "Error",
       message: String(error?.message || "Unknown maintenance error").slice(0, 500),

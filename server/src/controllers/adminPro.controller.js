@@ -650,20 +650,28 @@ export async function updateCourse(req, res, next) {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
-    const before = {
-      title: course.title,
-      description: course.description,
-      category: course.category,
-      level: course.level,
-      duration: course.duration,
-      thumbnail: course.thumbnail,
-      learningOutcomes: course.learningOutcomes,
-      isPublished: course.isPublished,
-      pricing: course.pricing,
-      enrollmentEnabled: course.enrollmentEnabled,
-      certificateEnabled: course.certificateEnabled,
-      featured: course.featured
-    };
+    const summarizeCourseForAudit = (item) => ({
+      title: item.title,
+      descriptionLength: String(item.description || "").length,
+      category: item.category,
+      level: item.level,
+      duration: item.duration,
+      hasThumbnail: Boolean(item.thumbnail),
+      learningOutcomeCount: Array.isArray(item.learningOutcomes) ? item.learningOutcomes.length : 0,
+      isPublished: item.isPublished,
+      pricing: {
+        mode: item.pricing?.mode,
+        price: item.pricing?.price,
+        compareAtPrice: item.pricing?.compareAtPrice,
+        currency: item.pricing?.currency,
+        saleEnabled: item.pricing?.saleEnabled,
+        salePrice: item.pricing?.salePrice
+      },
+      enrollmentEnabled: item.enrollmentEnabled,
+      certificateEnabled: item.certificateEnabled,
+      featured: item.featured
+    });
+    const before = summarizeCourseForAudit(course);
 
     if (req.body.title !== undefined) {
       const value = String(req.body.title).trim();
@@ -693,20 +701,7 @@ export async function updateCourse(req, res, next) {
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
     await course.save();
-    await audit(req, "course.updated", "Course", course._id, before, {
-      title: course.title,
-      description: course.description,
-      category: course.category,
-      level: course.level,
-      duration: course.duration,
-      thumbnail: course.thumbnail,
-      learningOutcomes: course.learningOutcomes,
-      isPublished: course.isPublished,
-      pricing: course.pricing,
-      enrollmentEnabled: course.enrollmentEnabled,
-      certificateEnabled: course.certificateEnabled,
-      featured: course.featured
-    }, req.body.reason);
+    await audit(req, "course.updated", "Course", course._id, before, summarizeCourseForAudit(course), req.body.reason);
     return success(res, { course }, "Course controls updated");
   } catch (e) { next(e); }
 }

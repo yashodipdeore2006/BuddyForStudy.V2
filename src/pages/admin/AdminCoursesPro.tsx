@@ -514,6 +514,7 @@ export default function AdminCoursesPro() {
           <input
             className="input-field flex-1"
             value={courseQuery}
+            maxLength={100}
             onChange={(e) => setCourseQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void load()}
             placeholder="Search courses by title or category"

@@ -1053,7 +1053,7 @@ export async function createCoupon(req, res, next) {
       usageLimit: req.body.usageLimit == null ? null : Number(req.body.usageLimit), expiresAt: req.body.expiresAt || null,
       course: isValidObjectId(req.body.course) ? req.body.course : null, isActive: req.body.isActive !== false
     });
-    await audit(req, "coupon.created", "Coupon", coupon._id, null, coupon.toObject());
+    await audit(req, "coupon.created", "Coupon", coupon._id, null, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, req.body.reason);
     return success(res, { coupon }, "Coupon created", 201);
   } catch (e) { next(e); }
 }
@@ -1062,9 +1062,9 @@ export async function updateCoupon(req, res, next) {
   try {
     if (!isValidObjectId(req.params.couponId)) return failure(res, "Invalid couponId", 400);
     const coupon = await Coupon.findById(req.params.couponId); if (!coupon) return failure(res, "Coupon not found", 404);
-    const before = coupon.toObject();
+    const before = { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive };
     for (const key of ["type","value","maxDiscount","minOrderAmount","usageLimit","expiresAt","isActive"]) if (req.body[key] !== undefined) coupon[key] = req.body[key];
-    await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, coupon.toObject(), req.body.reason);
+    await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, req.body.reason);
     return success(res, { coupon }, "Coupon updated");
   } catch (e) { next(e); }
 }

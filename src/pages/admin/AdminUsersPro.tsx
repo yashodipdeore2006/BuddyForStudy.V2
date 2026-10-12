@@ -118,6 +118,7 @@ export default function AdminUsersPro() {
             <input
               className="input-field pl-10"
               value={q}
+              maxLength={100}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void load(1)}
               placeholder="Search name or email"

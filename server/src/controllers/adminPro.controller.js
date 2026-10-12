@@ -21,13 +21,21 @@ import { cacheDelete } from "../config/cache.js";
 import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
-  // Keep audit explanations bounded and plain-text; callers may pass untrusted request data.
+  // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
   const safeReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
   await AuditLog.create({
-    actor: req.user.user._id, action, targetType, targetId: String(targetId || ""), before, after, reason: safeReason,
-    ip: req.ip || "", userAgent: req.get("user-agent") || ""
+    actor: req.user.user._id,
+    action: String(action || "").slice(0, 160),
+    targetType: String(targetType || "").slice(0, 120),
+    targetId: String(targetId || "").slice(0, 200),
+    before: sanitizeAuditSnapshot(before),
+    after: sanitizeAuditSnapshot(after),
+    reason: safeReason,
+    ip: String(req.ip || "").slice(0, 100),
+    userAgent: String(req.get("user-agent") || "").slice(0, 500)
   });
 }
 

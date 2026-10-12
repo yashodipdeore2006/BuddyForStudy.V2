@@ -162,10 +162,10 @@ export default function AdminSettings() {
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Platform Settings</h1>
           <p className="mt-2 text-slate-500">Control operational configuration without a deployment, with typed values and an audit reason.</p>
         </div>
-        <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCcw className="h-4 w-4" /> Refresh</button>
+        <button type="button" aria-label="Refresh platform settings" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className="h-4 w-4" /> Refresh</button>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <section className="card mt-6 p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -211,12 +211,12 @@ export default function AdminSettings() {
             <button type="button" className="btn-primary" onClick={() => void save()} disabled={savingKey !== null}><Save className="h-4 w-4" /> {savingKey ? "Saving..." : "Save setting"}</button>
             <button type="button" className="btn-secondary" onClick={() => { setKey(""); setValue(""); setDescription(""); setIsPublic(false); setStatus(""); }}>Clear</button>
           </div>
-          {status && <p className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
+          {status && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
         </section>
 
         <section className="card overflow-hidden">
           <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Current settings</h2><p className="mt-1 text-xs text-slate-500">{settings.length} configuration entries</p></div>
-          {loading ? <div className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
+          {loading ? <div role="status" aria-live="polite" aria-label="Loading platform settings" className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading platform settings</span></div> : (
             <div className="divide-y divide-slate-100">
               {!settings.length && <p className="p-8 text-center text-sm text-slate-500">No platform settings yet.</p>}
               {settings.map((setting) => (

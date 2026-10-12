@@ -82,7 +82,7 @@ app.use(errorHandler);
 
 connectDatabase()
   .then(() => {
-    app.listen(env.port, () => {
+    app.listen(env.port, '0.0.0.0', () => {
       console.log(`BuddyForStudy API running on port ${env.port}`);
     });
   })

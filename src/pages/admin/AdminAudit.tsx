@@ -69,7 +69,7 @@ export default function AdminAudit() {
         {loading ? <div className="p-12 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">Time</th><th className="p-4">Admin</th><th className="p-4">Action</th><th className="p-4">Target</th><th className="p-4">Reason</th><th className="p-4 text-right">Details</th></tr></thead>
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500"><tr><th scope="col" className="p-4">Time</th><th scope="col" className="p-4">Admin</th><th scope="col" className="p-4">Action</th><th scope="col" className="p-4">Target</th><th scope="col" className="p-4">Reason</th><th scope="col" className="p-4 text-right">Details</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {logs.map((log) => (
                   <tr key={log._id} className="hover:bg-slate-50/70">

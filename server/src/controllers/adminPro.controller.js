@@ -509,7 +509,7 @@ export async function deleteModuleResource(req, res, next) {
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
       moduleId: String(module._id), resourceId: String(removed._id), title: removed.title
-    }, null);
+    }, null, req.body?.reason || "");
     return success(res, { course, module }, "Module resource removed");
   } catch (e) { next(e); }
 }

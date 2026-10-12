@@ -53,7 +53,7 @@ export default function AdminAudit() {
         <button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <div className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto]">

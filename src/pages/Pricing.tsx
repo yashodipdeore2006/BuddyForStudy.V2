@@ -10,7 +10,9 @@ export default function Pricing() {
   const [message, setMessage] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
 
   useEffect(() => {
-    apiFetch("/api/billing/plans").then((data) => setPlans(data.plans || [])).catch(() => setError("Unable to load plans"));
+    apiFetch("/api/billing/plans")
+      .then((data) => setPlans(data.plans || []))
+      .catch(() => setMessage({ type: "error", text: "Unable to load plans" }));
   }, []);
 
   async function subscribe(planId: string) {

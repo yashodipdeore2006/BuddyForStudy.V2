@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCcw, Save, Settings2 } from "lucide-react";
+import { RefreshCcw, Save, Settings2, Trash2 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 function formatValue(value: any) {
@@ -28,6 +28,7 @@ export default function AdminSettings() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [advancedAI, setAdvancedAI] = useState({
     questionsPerHourVideo: 10,
@@ -94,6 +95,29 @@ export default function AdminSettings() {
     }
   }
 
+  async function removeSetting(setting: any) {
+    const confirmed = window.confirm(`Delete the "${setting.key}" setting? This action cannot be undone.`);
+    if (!confirmed) return;
+    setDeletingId(setting._id);
+    setError("");
+    setStatus("");
+    try {
+      await adminFetch(`/api/admin/settings/${setting._id}`, { method: "DELETE" });
+      if (key === setting.key) {
+        setKey("");
+        setValue("");
+        setDescription("");
+        setIsPublic(false);
+        setReason("");
+      }
+      setStatus(`Setting "${setting.key}" deleted.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to delete setting");
+    } finally {
+      setDeletingId(null);
+    }
+  }
   function edit(setting: any) {
     setKey(setting.key);
     setValue(formatValue(setting.value));
@@ -196,14 +220,19 @@ export default function AdminSettings() {
             <div className="divide-y divide-slate-100">
               {!settings.length && <p className="p-8 text-center text-sm text-slate-500">No platform settings yet.</p>}
               {settings.map((setting) => (
-                <button key={setting._id} type="button" onClick={() => edit(setting)} className="block w-full p-4 text-left transition hover:bg-slate-50">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-mono text-sm font-bold text-slate-800">{setting.key}</p>
-                    <span className="badge bg-slate-100 text-slate-600">{setting.isPublic ? "Public" : "Private"}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{formatValue(setting.value)}</p>
-                  <p className="mt-1 text-xs text-slate-400">{setting.description || "No description"} · click to edit</p>
-                </button>
+                <div key={setting._id} className="flex items-start gap-2 p-4 transition hover:bg-slate-50">
+                  <button type="button" onClick={() => edit(setting)} className="min-w-0 flex-1 text-left">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-mono text-sm font-bold text-slate-800">{setting.key}</p>
+                      <span className="badge bg-slate-100 text-slate-600">{setting.isPublic ? "Public" : "Private"}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">{formatValue(setting.value)}</p>
+                    <p className="mt-1 text-xs text-slate-400">{setting.description || "No description"} · click to edit</p>
+                  </button>
+                  <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => void removeSetting(setting)} disabled={deletingId === setting._id} aria-label={`Delete ${setting.key} setting`}>
+                    <Trash2 className="h-4 w-4" /> {deletingId === setting._id ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
               ))}
             </div>
           )}

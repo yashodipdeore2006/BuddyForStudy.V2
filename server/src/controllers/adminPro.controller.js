@@ -489,7 +489,7 @@ export async function addModuleResource(req, res, next) {
       type,
       hasUrl: Boolean(resourceUrl),
       urlHost: resourceHost
-    });
+    }, req.body.reason || "");
     return success(res, { course, module, resource }, "Module resource added", 201);
   } catch (e) { next(e); }
 }

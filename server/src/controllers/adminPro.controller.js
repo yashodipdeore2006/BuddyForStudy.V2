@@ -504,11 +504,18 @@ export async function deleteModuleResource(req, res, next) {
     if (index < 0) return failure(res, "Module resource not found", 404);
 
     const removed = module.resources[index].toObject();
+    let removedResourceHost = "";
+    try { removedResourceHost = new URL(removed.url).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* Legacy resources may contain invalid URLs. */ }
     module.resources.splice(index, 1);
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
-      moduleId: String(module._id), resourceId: String(removed._id), title: removed.title
+      moduleId: String(module._id),
+      resourceId: String(removed._id),
+      title: removed.title,
+      type: removed.type,
+      hasUrl: Boolean(removed.url),
+      urlHost: removedResourceHost
     }, null, req.body?.reason || "");
     return success(res, { course, module }, "Module resource removed");
   } catch (e) { next(e); }

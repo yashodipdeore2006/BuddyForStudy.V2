@@ -78,7 +78,7 @@ export default function AdminAudit() {
                     <td className="p-4 font-mono text-xs font-bold text-slate-700">{log.action}</td>
                     <td className="p-4 text-xs text-slate-600">{log.targetType} <span className="font-mono">{log.targetId || "—"}</span></td>
                     <td className="max-w-sm p-4 text-xs text-slate-500">{log.reason || "—"}</td>
-                    <td className="p-4 text-right"><button type="button" className="btn-secondary text-xs" onClick={() => setSelected(log)}><ChevronDown className="h-4 w-4" /> Inspect</button></td>
+                    <td className="p-4 text-right"><button type="button" aria-label={`Inspect audit event: ${log.action || "unknown action"}`} className="btn-secondary text-xs" onClick={() => setSelected(log)}><ChevronDown className="h-4 w-4" /> Inspect</button></td>
                   </tr>
                 ))}
               </tbody>

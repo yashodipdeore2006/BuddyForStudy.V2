@@ -12,16 +12,18 @@ function getErrorMessage(error) {
 }
 
 export function notFound(req, res) {
-  return failure(res, `Route not found: ${req.method} ${req.originalUrl}`, 404);
+  // Use the pathname only; query strings can contain tokens or other sensitive values.
+  return failure(res, `Route not found: ${req.method} ${req.path}`, 404);
 }
 
 export function errorHandler(error, req, res, _next) {
   const message = getErrorMessage(error);
+  const isProduction = process.env.NODE_ENV === "production";
   console.error({
     method: req.method,
-    route: req.originalUrl,
-    error: message,
-    rawError: error
+    route: req.path,
+    error: isProduction ? (error?.name || "Error") : message.slice(0, 1000),
+    code: error?.code
   });
 
   if (process.env.SENTRY_DSN) {

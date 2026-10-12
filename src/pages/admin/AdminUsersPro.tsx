@@ -158,11 +158,11 @@ export default function AdminUsersPro() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-5 py-3 text-left">User</th>
-                  <th className="px-5 py-3 text-left">Access</th>
-                  <th className="px-5 py-3 text-left">Verification</th>
-                  <th className="px-5 py-3 text-left">Provider</th>
-                  <th className="px-5 py-3 text-right">Actions</th>
+                  <th scope="col" className="px-5 py-3 text-left">User</th>
+                  <th scope="col" className="px-5 py-3 text-left">Access</th>
+                  <th scope="col" className="px-5 py-3 text-left">Verification</th>
+                  <th scope="col" className="px-5 py-3 text-left">Provider</th>
+                  <th scope="col" className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -217,7 +217,7 @@ export default function AdminUsersPro() {
                     </td>
                   </tr>
                 ))}
-                {!users.length && <tr><td colSpan={5} className="p-12 text-center text-sm text-slate-500">No users match these filters.</td></tr>}
+                {!users.length && <tr><td role="status" aria-live="polite" colSpan={5} className="p-12 text-center text-sm text-slate-500">No users match these filters.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -252,11 +252,11 @@ export default function AdminUsersPro() {
 
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-950/30 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <aside className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <aside role="dialog" aria-modal="true" aria-labelledby="admin-user-detail-title" className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">User details</p>
-                <h2 className="mt-1 text-2xl font-extrabold text-slate-950">{selected.user?.name}</h2>
+                <h2 id="admin-user-detail-title" className="mt-1 text-2xl font-extrabold text-slate-950">{selected.user?.name}</h2>
                 <p className="mt-1 text-sm text-slate-500">{selected.user?.email}</p>
               </div>
               <button type="button" className="rounded-xl p-2 hover:bg-slate-100" onClick={() => setSelected(null)}><X className="h-5 w-5" /></button>

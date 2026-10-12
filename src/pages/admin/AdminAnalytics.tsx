@@ -54,20 +54,20 @@ export default function AdminAnalytics() {
           <p className="mt-2 text-slate-500">Understand learner acquisition, revenue activity, course performance and learning completion.</p>
         </div>
         <div className="flex gap-2">
-          <select className="input-field w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <select aria-label="Select analytics reporting period" className="input-field w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
             <option value={60}>Last 60 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>
+          <button type="button" aria-label="Refresh analytics" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>
         </div>
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       {loading && !data ? (
-        <div className="flex min-h-[50vh] items-center justify-center"><RefreshCcw className="animate-spin text-blue-600" /></div>
+        <div role="status" aria-live="polite" aria-label="Loading analytics" className="flex min-h-[50vh] items-center justify-center"><RefreshCcw className="animate-spin text-blue-600" /><span className="sr-only">Loading analytics</span></div>
       ) : (
         <>
           <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

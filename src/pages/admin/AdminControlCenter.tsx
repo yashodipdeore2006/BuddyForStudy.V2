@@ -107,6 +107,7 @@ export default function AdminControlCenter() {
           <p className="mt-2 text-slate-500">Monitor content, learners, revenue, operations and platform health from one place.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {loading && data && <span role="status" aria-live="polite" className="text-xs text-blue-600">Refreshing dashboard…</span>}
           {lastUpdated && <span className="text-xs text-slate-500" aria-live="polite">Updated {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
           <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading} aria-label={loading ? "Refreshing admin dashboard" : "Refresh admin dashboard"}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh

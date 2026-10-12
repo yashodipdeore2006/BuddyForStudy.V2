@@ -532,11 +532,17 @@ export async function updateCourseTutorial(req, res, next) {
       return failure(res, "lessonId or moduleId is required", 400);
     }
 
+    const summarizeLessonsForAudit = (lessons = []) => lessons.map((lesson) => ({
+      id: String(lesson._id),
+      title: lesson.title,
+      type: lesson.type,
+      videoCount: Array.isArray(lesson.tutorial?.videos) ? lesson.tutorial.videos.length : 0,
+      videoIds: (lesson.tutorial?.videos || []).map((video) => String(video.videoId || "")).filter(Boolean),
+      playlistId: lesson.tutorial?.playlistId || ""
+    }));
     const before = {
       moduleTitle: targetModule.title,
-      lessons: (targetModule.lessons || []).map((lesson) => ({
-        id: String(lesson._id), title: lesson.title, type: lesson.type, videos: lesson.tutorial?.videos || []
-      }))
+      lessons: summarizeLessonsForAudit(targetModule.lessons || [])
     };
 
     const url = new URL(resourceUrl);
@@ -620,9 +626,7 @@ export async function updateCourseTutorial(req, res, next) {
       "Course",
       course._id,
       before,
-      { moduleTitle: targetModule.title, lessons: targetModule.lessons.map((lesson) => ({
-        id: String(lesson._id), title: lesson.title, type: lesson.type, videos: lesson.tutorial?.videos || []
-      })) },
+      { moduleTitle: targetModule.title, lessons: summarizeLessonsForAudit(targetModule.lessons || []) },
       req.body.reason || ""
     );
 

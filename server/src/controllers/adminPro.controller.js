@@ -960,6 +960,22 @@ export async function settings(req, res, next) {
   catch (e) { next(e); }
 }
 
+export async function deleteSetting(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.settingId)) return failure(res, "Invalid settingId", 400);
+    const setting = await PlatformSetting.findById(req.params.settingId);
+    if (!setting) return failure(res, "Setting not found", 404);
+
+    const metadata = {
+      key: setting.key,
+      valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
+      isPublic: setting.isPublic
+    };
+    await setting.deleteOne();
+    await audit(req, "setting.deleted", "PlatformSetting", setting._id, metadata, null, req.body?.reason || "");
+    return success(res, { deleted: true, key: setting.key }, "Setting deleted");
+  } catch (e) { next(e); }
+}
 export async function upsertSetting(req, res, next) {
   try {
     if (!req.body.key) return failure(res, "key is required", 400);

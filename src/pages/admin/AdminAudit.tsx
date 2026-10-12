@@ -66,7 +66,7 @@ export default function AdminAudit() {
       </div>
 
       <div className="card mt-6 overflow-hidden">
-        {loading ? <div className="p-12 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
+        {loading ? <div role="status" aria-live="polite" aria-label="Loading audit events" className="p-12 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading audit events</span></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500"><tr><th scope="col" className="p-4">Time</th><th scope="col" className="p-4">Admin</th><th scope="col" className="p-4">Action</th><th scope="col" className="p-4">Target</th><th scope="col" className="p-4">Reason</th><th scope="col" className="p-4 text-right">Details</th></tr></thead>

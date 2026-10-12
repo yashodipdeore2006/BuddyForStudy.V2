@@ -21,6 +21,10 @@ import { cacheDelete } from "../config/cache.js";
 import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {");
+}
+
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Keep audit explanations bounded and plain-text; callers may pass untrusted request data.
   const safeReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
@@ -102,9 +106,12 @@ export async function overview(req, res, next) {
 export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
-    const q = String(req.query.q || "").trim();
+    const q = String(req.query.q || "").trim().slice(0, 100);
     const filter = {};
-    if (q) filter.$or = [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }];
+    if (q) {
+      const searchPattern = new RegExp(escapeRegex(q), "i");
+      filter.$or = [{ name: searchPattern }, { email: searchPattern }];
+    }
     if (req.query.status === "active") filter.isActive = true;
     if (req.query.status === "disabled") filter.isActive = false;
     if (req.query.role === "admin" || req.query.role === "user") filter.role = req.query.role;
@@ -151,8 +158,9 @@ export async function updateUser(req, res, next) {
 
 export async function courses(req, res, next) {
   try {
-    const q = String(req.query.q || "").trim();
-    const filter = q ? { $or: [{ title: new RegExp(q, "i") }, { category: new RegExp(q, "i") }] } : {};
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const searchPattern = q ? new RegExp(escapeRegex(q), "i") : null;
+    const filter = searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {};
     const courses = await Course.find(filter).select("title slug category level isPublished pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt").sort({ createdAt: -1 }).lean();
     return success(res, { courses });
   } catch (e) { next(e); }

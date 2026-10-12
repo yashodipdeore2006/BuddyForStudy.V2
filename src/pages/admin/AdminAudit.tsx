@@ -30,6 +30,15 @@ export default function AdminAudit() {
 
   useEffect(() => { void load(); }, []);
 
+  useEffect(() => {
+    if (!selected) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelected(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selected]);
+
   const actions = useMemo(() => [...new Set(logs.map((log) => log.action).filter(Boolean))].sort(), [logs]);
   const targets = useMemo(() => [...new Set(logs.map((log) => log.targetType).filter(Boolean))].sort(), [logs]);
 

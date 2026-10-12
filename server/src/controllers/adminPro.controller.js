@@ -22,7 +22,7 @@ import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {

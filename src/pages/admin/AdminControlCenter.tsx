@@ -23,18 +23,31 @@ export default function AdminControlCenter() {
   const [data, setData] = useState<any>(null);
   const [health, setHealth] = useState<any>(null);
   const [error, setError] = useState("");
+  const [healthError, setHealthError] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const [overview, healthData] = await Promise.all([
+      const [overviewResult, healthResult] = await Promise.allSettled([
         adminFetch("/api/admin/overview"),
         adminFetch("/api/admin/health"),
       ]);
-      setData(overview);
-      setHealth(healthData);
+
+      if (overviewResult.status === "rejected") {
+        throw overviewResult.reason;
+      }
+
+      setData(overviewResult.value);
+
+      if (healthResult.status === "fulfilled") {
+        setHealth(healthResult.value);
+        setHealthError("");
+      } else {
+        setHealth(null);
+        setHealthError("System health information is temporarily unavailable.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load admin dashboard");
     } finally {
@@ -128,7 +141,9 @@ export default function AdminControlCenter() {
         <section className="card overflow-hidden">
           <div className="border-b border-slate-100 p-5"><h2 className="font-bold text-slate-900">System health</h2><p className="mt-1 text-xs text-slate-500">Operational signals that need attention.</p></div>
           <div className="divide-y divide-slate-100">
-            {checks.map((item) => (
+            {healthError ? (
+              <p className="p-4 text-sm text-amber-700">{healthError} Other dashboard data remains available.</p>
+            ) : checks.map((item) => (
               <div key={item.label} className="flex items-center gap-3 p-4">
                 {item.ok ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : <XCircle className="h-5 w-5 text-red-500" />}
                 <div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-800">{item.label}</p><p className="text-xs text-slate-500">{item.value}</p></div>

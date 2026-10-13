@@ -23,7 +23,7 @@ test("paid course needs a positive price and quizzes need valid prompts and answ
   const result = evaluateCourseReadiness({
     title: "Paid course", description: "Description", category: "Development", duration: "4 weeks",
     learningOutcomes: ["Outcome"], pricing: { mode: "paid", price: 0 },
-    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is JS?", options: ["A", "B"] }] } }] }]
+    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is JS?", options: [{ id: "a", text: "A" }, { id: "b", text: "B" }] }] } }] }]
   });
   assert.ok(result.failedChecks.some((check) => check.key === "paidPrice"));
   assert.ok(result.failedChecks.some((check) => check.key === "quizContent"));
@@ -47,7 +47,7 @@ test("quiz with prompt and multiple answer choices passes curriculum validation"
   const result = evaluateCourseReadiness({
     title: "Course", description: "Description", category: "Development", duration: "4 weeks",
     learningOutcomes: ["Outcome"], pricing: { mode: "free" },
-    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is 2 + 2?", options: ["3", "4"], correctAnswer: "4" }] } }] }]
+    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is 2 + 2?", options: [{ id: "three", text: "3" }, { id: "four", text: "4" }], correctOptionId: "four" }] } }] }]
   });
   assert.equal(result.failedChecks.some((check) => check.key === "quizContent"), false);
 });

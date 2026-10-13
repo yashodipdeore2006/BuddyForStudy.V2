@@ -79,32 +79,32 @@ export default function SavedCourses() {
             return (
               <div
                 key={saved._id}
-                className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+                className="bfs-course-card group flex h-full min-h-[438px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)]"
               >
-                <Link to={`/courses/${course._id}`} className="relative h-48 overflow-hidden bg-slate-100">
+                <Link to={`/courses/${course._id}`} className="relative h-[138px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
                   {course.thumbnail ? (
-                    <img src={course.thumbnail} alt="" className="h-full w-full object-cover" />
+                    <img src={course.thumbnail} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
                   ) : (
-                    <div className="flex h-full items-center justify-center">
+                    <div className="flex h-full items-center justify-center text-white">
                       <BookOpen className="h-12 w-12 text-slate-300" />
                     </div>
                   )}
                 </Link>
 
-                <div className="flex flex-1 flex-col p-5">
+                <div className="flex flex-1 flex-col p-4">
                   <span className="text-[11px] font-bold uppercase tracking-[.14em] text-blue-600">
                     {course.category}
                   </span>
                   <Link to={`/courses/${course._id}`}>
-                    <h3 className="mt-2 line-clamp-2 text-lg font-extrabold text-slate-900 hover:text-blue-600">
+                    <h3 className="mt-2 line-clamp-2 min-h-[2.65rem] text-[15px] font-extrabold leading-[1.32] tracking-[-.02em] text-slate-900 hover:text-blue-700">
                       {course.title}
                     </h3>
                   </Link>
-                  <p className="mt-2 line-clamp-3 flex-1 text-sm leading-6 text-slate-500">
+                  <p className="mt-2 line-clamp-2 min-h-[2.5rem] flex-1 text-xs leading-5 text-slate-500">
                     {course.description}
                   </p>
 
-                  <div className="mt-4 flex items-center gap-3 text-xs text-slate-500">
+                  <div className="mt-3 flex min-h-[42px] items-center gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
                     <span>{course.level}</span>
                     {course.duration && (
                       <span className="flex items-center gap-1">
@@ -114,7 +114,7 @@ export default function SavedCourses() {
                     )}
                   </div>
 
-                  <div className="mt-5 grid grid-cols-[1fr_auto] gap-2">
+                  <div className="mt-auto grid grid-cols-[1fr_auto] gap-2 pt-3">
                     <Link to={`/courses/${course._id}`} className="btn-primary justify-center">
                       Open Course
                       <ArrowRight className="h-4 w-4" />

@@ -25,6 +25,7 @@ import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
+import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -446,13 +447,13 @@ export async function addCourseLesson(req, res, next) {
     const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
     if (!module) return failure(res, "Course module not found", 404);
 
-    const title = String(req.body.title || "").trim();
-    const type = ["tutorial", "project", "quiz"].includes(req.body.type) ? req.body.type : "tutorial";
-    if (!title) return failure(res, "Learning item title is required", 400);
+    const lessonValidation = validateNewLessonInput(req.body);
+    if (!lessonValidation.valid) return failure(res, lessonValidation.error, 400);
+    const { title, type } = lessonValidation.value;
 
     const lessonInput = {
       title,
-      description: String(req.body.description || "").trim(),
+      description: lessonValidation.value.description,
       type,
       order: (module.lessons || []).length + 1
     };

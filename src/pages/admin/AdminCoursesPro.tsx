@@ -596,7 +596,7 @@ export default function AdminCoursesPro() {
                       {readinessLoading[course._id] ? "Checking…" : "Readiness"}
                     </button>
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} onChange={(e) => e.target.checked ? void publishCourse(course) : void save(course, { isPublished: false })} />
+                      <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} disabled={Boolean(readinessLoading[course._id])} onChange={(e) => e.target.checked ? void publishCourse(course) : void save(course, { isPublished: false })} />
                       Published
                     </label>
 

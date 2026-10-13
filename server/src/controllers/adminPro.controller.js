@@ -23,6 +23,7 @@ import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -187,14 +188,15 @@ export async function publishCourse(req, res, next) {
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
 
-    const readiness = evaluateCourseReadiness(course);
-    if (!readiness.ready) {
+    const blockedReadiness = getCoursePublishBlock(course, Boolean(course.isPublished));
+    if (blockedReadiness) {
       return res.status(409).json({
         success: false,
         message: "Course is not ready to publish. Resolve the failed readiness checks first.",
-        readiness
+        readiness: blockedReadiness
       });
     }
+    const readiness = evaluateCourseReadiness(course);
     if (course.isPublished) return success(res, { course, readiness }, "Course is already published");
 
     const before = { isPublished: course.isPublished };
@@ -743,8 +745,8 @@ export async function updateCourse(req, res, next) {
 
     // Prevent the legacy generic update endpoint from bypassing the publishing preflight.
     if (req.body.isPublished === true && !course.isPublished) {
-      const readiness = evaluateCourseReadiness(course);
-      if (!readiness.ready) {
+      const readiness = getCoursePublishBlock(course, Boolean(course.isPublished));
+      if (readiness) {
         return res.status(409).json({
           success: false,
           message: "Course is not ready to publish. Resolve the failed readiness checks first.",

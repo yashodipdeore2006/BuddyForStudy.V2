@@ -5,10 +5,16 @@ function hasUsableQuiz(lesson) {
   return Array.isArray(questions) && questions.length > 0 && questions.every((question) => {
     if (!hasText(question?.question || question?.text || question?.title)) return false;
     const options = question?.options;
-    if (Array.isArray(options) && options.length > 0) {
-      return options.filter((option) => hasText(typeof option === "string" ? option : option?.text || option?.label)).length >= 2;
+    if (!Array.isArray(options) || options.length < 2) return false;
+    const usableOptions = options.filter((option) => hasText(typeof option === "string" ? option : option?.text || option?.label));
+    if (usableOptions.length < 2) return false;
+    const answerKey = question?.correctOptionId ?? question?.correctAnswer ?? question?.answer ?? question?.correctOption;
+    if (answerKey === undefined || answerKey === null || answerKey === "") return false;
+    if (Array.isArray(options) && options.some((option) => option && typeof option === "object" && option.id !== undefined)) {
+      return options.some((option) => String(option.id) === String(answerKey));
     }
-    return hasText(question?.answer) || hasText(question?.correctAnswer) || question?.correctOption !== undefined;
+    if (typeof answerKey === "number") return answerKey >= 0 && answerKey < options.length;
+    return options.some((option) => String(typeof option === "string" ? option : option?.text || option?.label) === String(answerKey));
   });
 }
 

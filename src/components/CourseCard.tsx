@@ -87,10 +87,10 @@ export default function CourseCard({
   };
 
   return (
-    <article className="bfs-course-card group flex h-full min-h-[438px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)] focus-within:ring-2 focus-within:ring-blue-500/20">
+    <article className="bfs-course-card group flex h-full min-h-[400px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)] focus-within:ring-2 focus-within:ring-blue-500/20">
       <Link
         to={"/courses/" + course.id}
-        className="bfs-course-card__media relative block h-[138px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        className="bfs-course-card__media relative block h-[120px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
         aria-label={`Explore ${course.title}`}
       >
         {course.thumbnail ? (
@@ -120,7 +120,7 @@ export default function CourseCard({
         </span>
       </Link>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-3.5">
         <div className="flex min-h-5 items-center justify-between gap-2">
           <span className="truncate text-[10px] font-extrabold uppercase tracking-[.16em] text-blue-600" title={course.category}>
             {course.category || 'Learning path'}
@@ -135,17 +135,17 @@ export default function CourseCard({
           )}
         </div>
 
-        <Link to={"/courses/" + course.id} className="mt-2 block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+        <Link to={"/courses/" + course.id} className="mt-1.5 block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
           <h3 className="line-clamp-2 min-h-[2.65rem] text-[15px] font-extrabold leading-[1.32] tracking-[-.02em] text-slate-900 transition-colors group-hover:text-blue-700">
             {course.title}
           </h3>
         </Link>
 
-        <p className="mt-2 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-slate-500">
+        <p className="mt-1.5 line-clamp-2 min-h-[2.4rem] text-xs leading-[1.2rem] text-slate-500">
           {course.description || 'Build practical skills with this structured learning experience.'}
         </p>
 
-        <div className="mt-3 flex min-h-[42px] items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <div className="mt-2.5 flex min-h-[38px] items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-medium text-slate-500">
             {lessonCount !== null && (
               <span className="inline-flex items-center gap-1.5" title="Lessons">
@@ -184,7 +184,7 @@ export default function CourseCard({
         )}
 
         {showActions && (
-          <div className="mt-auto pt-3">
+          <div className="mt-auto pt-2.5">
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -192,7 +192,7 @@ export default function CourseCard({
                 disabled={saving || saved}
                 aria-label={saved ? 'Course saved' : 'Save course'}
                 className={classNames(
-                  'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default',
+                  'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default',
                   saved
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60',
@@ -214,7 +214,7 @@ export default function CourseCard({
             {actionError && <p role="alert" className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
             <Link
               to={"/courses/" + course.id}
-              className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="mt-1.5 inline-flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               <PlayCircle className="h-4 w-4" /> Preview course
             </Link>

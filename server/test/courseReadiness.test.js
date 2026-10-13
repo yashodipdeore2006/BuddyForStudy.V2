@@ -51,3 +51,22 @@ test("quiz with prompt and multiple answer choices passes curriculum validation"
   });
   assert.equal(result.failedChecks.some((check) => check.key === "quizContent"), false);
 });
+
+test("project objectives and learning outcomes require at least one non-empty item", () => {
+  const valid = evaluateCourseReadiness({
+    title: "Course", description: "Description", category: "Development", duration: "4 weeks",
+    learningOutcomes: ["  ", "Ship a project"], pricing: { mode: "free" },
+    modules: [{ title: "Module", lessons: [{ title: "Project", type: "project", project: { objectives: ["  ", "Build an API"] } }] }]
+  });
+  assert.equal(valid.failedChecks.some((check) => check.key === "outcomes"), false);
+  assert.equal(valid.failedChecks.some((check) => check.key === "projectContent"), false);
+});
+
+test("blank tutorial resource and empty video placeholders do not satisfy readiness", () => {
+  const result = evaluateCourseReadiness({
+    title: "Course", description: "Description", category: "Development", duration: "4 weeks",
+    learningOutcomes: ["Outcome"], pricing: { mode: "free" },
+    modules: [{ title: "Module", lessons: [{ title: "Tutorial", type: "tutorial", tutorial: { resources: ["  "], videos: [{}] } }] }]
+  });
+  assert.ok(result.failedChecks.some((check) => check.key === "tutorialContent"));
+});

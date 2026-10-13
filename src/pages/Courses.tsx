@@ -6,7 +6,7 @@ import type { Course, CourseLevel } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];

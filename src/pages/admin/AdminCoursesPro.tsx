@@ -123,6 +123,26 @@ export default function AdminCoursesPro() {
     await load();
   }
 
+  async function publishCourse(c: any) {
+    setReadinessLoading(current => ({ ...current, [c._id]: true }));
+    try {
+      const check = await adminFetch("/api/admin/courses/" + c._id + "/readiness");
+      setReadinessResults(current => ({ ...current, [c._id]: check.readiness }));
+      if (!check.readiness?.ready) return;
+      await adminFetch("/api/admin/courses/" + c._id + "/publish", {
+        method: "POST",
+        body: JSON.stringify({ reason: "Admin published after readiness preflight" }),
+      });
+      await load();
+    } catch (error) {
+      const readiness = (error as any)?.readiness;
+      if (readiness) setReadinessResults(current => ({ ...current, [c._id]: readiness }));
+      else setReadinessResults(current => ({ ...current, [c._id]: { error: error instanceof Error ? error.message : "Unable to publish course" } }));
+    } finally {
+      setReadinessLoading(current => ({ ...current, [c._id]: false }));
+    }
+  }
+
   async function openEditor(courseId: string) {
     if (openCourseId === courseId) {
       setOpenCourseId(null);
@@ -576,7 +596,7 @@ export default function AdminCoursesPro() {
                       {readinessLoading[course._id] ? "Checking…" : "Readiness"}
                     </button>
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} onChange={(e) => save(course, { isPublished: e.target.checked })} />
+                      <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} onChange={(e) => e.target.checked ? void publishCourse(course) : void save(course, { isPublished: false })} />
                       Published
                     </label>
 

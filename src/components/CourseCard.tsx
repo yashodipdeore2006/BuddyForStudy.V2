@@ -87,8 +87,8 @@ export default function CourseCard({
   };
 
   return (
-    <article className="group flex min-h-[420px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_30px_rgba(13,18,32,.045)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_24px_60px_rgba(13,18,32,.10)]">
-      <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600">
+    <article className="group flex h-full min-h-[440px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(13,18,32,.035)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_18px_40px_rgba(13,18,32,.09)]">
+      <div className="relative h-36 shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 sm:h-36">
         {course.thumbnail ? (
           <img
             src={course.thumbnail}
@@ -104,7 +104,7 @@ export default function CourseCard({
           </>
         )}
 
-        <div className="absolute left-4 top-4">
+        <div className="absolute left-3 top-3">
           <span
             className={classNames(
               'badge backdrop-blur',
@@ -116,20 +116,20 @@ export default function CourseCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-5">
+      <div className="flex flex-1 flex-col p-4">
         <span className="text-[11px] font-bold uppercase tracking-[.14em] text-blue-600">
           {course.category}
         </span>
 
-        <h3 className="mt-2 line-clamp-2 text-lg font-extrabold tracking-tight text-slate-900 transition-colors group-hover:text-blue-600">
+        <h3 className="mt-2 line-clamp-3 text-base font-bold leading-[1.3] tracking-tight text-slate-900 transition-colors group-hover:text-blue-600">
           {course.title}
         </h3>
 
-        <p className="mt-2 line-clamp-2 flex-1 text-sm leading-6 text-slate-500">
+        <p className="mt-2 line-clamp-2 flex-1 text-xs leading-5 text-slate-500">
           {course.description}
         </p>
 
-        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             {lessonCount !== null && (
               <span className="flex items-center gap-1">

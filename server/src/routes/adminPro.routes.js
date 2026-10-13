@@ -14,6 +14,7 @@ router.put("/users/:userId", controller.updateUser);
 router.get("/courses", controller.courses);
 router.get("/courses/:courseId", controller.courseDetail);
 router.get("/courses/:courseId/readiness", controller.courseReadiness);
+router.post("/courses/:courseId/publish", controller.publishCourse);
 router.put("/courses/:courseId", controller.updateCourse);
 router.put("/courses/:courseId/tutorial", controller.updateCourseTutorial);
 

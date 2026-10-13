@@ -27,6 +27,7 @@ import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
+import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -923,6 +924,8 @@ export async function plans(req, res, next) {
 
 export async function createPlan(req, res, next) {
   try {
+    const validation = validateSubscriptionPlanAdminInput({ ...req.body, billingInterval: req.body.billingInterval || "monthly", currency: req.body.currency || "INR" });
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
     const plan = await SubscriptionPlan.create({
       name: req.body.name, slug: req.body.slug, description: req.body.description || "", price: Number(req.body.price) || 0,
       currency: req.body.currency || "INR", billingInterval: req.body.billingInterval || "monthly",
@@ -952,6 +955,12 @@ export async function updatePlan(req, res, next) {
   try {
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
+    const validation = validateSubscriptionPlanAdminInput(req.body, {
+      name: plan.name, slug: plan.slug, price: plan.price, currency: plan.currency,
+      billingInterval: plan.billingInterval, trialDays: plan.trialDays, sortOrder: plan.sortOrder,
+      isActive: plan.isActive, isPopular: plan.isPopular
+    });
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
     const before = {
       name: plan.name,
       slug: plan.slug,

@@ -19,12 +19,35 @@ test("course readiness passes when required metadata and learning content exist"
   assert.equal(result.failedChecks.length, 0);
 });
 
-test("paid course needs a positive price and quizzes need questions", () => {
+test("paid course needs a positive price and quizzes need valid prompts and answers", () => {
   const result = evaluateCourseReadiness({
     title: "Paid course", description: "Description", category: "Development", duration: "4 weeks",
     learningOutcomes: ["Outcome"], pricing: { mode: "paid", price: 0 },
-    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [] } }] }]
+    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is JS?", options: ["A", "B"] }] } }] }]
   });
   assert.ok(result.failedChecks.some((check) => check.key === "paidPrice"));
   assert.ok(result.failedChecks.some((check) => check.key === "quizContent"));
+});
+
+test("curriculum readiness catches untitled modules, unsupported lesson types and empty projects", () => {
+  const result = evaluateCourseReadiness({
+    title: "Course", description: "Description", category: "Development", duration: "4 weeks",
+    learningOutcomes: ["Outcome"], pricing: { mode: "free" },
+    modules: [{ title: " ", lessons: [
+      { title: "Mystery", type: "unknown" },
+      { title: "Build project", type: "project", project: {} }
+    ] }]
+  });
+  assert.ok(result.failedChecks.some((check) => check.key === "moduleTitles"));
+  assert.ok(result.failedChecks.some((check) => check.key === "lessonTypes"));
+  assert.ok(result.failedChecks.some((check) => check.key === "projectContent"));
+});
+
+test("quiz with prompt and multiple answer choices passes curriculum validation", () => {
+  const result = evaluateCourseReadiness({
+    title: "Course", description: "Description", category: "Development", duration: "4 weeks",
+    learningOutcomes: ["Outcome"], pricing: { mode: "free" },
+    modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is 2 + 2?", options: ["3", "4"], correctAnswer: "4" }] } }] }]
+  });
+  assert.equal(result.failedChecks.some((check) => check.key === "quizContent"), false);
 });

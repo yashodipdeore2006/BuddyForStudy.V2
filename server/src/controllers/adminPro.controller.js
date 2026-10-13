@@ -26,6 +26,7 @@ import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
+import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -1154,6 +1155,9 @@ export async function coupons(req, res, next) {
 
 export async function createCoupon(req, res, next) {
   try {
+    const couponInput = { ...req.body, type: req.body.type || "percentage" };
+    const validation = validateCouponAdminInput(couponInput);
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon contains invalid fields", errors: validation.errors });
     const coupon = await Coupon.create({
       code: req.body.code, type: req.body.type || "percentage", value: Number(req.body.value) || 0,
       maxDiscount: req.body.maxDiscount == null ? null : Number(req.body.maxDiscount), minOrderAmount: Number(req.body.minOrderAmount) || 0,
@@ -1169,6 +1173,12 @@ export async function updateCoupon(req, res, next) {
   try {
     if (!isValidObjectId(req.params.couponId)) return failure(res, "Invalid couponId", 400);
     const coupon = await Coupon.findById(req.params.couponId); if (!coupon) return failure(res, "Coupon not found", 404);
+    const validation = validateCouponAdminInput(req.body, {
+      code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount,
+      minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt,
+      isActive: coupon.isActive
+    });
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon contains invalid fields", errors: validation.errors });
     const before = { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive };
     for (const key of ["type","value","maxDiscount","minOrderAmount","usageLimit","expiresAt","isActive"]) if (req.body[key] !== undefined) coupon[key] = req.body[key];
     await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, req.body.reason);

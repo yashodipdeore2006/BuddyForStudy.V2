@@ -1,4 +1,5 @@
 const hasText = (value) => typeof value === "string" && value.trim().length > 0;
+const hasTextList = (value) => Array.isArray(value) && value.some(hasText);
 
 function hasUsableQuiz(lesson) {
   const questions = lesson?.quiz?.questions;
@@ -10,7 +11,7 @@ function hasUsableQuiz(lesson) {
     if (usableOptions.length < 2) return false;
     const answerKey = question?.correctOptionId ?? question?.correctAnswer ?? question?.answer ?? question?.correctOption;
     if (answerKey === undefined || answerKey === null || answerKey === "") return false;
-    if (Array.isArray(options) && options.some((option) => option && typeof option === "object" && option.id !== undefined)) {
+    if (options.some((option) => option && typeof option === "object" && option.id !== undefined)) {
       return options.some((option) => String(option.id) === String(answerKey));
     }
     if (typeof answerKey === "number") return answerKey >= 0 && answerKey < options.length;
@@ -23,11 +24,20 @@ function hasUsableProject(lesson) {
   return Boolean(
     hasText(project?.instructions) ||
     hasText(project?.description) ||
-    hasText(project?.objectives) ||
+    hasTextList(project?.objectives) ||
     hasText(project?.expectedOutcome) ||
     hasText(lesson?.description) ||
     hasText(lesson?.content)
   );
+}
+
+function hasUsableTutorial(lesson) {
+  const tutorial = lesson?.tutorial;
+  const hasResource = Array.isArray(tutorial?.resources) && tutorial.resources.some(hasText);
+  const hasVideo = Array.isArray(tutorial?.videos) && tutorial.videos.some((video) =>
+    hasText(video?.url) || hasText(video?.videoId) || hasText(video?.title)
+  );
+  return hasText(tutorial?.content) || hasResource || hasVideo;
 }
 
 export function evaluateCourseReadiness(course) {
@@ -36,14 +46,14 @@ export function evaluateCourseReadiness(course) {
   const invalidModuleTitles = modules.filter((module) => !hasText(module?.title));
   const invalidLessonTypes = lessons.filter((lesson) => !["tutorial", "project", "quiz"].includes(lesson?.type));
   const invalidQuizzes = lessons.filter((lesson) => lesson?.type === "quiz" && !hasUsableQuiz(lesson));
-  const emptyTutorials = lessons.filter((lesson) => lesson?.type === "tutorial" && !(lesson?.tutorial?.videos?.length || lesson?.tutorial?.resources?.length || hasText(lesson?.tutorial?.content)));
+  const emptyTutorials = lessons.filter((lesson) => lesson?.type === "tutorial" && !hasUsableTutorial(lesson));
   const emptyProjects = lessons.filter((lesson) => lesson?.type === "project" && !hasUsableProject(lesson));
   const checks = [
     { key: "title", label: "Course title", passed: hasText(course?.title) },
     { key: "description", label: "Course description", passed: hasText(course?.description) },
     { key: "category", label: "Course category", passed: hasText(course?.category) },
     { key: "duration", label: "Estimated duration", passed: hasText(course?.duration) },
-    { key: "outcomes", label: "Learning outcomes", passed: Array.isArray(course?.learningOutcomes) && course.learningOutcomes.some(hasText) },
+    { key: "outcomes", label: "Learning outcomes", passed: hasTextList(course?.learningOutcomes) },
     { key: "modules", label: "At least one module", passed: modules.length > 0 },
     { key: "moduleTitles", label: "All modules have titles", passed: invalidModuleTitles.length === 0 },
     { key: "lessons", label: "At least one learning item", passed: lessons.length > 0 },

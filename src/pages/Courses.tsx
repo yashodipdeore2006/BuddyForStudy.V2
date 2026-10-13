@@ -68,23 +68,24 @@ export default function Courses() {
         const allRows: any[] = [];
         let page = 1;
         let batch: any[] = [];
+        let lastResponse: any = null;
         do {
           const params = new URLSearchParams({ page: String(page), limit: '50' });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          const data = await apiFetch(`/api/courses?${params.toString()}`);
-          batch = data.courses || data.items || [];
+          lastResponse = await apiFetch(`/api/courses?${params.toString()}`);
+          batch = lastResponse.courses || lastResponse.items || [];
           allRows.push(...batch);
           page += 1;
         } while (batch.length === 50 && page <= 200);
         setCourses(allRows.map(mapCourse));
 
         if (
-          data.discovery?.mode === 'youtube_fallback' ||
-          data.discovery?.mode === 'youtube_supplementary'
+          lastResponse?.discovery?.mode === 'youtube_fallback' ||
+          lastResponse?.discovery?.mode === 'youtube_supplementary'
         ) {
-          const discovery = data.discovery;
+          const discovery = lastResponse.discovery;
           setYoutubeDiscovery(discovery);
           setYoutubePlaylistsLoading(true);
           setYoutubePlaylistError("");

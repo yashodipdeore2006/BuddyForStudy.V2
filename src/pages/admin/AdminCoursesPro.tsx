@@ -88,6 +88,8 @@ export default function AdminCoursesPro() {
   const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
   const [learningItemForms, setLearningItemForms] = useState<Record<string, LearningItemForm>>({});
   const [courseQuery, setCourseQuery] = useState("");
+  const [readinessResults, setReadinessResults] = useState<Record<string, any>>({});
+  const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
 
   async function load(query = courseQuery) {
     setLoading(true);
@@ -104,6 +106,15 @@ export default function AdminCoursesPro() {
     void load();
   }, []);
 
+  async function checkReadiness(courseId: string) {
+    setReadinessLoading(current => ({ ...current, [courseId]: true }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId + "/readiness");
+      setReadinessResults(current => ({ ...current, [courseId]: data.readiness }));
+    } catch (error) {
+      setReadinessResults(current => ({ ...current, [courseId]: { error: error instanceof Error ? error.message : "Unable to check readiness" } }));
+    } finally { setReadinessLoading(current => ({ ...current, [courseId]: false })); }
+  }
   async function save(c: any, patch: any) {
     await adminFetch(`/api/admin/courses/${c._id}`, {
       method: "PUT",
@@ -548,12 +559,22 @@ export default function AdminCoursesPro() {
             return (
               <div key={course._id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="p-5">
+                  {readinessResults[course._id] && <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    {readinessResults[course._id].error ? <p role="alert" className="text-sm text-red-700">{readinessResults[course._id].error}</p> : <>
+                      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{readinessResults[course._id].ready ? "Ready for publishing review" : "Publishing checklist needs attention"}</p><span className="text-xs text-slate-500">{readinessResults[course._id].passedCount}/{readinessResults[course._id].totalChecks} checks passed</span></div>
+                      {readinessResults[course._id].failedChecks.length > 0 && <ul className="mt-2 list-disc pl-5 text-xs text-slate-600">{readinessResults[course._id].failedChecks.map((check: any) => <li key={check.key}>{check.label}</li>)}</ul>}
+                    </>}
+                  </div>}
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                     <div className="flex-1 min-w-0">
                       <h2 className="font-semibold text-slate-950">{course.title}</h2>
                       <p className="text-sm text-slate-500">{course.category} · {course.level}</p>
                     </div>
 
+                    <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => void checkReadiness(course._id)} disabled={Boolean(readinessLoading[course._id])}>
+                      {readinessLoading[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      {readinessLoading[course._id] ? "Checking…" : "Readiness"}
+                    </button>
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} onChange={(e) => save(course, { isPublished: e.target.checked })} />
                       Published

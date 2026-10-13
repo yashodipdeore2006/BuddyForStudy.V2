@@ -741,6 +741,18 @@ export async function updateCourse(req, res, next) {
     });
     const before = summarizeCourseForAudit(course);
 
+    // Prevent the legacy generic update endpoint from bypassing the publishing preflight.
+    if (req.body.isPublished === true && !course.isPublished) {
+      const readiness = evaluateCourseReadiness(course);
+      if (!readiness.ready) {
+        return res.status(409).json({
+          success: false,
+          message: "Course is not ready to publish. Resolve the failed readiness checks first.",
+          readiness
+        });
+      }
+    }
+
     if (req.body.title !== undefined) {
       const value = String(req.body.title).trim();
       if (!value) return failure(res, "Course title cannot be empty", 400);
@@ -769,7 +781,14 @@ export async function updateCourse(req, res, next) {
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
     await course.save();
-    await audit(req, "course.updated", "Course", course._id, before, summarizeCourseForAudit(course), req.body.reason);
+    // Course catalogue caches must not retain stale publish state or metadata.
+    await cacheDelete(`course:${course._id}`);
+    const after = summarizeCourseForAudit(course);
+    const publishTransition = before.isPublished !== after.isPublished;
+    const action = publishTransition
+      ? (after.isPublished ? "course.published" : "course.unpublished")
+      : "course.updated";
+    await audit(req, action, "Course", course._id, before, after, req.body.reason);
     return success(res, { course }, "Course controls updated");
   } catch (e) { next(e); }
 }

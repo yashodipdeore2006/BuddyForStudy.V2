@@ -13,6 +13,7 @@ router.get("/users/:userId", controller.userDetail);
 router.put("/users/:userId", controller.updateUser);
 router.get("/courses", controller.courses);
 router.get("/courses/:courseId", controller.courseDetail);
+router.get("/courses/:courseId/readiness", controller.courseReadiness);
 router.put("/courses/:courseId", controller.updateCourse);
 router.put("/courses/:courseId/tutorial", controller.updateCourseTutorial);
 

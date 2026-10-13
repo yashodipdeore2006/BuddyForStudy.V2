@@ -87,91 +87,98 @@ export default function CourseCard({
   };
 
   return (
-    <article className="group flex h-full min-h-[410px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(13,18,32,.035)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_18px_40px_rgba(13,18,32,.09)]">
-      <div className="relative h-32 shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 sm:h-32">
+    <article className="bfs-course-card group flex h-full min-h-[438px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)] focus-within:ring-2 focus-within:ring-blue-500/20">
+      <Link
+        to={"/courses/" + course.id}
+        className="bfs-course-card__media relative block h-[138px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        aria-label={`Explore ${course.title}`}
+      >
         {course.thumbnail ? (
           <img
             src={course.thumbnail}
-            alt={course.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
           />
         ) : (
           <>
-            <div className="absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
-            <div className="flex h-full w-full items-center justify-center">
-              <CategoryIcon className="h-14 w-14 text-white/85" />
+            <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full bg-white/15 blur-2xl transition-transform duration-500 group-hover:scale-125" />
+            <div className="absolute -bottom-12 -left-6 h-32 w-32 rounded-full bg-sky-300/20 blur-2xl" />
+            <div className="relative flex h-full items-center justify-center">
+              <CategoryIcon className="h-12 w-12 text-white/90 drop-shadow-sm transition-transform duration-300 group-hover:scale-110" strokeWidth={1.6} />
             </div>
           </>
         )}
-
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-slate-950/10 opacity-70 transition-opacity group-hover:opacity-90" />
         <div className="absolute left-3 top-3">
-          <span
-            className={classNames(
-              'badge backdrop-blur',
-              levelColors[course.level] || 'bg-white/90 text-slate-700',
-            )}
-          >
-            {course.level}
+          <span className={classNames('inline-flex items-center rounded-full border border-white/60 px-2.5 py-1 text-[11px] font-bold shadow-sm backdrop-blur-md', levelColors[course.level] || 'bg-white/90 text-slate-700')}>
+            {course.level || 'All levels'}
           </span>
         </div>
-      </div>
-
-      <div className="flex flex-1 flex-col p-3">
-        <span className="text-[11px] font-bold uppercase tracking-[.14em] text-blue-600">
-          {course.category}
+        <span className="absolute bottom-3 right-3 inline-flex translate-y-1 items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-[11px] font-bold text-slate-800 opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+          Explore course <ChevronRight className="h-3.5 w-3.5" />
         </span>
+      </Link>
 
-        <h3 className="mt-1.5 line-clamp-3 text-sm font-bold leading-[1.3] tracking-tight text-slate-900 transition-colors group-hover:text-blue-600">
-          {course.title}
-        </h3>
+      <div className="flex flex-1 flex-col p-4">
+        <div className="flex min-h-5 items-center justify-between gap-2">
+          <span className="truncate text-[10px] font-extrabold uppercase tracking-[.16em] text-blue-600" title={course.category}>
+            {course.category || 'Learning path'}
+          </span>
+          {course.pricing?.mode && (
+            <span className={classNames(
+              'shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold',
+              course.pricing.mode === 'free' ? 'bg-emerald-50 text-emerald-700' : 'bg-violet-50 text-violet-700',
+            )}>
+              {course.pricing.mode === 'free' ? 'Free' : 'Premium'}
+            </span>
+          )}
+        </div>
 
-        <p className="mt-1.5 line-clamp-2 flex-1 text-xs leading-[1.15rem] text-slate-500">
-          {course.description}
+        <Link to={"/courses/" + course.id} className="mt-2 block rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+          <h3 className="line-clamp-2 min-h-[2.65rem] text-[15px] font-extrabold leading-[1.32] tracking-[-.02em] text-slate-900 transition-colors group-hover:text-blue-700">
+            {course.title}
+          </h3>
+        </Link>
+
+        <p className="mt-2 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-slate-500">
+          {course.description || 'Build practical skills with this structured learning experience.'}
         </p>
 
-        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <div className="mt-3 flex min-h-[42px] items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-medium text-slate-500">
             {lessonCount !== null && (
-              <span className="flex items-center gap-1">
-                <BookOpen className="h-3.5 w-3.5" />
-                {lessonCount}
+              <span className="inline-flex items-center gap-1.5" title="Lessons">
+                <BookOpen className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span>{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</span>
               </span>
             )}
-
             {course.duration && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
-                {course.duration}
+              <span className="inline-flex items-center gap-1.5" title="Estimated duration">
+                <Clock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="line-clamp-1">{course.duration}</span>
               </span>
             )}
-
             {course.enrollment_count !== undefined && (
-              <span className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" />
-                {course.enrollment_count}
+              <span className="inline-flex items-center gap-1.5" title="Learner enrollments">
+                <Users className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span>{course.enrollment_count.toLocaleString()}</span>
               </span>
             )}
           </div>
-
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 transition-all group-hover:bg-blue-50 group-hover:text-blue-600">
-            <ChevronRight className="h-4 w-4" />
+          <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 transition-all group-hover:bg-blue-600 group-hover:text-white">
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </span>
         </div>
 
         {progressPercentage !== undefined && (
-          <div className="mt-4">
-            <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-              <span>Progress</span>
-              <span className="font-bold text-slate-700">
-                {progressPercentage}%
-              </span>
+          <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500">
+              <span className="font-semibold">Your progress</span>
+              <span className="font-extrabold tabular-nums text-slate-700">{Math.max(0, Math.min(100, progressPercentage))}%</span>
             </div>
-
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-blue-600 transition-all"
-                style={{ width: `${progressPercentage}%` }}
-              />
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-violet-500 transition-all duration-500" style={{ width: `${Math.max(0, Math.min(100, progressPercentage))}%` }} />
             </div>
           </div>
         )}
@@ -179,16 +186,37 @@ export default function CourseCard({
         {showActions && (
           <div className="mt-auto pt-3">
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={saveCourse} disabled={saving} className={saved ? "inline-flex items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-2 py-2 text-[11px] font-bold text-green-700" : "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}>
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className="h-3.5 w-3.5" />}{saved ? "Saved" : "Save Course"}
+              <button
+                type="button"
+                onClick={saveCourse}
+                disabled={saving || saved}
+                aria-label={saved ? 'Course saved' : 'Save course'}
+                className={classNames(
+                  'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default',
+                  saved
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60',
+                )}
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className="h-3.5 w-3.5" />}
+                {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
               </button>
-              <button type="button" onClick={enrollCourse} disabled={enrolling || enrolled} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60">
-                {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolled ? "Enrolled" : "Enroll Now"}
+              <button
+                type="button"
+                onClick={enrollCourse}
+                disabled={enrolling || enrolled}
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-2 py-2 text-xs font-bold text-white shadow-sm shadow-blue-600/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
+              >
+                {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : enrolled ? <BookOpen className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                {enrolling ? 'Enrolling…' : enrolled ? 'Enrolled' : 'Enroll'}
               </button>
             </div>
-            {actionError && <p className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
-            <Link to={"/courses/" + course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100">
-              <PlayCircle className="h-4 w-4" />Preview in BuddyForStudy
+            {actionError && <p role="alert" className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
+            <Link
+              to={"/courses/" + course.id}
+              className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+              <PlayCircle className="h-4 w-4" /> Preview course
             </Link>
           </div>
         )}

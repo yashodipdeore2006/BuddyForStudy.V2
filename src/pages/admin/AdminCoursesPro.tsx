@@ -192,7 +192,23 @@ export default function AdminCoursesPro() {
 
   async function saveCourseMeta(courseId: string, course: any) {
     const form = courseMeta(course);
-    if (!form.title.trim() || !form.description.trim() || !form.category.trim()) return;
+    const missingFields = [
+      !form.title.trim() && "title",
+      !form.description.trim() && "description",
+      !form.category.trim() && "category",
+      !form.duration.trim() && "duration",
+    ].filter(Boolean);
+    if (missingFields.length) {
+      setCourseMetaForms((current) => ({
+        ...current,
+        [courseId]: {
+          ...form,
+          saving: false,
+          error: "Complete the required course fields: " + missingFields.join(", ") + ".",
+        },
+      }));
+      return;
+    }
 
     setCourseMetaForms((current) => ({ ...current, [courseId]: { ...form, saving: true, error: "" } }));
     try {

@@ -22,6 +22,7 @@ import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
+import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -169,6 +170,15 @@ export async function courses(req, res, next) {
     const courses = await Course.find(filter).select("title slug category level isPublished pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt").sort({ createdAt: -1 }).lean();
     return success(res, { courses });
   } catch (e) { next(e); }
+}
+
+export async function courseReadiness(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const course = await Course.findById(req.params.courseId).select("title description category duration learningOutcomes modules pricing").lean();
+    if (!course) return failure(res, "Course not found", 404);
+    return success(res, { courseId: String(course._id), readiness: evaluateCourseReadiness(course) });
+  } catch (error) { next(error); }
 }
 
 export async function courseDetail(req, res, next) {

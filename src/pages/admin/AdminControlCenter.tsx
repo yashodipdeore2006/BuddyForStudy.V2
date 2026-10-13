@@ -24,6 +24,9 @@ export default function AdminControlCenter() {
   const [health, setHealth] = useState<any>(null);
   const [error, setError] = useState("");
   const [healthError, setHealthError] = useState("");
+  const [operationalAlerts, setOperationalAlerts] = useState<any[]>([]);
+  const [alertsError, setAlertsError] = useState("");
+  const [acknowledgingAlert, setAcknowledgingAlert] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
@@ -31,9 +34,10 @@ export default function AdminControlCenter() {
     setLoading(true);
     setError("");
     try {
-      const [overviewResult, healthResult] = await Promise.allSettled([
+      const [overviewResult, healthResult, alertsResult] = await Promise.allSettled([
         adminFetch("/api/admin/overview"),
         adminFetch("/api/admin/health"),
+        adminFetch("/api/admin/operations/alerts?status=open&limit=10"),
       ]);
 
       if (overviewResult.status === "rejected") {
@@ -50,6 +54,13 @@ export default function AdminControlCenter() {
         setHealth(null);
         setHealthError("System health information is temporarily unavailable.");
       }
+
+      if (alertsResult.status === "fulfilled") {
+        setOperationalAlerts(alertsResult.value.alerts || []);
+        setAlertsError("");
+      } else {
+        setAlertsError("Operational alerts are temporarily unavailable.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load admin dashboard");
     } finally {
@@ -60,6 +71,18 @@ export default function AdminControlCenter() {
   useEffect(() => {
     void load();
   }, []);
+
+  async function acknowledgeAlert(alertId: string) {
+    setAcknowledgingAlert(alertId);
+    try {
+      await adminFetch("/api/admin/operations/alerts/" + alertId + "/acknowledge", { method: "POST" });
+      setOperationalAlerts((current) => current.filter((alert) => alert._id !== alertId));
+    } catch (e) {
+      setAlertsError(e instanceof Error ? e.message : "Unable to acknowledge operational alert");
+    } finally {
+      setAcknowledgingAlert(null);
+    }
+  }
 
   if (loading && !data) {
     return <div role="status" aria-live="polite" className="flex min-h-[60vh] items-center justify-center"><RefreshCcw className="animate-spin text-blue-600" /><span className="sr-only">Loading admin dashboard</span></div>;
@@ -130,6 +153,33 @@ export default function AdminControlCenter() {
           </div>
         ))}
       </div>
+
+      <section className="card mt-6 overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-100 p-5">
+          <div><h2 className="font-bold text-slate-900">Operational alerts</h2><p className="mt-1 text-xs text-slate-500">Open background-worker and platform issues that need acknowledgement.</p></div>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">{operationalAlerts.length} open</span>
+        </div>
+        {alertsError && <p role="status" aria-live="polite" className="border-b border-slate-100 p-4 text-sm text-amber-700">{alertsError}</p>}
+        {operationalAlerts.length ? (
+          <div className="divide-y divide-slate-100">
+            {operationalAlerts.map((alert: any) => (
+              <div key={alert._id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+                <AlertTriangle className={"h-5 w-5 shrink-0 " + (alert.severity === "critical" ? "text-red-600" : "text-amber-600")} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900">{alert.title || alert.key || "Operational alert"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{alert.message || alert.source || "Background operation reported an issue"} · seen {alert.occurrenceCount || 1} time(s)</p>
+                  <p className="mt-1 text-[11px] text-slate-400">{alert.lastSeenAt ? new Date(alert.lastSeenAt).toLocaleString() : "Timestamp unavailable"}</p>
+                </div>
+                <button type="button" className="btn-secondary shrink-0" disabled={acknowledgingAlert === alert._id} onClick={() => void acknowledgeAlert(alert._id)}>
+                  {acknowledgingAlert === alert._id ? "Acknowledging…" : "Acknowledge"}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          !alertsError && <p className="p-5 text-sm text-slate-500">No open operational alerts.</p>
+        )}
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <section className="card overflow-hidden">

@@ -36,3 +36,12 @@ test("course admin patch rejects negative, non-finite and malformed pricing valu
 test("course admin patch allows empty thumbnail to clear an existing image", () => {
   assert.deepEqual(validateCourseAdminPatch({ thumbnail: "" }), { valid: true, errors: [] });
 });
+
+test("course admin patch rejects inconsistent compare-at and sale prices", () => {
+  const result = validateCourseAdminPatch({
+    pricing: { price: 100, compareAtPrice: 80, salePrice: 120 }
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.field === "pricing.compareAtPrice"));
+  assert.ok(result.errors.some((error) => error.field === "pricing.salePrice"));
+});

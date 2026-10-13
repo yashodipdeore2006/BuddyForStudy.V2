@@ -24,6 +24,7 @@ import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
+import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -717,6 +718,10 @@ export async function updateCourseTutorial(req, res, next) {
 
 export async function updateCourse(req, res, next) {
   try {
+    const validation = validateCourseAdminPatch(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, message: "Course update contains invalid fields", errors: validation.errors });
+    }
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);

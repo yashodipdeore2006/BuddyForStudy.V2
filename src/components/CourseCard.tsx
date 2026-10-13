@@ -87,8 +87,8 @@ export default function CourseCard({
   };
 
   return (
-    <article className="group flex h-full min-h-[440px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(13,18,32,.035)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_18px_40px_rgba(13,18,32,.09)]">
-      <div className="relative h-36 shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 sm:h-36">
+    <article className="group flex h-full min-h-[410px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_18px_rgba(13,18,32,.035)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-[0_18px_40px_rgba(13,18,32,.09)]">
+      <div className="relative h-32 shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 sm:h-32">
         {course.thumbnail ? (
           <img
             src={course.thumbnail}
@@ -116,20 +116,20 @@ export default function CourseCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-3">
         <span className="text-[11px] font-bold uppercase tracking-[.14em] text-blue-600">
           {course.category}
         </span>
 
-        <h3 className="mt-2 line-clamp-3 text-base font-bold leading-[1.3] tracking-tight text-slate-900 transition-colors group-hover:text-blue-600">
+        <h3 className="mt-1.5 line-clamp-3 text-sm font-bold leading-[1.3] tracking-tight text-slate-900 transition-colors group-hover:text-blue-600">
           {course.title}
         </h3>
 
-        <p className="mt-2 line-clamp-2 flex-1 text-xs leading-5 text-slate-500">
+        <p className="mt-1.5 line-clamp-2 flex-1 text-xs leading-[1.15rem] text-slate-500">
           {course.description}
         </p>
 
-        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+        <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             {lessonCount !== null && (
               <span className="flex items-center gap-1">
@@ -177,9 +177,9 @@ export default function CourseCard({
         )}
 
         {showActions && (
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-3">
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={saveCourse} disabled={saving} className={saved ? "inline-flex items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-bold text-green-700" : "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}>
+              <button type="button" onClick={saveCourse} disabled={saving} className={saved ? "inline-flex items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 px-2 py-2 text-[11px] font-bold text-green-700" : "inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}>
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className="h-3.5 w-3.5" />}{saved ? "Saved" : "Save Course"}
               </button>
               <button type="button" onClick={enrollCourse} disabled={enrolling || enrolled} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60">
@@ -187,7 +187,7 @@ export default function CourseCard({
               </button>
             </div>
             {actionError && <p className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
-            <Link to={"/courses/" + course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100">
+            <Link to={"/courses/" + course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100">
               <PlayCircle className="h-4 w-4" />Preview in BuddyForStudy
             </Link>
           </div>

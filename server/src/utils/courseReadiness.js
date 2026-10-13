@@ -34,8 +34,9 @@ function hasUsableProject(lesson) {
 function hasUsableTutorial(lesson) {
   const tutorial = lesson?.tutorial;
   const hasResource = Array.isArray(tutorial?.resources) && tutorial.resources.some(hasText);
+  // A title alone is not a usable video resource; require a playable URL or provider ID.
   const hasVideo = Array.isArray(tutorial?.videos) && tutorial.videos.some((video) =>
-    hasText(video?.url) || hasText(video?.videoId) || hasText(video?.title)
+    hasText(video?.url) || hasText(video?.videoId)
   );
   return hasText(tutorial?.content) || hasResource || hasVideo;
 }

@@ -35,13 +35,11 @@ function mapCourse(raw: any): Course {
 export default function Courses() {
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [popularCourses, setPopularCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [youtubeDiscovery, setYoutubeDiscovery] = useState<any>(null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
-  const [popularLoading, setPopularLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [catalogQuery, setCatalogQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
@@ -67,14 +65,20 @@ export default function Courses() {
         setYoutubeDiscovery(null);
         setYoutubePlaylistsLoading(false);
         setYoutubePlaylistError("");
-        const params = new URLSearchParams({ page: '1', limit: '50' });
-        if (selectedLevel !== 'all') params.set('level', selectedLevel);
-        if (selectedCategory !== 'all') params.set('category', selectedCategory);
-        if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-
-        const data = await apiFetch(`/api/courses?${params.toString()}`);
-        const rows = data.courses || data.items || [];
-        setCourses(rows.map(mapCourse));
+        const allRows: any[] = [];
+        let page = 1;
+        let batch: any[] = [];
+        do {
+          const params = new URLSearchParams({ page: String(page), limit: '50' });
+          if (selectedLevel !== 'all') params.set('level', selectedLevel);
+          if (selectedCategory !== 'all') params.set('category', selectedCategory);
+          if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
+          const data = await apiFetch(`/api/courses?${params.toString()}`);
+          batch = data.courses || data.items || [];
+          allRows.push(...batch);
+          page += 1;
+        } while (batch.length === 50 && page <= 200);
+        setCourses(allRows.map(mapCourse));
 
         if (
           data.discovery?.mode === 'youtube_fallback' ||
@@ -117,27 +121,6 @@ export default function Courses() {
 
     fetchCourses();
   }, [selectedLevel, selectedCategory, catalogQuery]);
-
-  useEffect(() => {
-    async function fetchPopularCourses() {
-      setPopularLoading(true);
-      try {
-        const params = new URLSearchParams({ page: '1', limit: '6', sort: 'popular' });
-        if (selectedLevel !== 'all') params.set('level', selectedLevel);
-        if (selectedCategory !== 'all') params.set('category', selectedCategory);
-
-        const data = await apiFetch(`/api/courses?${params.toString()}`);
-        const rows = data.courses || data.items || [];
-        setPopularCourses(rows.map(mapCourse));
-      } catch {
-        setPopularCourses([]);
-      } finally {
-        setPopularLoading(false);
-      }
-    }
-
-    fetchPopularCourses();
-  }, [selectedLevel, selectedCategory]);
 
   const categories = useMemo(() => {
     const cats = new Set(courses.map((c) => c.category).filter(Boolean));
@@ -648,36 +631,22 @@ export default function Courses() {
         <section className="mt-10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-blue-600">
-                <TrendingUp className="h-4 w-4" />
-                Popular with learners
-              </div>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Most Enrolled Courses</h2>
-              <p className="mt-1 text-sm text-slate-500">Courses with the highest active and completed enrollments.</p>
+              <p className="bfs-eyebrow">Explore the catalog</p>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">All available courses</h2>
+              <p className="mt-1 text-sm text-slate-500">{filteredCourses.length} published course{filteredCourses.length === 1 ? '' : 's'} available. Browse the full catalog, not only popular courses.</p>
             </div>
           </div>
-
-          {popularLoading ? (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-              ))}
+          {loading ? (
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((item) => <div key={item} className="h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
             </div>
-          ) : popularCourses.length === 0 ? (
-            <div className="mt-5">
-              <EmptyState
-                icon={<BookOpen className="h-8 w-8" />}
-                title="No popular courses yet"
-                description="Published courses will appear here as learners enroll."
-              />
-            </div>
+          ) : catalogError ? (
+            <div role="alert" className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">{catalogError}</div>
+          ) : filteredCourses.length === 0 ? (
+            <div className="mt-5"><EmptyState icon={<BookOpen className="h-8 w-8" />} title="No courses available" description="Published courses will appear here. Try changing your filters or search." /></div>
           ) : (
-            <div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[72vh]">
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {popularCourses.map((course) => (
-                  <CourseCard key={course.id} course={course} showActions />
-                ))}
-              </div>
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {filteredCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
             </div>
           )}
         </section>

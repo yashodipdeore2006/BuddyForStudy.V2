@@ -70,3 +70,12 @@ test("blank tutorial resource and empty video placeholders do not satisfy readin
   });
   assert.ok(result.failedChecks.some((check) => check.key === "tutorialContent"));
 });
+
+test("tutorial video title without a playable URL or video ID does not satisfy readiness", () => {
+  const result = evaluateCourseReadiness({
+    title: "Course", description: "Description", category: "Development", duration: "4 weeks",
+    learningOutcomes: ["Outcome"], pricing: { mode: "free" },
+    modules: [{ title: "Module", lessons: [{ title: "Tutorial", type: "tutorial", tutorial: { videos: [{ title: "JavaScript tutorial" }] } }] }]
+  });
+  assert.ok(result.failedChecks.some((check) => check.key === "tutorialContent"));
+});

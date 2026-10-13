@@ -181,6 +181,31 @@ export async function courseReadiness(req, res, next) {
   } catch (error) { next(error); }
 }
 
+export async function publishCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+
+    const readiness = evaluateCourseReadiness(course);
+    if (!readiness.ready) {
+      return res.status(409).json({
+        success: false,
+        message: "Course is not ready to publish. Resolve the failed readiness checks first.",
+        readiness
+      });
+    }
+    if (course.isPublished) return success(res, { course, readiness }, "Course is already published");
+
+    const before = { isPublished: course.isPublished };
+    course.isPublished = true;
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.published", "Course", course._id, before, { isPublished: true, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
+    return success(res, { course, readiness }, "Course published");
+  } catch (error) { next(error); }
+}
+
 export async function courseDetail(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);

@@ -4,6 +4,7 @@ import { failure, success } from "../utils/response.js";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import { getUserNotificationPreferences, saveUserNotificationPreferences } from "../services/notification.service.js";
+import { isWithinQuietHours } from "../services/reminderScheduling.js";
 
 export async function list(req, res, next) {
   try {
@@ -70,7 +71,9 @@ const preferencesSchema = z.object({
   learningRemindersEnabled: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
   timezone: z.string().trim().min(1).max(64).optional(),
-  reminderHour: z.number().int().min(0).max(23).optional()
+  reminderHour: z.number().int().min(0).max(23).optional(),
+  quietHoursStart: z.number().int().min(0).max(23).optional(),
+  quietHoursEnd: z.number().int().min(0).max(23).optional()
 });
 
 export async function getPreferences(req, res, next) {
@@ -94,6 +97,11 @@ export async function updatePreferences(req, res, next) {
       } catch {
         return failure(res, "Timezone must be a valid IANA timezone, such as Asia/Kolkata.", 400);
       }
+    }
+    const current = await getUserNotificationPreferences(req.user.userId);
+    const next = { ...current, ...input };
+    if (next.learningRemindersEnabled && isWithinQuietHours(next.reminderHour, next.quietHoursStart, next.quietHoursEnd)) {
+      return failure(res, "Reminder time falls within quiet hours. Choose a reminder time outside the quiet-hour window.", 400);
     }
     const preferences = await saveUserNotificationPreferences(req.user.userId, input);
     return success(res, { preferences, pushAvailable: Boolean(env.oneSignalAppId && env.oneSignalRestApiKey) }, "Notification preferences saved");

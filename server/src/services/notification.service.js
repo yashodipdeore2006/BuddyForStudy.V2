@@ -6,6 +6,7 @@ import { Notification } from "../models/Notification.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
+import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey } from "./reminderScheduling.js";
 
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
@@ -19,7 +20,9 @@ const DEFAULT_PREFERENCES = {
   learningRemindersEnabled: true,
   pushEnabled: false,
   timezone: "Asia/Kolkata",
-  reminderHour: 18
+  reminderHour: 18,
+  quietHoursStart: 22,
+  quietHoursEnd: 8
 };
 const DEFAULT_PLATFORM_SETTINGS = {
   emailEnabled: true,
@@ -464,79 +467,89 @@ export async function deliverPendingNotificationPush(limit = 50) {
   return { attempted: pending.length };
 }
 
-function localDateParts(date, timezone) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(date);
-  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
-}
-
-function inTimeZone(date, timezone) {
-  try { return localDateParts(date, timezone); } catch { return localDateParts(date, "UTC"); }
-}
-
 export async function processLearningReminders(now = new Date(), batchSize = 500) {
   const platform = await getNotificationPlatformSettings();
   if (!platform.learningRemindersEnabled) return { checked: 0, sent: 0, disabled: true };
-  const enrollments = await Enrollment.find({ status: "active" })
-    .sort({ updatedAt: 1 })
-    .limit(Math.min(Math.max(batchSize, 1), 1000))
-    .populate("course", "title isPublished")
-    .lean();
-  if (!enrollments.length) return { checked: 0, sent: 0 };
 
-  const userIds = [...new Set(enrollments.map((item) => String(item.user)))];
-  const courseIds = [...new Set(enrollments.map((item) => String(item.course?._id || item.course)).filter(Boolean))];
-  const [preferenceDocs, progressDocs] = await Promise.all([
-    NotificationPreference.find({ user: { $in: userIds } }).lean(),
-    Progress.find({ user: { $in: userIds }, course: { $in: courseIds } }).lean()
-  ]);
-  const preferences = new Map(preferenceDocs.map((item) => [String(item.user), { ...DEFAULT_PREFERENCES, ...item }]));
-  const progressMap = new Map(progressDocs.map((item) => [`${item.user}:${item.course}`, item]));
-  const processedUsers = new Set();
+  // The requested batch size is a page size, not a total-run cap. This avoids
+  // starving later users when earlier learners have different local reminder hours.
+  const pageSize = Math.min(Math.max(Math.trunc(Number(batchSize) || 500), 1), 1000);
+  let lastId = null;
+  let checked = 0;
   let sent = 0;
-  const minInactiveMs = platform.inactiveDays * 24 * 60 * 60 * 1000;
+  const processedUsers = new Set();
 
-  for (const enrollment of enrollments) {
-    const userId = String(enrollment.user);
-    const course = enrollment.course;
-    if (!course?._id || course.isPublished === false || processedUsers.has(userId)) continue;
-    const pref = preferences.get(userId) || { ...DEFAULT_PREFERENCES, user: userId };
-    if (!pref.learningRemindersEnabled) continue;
-    const dateParts = inTimeZone(now, pref.timezone || "Asia/Kolkata");
-    if (Number(dateParts.hour) !== Number(pref.reminderHour ?? 18)) continue;
-    const dateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
-    const eventKey = `learning-reminder:${userId}:${dateKey}`;
-    if (await Notification.exists({ user: userId, eventKey })) {
-      processedUsers.add(userId);
-      continue;
+  while (true) {
+    const filter = { status: "active" };
+    if (lastId) filter._id = { $gt: lastId };
+    const enrollments = await Enrollment.find(filter)
+      .sort({ _id: 1 })
+      .limit(pageSize)
+      .populate("course", "title isPublished")
+      .lean();
+    if (!enrollments.length) break;
+
+    checked += enrollments.length;
+    lastId = enrollments[enrollments.length - 1]._id;
+    const userIds = [...new Set(enrollments.map((item) => String(item.user)))];
+    const courseIds = [...new Set(enrollments.map((item) => String(item.course?._id || item.course)).filter(Boolean))];
+    const [preferenceDocs, progressDocs] = await Promise.all([
+      NotificationPreference.find({ user: { $in: userIds } }).lean(),
+      Progress.find({ user: { $in: userIds }, course: { $in: courseIds } }).lean()
+    ]);
+    const preferences = new Map(preferenceDocs.map((item) => [String(item.user), { ...DEFAULT_PREFERENCES, ...item }]));
+    const progressMap = new Map(progressDocs.map((item) => [String(item.user) + ":" + String(item.course), item]));
+
+    for (const enrollment of enrollments) {
+      const userId = String(enrollment.user);
+      const course = enrollment.course;
+      if (!course?._id || course.isPublished === false || processedUsers.has(userId)) continue;
+
+      const pref = preferences.get(userId) || { ...DEFAULT_PREFERENCES, user: userId };
+      if (!pref.learningRemindersEnabled) {
+        processedUsers.add(userId);
+        continue;
+      }
+
+      const clock = getReminderClock(now, pref.timezone || "Asia/Kolkata");
+      if (clock.hour !== Number(pref.reminderHour ?? 18) ||
+          isWithinQuietHours(clock.hour, pref.quietHoursStart ?? 22, pref.quietHoursEnd ?? 8)) {
+        processedUsers.add(userId);
+        continue;
+      }
+
+      const eventKey = learningReminderEventKey(userId, clock.dateKey);
+      if (await Notification.exists({ user: userId, eventKey })) {
+        processedUsers.add(userId);
+        continue;
+      }
+
+      const progress = progressMap.get(userId + ":" + String(course._id));
+      if (progress && Number(progress.percentage || 0) >= 100) continue;
+      const lastActivity = progress?.lastAccessedAt || enrollment.updatedAt || enrollment.enrolledAt;
+      if (!hasBeenInactive(now, lastActivity, platform.inactiveDays)) continue;
+
+      const notice = await createNotificationEvent({
+        userId,
+        title: "Your next learning session is waiting",
+        message: "Pick up where you left off in " + course.title + ". A short session today can keep your learning progress moving.",
+        type: "learning",
+        link: "/courses/" + course._id + "/roadmap",
+        eventKey,
+        emailSubject: "Your BuddyForStudy learning reminder",
+        email: pref.emailLearningReminders !== false,
+        push: true,
+        metadata: { courseId: String(course._id), courseTitle: course.title, reminderDate: clock.dateKey },
+        templateKeys: { notification: "learning-reminder-in-app", email: "learning-reminder-email" }
+      });
+      if (notice) {
+        processedUsers.add(userId);
+        sent += 1;
+      }
     }
 
-    const progress = progressMap.get(`${userId}:${String(course._id)}`);
-    if (progress && Number(progress.percentage || 0) >= 100) continue;
-    const lastActivity = progress?.lastAccessedAt || enrollment.updatedAt || enrollment.enrolledAt;
-    if (!lastActivity || now.getTime() - new Date(lastActivity).getTime() < minInactiveMs) continue;
-
-    await createNotificationEvent({
-      userId,
-      title: "Your next learning session is waiting",
-      message: `Pick up where you left off in ${course.title}. A short session today can keep your learning progress moving.`,
-      type: "learning",
-      link: `/courses/${course._id}/roadmap`,
-      eventKey,
-      emailSubject: "Your BuddyForStudy learning reminder",
-      email: pref.emailLearningReminders !== false,
-      push: true,
-      metadata: { courseId: String(course._id), courseTitle: course.title, reminderDate: dateKey },
-      templateKeys: { notification: "learning-reminder-in-app", email: "learning-reminder-email" }
-    });
-    processedUsers.add(userId);
-    sent += 1;
+    if (enrollments.length < pageSize) break;
   }
-  return { checked: enrollments.length, sent };
+
+  return { checked, sent };
 }

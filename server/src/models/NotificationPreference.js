@@ -14,7 +14,9 @@ const notificationPreferenceSchema = new mongoose.Schema({
   learningRemindersEnabled: { type: Boolean, default: true },
   pushEnabled: { type: Boolean, default: false },
   timezone: { type: String, default: "Asia/Kolkata", maxlength: 64 },
-  reminderHour: { type: Number, default: 18, min: 0, max: 23 }
+  reminderHour: { type: Number, default: 18, min: 0, max: 23 },
+  quietHoursStart: { type: Number, default: 22, min: 0, max: 23 },
+  quietHoursEnd: { type: Number, default: 8, min: 0, max: 23 }
 }, { timestamps: true, collection: "notification_preferences" });
 
 export const NotificationPreference = mongoose.model("NotificationPreference", notificationPreferenceSchema);

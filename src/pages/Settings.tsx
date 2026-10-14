@@ -18,6 +18,8 @@ type NotificationPreferences = {
   pushEnabled: boolean;
   timezone: string;
   reminderHour: number;
+  quietHoursStart: number;
+  quietHoursEnd: number;
 };
 
 const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -33,6 +35,8 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: false,
   timezone: "Asia/Kolkata",
   reminderHour: 18,
+  quietHoursStart: 22,
+  quietHoursEnd: 8,
 };
 
 const PUSH_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || "";
@@ -324,6 +328,20 @@ export default function Settings() {
                       <option value="Europe/London">United Kingdom</option>
                     </select>
                   </label>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-slate-700">Quiet hours start
+                    <select className="input-field mt-1" value={notifPrefs.quietHoursStart} onChange={(event) => updatePreference("quietHoursStart", Number(event.target.value))} disabled={!notifPrefs.learningRemindersEnabled}>
+                      {Array.from({ length: 24 }, (_item, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium text-slate-700">Quiet hours end
+                    <select className="input-field mt-1" value={notifPrefs.quietHoursEnd} onChange={(event) => updatePreference("quietHoursEnd", Number(event.target.value))} disabled={!notifPrefs.learningRemindersEnabled}>
+                      {Array.from({ length: 24 }, (_item, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}
+                    </select>
+                  </label>
+                </div>
+                <p className="text-xs leading-5 text-slate-500">Reminders are sent only at your chosen local time and never during quiet hours (default: 22:00–08:00).</p>
                 </div>
               </div>
             </div>

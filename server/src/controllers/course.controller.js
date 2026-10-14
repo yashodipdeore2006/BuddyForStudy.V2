@@ -89,6 +89,24 @@ export async function learn(req, res, next) {
     });
     if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
 
+    // Opening the authenticated lesson player is a learning activity. Persist it
+    // so reminders do not nudge learners who have recently returned to a course.
+    const { Progress } = await import("../models/Progress.js");
+    await Progress.findOneAndUpdate(
+      { user: req.user.userId, course: req.params.courseId },
+      {
+        $set: { lastAccessedAt: new Date() },
+        $setOnInsert: {
+          user: req.user.userId,
+          course: req.params.courseId,
+          totalLessons: courseService.totalLessons(course),
+          completedCount: 0,
+          percentage: 0
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     const projectsAllowed =
       req.user.role === "admin" ||
       (await getEntitlement(req.user.userId, "project_based_learning")).allowed;

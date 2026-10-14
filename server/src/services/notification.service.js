@@ -405,7 +405,8 @@ export async function processLearningReminders(now = new Date(), batchSize = 500
       emailSubject: "Your BuddyForStudy learning reminder",
       email: pref.emailLearningReminders !== false,
       push: true,
-      metadata: { courseId: String(course._id), reminderDate: dateKey }
+      metadata: { courseId: String(course._id), courseTitle: course.title, reminderDate: dateKey },
+      templateKeys: { notification: "learning-reminder-in-app", email: "learning-reminder-email" }
     });
     processedUsers.add(userId);
     sent += 1;

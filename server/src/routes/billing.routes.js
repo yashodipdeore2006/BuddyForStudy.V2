@@ -7,6 +7,7 @@ import { success, failure } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
+import { createNotificationEvent } from "../services/notification.service.js";
 
 const router = Router();
 router.get("/plans", async (_req,res,next)=>{ try {
@@ -79,6 +80,17 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).populate("plan");
+
+  await createNotificationEvent({
+    userId: String(req.user.userId),
+    title: "Your subscription is active",
+    message: `Your ${payment.plan.name || "BuddyForStudy"} plan is now active. Your subscription payment has been confirmed.`,
+    type: "billing",
+    link: "/billing",
+    eventKey: `subscription-activated:${subscriptionId}`,
+    emailSubject: "Your BuddyForStudy subscription is active",
+    metadata: { paymentId: String(payment._id), subscriptionId, planId: String(payment.plan._id) }
+  });
 
   return success(res, {
     activated: true,

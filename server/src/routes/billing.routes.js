@@ -89,7 +89,8 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     link: "/billing",
     eventKey: `subscription-activated:${subscriptionId}`,
     emailSubject: "Your BuddyForStudy subscription is active",
-    metadata: { paymentId: String(payment._id), subscriptionId, planId: String(payment.plan._id) }
+    metadata: { paymentId: String(payment._id), subscriptionId, planId: String(payment.plan._id), planName: payment.plan.name },
+    templateKeys: { notification: "subscription-activated-in-app", email: "subscription-activated-email" }
   });
 
   return success(res, {

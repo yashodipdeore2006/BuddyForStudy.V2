@@ -111,6 +111,30 @@ button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
 .bg-purple-50 { background-color: #f7effb !important; }
 .text-purple-700 { color: #a121ce !important; }
 
+/* Normalize native controls and utility-class buttons across legacy pages. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  border-color: var(--bfs-line);
+  border-radius: var(--bfs-radius-control);
+  box-shadow: none;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+select:focus,
+textarea:focus {
+  border-color: #1876f2;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(24,118,242,.12);
+}
+button[class*="rounded-xl"],
+button[class*="rounded-lg"],
+button[class*="rounded-2xl"] {
+  border-radius: var(--bfs-radius-pill);
+}
+button[aria-label][class*="p-2"],
+button[aria-label][class*="p-2.5"] {
+  border-radius: 9999px;
+}
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

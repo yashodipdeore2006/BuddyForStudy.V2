@@ -3,6 +3,7 @@ import { AuditLog } from "../models/AuditLog.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
+import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 
 const channels = new Set(["notification", "email", "announcement"]);
 const messageTypes = new Set(["system", "course", "billing", "promotion", "security"]);
@@ -77,6 +78,7 @@ function templatePayload(body = {}) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key)) return { error: "Template key must use lowercase letters, numbers and hyphens" };
   if (!channels.has(channel)) return { error: "Choose a valid template channel" };
   if (!messageBody) return { error: "Template body is required" };
+  if (channel === "email" && hasUnsafeEmailMarkup(messageBody)) return { error: "Email template contains unsafe HTML tags, attributes, or URL schemes" };
   if (channel !== "email" && !title) return { error: "Title is required for notifications and announcements" };
   if (channel === "email" && !subject) return { error: "Subject is required for email templates" };
   if (!messageTypes.has(messageType)) return { error: "Choose a valid message type" };

@@ -30,6 +30,7 @@ import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
 import { validateAdminAccountChange } from "../utils/adminAccountSafety.js";
 import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
+import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -1201,6 +1202,7 @@ export async function sendEmail(req, res, next) {
     const html = typeof req.body.html === "string" ? req.body.html : "";
     if (!subject || !html) return failure(res, "subject and html are required", 400);
     if (subject.length > 200 || html.length > 20000) return failure(res, "Email subject or HTML body is too long", 400);
+    if (hasUnsafeEmailMarkup(html)) return failure(res, "Email HTML contains unsafe tags, attributes, or URL schemes", 400);
 
     const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
     let users = [];
@@ -1217,13 +1219,7 @@ export async function sendEmail(req, res, next) {
     }
 
     if (externalEmail && users.length === 0) {
-      const globalEmailSetting = await PlatformSetting.findOne({ key: "notification_email_enabled" }).select("value").lean();
-      if (globalEmailSetting?.value === false) return failure(res, "Email delivery is paused by platform settings", 503);
-      const transport = mailer();
-      if (!transport) return failure(res, "SMTP is not configured", 503);
-      const info = await transport.sendMail({ from: env.mailFrom, to: externalEmail, subject, html });
-      await audit(req, "email.sent", "EmailCampaign", info.messageId || "", null, { recipients: 1, subject, destinationType: "external" });
-      return success(res, { sent: 1, recipients: 1, messageId: info.messageId }, "Email sent");
+      return failure(res, "Campaign email can only be sent to registered users so their notification preferences and consent can be checked.", 400);
     }
 
     if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");

@@ -181,7 +181,7 @@ export default function AdminCommunications() {
           <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Email preview</p>
           <p className="mt-2 text-lg font-bold text-slate-950">{subject || "Email subject"}</p>
           <div className="mt-4 overflow-hidden rounded-xl border bg-white">
-            <iframe title="Email preview" srcDoc={html || "<p style='font-family:Arial;padding:24px'>Email preview</p>"} className="h-96 w-full" />
+            <iframe title="Email preview" sandbox="" srcDoc={html || "<p style='font-family:Arial;padding:24px'>Email preview</p>"} className="h-96 w-full" />
           </div>
         </div>
       );

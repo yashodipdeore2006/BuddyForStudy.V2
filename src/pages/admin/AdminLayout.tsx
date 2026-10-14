@@ -51,10 +51,10 @@ const links = [
 
 function navClass(isActive: boolean) {
   return (
-    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition " +
+    "flex items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold transition-colors " +
     (isActive
-      ? "bg-blue-600 text-white"
-      : "text-slate-300 hover:bg-white/10 hover:text-white")
+      ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-200"
+      : "text-slate-600 hover:bg-white hover:text-slate-950")
   );
 }
 
@@ -98,11 +98,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <div className="sticky top-0 z-50 border-b border-white/10 bg-slate-950 text-white lg:hidden">
+    <div className="min-h-screen bg-[#f1f4f7]">
+      <div className="sticky top-0 z-50 border-b border-slate-200 bg-white text-slate-950 lg:hidden">
         <div className="flex h-14 items-center justify-between px-4">
           <NavLink to="/admin" className="flex items-center gap-2" onClick={() => setMobileOpen(false)}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
@@ -125,14 +125,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         {mobileOpen && (
           <div
             id="admin-mobile-navigation"
-            className="max-h-[calc(100vh-56px)] overflow-y-auto border-t border-white/10"
+            className="max-h-[calc(100vh-56px)] overflow-y-auto border-t border-slate-200 bg-white"
           >
             {navigation}
-            <div className="border-t border-white/10 p-3">
+            <div className="border-t border-slate-200 p-3">
               <NavLink
                 to="/"
                 onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-950"
               >
                 <ExternalLink className="h-4 w-4" />
                 View site
@@ -140,7 +140,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-red-500/10 hover:text-red-300"
+                className="mt-1 flex w-full items-center gap-3 rounded-full px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-600"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

@@ -126,33 +126,33 @@ export default function Dashboard() {
 
   return (
     <div className="bfs-shell py-8 sm:py-10">
-      <div className="overflow-hidden rounded-[32px] bg-slate-950 p-6 text-white shadow-[0_24px_70px_rgba(13,18,32,.14)] sm:p-9 lg:p-10">
+      <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white p-6 text-slate-950 sm:p-9 lg:p-10">
         <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-blue-300">Your learning command center</p>
+            <p className="bfs-eyebrow">Your learning command center</p>
             <h1 className="mt-3 text-3xl font-medium tracking-[-.03em] sm:text-4xl lg:text-5xl">Welcome back, {profile?.name || 'Learner'}.</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">Pick up where you left off, keep your streak alive, and turn your next hour into visible progress.</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">Pick up where you left off, keep your streak alive, and turn your next hour into visible progress.</p>
           </div>
-          <Link to="/courses" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-950 hover:bg-blue-50"><BookOpen className="h-4 w-4"/>Explore learning</Link>
+          <Link to="/courses" className="btn-primary"><BookOpen className="h-4 w-4"/>Explore learning</Link>
         </div>
       </div>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
-        {stats.map((stat) => <div key={stat.label} className="card p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"><div className="flex items-center gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${stat.color}`}><stat.icon className="h-5 w-5"/></div><div><p className="text-2xl font-extrabold text-slate-900">{stat.value}</p><p className="text-xs font-semibold text-slate-500">{stat.label}</p></div></div></div>)}
+        {stats.map((stat) => <div key={stat.label} className="rounded-[24px] border border-slate-200 bg-white p-5 transition-colors hover:bg-slate-50"><div className="flex items-center gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${stat.color}`}><stat.icon className="h-5 w-5"/></div><div><p className="text-2xl font-extrabold text-slate-900">{stat.value}</p><p className="text-xs font-semibold text-slate-500">{stat.label}</p></div></div></div>)}
       </div>
 
       <div className="mt-8 grid gap-5 lg:grid-cols-[1.35fr_.65fr]">
-        <section className="card overflow-hidden">
-          <div className="border-b border-slate-100 p-6"><div className="flex items-end justify-between gap-4"><div><p className="bfs-eyebrow">Momentum</p><h2 className="mt-2 text-2xl font-extrabold">Continue learning</h2></div><Link to="/my-courses" className="hidden items-center gap-1 text-sm font-bold text-blue-600 sm:inline-flex">View all <ArrowRight className="h-4 w-4"/></Link></div></div>
+        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 p-6"><div className="flex items-end justify-between gap-4"><div><p className="bfs-eyebrow">Momentum</p><h2 className="mt-2 text-2xl font-medium tracking-tight text-slate-950">Continue learning</h2></div><Link to="/my-courses" className="hidden items-center gap-1 text-sm font-bold text-blue-600 sm:inline-flex">View all <ArrowRight className="h-4 w-4"/></Link></div></div>
           <div className="p-4 sm:p-6">
-            {continueLearning.length===0?<EmptyState icon={<GraduationCap className="h-8 w-8"/>} title="No courses in progress" description="Enroll in a course to start your learning journey." action={<Link to="/courses" className="btn-primary">Browse Courses</Link>}/>:<div className="space-y-3">{continueLearning.slice(0,3).map(enr=>{const prog=progressMap[enr.course_id];return <div key={enr.id} className="group rounded-[24px] border border-slate-200 bg-white p-5 transition-colors hover:bg-slate-50"><div className="flex items-center gap-4"><div className="hidden h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-500 shadow-lg shadow-blue-500/20 sm:flex"><BookOpen className="h-6 w-6 text-white"/></div><div className="min-w-0 flex-1"><h3 className="truncate font-bold text-slate-900">{enr.course?.title}</h3><p className="mt-1 text-xs text-slate-500">{prog?.completed_count||0} lessons completed</p><div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{width:`${prog?.percentage||0}%`}}/></div><span className="text-xs font-bold text-slate-600">{prog?.percentage||0}%</span></div></div><Link to={`/learn/${enr.course_id}`} className="btn-primary hidden flex-shrink-0 sm:inline-flex"><Play className="h-4 w-4"/>Resume</Link></div></div>})}</div>}
+            {continueLearning.length===0?<EmptyState icon={<GraduationCap className="h-8 w-8"/>} title="No courses in progress" description="Enroll in a course to start your learning journey." action={<Link to="/courses" className="btn-primary">Browse Courses</Link>}/>:<div className="space-y-3">{continueLearning.slice(0,3).map(enr=>{const prog=progressMap[enr.course_id];return <div key={enr.id} className="group rounded-[24px] border border-slate-200 bg-white p-5 transition-colors hover:bg-slate-50"><div className="flex items-center gap-4"><div className="hidden h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-slate-100 sm:flex"><BookOpen className="h-6 w-6 text-slate-950"/></div><div className="min-w-0 flex-1"><h3 className="truncate font-bold text-slate-900">{enr.course?.title}</h3><p className="mt-1 text-xs text-slate-500">{prog?.completed_count||0} lessons completed</p><div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{width:`${prog?.percentage||0}%`}}/></div><span className="text-xs font-bold text-slate-600">{prog?.percentage||0}%</span></div></div><Link to={`/learn/${enr.course_id}`} className="btn-primary hidden flex-shrink-0 sm:inline-flex"><Play className="h-4 w-4"/>Resume</Link></div></div>})}</div>}
           </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-          <div className="card p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Current streak</p><p className="mt-2 text-3xl font-extrabold text-orange-500">{learningStats?.currentStreak||0}<span className="ml-1 text-base font-bold">days</span></p><p className="mt-1 text-xs text-slate-500">Longest: {learningStats?.longestStreak||0} days</p></div>
-          <div className="card p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Active learning days</p><p className="mt-2 text-3xl font-extrabold text-blue-600">{learningStats?.totalActiveDays||0}</p><p className="mt-1 text-xs text-slate-500">{learningStats?.totalLessonsCompleted||0} lessons completed</p></div>
-          <div className="card p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Achievements</p><p className="mt-2 text-3xl font-extrabold text-amber-500">{learningStats?.achievements?.length||0}</p><p className="mt-1 text-xs text-slate-500">{learningStats?.totalCoursesCompleted||0} courses completed</p></div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Current streak</p><p className="mt-2 text-3xl font-extrabold text-orange-500">{learningStats?.currentStreak||0}<span className="ml-1 text-base font-bold">days</span></p><p className="mt-1 text-xs text-slate-500">Longest: {learningStats?.longestStreak||0} days</p></div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Active learning days</p><p className="mt-2 text-3xl font-extrabold text-blue-600">{learningStats?.totalActiveDays||0}</p><p className="mt-1 text-xs text-slate-500">{learningStats?.totalLessonsCompleted||0} lessons completed</p></div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5"><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Achievements</p><p className="mt-2 text-3xl font-extrabold text-amber-500">{learningStats?.achievements?.length||0}</p><p className="mt-1 text-xs text-slate-500">{learningStats?.totalCoursesCompleted||0} courses completed</p></div>
         </section>
       </div>
 

@@ -6,6 +6,31 @@ import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 
 const channels = new Set(["notification", "email", "announcement"]);
 const messageTypes = new Set(["system", "course", "billing", "promotion", "security"]);
+const DEFAULT_AUTOMATED_TEMPLATES = [
+  { name: "Course purchase confirmed · In-app", key: "course-purchase-confirmed-in-app", channel: "notification", title: "Course purchase confirmed", body: "Your payment for {{courseTitle}} was verified. Open your course roadmap when you are ready to start learning.", messageType: "billing", link: "" },
+  { name: "Course purchase confirmed · Email", key: "course-purchase-confirmed-email", channel: "email", subject: "Your BuddyForStudy course purchase is confirmed", body: "<h1>Course purchase confirmed</h1><p>Hi {{userName}}, your payment for <strong>{{courseTitle}}</strong> has been verified.</p><p><a href=\"{{link}}\">Open your course roadmap</a> to start learning.</p>", messageType: "billing", link: "" },
+  { name: "Subscription active · In-app", key: "subscription-activated-in-app", channel: "notification", title: "Your subscription is active", body: "Your {{planName}} plan is now active. Your subscription payment has been confirmed.", messageType: "billing", link: "" },
+  { name: "Subscription active · Email", key: "subscription-activated-email", channel: "email", subject: "Your BuddyForStudy subscription is active", body: "<h1>Your plan is active</h1><p>Hi {{userName}}, your <strong>{{planName}}</strong> plan is now active and your subscription payment is confirmed.</p><p><a href=\"{{link}}\">Manage your subscription</a>.</p>", messageType: "billing", link: "" },
+  { name: "Subscription renewal · In-app", key: "subscription-payment-in-app", channel: "notification", title: "Subscription payment received", body: "Your subscription renewal payment of {{currency}} {{amount}} was received successfully.", messageType: "billing", link: "" },
+  { name: "Subscription renewal · Email", key: "subscription-payment-email", channel: "email", subject: "Your BuddyForStudy subscription payment receipt", body: "<h1>Payment received</h1><p>Hi {{userName}}, your subscription renewal payment of <strong>{{currency}} {{amount}}</strong> was received successfully.</p><p><a href=\"{{link}}\">View your billing details</a>.</p>", messageType: "billing", link: "" },
+  { name: "Payment failed · In-app", key: "payment-failed-in-app", channel: "notification", title: "Payment was not completed", body: "Your payment did not complete. Review your billing details and try again when you are ready.", messageType: "billing", link: "" },
+  { name: "Payment failed · Email", key: "payment-failed-email", channel: "email", subject: "BuddyForStudy payment update", body: "<h1>Payment was not completed</h1><p>Hi {{userName}}, your recent payment did not complete.</p><p><a href=\"{{link}}\">Review billing and try again</a> when you are ready.</p>", messageType: "billing", link: "" },
+  { name: "Learning reminder · In-app", key: "learning-reminder-in-app", channel: "notification", title: "Your next learning session is waiting", body: "Pick up where you left off in {{courseTitle}}. A short session today can keep your learning progress moving.", messageType: "system", link: "" },
+  { name: "Learning reminder · Email", key: "learning-reminder-email", channel: "email", subject: "Your BuddyForStudy learning reminder", body: "<h1>Keep your learning momentum</h1><p>Hi {{userName}}, pick up where you left off in <strong>{{courseTitle}}</strong>.</p><p><a href=\"{{link}}\">Continue learning</a>. A short session today is a useful next step.</p>", messageType: "system", link: "" }
+];
+
+async function ensureDefaultAutomatedTemplates() {
+  await Promise.all(DEFAULT_AUTOMATED_TEMPLATES.map(async (template) => {
+    try {
+      await MessageTemplate.updateOne({ key: template.key }, {
+        $setOnInsert: { ...template, isActive: true }
+      }, { upsert: true });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+    }
+  }));
+}
+
 
 function cleanString(value, max) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -55,6 +80,7 @@ function summary(template) {
 
 export async function listMessageTemplates(req, res, next) {
   try {
+    await ensureDefaultAutomatedTemplates();
     const templates = await MessageTemplate.find({}).sort({ channel: 1, name: 1 }).lean();
     return success(res, { templates });
   } catch (error) { next(error); }

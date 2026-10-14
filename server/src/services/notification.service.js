@@ -5,6 +5,7 @@ import { Progress } from "../models/Progress.js";
 import { Notification } from "../models/Notification.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
+import { MessageTemplate } from "../models/MessageTemplate.js";
 
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
@@ -72,6 +73,15 @@ function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[character]);
+}
+
+function renderTemplate(template, values, { html = false } = {}) {
+  const entries = Object.entries(values || {});
+  return String(template || "").replace(/\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}/g, (_match, key) => {
+    const value = entries.find(([name]) => name.toLowerCase() === String(key).toLowerCase())?.[1];
+    const text = value === undefined || value === null ? "" : String(value);
+    return html ? escapeHtml(text) : text;
+  });
 }
 
 function preferenceKeys(type) {
@@ -229,24 +239,45 @@ export async function createNotificationEvent({
   email = true,
   push = true,
   forceInApp = false,
-  metadata = {}
+  metadata = {},
+  templateKeys = {}
 }) {
   const [preferences, platform] = await Promise.all([getUserNotificationPreferences(userId), getNotificationPlatformSettings()]);
   const keys = preferenceKeys(type);
+  const { User } = await import("../models/User.js");
+  const user = await User.findById(userId).select("name").lean();
+  const sourceLink = String(link || "");
+  const appUrl = env.clientUrl.replace(/\\/$/, "");
+  const variables = {
+    ...Object.fromEntries(Object.entries(metadata || {}).map(([key, value]) => [key, value === undefined || value === null ? "" : String(value)])),
+    userName: user?.name || "learner",
+    title,
+    message,
+    link: sourceLink ? appUrl + sourceLink : appUrl + "/notifications"
+  };
+  const [notificationTemplate, emailTemplate] = await Promise.all([
+    templateKeys.notification ? MessageTemplate.findOne({ key: templateKeys.notification, channel: "notification", isActive: true }).lean() : null,
+    templateKeys.email ? MessageTemplate.findOne({ key: templateKeys.email, channel: "email", isActive: true }).lean() : null
+  ]);
+  const renderedTitle = notificationTemplate?.title ? renderTemplate(notificationTemplate.title, variables) : title;
+  const renderedMessage = notificationTemplate?.body ? renderTemplate(notificationTemplate.body, variables) : message;
+  const renderedEmailSubject = emailTemplate?.subject ? renderTemplate(emailTemplate.subject, variables) : (emailSubject || title);
+  const renderedEmailHtml = emailTemplate?.body ? renderTemplate(emailTemplate.body, variables, { html: true }) : "";
   const transactional = type === "billing" || type === "security";
   const showInApp = forceInApp || transactional || (platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
   const shouldEmail = email && platform.emailEnabled && (transactional || !keys.email || preferences[keys.email] !== false);
   const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
   const payload = {
     user: userId,
-    title: String(title || "BuddyForStudy update").slice(0, 200),
-    message: String(message || "").slice(0, 5000),
+    title: String(renderedTitle || "BuddyForStudy update").slice(0, 200),
+    message: String(renderedMessage || "").slice(0, 5000),
     type,
     link: String(link || "").slice(0, 1000),
     showInApp,
     metadata: metadata && typeof metadata === "object" ? metadata : {},
     emailStatus: shouldEmail ? "pending" : "skipped",
-    emailSubject: String(emailSubject || title || "BuddyForStudy update").slice(0, 200),
+    emailSubject: String(renderedEmailSubject || "BuddyForStudy update").slice(0, 200),
+    emailHtml: String(renderedEmailHtml || "").slice(0, 20000),
     pushStatus: shouldPush ? "pending" : "skipped"
   };
   let notification;

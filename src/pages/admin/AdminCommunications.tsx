@@ -3,7 +3,9 @@ import { Bell, Eye, Mail, Megaphone, Send } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 type Channel = "in_app" | "email";
-type MessageTemplate = { _id: string; name: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; isActive: boolean };
+type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean };
+type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
+const EMPTY_TEMPLATE: TemplateDraft = { name: "", key: "", channel: "notification", title: "", subject: "", body: "", link: "", messageType: "system", isActive: true };
 
 export default function AdminCommunications() {
   const [tab, setTab] = useState<"notification" | "email" | "announcement">("notification");
@@ -22,6 +24,11 @@ export default function AdminCommunications() {
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [deliveryError, setDeliveryError] = useState("");
+  const [editingTemplateId, setEditingTemplateId] = useState("");
+  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(EMPTY_TEMPLATE);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateStatus, setTemplateStatus] = useState("");
+  const [templateError, setTemplateError] = useState("");
 
   async function loadDeliveryLogs() {
     setLoadingDeliveries(true);
@@ -40,6 +47,47 @@ export default function AdminCommunications() {
     adminFetch("/api/admin/message-templates").then(data => setTemplates(Array.isArray(data.templates) ? data.templates : [])).catch(() => setTemplates([]));
     void loadDeliveryLogs();
   }, []);
+
+  function editTemplate(template?: MessageTemplate) {
+    setEditingTemplateId(template?._id || "");
+    setTemplateDraft(template ? {
+      name: template.name,
+      key: template.key,
+      channel: template.channel,
+      title: template.title || "",
+      subject: template.subject || "",
+      body: template.body || "",
+      link: template.link || "",
+      messageType: template.messageType || "system",
+      isActive: template.isActive !== false,
+    } : { ...EMPTY_TEMPLATE });
+    setTemplateStatus("");
+    setTemplateError("");
+  }
+
+  async function saveTemplate() {
+    setSavingTemplate(true);
+    setTemplateStatus("");
+    setTemplateError("");
+    try {
+      const endpoint = editingTemplateId
+        ? `/api/admin/message-templates/${editingTemplateId}`
+        : "/api/admin/message-templates";
+      await adminFetch(endpoint, {
+        method: editingTemplateId ? "PUT" : "POST",
+        body: JSON.stringify(templateDraft),
+      });
+      const data = await adminFetch("/api/admin/message-templates");
+      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+      setTemplateStatus("Template saved. Automatic event notifications will use it when its key matches a built-in event.");
+      setEditingTemplateId("");
+      setTemplateDraft({ ...EMPTY_TEMPLATE });
+    } catch (error) {
+      setTemplateError(error instanceof Error ? error.message : "Unable to save template.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
 
   const canSend = useMemo(() => {
     if (tab === "email") return Boolean(subject.trim() && html.trim());
@@ -142,6 +190,87 @@ export default function AdminCommunications() {
       </div>
 
       {templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
+
+      <section className="card mt-5 p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Automation templates</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">Edit automatic notifications</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">These templates are used for course purchase confirmations, subscription activation and renewal, payment failures, and learning reminders. Keep the built-in key unchanged to keep the event connected.</p>
+          </div>
+          <button type="button" className="btn-secondary shrink-0" onClick={() => editTemplate()}>New template</button>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {templates.map((template) => (
+            <div key={template._id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{template.name}</p>
+                <p className="mt-1 break-all font-mono text-[10px] text-slate-500">{template.key}</p>
+                <p className="mt-1 text-xs text-slate-500">{template.channel} · {template.isActive ? "Active" : "Inactive"}</p>
+              </div>
+              <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => editTemplate(template)}>Edit</button>
+            </div>
+          ))}
+        </div>
+
+        {(editingTemplateId || templateDraft.name || templateStatus || templateError) && (
+          <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-slate-950">{editingTemplateId ? "Edit message template" : "Create message template"}</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Supported tokens include {{userName}}, {{courseTitle}}, {{planName}}, {{amount}}, {{currency}}, and {{link}}.</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={() => editTemplate()}>Close</button>
+            </div>
+            {templateError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{templateError}</p>}
+            {templateStatus && <p role="status" className="mt-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{templateStatus}</p>}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block text-xs font-semibold text-slate-600">Template name
+                <input className="input-field mt-1" value={templateDraft.name} onChange={(e) => setTemplateDraft({ ...templateDraft, name: e.target.value })} />
+              </label>
+              <label className="block text-xs font-semibold text-slate-600">Template key
+                <input className="input-field mt-1 font-mono" value={templateDraft.key} onChange={(e) => setTemplateDraft({ ...templateDraft, key: e.target.value })} disabled={Boolean(editingTemplateId)} />
+              </label>
+              <label className="block text-xs font-semibold text-slate-600">Channel
+                <select className="input-field mt-1" value={templateDraft.channel} onChange={(e) => setTemplateDraft({ ...templateDraft, channel: e.target.value as TemplateDraft["channel"] })}>
+                  <option value="notification">In-app notification</option>
+                  <option value="email">Email</option>
+                  <option value="announcement">Announcement</option>
+                </select>
+              </label>
+              <label className="block text-xs font-semibold text-slate-600">Message type
+                <select className="input-field mt-1" value={templateDraft.messageType} onChange={(e) => setTemplateDraft({ ...templateDraft, messageType: e.target.value })}>
+                  <option value="system">System</option>
+                  <option value="course">Course</option>
+                  <option value="billing">Billing</option>
+                  <option value="promotion">Promotion</option>
+                  <option value="security">Security</option>
+                </select>
+              </label>
+              {templateDraft.channel === "email" ? (
+                <label className="block text-xs font-semibold text-slate-600 sm:col-span-2">Email subject
+                  <input className="input-field mt-1" value={templateDraft.subject} onChange={(e) => setTemplateDraft({ ...templateDraft, subject: e.target.value })} />
+                </label>
+              ) : (
+                <label className="block text-xs font-semibold text-slate-600 sm:col-span-2">Notification title
+                  <input className="input-field mt-1" value={templateDraft.title} onChange={(e) => setTemplateDraft({ ...templateDraft, title: e.target.value })} />
+                </label>
+              )}
+              <label className="block text-xs font-semibold text-slate-600 sm:col-span-2">Body {templateDraft.channel === "email" ? "(HTML)" : "(plain text)"}
+                <textarea className="input-field mt-1 min-h-40 font-mono text-sm" value={templateDraft.body} onChange={(e) => setTemplateDraft({ ...templateDraft, body: e.target.value })} />
+              </label>
+              <label className="block text-xs font-semibold text-slate-600 sm:col-span-2">Destination route (optional)
+                <input className="input-field mt-1" value={templateDraft.link} onChange={(e) => setTemplateDraft({ ...templateDraft, link: e.target.value })} placeholder="/billing" />
+              </label>
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-2"><input type="checkbox" checked={templateDraft.isActive} onChange={(e) => setTemplateDraft({ ...templateDraft, isActive: e.target.checked })} /> Template active</label>
+            </div>
+            <button type="button" className="btn-primary mt-4" onClick={() => void saveTemplate()} disabled={savingTemplate}>
+              {savingTemplate ? "Saving template..." : "Save template"}
+            </button>
+          </div>
+        )}
+      </section>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
         <section className="card p-6">

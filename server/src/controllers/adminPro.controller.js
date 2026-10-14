@@ -31,6 +31,7 @@ import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdm
 import { validateAdminAccountChange } from "../utils/adminAccountSafety.js";
 import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
+import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -1255,9 +1256,8 @@ export async function sendAnnouncement(req, res, next) {
     const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
     const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
     if (!title || !message) return failure(res, "title and message are required", 400);
-    const channel = Array.isArray(req.body.channel) ? req.body.channel : [req.body.channel || "in_app"];
-    if (channel.some((item) => !["in_app", "email"].includes(item))) return failure(res, "Invalid announcement channel", 400);
-    if (!channel.length) return failure(res, "Choose at least one announcement channel", 400);
+    const channel = parseAnnouncementChannels(req.body.channel);
+    if (!channel) return failure(res, "Choose one or more valid announcement channels", 400);
 
     const announcement = await Announcement.create({
       title,
@@ -1277,6 +1277,7 @@ export async function sendAnnouncement(req, res, next) {
       type: "promotion",
       link: announcement.link,
       eventKey: `announcement:${announcement._id}:${user._id}`,
+      inApp: channel.includes("in_app"),
       email: channel.includes("email"),
       push: false,
       metadata: { source: "admin-announcement", announcementId: String(announcement._id) }

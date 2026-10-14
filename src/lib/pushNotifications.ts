@@ -44,6 +44,45 @@ function withOneSignal<T>(callback: (oneSignal: any) => Promise<T>): Promise<T> 
   });
 }
 
+async function ensureInitialized(oneSignal: any, appId: string): Promise<void> {
+  if (initializedAppId && initializedAppId !== appId) {
+    throw new Error("A different push-notification app is already initialized in this tab.");
+  }
+  if (!initializedAppId) {
+    await oneSignal.init({
+      appId,
+      serviceWorkerPath: "OneSignalSDKWorker.js",
+      serviceWorkerUpdaterPath: "OneSignalSDKUpdaterWorker.js"
+    });
+    initializedAppId = appId;
+  }
+}
+
+// Restores the logged-in user's OneSignal identity without requesting browser permission.
+export async function identifyBrowserPush(userId: string, appId: string): Promise<void> {
+  if (!userId || !appId) return;
+  const operation = withOneSignal(async (oneSignal) => {
+    await ensureInitialized(oneSignal, appId);
+    await oneSignal.login(String(userId));
+  });
+  await loadOneSignalScript();
+  await operation;
+}
+
+// Remove the account alias at logout so a shared browser cannot stay linked to the previous account.
+export async function logoutBrowserPush(appId: string): Promise<void> {
+  if (!appId) return;
+  const operation = withOneSignal(async (oneSignal) => {
+    await ensureInitialized(oneSignal, appId);
+    if (typeof oneSignal.logout !== "function") {
+      throw new Error("This OneSignal SDK build does not support logout.");
+    }
+    await oneSignal.logout();
+  });
+  await loadOneSignalScript();
+  await operation;
+}
+
 export async function enableBrowserPush(userId: string, appId: string): Promise<void> {
   if (!appId) throw new Error("Push notifications are not configured. Set VITE_ONESIGNAL_APP_ID in the frontend environment.");
   if (!userId) throw new Error("Sign in again before enabling notifications.");
@@ -53,13 +92,7 @@ export async function enableBrowserPush(userId: string, appId: string): Promise<
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   const operation = withOneSignal(async (oneSignal) => {
-    if (initializedAppId && initializedAppId !== appId) {
-      throw new Error("A different push-notification app is already initialized in this tab.");
-    }
-    if (!initializedAppId) {
-      await oneSignal.init({ appId, serviceWorkerPath: "OneSignalSDKWorker.js", serviceWorkerUpdaterPath: "OneSignalSDKUpdaterWorker.js" });
-      initializedAppId = appId;
-    }
+    await ensureInitialized(oneSignal, appId);
     await oneSignal.login(String(userId));
     await oneSignal.Notifications.requestPermission();
     if (Notification.permission !== "granted") {

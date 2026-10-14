@@ -575,13 +575,13 @@ export default function CoursePlayer() {
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}
 
-                    {currentLesson.lesson.type !== "quiz" && (
+                    {(
                       <section className="mb-6 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Practice & check understanding</p>
                             <h2 className="mt-1 text-lg font-medium text-slate-950">Test what you learned</h2>
-                            <p className="mt-1 text-sm leading-6 text-slate-600">Generate five fresh AI questions based on this lesson's content, project brief, or selected video context.</p>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">Generate five fresh AI questions based on this lesson, course assessment topics, project brief, or selected video context.</p>
                           </div>
                           <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary shrink-0 justify-center">
                             {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}

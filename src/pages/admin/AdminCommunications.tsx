@@ -219,7 +219,7 @@ export default function AdminCommunications() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-slate-950">{editingTemplateId ? "Edit message template" : "Create message template"}</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">Supported tokens include {{userName}}, {{courseTitle}}, {{planName}}, {{amount}}, {{currency}}, and {{link}}.</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Supported tokens include <code>{"{{userName}}"}</code>, <code>{"{{courseTitle}}"}</code>, <code>{"{{planName}}"}</code>, <code>{"{{amount}}"}</code>, <code>{"{{currency}}"}</code>, and <code>{"{{link}}"}</code>.</p>
               </div>
               <button type="button" className="btn-secondary" onClick={() => editTemplate()}>Close</button>
             </div>

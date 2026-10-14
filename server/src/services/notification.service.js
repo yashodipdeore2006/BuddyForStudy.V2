@@ -1,0 +1,343 @@
+import nodemailer from "nodemailer";
+import { env } from "../config/env.js";
+import { Enrollment } from "../models/Enrollment.js";
+import { Progress } from "../models/Progress.js";
+import { Notification } from "../models/Notification.js";
+import { NotificationPreference } from "../models/NotificationPreference.js";
+
+const DEFAULT_PREFERENCES = {
+  emailCourseUpdates: true,
+  inAppCourseUpdates: true,
+  emailProjectUpdates: true,
+  inAppProjectUpdates: true,
+  emailAnnouncements: true,
+  inAppAnnouncements: true,
+  emailLearningReminders: true,
+  inAppLearningReminders: true,
+  learningRemindersEnabled: true,
+  pushEnabled: false,
+  timezone: "Asia/Kolkata",
+  reminderHour: 18
+};
+const MAX_EMAIL_ATTEMPTS = 5;
+const MAX_PUSH_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 10 * 60 * 1000;
+let transport;
+
+function getMailer() {
+  if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) return null;
+  if (!transport) {
+    transport = nodemailer.createTransport({
+      host: env.smtpHost,
+      port: env.smtpPort,
+      secure: env.smtpSecure,
+      auth: { user: env.smtpUser, pass: env.smtpPass }
+    });
+  }
+  return transport;
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[character]);
+}
+
+function preferenceKeys(type) {
+  if (type === "learning") return { email: "emailLearningReminders", inApp: "inAppLearningReminders" };
+  if (type === "course") return { email: "emailCourseUpdates", inApp: "inAppCourseUpdates" };
+  if (type === "promotion") return { email: "emailAnnouncements", inApp: "inAppAnnouncements" };
+  return { email: null, inApp: null };
+}
+
+export async function getUserNotificationPreferences(userId) {
+  const stored = await NotificationPreference.findOne({ user: userId }).lean();
+  return { ...DEFAULT_PREFERENCES, ...(stored || {}), user: String(userId) };
+}
+
+export async function saveUserNotificationPreferences(userId, updates) {
+  const patch = {};
+  for (const key of Object.keys(DEFAULT_PREFERENCES)) {
+    if (Object.prototype.hasOwnProperty.call(updates, key)) patch[key] = updates[key];
+  }
+  const preferences = await NotificationPreference.findOneAndUpdate(
+    { user: userId },
+    { $set: patch, $setOnInsert: { user: userId } },
+    { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
+  ).lean();
+  return { ...DEFAULT_PREFERENCES, ...preferences, user: String(userId) };
+}
+
+async function dispatchEmail(notificationId, { force = false } = {}) {
+  const mailer = getMailer();
+  if (!mailer) return;
+  const filter = {
+    _id: notificationId,
+    emailStatus: "pending",
+    emailAttempts: { $lt: MAX_EMAIL_ATTEMPTS }
+  };
+  if (!force) {
+    filter.$or = [
+      { emailLastAttemptAt: null },
+      { emailLastAttemptAt: { $lte: new Date(Date.now() - RETRY_DELAY_MS) } }
+    ];
+  }
+  const notification = await Notification.findOneAndUpdate(
+    filter,
+    { $inc: { emailAttempts: 1 }, $set: { emailLastAttemptAt: new Date() } },
+    { new: true }
+  ).populate("user", "name email");
+  if (!notification?.user?.email) return;
+
+  try {
+    const appUrl = env.clientUrl.replace(/\/$/, "");
+    const link = notification.link ? appUrl + notification.link : appUrl + "/notifications";
+    const title = escapeHtml(notification.title);
+    const message = escapeHtml(notification.message).replace(/\n/g, "<br />");
+    await mailer.sendMail({
+      from: env.mailFrom,
+      to: notification.user.email,
+      subject: notification.emailSubject || notification.title,
+      text: `${notification.title}\n\n${notification.message}\n\nOpen BuddyForStudy: ${link}`,
+      html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1c1e21;line-height:1.6"><div style="max-width:560px;margin:24px auto;padding:28px;border:1px solid #dee3e9;border-radius:20px"><p style="font-size:12px;font-weight:700;color:#0064e0;letter-spacing:1px">BUDDYFORSTUDY</p><h1 style="font-size:24px;font-weight:600">${title}</h1><p>${message}</p><p style="margin-top:28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:100px;text-decoration:none;font-weight:700">Open BuddyForStudy</a></p><p style="font-size:12px;color:#5d6c7b">You are receiving this email because of activity on your BuddyForStudy account.</p></div></body></html>`
+    });
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: { emailStatus: "sent", emailSentAt: new Date(), emailError: "" }
+    });
+  } catch (error) {
+    const attempts = Number(notification.emailAttempts || 1);
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: {
+        emailStatus: attempts >= MAX_EMAIL_ATTEMPTS ? "failed" : "pending",
+        emailError: String(error?.message || "Email delivery failed").slice(0, 500)
+      }
+    });
+    console.error("[notifications] email delivery failed", {
+      notificationId: String(notification._id),
+      attempt: attempts,
+      message: String(error?.message || "Unknown mail error").slice(0, 200)
+    });
+  }
+}
+
+async function dispatchPush(notificationId, { force = false } = {}) {
+  if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
+    await Notification.updateOne({ _id: notificationId, pushStatus: "pending" }, {
+      $set: { pushStatus: "skipped", pushError: "Push provider is not configured" }
+    });
+    return;
+  }
+  const filter = {
+    _id: notificationId,
+    pushStatus: "pending",
+    pushAttempts: { $lt: MAX_PUSH_ATTEMPTS }
+  };
+  if (!force) {
+    filter.$or = [
+      { pushLastAttemptAt: null },
+      { pushLastAttemptAt: { $lte: new Date(Date.now() - RETRY_DELAY_MS) } }
+    ];
+  }
+  const notification = await Notification.findOneAndUpdate(
+    filter,
+    { $inc: { pushAttempts: 1 }, $set: { pushLastAttemptAt: new Date() } },
+    { new: true }
+  );
+  if (!notification) return;
+
+  try {
+    const response = await fetch("https://api.onesignal.com/notifications", {
+      method: "POST",
+      headers: {
+        Authorization: `Key ${env.oneSignalRestApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        app_id: env.oneSignalAppId,
+        include_aliases: { external_id: [String(notification.user)] },
+        target_channel: "push",
+        headings: { en: notification.title },
+        contents: { en: notification.message },
+        url: notification.link ? env.clientUrl.replace(/\/$/, "") + notification.link : env.clientUrl
+      })
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`OneSignal returned ${response.status}: ${body.slice(0, 250)}`);
+    }
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: { pushStatus: "sent", pushSentAt: new Date(), pushError: "" }
+    });
+  } catch (error) {
+    const attempts = Number(notification.pushAttempts || 1);
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: {
+        pushStatus: attempts >= MAX_PUSH_ATTEMPTS ? "failed" : "pending",
+        pushError: String(error?.message || "Push delivery failed").slice(0, 500)
+      }
+    });
+    console.error("[notifications] push delivery failed", {
+      notificationId: String(notification._id),
+      attempt: attempts,
+      message: String(error?.message || "Unknown push error").slice(0, 200)
+    });
+  }
+}
+
+export async function createNotificationEvent({
+  userId,
+  title,
+  message,
+  type = "system",
+  link = "",
+  eventKey,
+  emailSubject = "",
+  email = true,
+  push = true,
+  forceInApp = false,
+  metadata = {}
+}) {
+  const preferences = await getUserNotificationPreferences(userId);
+  const keys = preferenceKeys(type);
+  const transactional = type === "billing" || type === "security";
+  const showInApp = forceInApp || transactional || !keys.inApp || preferences[keys.inApp] !== false;
+  const shouldEmail = email && (transactional || !keys.email || preferences[keys.email] !== false);
+  const shouldPush = push && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
+  const payload = {
+    user: userId,
+    title: String(title || "BuddyForStudy update").slice(0, 200),
+    message: String(message || "").slice(0, 5000),
+    type,
+    link: String(link || "").slice(0, 1000),
+    showInApp,
+    metadata: metadata && typeof metadata === "object" ? metadata : {},
+    emailStatus: shouldEmail ? "pending" : "skipped",
+    emailSubject: String(emailSubject || title || "BuddyForStudy update").slice(0, 200),
+    pushStatus: shouldPush ? "pending" : "skipped"
+  };
+  let notification;
+  let created = true;
+
+  try {
+    if (eventKey) {
+      const normalizedEventKey = String(eventKey).slice(0, 200);
+      const result = await Notification.updateOne(
+        { user: userId, eventKey: normalizedEventKey },
+        { $setOnInsert: { ...payload, eventKey: normalizedEventKey } },
+        { upsert: true }
+      );
+      created = Number(result.upsertedCount || 0) > 0;
+      notification = await Notification.findOne({ user: userId, eventKey: normalizedEventKey });
+    } else {
+      notification = await Notification.create(payload);
+    }
+  } catch (error) {
+    if (error?.code !== 11000 || !eventKey) throw error;
+    created = false;
+    notification = await Notification.findOne({ user: userId, eventKey: String(eventKey).slice(0, 200) });
+  }
+  if (!notification) return null;
+  if (created) {
+    if (payload.emailStatus === "pending") void dispatchEmail(notification._id, { force: true });
+    if (payload.pushStatus === "pending") void dispatchPush(notification._id, { force: true });
+  }
+  return notification;
+}
+
+export async function deliverPendingNotificationEmails(limit = 50) {
+  if (!getMailer()) return { attempted: 0 };
+  const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
+  const pending = await Notification.find({
+    emailStatus: "pending",
+    emailAttempts: { $lt: MAX_EMAIL_ATTEMPTS },
+    $or: [{ emailLastAttemptAt: null }, { emailLastAttemptAt: { $lte: retryBefore } }]
+  }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
+  for (const item of pending) await dispatchEmail(item._id);
+  return { attempted: pending.length };
+}
+
+export async function deliverPendingNotificationPush(limit = 50) {
+  if (!env.oneSignalAppId || !env.oneSignalRestApiKey) return { attempted: 0 };
+  const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
+  const pending = await Notification.find({
+    pushStatus: "pending",
+    pushAttempts: { $lt: MAX_PUSH_ATTEMPTS },
+    $or: [{ pushLastAttemptAt: null }, { pushLastAttemptAt: { $lte: retryBefore } }]
+  }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
+  for (const item of pending) await dispatchPush(item._id);
+  return { attempted: pending.length };
+}
+
+function localDateParts(date, timezone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+}
+
+function inTimeZone(date, timezone) {
+  try { return localDateParts(date, timezone); } catch { return localDateParts(date, "UTC"); }
+}
+
+export async function processLearningReminders(now = new Date(), batchSize = 500) {
+  const enrollments = await Enrollment.find({ status: "active" })
+    .sort({ updatedAt: 1 })
+    .limit(Math.min(Math.max(batchSize, 1), 1000))
+    .populate("course", "title isPublished")
+    .lean();
+  if (!enrollments.length) return { checked: 0, sent: 0 };
+
+  const userIds = [...new Set(enrollments.map((item) => String(item.user)))];
+  const courseIds = [...new Set(enrollments.map((item) => String(item.course?._id || item.course)).filter(Boolean))];
+  const [preferenceDocs, progressDocs] = await Promise.all([
+    NotificationPreference.find({ user: { $in: userIds } }).lean(),
+    Progress.find({ user: { $in: userIds }, course: { $in: courseIds } }).lean()
+  ]);
+  const preferences = new Map(preferenceDocs.map((item) => [String(item.user), { ...DEFAULT_PREFERENCES, ...item }]));
+  const progressMap = new Map(progressDocs.map((item) => [`${item.user}:${item.course}`, item]));
+  const processedUsers = new Set();
+  let sent = 0;
+  const minInactiveMs = 3 * 24 * 60 * 60 * 1000;
+
+  for (const enrollment of enrollments) {
+    const userId = String(enrollment.user);
+    const course = enrollment.course;
+    if (!course?._id || course.isPublished === false || processedUsers.has(userId)) continue;
+    const pref = preferences.get(userId) || { ...DEFAULT_PREFERENCES, user: userId };
+    if (!pref.learningRemindersEnabled) continue;
+    const dateParts = inTimeZone(now, pref.timezone || "Asia/Kolkata");
+    if (Number(dateParts.hour) !== Number(pref.reminderHour ?? 18)) continue;
+    const dateKey = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+    const eventKey = `learning-reminder:${userId}:${dateKey}`;
+    if (await Notification.exists({ user: userId, eventKey })) {
+      processedUsers.add(userId);
+      continue;
+    }
+
+    const progress = progressMap.get(`${userId}:${String(course._id)}`);
+    if (progress && Number(progress.percentage || 0) >= 100) continue;
+    const lastActivity = progress?.lastAccessedAt || enrollment.updatedAt || enrollment.enrolledAt;
+    if (!lastActivity || now.getTime() - new Date(lastActivity).getTime() < minInactiveMs) continue;
+
+    await createNotificationEvent({
+      userId,
+      title: "Your next learning session is waiting",
+      message: `Pick up where you left off in ${course.title}. A short session today can keep your learning progress moving.`,
+      type: "learning",
+      link: `/courses/${course._id}/roadmap`,
+      eventKey,
+      emailSubject: "Your BuddyForStudy learning reminder",
+      email: pref.emailLearningReminders !== false,
+      push: true,
+      metadata: { courseId: String(course._id), reminderDate: dateKey }
+    });
+    processedUsers.add(userId);
+    sent += 1;
+  }
+  return { checked: enrollments.length, sent };
+}

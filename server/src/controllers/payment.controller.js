@@ -22,7 +22,8 @@ async function notifyCoursePurchase(payment) {
     link: `/courses/${payment.course}/roadmap`,
     eventKey: `course-purchase-confirmed:${payment._id}`,
     emailSubject: "Your BuddyForStudy course purchase is confirmed",
-    metadata: { paymentId: String(payment._id), courseId: String(payment.course) }
+    metadata: { paymentId: String(payment._id), courseId: String(payment.course), courseTitle: course?.title || "your course" },
+    templateKeys: { notification: "course-purchase-confirmed-in-app", email: "course-purchase-confirmed-email" }
   });
 }
 

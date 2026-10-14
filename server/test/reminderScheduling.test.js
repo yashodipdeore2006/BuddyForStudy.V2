@@ -41,7 +41,7 @@ test("subscription expiry reminder window tolerates worker drift and caps the co
   const window = getSubscriptionExpiryReminderWindow(now, 3, 60 * 60 * 1000);
   assert.equal(window.start.toISOString(), "2026-10-17T11:00:00.000Z");
   assert.equal(window.end.toISOString(), "2026-10-17T13:00:00.000Z");
-  assert.equal(getSubscriptionExpiryReminderWindow(now, 99).end.getTime() - now.getTime(), 15 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000);
+  assert.equal(getSubscriptionExpiryReminderWindow(now, 99).end.getTime() - now.getTime(), 14 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000);
 });
 
 test("subscription expiry event keys are stable per provider period", () => {

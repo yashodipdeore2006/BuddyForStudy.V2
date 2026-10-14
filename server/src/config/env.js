@@ -23,6 +23,8 @@ export const env = {
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
   mailFrom: process.env.MAIL_FROM || process.env.SMTP_USER || "",
+  oneSignalAppId: process.env.ONESIGNAL_APP_ID || "",
+  oneSignalRestApiKey: process.env.ONESIGNAL_REST_API_KEY || "",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",

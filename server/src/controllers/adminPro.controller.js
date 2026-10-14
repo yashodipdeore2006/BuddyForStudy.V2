@@ -1105,6 +1105,27 @@ export async function updateRefund(req, res, next) {
       await payment.save();
     }
     await refund.save();
+    try {
+      await createNotificationEvent({
+        userId: String(refund.user),
+        title: refund.status === "processed" ? "Your refund has been processed" : refund.status === "rejected" ? "Your refund request was declined" : "Your refund request was updated",
+        message: refund.status === "processed"
+          ? `Your refund of ${payment.currency || "INR"} ${refund.amount} has been processed. Your payment provider may take additional time to reflect the funds.`
+          : refund.status === "rejected"
+            ? `Your refund request for ${payment.currency || "INR"} ${refund.amount} was declined. Contact support if you need help understanding the decision.`
+            : `Your refund request for ${payment.currency || "INR"} ${refund.amount} has been updated to ${refund.status}.`,
+        type: "billing",
+        link: "/billing",
+        eventKey: `refund-status:${refund._id}:${refund.status}`,
+        emailSubject: refund.status === "processed" ? "Your BuddyForStudy refund has been processed" : "Your BuddyForStudy refund request update",
+        metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(refund.amount), currency: payment.currency || "INR", status: refund.status }
+      });
+    } catch (notificationError) {
+      console.error("[notifications] refund status notification failed", {
+        refundId: String(refund._id),
+        message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+      });
+    }
     await audit(req, "refund.updated", "RefundRequest", refund._id, before, {
       status: refund.status,
       amount: refund.amount,

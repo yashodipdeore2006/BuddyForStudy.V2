@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 
 export default function Billing() {
@@ -40,7 +41,7 @@ export default function Billing() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="text-3xl font-bold">Billing & Payment History</h1>
+      <PageHeader title="Billing & Payment History" subtitle="Review your subscription, payment history, and refund requests." />
 
       {refundMessage && (
         <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{refundMessage}</div>

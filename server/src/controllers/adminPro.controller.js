@@ -1176,15 +1176,60 @@ export async function sendNotification(req, res, next) {
 
 export async function sendEmail(req, res, next) {
   try {
-    const transport = mailer(); if (!transport) return failure(res, "SMTP is not configured", 503);
+    const subject = typeof req.body.subject === "string" ? req.body.subject.trim() : "";
+    const html = typeof req.body.html === "string" ? req.body.html : "";
+    if (!subject || !html) return failure(res, "subject and html are required", 400);
+    if (subject.length > 200 || html.length > 20000) return failure(res, "Email subject or HTML body is too long", 400);
+
+    const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
     let users = [];
-    if (Array.isArray(req.body.userIds) && req.body.userIds.length) users = await User.find({ _id: { $in: req.body.userIds.filter(isValidObjectId) } }).select("email name");
-    else if (req.body.email) users = [{ email: req.body.email, name: "" }];
-    else users = await audienceUsers(req.body.audience || "all");
-    if (!req.body.subject || !req.body.html) return failure(res, "subject and html are required", 400);
-    const info = await transport.sendMail({ from: env.mailFrom, to: users.map(u => u.email).join(","), subject: req.body.subject, html: req.body.html });
-    await audit(req, "email.sent", "EmailCampaign", info.messageId || "", null, { recipients: users.length, subject: req.body.subject });
-    return success(res, { sent: users.length, messageId: info.messageId }, "Email sent");
+    let externalEmail = "";
+    if (ids.length) {
+      users = await User.find({ _id: { $in: ids } }).select("_id email name");
+    } else if (req.body.email) {
+      externalEmail = String(req.body.email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalEmail)) return failure(res, "Enter a valid recipient email address", 400);
+      const knownUser = await User.findOne({ email: externalEmail }).select("_id email name");
+      if (knownUser) users = [knownUser];
+    } else {
+      users = await audienceUsers(req.body.audience || "all");
+    }
+
+    if (externalEmail && users.length === 0) {
+      const globalEmailSetting = await PlatformSetting.findOne({ key: "notification_email_enabled" }).select("value").lean();
+      if (globalEmailSetting?.value === false) return failure(res, "Email delivery is paused by platform settings", 503);
+      const transport = mailer();
+      if (!transport) return failure(res, "SMTP is not configured", 503);
+      const info = await transport.sendMail({ from: env.mailFrom, to: externalEmail, subject, html });
+      await audit(req, "email.sent", "EmailCampaign", info.messageId || "", null, { recipients: 1, subject, destinationType: "external" });
+      return success(res, { sent: 1, recipients: 1, messageId: info.messageId }, "Email sent");
+    }
+
+    if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");
+    const broadcastId = new mongoose.Types.ObjectId().toString();
+    const results = await Promise.all(users.map((user) => createNotificationEvent({
+      userId: String(user._id),
+      title: subject,
+      message: "A message from BuddyForStudy has arrived in your email.",
+      type: "promotion",
+      link: "/notifications",
+      eventKey: `admin-email-campaign:${broadcastId}:${user._id}`,
+      emailSubject: subject,
+      emailHtmlOverride: html,
+      email: true,
+      inApp: false,
+      push: false,
+      metadata: { source: "admin-email-campaign", broadcastId, initiatedBy: String(req.user.user._id) }
+    })));
+    const queued = results.filter((item) => item?.emailStatus === "pending").length;
+    const skipped = results.filter((item) => item?.emailStatus === "skipped").length;
+    await audit(req, "email.queued", "EmailCampaign", broadcastId, null, {
+      recipients: users.length,
+      queued,
+      skipped,
+      subject
+    });
+    return success(res, { queued, sent: queued, skipped, recipients: users.length, broadcastId }, "Email campaign queued");
   } catch (e) { next(e); }
 }
 

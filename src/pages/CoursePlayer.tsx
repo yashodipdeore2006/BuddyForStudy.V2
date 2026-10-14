@@ -72,6 +72,12 @@ export default function CoursePlayer() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [quizPassed, setQuizPassed] = useState(false);
+  const [practiceQuizData, setPracticeQuizData] = useState<any>(null);
+  const [practiceQuizAnswers, setPracticeQuizAnswers] = useState<Record<string, string>>({});
+  const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
+  const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
+  const [practiceQuizError, setPracticeQuizError] = useState("");
+
 
   useEffect(() => {
     if (!courseId) {
@@ -107,6 +113,13 @@ export default function CoursePlayer() {
     () => course && lessonId ? findLessonById(course.modules, lessonId) : null,
     [course, lessonId]
   );
+
+  useEffect(() => {
+    setPracticeQuizData(null);
+    setPracticeQuizAnswers({});
+    setPracticeQuizSubmitted(false);
+    setPracticeQuizError("");
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     if (currentLesson?.lesson.type !== "quiz" || !courseId || !lessonId) {
@@ -173,6 +186,36 @@ export default function CoursePlayer() {
       setCompleting(false);
     }
   };
+
+  const handleGeneratePracticeQuiz = async () => {
+    if (!courseId || !lessonId) return;
+    setPracticeQuizLoading(true);
+    setPracticeQuizError("");
+    setPracticeQuizData(null);
+    setPracticeQuizAnswers({});
+    setPracticeQuizSubmitted(false);
+    try {
+      const data = await apiFetch("/api/ai/practice-quiz", {
+        method: "POST",
+        body: JSON.stringify({ courseId, lessonId }),
+      });
+      setPracticeQuizData(data.quiz);
+    } catch (err) {
+      setPracticeQuizError(err instanceof Error ? err.message : "Unable to generate practice questions.");
+    } finally {
+      setPracticeQuizLoading(false);
+    }
+  };
+
+  const handlePracticeQuizSubmit = () => {
+    const questions = practiceQuizData?.questions || [];
+    if (!questions.length || questions.some((question: any) => !practiceQuizAnswers[question.id])) return;
+    setPracticeQuizSubmitted(true);
+  };
+
+  const practiceQuizScore = practiceQuizData?.questions?.length
+    ? Math.round((practiceQuizData.questions.filter((question: any) => practiceQuizAnswers[question.id] === question.correctOptionId).length / practiceQuizData.questions.length) * 100)
+    : 0;
 
   const handleQuizSubmit = async () => {
     if (!courseId || !lessonId || !quizData?.questions?.length) return;
@@ -530,6 +573,61 @@ export default function CoursePlayer() {
                   <div className="py-5">
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
+                    )}
+
+                    {currentLesson.lesson.type !== "quiz" && (
+                      <section className="mb-6 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Practice & check understanding</p>
+                            <h2 className="mt-1 text-lg font-medium text-slate-950">Test what you learned</h2>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">Generate five fresh AI questions based on this lesson's content, project brief, or selected video context.</p>
+                          </div>
+                          <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary shrink-0 justify-center">
+                            {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                            {practiceQuizLoading ? "Generating..." : practiceQuizData ? "Generate another quiz" : "Generate practice quiz"}
+                          </button>
+                        </div>
+                        {practiceQuizError && <p role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{practiceQuizError}</p>}
+                        {practiceQuizLoading && <p className="mt-4 text-sm text-slate-500">Creating a new question set. This uses your plan's monthly AI quiz-generation allowance.</p>}
+                        {practiceQuizData?.questions?.length > 0 && (
+                          <div className="mt-5 space-y-4">
+                            {practiceQuizData.questions.map((question: any, questionIndex: number) => (
+                              <article key={question.id} className="rounded-2xl border border-slate-200 p-4">
+                                <div className="flex items-start gap-3">
+                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-700">{questionIndex + 1}</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold leading-6 text-slate-900">{question.question}</p>
+                                    {question.topic && <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{question.topic}</p>}
+                                  </div>
+                                </div>
+                                <div className="mt-3 grid gap-2">
+                                  {(question.options || []).map((option: any) => {
+                                    const selected = practiceQuizAnswers[question.id] === option.id;
+                                    const correct = question.correctOptionId === option.id;
+                                    const tone = practiceQuizSubmitted
+                                      ? correct ? "border-green-200 bg-green-50 text-green-800" : selected ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-600"
+                                      : selected ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+                                    return <button key={option.id} type="button" disabled={practiceQuizSubmitted} onClick={() => setPracticeQuizAnswers((current) => ({ ...current, [question.id]: option.id }))} className={`flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left text-sm transition ${tone}`}>
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-current/20 text-[11px] font-bold">{option.id}</span>
+                                      <span>{option.text}</span>
+                                    </button>;
+                                  })}
+                                </div>
+                                {practiceQuizSubmitted && question.explanation && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{question.explanation}</p>}
+                              </article>
+                            ))}
+                            <div className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                              {practiceQuizSubmitted ? <p className="text-sm font-bold text-slate-900">Your practice score: {practiceQuizScore}%</p> : <p className="text-sm text-slate-500">{Object.keys(practiceQuizAnswers).length} of {practiceQuizData.questions.length} answered</p>}
+                              {!practiceQuizSubmitted ? (
+                                <button type="button" onClick={handlePracticeQuizSubmit} disabled={Object.keys(practiceQuizAnswers).length !== practiceQuizData.questions.length} className="btn-primary justify-center">Check answers</button>
+                              ) : (
+                                <button type="button" onClick={() => { setPracticeQuizData(null); setPracticeQuizAnswers({}); setPracticeQuizSubmitted(false); void handleGeneratePracticeQuiz(); }} disabled={practiceQuizLoading} className="btn-secondary justify-center">Try a fresh set</button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </section>
                     )}
 
                     {currentLesson.lesson.type === "tutorial" && (

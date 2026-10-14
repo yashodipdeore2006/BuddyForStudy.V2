@@ -131,6 +131,16 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
   ).populate("user", "name email");
   if (!notification?.user?.email) return;
 
+  const preferences = await getUserNotificationPreferences(notification.user._id);
+  const keys = preferenceKeys(notification.type);
+  const transactional = notification.type === "billing" || notification.type === "security";
+  if (!transactional && keys.email && preferences[keys.email] === false) {
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: { emailStatus: "skipped", emailError: "Disabled by learner email preferences" }
+    });
+    return;
+  }
+
   try {
     const appUrl = env.clientUrl.replace(/\/$/, "");
     const link = notification.link ? appUrl + notification.link : appUrl + "/notifications";
@@ -191,6 +201,14 @@ async function dispatchPush(notificationId, { force = false } = {}) {
   );
   if (!notification) return;
 
+  const preferences = await getUserNotificationPreferences(notification.user);
+  if (preferences.pushEnabled !== true) {
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: { pushStatus: "skipped", pushError: "Push is not enabled in learner preferences" }
+    });
+    return;
+  }
+
   try {
     const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
@@ -228,6 +246,68 @@ async function dispatchPush(notificationId, { force = false } = {}) {
       message: String(error?.message || "Unknown push error").slice(0, 200)
     });
   }
+}
+
+export async function retryNotificationDelivery(notificationId, channel) {
+  if (!["email", "push"].includes(channel)) {
+    const error = new Error("Channel must be email or push.");
+    error.status = 400;
+    throw error;
+  }
+
+  const platform = await getNotificationPlatformSettings();
+  if (channel === "email") {
+    if (!platform.emailEnabled) {
+      const error = new Error("Email delivery is globally disabled in Platform Settings.");
+      error.status = 409;
+      throw error;
+    }
+    if (!getMailer()) {
+      const error = new Error("Configure SMTP in the server environment before retrying email.");
+      error.status = 503;
+      throw error;
+    }
+  } else {
+    if (!platform.pushEnabled) {
+      const error = new Error("Push delivery is globally disabled in Platform Settings.");
+      error.status = 409;
+      throw error;
+    }
+    if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
+      const error = new Error("Configure OneSignal on the server before retrying push.");
+      error.status = 503;
+      throw error;
+    }
+  }
+
+  const statusField = channel === "email" ? "emailStatus" : "pushStatus";
+  const attemptsField = channel === "email" ? "emailAttempts" : "pushAttempts";
+  const lastAttemptField = channel === "email" ? "emailLastAttemptAt" : "pushLastAttemptAt";
+  const errorField = channel === "email" ? "emailError" : "pushError";
+  const notification = await Notification.findOneAndUpdate(
+    { _id: notificationId, [statusField]: "failed" },
+    { $set: { [statusField]: "pending", [attemptsField]: 0, [lastAttemptField]: null, [errorField]: "" } },
+    { new: true }
+  );
+  if (!notification) {
+    const error = new Error("Only failed notification deliveries can be retried. Refresh the delivery logs.");
+    error.status = 409;
+    throw error;
+  }
+
+  if (channel === "email") await dispatchEmail(notification._id, { force: true });
+  else await dispatchPush(notification._id, { force: true });
+
+  const updated = await Notification.findById(notification._id)
+    .select("emailStatus emailAttempts emailError pushStatus pushAttempts pushError")
+    .lean();
+  return {
+    notificationId: String(notification._id),
+    channel,
+    status: channel === "email" ? updated?.emailStatus : updated?.pushStatus,
+    attempts: channel === "email" ? updated?.emailAttempts : updated?.pushAttempts,
+    error: channel === "email" ? updated?.emailError : updated?.pushError
+  };
 }
 
 export async function createNotificationEvent({

@@ -10,6 +10,7 @@ const notificationSchema = new mongoose.Schema({
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
   emailStatus: { type: String, enum: ["pending", "sent", "skipped", "failed"], default: "skipped" },
   emailSubject: { type: String, default: "", maxlength: 200 },
+  emailHtml: { type: String, default: "", maxlength: 20000 },
   emailAttempts: { type: Number, default: 0, min: 0 },
   emailLastAttemptAt: { type: Date, default: null },
   emailSentAt: { type: Date, default: null },

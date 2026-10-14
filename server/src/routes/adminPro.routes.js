@@ -32,6 +32,7 @@ router.post("/plans", controller.createPlan);
 router.put("/plans/:planId", controller.updatePlan);
 
 router.get("/payments", controller.payments);
+router.get("/notification-deliveries", controller.notificationDeliveries);
 router.get("/refunds", controller.refunds);
 router.put("/refunds/:refundId", controller.updateRefund);
 

@@ -38,6 +38,16 @@ export default function AdminSettings() {
     qaEnabled: true,
   });
   const [savingAdvancedAI, setSavingAdvancedAI] = useState(false);
+  const [notificationConfig, setNotificationConfig] = useState({
+    emailEnabled: true,
+    inAppEnabled: true,
+    pushEnabled: true,
+    learningRemindersEnabled: true,
+    inactiveDays: 3,
+    emailRetryAttempts: 5,
+    pushRetryAttempts: 3,
+  });
+  const [savingNotificationConfig, setSavingNotificationConfig] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -52,6 +62,15 @@ export default function AdminSettings() {
         maxQuestionsPerLesson: Number(values.advanced_ai_max_questions_per_lesson ?? 50),
         summaryEnabled: values.advanced_ai_summary_enabled === undefined ? true : Boolean(values.advanced_ai_summary_enabled),
         qaEnabled: values.advanced_ai_qa_enabled === undefined ? true : Boolean(values.advanced_ai_qa_enabled),
+      });
+      setNotificationConfig({
+        emailEnabled: values.notification_email_enabled === undefined ? true : Boolean(values.notification_email_enabled),
+        inAppEnabled: values.notification_in_app_enabled === undefined ? true : Boolean(values.notification_in_app_enabled),
+        pushEnabled: values.notification_push_enabled === undefined ? true : Boolean(values.notification_push_enabled),
+        learningRemindersEnabled: values.learning_reminders_enabled === undefined ? true : Boolean(values.learning_reminders_enabled),
+        inactiveDays: Math.max(1, Math.min(30, Number(values.learning_reminder_inactive_days ?? 3))),
+        emailRetryAttempts: Math.max(1, Math.min(10, Number(values.notification_email_retry_attempts ?? 5))),
+        pushRetryAttempts: Math.max(1, Math.min(6, Number(values.notification_push_retry_attempts ?? 3))),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load settings");
@@ -92,6 +111,41 @@ export default function AdminSettings() {
       setError(e instanceof Error ? e.message : "Unable to save Advanced AI configuration");
     } finally {
       setSavingAdvancedAI(false);
+    }
+  }
+
+  async function saveNotificationConfig() {
+    setSavingNotificationConfig(true);
+    setError("");
+    setStatus("");
+    try {
+      const entries: Array<[string, boolean | number, string]> = [
+        ["notification_email_enabled", Boolean(notificationConfig.emailEnabled), "Globally pause or enable email delivery, including transactional email."],
+        ["notification_in_app_enabled", Boolean(notificationConfig.inAppEnabled), "Global in-app notification delivery control."],
+        ["notification_push_enabled", Boolean(notificationConfig.pushEnabled), "Global OneSignal push delivery control."],
+        ["learning_reminders_enabled", Boolean(notificationConfig.learningRemindersEnabled), "Enable or pause scheduled learning reminders."],
+        ["learning_reminder_inactive_days", Math.max(1, Math.min(30, Math.trunc(notificationConfig.inactiveDays))), "Days without learning activity before a reminder is eligible."],
+        ["notification_email_retry_attempts", Math.max(1, Math.min(10, Math.trunc(notificationConfig.emailRetryAttempts))), "Maximum email delivery attempts per notification."],
+        ["notification_push_retry_attempts", Math.max(1, Math.min(6, Math.trunc(notificationConfig.pushRetryAttempts))), "Maximum push delivery attempts per notification."]
+      ];
+      await Promise.all(entries.map(([settingKey, settingValue, description]) =>
+        adminFetch("/api/admin/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            key: settingKey,
+            value: settingValue,
+            description,
+            isPublic: false,
+            reason: "Admin updated notification delivery controls"
+          })
+        })
+      ));
+      setStatus("Notification delivery settings saved.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save notification settings");
+    } finally {
+      setSavingNotificationConfig(false);
     }
   }
 
@@ -196,6 +250,28 @@ export default function AdminSettings() {
 
         <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI}>
           <Save className="h-4 w-4" /> {savingAdvancedAI ? "Saving..." : "Save Advanced AI settings"}
+        </button>
+      </section>
+
+      <section className="card mt-6 p-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Notification control plane</p>
+          <h2 className="mt-1 text-xl font-extrabold text-slate-950">Automated delivery & learning reminders</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">Pause channels during an incident, set the inactivity threshold, and control retry attempts. User preferences still determine their optional channels.</p>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.emailEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Email delivery enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Includes purchase and billing emails; use only as a temporary global kill switch.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.inAppEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, inAppEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">In-app notifications enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Global control for optional in-app updates. Billing and security alerts remain visible.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.pushEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Push delivery enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Requires OneSignal server configuration and user opt-in.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.learningRemindersEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, learningRemindersEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Learning reminders enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Global switch; each learner can also control personal reminder preferences.</span></span></label>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="block text-xs font-semibold text-slate-500">Inactive days before reminder<input className="input-field mt-2" type="number" min="1" max="30" value={notificationConfig.inactiveDays} onChange={(e) => setNotificationConfig({ ...notificationConfig, inactiveDays: Number(e.target.value) })} /></label>
+          <label className="block text-xs font-semibold text-slate-500">Email retry attempts<input className="input-field mt-2" type="number" min="1" max="10" value={notificationConfig.emailRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailRetryAttempts: Number(e.target.value) })} /></label>
+          <label className="block text-xs font-semibold text-slate-500">Push retry attempts<input className="input-field mt-2" type="number" min="1" max="6" value={notificationConfig.pushRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushRetryAttempts: Number(e.target.value) })} /></label>
+        </div>
+        <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig}>
+          <Save className="h-4 w-4" /> {savingNotificationConfig ? "Saving..." : "Save notification controls"}
         </button>
       </section>
 

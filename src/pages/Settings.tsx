@@ -342,7 +342,6 @@ export default function Settings() {
                   </label>
                 </div>
                 <p className="text-xs leading-5 text-slate-500">Reminders are sent only at your chosen local time and never during quiet hours (default: 22:00–08:00).</p>
-                </div>
               </div>
             </div>
 

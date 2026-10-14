@@ -1014,6 +1014,41 @@ export async function updatePlan(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function notificationDeliveries(req, res, next) {
+  try {
+    const deliveries = await Notification.find({
+      $or: [
+        { emailStatus: { $in: ["pending", "sent", "failed"] } },
+        { pushStatus: { $in: ["pending", "sent", "failed"] } }
+      ]
+    })
+      .populate("user", "name email")
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+    return success(res, {
+      deliveries: deliveries.map((item) => ({
+        id: String(item._id),
+        user: item.user ? { name: item.user.name, email: item.user.email } : null,
+        title: item.title,
+        message: item.message,
+        type: item.type,
+        link: item.link,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        emailStatus: item.emailStatus,
+        emailAttempts: item.emailAttempts,
+        emailSentAt: item.emailSentAt,
+        emailError: item.emailError,
+        pushStatus: item.pushStatus,
+        pushAttempts: item.pushAttempts,
+        pushSentAt: item.pushSentAt,
+        pushError: item.pushError
+      }))
+    });
+  } catch (e) { next(e); }
+}
+
 export async function payments(req, res, next) {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);

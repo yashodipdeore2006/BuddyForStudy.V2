@@ -87,7 +87,7 @@ export default function CourseCard({
   };
 
   return (
-    <article className="bfs-course-card group flex h-full min-h-[400px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)] focus-within:ring-2 focus-within:ring-blue-500/20">
+    <article className="bfs-course-card group flex h-full min-h-[400px] flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-blue-500/20">
       <Link
         to={"/courses/" + course.id}
         className="bfs-course-card__media relative block h-[120px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
@@ -205,7 +205,7 @@ export default function CourseCard({
                 type="button"
                 onClick={enrollCourse}
                 disabled={enrolling || enrolled}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-2 py-2 text-xs font-bold text-white shadow-sm shadow-blue-600/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
+                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-black px-2 py-2 text-xs font-bold text-white transition-colors duration-200 hover:bg-[#444950] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
               >
                 {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : enrolled ? <BookOpen className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 {enrolling ? 'Enrolling…' : enrolled ? 'Enrolled' : 'Enroll'}
@@ -214,7 +214,7 @@ export default function CourseCard({
             {actionError && <p role="alert" className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
             <Link
               to={"/courses/" + course.id}
-              className="mt-1.5 inline-flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2 text-xs font-bold text-blue-700 transition-all duration-200 hover:border-blue-200 hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="mt-1.5 inline-flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-950 transition-colors duration-200 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               <PlayCircle className="h-4 w-4" /> Preview course
             </Link>

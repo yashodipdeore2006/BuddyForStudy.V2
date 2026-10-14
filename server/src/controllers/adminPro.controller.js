@@ -29,6 +29,7 @@ import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
 import { validateAdminAccountChange } from "../utils/adminAccountSafety.js";
+import { createNotificationEvent } from "../services/notification.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -1131,11 +1132,23 @@ export async function sendNotification(req, res, next) {
     }
 
     const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
-    const users = ids.length ? await User.find({ _id: { $in: ids } }).select("_id") : await notificationAudienceUsers(req.body.audience || "all");
-    const docs = users.map(u => ({ user: u._id, title, message, type, link, sentBy: req.user.user._id }));
-    if (docs.length) await Notification.insertMany(docs);
-    await audit(req, "notification.sent", "Notification", "", null, { recipients: docs.length, title, type });
-    return success(res, { sent: docs.length }, "Notification sent");
+    const users = ids.length
+      ? await User.find({ _id: { $in: ids } }).select("_id")
+      : await notificationAudienceUsers(req.body.audience || "all");
+    const broadcastId = new mongoose.Types.ObjectId().toString();
+    await Promise.all(users.map((user) => createNotificationEvent({
+      userId: String(user._id),
+      title,
+      message,
+      type,
+      link,
+      eventKey: `admin-notification:${broadcastId}:${user._id}`,
+      email: false,
+      push: false,
+      metadata: { source: "admin-broadcast", broadcastId, initiatedBy: String(req.user.user._id) }
+    })));
+    await audit(req, "notification.sent", "Notification", broadcastId, null, { recipients: users.length, title, type });
+    return success(res, { sent: users.length }, "Notification queued");
   } catch (e) { next(e); }
 }
 
@@ -1155,17 +1168,47 @@ export async function sendEmail(req, res, next) {
 
 export async function sendAnnouncement(req, res, next) {
   try {
-    if (!req.body.title || !req.body.message) return failure(res, "title and message are required", 400);
-    const announcement = await Announcement.create({ title: req.body.title, message: req.body.message, audience: req.body.audience || "all", channel: req.body.channel || ["in_app"], link: req.body.link || "", status: "sent", sentAt: new Date(), createdBy: req.user.user._id });
+    const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+    const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
+    if (!title || !message) return failure(res, "title and message are required", 400);
+    const channel = Array.isArray(req.body.channel) ? req.body.channel : [req.body.channel || "in_app"];
+    if (channel.some((item) => !["in_app", "email"].includes(item))) return failure(res, "Invalid announcement channel", 400);
+    if (!channel.length) return failure(res, "Choose at least one announcement channel", 400);
+
+    const announcement = await Announcement.create({
+      title,
+      message,
+      audience: req.body.audience || "all",
+      channel,
+      link: typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "",
+      status: "sent",
+      sentAt: new Date(),
+      createdBy: req.user.user._id
+    });
     const users = await audienceUsers(announcement.audience);
-    if (announcement.channel.includes("in_app")) {
-      await Notification.insertMany(users.map(u => ({ user: u._id, title: announcement.title, message: announcement.message, type: "system", link: announcement.link, sentBy: req.user.user._id })));
-    }
-    if (announcement.channel.includes("email") && env.smtpHost) {
-      const transport = mailer(); if (transport && users.length) await transport.sendMail({ from: env.mailFrom, to: users.map(u => u.email).join(","), subject: announcement.title, html: announcement.message });
-    }
-    await audit(req, "announcement.sent", "Announcement", announcement._id, null, { audience: announcement.audience, recipients: users.length });
-    return success(res, { announcement, recipients: users.length }, "Announcement sent", 201);
+    const results = await Promise.all(users.map((user) => createNotificationEvent({
+      userId: String(user._id),
+      title: announcement.title,
+      message: announcement.message,
+      type: "promotion",
+      link: announcement.link,
+      eventKey: `announcement:${announcement._id}:${user._id}`,
+      email: channel.includes("email"),
+      push: false,
+      metadata: { source: "admin-announcement", announcementId: String(announcement._id) }
+    })));
+    await audit(req, "announcement.sent", "Announcement", announcement._id, null, {
+      audience: announcement.audience,
+      recipients: users.length,
+      requestedChannels: channel,
+      inAppVisible: results.filter((item) => item?.showInApp).length,
+      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length
+    });
+    return success(res, {
+      announcement,
+      recipients: users.length,
+      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length
+    }, "Announcement queued", 201);
   } catch (e) { next(e); }
 }
 

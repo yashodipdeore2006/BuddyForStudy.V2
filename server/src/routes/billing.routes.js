@@ -125,7 +125,7 @@ router.post("/subscription/cancel", async (req,res,next)=>{ try {
     message: `Your subscription will remain active until ${subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN") : "the end of the current billing period"}.`,
     type: "billing",
     link: "/billing",
-    eventKey: `subscription-cancel-scheduled:${subscription._id}`,
+    eventKey: `subscription-cancel-scheduled:${subscription.providerSubscriptionId}`,
     emailSubject: "Your BuddyForStudy subscription cancellation is scheduled",
     metadata: { subscriptionId: String(subscription._id), currentPeriodEnd: subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN") : "the end of the current billing period" },
     templateKeys: { notification: "subscription-cancel-scheduled-in-app", email: "subscription-cancel-scheduled-email" }

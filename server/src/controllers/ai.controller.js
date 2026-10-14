@@ -71,6 +71,30 @@ export async function generateQuiz(req, res, next) {
 
     const result = await generateCourseQuiz({ ...input, userId: req.user.userId });
     return success(res, result, "Quiz generated successfully");
+
+export async function generatePracticeQuiz(req, res, next) {
+  try {
+    const practiceSchema = z.object({
+      courseId: z.string().trim().min(1),
+      lessonId: z.string().trim().min(1)
+    });
+    const input = practiceSchema.parse(req.body);
+    const { Enrollment } = await import("../models/Enrollment.js");
+    const enrollment = await Enrollment.findOne({
+      user: req.user.userId,
+      course: input.courseId,
+      status: { $in: ["active", "completed"] }
+    });
+    if (!enrollment) return failure(res, "Active or completed enrollment required", 403);
+
+    const result = await generateCourseQuiz({ ...input, userId: req.user.userId, practiceOnly: true });
+    return success(res, result, "Practice quiz generated successfully");
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}
+
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

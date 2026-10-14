@@ -19,9 +19,26 @@ export default function AdminCommunications() {
   const [preview, setPreview] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [deliveries, setDeliveries] = useState<any[]>([]);
+  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
+  const [deliveryError, setDeliveryError] = useState("");
+
+  async function loadDeliveryLogs() {
+    setLoadingDeliveries(true);
+    setDeliveryError("");
+    try {
+      const data = await adminFetch("/api/admin/notification-deliveries");
+      setDeliveries(Array.isArray(data.deliveries) ? data.deliveries : []);
+    } catch (error) {
+      setDeliveryError(error instanceof Error ? error.message : "Unable to load notification delivery logs.");
+    } finally {
+      setLoadingDeliveries(false);
+    }
+  }
 
   useEffect(() => {
     adminFetch("/api/admin/message-templates").then(data => setTemplates(Array.isArray(data.templates) ? data.templates : [])).catch(() => setTemplates([]));
+    void loadDeliveryLogs();
   }, []);
 
   const canSend = useMemo(() => {
@@ -195,6 +212,59 @@ export default function AdminCommunications() {
           </div>
         )}
       </div>
+
+      <section className="card mt-6 overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Operations</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">Notification delivery logs</h2>
+            <p className="mt-1 text-sm text-slate-500">Latest automated and manual deliveries, retry attempts, and provider errors.</p>
+          </div>
+          <button type="button" className="btn-secondary" onClick={() => void loadDeliveryLogs()} disabled={loadingDeliveries}>
+            {loadingDeliveries ? "Refreshing..." : "Refresh logs"}
+          </button>
+        </div>
+        {deliveryError && <p role="alert" className="m-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{deliveryError}</p>}
+        {loadingDeliveries && !deliveries.length ? (
+          <div className="p-8 text-sm text-slate-500">Loading delivery history...</div>
+        ) : deliveries.length === 0 ? (
+          <div className="p-8 text-sm text-slate-500">No automated delivery attempts have been recorded yet. Events appear here after the notification service queues them.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr><th className="px-5 py-3">Notification</th><th className="px-5 py-3">Recipient</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Push</th><th className="px-5 py-3">Created</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {deliveries.map((item) => (
+                  <tr key={item.id} className="align-top">
+                    <td className="max-w-xs px-5 py-4">
+                      <p className="font-semibold text-slate-900">{item.title}</p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{item.message}</p>
+                      <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">{item.type}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <p className="font-medium text-slate-800">{item.user?.name || "Unknown user"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.user?.email || "No email"}</p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.emailStatus === "sent" ? "bg-green-50 text-green-700" : item.emailStatus === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{item.emailStatus || "unknown"}</span>
+                      <p className="mt-1 text-xs text-slate-500">{item.emailAttempts || 0} attempt(s)</p>
+                      {item.emailError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.emailError}</p>}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.pushStatus === "sent" ? "bg-green-50 text-green-700" : item.pushStatus === "failed" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>{item.pushStatus || "unknown"}</span>
+                      <p className="mt-1 text-xs text-slate-500">{item.pushAttempts || 0} attempt(s)</p>
+                      {item.pushError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.pushError}</p>}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-500">{item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }

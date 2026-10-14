@@ -10,6 +10,18 @@ import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js
 import { createNotificationEvent } from "../services/notification.service.js";
 
 const router = Router();
+
+async function sendNotificationSafely(payload, context) {
+  try {
+    return await createNotificationEvent(payload);
+  } catch (error) {
+    console.error("[notifications] billing event notice failed", {
+      context,
+      message: String(error?.message || "Unknown notification error").slice(0, 200)
+    });
+    return null;
+  }
+}
 router.get("/plans", async (_req,res,next)=>{ try {
   const plans = await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean();
   return success(res,{plans:plans.map((plan)=>({...plan,features:normalizeSubscriptionFeatures(plan.features)}))});
@@ -81,7 +93,7 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).populate("plan");
 
-  await createNotificationEvent({
+  await sendNotificationSafely({
     userId: String(req.user.userId),
     title: "Your subscription is active",
     message: `Your ${payment.plan.name || "BuddyForStudy"} plan is now active. Your subscription payment has been confirmed.`,
@@ -91,7 +103,7 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     emailSubject: "Your BuddyForStudy subscription is active",
     metadata: { paymentId: String(payment._id), subscriptionId, planId: String(payment.plan._id), planName: payment.plan.name },
     templateKeys: { notification: "subscription-activated-in-app", email: "subscription-activated-email" }
-  });
+  }, "subscription-activation");
 
   return success(res, {
     activated: true,
@@ -117,7 +129,7 @@ router.post("/subscription/cancel", async (req,res,next)=>{ try {
     emailSubject: "Your BuddyForStudy subscription cancellation is scheduled",
     metadata: { subscriptionId: String(subscription._id), currentPeriodEnd: subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN") : "the end of the current billing period" },
     templateKeys: { notification: "subscription-cancel-scheduled-in-app", email: "subscription-cancel-scheduled-email" }
-  });
+  }, "subscription-cancellation");
   return success(res,{subscription},"Subscription cancellation scheduled");
 } catch(e){next(e)} });
 router.post("/refunds", async (req,res,next)=>{ try {
@@ -138,7 +150,7 @@ router.post("/refunds", async (req,res,next)=>{ try {
     emailSubject: "Your BuddyForStudy refund request was received",
     metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(amount), currency: payment.currency || "INR" },
     templateKeys: { notification: "refund-requested-in-app", email: "refund-requested-email" }
-  });
+  }, "refund-request");
   return success(res,{refund},"Refund request submitted",201);
 } catch(e){next(e)} });
 export default router;

@@ -18,7 +18,8 @@ export async function enroll(req, res, next) {
         link: `/courses/${req.params.courseId}/roadmap`,
         eventKey: `free-course-enrolled:${enrollment._id}`,
         emailSubject: "You're enrolled in a BuddyForStudy course",
-        metadata: { courseId: String(req.params.courseId), courseTitle: course?.title || "your course" }
+        metadata: { courseId: String(req.params.courseId), courseTitle: course?.title || "your course" },
+        templateKeys: { notification: "free-course-enrolled-in-app", email: "free-course-enrolled-email" }
       });
     }
     return success(res, { enrollment }, "Course enrollment successful", 201);

@@ -269,8 +269,29 @@ export async function createNotificationEvent({
   const renderedEmailHtml = emailTemplate?.body ? renderTemplate(emailTemplate.body, variables, { html: true }) : "";
   const transactional = type === "billing" || type === "security";
   const showInApp = forceInApp || (inApp && transactional) || (inApp && platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
-  const shouldEmail = email && platform.emailEnabled && Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom) && (transactional || !keys.email || preferences[keys.email] !== false);
-  const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
+  const smtpConfigured = Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
+  const pushConfigured = Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
+  const emailPreferenceAllowed = transactional || !keys.email || preferences[keys.email] !== false;
+  const shouldEmail = email && platform.emailEnabled && smtpConfigured && emailPreferenceAllowed;
+  const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && pushConfigured;
+  const emailSkippedReason = shouldEmail || !email
+    ? ""
+    : !platform.emailEnabled
+      ? "Email delivery is disabled in admin platform settings"
+      : !smtpConfigured
+        ? "SMTP is not configured"
+        : !emailPreferenceAllowed
+          ? "Disabled by learner email preferences"
+          : "";
+  const pushSkippedReason = shouldPush || !push
+    ? ""
+    : !platform.pushEnabled
+      ? "Push delivery is disabled in admin platform settings"
+      : !pushConfigured
+        ? "OneSignal is not configured"
+        : preferences.pushEnabled !== true
+          ? "Push is not enabled in learner preferences"
+          : "";
   const payload = {
     user: userId,
     title: String(renderedTitle || "BuddyForStudy update").slice(0, 200),
@@ -282,7 +303,9 @@ export async function createNotificationEvent({
     emailStatus: shouldEmail ? "pending" : "skipped",
     emailSubject: String(renderedEmailSubject || "BuddyForStudy update").slice(0, 200),
     emailHtml: String(emailHtmlOverride || renderedEmailHtml || "").slice(0, 20000),
-    pushStatus: shouldPush ? "pending" : "skipped"
+    emailError: emailSkippedReason,
+    pushStatus: shouldPush ? "pending" : "skipped",
+    pushError: pushSkippedReason
   };
   let notification;
   let created = true;

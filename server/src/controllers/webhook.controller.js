@@ -208,7 +208,8 @@ export async function razorpayWebhook(req, res, next) {
             link: "/billing",
             eventKey: `subscription-payment-action:${subscriptionEntity.id}:${event.event}`,
             emailSubject: "Action needed for your BuddyForStudy subscription",
-            metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: event.event }
+            metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: event.event },
+            templateKeys: { notification: "subscription-payment-action-in-app", email: "subscription-payment-action-email" }
           });
         }
       }

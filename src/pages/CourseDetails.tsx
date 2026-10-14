@@ -428,7 +428,7 @@ export default function CourseDetails() {
                 <button
                   onClick={course.pricing?.mode === 'paid' ? handleCheckout : handleEnroll}
                   disabled={enrolling || checkoutLoading || !course.is_published}
-                  className="btn-primary w-full"
+                  className={classNames("w-full", course.pricing?.mode === 'paid' ? "btn-buy" : "btn-primary")}
                 >
                   {enrolling || checkoutLoading ? (
                     <>

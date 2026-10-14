@@ -107,6 +107,16 @@ router.post("/subscription/cancel", async (req,res,next)=>{ try {
   subscription.cancelAtPeriodEnd=true;
   subscription.currentPeriodEnd=providerSubscription?.end_at ? new Date(Number(providerSubscription.end_at)*1000) : subscription.currentPeriodEnd;
   await subscription.save();
+  await createNotificationEvent({
+    userId: String(req.user.userId),
+    title: "Subscription cancellation scheduled",
+    message: `Your subscription will remain active until ${subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN") : "the end of the current billing period"}.`,
+    type: "billing",
+    link: "/billing",
+    eventKey: `subscription-cancel-scheduled:${subscription._id}`,
+    emailSubject: "Your BuddyForStudy subscription cancellation is scheduled",
+    metadata: { subscriptionId: String(subscription._id), currentPeriodEnd: subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toISOString() : "" }
+  });
   return success(res,{subscription},"Subscription cancellation scheduled");
 } catch(e){next(e)} });
 router.post("/refunds", async (req,res,next)=>{ try {
@@ -117,6 +127,16 @@ router.post("/refunds", async (req,res,next)=>{ try {
   if(existing) return failure(res,"A refund request already exists for this payment",409);
   const amount=Math.min(Math.max(Number(req.body.amount)||payment.amount,0),payment.amount);
   const refund=await RefundRequest.create({user:req.user.userId,payment:payment._id,amount,reason:String(req.body.reason||"").trim()});
+  await createNotificationEvent({
+    userId: String(req.user.userId),
+    title: "Refund request received",
+    message: `We've received your refund request for ${payment.currency || "INR"} ${amount}. We'll review it and update you when the status changes.`,
+    type: "billing",
+    link: "/billing",
+    eventKey: `refund-requested:${refund._id}`,
+    emailSubject: "Your BuddyForStudy refund request was received",
+    metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(amount), currency: payment.currency || "INR" }
+  });
   return success(res,{refund},"Refund request submitted",201);
 } catch(e){next(e)} });
 export default router;

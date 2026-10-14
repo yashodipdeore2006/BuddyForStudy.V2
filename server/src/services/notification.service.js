@@ -140,8 +140,10 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
       from: env.mailFrom,
       to: notification.user.email,
       subject: notification.emailSubject || notification.title,
-      text: `${notification.title}\n\n${notification.message}\n\nOpen BuddyForStudy: ${link}`,
-      html: `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1c1e21;line-height:1.6"><div style="max-width:560px;margin:24px auto;padding:28px;border:1px solid #dee3e9;border-radius:20px"><p style="font-size:12px;font-weight:700;color:#0064e0;letter-spacing:1px">BUDDYFORSTUDY</p><h1 style="font-size:24px;font-weight:600">${title}</h1><p>${message}</p><p style="margin-top:28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:100px;text-decoration:none;font-weight:700">Open BuddyForStudy</a></p><p style="font-size:12px;color:#5d6c7b">You are receiving this email because of activity on your BuddyForStudy account.</p></div></body></html>`
+      text: notification.emailHtml
+        ? String(notification.emailHtml).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\\s+/g, " ").trim()
+        : `${notification.title}\\n\\n${notification.message}\\n\\nOpen BuddyForStudy: ${link}`,
+      html: notification.emailHtml || `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1c1e21;line-height:1.6"><div style="max-width:560px;margin:24px auto;padding:28px;border:1px solid #dee3e9;border-radius:20px"><p style="font-size:12px;font-weight:700;color:#0064e0;letter-spacing:1px">BUDDYFORSTUDY</p><h1 style="font-size:24px;font-weight:600">${title}</h1><p>${message}</p><p style="margin-top:28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:100px;text-decoration:none;font-weight:700">Open BuddyForStudy</a></p><p style="font-size:12px;color:#5d6c7b">You are receiving this email because of activity on your BuddyForStudy account.</p></div></body></html>`
     });
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "sent", emailSentAt: new Date(), emailError: "" }

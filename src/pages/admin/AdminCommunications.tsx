@@ -137,9 +137,14 @@ export default function AdminCommunications() {
             };
 
       const data = await adminFetch(path, { method: "POST", body: JSON.stringify(body) });
-      setStatus(
-        (data.message || "Sent") + " — " + String(data.sent ?? data.recipients ?? 0) + " recipients"
-      );
+      const deliverySummary = tab === "email"
+        ? data.queued !== undefined
+          ? `${data.queued} emails queued, ${data.skipped || 0} skipped by preferences or configuration`
+          : `${data.sent ?? 0} recipient(s)`
+        : tab === "announcement"
+          ? `${data.recipients ?? 0} recipient(s)${data.emailsQueued !== undefined ? `, ${data.emailsQueued} emails queued` : ""}`
+          : `${data.sent ?? 0} recipient(s)`;
+      setStatus((data.message || "Sent") + " — " + deliverySummary);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Unable to send communication");
     } finally {

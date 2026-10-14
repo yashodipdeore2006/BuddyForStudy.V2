@@ -79,7 +79,7 @@ export default function SavedCourses() {
             return (
               <div
                 key={saved._id}
-                className="bfs-course-card group flex h-full min-h-[438px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)]"
+                className="bfs-course-card group flex h-full min-h-[400px] flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50"
               >
                 <Link to={`/courses/${course._id}`} className="relative h-[138px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
                   {course.thumbnail ? (

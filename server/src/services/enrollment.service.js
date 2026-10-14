@@ -1,9 +1,33 @@
 import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
 import { Payment } from "../models/Payment.js";
+import { createNotificationEvent } from "./notification.service.js";
+
+async function notifyFreeCourseEnrollment(userId, course, enrollment) {
+  if (course.pricing?.mode === "paid") return;
+  const enrolledAt = enrollment.enrolledAt ? new Date(enrollment.enrolledAt).getTime() : Date.now();
+  try {
+    await createNotificationEvent({
+      userId: String(userId),
+      title: "You're enrolled — let's start learning",
+      message: `You have been added to ${course.title || "your course"}. Open your roadmap to choose the next lesson.`,
+      type: "course",
+      link: `/courses/${course._id}/roadmap`,
+      eventKey: `free-course-enrolled:${enrollment._id}:${enrolledAt}`,
+      emailSubject: "You're enrolled in a BuddyForStudy course",
+      metadata: { courseId: String(course._id), courseTitle: course.title || "your course" },
+      templateKeys: { notification: "free-course-enrolled-in-app", email: "free-course-enrolled-email" }
+    });
+  } catch (error) {
+    console.error("[notifications] course enrollment notice failed", {
+      courseId: String(course._id),
+      message: String(error?.message || "Unknown notification error").slice(0, 200)
+    });
+  }
+}
 
 export async function enroll(userId, courseId) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true }).select("_id pricing enrollmentEnabled");
+  const course = await Course.findOne({ _id: courseId, isPublished: true }).select("_id title pricing enrollmentEnabled");
   if (!course) {
     const error = new Error("Published course not found");
     error.status = 404;
@@ -21,14 +45,18 @@ export async function enroll(userId, courseId) {
     if (existing.status === "cancelled") {
       existing.status = "active";
       existing.enrolledAt = new Date();
-      return existing.save();
+      await existing.save();
+      await notifyFreeCourseEnrollment(userId, course, existing);
+      return existing;
     }
     const error = new Error("Already enrolled in this course");
     error.status = 409;
     throw error;
   }
 
-  return Enrollment.create({ user: userId, course: courseId });
+  const enrollment = await Enrollment.create({ user: userId, course: courseId });
+  await notifyFreeCourseEnrollment(userId, course, enrollment);
+  return enrollment;
 }
 
 export function getMine(userId) {

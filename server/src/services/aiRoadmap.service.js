@@ -1028,9 +1028,10 @@ function cachedRoadmapFromCourse(course, input) {
   };
 }
 
-function getQuizContext(module, lesson) {
-  const sourceLessons =
-    lesson.quiz?.scope === "module"
+function getQuizContext(module, lesson, practiceOnly = false) {
+  const sourceLessons = practiceOnly
+    ? [lesson]
+    : lesson.quiz?.scope === "module"
       ? (module.lessons || []).filter((item) => item.type !== "quiz")
       : (module.lessons || []).filter(
           (item) => item.type === "tutorial" && Number(item.order || 0) < Number(lesson.order || 0)
@@ -1042,7 +1043,8 @@ function getQuizContext(module, lesson) {
     description: item.description || "",
     topics: item.tutorial?.requiredTopics || [],
     content: item.tutorial?.content || "",
-    project: item.project || null
+    project: item.project || null,
+    videos: (item.tutorial?.videos || item.project?.videos || []).map((video) => ({ title: video.title, description: video.description, duration: video.duration }))
   }));
 }
 
@@ -1068,7 +1070,7 @@ function validateQuizQuestions(questions, expectedCount) {
   return valid.slice(0, expectedCount);
 }
 
-export async function generateCourseQuiz({ courseId, lessonId, userId = null }) {
+export async function generateCourseQuiz({ courseId, lessonId, userId = null, practiceOnly = false }) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
     error.status = 503;
@@ -1093,15 +1095,15 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     }
   }
 
-  if (!located?.lesson || located.lesson.type !== "quiz" || !located.lesson.quiz) {
-    const error = new Error("Quiz lesson not found");
+  if (!located?.lesson || (!practiceOnly && (located.lesson.type !== "quiz" || !located.lesson.quiz)) || (practiceOnly && located.lesson.type === "quiz")) {
+    const error = new Error(practiceOnly ? "Choose a tutorial or project lesson to generate practice questions." : "Quiz lesson not found");
     error.status = 404;
     throw error;
   }
 
-  const requestedCount = Math.max(3, Math.min(15, Number(located.lesson.quiz.questionCount) || 5));
-  const existingQuestions = located.lesson.quiz.questions || [];
-  if (existingQuestions.length >= requestedCount) {
+  const requestedCount = practiceOnly ? 5 : Math.max(3, Math.min(15, Number(located.lesson.quiz.questionCount) || 5));
+  const existingQuestions = practiceOnly ? [] : (located.lesson.quiz.questions || []);
+  if (!practiceOnly && existingQuestions.length >= requestedCount) {
     return {
       courseId: String(course._id),
       lessonId: String(located.lesson._id),
@@ -1129,7 +1131,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     usageReserved = true;
   }
 
-  const context = getQuizContext(located.module, located.lesson);
+  const context = getQuizContext(located.module, located.lesson, practiceOnly);
   const prompt = [
     "You are BuddyForStudy's assessment designer.",
     "Generate a high-quality multiple-choice assessment from the supplied learning context.",
@@ -1142,8 +1144,9 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     "",
     `Course: ${course.title}`,
     `Level: ${course.level}`,
-    `Quiz scope: ${located.lesson.quiz.scope}`,
-    `Focus topics: ${JSON.stringify(located.lesson.quiz.focusTopics || [])}`,
+    `Quiz scope: ${practiceOnly ? "lesson practice" : located.lesson.quiz.scope}`,
+    `Focus topics: ${JSON.stringify(practiceOnly ? [] : (located.lesson.quiz.focusTopics || []))}`,
+    ...(practiceOnly ? ["Create a fresh practice set that directly assesses the selected lesson, including its video title/description or project brief when available. Do not repeat a fixed course assessment."] : []),
     `Learning context: ${JSON.stringify(context)}`
   ].join("\n");
 
@@ -1179,6 +1182,14 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     correctOptionId: normalizeId(question.correctOptionId),
     explanation: String(question.explanation || "").trim()
   }));
+
+  if (practiceOnly) {
+    return {
+      courseId: String(course._id),
+      lessonId: String(located.lesson._id),
+      quiz: { scope: "lesson", questionCount: questions.length, passingScore: 70, focusTopics: [], questions, generatedAt: new Date() }
+    };
+  }
 
   located.lesson.quiz.questions = questions;
   located.lesson.quiz.generatedAt = new Date();

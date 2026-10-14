@@ -7,10 +7,10 @@ import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 const channels = new Set(["notification", "email", "announcement"]);
 const messageTypes = new Set(["system", "course", "billing", "promotion", "security"]);
 const DEFAULT_AUTOMATED_TEMPLATES = [
-  { name: "Course purchase confirmed · In-app", key: "course-purchase-confirmed-in-app", channel: "notification", title: "Course purchase confirmed", body: "Your payment for {{courseTitle}} was verified. Open your course roadmap when you are ready to start learning.", messageType: "billing", link: "" },
-  { name: "Course purchase confirmed · Email", key: "course-purchase-confirmed-email", channel: "email", subject: "Your BuddyForStudy course purchase is confirmed", body: "<h1>Course purchase confirmed</h1><p>Hi {{userName}}, your payment for <strong>{{courseTitle}}</strong> has been verified.</p><p><a href=\"{{link}}\">Open your course roadmap</a> to start learning.</p>", messageType: "billing", link: "" },
-  { name: "Subscription active · In-app", key: "subscription-activated-in-app", channel: "notification", title: "Your subscription is active", body: "Your {{planName}} plan is now active. Your subscription payment has been confirmed.", messageType: "billing", link: "" },
-  { name: "Subscription active · Email", key: "subscription-activated-email", channel: "email", subject: "Your BuddyForStudy subscription is active", body: "<h1>Your plan is active</h1><p>Hi {{userName}}, your <strong>{{planName}}</strong> plan is now active and your subscription payment is confirmed.</p><p><a href=\"{{link}}\">Manage your subscription</a>.</p>", messageType: "billing", link: "" },
+  { name: "Course purchase confirmed · In-app", key: "course-purchase-confirmed-in-app", channel: "notification", title: "Course purchase confirmed", body: "Payment of {{currency}} {{amount}} for {{courseTitle}} was verified on {{purchaseDate}}. Reference: {{paymentReference}}. Your enrollment is confirmed; open your roadmap to start learning.", messageType: "billing", link: "" },
+  { name: "Course purchase confirmed · Email", key: "course-purchase-confirmed-email", channel: "email", subject: "Your BuddyForStudy course purchase is confirmed", body: "<h1>Course purchase confirmed</h1><p>Hi {{userName}}, your payment of <strong>{{currency}} {{amount}}</strong> for <strong>{{courseTitle}}</strong> was verified on {{purchaseDate}}.</p><p>Payment reference: <code>{{paymentReference}}</code></p><p>Your enrollment is confirmed. <a href=\"{{link}}\">Open your course roadmap</a> to start learning.</p>", messageType: "billing", link: "" },
+  { name: "Subscription active · In-app", key: "subscription-activated-in-app", channel: "notification", title: "Your subscription is active", body: "Your {{planName}} plan is active with {{billingInterval}} billing. Payment of {{currency}} {{amount}} is confirmed. Current billing period: {{periodSummary}}.", messageType: "billing", link: "" },
+  { name: "Subscription active · Email", key: "subscription-activated-email", channel: "email", subject: "Your BuddyForStudy subscription is active", body: "<h1>Your plan is active</h1><p>Hi {{userName}}, your <strong>{{planName}}</strong> plan is active with <strong>{{billingInterval}}</strong> billing. Payment of <strong>{{currency}} {{amount}}</strong> is confirmed.</p><p>Current billing period: <strong>{{periodSummary}}</strong>.</p><p><a href=\"{{link}}\">Manage your subscription</a>.</p>", messageType: "billing", link: "" },
   { name: "Subscription renewal · In-app", key: "subscription-payment-in-app", channel: "notification", title: "Subscription payment received", body: "Your subscription renewal payment of {{currency}} {{amount}} was received successfully.", messageType: "billing", link: "" },
   { name: "Subscription renewal · Email", key: "subscription-payment-email", channel: "email", subject: "Your BuddyForStudy subscription payment receipt", body: "<h1>Payment received</h1><p>Hi {{userName}}, your subscription renewal payment of <strong>{{currency}} {{amount}}</strong> was received successfully.</p><p><a href=\"{{link}}\">View your billing details</a>.</p>", messageType: "billing", link: "" },
   { name: "Payment failed · In-app", key: "payment-failed-in-app", channel: "notification", title: "Payment was not completed", body: "Your payment did not complete. Review your billing details and try again when you are ready.", messageType: "billing", link: "" },
@@ -33,9 +33,23 @@ const DEFAULT_AUTOMATED_TEMPLATES = [
   { name: "Subscription ended · Email", key: "subscription-ended-email", channel: "email", subject: "Your BuddyForStudy subscription status changed", body: "<h1>Subscription status update</h1><p>Hi {{userName}}, your subscription is now <strong>{{status}}</strong>.</p><p><a href=\"{{link}}\">Review available plans</a> if you'd like to renew access.</p>", messageType: "billing", link: "" }
 ];
 
+const LEGACY_DEFAULT_BODIES = new Map([
+  ["course-purchase-confirmed-in-app", "Your payment for {{courseTitle}} was verified. Open your course roadmap when you are ready to start learning."],
+  ["course-purchase-confirmed-email", "<h1>Course purchase confirmed</h1><p>Hi {{userName}}, your payment for <strong>{{courseTitle}}</strong> has been verified.</p><p><a href=\"{{link}}\">Open your course roadmap</a> to start learning.</p>"],
+  ["subscription-activated-in-app", "Your {{planName}} plan is now active. Your subscription payment has been confirmed."],
+  ["subscription-activated-email", "<h1>Your plan is active</h1><p>Hi {{userName}}, your <strong>{{planName}}</strong> plan is now active and your subscription payment is confirmed.</p><p><a href=\"{{link}}\">Manage your subscription</a>.</p>"]
+]);
+
 async function ensureDefaultAutomatedTemplates() {
   await Promise.all(DEFAULT_AUTOMATED_TEMPLATES.map(async (template) => {
     try {
+      const legacyBody = LEGACY_DEFAULT_BODIES.get(template.key);
+      if (legacyBody) {
+        // Upgrade only untouched legacy defaults; keep administrator-edited templates intact.
+        await MessageTemplate.updateOne({ key: template.key, body: legacyBody }, {
+          $set: { body: template.body }
+        });
+      }
       await MessageTemplate.updateOne({ key: template.key }, {
         $setOnInsert: { ...template, isActive: true }
       }, { upsert: true });

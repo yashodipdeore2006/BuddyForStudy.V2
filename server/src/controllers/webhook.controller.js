@@ -6,6 +6,7 @@ import * as razorpay from "../services/razorpay.service.js";
 import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
 import { createNotificationEvent } from "../services/notification.service.js";
+import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -135,7 +136,7 @@ export async function razorpayWebhook(req, res, next) {
 
     if (event.event === "payment.captured" || event.event === "order.paid") {
       if (orderId) {
-        const paidPayment = await Payment.findOneAndUpdate(
+        await Payment.findOneAndUpdate(
           {
             provider: "razorpay",
             providerOrderId: orderId,
@@ -150,44 +151,27 @@ export async function razorpayWebhook(req, res, next) {
             }
           },
           { new: true }
-        ).populate("course", "title");
-        if (paidPayment) {
-          await createNotificationEvent({
-            userId: String(paidPayment.user),
-            title: "Course purchase confirmed",
-            message: `Your payment for "${paidPayment.course?.title || "your course"}" has been verified. You can now continue to your learning roadmap.`,
-            type: "billing",
-            link: `/courses/${paidPayment.course?._id || paidPayment.course}/roadmap`,
-            eventKey: `course-purchase-confirmed:${paidPayment._id}`,
-            emailSubject: "Your BuddyForStudy course purchase is confirmed",
-            metadata: { paymentId: String(paidPayment._id), courseId: String(paidPayment.course?._id || paidPayment.course), courseTitle: paidPayment.course?.title || "your course" },
-            templateKeys: { notification: "course-purchase-confirmed-in-app", email: "course-purchase-confirmed-email" }
-          });
-        }
+        );
       }
     } else if (event.event === "subscription.activated" || event.event === "subscription.resumed") {
       if (subscriptionEntity?.id) {
         const payment = await Payment.findOne({
           provider: "razorpay",
           providerOrderId: subscriptionEntity.id
-        }).sort({ createdAt: -1 }).populate("plan", "name");
+        }).sort({ createdAt: -1 }).populate("plan", "name billingInterval");
 
         if (payment) {
           payment.status = "paid";
           payment.paidAt = payment.paidAt || new Date();
           await payment.save();
           await activateSubscription(subscriptionEntity, payment);
-          await createNotificationEvent({
+          await createNotificationEvent(buildSubscriptionActivatedNotificationPayload({
             userId: String(payment.user),
-            title: "Your subscription is active",
-            message: `Your ${payment.plan?.name || "BuddyForStudy"} plan is now active. Your subscription payment has been confirmed.`,
-            type: "billing",
-            link: "/billing",
-            eventKey: `subscription-activated:${subscriptionEntity.id}`,
-            emailSubject: "Your BuddyForStudy subscription is active",
-            metadata: { paymentId: String(payment._id), subscriptionId: String(subscriptionEntity.id), planId: String(payment.plan?._id || payment.plan || ""), planName: payment.plan?.name || "BuddyForStudy" },
-            templateKeys: { notification: "subscription-activated-in-app", email: "subscription-activated-email" }
-          });
+            payment,
+            plan: payment.plan,
+            subscription: subscriptionEntity,
+            subscriptionId: String(subscriptionEntity.id)
+          }));
         }
       }
     } else if (event.event === "subscription.charged") {

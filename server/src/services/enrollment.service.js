@@ -2,6 +2,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { createNotificationEvent } from "./notification.service.js";
+import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
 
 async function notifyFreeCourseEnrollment(userId, course, enrollment) {
   if (course.pricing?.mode === "paid") return;
@@ -26,6 +27,18 @@ async function notifyFreeCourseEnrollment(userId, course, enrollment) {
   }
 }
 
+async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
+  try {
+    await createNotificationEvent(buildCoursePurchaseNotificationPayload({ userId, payment, course, enrollment }));
+  } catch (error) {
+    console.error("[notifications] course purchase notice failed", {
+      paymentId: String(payment?._id || ""),
+      courseId: String(course?._id || ""),
+      message: String(error?.message || "Unknown notification error").slice(0, 200)
+    });
+  }
+}
+
 export async function enroll(userId, courseId) {
   const course = await Course.findOne({ _id: courseId, isPublished: true }).select("_id title pricing enrollmentEnabled");
   if (!course) {
@@ -35,9 +48,10 @@ export async function enroll(userId, courseId) {
   }
 
   if (course.enrollmentEnabled === false) { const error = new Error("Enrollment is currently disabled for this course"); error.status = 403; throw error; }
+  let paidPayment = null;
   if (course.pricing?.mode === "paid") {
-    const payment = await Payment.findOne({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } }).sort({ paidAt: -1, createdAt: -1 });
-    if (!payment) { const error = new Error("Verified payment is required before enrolling in this course"); error.status = 402; throw error; }
+    paidPayment = await Payment.findOne({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } }).sort({ paidAt: -1, createdAt: -1 });
+    if (!paidPayment) { const error = new Error("Verified payment is required before enrolling in this course"); error.status = 402; throw error; }
   }
 
   const existing = await Enrollment.findOne({ user: userId, course: courseId });
@@ -46,7 +60,12 @@ export async function enroll(userId, courseId) {
       existing.status = "active";
       existing.enrolledAt = new Date();
       await existing.save();
-      await notifyFreeCourseEnrollment(userId, course, existing);
+      if (paidPayment) await notifyPaidCoursePurchase(userId, course, paidPayment, existing);
+      else await notifyFreeCourseEnrollment(userId, course, existing);
+      return existing;
+    }
+    if (paidPayment) {
+      await notifyPaidCoursePurchase(userId, course, paidPayment, existing);
       return existing;
     }
     const error = new Error("Already enrolled in this course");
@@ -55,7 +74,8 @@ export async function enroll(userId, courseId) {
   }
 
   const enrollment = await Enrollment.create({ user: userId, course: courseId });
-  await notifyFreeCourseEnrollment(userId, course, enrollment);
+  if (paidPayment) await notifyPaidCoursePurchase(userId, course, paidPayment, enrollment);
+  else await notifyFreeCourseEnrollment(userId, course, enrollment);
   return enrollment;
 }
 

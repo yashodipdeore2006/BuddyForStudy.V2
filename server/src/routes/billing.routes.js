@@ -8,6 +8,7 @@ import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 import { createNotificationEvent } from "../services/notification.service.js";
+import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 
 const router = Router();
 
@@ -93,17 +94,13 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).populate("plan");
 
-  await sendNotificationSafely({
+  await sendNotificationSafely(buildSubscriptionActivatedNotificationPayload({
     userId: String(req.user.userId),
-    title: "Your subscription is active",
-    message: `Your ${payment.plan.name || "BuddyForStudy"} plan is now active. Your subscription payment has been confirmed.`,
-    type: "billing",
-    link: "/billing",
-    eventKey: `subscription-activated:${subscriptionId}`,
-    emailSubject: "Your BuddyForStudy subscription is active",
-    metadata: { paymentId: String(payment._id), subscriptionId, planId: String(payment.plan._id), planName: payment.plan.name },
-    templateKeys: { notification: "subscription-activated-in-app", email: "subscription-activated-email" }
-  }, "subscription-activation");
+    payment,
+    plan: payment.plan,
+    subscription,
+    subscriptionId
+  }), "subscription-activation");
 
   return success(res, {
     activated: true,

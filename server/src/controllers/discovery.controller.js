@@ -89,6 +89,10 @@ export async function enrollYouTubeResource(req, res, next) {
     } catch (error) {
       if (error?.status === 409) {
         enrollment = await Enrollment.findOne({ user: req.user.userId, course: course._id });
+        if (reservation) {
+          await releaseUsage({ ...reservation, period: "month", amount: 1 }).catch(() => {});
+          reservation = null;
+        }
       } else {
         throw error;
       }

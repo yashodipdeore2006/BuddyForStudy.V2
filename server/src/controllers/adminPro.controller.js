@@ -1118,7 +1118,8 @@ export async function updateRefund(req, res, next) {
         link: "/billing",
         eventKey: `refund-status:${refund._id}:${refund.status}`,
         emailSubject: refund.status === "processed" ? "Your BuddyForStudy refund has been processed" : "Your BuddyForStudy refund request update",
-        metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(refund.amount), currency: payment.currency || "INR", status: refund.status }
+        metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(refund.amount), currency: payment.currency || "INR", status: refund.status },
+        templateKeys: { notification: "refund-status-in-app", email: "refund-status-email" }
       });
     } catch (notificationError) {
       console.error("[notifications] refund status notification failed", {

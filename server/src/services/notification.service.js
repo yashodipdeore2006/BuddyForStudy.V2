@@ -242,8 +242,8 @@ async function dispatchPush(notificationId, { force = false } = {}) {
       })
     });
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`OneSignal returned ${response.status}: ${body.slice(0, 250)}`);
+      // Provider response bodies may include request/user context; retain only the status code.
+      throw new Error(`OneSignal returned HTTP ${response.status}`);
     }
     await Notification.updateOne({ _id: notification._id }, {
       $set: { pushStatus: "sent", pushSentAt: new Date(), pushError: "" }

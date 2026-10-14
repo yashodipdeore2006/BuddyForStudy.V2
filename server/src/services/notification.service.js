@@ -241,6 +241,8 @@ export async function createNotificationEvent({
   email = true,
   push = true,
   forceInApp = false,
+  inApp = true,
+  emailHtmlOverride = "",
   metadata = {},
   templateKeys = {}
 }) {
@@ -266,7 +268,7 @@ export async function createNotificationEvent({
   const renderedEmailSubject = emailTemplate?.subject ? renderTemplate(emailTemplate.subject, variables) : (emailSubject || title);
   const renderedEmailHtml = emailTemplate?.body ? renderTemplate(emailTemplate.body, variables, { html: true }) : "";
   const transactional = type === "billing" || type === "security";
-  const showInApp = forceInApp || transactional || (platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
+  const showInApp = forceInApp || (inApp && transactional) || (inApp && platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
   const shouldEmail = email && platform.emailEnabled && Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom) && (transactional || !keys.email || preferences[keys.email] !== false);
   const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
   const payload = {
@@ -279,7 +281,7 @@ export async function createNotificationEvent({
     metadata: metadata && typeof metadata === "object" ? metadata : {},
     emailStatus: shouldEmail ? "pending" : "skipped",
     emailSubject: String(renderedEmailSubject || "BuddyForStudy update").slice(0, 200),
-    emailHtml: String(renderedEmailHtml || "").slice(0, 20000),
+    emailHtml: String(emailHtmlOverride || renderedEmailHtml || "").slice(0, 20000),
     pushStatus: shouldPush ? "pending" : "skipped"
   };
   let notification;

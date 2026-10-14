@@ -1030,7 +1030,7 @@ function cachedRoadmapFromCourse(course, input) {
 
 function getQuizContext(module, lesson, practiceOnly = false) {
   const sourceLessons = practiceOnly
-    ? [lesson]
+    ? (lesson.type === "quiz" ? (module.lessons || []).filter((item) => item.type !== "quiz") : [lesson])
     : lesson.quiz?.scope === "module"
       ? (module.lessons || []).filter((item) => item.type !== "quiz")
       : (module.lessons || []).filter(
@@ -1095,7 +1095,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     }
   }
 
-  if (!located?.lesson || (!practiceOnly && (located.lesson.type !== "quiz" || !located.lesson.quiz)) || (practiceOnly && located.lesson.type === "quiz")) {
+  if (!located?.lesson || (!practiceOnly && (located.lesson.type !== "quiz" || !located.lesson.quiz))) {
     const error = new Error(practiceOnly ? "Choose a tutorial or project lesson to generate practice questions." : "Quiz lesson not found");
     error.status = 404;
     throw error;
@@ -1145,7 +1145,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     `Course: ${course.title}`,
     `Level: ${course.level}`,
     `Quiz scope: ${practiceOnly ? "lesson practice" : located.lesson.quiz.scope}`,
-    `Focus topics: ${JSON.stringify(practiceOnly ? [] : (located.lesson.quiz.focusTopics || []))}`,
+    `Focus topics: ${JSON.stringify(practiceOnly ? (located.lesson.quiz?.focusTopics || []) : (located.lesson.quiz.focusTopics || []))}`,
     ...(practiceOnly ? ["Create a fresh practice set that directly assesses the selected lesson, including its video title/description or project brief when available. Do not repeat a fixed course assessment."] : []),
     `Learning context: ${JSON.stringify(context)}`
   ].join("\n");

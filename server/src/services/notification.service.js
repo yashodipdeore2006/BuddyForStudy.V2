@@ -1,12 +1,14 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { Enrollment } from "../models/Enrollment.js";
+import { Payment } from "../models/Payment.js";
 import { Progress } from "../models/Progress.js";
 import { Notification } from "../models/Notification.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
 import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey } from "./reminderScheduling.js";
+import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
 
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
@@ -465,6 +467,89 @@ export async function deliverPendingNotificationPush(limit = 50) {
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
   for (const item of pending) await dispatchPush(item._id);
   return { attempted: pending.length };
+}
+
+export async function reconcilePendingCoursePurchaseNotifications(now = new Date(), pageSize = 100) {
+  const retryBefore = new Date(now.getTime() - RETRY_DELAY_MS);
+  const eligible = {
+    status: { $in: ["paid", "partially_refunded"] },
+    course: { $ne: null },
+    purchaseNotificationStatus: "pending",
+    $or: [
+      { purchaseNotificationLastCheckedAt: null },
+      { purchaseNotificationLastCheckedAt: { $lte: retryBefore } }
+    ]
+  };
+  const upperBound = await Payment.findOne(eligible).sort({ _id: -1 }).select("_id").lean();
+  if (!upperBound) return { checked: 0, queued: 0, waitingForEnrollment: 0, failures: 0 };
+
+  const limit = Math.min(Math.max(Math.trunc(Number(pageSize) || 100), 1), 500);
+  let cursor = null;
+  let checked = 0;
+  let queued = 0;
+  let waitingForEnrollment = 0;
+  let failures = 0;
+
+  while (true) {
+    const filter = { ...eligible };
+    filter._id = cursor
+      ? { $gt: cursor, $lte: upperBound._id }
+      : { $lte: upperBound._id };
+    const payments = await Payment.find(filter)
+      .sort({ _id: 1 })
+      .limit(limit)
+      .populate("course", "title")
+      .lean();
+    if (!payments.length) break;
+
+    cursor = payments[payments.length - 1]._id;
+    checked += payments.length;
+    for (const payment of payments) {
+      try {
+        const course = payment.course;
+        const enrollment = await Enrollment.findOne({
+          user: payment.user,
+          course: course?._id || payment.course,
+          status: "active"
+        }).lean();
+        if (!enrollment) {
+          waitingForEnrollment += 1;
+          await Payment.updateOne(
+            { _id: payment._id, purchaseNotificationStatus: "pending" },
+            { $set: { purchaseNotificationLastCheckedAt: now } }
+          );
+          continue;
+        }
+
+        const notification = await createNotificationEvent(buildCoursePurchaseNotificationPayload({
+          userId: String(payment.user),
+          payment,
+          course,
+          enrollment
+        }));
+        if (!notification) throw new Error("Course purchase notification was not persisted");
+        const updated = await Payment.updateOne(
+          { _id: payment._id, purchaseNotificationStatus: "pending" },
+          { $set: { purchaseNotificationStatus: "queued", purchaseNotificationQueuedAt: new Date(), purchaseNotificationLastCheckedAt: now } }
+        );
+        if (updated.modifiedCount > 0) queued += 1;
+      } catch (error) {
+        failures += 1;
+        await Payment.updateOne(
+          { _id: payment._id, purchaseNotificationStatus: "pending" },
+          { $set: { purchaseNotificationLastCheckedAt: now } }
+        ).catch(() => {});
+        console.error("[notifications] course purchase reconciliation failed", {
+          paymentId: String(payment._id),
+          message: String(error?.message || "Unknown notification error").slice(0, 200)
+        });
+      }
+    }
+
+    if (payments.length < limit) break;
+  }
+
+  return { checked, queued, waitingForEnrollment, failures };
 }
 
 export async function processLearningReminders(now = new Date(), batchSize = 500) {

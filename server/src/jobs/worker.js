@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
-import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders } from "../services/notification.service.js";
+import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications } from "../services/notification.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -35,7 +35,8 @@ async function runMaintenance() {
     const notificationJobs = await Promise.allSettled([
       deliverPendingNotificationEmails(50),
       deliverPendingNotificationPush(50),
-      processLearningReminders(now, 500)
+      processLearningReminders(now, 500),
+      reconcilePendingCoursePurchaseNotifications(now, 100)
     ]);
     for (const result of notificationJobs) {
       if (result.status === "rejected") {

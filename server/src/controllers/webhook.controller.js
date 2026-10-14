@@ -141,13 +141,15 @@ export async function razorpayWebhook(req, res, next) {
             provider: "razorpay",
             providerOrderId: orderId,
             status: { $in: ["created", "pending"] },
-            course: { $exists: true }
+            course: { $ne: null }
           },
           {
             $set: {
               status: "paid",
               providerPaymentId: paymentEntity?.id || "",
-              paidAt: new Date()
+              paidAt: new Date(),
+              purchaseNotificationStatus: "pending",
+              purchaseNotificationLastCheckedAt: null
             }
           },
           { new: true }

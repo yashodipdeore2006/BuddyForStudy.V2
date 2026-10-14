@@ -106,6 +106,10 @@ export async function verifyCoursePayment(req, res, next) {
     payment.providerPaymentId = input.razorpayPaymentId;
     payment.status = "paid";
     payment.paidAt = payment.paidAt || new Date();
+    if (payment.course) {
+      payment.purchaseNotificationStatus = "pending";
+      payment.purchaseNotificationLastCheckedAt = null;
+    }
     await payment.save();
 
     return success(res, { payment }, "Payment verified successfully");

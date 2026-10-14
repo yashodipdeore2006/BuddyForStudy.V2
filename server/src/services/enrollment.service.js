@@ -29,7 +29,12 @@ async function notifyFreeCourseEnrollment(userId, course, enrollment) {
 
 async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
   try {
-    await createNotificationEvent(buildCoursePurchaseNotificationPayload({ userId, payment, course, enrollment }));
+    const notification = await createNotificationEvent(buildCoursePurchaseNotificationPayload({ userId, payment, course, enrollment }));
+    if (!notification) throw new Error("Course purchase notification was not persisted");
+    await Payment.updateOne(
+      { _id: payment._id, purchaseNotificationStatus: "pending" },
+      { $set: { purchaseNotificationStatus: "queued", purchaseNotificationQueuedAt: new Date() } }
+    );
   } catch (error) {
     console.error("[notifications] course purchase notice failed", {
       paymentId: String(payment?._id || ""),

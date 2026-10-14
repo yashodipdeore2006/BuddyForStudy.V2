@@ -29,6 +29,7 @@ export default function AdminCommunications() {
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateStatus, setTemplateStatus] = useState("");
   const [templateError, setTemplateError] = useState("");
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
 
   async function loadDeliveryLogs() {
     setLoadingDeliveries(true);
@@ -49,6 +50,7 @@ export default function AdminCommunications() {
   }, []);
 
   function editTemplate(template?: MessageTemplate) {
+    setTemplateEditorOpen(true);
     setEditingTemplateId(template?._id || "");
     setTemplateDraft(template ? {
       name: template.name,
@@ -82,6 +84,7 @@ export default function AdminCommunications() {
       setTemplateStatus("Template saved. Automatic event notifications will use it when its key matches a built-in event.");
       setEditingTemplateId("");
       setTemplateDraft({ ...EMPTY_TEMPLATE });
+      setTemplateEditorOpen(false);
     } catch (error) {
       setTemplateError(error instanceof Error ? error.message : "Unable to save template.");
     } finally {
@@ -214,14 +217,14 @@ export default function AdminCommunications() {
           ))}
         </div>
 
-        {(editingTemplateId || templateDraft.name || templateStatus || templateError) && (
+        {templateEditorOpen && (
           <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-slate-950">{editingTemplateId ? "Edit message template" : "Create message template"}</h3>
                 <p className="mt-1 text-xs leading-5 text-slate-500">Supported tokens include <code>{"{{userName}}"}</code>, <code>{"{{courseTitle}}"}</code>, <code>{"{{planName}}"}</code>, <code>{"{{amount}}"}</code>, <code>{"{{currency}}"}</code>, and <code>{"{{link}}"}</code>.</p>
               </div>
-              <button type="button" className="btn-secondary" onClick={() => editTemplate()}>Close</button>
+              <button type="button" className="btn-secondary" onClick={() => { setTemplateEditorOpen(false); setEditingTemplateId(""); setTemplateDraft({ ...EMPTY_TEMPLATE }); setTemplateError(""); setTemplateStatus(""); }}>Close</button>
             </div>
             {templateError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{templateError}</p>}
             {templateStatus && <p role="status" className="mt-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">{templateStatus}</p>}
@@ -233,7 +236,7 @@ export default function AdminCommunications() {
                 <input className="input-field mt-1 font-mono" value={templateDraft.key} onChange={(e) => setTemplateDraft({ ...templateDraft, key: e.target.value })} disabled={Boolean(editingTemplateId)} />
               </label>
               <label className="block text-xs font-semibold text-slate-600">Channel
-                <select className="input-field mt-1" value={templateDraft.channel} onChange={(e) => setTemplateDraft({ ...templateDraft, channel: e.target.value as TemplateDraft["channel"] })}>
+                <select className="input-field mt-1" value={templateDraft.channel} disabled={Boolean(editingTemplateId)} onChange={(e) => setTemplateDraft({ ...templateDraft, channel: e.target.value as TemplateDraft["channel"] })}>
                   <option value="notification">In-app notification</option>
                   <option value="email">Email</option>
                   <option value="announcement">Announcement</option>

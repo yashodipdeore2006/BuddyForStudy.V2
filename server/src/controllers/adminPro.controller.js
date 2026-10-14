@@ -29,7 +29,7 @@ import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
 import { validateAdminAccountChange } from "../utils/adminAccountSafety.js";
-import { createNotificationEvent } from "../services/notification.service.js";
+import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -1013,6 +1013,25 @@ export async function updatePlan(req, res, next) {
     }, req.body.reason);
     return success(res, { plan }, "Plan updated");
   } catch (e) { next(e); }
+}
+
+export async function retryNotificationDeliveryAdmin(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.notificationId)) return failure(res, "Invalid notificationId", 400);
+    const channel = String(req.body?.channel || "");
+    if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
+
+    const result = await retryNotificationDelivery(req.params.notificationId, channel);
+    await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, {
+      channel: result.channel,
+      status: result.status,
+      attempts: result.attempts
+    });
+    return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry finished: ${result.status}`);
+  } catch (e) {
+    if (e?.status) return failure(res, e.message, e.status);
+    next(e);
+  }
 }
 
 export async function notificationDeliveries(req, res, next) {

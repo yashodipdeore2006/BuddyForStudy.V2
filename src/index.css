@@ -40,7 +40,7 @@
 }
 html { scroll-behavior: smooth; }
 body { @apply antialiased; margin: 0; background: var(--bfs-canvas); color: var(--bfs-ink); font-family: var(--bfs-font); font-feature-settings: "ss01", "ss02"; }
-h1,h2,h3,h4,h5,h6 { @apply font-medium tracking-tight; line-height: 1.22; font-feature-settings: "ss01", "ss02"; }
+h1,h2,h3,h4,h5,h6 { @apply tracking-tight; font-weight: 500 !important; line-height: 1.22; font-feature-settings: "ss01", "ss02"; }
 button,input,select,textarea { font: inherit; }
 button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--bfs-primary); outline-offset: 3px; }

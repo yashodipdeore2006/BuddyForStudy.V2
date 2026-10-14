@@ -18,18 +18,25 @@ export async function complete(req, res, next) {
     if (!isValidObjectId(courseId) || !isValidObjectId(itemId)) return failure(res, "Invalid identifier", 400);
     const progress = await service.completeItem(req.user.userId, courseId, itemId);
     if (Number(progress.percentage || 0) >= 100) {
-      const course = await Course.findById(courseId).select("title").lean();
-      await createNotificationEvent({
-        userId: String(req.user.userId),
-        title: "Course completed — congratulations!",
-        message: `You completed ${course?.title || "your course"}. Celebrate the progress and choose your next learning goal.`,
-        type: "course",
-        link: `/courses/${courseId}/roadmap`,
-        eventKey: `course-completed:${req.user.userId}:${courseId}`,
-        emailSubject: "Congratulations on completing a BuddyForStudy course",
-        metadata: { courseId: String(courseId), courseTitle: course?.title || "your course" },
-        templateKeys: { notification: "course-completed-in-app", email: "course-completed-email" }
-      });
+      try {
+        const course = await Course.findById(courseId).select("title").lean();
+        await createNotificationEvent({
+          userId: String(req.user.userId),
+          title: "Course completed — congratulations!",
+          message: `You completed ${course?.title || "your course"}. Celebrate the progress and choose your next learning goal.`,
+          type: "course",
+          link: `/courses/${courseId}/roadmap`,
+          eventKey: `course-completed:${req.user.userId}:${courseId}`,
+          emailSubject: "Congratulations on completing a BuddyForStudy course",
+          metadata: { courseId: String(courseId), courseTitle: course?.title || "your course" },
+          templateKeys: { notification: "course-completed-in-app", email: "course-completed-email" }
+        });
+      } catch (notificationError) {
+        console.error("[notifications] course completion notice failed", {
+          courseId: String(courseId),
+          message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+        });
+      }
     }
     return success(res, {
       message: "Learning item completed",

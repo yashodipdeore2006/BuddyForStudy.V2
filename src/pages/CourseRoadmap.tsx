@@ -131,8 +131,8 @@ export default function CourseRoadmap() {
 
   if (!course || error) {
     return (
-      <div className="min-h-screen bg-slate-50 px-4 py-16">
-        <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <div className="min-h-screen bg-[#f1f4f7] px-4 py-16">
+        <div className="mx-auto max-w-2xl rounded-[32px] border border-slate-200 bg-white p-8 text-center">
           <BookOpen className="mx-auto h-12 w-12 text-slate-300" />
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Roadmap unavailable</h1>
           <p className="mt-2 text-sm text-slate-500">{error ?? 'This course could not be loaded.'}</p>
@@ -150,7 +150,7 @@ export default function CourseRoadmap() {
   const isComplete = percentage >= 100;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f1f4f7]">
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
           <Link
@@ -163,7 +163,7 @@ export default function CourseRoadmap() {
 
           <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex items-start gap-4">
-              <div className="hidden h-16 w-24 overflow-hidden rounded-xl bg-slate-100 sm:block">
+              <div className="hidden h-16 w-24 overflow-hidden rounded-2xl bg-slate-100 sm:block">
                 {course.thumbnail ? (
                   <img src={course.thumbnail} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -177,7 +177,7 @@ export default function CourseRoadmap() {
                   <span className="badge bg-blue-50 text-blue-700">{course.category}</span>
                   <span className="badge bg-slate-100 text-slate-600">{course.level}</span>
                 </div>
-                <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                <h1 className="mt-2 text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
                   {course.title}
                 </h1>
                 <ExpandableText
@@ -203,39 +203,39 @@ export default function CourseRoadmap() {
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl bg-blue-600 p-5 text-white shadow-sm md:col-span-2">
+          <div className="rounded-[32px] border border-slate-200 bg-white p-6 text-slate-950 md:col-span-2">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-blue-100">Your progress</p>
-                <p className="mt-1 text-3xl font-bold">{percentage}%</p>
+                <p className="text-sm font-semibold text-slate-600">Your progress</p>
+                <p className="mt-1 text-3xl font-medium tracking-tight">{percentage}%</p>
               </div>
               <Trophy className="h-7 w-7 text-blue-100" />
             </div>
-            <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-white/20">
+            <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-slate-100">
               <div
-                className="h-full rounded-full bg-white transition-all"
+                className="h-full rounded-full bg-blue-600 transition-all"
                 style={{ width: `${percentage}%` }}
               />
             </div>
-            <p className="mt-3 text-sm text-blue-100">
+            <p className="mt-3 text-sm text-slate-600">
               {completedCount} of {totalLessons} lessons completed
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <BookOpen className="h-4 w-4" />
                 Modules
               </div>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{course.modules.length}</p>
+              <p className="mt-2 text-2xl font-medium text-slate-950">{course.modules.length}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="rounded-[24px] border border-slate-200 bg-white p-5">
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <Clock className="h-4 w-4" />
                 Duration
               </div>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{course.duration || 'Self-paced'}</p>
+              <p className="mt-2 text-2xl font-medium text-slate-950">{course.duration || 'Self-paced'}</p>
             </div>
           </div>
         </section>
@@ -243,7 +243,7 @@ export default function CourseRoadmap() {
         <section className="mt-10">
           <div className="mb-6">
             <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Learning path</p>
-            <h2 className="mt-1 text-2xl font-bold text-slate-900">Course Roadmap</h2>
+            <h2 className="mt-1 text-2xl font-medium text-slate-950">Course Roadmap</h2>
             <p className="mt-1 text-sm text-slate-500">
               Follow the modules in order and complete each lesson to move forward.
             </p>
@@ -265,7 +265,7 @@ export default function CourseRoadmap() {
                 return (
                   <article key={module.id} className="relative sm:pl-14">
                     <div
-                      className={`absolute left-0 top-5 hidden h-10 w-10 items-center justify-center rounded-full border-4 border-slate-50 sm:flex ${
+                      className={`absolute left-0 top-5 hidden h-10 w-10 items-center justify-center rounded-full border-4 border-[#f1f4f7] sm:flex ${
                         modulePercentage === 100
                           ? 'bg-green-100 text-green-700'
                           : isCurrent
@@ -280,14 +280,14 @@ export default function CourseRoadmap() {
                       )}
                     </div>
 
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
                       <div className="border-b border-slate-100 p-5">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                               Module {moduleIndex + 1}
                             </p>
-                            <h3 className="mt-1 text-lg font-bold text-slate-900">{module.title}</h3>
+                            <h3 className="mt-1 text-lg font-medium text-slate-950">{module.title}</h3>
                             {module.description && (
                               <ExpandableText
                                 text={module.description}

@@ -6,10 +6,25 @@ import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { verifyPaymentSignature } from "../services/razorpay.service.js";
+import { createNotificationEvent } from "../services/notification.service.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
 });
+
+async function notifyCoursePurchase(payment) {
+  const course = await Course.findById(payment.course).select("title").lean();
+  await createNotificationEvent({
+    userId: String(payment.user),
+    title: "Course purchase confirmed",
+    message: `Your payment for "${course?.title || "your course"}" has been verified. You can now continue to your learning roadmap.`,
+    type: "billing",
+    link: `/courses/${payment.course}/roadmap`,
+    eventKey: `course-purchase-confirmed:${payment._id}`,
+    emailSubject: "Your BuddyForStudy course purchase is confirmed",
+    metadata: { paymentId: String(payment._id), courseId: String(payment.course) }
+  });
+}
 
 export async function createCourseOrder(req, res, next) {
   try {
@@ -81,6 +96,7 @@ export async function verifyCoursePayment(req, res, next) {
 
     if (payment.status === "paid") {
       if (payment.providerPaymentId === input.razorpayPaymentId) {
+        await notifyCoursePurchase(payment);
         return success(res, { payment }, "Payment already verified");
       }
       return failure(res, "Payment has already been verified with a different provider payment", 409);
@@ -107,6 +123,7 @@ export async function verifyCoursePayment(req, res, next) {
     payment.status = "paid";
     payment.paidAt = payment.paidAt || new Date();
     await payment.save();
+    await notifyCoursePurchase(payment);
 
     return success(res, { payment }, "Payment verified successfully");
   } catch (e) {

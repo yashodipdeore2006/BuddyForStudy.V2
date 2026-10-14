@@ -239,7 +239,8 @@ export async function razorpayWebhook(req, res, next) {
             link: "/billing",
             eventKey: `subscription-ended:${subscriptionEntity.id}:${event.event}`,
             emailSubject: completed ? "Your BuddyForStudy subscription period ended" : "Your BuddyForStudy subscription was cancelled",
-            metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: subscription.status }
+            metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: subscription.status },
+            templateKeys: { notification: "subscription-ended-in-app", email: "subscription-ended-email" }
           });
         }
       }

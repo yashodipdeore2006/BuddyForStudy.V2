@@ -109,7 +109,8 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
       link: "/billing",
       eventKey: `subscription-charge:${providerPaymentId}`,
       emailSubject: "Your BuddyForStudy subscription payment receipt",
-      metadata: { paymentId: String(payment._id), subscriptionId: String(subscription.id), providerPaymentId }
+      metadata: { paymentId: String(payment._id), subscriptionId: String(subscription.id), providerPaymentId, amount: String(payment.amount), currency: payment.currency || "INR" },
+      templateKeys: { notification: "subscription-payment-in-app", email: "subscription-payment-email" }
     });
   }
 }
@@ -159,7 +160,8 @@ export async function razorpayWebhook(req, res, next) {
             link: `/courses/${paidPayment.course?._id || paidPayment.course}/roadmap`,
             eventKey: `course-purchase-confirmed:${paidPayment._id}`,
             emailSubject: "Your BuddyForStudy course purchase is confirmed",
-            metadata: { paymentId: String(paidPayment._id), courseId: String(paidPayment.course?._id || paidPayment.course) }
+            metadata: { paymentId: String(paidPayment._id), courseId: String(paidPayment.course?._id || paidPayment.course), courseTitle: paidPayment.course?.title || "your course" },
+            templateKeys: { notification: "course-purchase-confirmed-in-app", email: "course-purchase-confirmed-email" }
           });
         }
       }
@@ -183,7 +185,8 @@ export async function razorpayWebhook(req, res, next) {
             link: "/billing",
             eventKey: `subscription-activated:${subscriptionEntity.id}`,
             emailSubject: "Your BuddyForStudy subscription is active",
-            metadata: { paymentId: String(payment._id), subscriptionId: String(subscriptionEntity.id), planId: String(payment.plan?._id || payment.plan || "") }
+            metadata: { paymentId: String(payment._id), subscriptionId: String(subscriptionEntity.id), planId: String(payment.plan?._id || payment.plan || ""), planName: payment.plan?.name || "BuddyForStudy" },
+            templateKeys: { notification: "subscription-activated-in-app", email: "subscription-activated-email" }
           });
         }
       }
@@ -225,7 +228,8 @@ export async function razorpayWebhook(req, res, next) {
           link: "/billing",
           eventKey: `payment-failed:${failedPayment._id}:${paymentEntity?.id || "attempt"}`,
           emailSubject: "BuddyForStudy payment update",
-          metadata: { paymentId: String(failedPayment._id) }
+          metadata: { paymentId: String(failedPayment._id) },
+          templateKeys: { notification: "payment-failed-in-app", email: "payment-failed-email" }
         });
       }
     }

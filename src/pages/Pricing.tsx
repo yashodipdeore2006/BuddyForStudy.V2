@@ -94,7 +94,7 @@ export default function Pricing() {
     }
   }
 
-  return <div className="mx-auto max-w-6xl px-4 py-12"><div className="text-center"><h1 className="text-3xl font-bold text-slate-900">Choose your plan</h1><p className="mt-2 text-slate-500">Unlock more from BuddyForStudy.</p></div>
+  return <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8"><div className="text-center"><h1 className="text-3xl font-bold text-slate-900">Choose your plan</h1><p className="mt-2 text-slate-500">Unlock more from BuddyForStudy.</p></div>
     {message && (
       <div className={`mx-auto mt-6 max-w-xl rounded-lg p-3 text-sm ${
         message.type === "success"
@@ -106,10 +106,10 @@ export default function Pricing() {
         {message.text}
       </div>
     )}
-    <div className="mt-10 grid gap-6 md:grid-cols-3">{plans.map((plan) => <div key={plan._id} className="card p-6"><h2 className="text-xl font-semibold">{plan.name}</h2><p className="mt-2 text-3xl font-bold">₹{plan.price}<span className="text-sm font-normal text-slate-500">/{plan.billingInterval}</span></p><p className="mt-3 text-sm text-slate-500">{plan.description}</p><ul className="mt-5 space-y-2 text-sm text-slate-600">{(plan.features || []).map((f:string)=><li key={f}>✓ {f}</li>)}</ul><button
+    <div className="mt-10 grid gap-6 md:grid-cols-3">{plans.map((plan) => <div key={plan._id} className="flex h-full flex-col rounded-[32px] border border-slate-200 bg-white p-7"><h2 className="text-xl font-medium text-slate-950">{plan.name}</h2><p className="mt-2 text-3xl font-medium tracking-tight text-slate-950">₹{plan.price}<span className="text-sm font-normal text-slate-500">/{plan.billingInterval}</span></p><p className="mt-3 text-sm text-slate-500">{plan.description}</p><ul className="mt-5 space-y-2 text-sm text-slate-600">{(plan.features || []).map((f:string)=><li key={f}>✓ {f}</li>)}</ul><button
   disabled={loading===plan._id || plan.price===0}
   onClick={()=>subscribe(plan._id)}
-  className={`mt-6 w-full ${plan.price===0 ? "btn-secondary" : "btn-primary"}`}
+  className={`mt-auto mt-6 w-full ${plan.price===0 ? "btn-secondary" : "btn-buy"}`}
 >
   {plan.price===0 ? "Included" : loading===plan._id ? "Opening Checkout..." : "Subscribe"}
 </button></div>)}</div>

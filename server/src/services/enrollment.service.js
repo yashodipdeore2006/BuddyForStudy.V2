@@ -32,7 +32,7 @@ async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
     const notification = await createNotificationEvent(buildCoursePurchaseNotificationPayload({ userId, payment, course, enrollment }));
     if (!notification) throw new Error("Course purchase notification was not persisted");
     await Payment.updateOne(
-      { _id: payment._id, purchaseNotificationStatus: "pending" },
+      { _id: payment._id, status: { $in: ["paid", "partially_refunded"] } },
       { $set: { purchaseNotificationStatus: "queued", purchaseNotificationQueuedAt: new Date() } }
     );
   } catch (error) {

@@ -37,3 +37,16 @@ export function hasBeenInactive(now, lastActivity, inactiveDays) {
 export function learningReminderEventKey(userId, localDateKey) {
   return "learning-reminder:" + String(userId) + ":" + String(localDateKey);
 }
+
+export function getSubscriptionExpiryReminderWindow(now, daysBefore = 3, toleranceMs = 60 * 60 * 1000) {
+  const days = Math.max(1, Math.min(14, Math.trunc(Number(daysBefore) || 3)));
+  const target = now.getTime() + days * 24 * 60 * 60 * 1000;
+  return { start: new Date(target - toleranceMs), end: new Date(target + toleranceMs) };
+}
+
+export function subscriptionExpiryReminderEventKey(subscriptionId, periodEnd) {
+  const date = periodEnd instanceof Date ? periodEnd : new Date(periodEnd);
+  const periodKey = Number.isNaN(date.getTime()) ? "unknown" : date.toISOString();
+  return "subscription-expiring:" + String(subscriptionId) + ":" + periodKey;
+}
+

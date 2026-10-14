@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  getReminderClock, isWithinQuietHours, isReminderHourDue, hasBeenInactive, learningReminderEventKey
+  getReminderClock, isWithinQuietHours, isReminderHourDue, hasBeenInactive, learningReminderEventKey,
+  getSubscriptionExpiryReminderWindow, subscriptionExpiryReminderEventKey
 } from "../src/services/reminderScheduling.js";
 
 test("reminder hour follows the learner's timezone", () => {
@@ -32,4 +33,25 @@ test("inactivity threshold is inclusive and rejects invalid activity times", () 
   assert.equal(hasBeenInactive(now, new Date("2026-10-11T12:00:01.000Z"), 3), false);
   assert.equal(hasBeenInactive(now, "unknown", 3), false);
   assert.equal(hasBeenInactive(now, null, 3), false);
+});
+
+
+test("subscription expiry reminder window tolerates worker drift and caps the configured lead time", () => {
+  const now = new Date("2026-10-14T12:00:00.000Z");
+  const window = getSubscriptionExpiryReminderWindow(now, 3, 60 * 60 * 1000);
+  assert.equal(window.start.toISOString(), "2026-10-17T11:00:00.000Z");
+  assert.equal(window.end.toISOString(), "2026-10-17T13:00:00.000Z");
+  assert.equal(getSubscriptionExpiryReminderWindow(now, 99).end.getTime() - now.getTime(), 15 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000);
+});
+
+test("subscription expiry event keys are stable per provider period", () => {
+  const periodEnd = new Date("2026-10-20T08:00:00.000Z");
+  assert.equal(
+    subscriptionExpiryReminderEventKey("sub_123", periodEnd),
+    "subscription-expiring:sub_123:2026-10-20T08:00:00.000Z"
+  );
+  assert.notEqual(
+    subscriptionExpiryReminderEventKey("sub_123", periodEnd),
+    subscriptionExpiryReminderEventKey("sub_123", new Date("2026-11-20T08:00:00.000Z"))
+  );
 });

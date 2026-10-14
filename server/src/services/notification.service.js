@@ -2,13 +2,14 @@ import nodemailer from "nodemailer";
 import { env } from "../config/env.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
+import { UserSubscription } from "../models/UserSubscription.js";
 import { Progress } from "../models/Progress.js";
 import { Notification } from "../models/Notification.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
-import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey } from "./reminderScheduling.js";
-import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
+import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey, getSubscriptionExpiryReminderWindow, subscriptionExpiryReminderEventKey } from "./reminderScheduling.js";
+import { buildCoursePurchaseNotificationPayload, formatBillingNotificationDate } from "./billingNotificationPayloads.js";
 
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
@@ -32,6 +33,8 @@ const DEFAULT_PLATFORM_SETTINGS = {
   pushEnabled: true,
   learningRemindersEnabled: true,
   inactiveDays: 3,
+  subscriptionExpiryRemindersEnabled: true,
+  subscriptionExpiryReminderDays: 3,
   emailRetryAttempts: 5,
   pushRetryAttempts: 3
 };
@@ -45,6 +48,8 @@ async function getNotificationPlatformSettings() {
     "notification_push_enabled",
     "learning_reminders_enabled",
     "learning_reminder_inactive_days",
+    "subscription_expiry_reminders_enabled",
+    "subscription_expiry_reminder_days",
     "notification_email_retry_attempts",
     "notification_push_retry_attempts"
   ];
@@ -56,6 +61,8 @@ async function getNotificationPlatformSettings() {
     pushEnabled: values.notification_push_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.pushEnabled : Boolean(values.notification_push_enabled),
     learningRemindersEnabled: values.learning_reminders_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.learningRemindersEnabled : Boolean(values.learning_reminders_enabled),
     inactiveDays: Math.max(1, Math.min(30, Math.trunc(Number(values.learning_reminder_inactive_days ?? DEFAULT_PLATFORM_SETTINGS.inactiveDays) || DEFAULT_PLATFORM_SETTINGS.inactiveDays))),
+    subscriptionExpiryRemindersEnabled: values.subscription_expiry_reminders_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.subscriptionExpiryRemindersEnabled : Boolean(values.subscription_expiry_reminders_enabled),
+    subscriptionExpiryReminderDays: Math.max(1, Math.min(14, Math.trunc(Number(values.subscription_expiry_reminder_days ?? DEFAULT_PLATFORM_SETTINGS.subscriptionExpiryReminderDays) || DEFAULT_PLATFORM_SETTINGS.subscriptionExpiryReminderDays))),
     emailRetryAttempts: Math.max(1, Math.min(10, Math.trunc(Number(values.notification_email_retry_attempts ?? DEFAULT_PLATFORM_SETTINGS.emailRetryAttempts) || DEFAULT_PLATFORM_SETTINGS.emailRetryAttempts))),
     pushRetryAttempts: Math.max(1, Math.min(6, Math.trunc(Number(values.notification_push_retry_attempts ?? DEFAULT_PLATFORM_SETTINGS.pushRetryAttempts) || DEFAULT_PLATFORM_SETTINGS.pushRetryAttempts)))
   };
@@ -467,6 +474,76 @@ export async function deliverPendingNotificationPush(limit = 50) {
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
   for (const item of pending) await dispatchPush(item._id);
   return { attempted: pending.length };
+}
+
+export async function processSubscriptionExpiryReminders(now = new Date()) {
+  const platform = await getNotificationPlatformSettings();
+  if (!platform.subscriptionExpiryRemindersEnabled) {
+    return { checked: 0, queued: 0, disabled: true };
+  }
+
+  const { start, end } = getSubscriptionExpiryReminderWindow(now, platform.subscriptionExpiryReminderDays);
+  const eligible = {
+    status: { $in: ["trialing", "active"] },
+    cancelAtPeriodEnd: { $ne: true },
+    currentPeriodEnd: { $gte: start, $lte: end }
+  };
+  const upperBound = await UserSubscription.findOne(eligible).sort({ _id: -1 }).select("_id").lean();
+  if (!upperBound) return { checked: 0, queued: 0 };
+
+  let cursor = null;
+  let checked = 0;
+  let queued = 0;
+  while (true) {
+    const filter = { ...eligible };
+    filter._id = cursor ? { $gt: cursor, $lte: upperBound._id } : { $lte: upperBound._id };
+    const subscriptions = await UserSubscription.find(filter)
+      .sort({ _id: 1 })
+      .limit(200)
+      .populate("plan", "name billingInterval")
+      .lean();
+    if (!subscriptions.length) break;
+
+    cursor = subscriptions[subscriptions.length - 1]._id;
+    checked += subscriptions.length;
+    for (const subscription of subscriptions) {
+      try {
+        const periodEnd = subscription.currentPeriodEnd;
+        const subscriptionId = String(subscription.providerSubscriptionId || subscription._id);
+        const eventKey = subscriptionExpiryReminderEventKey(subscriptionId, periodEnd);
+        if (await Notification.exists({ user: subscription.user, eventKey })) continue;
+
+        const planName = subscription.plan?.name || "BuddyForStudy";
+        const currentPeriodEnd = formatBillingNotificationDate(periodEnd);
+        const notification = await createNotificationEvent({
+          userId: String(subscription.user),
+          title: "Your subscription period is ending soon",
+          message: "Your current billing period for " + planName + " ends on " + currentPeriodEnd + ". Review Billing for the latest renewal status or to manage your plan.",
+          type: "billing",
+          link: "/billing",
+          eventKey,
+          emailSubject: "Your BuddyForStudy billing period is ending soon",
+          push: true,
+          metadata: {
+            subscriptionId,
+            planName,
+            billingInterval: subscription.plan?.billingInterval || "recurring",
+            currentPeriodEnd,
+            reminderDays: String(platform.subscriptionExpiryReminderDays)
+          },
+          templateKeys: { notification: "subscription-expiring-in-app", email: "subscription-expiring-email" }
+        });
+        if (notification) queued += 1;
+      } catch (error) {
+        console.error("[notifications] subscription expiry reminder failed", {
+          subscriptionId: String(subscription.providerSubscriptionId || subscription._id),
+          message: String(error?.message || "Unknown notification error").slice(0, 200)
+        });
+      }
+    }
+    if (subscriptions.length < 200) break;
+  }
+  return { checked, queued };
 }
 
 export async function reconcilePendingCoursePurchaseNotifications(now = new Date(), pageSize = 100) {

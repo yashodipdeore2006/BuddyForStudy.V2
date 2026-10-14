@@ -44,6 +44,8 @@ export default function AdminSettings() {
     pushEnabled: true,
     learningRemindersEnabled: true,
     inactiveDays: 3,
+    subscriptionExpiryRemindersEnabled: true,
+    subscriptionExpiryReminderDays: 3,
     emailRetryAttempts: 5,
     pushRetryAttempts: 3,
   });
@@ -69,6 +71,8 @@ export default function AdminSettings() {
         pushEnabled: values.notification_push_enabled === undefined ? true : Boolean(values.notification_push_enabled),
         learningRemindersEnabled: values.learning_reminders_enabled === undefined ? true : Boolean(values.learning_reminders_enabled),
         inactiveDays: Math.max(1, Math.min(30, Number(values.learning_reminder_inactive_days ?? 3))),
+        subscriptionExpiryRemindersEnabled: values.subscription_expiry_reminders_enabled === undefined ? true : Boolean(values.subscription_expiry_reminders_enabled),
+        subscriptionExpiryReminderDays: Math.max(1, Math.min(14, Number(values.subscription_expiry_reminder_days ?? 3))),
         emailRetryAttempts: Math.max(1, Math.min(10, Number(values.notification_email_retry_attempts ?? 5))),
         pushRetryAttempts: Math.max(1, Math.min(6, Number(values.notification_push_retry_attempts ?? 3))),
       });
@@ -125,6 +129,8 @@ export default function AdminSettings() {
         ["notification_push_enabled", Boolean(notificationConfig.pushEnabled), "Global OneSignal push delivery control."],
         ["learning_reminders_enabled", Boolean(notificationConfig.learningRemindersEnabled), "Enable or pause scheduled learning reminders."],
         ["learning_reminder_inactive_days", Math.max(1, Math.min(30, Math.trunc(notificationConfig.inactiveDays))), "Days without learning activity before a reminder is eligible."],
+        ["subscription_expiry_reminders_enabled", Boolean(notificationConfig.subscriptionExpiryRemindersEnabled), "Enable or pause scheduled subscription expiry reminders."],
+        ["subscription_expiry_reminder_days", Math.max(1, Math.min(14, Math.trunc(notificationConfig.subscriptionExpiryReminderDays))), "Lead time in days for subscription expiry reminder."],
         ["notification_email_retry_attempts", Math.max(1, Math.min(10, Math.trunc(notificationConfig.emailRetryAttempts))), "Maximum email delivery attempts per notification."],
         ["notification_push_retry_attempts", Math.max(1, Math.min(6, Math.trunc(notificationConfig.pushRetryAttempts))), "Maximum push delivery attempts per notification."]
       ];
@@ -264,9 +270,11 @@ export default function AdminSettings() {
           <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.inAppEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, inAppEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">In-app notifications enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Global control for optional in-app updates. Billing and security alerts remain visible.</span></span></label>
           <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.pushEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Push delivery enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Requires OneSignal server configuration and user opt-in.</span></span></label>
           <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.learningRemindersEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, learningRemindersEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Learning reminders enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Global switch; each learner can also control personal reminder preferences.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.subscriptionExpiryRemindersEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, subscriptionExpiryRemindersEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Subscription expiry reminders enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Notify active or trialing subscriptions before the current billing period ends; scheduled cancellations are handled separately.</span></span></label>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <label className="block text-xs font-semibold text-slate-500">Inactive days before reminder<input className="input-field mt-2" type="number" min="1" max="30" value={notificationConfig.inactiveDays} onChange={(e) => setNotificationConfig({ ...notificationConfig, inactiveDays: Number(e.target.value) })} /></label>
+          <label className="block text-xs font-semibold text-slate-500">Subscription expiry lead days<input className="input-field mt-2" type="number" min="1" max="14" value={notificationConfig.subscriptionExpiryReminderDays} onChange={(e) => setNotificationConfig({ ...notificationConfig, subscriptionExpiryReminderDays: Number(e.target.value) })} disabled={!notificationConfig.subscriptionExpiryRemindersEnabled} /></label>
           <label className="block text-xs font-semibold text-slate-500">Email retry attempts<input className="input-field mt-2" type="number" min="1" max="10" value={notificationConfig.emailRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailRetryAttempts: Number(e.target.value) })} /></label>
           <label className="block text-xs font-semibold text-slate-500">Push retry attempts<input className="input-field mt-2" type="number" min="1" max="6" value={notificationConfig.pushRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushRetryAttempts: Number(e.target.value) })} /></label>
         </div>

@@ -49,7 +49,7 @@ async function getNotificationPlatformSettings() {
     inAppEnabled: values.notification_in_app_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.inAppEnabled : Boolean(values.notification_in_app_enabled),
     pushEnabled: values.notification_push_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.pushEnabled : Boolean(values.notification_push_enabled),
     learningRemindersEnabled: values.learning_reminders_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.learningRemindersEnabled : Boolean(values.learning_reminders_enabled),
-    inactiveDays: Math.max(1, Math.min(30, Math.trunc(Number(values.learning_reminder_inactive_days ?? DEFAULT_PLATFORM_SETTINGS.inactiveDays) || DEFAULT_PLATFORM_SETTINGS.inactiveDays)),
+    inactiveDays: Math.max(1, Math.min(30, Math.trunc(Number(values.learning_reminder_inactive_days ?? DEFAULT_PLATFORM_SETTINGS.inactiveDays) || DEFAULT_PLATFORM_SETTINGS.inactiveDays))),
     emailRetryAttempts: Math.max(1, Math.min(10, Math.trunc(Number(values.notification_email_retry_attempts ?? DEFAULT_PLATFORM_SETTINGS.emailRetryAttempts) || DEFAULT_PLATFORM_SETTINGS.emailRetryAttempts))),
     pushRetryAttempts: Math.max(1, Math.min(6, Math.trunc(Number(values.notification_push_retry_attempts ?? DEFAULT_PLATFORM_SETTINGS.pushRetryAttempts) || DEFAULT_PLATFORM_SETTINGS.pushRetryAttempts)))
   };

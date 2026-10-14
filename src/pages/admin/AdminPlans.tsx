@@ -360,8 +360,8 @@ export default function AdminPlans() {
 
             return (
               <div className="card flex flex-col p-5" key={plan._id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex flex-col gap-4">
+                  <div className="w-full min-w-0">
                     {plan.isPopular && (
                       <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-blue-700">
                         Most popular
@@ -389,13 +389,13 @@ export default function AdminPlans() {
                         <p className="mt-1 line-clamp-2 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
                         <p className="mt-3 text-3xl font-extrabold text-slate-950">₹{plan.price}<span className="text-xs font-normal text-slate-500">{plan.price === 0 ? " · free" : " / " + plan.billingInterval}</span></p>
                         <p className="mt-1 text-xs text-slate-400">Trial {plan.trialDays || 0} days · Sort {plan.sortOrder || 0}</p>
-                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">AI usage limits / month</p>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                            <label className="block"><span className="text-slate-500">AI course builds</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_course_builds_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_course_builds_per_month", Number(e.target.value))} /></label>
-                            <label className="block"><span className="text-slate-500">Adv. AI questions</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_questions_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_questions_per_month", Number(e.target.value))} /></label>
-                            <label className="block"><span className="text-slate-500">Adv. AI insights</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_insights_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_insights_per_month", Number(e.target.value))} /></label>
-                            <label className="block"><span className="text-slate-500">AI quiz generations</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_quiz_generations_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_quiz_generations_per_month", Number(e.target.value))} /></label>
+                          <div className="mt-3 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">AI course builds</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_course_builds_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_course_builds_per_month", Number(e.target.value))} /></label>
+                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">Adv. AI questions</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_questions_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_questions_per_month", Number(e.target.value))} /></label>
+                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">Adv. AI insights</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_insights_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_insights_per_month", Number(e.target.value))} /></label>
+                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">AI quiz generations</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_quiz_generations_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_quiz_generations_per_month", Number(e.target.value))} /></label>
                           </div>
                           <p className="mt-2 text-[10px] text-slate-400">Use 0 to block the capability and -1 for unlimited.</p>
                         </div>
@@ -403,7 +403,7 @@ export default function AdminPlans() {
                     )}
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <button type="button" onClick={() => setEditingPlan(editingPlan === plan._id ? null : plan._id)} className="btn-secondary">
                       {editingPlan === plan._id ? "Close editor" : "Edit plan"}
                     </button>

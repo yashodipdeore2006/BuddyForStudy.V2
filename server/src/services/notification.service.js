@@ -196,7 +196,7 @@ async function dispatchPush(notificationId, { force = false } = {}) {
   const platform = await getNotificationPlatformSettings();
   if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
     await Notification.updateOne({ _id: notificationId, pushStatus: "pending" }, {
-      $set: { pushStatus: "skipped", pushError: "Push provider is not configured" }
+      $set: { pushStatus: "skipped", pushError: "OneSignal is not configured" }
     });
     return;
   }

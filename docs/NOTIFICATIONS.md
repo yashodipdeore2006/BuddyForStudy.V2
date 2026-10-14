@@ -28,6 +28,8 @@ Set these in the **server** environment (never commit actual secrets):
 - `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` to enable server-side push delivery.
 - `VITE_ONESIGNAL_APP_ID` in the frontend build environment to enable the user's browser push opt-in control.
 
+For course purchases, payment verification creates a pending notification-outbox state; the enrollment flow queues the receipt only after an active enrollment exists. The background worker reconciles pending paid-course receipts if the request fails between saving enrollment and creating the notification event. Event keys prevent a webhook, sync, enrollment retry, or worker reconciliation from creating duplicate receipt notifications.
+
 Email events are recorded as `pending`, `sent`, `skipped`, or `failed`. When SMTP is missing, optional delivery is marked skipped instead of remaining in a forever-pending state. Failed sends are retried by the worker up to the platform-configured attempt count. The OneSignal REST key must be kept server-side; the frontend only needs the public app ID.
 
 ## The background worker is required

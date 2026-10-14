@@ -267,7 +267,7 @@ export async function createNotificationEvent({
   const renderedEmailHtml = emailTemplate?.body ? renderTemplate(emailTemplate.body, variables, { html: true }) : "";
   const transactional = type === "billing" || type === "security";
   const showInApp = forceInApp || transactional || (platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
-  const shouldEmail = email && platform.emailEnabled && (transactional || !keys.email || preferences[keys.email] !== false);
+  const shouldEmail = email && platform.emailEnabled && Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom) && (transactional || !keys.email || preferences[keys.email] !== false);
   const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
   const payload = {
     user: userId,

@@ -194,14 +194,27 @@ export async function razorpayWebhook(req, res, next) {
       await recordSubscriptionCharge(subscriptionEntity, paymentEntity);
     } else if (event.event === "subscription.pending" || event.event === "subscription.halted") {
       if (subscriptionEntity?.id) {
-        await UserSubscription.findOneAndUpdate(
+        const subscription = await UserSubscription.findOneAndUpdate(
           { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id },
-          { $set: { status: "past_due" } }
-        );
+          { $set: { status: "past_due" } },
+          { new: true }
+        ).populate("plan", "name");
+        if (subscription) {
+          await createNotificationEvent({
+            userId: String(subscription.user),
+            title: "Subscription payment needs attention",
+            message: "Your subscription payment needs attention. Open billing to review the status and next steps.",
+            type: "billing",
+            link: "/billing",
+            eventKey: `subscription-payment-action:${subscriptionEntity.id}:${event.event}`,
+            emailSubject: "Action needed for your BuddyForStudy subscription",
+            metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: event.event }
+          });
+        }
       }
     } else if (event.event === "subscription.cancelled" || event.event === "subscription.completed") {
       if (subscriptionEntity?.id) {
-        await UserSubscription.findOneAndUpdate(
+        const subscription = await UserSubscription.findOneAndUpdate(
           { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id },
           {
             $set: {
@@ -210,8 +223,24 @@ export async function razorpayWebhook(req, res, next) {
               cancelledAt: new Date(),
               currentPeriodEnd: periodDate(subscriptionEntity.current_end) || undefined
             }
-          }
-        );
+          },
+          { new: true }
+        ).populate("plan", "name");
+        if (subscription) {
+          const completed = event.event === "subscription.completed";
+          await createNotificationEvent({
+            userId: String(subscription.user),
+            title: completed ? "Your subscription period has ended" : "Your subscription was cancelled",
+            message: completed
+              ? "Your paid subscription period has ended. Review plans if you'd like to renew access."
+              : "Your subscription has been cancelled. Check billing for the latest subscription status.",
+            type: "billing",
+            link: "/billing",
+            eventKey: `subscription-ended:${subscriptionEntity.id}:${event.event}`,
+            emailSubject: completed ? "Your BuddyForStudy subscription period ended" : "Your BuddyForStudy subscription was cancelled",
+            metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: subscription.status }
+          });
+        }
       }
     } else if (event.event === "payment.failed" && orderId) {
       const failedPayment = await Payment.findOneAndUpdate(

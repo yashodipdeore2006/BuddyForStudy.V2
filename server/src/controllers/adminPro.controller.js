@@ -1020,7 +1020,9 @@ export async function notificationDeliveries(req, res, next) {
     const deliveries = await Notification.find({
       $or: [
         { emailStatus: { $in: ["pending", "sent", "failed"] } },
-        { pushStatus: { $in: ["pending", "sent", "failed"] } }
+        { pushStatus: { $in: ["pending", "sent", "failed"] } },
+        { emailError: { $ne: "" } },
+        { pushError: { $ne: "" } }
       ]
     })
       .populate("user", "name email")

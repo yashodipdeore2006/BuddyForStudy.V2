@@ -135,7 +135,8 @@ router.post("/refunds", async (req,res,next)=>{ try {
     link: "/billing",
     eventKey: `refund-requested:${refund._id}`,
     emailSubject: "Your BuddyForStudy refund request was received",
-    metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(amount), currency: payment.currency || "INR" }
+    metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(amount), currency: payment.currency || "INR" },
+    templateKeys: { notification: "refund-requested-in-app", email: "refund-requested-email" }
   });
   return success(res,{refund},"Refund request submitted",201);
 } catch(e){next(e)} });

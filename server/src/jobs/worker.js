@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
+import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders } from "../services/notification.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -31,8 +32,20 @@ async function runMaintenance() {
         { $set: { status: "cancelled" } }
       )
     ]);
+    const notificationJobs = await Promise.allSettled([
+      deliverPendingNotificationEmails(50),
+      deliverPendingNotificationPush(50),
+      processLearningReminders(now, 500)
+    ]);
+    for (const result of notificationJobs) {
+      if (result.status === "rejected") {
+        console.error("[worker] notification job failed", {
+          message: String(result.reason?.message || "Unknown notification job error").slice(0, 400)
+        });
+      }
+    }
     await resolveOperationalAlert("background-maintenance-failure");
-    console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; stale payments cancelled=${payments.modifiedCount}`);
+    console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);
   } catch (error) {
     // Do not dump provider payloads or raw objects into logs; the message is bounded.
     try {

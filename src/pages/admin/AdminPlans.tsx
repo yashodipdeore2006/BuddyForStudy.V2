@@ -55,6 +55,8 @@ const emptyForm: PlanForm = {
     advanced_ai_questions_per_month: 0,
     advanced_ai_insights_per_month: 0,
     ai_quiz_generations_per_month: 20,
+    youtube_discovery_courses_per_month: 10,
+    ai_curated_courses_per_month: 10,
   },
 };
 
@@ -198,6 +200,22 @@ export default function AdminPlans() {
     }
   }
 
+  async function savePlanLimits(plan: Plan) {
+    setSavingPlan(plan._id);
+    setError("");
+    try {
+      await adminFetch(`/api/admin/plans/${plan._id}`, {
+        method: "PUT",
+        body: JSON.stringify({ limits: plan.limits || {} }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save plan limits");
+    } finally {
+      setSavingPlan(null);
+    }
+  }
+
   async function saveFeatures(plan: Plan) {
     setSavingPlan(plan._id);
     setError("");
@@ -323,6 +341,8 @@ export default function AdminPlans() {
               ["advanced_ai_questions_per_month", "Advanced AI questions"],
               ["advanced_ai_insights_per_month", "Advanced AI summaries"],
               ["ai_quiz_generations_per_month", "AI quiz generations"],
+              ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+              ["ai_curated_courses_per_month", "AI-curated courses"],
             ].map(([key, label]) => (
               <label key={key} className="block text-xs font-semibold text-slate-500">
                 {label}
@@ -392,12 +412,26 @@ export default function AdminPlans() {
                         <div className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">AI usage limits / month</p>
                           <div className="mt-3 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
-                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">AI course builds</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_course_builds_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_course_builds_per_month", Number(e.target.value))} /></label>
-                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">Adv. AI questions</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_questions_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_questions_per_month", Number(e.target.value))} /></label>
-                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">Adv. AI insights</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_insights_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_insights_per_month", Number(e.target.value))} /></label>
-                            <label className="block min-w-0"><span className="block leading-5 text-slate-600">AI quiz generations</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_quiz_generations_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_quiz_generations_per_month", Number(e.target.value))} /></label>
+                            {[
+                              ["ai_course_builds_per_month", "AI course builds"],
+                              ["advanced_ai_questions_per_month", "Advanced AI questions"],
+                              ["advanced_ai_insights_per_month", "Advanced AI summaries"],
+                              ["ai_quiz_generations_per_month", "AI quiz generations"],
+                              ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+                              ["ai_curated_courses_per_month", "AI-curated courses"],
+                            ].map(([key, label]) => (
+                              <label key={key} className="block min-w-0">
+                                <span className="block leading-5 text-slate-600">{label}</span>
+                                <input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, key, -1)} onChange={(e) => updatePlanLimit(plan._id, key, Number(e.target.value))} />
+                              </label>
+                            ))}
                           </div>
-                          <p className="mt-2 text-[10px] text-slate-400">Use 0 to block the capability and -1 for unlimited.</p>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-[10px] text-slate-400">0 = blocked; -1 = unlimited. Changes apply to new course additions.</p>
+                            <button type="button" onClick={() => void savePlanLimits(plan)} disabled={savingPlan === plan._id} className="btn-secondary">
+                              {savingPlan === plan._id ? "Saving limits..." : "Save limits"}
+                            </button>
+                          </div>
                         </div>
                       </>
                     )}

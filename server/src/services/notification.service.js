@@ -4,6 +4,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { Notification } from "../models/Notification.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
 
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
@@ -19,10 +20,40 @@ const DEFAULT_PREFERENCES = {
   timezone: "Asia/Kolkata",
   reminderHour: 18
 };
-const MAX_EMAIL_ATTEMPTS = 5;
-const MAX_PUSH_ATTEMPTS = 3;
+const DEFAULT_PLATFORM_SETTINGS = {
+  emailEnabled: true,
+  inAppEnabled: true,
+  pushEnabled: true,
+  learningRemindersEnabled: true,
+  inactiveDays: 3,
+  emailRetryAttempts: 5,
+  pushRetryAttempts: 3
+};
 const RETRY_DELAY_MS = 10 * 60 * 1000;
 let transport;
+
+async function getNotificationPlatformSettings() {
+  const keys = [
+    "notification_email_enabled",
+    "notification_in_app_enabled",
+    "notification_push_enabled",
+    "learning_reminders_enabled",
+    "learning_reminder_inactive_days",
+    "notification_email_retry_attempts",
+    "notification_push_retry_attempts"
+  ];
+  const rows = await PlatformSetting.find({ key: { $in: keys } }).select("key value").lean();
+  const values = Object.fromEntries(rows.map((item) => [item.key, item.value]));
+  return {
+    emailEnabled: values.notification_email_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.emailEnabled : Boolean(values.notification_email_enabled),
+    inAppEnabled: values.notification_in_app_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.inAppEnabled : Boolean(values.notification_in_app_enabled),
+    pushEnabled: values.notification_push_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.pushEnabled : Boolean(values.notification_push_enabled),
+    learningRemindersEnabled: values.learning_reminders_enabled === undefined ? DEFAULT_PLATFORM_SETTINGS.learningRemindersEnabled : Boolean(values.learning_reminders_enabled),
+    inactiveDays: Math.max(1, Math.min(30, Math.trunc(Number(values.learning_reminder_inactive_days ?? DEFAULT_PLATFORM_SETTINGS.inactiveDays) || DEFAULT_PLATFORM_SETTINGS.inactiveDays)),
+    emailRetryAttempts: Math.max(1, Math.min(10, Math.trunc(Number(values.notification_email_retry_attempts ?? DEFAULT_PLATFORM_SETTINGS.emailRetryAttempts) || DEFAULT_PLATFORM_SETTINGS.emailRetryAttempts))),
+    pushRetryAttempts: Math.max(1, Math.min(6, Math.trunc(Number(values.notification_push_retry_attempts ?? DEFAULT_PLATFORM_SETTINGS.pushRetryAttempts) || DEFAULT_PLATFORM_SETTINGS.pushRetryAttempts)))
+  };
+}
 
 function getMailer() {
   if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) return null;
@@ -70,11 +101,12 @@ export async function saveUserNotificationPreferences(userId, updates) {
 
 async function dispatchEmail(notificationId, { force = false } = {}) {
   const mailer = getMailer();
-  if (!mailer) return;
+  const platform = await getNotificationPlatformSettings();
+  if (!mailer || !platform.emailEnabled) return;
   const filter = {
     _id: notificationId,
     emailStatus: "pending",
-    emailAttempts: { $lt: MAX_EMAIL_ATTEMPTS }
+    emailAttempts: { $lt: platform.emailRetryAttempts }
   };
   if (!force) {
     filter.$or = [
@@ -108,7 +140,7 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
     const attempts = Number(notification.emailAttempts || 1);
     await Notification.updateOne({ _id: notification._id }, {
       $set: {
-        emailStatus: attempts >= MAX_EMAIL_ATTEMPTS ? "failed" : "pending",
+        emailStatus: attempts >= platform.emailRetryAttempts ? "failed" : "pending",
         emailError: String(error?.message || "Email delivery failed").slice(0, 500)
       }
     });
@@ -121,16 +153,18 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
 }
 
 async function dispatchPush(notificationId, { force = false } = {}) {
+  const platform = await getNotificationPlatformSettings();
   if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
     await Notification.updateOne({ _id: notificationId, pushStatus: "pending" }, {
       $set: { pushStatus: "skipped", pushError: "Push provider is not configured" }
     });
     return;
   }
+  if (!platform.pushEnabled) return;
   const filter = {
     _id: notificationId,
     pushStatus: "pending",
-    pushAttempts: { $lt: MAX_PUSH_ATTEMPTS }
+    pushAttempts: { $lt: platform.pushRetryAttempts }
   };
   if (!force) {
     filter.$or = [
@@ -172,7 +206,7 @@ async function dispatchPush(notificationId, { force = false } = {}) {
     const attempts = Number(notification.pushAttempts || 1);
     await Notification.updateOne({ _id: notification._id }, {
       $set: {
-        pushStatus: attempts >= MAX_PUSH_ATTEMPTS ? "failed" : "pending",
+        pushStatus: attempts >= platform.pushRetryAttempts ? "failed" : "pending",
         pushError: String(error?.message || "Push delivery failed").slice(0, 500)
       }
     });
@@ -197,12 +231,12 @@ export async function createNotificationEvent({
   forceInApp = false,
   metadata = {}
 }) {
-  const preferences = await getUserNotificationPreferences(userId);
+  const [preferences, platform] = await Promise.all([getUserNotificationPreferences(userId), getNotificationPlatformSettings()]);
   const keys = preferenceKeys(type);
   const transactional = type === "billing" || type === "security";
-  const showInApp = forceInApp || transactional || !keys.inApp || preferences[keys.inApp] !== false;
-  const shouldEmail = email && (transactional || !keys.email || preferences[keys.email] !== false);
-  const shouldPush = push && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
+  const showInApp = forceInApp || transactional || (platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
+  const shouldEmail = email && platform.emailEnabled && (transactional || !keys.email || preferences[keys.email] !== false);
+  const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
   const payload = {
     user: userId,
     title: String(title || "BuddyForStudy update").slice(0, 200),
@@ -238,18 +272,19 @@ export async function createNotificationEvent({
   }
   if (!notification) return null;
   if (created) {
-    if (payload.emailStatus === "pending") void dispatchEmail(notification._id, { force: true });
-    if (payload.pushStatus === "pending") void dispatchPush(notification._id, { force: true });
+    if (payload.emailStatus === "pending") void dispatchEmail(notification._id, { force: true }).catch((error) => console.error("[notifications] email dispatch error", String(error?.message || error).slice(0, 200)));
+    if (payload.pushStatus === "pending") void dispatchPush(notification._id, { force: true }).catch((error) => console.error("[notifications] push dispatch error", String(error?.message || error).slice(0, 200)));
   }
   return notification;
 }
 
 export async function deliverPendingNotificationEmails(limit = 50) {
-  if (!getMailer()) return { attempted: 0 };
+  const platform = await getNotificationPlatformSettings();
+  if (!getMailer() || !platform.emailEnabled) return { attempted: 0 };
   const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
   const pending = await Notification.find({
     emailStatus: "pending",
-    emailAttempts: { $lt: MAX_EMAIL_ATTEMPTS },
+    emailAttempts: { $lt: platform.emailRetryAttempts },
     $or: [{ emailLastAttemptAt: null }, { emailLastAttemptAt: { $lte: retryBefore } }]
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
   for (const item of pending) await dispatchEmail(item._id);
@@ -257,11 +292,12 @@ export async function deliverPendingNotificationEmails(limit = 50) {
 }
 
 export async function deliverPendingNotificationPush(limit = 50) {
-  if (!env.oneSignalAppId || !env.oneSignalRestApiKey) return { attempted: 0 };
+  const platform = await getNotificationPlatformSettings();
+  if (!platform.pushEnabled || !env.oneSignalAppId || !env.oneSignalRestApiKey) return { attempted: 0 };
   const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
   const pending = await Notification.find({
     pushStatus: "pending",
-    pushAttempts: { $lt: MAX_PUSH_ATTEMPTS },
+    pushAttempts: { $lt: platform.pushRetryAttempts },
     $or: [{ pushLastAttemptAt: null }, { pushLastAttemptAt: { $lte: retryBefore } }]
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
   for (const item of pending) await dispatchPush(item._id);
@@ -285,6 +321,8 @@ function inTimeZone(date, timezone) {
 }
 
 export async function processLearningReminders(now = new Date(), batchSize = 500) {
+  const platform = await getNotificationPlatformSettings();
+  if (!platform.learningRemindersEnabled) return { checked: 0, sent: 0, disabled: true };
   const enrollments = await Enrollment.find({ status: "active" })
     .sort({ updatedAt: 1 })
     .limit(Math.min(Math.max(batchSize, 1), 1000))
@@ -302,7 +340,7 @@ export async function processLearningReminders(now = new Date(), batchSize = 500
   const progressMap = new Map(progressDocs.map((item) => [`${item.user}:${item.course}`, item]));
   const processedUsers = new Set();
   let sent = 0;
-  const minInactiveMs = 3 * 24 * 60 * 60 * 1000;
+  const minInactiveMs = platform.inactiveDays * 24 * 60 * 60 * 1000;
 
   for (const enrollment of enrollments) {
     const userId = String(enrollment.user);

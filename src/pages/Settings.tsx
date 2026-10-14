@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Mail, Smartphone, Clock3 } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3 } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush } from "@/lib/pushNotifications";
 
 type NotificationPreferences = {
@@ -288,7 +288,7 @@ export default function Settings() {
                     <p className="font-semibold text-slate-900">{group.title}</p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">{group.description}</p>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <PreferenceToggle checked={notifPrefs.emailCourseUpdates === true && group.emailKey === "emailCourseUpdates" ? true : notifPrefs[group.emailKey]} onChange={(value) => updatePreference(group.emailKey, value)} label="Email" description="Send updates to your account email." />
+                      <PreferenceToggle checked={notifPrefs[group.emailKey]} onChange={(value) => updatePreference(group.emailKey, value)} label="Email" description="Send updates to your account email." />
                       <PreferenceToggle checked={notifPrefs[group.inAppKey]} onChange={(value) => updatePreference(group.inAppKey, value)} label="In-app" description="Show updates in the notification center." />
                     </div>
                   </div>

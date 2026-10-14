@@ -223,37 +223,37 @@ export default function Courses() {
 
   return (
     <div className="bfs-shell py-8 sm:py-10">
-      <section className="relative overflow-hidden rounded-[32px] bg-slate-950 px-5 py-7 text-white shadow-[0_24px_70px_rgba(13,18,32,.14)] sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-80 w-80 rounded-full bg-purple-500/10 blur-3xl" />
+      <section className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white px-5 py-7 text-slate-950 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
+        
+        
 
         <div className="relative grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-blue-200">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
               <Sparkles className="h-3.5 w-3.5" />
               AI-powered learning discovery
             </div>
-            <h1 className="mt-4 max-w-3xl text-3xl font-extrabold tracking-[-.03em] sm:text-4xl lg:text-5xl">
+            <h1 className="mt-4 max-w-3xl text-3xl font-medium tracking-[-.03em] sm:text-4xl lg:text-5xl">
               Find the right course. Build the right path.
             </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
               Explore the catalog, discover learner-favorite courses, or let AI turn a topic into a prerequisite-ordered learning roadmap.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Discovery modes</span>
-              <Sparkles className="h-4 w-4 text-blue-300" />
+              <span className="text-xs font-bold uppercase tracking-[.14em] text-slate-600">Discovery modes</span>
+              <Sparkles className="h-4 w-4 text-slate-700" />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
-              <div className="rounded-xl bg-white/10 px-3 py-2.5 text-white">Course catalog</div>
-              <div className="rounded-xl bg-blue-500/20 px-3 py-2.5 text-blue-100">Build with AI</div>
+              <div className="rounded-full bg-slate-950 px-3 py-2.5 text-white">Course catalog</div>
+              <div className="rounded-full border border-slate-300 bg-white px-3 py-2.5 text-slate-950">Build with AI</div>
             </div>
           </div>
         </div>
 
-        <form onSubmit={handleSearch} className="relative mt-8 rounded-2xl border border-white/10 bg-white p-2 shadow-2xl shadow-black/20">
+        <form onSubmit={handleSearch} className="relative mt-8 rounded-full border border-slate-200 bg-white p-2">
           <div className="flex flex-col gap-2 lg:flex-row">
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -261,7 +261,7 @@ export default function Courses() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 w-full rounded-xl bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                className="h-12 w-full rounded-full border-0 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
                 placeholder="Search for MERN, Python, Data Science, Java..."
                 aria-label="Search courses"
               />
@@ -276,7 +276,7 @@ export default function Courses() {
               type="button"
               onClick={() => { setAiOpen(true); setAiError(null); }}
               disabled={aiLoading}
-              className="h-12 justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-secondary h-12 justify-center px-5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {aiLoading ? (
                 <>
@@ -294,7 +294,7 @@ export default function Courses() {
         </form>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="mt-5 rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Filter className="h-4 w-4 text-slate-400" />
@@ -334,7 +334,7 @@ export default function Courses() {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 <X className="h-3.5 w-3.5" />
                 Clear filters

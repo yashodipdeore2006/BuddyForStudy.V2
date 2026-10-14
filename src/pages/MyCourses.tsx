@@ -64,7 +64,7 @@ export default function MyCourses() {
       filtered.length === 0 ? <EmptyState icon={<GraduationCap className="h-8 w-8" />} title={filter === 'active' ? 'No active courses' : 'No completed courses yet'} description={filter === 'active' ? 'Browse the course catalog and enroll in your first course.' : 'Complete your enrolled courses to see them here.'} action={filter === 'active' ? <Link to="/courses" className="btn-primary">Browse Courses</Link> : undefined} /> :
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{filtered.map((enr) => {
         const pct = progressMap[enr.course_id]?.percentage ?? 0;
-        return <div key={enr.id} className="bfs-course-card group flex h-full min-h-[438px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_20px_44px_rgba(28,54,120,.13)]">
+        return <div key={enr.id} className="bfs-course-card group flex h-full min-h-[400px] flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50">
           <Link to={`/courses/${enr.course_id}/roadmap`} className="relative h-[138px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
             {enr.course!.thumbnail ? <img src={enr.course!.thumbnail} alt={enr.course!.title} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-white"><GraduationCap className="h-10 w-10 opacity-80" /></div>}
             <div className="absolute bottom-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-slate-700">Course Roadmap</div>

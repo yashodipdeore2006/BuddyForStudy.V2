@@ -233,7 +233,7 @@ export default function CourseDetails() {
   const progressPct = progress?.percentage || 0;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <Link
         to="/courses"
         className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"
@@ -243,23 +243,23 @@ export default function CourseDetails() {
       </Link>
 
       {/* Course Header */}
-      <div className="mt-6 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-8 text-white sm:p-10">
+      <div className="mt-6 overflow-hidden rounded-[32px] border border-slate-200 bg-white p-7 text-slate-950 sm:p-10">
         <div className="flex flex-wrap gap-2">
-          <span className="badge bg-white/20 text-white">
+          <span className="badge border border-slate-200 bg-slate-50 text-slate-700">
             {course.category}
           </span>
           <span className={classNames('badge', levelColors[course.level])}>
             {course.level}
           </span>
         </div>
-        <h1 className="mt-4 text-3xl font-bold sm:text-4xl">{course.title}</h1>
+        <h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-4xl">{course.title}</h1>
         <ExpandableText
           text={course.description}
           maxLength={220}
-          className="mt-3 max-w-2xl text-blue-100"
+          className="mt-3 max-w-2xl text-slate-600"
         />
 
-        <div className="mt-6 flex flex-wrap items-center gap-6 text-sm text-blue-100">
+        <div className="mt-6 flex flex-wrap items-center gap-6 text-sm text-slate-600">
           <span className="flex items-center gap-1.5">
             <BookOpen className="h-4 w-4" />
             {lessonCount} lessons
@@ -282,8 +282,8 @@ export default function CourseDetails() {
         <div className="lg:col-span-2 space-y-8">
           {/* Learning Outcomes */}
           {course.learning_outcomes.length > 0 && (
-            <div className="card p-6">
-              <h2 className="text-lg font-semibold text-slate-900">What you'll learn</h2>
+            <div className="rounded-[24px] border border-slate-200 bg-white p-6">
+              <h2 className="text-lg font-medium text-slate-950">What you'll learn</h2>
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {course.learning_outcomes.map((outcome, idx) => (
                   <li key={idx} className="flex items-start gap-2 text-sm text-slate-600">
@@ -296,22 +296,22 @@ export default function CourseDetails() {
           )}
 
           {/* Reviews & Ratings */}
-          <div className="card p-6">
-            <h2 className="text-lg font-semibold text-slate-900">Reviews & Ratings</h2>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-6">
+            <h2 className="text-lg font-medium text-slate-950">Reviews & Ratings</h2>
             <div className="mt-2 flex items-center gap-2">
               <span className="text-2xl font-bold text-slate-900">{reviewStats.average || '—'}</span>
               <div className="flex text-amber-400">{[1,2,3,4,5].map((star) => <Star key={star} className="h-4 w-4" fill={star <= Math.round(reviewStats.average) ? "currentColor" : "none"} />)}</div>
               <span className="text-sm text-slate-500">({reviewStats.count} reviews)</span>
             </div>
             {isEnrolled && (
-              <div className="mt-5 rounded-xl border border-slate-200 p-4">
+              <div className="mt-5 rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-800">Rate this course</p>
                 <div className="mt-2 flex gap-1">{[1,2,3,4,5].map((star) => (
                   <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={`Rate ${star} stars`}>
                     <Star className={`h-6 w-6 ${star <= reviewRating ? 'text-amber-400' : 'text-slate-300'}`} fill={star <= reviewRating ? "currentColor" : "none"} />
                   </button>
                 ))}</div>
-                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="mt-3 min-h-20 w-full rounded-lg border border-slate-200 p-3 text-sm outline-none focus:border-blue-500" />
+                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-20 w-full text-sm outline-none focus:border-blue-500" />
                 <button type="button" onClick={submitReview} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? 'Saving...' : 'Submit Review'}</button>
               </div>
             )}
@@ -327,8 +327,8 @@ export default function CourseDetails() {
           </div>
 
           {/* Curriculum */}
-          <div className="card p-6">
-            <h2 className="text-lg font-semibold text-slate-900">Course Curriculum</h2>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-6">
+            <h2 className="text-lg font-medium text-slate-950">Course Curriculum</h2>
             <p className="mt-1 text-sm text-slate-500">
               {course.modules.length} modules • {lessonCount} lessons
             </p>
@@ -339,7 +339,7 @@ export default function CourseDetails() {
                 return (
                   <div
                     key={module.id}
-                    className="rounded-lg border border-slate-200 overflow-hidden"
+                    className="rounded-2xl border border-slate-200 overflow-hidden"
                   >
                     <button
                       onClick={() => toggleModule(mIdx)}
@@ -398,7 +398,7 @@ export default function CourseDetails() {
 
         {/* Sidebar */}
         <div className="lg:col-span-1">
-          <div className="card sticky top-20 p-6">
+          <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-6">
             {isEnrolled ? (
               <div>
                 <div className="mb-4">
@@ -419,7 +419,7 @@ export default function CourseDetails() {
                   )}
                 </div>
                 <button onClick={handleStartLearning} className="btn-primary w-full">
-                  'View Course Roadmap'
+                  View Course Roadmap
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>

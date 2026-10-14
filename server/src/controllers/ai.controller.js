@@ -71,6 +71,11 @@ export async function generateQuiz(req, res, next) {
 
     const result = await generateCourseQuiz({ ...input, userId: req.user.userId });
     return success(res, result, "Quiz generated successfully");
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}
 
 export async function generatePracticeQuiz(req, res, next) {
   try {
@@ -89,12 +94,6 @@ export async function generatePracticeQuiz(req, res, next) {
 
     const result = await generateCourseQuiz({ ...input, userId: req.user.userId, practiceOnly: true });
     return success(res, result, "Practice quiz generated successfully");
-  } catch (e) {
-    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
-    next(e);
-  }
-}
-
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

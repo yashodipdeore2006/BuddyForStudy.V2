@@ -13,18 +13,25 @@ const checkoutSchema = z.object({
 });
 
 async function notifyCoursePurchase(payment) {
-  const course = await Course.findById(payment.course).select("title").lean();
-  await createNotificationEvent({
-    userId: String(payment.user),
-    title: "Course purchase confirmed",
-    message: `Your payment for "${course?.title || "your course"}" has been verified. You can now continue to your learning roadmap.`,
-    type: "billing",
-    link: `/courses/${payment.course}/roadmap`,
-    eventKey: `course-purchase-confirmed:${payment._id}`,
-    emailSubject: "Your BuddyForStudy course purchase is confirmed",
-    metadata: { paymentId: String(payment._id), courseId: String(payment.course), courseTitle: course?.title || "your course" },
-    templateKeys: { notification: "course-purchase-confirmed-in-app", email: "course-purchase-confirmed-email" }
-  });
+  try {
+    const course = await Course.findById(payment.course).select("title").lean();
+    await createNotificationEvent({
+      userId: String(payment.user),
+      title: "Course purchase confirmed",
+      message: `Your payment for "${course?.title || "your course"}" has been verified. You can now continue to your learning roadmap.`,
+      type: "billing",
+      link: `/courses/${payment.course}/roadmap`,
+      eventKey: `course-purchase-confirmed:${payment._id}`,
+      emailSubject: "Your BuddyForStudy course purchase is confirmed",
+      metadata: { paymentId: String(payment._id), courseId: String(payment.course), courseTitle: course?.title || "your course" },
+      templateKeys: { notification: "course-purchase-confirmed-in-app", email: "course-purchase-confirmed-email" }
+    });
+  } catch (error) {
+    console.error("[notifications] course purchase notice failed", {
+      paymentId: String(payment._id),
+      message: String(error?.message || "Unknown notification error").slice(0, 200)
+    });
+  }
 }
 
 export async function createCourseOrder(req, res, next) {

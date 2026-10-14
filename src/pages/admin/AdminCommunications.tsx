@@ -24,12 +24,34 @@ export default function AdminCommunications() {
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [deliveryError, setDeliveryError] = useState("");
+  const [deliveryNotice, setDeliveryNotice] = useState("");
+  const [retryingDelivery, setRetryingDelivery] = useState("");
   const [editingTemplateId, setEditingTemplateId] = useState("");
   const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(EMPTY_TEMPLATE);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateStatus, setTemplateStatus] = useState("");
   const [templateError, setTemplateError] = useState("");
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+
+  async function retryDelivery(notificationId: string, channel: "email" | "push") {
+    const label = channel === "email" ? "email" : "push notification";
+    if (!window.confirm(`Retry this ${label} delivery now?`)) return;
+    setRetryingDelivery(`${notificationId}:${channel}`);
+    setDeliveryError("");
+    setDeliveryNotice("");
+    try {
+      const data = await adminFetch(`/api/admin/notification-deliveries/${notificationId}/retry`, {
+        method: "POST",
+        body: JSON.stringify({ channel }),
+      });
+      setDeliveryNotice(data.message || `${label} retry finished.`);
+      await loadDeliveryLogs();
+    } catch (error) {
+      setDeliveryError(error instanceof Error ? error.message : `Unable to retry ${label} delivery.`);
+    } finally {
+      setRetryingDelivery("");
+    }
+  }
 
   async function loadDeliveryLogs() {
     setLoadingDeliveries(true);
@@ -362,13 +384,14 @@ export default function AdminCommunications() {
           </button>
         </div>
         {deliveryError && <p role="alert" className="m-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{deliveryError}</p>}
+        {deliveryNotice && <p role="status" className="m-5 rounded-xl bg-green-50 p-3 text-sm text-green-700">{deliveryNotice}</p>}
         {loadingDeliveries && !deliveries.length ? (
           <div className="p-8 text-sm text-slate-500">Loading delivery history...</div>
         ) : deliveries.length === 0 ? (
           <div className="p-8 text-sm text-slate-500">No automated delivery attempts have been recorded yet. Events appear here after the notification service queues them.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <tr><th className="px-5 py-3">Notification</th><th className="px-5 py-3">Recipient</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Push</th><th className="px-5 py-3">Created</th></tr>
               </thead>
@@ -388,11 +411,13 @@ export default function AdminCommunications() {
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.emailStatus === "sent" ? "bg-green-50 text-green-700" : item.emailStatus === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{item.emailStatus || "unknown"}</span>
                       <p className="mt-1 text-xs text-slate-500">{item.emailAttempts || 0} attempt(s)</p>
                       {item.emailError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.emailError}</p>}
+                      {(item.emailStatus === "failed" || (item.emailStatus === "skipped" && /SMTP is not configured|Email delivery is disabled in admin platform settings/.test(item.emailError || ""))) && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:email`} onClick={() => void retryDelivery(item.id, "email")}>{retryingDelivery === `${item.id}:email` ? "Retrying..." : "Retry email"}</button>}
                     </td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.pushStatus === "sent" ? "bg-green-50 text-green-700" : item.pushStatus === "failed" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>{item.pushStatus || "unknown"}</span>
                       <p className="mt-1 text-xs text-slate-500">{item.pushAttempts || 0} attempt(s)</p>
                       {item.pushError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.pushError}</p>}
+                      {(item.pushStatus === "failed" || (item.pushStatus === "skipped" && /OneSignal is not configured|Push delivery is disabled in admin platform settings/.test(item.pushError || ""))) && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:push`} onClick={() => void retryDelivery(item.id, "push")}>{retryingDelivery === `${item.id}:push` ? "Retrying..." : "Retry push"}</button>}
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-500">{item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</td>
                   </tr>

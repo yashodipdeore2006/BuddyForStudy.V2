@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, BookOpen, TrendingUp, Award, Info, CreditCard, CheckCheck, Loader2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
+import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 
 const iconByType: Record<string, typeof Bell> = {
@@ -77,26 +78,21 @@ export default function Notifications() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Stay updated on your learning activity and platform announcements
-          </p>
-        </div>
-
-        {unreadCount > 0 && (
+      <PageHeader
+        title="Notifications"
+        subtitle="Stay updated on your learning activity and platform announcements."
+        action={unreadCount > 0 ? (
           <button
             type="button"
             onClick={() => void markAllRead()}
             disabled={markingAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            className="btn-secondary"
           >
             {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
             Mark all read
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {error && (
         <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">

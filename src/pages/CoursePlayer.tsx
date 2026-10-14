@@ -231,11 +231,11 @@ export default function CoursePlayer() {
   const progressPct = progress?.percentage || 0;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className="min-h-screen bg-[#f1f4f7] text-slate-900">
+      <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white">
         <div className="flex h-full items-center gap-3 px-4 sm:gap-4">
           <button
-            className="inline-flex rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 lg:hidden"
+            className="inline-flex rounded-full border border-slate-200 bg-white p-2 text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 lg:hidden"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open course content"
           >
@@ -274,7 +274,7 @@ export default function CoursePlayer() {
                 "inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition sm:px-4 sm:text-sm",
                 currentCompleted
                   ? "bg-green-50 text-green-700"
-                  : "bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"
+                  : "bg-black text-white hover:bg-[#444950]"
               )}
             >
               {completing ? (
@@ -303,14 +303,14 @@ export default function CoursePlayer() {
             {currentLesson ? (
               <>
                 {currentLesson.lesson.type === "quiz" && (
-                  <section className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
+                  <section className="border-b border-slate-200 bg-white px-5 py-7 sm:px-8 lg:px-10">
                     <div className="mx-auto max-w-4xl">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[.14em] text-blue-600">
                             {currentLesson.lesson.quiz?.scope === "module" ? "Module assessment" : "Lesson quiz"}
                           </p>
-                          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                          <h1 className="mt-1 text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
                             {currentLesson.lesson.title}
                           </h1>
                           <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -332,7 +332,7 @@ export default function CoursePlayer() {
                       ) : quizData?.questions?.length ? (
                         <div className="mt-8 space-y-5">
                           {quizData.questions.map((question: any, questionIndex: number) => (
-                            <article key={question.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                            <article key={question.id} className="rounded-[24px] border border-slate-200 bg-white p-5">
                               <div className="flex items-start gap-3">
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
                                   {questionIndex + 1}
@@ -487,11 +487,11 @@ export default function CoursePlayer() {
                   </div>
                 )}
 
-                <section className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
+                <section className="border-b border-slate-200 bg-white px-5 py-7 sm:px-8 lg:px-10">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-slate-400">{currentLesson.module.title}</p>
-                      <h1 className="mt-1 max-w-4xl text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                      <h1 className="mt-1 max-w-4xl text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
                         {currentLesson.lesson.title}
                       </h1>
                       {currentLesson.lesson.tutorial?.videos?.[0]?.channelTitle && (
@@ -506,7 +506,7 @@ export default function CoursePlayer() {
                         "inline-flex w-fit flex-shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold",
                         currentLesson.lesson.type === "project"
                           ? "bg-purple-50 text-purple-700"
-                          : "bg-blue-50 text-blue-700"
+                          : "bg-slate-100 text-slate-950"
                       )}
                     >
                       {currentLesson.lesson.type === "project" ? (
@@ -599,7 +599,7 @@ export default function CoursePlayer() {
                     )}
 
                     {currentLesson.lesson.type === "project" && (
-                      <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-5">
                         <div>
                           <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">
                             Project brief
@@ -771,7 +771,7 @@ export default function CoursePlayer() {
                     <button
                       disabled={!navigation.next}
                       onClick={() => navigation.next && handleNavigate(navigation.next.id)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-bold text-white transition hover:bg-[#444950] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Next
                       <ChevronRight className="h-4 w-4" />
@@ -837,7 +837,7 @@ export default function CoursePlayer() {
 
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
             {course.modules.map((module, index) => (
-              <div key={module.id} className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div key={module.id} className="mb-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <div className="bg-slate-50 px-4 py-3">
                   <p className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-400">
                     Module {index + 1}
@@ -889,7 +889,7 @@ export default function CoursePlayer() {
                       className={classNames(
                         "flex w-full items-start gap-3 border-t border-slate-100 px-4 py-3 text-left transition",
                         active
-                          ? "bg-blue-50 text-blue-700"
+                          ? "bg-slate-100 text-slate-950"
                           : "text-slate-700 hover:bg-slate-50"
                       )}
                     >

@@ -25,7 +25,7 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   inAppCourseUpdates: true,
   emailProjectUpdates: true,
   inAppProjectUpdates: true,
-  emailAnnouncements: true,
+  emailAnnouncements: false,
   inAppAnnouncements: true,
   emailLearningReminders: true,
   inAppLearningReminders: true,
@@ -200,7 +200,7 @@ export default function Settings() {
     },
     {
       title: "Platform announcements",
-      description: "Product news and platform-wide announcements.",
+      description: "Optional product news and platform announcements. Email updates are off until you opt in.",
       emailKey: "emailAnnouncements" as const,
       inAppKey: "inAppAnnouncements" as const,
     },

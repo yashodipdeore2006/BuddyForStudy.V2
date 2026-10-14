@@ -12,7 +12,7 @@ const DEFAULT_PREFERENCES = {
   inAppCourseUpdates: true,
   emailProjectUpdates: true,
   inAppProjectUpdates: true,
-  emailAnnouncements: true,
+  emailAnnouncements: false,
   inAppAnnouncements: true,
   emailLearningReminders: true,
   inAppLearningReminders: true,
@@ -91,9 +91,18 @@ function preferenceKeys(type) {
   return { email: null, inApp: null };
 }
 
+export function normalizeUserNotificationPreferences(stored, userId) {
+  const preferences = { ...DEFAULT_PREFERENCES, ...(stored || {}), user: String(userId) };
+  // Historical defaults were on without recording opt-in; fail closed until explicit consent exists.
+  if (!stored?.emailAnnouncementsConsentAt || stored?.emailAnnouncements !== true) {
+    preferences.emailAnnouncements = false;
+  }
+  return preferences;
+}
+
 export async function getUserNotificationPreferences(userId) {
   const stored = await NotificationPreference.findOne({ user: userId }).lean();
-  return { ...DEFAULT_PREFERENCES, ...(stored || {}), user: String(userId) };
+  return normalizeUserNotificationPreferences(stored, userId);
 }
 
 export async function saveUserNotificationPreferences(userId, updates) {
@@ -101,12 +110,16 @@ export async function saveUserNotificationPreferences(userId, updates) {
   for (const key of Object.keys(DEFAULT_PREFERENCES)) {
     if (Object.prototype.hasOwnProperty.call(updates, key)) patch[key] = updates[key];
   }
+  if (Object.prototype.hasOwnProperty.call(updates, "emailAnnouncements")) {
+    patch.emailAnnouncements = updates.emailAnnouncements === true;
+    patch.emailAnnouncementsConsentAt = updates.emailAnnouncements === true ? new Date() : null;
+  }
   const preferences = await NotificationPreference.findOneAndUpdate(
     { user: userId },
     { $set: patch, $setOnInsert: { user: userId } },
     { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
   ).lean();
-  return { ...DEFAULT_PREFERENCES, ...preferences, user: String(userId) };
+  return normalizeUserNotificationPreferences(preferences, userId);
 }
 
 async function dispatchEmail(notificationId, { force = false } = {}) {

@@ -40,11 +40,40 @@ async function runMaintenance() {
       reconcilePendingSubscriptionActivationNotifications(now, 100),
       processSubscriptionExpiryReminders(now)
     ]);
-    for (const result of notificationJobs) {
-      if (result.status === "rejected") {
-        console.error("[worker] notification job failed", {
-          message: String(result.reason?.message || "Unknown notification job error").slice(0, 400)
+    const notificationJobNames = [
+      "email-delivery",
+      "push-delivery",
+      "learning-reminders",
+      "course-purchase-reconciliation",
+      "subscription-activation-reconciliation",
+      "subscription-expiry-reminders"
+    ];
+    for (let index = 0; index < notificationJobs.length; index += 1) {
+      const result = notificationJobs[index];
+      const jobName = notificationJobNames[index] || `notification-job-${index + 1}`;
+      const itemFailures = result.status === "fulfilled"
+        ? Math.max(0, Number(result.value?.failures) || 0)
+        : 1;
+      const jobFailed = result.status === "rejected" || itemFailures > 0;
+      const alertKey = `notification-job-${jobName}-failure`;
+
+      if (jobFailed) {
+        const errorMessage = result.status === "rejected"
+          ? String(result.reason?.message || "Unknown notification job error").slice(0, 500)
+          : `The job reported ${itemFailures} item-level failure(s).`;
+        await recordOperationalAlert({
+          key: alertKey,
+          severity: "critical",
+          source: `notification-worker:${jobName}`,
+          message: `${jobName} failed: ${errorMessage}`
         });
+        console.error("[worker] notification job failed", {
+          job: jobName,
+          failures: itemFailures,
+          message: errorMessage
+        });
+      } else {
+        await resolveOperationalAlert(alertKey);
       }
     }
     await resolveOperationalAlert("background-maintenance-failure");

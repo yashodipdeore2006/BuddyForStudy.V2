@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
-import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
+import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -37,6 +37,7 @@ async function runMaintenance() {
       deliverPendingNotificationPush(50),
       processLearningReminders(now, 500),
       reconcilePendingCoursePurchaseNotifications(now, 100),
+      reconcilePendingSubscriptionActivationNotifications(now, 100),
       processSubscriptionExpiryReminders(now)
     ]);
     for (const result of notificationJobs) {

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
 
 const notificationSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -16,6 +17,7 @@ const notificationSchema = new mongoose.Schema({
   emailSentAt: { type: Date, default: null },
   emailError: { type: String, default: "", maxlength: 500 },
   pushStatus: { type: String, enum: ["pending", "sent", "skipped", "failed"], default: "skipped" },
+  pushIdempotencyKey: { type: String, default: () => randomUUID(), maxlength: 64 },
   pushAttempts: { type: Number, default: 0, min: 0 },
   pushLastAttemptAt: { type: Date, default: null },
   pushSentAt: { type: Date, default: null },

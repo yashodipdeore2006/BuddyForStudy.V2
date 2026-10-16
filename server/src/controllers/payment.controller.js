@@ -6,6 +6,7 @@ import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { verifyPaymentSignature } from "../services/razorpay.service.js";
+import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
@@ -90,18 +91,8 @@ export async function verifyCoursePayment(req, res, next) {
     }
 
     const providerPayment = await razorpay.fetchPayment(input.razorpayPaymentId);
-    if (providerPayment.order_id !== payment.providerOrderId) {
-      return failure(res, "Provider payment order mismatch", 400);
-    }
-    if (providerPayment.status !== "captured") {
-      return failure(res, "Payment has not been captured", 400);
-    }
-    if (Number(providerPayment.amount) !== Math.round(payment.amount * 100)) {
-      return failure(res, "Payment amount mismatch", 400);
-    }
-    if (String(providerPayment.currency || "").toUpperCase() !== String(payment.currency).toUpperCase()) {
-      return failure(res, "Payment currency mismatch", 400);
-    }
+    const providerValidationError = capturedPaymentValidationError(payment, providerPayment);
+    if (providerValidationError) return failure(res, providerValidationError, 400);
 
     payment.providerPaymentId = input.razorpayPaymentId;
     payment.status = "paid";

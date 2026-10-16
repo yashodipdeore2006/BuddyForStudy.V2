@@ -246,20 +246,20 @@ async function dispatchPush(notificationId, { force = false } = {}) {
   }
 
   try {
-    let pushIdempotencyKey = notification.pushIdempotencyKey;
-    if (!pushIdempotencyKey) {
-      const candidateKey = randomUUID();
-      await Notification.updateOne(
-        { _id: notification._id, $or: [
-          { pushIdempotencyKey: { $exists: false } },
-          { pushIdempotencyKey: null },
-          { pushIdempotencyKey: "" }
-        ] },
-        { $set: { pushIdempotencyKey: candidateKey } }
-      );
-      const refreshed = await Notification.findById(notification._id).select("pushIdempotencyKey").lean();
-      pushIdempotencyKey = refreshed?.pushIdempotencyKey || candidateKey;
-    }
+    // Persist a key even for legacy rows that predate this schema field. The
+    // persisted value is reused after a timeout so a provider-accepted send can
+    // be retried safely without creating a second OneSignal notification.
+    let pushIdempotencyKey = notification.pushIdempotencyKey || randomUUID();
+    await Notification.updateOne(
+      { _id: notification._id, $or: [
+        { pushIdempotencyKey: { $exists: false } },
+        { pushIdempotencyKey: null },
+        { pushIdempotencyKey: "" }
+      ] },
+      { $set: { pushIdempotencyKey } }
+    );
+    const refreshed = await Notification.findById(notification._id).select("pushIdempotencyKey").lean();
+    pushIdempotencyKey = refreshed?.pushIdempotencyKey || pushIdempotencyKey;
 
     const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",

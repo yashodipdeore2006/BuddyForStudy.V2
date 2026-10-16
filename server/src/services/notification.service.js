@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import { randomUUID } from "node:crypto";
+import { mailRecipientAccepted, oneSignalNotificationCreated } from "./notificationDeliveryOutcomes.js";
 import { env } from "../config/env.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
@@ -154,7 +156,13 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
     { $inc: { emailAttempts: 1 }, $set: { emailLastAttemptAt: new Date() } },
     { new: true }
   ).populate("user", "name email");
-  if (!notification?.user?.email) return;
+  if (!notification) return;
+  if (!notification.user?.email) {
+    await Notification.updateOne({ _id: notification._id }, {
+      $set: { emailStatus: "failed", emailError: "Recipient email is unavailable" }
+    });
+    return;
+  }
 
   const preferences = await getUserNotificationPreferences(notification.user._id);
   const keys = preferenceKeys(notification.type);
@@ -171,7 +179,7 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
     const link = notification.link ? appUrl + notification.link : appUrl + "/notifications";
     const title = escapeHtml(notification.title);
     const message = escapeHtml(notification.message).replace(/\n/g, "<br />");
-    await mailer.sendMail({
+    const deliveryInfo = await mailer.sendMail({
       from: env.mailFrom,
       to: notification.user.email,
       subject: notification.emailSubject || notification.title,
@@ -180,6 +188,9 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
         : `${notification.title}\n\n${notification.message}\n\nOpen BuddyForStudy: ${link}`,
       html: notification.emailHtml || `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1c1e21;line-height:1.6"><div style="max-width:560px;margin:24px auto;padding:28px;border:1px solid #dee3e9;border-radius:20px"><p style="font-size:12px;font-weight:700;color:#0064e0;letter-spacing:1px">BUDDYFORSTUDY</p><h1 style="font-size:24px;font-weight:600">${title}</h1><p>${message}</p><p style="margin-top:28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:100px;text-decoration:none;font-weight:700">Open BuddyForStudy</a></p><p style="font-size:12px;color:#5d6c7b">You are receiving this email because of activity on your BuddyForStudy account.</p></div></body></html>`
     });
+    if (!mailRecipientAccepted(deliveryInfo, notification.user.email)) {
+      throw new Error("SMTP server did not confirm acceptance of the recipient");
+    }
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "sent", emailSentAt: new Date(), emailError: "" }
     });
@@ -235,6 +246,21 @@ async function dispatchPush(notificationId, { force = false } = {}) {
   }
 
   try {
+    let pushIdempotencyKey = notification.pushIdempotencyKey;
+    if (!pushIdempotencyKey) {
+      const candidateKey = randomUUID();
+      await Notification.updateOne(
+        { _id: notification._id, $or: [
+          { pushIdempotencyKey: { $exists: false } },
+          { pushIdempotencyKey: null },
+          { pushIdempotencyKey: "" }
+        ] },
+        { $set: { pushIdempotencyKey: candidateKey } }
+      );
+      const refreshed = await Notification.findById(notification._id).select("pushIdempotencyKey").lean();
+      pushIdempotencyKey = refreshed?.pushIdempotencyKey || candidateKey;
+    }
+
     const response = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
@@ -243,6 +269,7 @@ async function dispatchPush(notificationId, { force = false } = {}) {
       },
       body: JSON.stringify({
         app_id: env.oneSignalAppId,
+        idempotency_key: pushIdempotencyKey,
         include_aliases: { external_id: [String(notification.user)] },
         target_channel: "push",
         headings: { en: notification.title },
@@ -253,6 +280,15 @@ async function dispatchPush(notificationId, { force = false } = {}) {
     if (!response.ok) {
       // Provider response bodies may include request/user context; retain only the status code.
       throw new Error(`OneSignal returned HTTP ${response.status}`);
+    }
+    const providerResult = await response.json().catch(() => null);
+    if (!oneSignalNotificationCreated(providerResult)) {
+      // A definitive no-send response must not pin a future retry to the same
+      // provider idempotency result after the learner registers a device.
+      await Notification.updateOne({ _id: notification._id }, {
+        $set: { pushIdempotencyKey: randomUUID() }
+      });
+      throw new Error("OneSignal did not create a notification; no eligible subscribed push target was confirmed");
     }
     await Notification.updateOne({ _id: notification._id }, {
       $set: { pushStatus: "sent", pushSentAt: new Date(), pushError: "" }

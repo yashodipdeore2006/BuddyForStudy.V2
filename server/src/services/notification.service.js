@@ -137,7 +137,7 @@ export async function saveUserNotificationPreferences(userId, updates) {
   return normalizeUserNotificationPreferences(preferences, userId);
 }
 
-async function dispatchEmail(notificationId, { force = false } = {}) {
+async function dispatchEmail(notificationId) {
   const mailer = getMailer();
   const platform = await getNotificationPlatformSettings();
   if (!mailer || !platform.emailEnabled) return;
@@ -146,12 +146,10 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
     emailStatus: "pending",
     emailAttempts: { $lt: platform.emailRetryAttempts }
   };
-  if (!force) {
-    filter.$or = [
-      { emailLastAttemptAt: null },
-      { emailLastAttemptAt: { $lte: new Date(Date.now() - RETRY_DELAY_MS) } }
-    ];
-  }
+  filter.$or = [
+    { emailLastAttemptAt: null },
+    { emailLastAttemptAt: { $lte: new Date(Date.now() - RETRY_DELAY_MS) } }
+  ];
   const notification = await Notification.findOneAndUpdate(
     filter,
     { $inc: { emailAttempts: 1 }, $set: { emailLastAttemptAt: new Date() } },
@@ -211,7 +209,7 @@ async function dispatchEmail(notificationId, { force = false } = {}) {
   }
 }
 
-async function dispatchPush(notificationId, { force = false } = {}) {
+async function dispatchPush(notificationId) {
   const platform = await getNotificationPlatformSettings();
   if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
     await Notification.updateOne({ _id: notificationId, pushStatus: "pending" }, {
@@ -225,12 +223,10 @@ async function dispatchPush(notificationId, { force = false } = {}) {
     pushStatus: "pending",
     pushAttempts: { $lt: platform.pushRetryAttempts }
   };
-  if (!force) {
-    filter.$or = [
-      { pushLastAttemptAt: null },
-      { pushLastAttemptAt: { $lte: new Date(Date.now() - RETRY_DELAY_MS) } }
-    ];
-  }
+  filter.$or = [
+    { pushLastAttemptAt: null },
+    { pushLastAttemptAt: { $lte: new Date(Date.now() - RETRY_DELAY_MS) } }
+  ];
   const notification = await Notification.findOneAndUpdate(
     filter,
     { $inc: { pushAttempts: 1 }, $set: { pushLastAttemptAt: new Date() } },
@@ -366,8 +362,8 @@ export async function retryNotificationDelivery(notificationId, channel) {
     throw error;
   }
 
-  if (channel === "email") await dispatchEmail(notification._id, { force: true });
-  else await dispatchPush(notification._id, { force: true });
+  if (channel === "email") await dispatchEmail(notification._id);
+  else await dispatchPush(notification._id);
 
   const updated = await Notification.findById(notification._id)
     .select("emailStatus emailAttempts emailError pushStatus pushAttempts pushError")
@@ -481,8 +477,8 @@ export async function createNotificationEvent({
   }
   if (!notification) return null;
   if (created) {
-    if (payload.emailStatus === "pending") void dispatchEmail(notification._id, { force: true }).catch((error) => console.error("[notifications] email dispatch error", String(error?.message || error).slice(0, 200)));
-    if (payload.pushStatus === "pending") void dispatchPush(notification._id, { force: true }).catch((error) => console.error("[notifications] push dispatch error", String(error?.message || error).slice(0, 200)));
+    if (payload.emailStatus === "pending") void dispatchEmail(notification._id).catch((error) => console.error("[notifications] email dispatch error", String(error?.message || error).slice(0, 200)));
+    if (payload.pushStatus === "pending") void dispatchPush(notification._id).catch((error) => console.error("[notifications] push dispatch error", String(error?.message || error).slice(0, 200)));
   }
   return notification;
 }

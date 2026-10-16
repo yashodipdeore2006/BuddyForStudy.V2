@@ -485,7 +485,24 @@ export async function createNotificationEvent({
 
 export async function deliverPendingNotificationEmails(limit = 50) {
   const platform = await getNotificationPlatformSettings();
-  if (!getMailer() || !platform.emailEnabled) return { attempted: 0 };
+  const mailer = getMailer();
+  if (!mailer || !platform.emailEnabled) {
+    const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
+    const emailError = !platform.emailEnabled
+      ? "Email delivery is disabled in admin platform settings"
+      : "SMTP is not configured";
+    const skipped = await Notification.updateMany(
+      {
+        emailStatus: "pending",
+        $or: [
+          { emailLastAttemptAt: null },
+          { emailLastAttemptAt: { $lte: retryBefore } }
+        ]
+      },
+      { $set: { emailStatus: "skipped", emailError } }
+    );
+    return { attempted: 0, skipped: skipped.modifiedCount };
+  }
   const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
   const pending = await Notification.find({
     emailStatus: "pending",
@@ -498,7 +515,23 @@ export async function deliverPendingNotificationEmails(limit = 50) {
 
 export async function deliverPendingNotificationPush(limit = 50) {
   const platform = await getNotificationPlatformSettings();
-  if (!platform.pushEnabled || !env.oneSignalAppId || !env.oneSignalRestApiKey) return { attempted: 0 };
+  if (!platform.pushEnabled || !env.oneSignalAppId || !env.oneSignalRestApiKey) {
+    const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
+    const pushError = !platform.pushEnabled
+      ? "Push delivery is disabled in admin platform settings"
+      : "OneSignal is not configured";
+    const skipped = await Notification.updateMany(
+      {
+        pushStatus: "pending",
+        $or: [
+          { pushLastAttemptAt: null },
+          { pushLastAttemptAt: { $lte: retryBefore } }
+        ]
+      },
+      { $set: { pushStatus: "skipped", pushError } }
+    );
+    return { attempted: 0, skipped: skipped.modifiedCount };
+  }
   const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
   const pending = await Notification.find({
     pushStatus: "pending",

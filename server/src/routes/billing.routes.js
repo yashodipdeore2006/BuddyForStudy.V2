@@ -39,7 +39,11 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     user: req.user.userId,
     provider: "razorpay",
     providerOrderId: subscriptionId,
-    status: "pending"
+    status: { $in: ["pending", "paid"] },
+    $or: [
+      { status: "pending" },
+      { status: "paid", subscriptionNotificationStatus: "pending" }
+    ]
   }).populate("plan");
 
   if (!payment) return failure(res, "Pending subscription payment not found", 404);
@@ -68,6 +72,8 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     : null;
 
   payment.status = "paid";
+  payment.subscriptionNotificationStatus = "pending";
+  payment.subscriptionNotificationLastCheckedAt = null;
   payment.paidAt = payment.paidAt || new Date();
   payment.metadata = {
     ...Object.fromEntries(payment.metadata || []),
@@ -94,13 +100,23 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).populate("plan");
 
-  await sendNotificationSafely(buildSubscriptionActivatedNotificationPayload({
+  const notification = await sendNotificationSafely(buildSubscriptionActivatedNotificationPayload({
     userId: String(req.user.userId),
     payment,
     plan: payment.plan,
     subscription,
     subscriptionId
   }), "subscription-activation");
+  if (notification) {
+    await Payment.updateOne(
+      { _id: payment._id, subscriptionNotificationStatus: "pending" },
+      { $set: {
+        subscriptionNotificationStatus: "queued",
+        subscriptionNotificationQueuedAt: new Date(),
+        subscriptionNotificationLastCheckedAt: new Date()
+      } }
+    );
+  }
 
   return success(res, {
     activated: true,

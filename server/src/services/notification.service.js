@@ -11,7 +11,8 @@ import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
 import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey, getSubscriptionExpiryReminderWindow, subscriptionExpiryReminderEventKey } from "./reminderScheduling.js";
-import { buildCoursePurchaseNotificationPayload, formatBillingNotificationDate } from "./billingNotificationPayloads.js";
+import { buildCoursePurchaseNotificationPayload, buildSubscriptionActivatedNotificationPayload, formatBillingNotificationDate } from "./billingNotificationPayloads.js";
+import * as razorpay from "./razorpay.service.js";
 
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
@@ -663,6 +664,131 @@ export async function reconcilePendingCoursePurchaseNotifications(now = new Date
   }
 
   return { checked, queued, waitingForEnrollment, failures };
+}
+
+export async function reconcilePendingSubscriptionActivationNotifications(now = new Date(), pageSize = 100) {
+  const retryBefore = new Date(now.getTime() - RETRY_DELAY_MS);
+  const eligible = {
+    provider: "razorpay",
+    status: "paid",
+    course: null,
+    plan: { $ne: null },
+    subscriptionNotificationStatus: "pending",
+    $or: [
+      { subscriptionNotificationLastCheckedAt: null },
+      { subscriptionNotificationLastCheckedAt: { $lte: retryBefore } }
+    ]
+  };
+  const upperBound = await Payment.findOne(eligible).sort({ _id: -1 }).select("_id").lean();
+  if (!upperBound) return { checked: 0, queued: 0, waitingForActive: 0, failures: 0 };
+
+  const limit = Math.min(Math.max(Math.trunc(Number(pageSize) || 100), 1), 500);
+  let cursor = null;
+  let checked = 0;
+  let queued = 0;
+  let waitingForActive = 0;
+  let failures = 0;
+
+  while (true) {
+    const filter = { ...eligible };
+    filter._id = cursor ? { $gt: cursor, $lte: upperBound._id } : { $lte: upperBound._id };
+    const payments = await Payment.find(filter)
+      .sort({ _id: 1 })
+      .limit(limit)
+      .populate("plan", "name billingInterval providerPlanId")
+      .lean();
+    if (!payments.length) break;
+
+    cursor = payments[payments.length - 1]._id;
+    checked += payments.length;
+
+    for (const payment of payments) {
+      try {
+        const subscriptionId = String(payment.providerOrderId || "");
+        if (!subscriptionId || !payment.plan) {
+          throw new Error("Subscription payment is missing its provider reference or plan");
+        }
+
+        let subscription = await UserSubscription.findOne({
+          user: payment.user,
+          provider: "razorpay",
+          providerSubscriptionId: subscriptionId,
+          status: "active"
+        }).populate("plan", "name billingInterval").lean();
+
+        if (!subscription) {
+          // Recover the brief crash window where payment was durably marked paid
+          // before the active subscription document was written.
+          const providerSubscription = await razorpay.fetchSubscription(subscriptionId);
+          if (String(providerSubscription?.status || "").toLowerCase() !== "active") {
+            waitingForActive += 1;
+            await Payment.updateOne(
+              { _id: payment._id, subscriptionNotificationStatus: "pending" },
+              { $set: { subscriptionNotificationLastCheckedAt: now } }
+            );
+            continue;
+          }
+          if (payment.plan.providerPlanId &&
+              String(providerSubscription?.plan_id || "") !== String(payment.plan.providerPlanId)) {
+            throw new Error("Provider subscription plan does not match the recorded plan");
+          }
+
+          subscription = await UserSubscription.findOneAndUpdate(
+            { user: payment.user },
+            {
+              $set: {
+                plan: payment.plan._id,
+                status: "active",
+                provider: "razorpay",
+                providerSubscriptionId: subscriptionId,
+                currentPeriodStart: providerSubscription?.current_start
+                  ? new Date(Number(providerSubscription.current_start) * 1000)
+                  : new Date(),
+                currentPeriodEnd: providerSubscription?.current_end
+                  ? new Date(Number(providerSubscription.current_end) * 1000)
+                  : null,
+                cancelAtPeriodEnd: Boolean(providerSubscription?.end_at)
+              }
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          ).populate("plan", "name billingInterval");
+        }
+
+        const notification = await createNotificationEvent(buildSubscriptionActivatedNotificationPayload({
+          userId: String(payment.user),
+          payment,
+          plan: subscription?.plan || payment.plan,
+          subscription,
+          subscriptionId
+        }));
+        if (!notification) throw new Error("Subscription activation notification was not persisted");
+
+        const updated = await Payment.updateOne(
+          { _id: payment._id, subscriptionNotificationStatus: "pending" },
+          { $set: {
+            subscriptionNotificationStatus: "queued",
+            subscriptionNotificationQueuedAt: new Date(),
+            subscriptionNotificationLastCheckedAt: now
+          } }
+        );
+        if (updated.modifiedCount > 0) queued += 1;
+      } catch (error) {
+        failures += 1;
+        await Payment.updateOne(
+          { _id: payment._id, subscriptionNotificationStatus: "pending" },
+          { $set: { subscriptionNotificationLastCheckedAt: now } }
+        ).catch(() => {});
+        console.error("[notifications] subscription activation reconciliation failed", {
+          paymentId: String(payment._id),
+          message: String(error?.message || "Unknown notification error").slice(0, 200)
+        });
+      }
+    }
+
+    if (payments.length < limit) break;
+  }
+
+  return { checked, queued, waitingForActive, failures };
 }
 
 export async function processLearningReminders(now = new Date(), batchSize = 500) {

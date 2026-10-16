@@ -13,10 +13,14 @@ const paymentSchema = new mongoose.Schema({
   purchaseNotificationStatus: { type: String, enum: ["not_applicable", "pending", "queued"], default: "not_applicable", index: true },
   purchaseNotificationQueuedAt: { type: Date, default: null },
   purchaseNotificationLastCheckedAt: { type: Date, default: null },
+  subscriptionNotificationStatus: { type: String, enum: ["not_applicable", "pending", "queued"], default: "not_applicable", index: true },
+  subscriptionNotificationQueuedAt: { type: Date, default: null },
+  subscriptionNotificationLastCheckedAt: { type: Date, default: null },
   metadata: { type: Map, of: String, default: {} },
   paidAt: { type: Date, default: null }
 }, { timestamps: true, collection: "payments" });
 
 paymentSchema.index({ createdAt: -1 });
 paymentSchema.index({ status: 1, purchaseNotificationStatus: 1, purchaseNotificationLastCheckedAt: 1, _id: 1 });
+paymentSchema.index({ status: 1, subscriptionNotificationStatus: 1, subscriptionNotificationLastCheckedAt: 1, _id: 1 });
 export const Payment = mongoose.model("Payment", paymentSchema);

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import { Notification } from "../src/models/Notification.js";
 import { Payment } from "../src/models/Payment.js";
+import { WebhookEvent } from "../src/models/WebhookEvent.js";
 
 test("notification event keys are unique per user when an event key is present", () => {
   const eventIndex = Notification.schema.indexes().find(([keys]) =>
@@ -13,6 +14,12 @@ test("notification event keys are unique per user when an event key is present",
   assert.deepEqual(eventIndex[1].partialFilterExpression, {
     eventKey: { $type: "string" }
   });
+});
+
+test("Razorpay webhook event IDs are unique to prevent duplicate processing", () => {
+  const eventIndex = WebhookEvent.schema.indexes().find(([keys]) => keys.eventId === 1);
+  assert.ok(eventIndex, "eventId index should exist");
+  assert.equal(eventIndex[1].unique, true);
 });
 
 test("new notifications receive a stable UUIDv4 push idempotency key", () => {

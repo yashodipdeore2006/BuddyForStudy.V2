@@ -30,7 +30,7 @@ Set these in the **server** environment (never commit actual secrets):
 
 For course purchases, payment verification creates a pending notification-outbox state; the enrollment flow queues the receipt only after an active enrollment exists. The background worker reconciles pending paid-course receipts if the request fails between saving enrollment and creating the notification event. Event keys prevent a webhook, sync, enrollment retry, or worker reconciliation from creating duplicate receipt notifications.
 
-Email events are recorded as `pending`, `sent`, `skipped`, or `failed`. When SMTP is missing, optional delivery is marked skipped instead of remaining in a forever-pending state. Failed sends are retried by the worker up to the platform-configured attempt count. The OneSignal REST key must be kept server-side; the frontend only needs the public app ID.
+Email events are recorded as `pending`, `sent`, `skipped`, or `failed`. When SMTP is missing, optional delivery is marked skipped instead of remaining in a forever-pending state. Failed sends are retried by the worker up to the platform-configured attempt count. An email is marked `sent` only after Nodemailer reports the intended recipient as accepted by the SMTP transport; this does not prove inbox delivery or that the learner read it. OneSignal requests use a persistent UUID idempotency key so network retries can replay a provider result without creating a second push request. A push is marked `sent` only when OneSignal returns a non-empty notification ID; that confirms provider creation, not browser display or user engagement. The OneSignal REST key must be kept server-side; the frontend only needs the public app ID.
 
 ## The background worker is required
 

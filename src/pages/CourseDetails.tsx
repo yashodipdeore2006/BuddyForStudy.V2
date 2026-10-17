@@ -265,6 +265,7 @@ export default function CourseDetails() {
   const lessonCount = countAllLessons(course.modules);
   const isEnrolled = enrollment?.status === 'active' || enrollment?.status === 'completed';
   const isPaidCourse = course.pricing?.mode === 'paid';
+  const enrollmentEnabled = (course as Course & { enrollmentEnabled?: boolean }).enrollmentEnabled !== false;
   const currency = course.pricing?.currency || 'INR';
   const basePrice = Math.max(0, Number(course.pricing?.price || 0));
   const salePrice = course.pricing?.saleEnabled && Number(course.pricing?.salePrice || 0) > 0
@@ -466,6 +467,7 @@ export default function CourseDetails() {
                 </div>
               </div>
             )}
+            {checkoutNotice && <div role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{checkoutNotice}</div>}
             {isEnrolled ? (
               <div>
                 <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
@@ -493,7 +495,7 @@ export default function CourseDetails() {
               <div>
                 <button
                   onClick={isPaidCourse ? handleCheckout : handleEnroll}
-                  disabled={enrolling || checkoutLoading || !course.is_published}
+                  disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled}
                   className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse ? "btn-buy" : "btn-primary")}
                 >
                   {enrolling || checkoutLoading ? (
@@ -503,7 +505,7 @@ export default function CourseDetails() {
                   ) : session ? 'Enroll Now — Free' : 'Sign in to enroll'}
                 </button>
                 {!session && <p className="mt-3 text-center text-xs text-slate-500">Sign in or create a free account to continue.</p>}
-                {checkoutNotice && <div role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{checkoutNotice}</div>}
+                {!enrollmentEnabled && <p className="mt-3 text-center text-xs text-amber-700">Enrollment is temporarily closed for this course.</p>}
                 {error && (
                   <div role="alert" className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /><span>{error}</span>

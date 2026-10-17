@@ -1,114 +1,131 @@
-let initializedAppId = "";
+import { apiFetch } from "@/lib/api";
 
-declare global {
-  interface Window {
-    OneSignalDeferred?: Array<(oneSignal: any) => void | Promise<void>>;
-    __buddyForStudyOneSignalScript?: boolean;
-  }
+function urlBase64ToUint8Array(value: string): Uint8Array {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 }
 
-function loadOneSignalScript(): Promise<void> {
-  if (window.__buddyForStudyOneSignalScript) return Promise.resolve();
-  const existing = document.querySelector<HTMLScriptElement>('script[data-bfs-onesignal="true"]');
-  if (existing?.dataset.loaded === "true") {
-    window.__buddyForStudyOneSignalScript = true;
-    return Promise.resolve();
-  }
+function isPushSupported() {
+  return (
+    typeof window !== "undefined" &&
+    "Notification" in window &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window
+  );
+}
 
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  return new Promise((resolve, reject) => {
-    const script = existing || document.createElement("script");
-    script.src = "https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js";
-    script.async = true;
-    script.dataset.bfsOnesignal = "true";
-    script.onload = () => {
-      script.dataset.loaded = "true";
-      window.__buddyForStudyOneSignalScript = true;
-      resolve();
-    };
-    script.onerror = () => reject(new Error("Unable to load the push notification provider. Check your network or content-security policy."));
-    if (!existing) document.head.appendChild(script);
+async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
+  if (!isPushSupported()) {
+    throw new Error("This browser does not support browser push notifications.");
+  }
+  if (!window.isSecureContext) {
+    throw new Error("Browser push requires HTTPS (localhost is supported for local testing).");
+  }
+  await navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
+  return navigator.serviceWorker.ready;
+}
+
+async function saveSubscription(subscription: PushSubscription): Promise<void> {
+  await apiFetch("/api/notifications/push/subscriptions", {
+    method: "POST",
+    body: JSON.stringify({
+      ...subscription.toJSON(),
+      userAgent: navigator.userAgent.slice(0, 500)
+    })
   });
 }
 
-function withOneSignal<T>(callback: (oneSignal: any) => Promise<T>): Promise<T> {
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  return new Promise((resolve, reject) => {
-    window.OneSignalDeferred!.push(async (oneSignal: any) => {
-      try {
-        resolve(await callback(oneSignal));
-      } catch (error) {
-        reject(error);
+export async function enableBrowserPush(): Promise<void> {
+  if (!isPushSupported()) {
+    throw new Error("This browser does not support browser push notifications.");
+  }
+
+  const permission = Notification.permission === "granted"
+    ? "granted"
+    : await Notification.requestPermission();
+  if (permission !== "granted") {
+    throw new Error("Notification permission was not granted. Allow notifications in your browser settings and try again.");
+  }
+
+  const keyResult = await apiFetch("/api/notifications/push/public-key");
+  const publicKey = String(keyResult.publicKey || "");
+  if (!publicKey) throw new Error("The server did not provide a Web Push public key.");
+
+  const registration = await getServiceWorkerRegistration();
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (subscription) {
+    const existingKey = subscription.options?.applicationServerKey;
+    if (existingKey) {
+      const existingKeyBytes = new Uint8Array(existingKey);
+      const currentEncodedKey = btoa(String.fromCharCode(...existingKeyBytes))
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
+      if (currentEncodedKey !== publicKey) {
+        await subscription.unsubscribe();
+        subscription = null;
       }
-    });
-  });
-}
-
-async function ensureInitialized(oneSignal: any, appId: string): Promise<void> {
-  if (initializedAppId && initializedAppId !== appId) {
-    throw new Error("A different push-notification app is already initialized in this tab.");
-  }
-  if (!initializedAppId) {
-    await oneSignal.init({
-      appId,
-      serviceWorkerPath: "OneSignalSDKWorker.js",
-      serviceWorkerUpdaterPath: "OneSignalSDKUpdaterWorker.js"
-    });
-    initializedAppId = appId;
-  }
-}
-
-// Restores the logged-in user's OneSignal identity without requesting browser permission.
-export async function identifyBrowserPush(userId: string, appId: string): Promise<void> {
-  if (!userId || !appId) return;
-  const operation = withOneSignal(async (oneSignal) => {
-    await ensureInitialized(oneSignal, appId);
-    await oneSignal.login(String(userId));
-  });
-  await loadOneSignalScript();
-  await operation;
-}
-
-// Remove the account alias at logout so a shared browser cannot stay linked to the previous account.
-export async function logoutBrowserPush(appId: string): Promise<void> {
-  if (!appId) return;
-  const operation = withOneSignal(async (oneSignal) => {
-    await ensureInitialized(oneSignal, appId);
-    if (typeof oneSignal.logout !== "function") {
-      throw new Error("This OneSignal SDK build does not support logout.");
     }
-    await oneSignal.logout();
-  });
-  await loadOneSignalScript();
-  await operation;
-}
-
-export async function enableBrowserPush(userId: string, appId: string): Promise<void> {
-  if (!appId) throw new Error("Push notifications are not configured. Set VITE_ONESIGNAL_APP_ID in the frontend environment.");
-  if (!userId) throw new Error("Sign in again before enabling notifications.");
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-    throw new Error("This browser does not support web push notifications.");
   }
 
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  const operation = withOneSignal(async (oneSignal) => {
-    await ensureInitialized(oneSignal, appId);
-    await oneSignal.login(String(userId));
-    await oneSignal.Notifications.requestPermission();
-    if (Notification.permission !== "granted") {
-      throw new Error("Notification permission was not granted in the browser.");
-    }
-    await oneSignal.User.PushSubscription.optIn();
-  });
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource
+    });
+  }
 
-  await loadOneSignalScript();
-  await operation;
+  await saveSubscription(subscription);
 }
 
-export async function disableBrowserPush(userId: string): Promise<void> {
-  if (!userId || !window.__buddyForStudyOneSignalScript) return;
-  await withOneSignal(async (oneSignal) => {
-    await oneSignal.login(String(userId));
-    await oneSignal.User.PushSubscription.optOut();
-  });
+export async function syncBrowserPushSubscription(): Promise<void> {
+  if (!isPushSupported() || Notification.permission !== "granted") return;
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (subscription) await saveSubscription(subscription);
+}
+
+export async function disableBrowserPush(): Promise<void> {
+  if (!("serviceWorker" in navigator)) return;
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+
+  let serverError: unknown = null;
+  try {
+    await apiFetch("/api/notifications/push/subscriptions", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint: subscription.endpoint })
+    });
+  } catch (error) {
+    serverError = error;
+  }
+
+  await subscription.unsubscribe();
+  if (serverError) {
+    throw new Error("Push was disabled in this browser, but the server could not update its subscription. Save preferences again after reconnecting.");
+  }
+}
+
+export async function logoutBrowserPush(): Promise<void> {
+  if (!("serviceWorker" in navigator)) return;
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription) return;
+
+  try {
+    await apiFetch("/api/notifications/push/subscriptions", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint: subscription.endpoint })
+    });
+  } finally {
+    await subscription.unsubscribe().catch(() => false);
+  }
+}
+
+export async function sendTestBrowserPushNotification(): Promise<{ attempted: number; sent: number; failed: number }> {
+  return apiFetch("/api/notifications/push/test", { method: "POST", body: JSON.stringify({}) });
 }

@@ -1070,7 +1070,7 @@ function validateQuizQuestions(questions, expectedCount) {
   return valid.slice(0, expectedCount);
 }
 
-export async function generateCourseQuiz({ courseId, lessonId, userId = null, practiceOnly = false }) {
+export async function generateCourseQuiz({ courseId, lessonId, userId = null, practiceOnly = false, excludeQuestions = [] }) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
     error.status = 503;
@@ -1146,7 +1146,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     `Level: ${course.level}`,
     `Quiz scope: ${practiceOnly ? "lesson practice" : located.lesson.quiz.scope}`,
     `Focus topics: ${JSON.stringify(practiceOnly ? (located.lesson.quiz?.focusTopics || []) : (located.lesson.quiz.focusTopics || []))}`,
-    ...(practiceOnly ? ["Create a fresh practice set that directly assesses the selected lesson, including its video title/description or project brief when available. Do not repeat a fixed course assessment."] : []),
+    ...(practiceOnly ? ["Create a fresh practice set that directly assesses the selected lesson, including its video title/description or project brief when available. Do not repeat a fixed course assessment.", "Avoid repeating any question in this exclusion list; create different wording and test different concepts where possible.", `Previously used questions to avoid: ${JSON.stringify((excludeQuestions || []).slice(0, 100))}`] : []),
     `Learning context: ${JSON.stringify(context)}`
   ].join("\n");
 

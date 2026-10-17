@@ -48,6 +48,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(()=>{ void hydrate(); },[]);
 
   useEffect(() => {
+    const handleExpiredSession = () => {
+      setSession(null);
+      setProfile(null);
+      void logoutBrowserPush().catch(() => {});
+    };
+    window.addEventListener('bfs:session-expired', handleExpiredSession);
+    return () => window.removeEventListener('bfs:session-expired', handleExpiredSession);
+  }, []);
+
+  useEffect(() => {
     const userId = session?.user.id;
     if (!userId) return;
     let cancelled = false;

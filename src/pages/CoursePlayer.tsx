@@ -195,10 +195,24 @@ export default function CoursePlayer() {
     setPracticeQuizAnswers({});
     setPracticeQuizSubmitted(false);
     try {
-      const data = await apiFetch("/api/ai/practice-quiz", {
+      let data = await apiFetch("/api/ai/practice-quiz", {
         method: "POST",
         body: JSON.stringify({ courseId, lessonId, mode }),
       });
+      if (data.generating) {
+        setPracticeQuizError("New questions are being prepared in the background. Waiting for the quiz bank...");
+        for (let attempt = 0; attempt < 20 && data.generating; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          data = await apiFetch("/api/ai/practice-quiz", {
+            method: "POST",
+            body: JSON.stringify({ courseId, lessonId, mode: "generate" }),
+          });
+        }
+        if (data.generating || !data.quiz) {
+          throw new Error("New questions are still being prepared. Please try Generate More again shortly.");
+        }
+      }
+      setPracticeQuizError("");
       setPracticeQuizData(data.quiz);
     } catch (err) {
       setPracticeQuizError(err instanceof Error ? err.message : "Unable to generate practice questions.");

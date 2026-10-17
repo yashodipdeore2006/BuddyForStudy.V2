@@ -365,8 +365,8 @@ export default function Settings() {
               <div className="flex items-start gap-3">
                 <Smartphone className="mt-0.5 h-5 w-5 text-slate-400" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-900">Browser and mobile push</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">Enable browser push using the standard Web Push API. Notifications can reach supported browsers and installed web apps when the browser is closed.</p>
+                  <h3 className="font-semibold text-slate-900">Browser and PWA push</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Enable browser push using the standard Web Push API. Notifications can reach supported browsers and installed web apps when the browser is closed. Native Android/iOS apps require a separate native push integration.</p>
                   {!pushAvailable && <p className="mt-2 text-xs text-amber-700">Web Push is not configured. Set WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT in server/.env.</p>}
                 </div>
               </div>

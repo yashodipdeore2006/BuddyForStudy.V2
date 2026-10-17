@@ -372,7 +372,7 @@ export default function Settings() {
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-slate-600">{notifPrefs.pushEnabled ? "Push notifications are enabled for this account." : "Push notifications are currently off."}</p>
-                <button type="button" disabled={savingPush || (!notifPrefs.pushEnabled && !pushAvailable) onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)} className={notifPrefs.pushEnabled ? "btn-secondary" : "btn-primary"}>
+                <button type="button" disabled={savingPush || (!notifPrefs.pushEnabled && !pushAvailable)} onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)} className={notifPrefs.pushEnabled ? "btn-secondary" : "btn-primary"}>
                   {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled ? "Disable push" : "Enable push"}
                 </button>
               </div>

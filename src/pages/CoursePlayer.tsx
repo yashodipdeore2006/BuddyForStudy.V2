@@ -923,8 +923,8 @@ export default function CoursePlayer() {
                       </div>
                     )}
                   </div>
-                      </div>
                     )}
+                  </div>
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
                     <button
                       disabled={!navigation.prev}

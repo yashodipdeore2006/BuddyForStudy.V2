@@ -130,18 +130,18 @@ const pushEndpointSchema = z.object({ endpoint: z.string().url().max(2048) });
 function isAllowedPushEndpoint(value) {
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password) return false;
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
     const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-    if (
-      hostname === "localhost" ||
-      hostname.endsWith(".localhost") ||
-      hostname.endsWith(".local") ||
-      hostname.endsWith(".internal") ||
-      hostname === "metadata.google.internal"
-    ) return false;
-    // Push-service URLs should be public HTTPS hostnames, not IP literals.
     if (isIP(hostname)) return false;
-    return true;
+
+    // Only accept endpoints issued by major browser push services. This avoids
+    // using authenticated registration as an arbitrary outbound-request proxy.
+    return hostname === "fcm.googleapis.com" ||
+      hostname === "web.push.apple.com" ||
+      hostname.endsWith(".push.apple.com") ||
+      hostname === "push.services.mozilla.com" ||
+      hostname.endsWith(".push.services.mozilla.com") ||
+      hostname.endsWith(".notify.windows.com");
   } catch {
     return false;
   }

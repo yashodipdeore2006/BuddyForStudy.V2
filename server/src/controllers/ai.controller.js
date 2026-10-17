@@ -100,7 +100,7 @@ export async function generatePracticeQuiz(req, res, next) {
     if (input.mode === "reattempt") {
       const attempted = bank.filter((item) => item.attempts.some((attempt) => String(attempt.user) === String(req.user.userId)));
       const unique = new Map();
-      for (const item of attempted) for (const question of item.questions) unique.set(question.id, question);
+      for (const item of attempted) for (const question of item.questions) unique.set(`${item._id}-${question.id}`, { ...question.toObject?.() || question, id: `${item._id}-${question.id}` });
       const questions = [...unique.values()];
       if (!questions.length) return failure(res, "You have not taken a quiz for this lesson yet.", 404);
       return success(res, {

@@ -74,6 +74,11 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
   const existing = await Enrollment.findOne({ user: userId, course: courseId });
   if (existing) {
     if (existing.status === "cancelled") {
+      if (existing.revokedBy) {
+        const error = new Error("Access to this course was removed by an administrator. Please contact support.");
+        error.status = 403;
+        throw error;
+      }
       existing.status = "active";
       existing.enrolledAt = new Date();
       await existing.save();

@@ -571,10 +571,6 @@ export default function CoursePlayer() {
                   </div>
 
                   <div className="py-5">
-                    {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
-                      <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
-                    )}
-
                     {(
                       <section className="mb-6 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -628,6 +624,11 @@ export default function CoursePlayer() {
                           </div>
                         )}
                       </section>
+                    )}
+
+
+                    {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
+                      <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}
 
                     {currentLesson.lesson.type === "tutorial" && (

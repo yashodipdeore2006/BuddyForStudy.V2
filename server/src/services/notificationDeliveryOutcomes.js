@@ -22,11 +22,3 @@ export function mailRecipientAccepted(info, recipient) {
   return accepted.some((address) => normalizeEmailAddress(address) === expected);
 }
 
-/**
- * OneSignal can respond with HTTP 200 while creating no notification. Its
- * non-empty response ID is the provider's acknowledgement that a notification
- * request was created; this does not guarantee that a device displayed it.
- */
-export function oneSignalNotificationCreated(result) {
-  return typeof result?.id === "string" && result.id.trim().length > 0;
-}

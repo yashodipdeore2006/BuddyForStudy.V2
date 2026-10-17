@@ -3,6 +3,7 @@ import { Course } from "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { createNotificationEvent } from "./notification.service.js";
 import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
+import { getEntitlement } from "./subscriptionEntitlement.service.js";
 
 async function notifyFreeCourseEnrollment(userId, course, enrollment) {
   if (course.pricing?.mode === "paid") return;
@@ -44,7 +45,7 @@ async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
   }
 }
 
-export async function enroll(userId, courseId) {
+export async function enroll(userId, courseId, { isAdmin = false } = {}) {
   const course = await Course.findOne({ _id: courseId, isPublished: true }).select("_id title pricing enrollmentEnabled");
   if (!course) {
     const error = new Error("Published course not found");
@@ -57,6 +58,17 @@ export async function enroll(userId, courseId) {
   if (course.pricing?.mode === "paid") {
     paidPayment = await Payment.findOne({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } }).sort({ paidAt: -1, createdAt: -1 });
     if (!paidPayment) { const error = new Error("Verified payment is required before enrolling in this course"); error.status = 402; throw error; }
+  }
+
+  // A verified individual purchase grants access to this course independently
+  // of the user's subscription. Free courses still follow the plan entitlement.
+  if (!paidPayment && !isAdmin) {
+    const entitlement = await getEntitlement(userId, "published_courses");
+    if (!entitlement.allowed) {
+      const error = new Error("Free course enrollment is not included in your current plan. Upgrade your plan or purchase an eligible paid course.");
+      error.status = 403;
+      throw error;
+    }
   }
 
   const existing = await Enrollment.findOne({ user: userId, course: courseId });

@@ -682,6 +682,7 @@ export default function CoursePlayer() {
                             </div>
                           </div>
                         )}
+                      </section>
                     )}
                     {lessonTab === "progress" && (
                       <section className="rounded-2xl border border-slate-200 bg-white p-5">

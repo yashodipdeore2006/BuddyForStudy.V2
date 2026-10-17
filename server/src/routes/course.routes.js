@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as controller from "../controllers/course.controller.js";
-import { requireFeature, requireFeatureIfAuthenticated, requireCourseOrFeature } from "../middleware/subscription.middleware.js";
+import { requireFeatureIfAuthenticated, requireCourseOrFeature } from "../middleware/subscription.middleware.js";
 import { authMiddleware, adminMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 
 const router = Router();

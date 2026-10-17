@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { connectDatabase } from "../config/db.js";
 import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
+import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
 import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";

@@ -187,7 +187,7 @@ export default function CoursePlayer() {
     }
   };
 
-  const handleGeneratePracticeQuiz = async () => {
+  const handleGeneratePracticeQuiz = async (mode: "generate" | "reattempt" = "generate") => {
     if (!courseId || !lessonId) return;
     setPracticeQuizLoading(true);
     setPracticeQuizError("");
@@ -197,7 +197,7 @@ export default function CoursePlayer() {
     try {
       const data = await apiFetch("/api/ai/practice-quiz", {
         method: "POST",
-        body: JSON.stringify({ courseId, lessonId }),
+        body: JSON.stringify({ courseId, lessonId, mode }),
       });
       setPracticeQuizData(data.quiz);
     } catch (err) {
@@ -207,10 +207,27 @@ export default function CoursePlayer() {
     }
   };
 
-  const handlePracticeQuizSubmit = () => {
+  const handlePracticeQuizSubmit = async () => {
     const questions = practiceQuizData?.questions || [];
     if (!questions.length || questions.some((question: any) => !practiceQuizAnswers[question.id])) return;
     setPracticeQuizSubmitted(true);
+    try {
+      if (practiceQuizData.quizBankId || practiceQuizData.quizBankIds?.length) {
+        await apiFetch("/api/ai/practice-quiz/submit", {
+          method: "POST",
+          body: JSON.stringify({
+            courseId,
+            lessonId,
+            quizBankId: practiceQuizData.quizBankId,
+            quizBankIds: practiceQuizData.quizBankIds || [],
+            score: Math.round((questions.filter((question: any) => practiceQuizAnswers[question.id] === question.correctOptionId).length / questions.length) * 100),
+            answers: practiceQuizAnswers
+          })
+        });
+      }
+    } catch (err) {
+      setPracticeQuizError(err instanceof Error ? err.message : "Quiz score could not be saved.");
+    }
   };
 
   const practiceQuizScore = practiceQuizData?.questions?.length
@@ -618,7 +635,15 @@ export default function CoursePlayer() {
                               {!practiceQuizSubmitted ? (
                                 <button type="button" onClick={handlePracticeQuizSubmit} disabled={Object.keys(practiceQuizAnswers).length !== practiceQuizData.questions.length} className="btn-primary justify-center">Check answers</button>
                               ) : (
-                                <button type="button" onClick={() => { setPracticeQuizData(null); setPracticeQuizAnswers({}); setPracticeQuizSubmitted(false); void handleGeneratePracticeQuiz(); }} disabled={practiceQuizLoading} className="btn-secondary justify-center">Try a fresh set</button>
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                  <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                                    {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                    Generate More
+                                  </button>
+                                  <button type="button" onClick={() => void handleGeneratePracticeQuiz("reattempt")} disabled={practiceQuizLoading} className="btn-secondary justify-center">
+                                    Reattempt
+                                  </button>
+                                </div>
                               )}
                             </div>
                           </div>

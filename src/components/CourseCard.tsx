@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Course } from '@/types';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Clock, ChevronRight, Users, Bookmark, Loader2, PlayCircle } from 'lucide-react';
+import { BookOpen, Clock, ChevronRight, Users, Bookmark, Loader2, PlayCircle, Star } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { classNames } from '@/lib/utils';
 import { countAllLessons } from '@/lib/courseUtils';
@@ -43,6 +43,17 @@ export default function CourseCard({
   const [saved, setSaved] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [rating, setRating] = useState<{ average: number; count: number }>({ average: 0, count: 0 });
+
+  useEffect(() => {
+    let active = true;
+    apiFetch(`/api/reviews/courses/${course.id}`)
+      .then((data) => { if (active) setRating(data.stats || { average: 0, count: 0 }); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [course.id]);
+
+  const formatPrice = (amount: number, currency = 'INR') => new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amount);
 
   const saveCourse = async (event: React.MouseEvent) => {
     event.preventDefault();
@@ -73,17 +84,8 @@ export default function CourseCard({
       navigate('/login', { state: { from: { pathname: '/courses/' + course.id } } });
       return;
     }
-    setEnrolling(true);
-    setActionError('');
-    try {
-      await apiFetch('/api/enrollments/' + course.id, { method: 'POST' });
-      setEnrolled(true);
-      navigate('/courses/' + course.id + '/roadmap');
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Unable to enroll in course.');
-    } finally {
-      setEnrolling(false);
-    }
+    navigate('/courses/' + course.id);
+
   };
 
   return (
@@ -120,7 +122,7 @@ export default function CourseCard({
         </span>
       </Link>
 
-      <div className="flex flex-1 flex-col p-3.5">
+      <div className="flex flex-1 flex-col p-3">
         <div className="flex min-h-5 items-center justify-between gap-2">
           <span className="truncate text-[10px] font-extrabold uppercase tracking-[.16em] text-blue-600" title={course.category}>
             {course.category || 'Learning path'}
@@ -144,6 +146,20 @@ export default function CourseCard({
         <p className="mt-1.5 line-clamp-2 min-h-[2.4rem] text-xs leading-[1.2rem] text-slate-500">
           {course.description || 'Build practical skills with this structured learning experience.'}
         </p>
+
+        <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+          <span className="inline-flex items-center gap-1 font-semibold text-amber-600" aria-label={`Rating ${rating.average.toFixed(1)} out of 5`}>
+            <Star className="h-3.5 w-3.5 fill-current" />
+            <span>{rating.count ? rating.average.toFixed(1) : 'New'}</span>
+            <span className="font-medium text-slate-400">{rating.count ? `(${rating.count})` : '(no reviews)'}</span>
+          </span>
+          <span className="text-right font-extrabold text-slate-900">
+            {course.pricing?.mode === 'paid'
+              ? formatPrice(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price, course.pricing.currency || 'INR')
+              : 'Free'}
+            {course.pricing?.mode === 'paid' && course.pricing.compareAtPrice && course.pricing.compareAtPrice > (course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price) && <span className="ml-1 font-medium text-slate-400 line-through">{formatPrice(course.pricing.compareAtPrice, course.pricing.currency || 'INR')}</span>}
+          </span>
+        </div>
 
         <div className="mt-2.5 flex min-h-[38px] items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px] font-medium text-slate-500">
@@ -192,7 +208,7 @@ export default function CourseCard({
                 disabled={saving || saved}
                 aria-label={saved ? 'Course saved' : 'Save course'}
                 className={classNames(
-                  'inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default',
+                  'inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default',
                   saved
                     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60',
@@ -205,7 +221,7 @@ export default function CourseCard({
                 type="button"
                 onClick={enrollCourse}
                 disabled={enrolling || enrolled}
-                className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-black px-2 py-2 text-xs font-bold text-white transition-colors duration-200 hover:bg-[#444950] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
+                className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg bg-black px-2 py-1 text-[11px] font-bold text-white transition-colors duration-200 hover:bg-[#444950] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
               >
                 {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : enrolled ? <BookOpen className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 {enrolling ? 'Enrolling…' : enrolled ? 'Enrolled' : 'Enroll'}
@@ -214,7 +230,7 @@ export default function CourseCard({
             {actionError && <p role="alert" className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}
             <Link
               to={"/courses/" + course.id}
-              className="mt-1.5 inline-flex min-h-8 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-950 transition-colors duration-200 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="mt-1.5 inline-flex min-h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-950 transition-colors duration-200 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               <PlayCircle className="h-4 w-4" /> Preview course
             </Link>

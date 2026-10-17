@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch, clearAuth, getToken, setAuth } from '@/lib/api';
-import { identifyBrowserPush, logoutBrowserPush } from '@/lib/pushNotifications';
+import { syncBrowserPushSubscription, logoutBrowserPush } from '@/lib/pushNotifications';
 import type { Profile } from '@/types';
 
 export interface AppSession { user: { id: string; email: string; name: string; role: 'user'|'admin'; authProvider: 'local'|'google'|'local_google'; profileImage?: string; }; }
@@ -18,8 +18,6 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
 }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-const PUSH_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || "";
-
 function profileFromUser(u:any):Profile {
   return {id:u.id,name:u.name,role:u.role,auth_provider:u.authProvider,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
 }
@@ -42,8 +40,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data=await apiFetch('/api/auth/me');
       applyUser(data.user);
     } catch {
+      try { await logoutBrowserPush(); } catch {}
       clearAuth(); setSession(null); setProfile(null);
-      if (PUSH_APP_ID) void logoutBrowserPush(PUSH_APP_ID).catch(() => {});
     } finally { setLoading(false); }
   };
 
@@ -51,16 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const userId = session?.user.id;
-    if (!userId || !PUSH_APP_ID) return;
+    if (!userId) return;
     let cancelled = false;
     void (async () => {
       try {
         const data = await apiFetch("/api/notifications/preferences");
         if (!cancelled && data.preferences?.pushEnabled === true) {
-          await identifyBrowserPush(userId, PUSH_APP_ID);
+          await syncBrowserPushSubscription();
         }
       } catch {
-        // Push identity restoration must never block sign-in or normal app usage.
+        // Browser push subscription restoration must never block normal app usage.
       }
     })();
     return () => { cancelled = true; };
@@ -122,9 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut=async()=>{
-    if (PUSH_APP_ID) {
-      try { await logoutBrowserPush(PUSH_APP_ID); } catch {}
-    }
+    try { await logoutBrowserPush(); } catch {}
     try{if(getToken()) await apiFetch('/api/auth/logout',{method:'POST'});}catch{}
     clearAuth();
     setSession(null);setProfile(null);

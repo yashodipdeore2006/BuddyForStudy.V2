@@ -693,6 +693,7 @@ export default function CoursePlayer() {
                       </section>
                     )}
                     {lessonTab === "lesson" && (
+                      <div className="space-y-4">
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}
@@ -922,7 +923,7 @@ export default function CoursePlayer() {
                       </div>
                     )}
                   </div>
-
+                      </div>
                     )}
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
                     <button

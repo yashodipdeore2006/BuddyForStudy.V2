@@ -10,6 +10,9 @@ import {
   UserCheck,
   UserX,
   X,
+  BookOpen,
+  Plus,
+  Minus,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
@@ -33,6 +36,11 @@ export default function AdminUsersPro() {
   const [selected, setSelected] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [courseAccess, setCourseAccess] = useState<any[]>([]);
+  const [courseAccessLoading, setCourseAccessLoading] = useState(false);
+  const [courseActionId, setCourseActionId] = useState<string | null>(null);
+  const [courseSearch, setCourseSearch] = useState("");
+  const [courseReason, setCourseReason] = useState("");
 
   async function load(page = 1, filters = { q, status, role, authProvider }) {
     setLoading(true);
@@ -85,13 +93,56 @@ export default function AdminUsersPro() {
   async function openUser(userId: string) {
     setDetailLoading(true);
     setSelected(null);
+    setCourseAccess([]);
+    setCourseSearch("");
+    setCourseReason("");
     try {
-      const data = await adminFetch("/api/admin/users/" + userId);
+      const [data, courseData] = await Promise.all([
+        adminFetch("/api/admin/users/" + userId),
+        adminFetch("/api/admin/users/" + userId + "/courses"),
+      ]);
       setSelected(data);
+      setCourseAccess(courseData.courses || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load user details");
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function changeCourseAccess(course: any) {
+    if (!selected?.user?._id || !course?._id) return;
+    const currentlyHasAccess = ["active", "completed"].includes(course.enrollment?.status);
+    const reason = courseReason.trim();
+    if (!reason) {
+      setError("Enter a reason before changing course access.");
+      return;
+    }
+    const action = currentlyHasAccess ? "remove" : "grant";
+    const confirmed = window.confirm(
+      currentlyHasAccess
+        ? `Remove ${course.title} from ${selected.user.name}'s account? This does not refund or delete any payment.`
+        : `Grant ${course.title} to ${selected.user.name}'s account? This will not create a payment record.`
+    );
+    if (!confirmed) return;
+    setCourseActionId(String(course._id));
+    setError("");
+    try {
+      const endpoint = `/api/admin/users/${selected.user._id}/courses/${course._id}`;
+      if (currentlyHasAccess) {
+        await adminFetch(endpoint, { method: "DELETE", body: JSON.stringify({ reason }) });
+      } else {
+        await adminFetch(endpoint, { method: "POST", body: JSON.stringify({ reason }) });
+      }
+      const refreshed = await adminFetch(`/api/admin/users/${selected.user._id}/courses`);
+      setCourseAccess(refreshed.courses || []);
+      const detail = await adminFetch(`/api/admin/users/${selected.user._id}`);
+      setSelected(detail);
+      setCourseReason("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Unable to ${action} course access`);
+    } finally {
+      setCourseActionId(null);
     }
   }
 
@@ -295,6 +346,41 @@ export default function AdminUsersPro() {
                 ))}
                 {!selected.enrollments?.length && <p className="text-sm text-slate-500">No enrollments.</p>}
               </div>
+            </section>
+
+            <section className="mt-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-900">Individual course access</h3>
+                  <p className="mt-1 text-xs text-slate-500">Grant or remove a specific course for this user. Changes are recorded in the audit log.</p>
+                </div>
+                <span className="badge bg-blue-50 text-blue-700">{courseAccess.filter((course) => ["active", "completed"].includes(course.enrollment?.status)).length} active</span>
+              </div>
+              <div className="mt-3">
+                <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="course-access-reason">Reason required for audit</label>
+                <textarea id="course-access-reason" className="input-field min-h-20 w-full" maxLength={500} value={courseReason} onChange={(e) => setCourseReason(e.target.value)} placeholder="e.g. Support-approved complimentary access" />
+                <label className="sr-only" htmlFor="course-access-search">Search courses</label>
+                <div className="relative mt-3"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input id="course-access-search" className="input-field pl-10" value={courseSearch} onChange={(e) => setCourseSearch(e.target.value)} placeholder="Search published courses" /></div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {courseAccessLoading ? <div className="p-5 text-center text-sm text-slate-500"><RefreshCcw className="mx-auto animate-spin" /></div> : courseAccess.filter((course) => `${course.title} ${course.category} ${course.slug}`.toLowerCase().includes(courseSearch.toLowerCase())).map((course) => {
+                  const hasAccess = ["active", "completed"].includes(course.enrollment?.status);
+                  const isPaid = course.pricing?.mode === "paid";
+                  return <div key={course._id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{course.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">{course.category || "Course"} · {isPaid ? "Paid course" : "Free course"} · {course.enrollment?.accessSource === "admin" ? "Admin grant" : course.hasVerifiedPayment ? "Payment verified" : course.enrollment ? "Enrollment" : "Not assigned"}</p>
+                      {course.enrollment?.status === "completed" && <p className="mt-1 text-xs text-emerald-700">Completed enrollment</p>}
+                    </div>
+                    <button type="button" className={hasAccess ? "btn-secondary shrink-0 text-xs" : "btn-primary shrink-0 text-xs"} disabled={courseActionId === course._id} onClick={() => void changeCourseAccess(course)}>
+                      {courseActionId === course._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : hasAccess ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                      {hasAccess ? "Remove" : "Grant"}
+                    </button>
+                  </div>;
+                })}
+                {!courseAccessLoading && !courseAccess.filter((course) => `${course.title} ${course.category} ${course.slug}`.toLowerCase().includes(courseSearch.toLowerCase())).length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No published courses match this search.</p>}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">Removing access cancels this enrollment only. It does not delete the course or alter payment/refund records. Granting access does not create a purchase or receipt.</p>
             </section>
 
             <section className="mt-6">

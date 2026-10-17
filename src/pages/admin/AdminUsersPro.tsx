@@ -94,6 +94,7 @@ export default function AdminUsersPro() {
     setDetailLoading(true);
     setSelected(null);
     setCourseAccess([]);
+    setCourseAccessLoading(true);
     setCourseSearch("");
     setCourseReason("");
     try {
@@ -107,6 +108,7 @@ export default function AdminUsersPro() {
       setError(e instanceof Error ? e.message : "Unable to load user details");
     } finally {
       setDetailLoading(false);
+      setCourseAccessLoading(false);
     }
   }
 

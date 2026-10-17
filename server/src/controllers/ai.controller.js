@@ -146,6 +146,11 @@ export async function generatePracticeQuiz(req, res, next) {
       }, "Lesson quiz loaded from shared question bank");
     }
 
+    const jobKey = `${input.courseId}:${input.lessonId}`;
+    if (quizGenerationJobs.has(jobKey)) {
+      return success(res, { courseId: input.courseId, lessonId: input.lessonId, generating: true }, "New lesson questions are being prepared");
+    }
+
     const excluded = bank.flatMap((item) => item.questions.map((question) => question.question)).slice(0, 150);
     const generated = await generateCourseQuiz({
       courseId: input.courseId,

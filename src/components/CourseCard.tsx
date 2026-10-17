@@ -84,7 +84,7 @@ export default function CourseCard({
       navigate('/login', { state: { from: { pathname: '/courses/' + course.id } } });
       return;
     }
-    navigate('/courses/' + course.id);
+    navigate('/pricing?courseId=' + encodeURIComponent(course.id));
 
   };
 

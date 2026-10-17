@@ -5,7 +5,7 @@ import { isValidObjectId } from "../utils/ids.js";
 export async function enroll(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const enrollment = await service.enroll(req.user.userId, req.params.courseId);
+    const enrollment = await service.enroll(req.user.userId, req.params.courseId, { isAdmin: req.user.role === "admin" && req.user.accessType === "admin" });
     return success(res, { enrollment }, "Course enrollment successful", 201);
   } catch (e) { next(e); }
 }

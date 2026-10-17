@@ -3,7 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3 } from "lucide-react";
-import { disableBrowserPush, enableBrowserPush, sendTestBrowserPushNotification } from "@/lib/pushNotifications";
+import { disableBrowserPush, enableBrowserPush } from "@/lib/pushNotifications";
 
 type NotificationPreferences = {
   emailCourseUpdates: boolean;

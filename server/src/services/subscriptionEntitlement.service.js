@@ -1,3 +1,6 @@
+import { Course } from "../models/Course.js";
+import { Enrollment } from "../models/Enrollment.js";
+import { Payment } from "../models/Payment.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
@@ -53,4 +56,15 @@ export function readPlanLimit(plan, key, fallback = -1) {
   else if (raw && typeof raw === "object") value = raw[key];
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/** Returns true only when the learner has a verified paid-course enrollment. */
+export async function hasPaidCourseAccess(userId, courseId) {
+  const course = await Course.findOne({ _id: courseId, isPublished: true, "pricing.mode": "paid" }).select("_id").lean();
+  if (!course) return false;
+  const [enrollment, payment] = await Promise.all([
+    Enrollment.exists({ user: userId, course: courseId, status: { $in: ["active", "completed"] } }),
+    Payment.exists({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } })
+  ]);
+  return Boolean(enrollment && payment);
 }

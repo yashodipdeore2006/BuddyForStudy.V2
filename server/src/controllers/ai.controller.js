@@ -170,8 +170,15 @@ export async function generatePracticeQuiz(req, res, next) {
       });
     } catch (error) {
       if (error?.code !== 11000) throw error;
-      saved = await QuizBank.findOne(filter).sort({ generatedAt: 1 });
-      if (!saved) throw error;
+      saved = await QuizBank.findOne({
+        ...filter,
+        attempts: { $not: { $elemMatch: { user: req.user.userId } } }
+      }).sort({ generatedAt: 1 });
+      if (!saved) {
+        const unavailable = new Error("AI generated a duplicate quiz set. Please try Generate More again.");
+        unavailable.status = 503;
+        throw unavailable;
+      }
     }
 
     return success(res, {
@@ -192,7 +199,7 @@ export async function submitPracticeQuiz(req, res, next) {
       lessonId: z.string().trim().min(1),
       quizBankId: z.string().trim().min(1).optional(),
       quizBankIds: z.array(z.string().trim().min(1)).default([]),
-      score: z.number().min(0).max(100),
+      score: z.number().min(0).max(100).optional(),
       answers: z.record(z.string(), z.string()).default({})
     });
     const input = schema.parse(req.body);
@@ -201,7 +208,14 @@ export async function submitPracticeQuiz(req, res, next) {
     const bankQuizzes = await QuizBank.find({ _id: { $in: ids }, course: input.courseId, lesson: input.lessonId });
     if (!bankQuizzes.length) return failure(res, "Quiz set not found", 404);
     for (const bankQuiz of bankQuizzes) {
-      bankQuiz.attempts.push({ user: req.user.userId, score: input.score, answers: input.answers, attemptedAt: new Date() });
+      const reattempt = input.quizBankIds.includes(String(bankQuiz._id));
+      const questions = bankQuiz.questions || [];
+      const correct = questions.filter((question) => {
+        const answerKey = reattempt ? `${bankQuiz._id}-${question.id}` : question.id;
+        return input.answers[answerKey] === question.correctOptionId;
+      }).length;
+      const score = questions.length ? Math.round((correct / questions.length) * 100) : 0;
+      bankQuiz.attempts.push({ user: req.user.userId, score, answers: input.answers, attemptedAt: new Date() });
       await bankQuiz.save();
     }
     const allLessonQuizzes = await QuizBank.find({ course: input.courseId, lesson: input.lessonId });

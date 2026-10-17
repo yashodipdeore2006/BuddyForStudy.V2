@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Pricing() {
   const { session } = useAuth();
+  const [searchParams] = useSearchParams();
+  const courseId = searchParams.get("courseId");
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     apiFetch("/api/billing/plans")
-      .then((data) => setPlans(data.plans || []))
+      .then((data) => setPlans([...(data.plans || [])].sort((a, b) => Number(b.price || 0) - Number(a.price || 0)))
       .catch(() => setMessage({ type: "error", text: "Unable to load plans" }));
   }, []);
 
@@ -94,7 +97,7 @@ export default function Pricing() {
     }
   }
 
-  return <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8"><div className="text-center"><h1 className="text-3xl font-bold text-slate-900">Choose your plan</h1><p className="mt-2 text-slate-500">Unlock more from BuddyForStudy.</p></div>
+  return <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8"><div className="text-center"><h1 className="text-3xl font-bold text-slate-900">Choose how you want to learn</h1><p className="mt-2 text-slate-500">Choose a subscription for broad access, or purchase one course once with no subscription required.</p></div>
     {message && (
       <div className={`mx-auto mt-6 max-w-xl rounded-lg p-3 text-sm ${
         message.type === "success"
@@ -106,12 +109,13 @@ export default function Pricing() {
         {message.text}
       </div>
     )}
-    <div className="mt-10 grid gap-6 md:grid-cols-3">{plans.map((plan) => <div key={plan._id} className="flex h-full flex-col rounded-[32px] border border-slate-200 bg-white p-7"><h2 className="text-xl font-medium text-slate-950">{plan.name}</h2><p className="mt-2 text-3xl font-medium tracking-tight text-slate-950">₹{plan.price}<span className="text-sm font-normal text-slate-500">/{plan.billingInterval}</span></p><p className="mt-3 text-sm text-slate-500">{plan.description}</p><ul className="mt-5 space-y-2 text-sm text-slate-600">{(plan.features || []).map((f:string)=><li key={f}>✓ {f}</li>)}</ul><button
+    <div className="mt-10 grid gap-6 md:grid-cols-3">{plans.map((plan, index) => <div key={plan._id} className={`flex h-full flex-col rounded-[32px] border bg-white p-7 ${index === 0 ? "border-blue-500 ring-2 ring-blue-100 shadow-lg" : "border-slate-200"}`}>{index === 0 && <span className="mb-3 self-start rounded-full bg-blue-600 px-3 py-1 text-xs font-bold text-white">Recommended · Highest access</span>}<h2 className="text-xl font-medium text-slate-950">{plan.name}</h2><p className="mt-2 text-3xl font-medium tracking-tight text-slate-950">₹{plan.price}<span className="text-sm font-normal text-slate-500">/{plan.billingInterval}</span></p><p className="mt-3 text-sm text-slate-500">{plan.description}</p><ul className="mt-5 space-y-2 text-sm text-slate-600">{(plan.features || []).map((f:string)=><li key={f}>✓ {f}</li>)}</ul><button
   disabled={loading===plan._id || plan.price===0}
   onClick={()=>subscribe(plan._id)}
   className={`mt-auto mt-6 w-full ${plan.price===0 ? "btn-secondary" : "btn-buy"}`}
 >
   {plan.price===0 ? "Included" : loading===plan._id ? "Opening Checkout..." : "Subscribe"}
 </button></div>)}</div>
+    {courseId && <section className="mx-auto mt-10 max-w-3xl rounded-3xl border border-emerald-200 bg-emerald-50 p-6 sm:flex sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Prefer a one-time purchase?</p><h2 className="mt-1 text-xl font-bold text-slate-900">Buy just this course</h2><p className="mt-1 text-sm text-slate-600">Pay once for this course, Udemy-style. No subscription required.</p></div><Link to={`/courses/${encodeURIComponent(courseId)}`} className="mt-4 inline-flex rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 sm:mt-0">View course price and buy</Link></section>}
   </div>;
 }

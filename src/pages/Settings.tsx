@@ -358,7 +358,6 @@ export default function Settings() {
                   {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled ? "Disable push" : "Enable push"}
                 </button>
               </div>
-              {pushTestMessage && <p role="status" className="mt-3 text-sm text-green-700">{pushTestMessage}</p>}
             </div>
           </div>
         )}

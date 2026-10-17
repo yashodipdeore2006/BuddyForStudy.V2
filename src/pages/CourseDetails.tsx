@@ -54,6 +54,18 @@ export default function CourseDetails() {
   const [reviewSaving, setReviewSaving] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
+  const [purchaseChoice, setPurchaseChoice] = useState<'subscription' | 'individual'>('subscription');
+
+  useEffect(() => {
+    let active = true;
+    apiFetch('/api/billing/plans')
+      .then((data) => {
+        if (active) setSubscriptionPlans([...(data.plans || [])].sort((a, b) => Number(b.price || 0) - Number(a.price || 0)));
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     async function fetchCourse() {
@@ -445,26 +457,33 @@ export default function CourseDetails() {
         {/* Sidebar */}
         <div className="lg:col-span-1">
           <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-6">
-            {isPaidCourse && (
-              <div className="mb-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-3xl font-bold tracking-tight text-slate-950">{formatCoursePrice(salePrice, currency)}</span>
-                  {discountPercent > 0 && (
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                      {discountPercent}% off
+            {isPaidCourse && !isEnrolled && (
+              <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200">
+                <label className={classNames("block cursor-pointer p-4 transition-colors", purchaseChoice === 'subscription' ? "bg-violet-50/70" : "bg-white hover:bg-slate-50")}>
+                  <span className="flex items-start gap-3">
+                    <input type="radio" name="purchase-choice" value="subscription" checked={purchaseChoice === 'subscription'} onChange={() => setPurchaseChoice('subscription')} className="mt-1 h-4 w-4 accent-violet-600" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm text-slate-600">Subscribe and save</span>
+                      <span className="mt-0.5 block text-xl font-bold text-slate-950">From {subscriptionPlans.length ? formatCoursePrice(Number(subscriptionPlans[0].price || 0), 'INR') : 'subscription plans'}<span className="text-xs font-normal text-slate-500">{subscriptionPlans.length ? ' /' + (subscriptionPlans[0].billingInterval || 'month') : ''}</span></span>
+                      <span className="mt-2 block rounded-lg bg-violet-100 p-2.5 text-xs leading-5 text-violet-900">Subscribers can access published courses and included learning features according to their plan.</span>
+                      <span className="mt-3 block space-y-2 text-xs text-slate-600">
+                        <span className="flex items-center gap-2"><BookOpen className="h-4 w-4" />Access courses included with your plan</span>
+                        <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Manage or cancel according to plan terms</span>
+                      </span>
                     </span>
-                  )}
-                </div>
-                {crossedPrice > salePrice && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>
-                    <span className="text-xs text-slate-500">One-time payment</span>
-                  </div>
-                )}
-                <div className="mt-4 space-y-2 text-sm text-slate-600">
-                  <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Buy once, keep course access</div>
-                  <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-emerald-600" />No subscription required</div>
-                </div>
+                  </span>
+                </label>
+                <label className={classNames("block cursor-pointer border-t border-slate-200 p-4 transition-colors", purchaseChoice === 'individual' ? "bg-emerald-50/70" : "bg-white hover:bg-slate-50")}>
+                  <span className="flex items-start gap-3">
+                    <input type="radio" name="purchase-choice" value="individual" checked={purchaseChoice === 'individual'} onChange={() => setPurchaseChoice('individual')} className="mt-1 h-4 w-4 accent-emerald-600" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm text-slate-600">Buy individual course</span>
+                      <span className="mt-0.5 block text-xl font-bold text-slate-950">{formatCoursePrice(salePrice, currency)}</span>
+                      {crossedPrice > salePrice && <span className="ml-1 text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>}
+                      <span className="mt-1 block text-xs text-slate-500">One-time payment · keep access to this course</span>
+                    </span>
+                  </span>
+                </label>
               </div>
             )}
             {checkoutNotice && <div role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{checkoutNotice}</div>}
@@ -494,14 +513,14 @@ export default function CourseDetails() {
             ) : (
               <div>
                 <button
-                  onClick={isPaidCourse ? handleCheckout : handleEnroll}
+                  onClick={isPaidCourse ? (purchaseChoice === 'subscription' ? () => navigate('/pricing') : handleCheckout) : handleEnroll}
                   disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled}
-                  className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse ? "btn-buy" : "btn-primary")}
+                  className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse && purchaseChoice === 'individual' ? "btn-buy" : "btn-primary")}
                 >
                   {enrolling || checkoutLoading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
                   ) : isPaidCourse ? (
-                    session ? `Buy Now · ${formatCoursePrice(salePrice, currency)}` : 'Sign in to buy'
+                    purchaseChoice === 'subscription' ? (session ? 'Start subscription' : 'Sign in to subscribe') : (session ? 'Buy individual course · ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')
                   ) : session ? 'Enroll Now — Free' : 'Sign in to enroll'}
                 </button>
                 {!session && <p className="mt-3 text-center text-xs text-slate-500">Sign in or create a free account to continue.</p>}

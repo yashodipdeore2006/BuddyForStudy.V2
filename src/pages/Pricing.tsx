@@ -15,6 +15,7 @@ export default function Pricing() {
   useEffect(() => {
     apiFetch("/api/billing/plans")
       .then((data) => {
+<<<<<<< HEAD
         const sortedPlans = [...(data.plans || [])].sort(
           (a, b) => Number(b.price || 0) - Number(a.price || 0)
         );
@@ -26,6 +27,12 @@ export default function Pricing() {
           text: "Unable to load plans",
         })
       );
+=======
+        const sortedPlans = [...(data.plans || [])].sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+        setPlans(sortedPlans);
+      })
+      .catch(() => setMessage({ type: "error", text: "Unable to load plans" }));
+>>>>>>> d1f40c92d5a738d706f5bf6f912f99222bce258f
   }, []);
 
   async function subscribe(planId: string) {

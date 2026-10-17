@@ -87,8 +87,6 @@ export default function Settings() {
   const [notifError, setNotifError] = useState("");
   const [pushAvailable, setPushAvailable] = useState(false);
   const [savingPush, setSavingPush] = useState(false);
-  const [testingPush, setTestingPush] = useState(false);
-  const [pushTestMessage, setPushTestMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -168,10 +166,9 @@ export default function Settings() {
     setSavingPush(true);
     setNotifError("");
     setNotifSuccess(false);
-    setPushTestMessage("");
     try {
       if (enabled) {
-        if (!pushAvailable) throw new Error("Web Push is not configured. Add WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT to server/.env.");
+        if (!pushAvailable) throw new Error("Notifications are temporarily unavailable. Please try again later.");
         await enableBrowserPush();
       } else {
         await disableBrowserPush();
@@ -188,20 +185,6 @@ export default function Settings() {
       setNotifError(error instanceof Error ? error.message : "Unable to update push notifications.");
     } finally {
       setSavingPush(false);
-    }
-  };
-
-  const handlePushTest = async () => {
-    setTestingPush(true);
-    setNotifError("");
-    setPushTestMessage("");
-    try {
-      const result = await sendTestBrowserPushNotification();
-      setPushTestMessage(`Test push submitted to ${result.sent} device(s).${result.failed ? ` ${result.failed} device(s) failed.` : ""} Check your OS notification panel.`);
-    } catch (error) {
-      setNotifError(error instanceof Error ? error.message : "Unable to send a test push notification.");
-    } finally {
-      setTestingPush(false);
     }
   };
 
@@ -365,9 +348,8 @@ export default function Settings() {
               <div className="flex items-start gap-3">
                 <Smartphone className="mt-0.5 h-5 w-5 text-slate-400" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-900">Browser and PWA push</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">Enable browser push using the standard Web Push API. Notifications can reach supported browsers and installed web apps when the browser is closed. Native Android/iOS apps require a separate native push integration.</p>
-                  {!pushAvailable && <p className="mt-2 text-xs text-amber-700">Web Push is not configured. Set WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT in server/.env.</p>}
+                  <h3 className="font-semibold text-slate-900">Desktop notifications</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Get important learning updates and reminders from BuddyForStudy on this browser.</p>
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -377,7 +359,6 @@ export default function Settings() {
                 </button>
               </div>
               {pushTestMessage && <p role="status" className="mt-3 text-sm text-green-700">{pushTestMessage}</p>}
-              {notifPrefs.pushEnabled && <div className="mt-3"><button type="button" disabled={testingPush} onClick={() => void handlePushTest()} className="btn-secondary">{testingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Sending test...</> : "Send test push"}</button></div>}
             </div>
           </div>
         )}

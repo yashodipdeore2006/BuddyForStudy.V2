@@ -62,9 +62,18 @@ export function readPlanLimit(plan, key, fallback = -1) {
 export async function hasPaidCourseAccess(userId, courseId) {
   const course = await Course.findOne({ _id: courseId, isPublished: true, "pricing.mode": "paid" }).select("_id").lean();
   if (!course) return false;
-  const [enrollment, payment] = await Promise.all([
-    Enrollment.exists({ user: userId, course: courseId, status: { $in: ["active", "completed"] } }),
-    Payment.exists({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } })
-  ]);
-  return Boolean(enrollment && payment);
+  const enrollment = await Enrollment.findOne({
+    user: userId,
+    course: courseId,
+    status: { $in: ["active", "completed"] }
+  }).select("accessSource").lean();
+  if (!enrollment) return false;
+  if (enrollment.accessSource === "admin") return true;
+  const payment = await Payment.exists({
+    user: userId,
+    course: courseId,
+    provider: "razorpay",
+    status: { $in: ["paid", "partially_refunded"] }
+  });
+  return Boolean(payment);
 }

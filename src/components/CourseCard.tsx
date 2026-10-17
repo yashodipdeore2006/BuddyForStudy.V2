@@ -80,11 +80,7 @@ export default function CourseCard({
   const enrollCourse = async (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!session) {
-      navigate('/login', { state: { from: { pathname: '/courses/' + course.id } } });
-      return;
-    }
-    navigate('/pricing?courseId=' + encodeURIComponent(course.id));
+    navigate('/courses/' + course.id);
 
   };
 

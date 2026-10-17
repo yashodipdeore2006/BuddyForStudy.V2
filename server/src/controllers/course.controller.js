@@ -2,7 +2,7 @@ import { z } from "zod";
 import * as courseService from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
-import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
+import { getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
 
 const courseSchema = z.object({
   title: z.string().trim().min(2),
@@ -108,8 +108,9 @@ export async function learn(req, res, next) {
     );
 
     const projectsAllowed =
-      req.user.role === "admin" ||
-      (await getEntitlement(req.user.userId, "project_based_learning")).allowed;
+      (req.user.role === "admin" && req.user.accessType === "admin") ||
+      (await getEntitlement(req.user.userId, "project_based_learning")).allowed ||
+      (await hasPaidCourseAccess(req.user.userId, req.params.courseId));
 
     if (!projectsAllowed) {
       course.modules = (course.modules || []).map((module) => ({
@@ -137,8 +138,9 @@ export async function learningItem(req, res, next) {
 
     if (
       located.item.type === "project" &&
-      req.user.role !== "admin" &&
-      !(await getEntitlement(req.user.userId, "project_based_learning")).allowed
+      !(req.user.role === "admin" && req.user.accessType === "admin") &&
+      !(await getEntitlement(req.user.userId, "project_based_learning")).allowed &&
+      !(await hasPaidCourseAccess(req.user.userId, courseId))
     ) {
       return failure(res, "Project-based learning is not included in your current plan.", 403);
     }

@@ -19,10 +19,16 @@ import {
   Loader2,
   ListChecks,
   Star,
+  ShieldCheck,
+  Tag,
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
+
+function formatCoursePrice(amount: number, currency = 'INR') {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
+}
 
 const levelColors: Record<string, string> = {
   Beginner: 'bg-green-50 text-green-700',
@@ -47,6 +53,7 @@ export default function CourseDetails() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCourse() {
@@ -127,10 +134,19 @@ export default function CourseDetails() {
   }, [courseId, session]);
 
   const handleCheckout = async () => {
-    if (!session || !courseId || !course) return;
-    setCheckoutLoading(true); setError(null);
+    if (!session) {
+      navigate('/login', { state: { from: { pathname: `/courses/${courseId}` } } });
+      return;
+    }
+    if (!courseId || !course) return;
+    setCheckoutLoading(true);
+    setError(null);
+    setCheckoutNotice(null);
     try {
-      const data = await apiFetch('/api/payments/course/order', { method: 'POST', body: JSON.stringify({ courseId }) });
+      const data = await apiFetch('/api/payments/course/order', {
+        method: 'POST',
+        body: JSON.stringify({ courseId }),
+      });
       await loadRazorpay();
       const razorpay = new window.Razorpay({
         key: data.keyId,
@@ -142,19 +158,37 @@ export default function CourseDetails() {
         prefill: { name: session.user.name, email: session.user.email },
         theme: { color: '#2563eb' },
         handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+          setCheckoutLoading(true);
+          setError(null);
           try {
-            await apiFetch('/api/payments/course/verify', { method: 'POST', body: JSON.stringify({ paymentId: data.paymentId, razorpayPaymentId: response.razorpay_payment_id, razorpayOrderId: response.razorpay_order_id, razorpaySignature: response.razorpay_signature }) });
+            await apiFetch('/api/payments/course/verify', {
+              method: 'POST',
+              body: JSON.stringify({
+                paymentId: data.paymentId,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpayOrderId: response.razorpay_order_id,
+                razorpaySignature: response.razorpay_signature,
+              }),
+            });
             const enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
             setEnrollment(enrollmentData.enrollment);
+            setCheckoutNotice('Payment successful. This course is now in your learning library.');
             setError(null);
-          } catch (err) { setError(err instanceof Error ? err.message : 'Payment verification failed'); }
+          } catch (err) {
+            setError(err instanceof Error
+              ? `${err.message} If your payment was deducted, please refresh this page before trying again.`
+              : 'We could not confirm your purchase. If your payment was deducted, please refresh this page before trying again.');
+          } finally {
+            setCheckoutLoading(false);
+          }
         },
-        modal: { ondismiss: () => setCheckoutLoading(false) }
+        modal: { ondismiss: () => setCheckoutLoading(false) },
       });
       razorpay.open();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to start checkout');
-    } finally { setCheckoutLoading(false); }
+      setCheckoutLoading(false);
+    }
   };
 
   const handleEnroll = async () => {
@@ -230,6 +264,17 @@ export default function CourseDetails() {
 
   const lessonCount = countAllLessons(course.modules);
   const isEnrolled = enrollment?.status === 'active' || enrollment?.status === 'completed';
+  const isPaidCourse = course.pricing?.mode === 'paid';
+  const currency = course.pricing?.currency || 'INR';
+  const basePrice = Math.max(0, Number(course.pricing?.price || 0));
+  const salePrice = course.pricing?.saleEnabled && Number(course.pricing?.salePrice || 0) > 0
+    ? Number(course.pricing?.salePrice)
+    : basePrice;
+  const compareAtPrice = Number(course.pricing?.compareAtPrice || 0);
+  const crossedPrice = compareAtPrice > salePrice ? compareAtPrice : (salePrice < basePrice ? basePrice : 0);
+  const discountPercent = crossedPrice > salePrice && crossedPrice > 0
+    ? Math.round(((crossedPrice - salePrice) / crossedPrice) * 100)
+    : 0;
   const progressPct = progress?.percentage || 0;
 
   return (
@@ -399,57 +444,69 @@ export default function CourseDetails() {
         {/* Sidebar */}
         <div className="lg:col-span-1">
           <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-6">
+            {isPaidCourse && (
+              <div className="mb-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-3xl font-bold tracking-tight text-slate-950">{formatCoursePrice(salePrice, currency)}</span>
+                  {discountPercent > 0 && (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      {discountPercent}% off
+                    </span>
+                  )}
+                </div>
+                {crossedPrice > salePrice && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>
+                    <span className="text-xs text-slate-500">One-time payment</span>
+                  </div>
+                )}
+                <div className="mt-4 space-y-2 text-sm text-slate-600">
+                  <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Buy once, keep course access</div>
+                  <div className="flex items-center gap-2"><Tag className="h-4 w-4 text-emerald-600" />No subscription required</div>
+                </div>
+              </div>
+            )}
             {isEnrolled ? (
               <div>
+                <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {enrollment?.status === 'completed' ? 'Course completed' : 'You’re enrolled'}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-700">This course is in your learning library.</p>
+                </div>
                 <div className="mb-4">
                   <div className="flex items-center justify-between text-sm mb-2">
                     <span className="font-medium text-slate-700">Your Progress</span>
                     <span className="font-bold text-blue-600">{progressPct}%</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                    <div
-                      className="h-full rounded-full bg-blue-600 transition-all"
-                      style={{ width: `${progressPct}%` }}
-                    />
+                    <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progressPct}%` }} />
                   </div>
-                  {progress && (
-                    <p className="mt-2 text-xs text-slate-500">
-                      {progress.completed_count} of {progress.total_lessons} lessons completed
-                    </p>
-                  )}
+                  {progress && <p className="mt-2 text-xs text-slate-500">{progress.completed_count} of {progress.total_lessons} lessons completed</p>}
                 </div>
                 <button onClick={handleStartLearning} className="btn-primary w-full">
-                  View Course Roadmap
-                  <ChevronRight className="h-4 w-4" />
+                  Continue Learning <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             ) : (
               <div>
                 <button
-                  onClick={course.pricing?.mode === 'paid' ? handleCheckout : handleEnroll}
+                  onClick={isPaidCourse ? handleCheckout : handleEnroll}
                   disabled={enrolling || checkoutLoading || !course.is_published}
-                  className={classNames("w-full", course.pricing?.mode === 'paid' ? "btn-buy" : "btn-primary")}
+                  className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse ? "btn-buy" : "btn-primary")}
                 >
                   {enrolling || checkoutLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {checkoutLoading ? 'Opening Checkout...' : 'Enrolling...'}
-                    </>
-                  ) : session ? (
-                    course.pricing?.mode === 'paid' ? `Buy Course — ₹${course.pricing.saleEnabled ? course.pricing.salePrice : course.pricing.price}` : 'Enroll Now — Free'
-                  ) : (
-                    'Sign In to Enroll'
-                  )}
+                    <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
+                  ) : isPaidCourse ? (
+                    session ? `Buy Now · ${formatCoursePrice(salePrice, currency)}` : 'Sign in to buy'
+                  ) : session ? 'Enroll Now — Free' : 'Sign in to enroll'}
                 </button>
-                {!session && (
-                  <p className="mt-3 text-center text-xs text-slate-500">
-                    Create a free account to enroll in this course
-                  </p>
-                )}
+                {!session && <p className="mt-3 text-center text-xs text-slate-500">Sign in or create a free account to continue.</p>}
+                {checkoutNotice && <div role="status" className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{checkoutNotice}</div>}
                 {error && (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                    <span>{error}</span>
+                  <div role="alert" className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" /><span>{error}</span>
                   </div>
                 )}
               </div>

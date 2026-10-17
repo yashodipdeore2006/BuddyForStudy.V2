@@ -1,12 +1,13 @@
 import nodemailer from "nodemailer";
-import { randomUUID } from "node:crypto";
-import { mailRecipientAccepted, oneSignalNotificationCreated } from "./notificationDeliveryOutcomes.js";
+import { mailRecipientAccepted } from "./notificationDeliveryOutcomes.js";
 import { env } from "../config/env.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Progress } from "../models/Progress.js";
 import { Notification } from "../models/Notification.js";
+import { PushSubscription } from "../models/PushSubscription.js";
+import { isWebPushConfigured, sendWebPushNotification } from "./webPush.service.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
@@ -211,13 +212,14 @@ async function dispatchEmail(notificationId) {
 
 async function dispatchPush(notificationId) {
   const platform = await getNotificationPlatformSettings();
-  if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
+  if (!isWebPushConfigured()) {
     await Notification.updateOne({ _id: notificationId, pushStatus: "pending" }, {
-      $set: { pushStatus: "skipped", pushError: "OneSignal is not configured" }
+      $set: { pushStatus: "skipped", pushError: "Web Push VAPID keys are not configured" }
     });
     return;
   }
   if (!platform.pushEnabled) return;
+
   const filter = {
     _id: notificationId,
     pushStatus: "pending",
@@ -242,68 +244,72 @@ async function dispatchPush(notificationId) {
     return;
   }
 
-  try {
-    // Persist a key even for legacy rows that predate this schema field. The
-    // persisted value is reused after a timeout so a provider-accepted send can
-    // be retried safely without creating a second OneSignal notification.
-    let pushIdempotencyKey = notification.pushIdempotencyKey || randomUUID();
-    await Notification.updateOne(
-      { _id: notification._id, $or: [
-        { pushIdempotencyKey: { $exists: false } },
-        { pushIdempotencyKey: null },
-        { pushIdempotencyKey: "" }
-      ] },
-      { $set: { pushIdempotencyKey } }
-    );
-    const refreshed = await Notification.findById(notification._id).select("pushIdempotencyKey").lean();
-    pushIdempotencyKey = refreshed?.pushIdempotencyKey || pushIdempotencyKey;
-
-    const response = await fetch("https://api.onesignal.com/notifications", {
-      method: "POST",
-      headers: {
-        Authorization: `Key ${env.oneSignalRestApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        app_id: env.oneSignalAppId,
-        idempotency_key: pushIdempotencyKey,
-        include_aliases: { external_id: [String(notification.user)] },
-        target_channel: "push",
-        headings: { en: notification.title },
-        contents: { en: notification.message },
-        url: notification.link ? env.clientUrl.replace(/\/$/, "") + notification.link : env.clientUrl
-      })
-    });
-    if (!response.ok) {
-      // Provider response bodies may include request/user context; retain only the status code.
-      throw new Error(`OneSignal returned HTTP ${response.status}`);
-    }
-    const providerResult = await response.json().catch(() => null);
-    if (!oneSignalNotificationCreated(providerResult)) {
-      // A definitive no-send response must not pin a future retry to the same
-      // provider idempotency result after the learner registers a device.
-      await Notification.updateOne({ _id: notification._id }, {
-        $set: { pushIdempotencyKey: randomUUID() }
-      });
-      throw new Error("OneSignal did not create a notification; no eligible subscribed push target was confirmed");
-    }
+  const subscriptions = await PushSubscription.find({ user: notification.user, active: true }).lean();
+  if (!subscriptions.length) {
     await Notification.updateOne({ _id: notification._id }, {
-      $set: { pushStatus: "sent", pushSentAt: new Date(), pushError: "" }
+      $set: { pushStatus: "skipped", pushError: "No active browser push subscriptions" }
     });
-  } catch (error) {
-    const attempts = Number(notification.pushAttempts || 1);
+    return;
+  }
+
+  let delivered = 0;
+  let transientFailures = 0;
+  for (const subscription of subscriptions) {
+    try {
+      await sendWebPushNotification(subscription, {
+        notificationId: String(notification._id),
+        title: notification.title,
+        body: notification.message,
+        url: notification.link || "/notifications"
+      });
+      delivered += 1;
+      await PushSubscription.updateOne({ _id: subscription._id }, {
+        $set: { lastSuccessAt: new Date(), lastError: "", lastFailureAt: null }
+      });
+    } catch (error) {
+      const statusCode = Number(error?.statusCode || error?.status || 0);
+      const expired = statusCode === 404 || statusCode === 410;
+      const errorMessage = expired
+        ? "Push subscription expired or no longer exists"
+        : String(error?.message || "Web Push delivery failed").slice(0, 400);
+      await PushSubscription.updateOne({ _id: subscription._id }, {
+        $set: {
+          ...(expired ? { active: false, deactivatedAt: new Date() } : {}),
+          lastFailureAt: new Date(),
+          lastError: errorMessage
+        }
+      });
+      if (!expired) transientFailures += 1;
+      console.error("[notifications] Web Push delivery failed", {
+        notificationId: String(notification._id),
+        subscriptionId: String(subscription._id),
+        statusCode: statusCode || undefined,
+        message: errorMessage
+      });
+    }
+  }
+
+  if (delivered > 0) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: {
-        pushStatus: attempts >= platform.pushRetryAttempts ? "failed" : "pending",
-        pushError: String(error?.message || "Push delivery failed").slice(0, 500)
+        pushStatus: "sent",
+        pushSentAt: new Date(),
+        pushError: transientFailures ? "Push was accepted for at least one device; another device delivery failed" : ""
       }
     });
-    console.error("[notifications] push delivery failed", {
-      notificationId: String(notification._id),
-      attempt: attempts,
-      message: String(error?.message || "Unknown push error").slice(0, 200)
-    });
+    return;
   }
+
+  const attempts = Number(notification.pushAttempts || 1);
+  const stillActive = await PushSubscription.exists({ user: notification.user, active: true });
+  await Notification.updateOne({ _id: notification._id }, {
+    $set: {
+      pushStatus: !stillActive ? "skipped" : attempts >= platform.pushRetryAttempts ? "failed" : "pending",
+      pushError: !stillActive
+        ? "All push subscriptions are expired or invalid"
+        : "Web Push delivery failed for every active device"
+    }
+  });
 }
 
 export async function retryNotificationDelivery(notificationId, channel) {
@@ -331,8 +337,8 @@ export async function retryNotificationDelivery(notificationId, channel) {
       error.status = 409;
       throw error;
     }
-    if (!env.oneSignalAppId || !env.oneSignalRestApiKey) {
-      const error = new Error("Configure OneSignal on the server before retrying push.");
+    if (!isWebPushConfigured()) {
+      const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push.");
       error.status = 503;
       throw error;
     }
@@ -344,7 +350,7 @@ export async function retryNotificationDelivery(notificationId, channel) {
   const errorField = channel === "email" ? "emailError" : "pushError";
   const configurableSkipReasons = channel === "email"
     ? ["SMTP is not configured", "Email delivery is disabled in admin platform settings"]
-    : ["OneSignal is not configured", "Push delivery is disabled in admin platform settings"];
+    : ["Web Push VAPID keys are not configured", "Push delivery is disabled in admin platform settings", "No active browser push subscriptions"];
   const notification = await Notification.findOneAndUpdate(
     {
       _id: notificationId,
@@ -417,7 +423,7 @@ export async function createNotificationEvent({
   const transactional = type === "billing" || type === "security";
   const showInApp = forceInApp || (inApp && transactional) || (inApp && platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
   const smtpConfigured = Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
-  const pushConfigured = Boolean(env.oneSignalAppId && env.oneSignalRestApiKey);
+  const pushConfigured = isWebPushConfigured();
   const emailPreferenceAllowed = transactional || !keys.email || preferences[keys.email] !== false;
   const shouldEmail = email && platform.emailEnabled && smtpConfigured && emailPreferenceAllowed;
   const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && pushConfigured;
@@ -435,7 +441,7 @@ export async function createNotificationEvent({
     : !platform.pushEnabled
       ? "Push delivery is disabled in admin platform settings"
       : !pushConfigured
-        ? "OneSignal is not configured"
+        ? "Web Push VAPID keys are not configured"
         : preferences.pushEnabled !== true
           ? "Push is not enabled in learner preferences"
           : "";
@@ -515,11 +521,11 @@ export async function deliverPendingNotificationEmails(limit = 50) {
 
 export async function deliverPendingNotificationPush(limit = 50) {
   const platform = await getNotificationPlatformSettings();
-  if (!platform.pushEnabled || !env.oneSignalAppId || !env.oneSignalRestApiKey) {
+  if (!platform.pushEnabled || !isWebPushConfigured()) {
     const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
     const pushError = !platform.pushEnabled
       ? "Push delivery is disabled in admin platform settings"
-      : "OneSignal is not configured";
+      : "Web Push VAPID keys are not configured";
     const skipped = await Notification.updateMany(
       {
         pushStatus: "pending",
@@ -532,6 +538,7 @@ export async function deliverPendingNotificationPush(limit = 50) {
     );
     return { attempted: 0, skipped: skipped.modifiedCount };
   }
+
   const retryBefore = new Date(Date.now() - RETRY_DELAY_MS);
   const pending = await Notification.find({
     pushStatus: "pending",

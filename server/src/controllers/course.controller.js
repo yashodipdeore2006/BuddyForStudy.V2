@@ -13,7 +13,18 @@ const courseSchema = z.object({
   duration: z.union([z.string(), z.number()]),
   thumbnail: z.string().optional(),
   learningOutcomes: z.array(z.string()).optional(),
-  isPublished: z.boolean().optional()
+  isPublished: z.boolean().optional(),
+  pricing: z.object({
+    mode: z.enum(["free", "paid"]).optional(),
+    price: z.number().min(0).optional(),
+    compareAtPrice: z.number().min(0).optional(),
+    currency: z.string().trim().length(3).optional(),
+    saleEnabled: z.boolean().optional(),
+    salePrice: z.number().min(0).optional()
+  }).optional(),
+  enrollmentEnabled: z.boolean().optional(),
+  certificateEnabled: z.boolean().optional(),
+  featured: z.boolean().optional()
 });
 
 export async function list(req, res, next) {

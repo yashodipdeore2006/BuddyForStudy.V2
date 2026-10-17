@@ -228,7 +228,7 @@ export default function CourseCard({
               <button
                 type="button"
                 onClick={enrollCourse}
-                disabled={enrolling || enrolled}
+                disabled={enrolling}
                 className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg bg-black px-2 py-1 text-[11px] font-bold text-white transition-colors duration-200 hover:bg-[#444950] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
               >
                 {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : enrolled ? <BookOpen className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}

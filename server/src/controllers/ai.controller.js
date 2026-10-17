@@ -105,7 +105,7 @@ export async function generatePracticeQuiz(req, res, next) {
       if (!questions.length) return failure(res, "You have not taken a quiz for this lesson yet.", 404);
       return success(res, {
         courseId: input.courseId, lessonId: input.lessonId,
-        quiz: { scope: "lesson", title: "Quiz reattempt", questionCount: questions.length, passingScore: 70, questions },
+        quiz: { scope: "lesson", title: "Quiz reattempt", questionCount: questions.length, passingScore: 70, questions, quizBankIds: attempted.map((item) => String(item._id)) },
         reattempt: true
       }, "Previous lesson quiz questions loaded");
     }
@@ -163,17 +163,20 @@ export async function submitPracticeQuiz(req, res, next) {
     const schema = z.object({
       courseId: z.string().trim().min(1),
       lessonId: z.string().trim().min(1),
-      quizBankId: z.string().trim().min(1),
+      quizBankId: z.string().trim().min(1).optional(),
+      quizBankIds: z.array(z.string().trim().min(1)).default([]),
       score: z.number().min(0).max(100),
       answers: z.record(z.string(), z.string()).default({})
     });
     const input = schema.parse(req.body);
-    const bankQuiz = await QuizBank.findOne({
-      _id: input.quizBankId, course: input.courseId, lesson: input.lessonId
-    });
-    if (!bankQuiz) return failure(res, "Quiz set not found", 404);
-    bankQuiz.attempts.push({ user: req.user.userId, score: input.score, answers: input.answers, attemptedAt: new Date() });
-    await bankQuiz.save();
+    const ids = [...new Set([...(input.quizBankId ? [input.quizBankId] : []), ...input.quizBankIds])];
+    if (!ids.length) return failure(res, "Quiz set reference is required", 400);
+    const bankQuizzes = await QuizBank.find({ _id: { $in: ids }, course: input.courseId, lesson: input.lessonId });
+    if (!bankQuizzes.length) return failure(res, "Quiz set not found", 404);
+    for (const bankQuiz of bankQuizzes) {
+      bankQuiz.attempts.push({ user: req.user.userId, score: input.score, answers: input.answers, attemptedAt: new Date() });
+      await bankQuiz.save();
+    }
     return success(res, { saved: true }, "Quiz attempt saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);

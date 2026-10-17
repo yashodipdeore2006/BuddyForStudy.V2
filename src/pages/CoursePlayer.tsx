@@ -77,6 +77,7 @@ export default function CoursePlayer() {
   const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
   const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
   const [practiceQuizError, setPracticeQuizError] = useState("");
+  const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz">("lesson");
 
 
   useEffect(() => {
@@ -592,39 +593,44 @@ export default function CoursePlayer() {
                     </span>
                   </div>
 
-                  <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200">
-                    <div className="flex gap-6">
-                      <span className="border-b-2 border-blue-600 pb-3 text-sm font-bold text-blue-600">
-                        Lesson
-                      </span>
-                      <span className="pb-3 text-sm font-semibold text-slate-400">
-                        Progress {progressPct}%
-                      </span>
-                    </div>
-                    {currentLesson.lesson.type !== "quiz" && (
-                      <div className="flex flex-wrap items-center gap-2 pb-2">
-                        {practiceQuizData && (
-                          <>
-                            <button type="button" onClick={() => void handleGeneratePracticeQuiz("reattempt")} disabled={practiceQuizLoading} className="btn-secondary justify-center">
-                              Reattempt
-                            </button>
-                            <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">
-                              {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
-                              {practiceQuizLoading ? "Loading..." : "Generate More"}
-                            </button>
-                          </>
-                        )}
-                        {!practiceQuizData && (
-                          <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary justify-center">
-                            {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
-                            {practiceQuizLoading ? "Generating..." : "Practice Quiz"}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                  <div className="mt-6 flex gap-6 border-b border-slate-200" role="tablist" aria-label="Lesson sections">
+                    {([
+                      { id: "lesson", label: "Lesson" },
+                      { id: "progress", label: "Progress" },
+                      { id: "quiz", label: "Quiz" },
+                    ] as const).map((tab) => (
+                      <button key={tab.id} type="button" role="tab" aria-selected={lessonTab === tab.id} onClick={() => setLessonTab(tab.id)}
+                        className={classNames("pb-3 text-sm font-semibold transition", lessonTab === tab.id ? "border-b-2 border-blue-600 font-bold text-blue-600" : "text-slate-400 hover:text-slate-700")}>
+                        {tab.label}{tab.id === "progress" ? ` ${progressPct}%` : ""}
+                      </button>
+                    ))}
                   </div>
 
                   <div className="py-5">
+                    {lessonTab === "quiz" && currentLesson.lesson.type !== "quiz" && (
+                      <section className="space-y-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Practice & check understanding</p>
+                            <h2 className="mt-1 text-lg font-semibold text-slate-950">Quiz yourself on this lesson</h2>
+                            <p className="mt-1 text-sm text-slate-500">Quiz questions are separate from lesson notes, Q&A, and resources.</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {practiceQuizData && (
+                              <>
+                                <button type="button" onClick={() => void handleGeneratePracticeQuiz("reattempt")} disabled={practiceQuizLoading} className="btn-secondary justify-center">Reattempt</button>
+                                <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                                  {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                  {practiceQuizLoading ? "Loading..." : "Generate More"}
+                                </button>
+                              </>
+                            )}
+                            {!practiceQuizData && <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                              {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                              {practiceQuizLoading ? "Generating..." : "Generate Practice Quiz"}
+                            </button>}
+                          </div>
+                        </div>
                     {practiceQuizError && currentLesson.lesson.type !== "quiz" && (
                       <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{practiceQuizError}</p>
                     )}
@@ -676,6 +682,16 @@ export default function CoursePlayer() {
                             </div>
                           </div>
                         )}
+                    )}
+                    {lessonTab === "progress" && (
+                      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Learning progress</p>
+                        <h2 className="mt-1 text-lg font-semibold text-slate-950">{progressPct}% completed</h2>
+                        <p className="mt-2 text-sm text-slate-500">{progress?.completed_count || 0} of {allLessons.length} lessons completed in this course.</p>
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progressPct}%` }} /></div>
+                      </section>
+                    )}
+                    {lessonTab === "lesson" && (
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}
@@ -906,6 +922,7 @@ export default function CoursePlayer() {
                     )}
                   </div>
 
+                    )}
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
                     <button
                       disabled={!navigation.prev}

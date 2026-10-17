@@ -14,7 +14,10 @@ export default function Pricing() {
 
   useEffect(() => {
     apiFetch("/api/billing/plans")
-      .then((data) => setPlans([...(data.plans || [])].sort((a, b) => Number(b.price || 0) - Number(a.price || 0)))
+      .then((data) => {
+        const sortedPlans = [...(data.plans || [])].sort((a, b) => Number(b.price || 0) - Number(a.price || 0));
+        setPlans(sortedPlans);
+      })
       .catch(() => setMessage({ type: "error", text: "Unable to load plans" }));
   }, []);
 

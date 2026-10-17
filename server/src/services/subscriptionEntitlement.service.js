@@ -60,15 +60,18 @@ export function readPlanLimit(plan, key, fallback = -1) {
 
 /** Returns true only when the learner has a verified paid-course enrollment. */
 export async function hasPaidCourseAccess(userId, courseId) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true, "pricing.mode": "paid" }).select("_id").lean();
-  if (!course) return false;
   const enrollment = await Enrollment.findOne({
     user: userId,
     course: courseId,
     status: { $in: ["active", "completed"] }
   }).select("accessSource").lean();
   if (!enrollment) return false;
-  if (enrollment.accessSource === "admin") return true;
+  // Admin grants are explicit per-user exceptions for either free or paid courses.
+  if (enrollment.accessSource === "admin") {
+    return Boolean(await Course.exists({ _id: courseId, isPublished: true }));
+  }
+  const course = await Course.findOne({ _id: courseId, isPublished: true, "pricing.mode": "paid" }).select("_id").lean();
+  if (!course) return false;
   const payment = await Payment.exists({
     user: userId,
     course: courseId,

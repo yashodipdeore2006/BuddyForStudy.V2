@@ -7,6 +7,33 @@ import { getActivePlanForUser } from "../services/subscriptionEntitlement.servic
 import { createHash } from "node:crypto";
 import { QuizBank } from "../models/QuizBank.js";
 
+const quizGenerationJobs = new Set();
+
+async function queueNextLessonQuiz(courseId, lessonId) {
+  const key = `${courseId}:${lessonId}`;
+  if (quizGenerationJobs.has(key)) return;
+  quizGenerationJobs.add(key);
+  setImmediate(async () => {
+    try {
+      const bank = await QuizBank.find({ course: courseId, lesson: lessonId }).lean();
+      const excluded = bank.flatMap((item) => item.questions || []).map((question) => question.question).slice(0, 150);
+      const { generateCourseQuiz } = await import("../services/aiRoadmap.service.js");
+      const generated = await generateCourseQuiz({ courseId, lessonId, practiceOnly: true, excludeQuestions: excluded });
+      const questions = generated.quiz.questions || [];
+      const fingerprint = createHash("sha256").update(questions.map((question) => String(question.question).trim().toLowerCase()).sort().join("|")).digest("hex");
+      await QuizBank.updateOne(
+        { course: courseId, lesson: lessonId, fingerprint },
+        { $setOnInsert: { course: courseId, lesson: lessonId, fingerprint, title: generated.quiz.title || "Lesson Practice Quiz", questions, generatedAt: new Date() } },
+        { upsert: true }
+      );
+    } catch (error) {
+      console.error("Background lesson quiz generation failed:", error?.message || error);
+    } finally {
+      quizGenerationJobs.delete(key);
+    }
+  });
+}
+
 const schema = z.object({
   topic: z.string().trim().min(2).max(200),
   level: z.enum(["Beginner", "Intermediate", "Advanced"]).default("Beginner"),
@@ -100,7 +127,7 @@ export async function generatePracticeQuiz(req, res, next) {
     if (input.mode === "reattempt") {
       const attempted = bank.filter((item) => item.attempts.some((attempt) => String(attempt.user) === String(req.user.userId)));
       const unique = new Map();
-      for (const item of attempted) for (const question of item.questions) unique.set(`${item._id}-${question.id}`, { ...question.toObject?.() || question, id: `${item._id}-${question.id}` });
+      for (const item of attempted) for (const question of item.questions) unique.set(`${item._id}-${question.id}`, { ...(question.toObject?.() || question), id: `${item._id}-${question.id}` });
       const questions = [...unique.values()];
       if (!questions.length) return failure(res, "You have not taken a quiz for this lesson yet.", 404);
       return success(res, {
@@ -177,7 +204,12 @@ export async function submitPracticeQuiz(req, res, next) {
       bankQuiz.attempts.push({ user: req.user.userId, score: input.score, answers: input.answers, attemptedAt: new Date() });
       await bankQuiz.save();
     }
-    return success(res, { saved: true }, "Quiz attempt saved");
+    const allLessonQuizzes = await QuizBank.find({ course: input.courseId, lesson: input.lessonId });
+    const userExhaustedBank = allLessonQuizzes.length > 0 && allLessonQuizzes.every((quiz) =>
+      quiz.attempts.some((attempt) => String(attempt.user) === String(req.user.userId))
+    );
+    if (userExhaustedBank) void queueNextLessonQuiz(input.courseId, input.lessonId);
+    return success(res, { saved: true, backgroundGenerationQueued: userExhaustedBank }, "Quiz attempt saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

@@ -85,7 +85,19 @@ export default function CourseCard({
   };
 
   return (
-    <article className="bfs-course-card group flex h-full min-h-[400px] flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-blue-500/20">
+    <article
+      role="link"
+      tabIndex={0}
+      aria-label={`Open course details for ${course.title}`}
+      onClick={() => navigate(`/courses/${course.id}`)}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          navigate(`/courses/${course.id}`);
+        }
+      }}
+      className="bfs-course-card group flex h-full min-h-[400px] cursor-pointer flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50 focus-within:ring-2 focus-within:ring-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+    >
       <Link
         to={"/courses/" + course.id}
         className="bfs-course-card__media relative block h-[120px] shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"

@@ -592,32 +592,46 @@ export default function CoursePlayer() {
                     </span>
                   </div>
 
-                  <div className="mt-6 flex gap-6 border-b border-slate-200">
-                    <span className="border-b-2 border-blue-600 pb-3 text-sm font-bold text-blue-600">
-                      Lesson
-                    </span>
-                    <span className="pb-3 text-sm font-semibold text-slate-400">
-                      Progress {progressPct}%
-                    </span>
+                  <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-b border-slate-200">
+                    <div className="flex gap-6">
+                      <span className="border-b-2 border-blue-600 pb-3 text-sm font-bold text-blue-600">
+                        Lesson
+                      </span>
+                      <span className="pb-3 text-sm font-semibold text-slate-400">
+                        Progress {progressPct}%
+                      </span>
+                    </div>
+                    {currentLesson.lesson.type !== "quiz" && (
+                      <div className="flex flex-wrap items-center gap-2 pb-2">
+                        {practiceQuizData && (
+                          <>
+                            <button type="button" onClick={() => void handleGeneratePracticeQuiz("reattempt")} disabled={practiceQuizLoading} className="btn-secondary justify-center">
+                              Reattempt
+                            </button>
+                            <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                              {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                              {practiceQuizLoading ? "Loading..." : "Generate More"}
+                            </button>
+                          </>
+                        )}
+                        {!practiceQuizData && (
+                          <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                            {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                            {practiceQuizLoading ? "Generating..." : "Practice Quiz"}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="py-5">
-                    {(
-                      <section className="mb-6 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Practice & check understanding</p>
-                            <h2 className="mt-1 text-lg font-medium text-slate-950">Test what you learned</h2>
-                            <p className="mt-1 text-sm leading-6 text-slate-600">Generate five fresh AI questions based on this lesson, course assessment topics, project brief, or selected video context.</p>
-                          </div>
-                          <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary shrink-0 justify-center">
-                            {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
-                            {practiceQuizLoading ? "Generating..." : practiceQuizData ? "Generate another quiz" : "Generate practice quiz"}
-                          </button>
-                        </div>
-                        {practiceQuizError && <p role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{practiceQuizError}</p>}
-                        {practiceQuizLoading && <p className="mt-4 text-sm text-slate-500">Creating a new question set. This uses your plan's monthly AI quiz-generation allowance.</p>}
-                        {practiceQuizData?.questions?.length > 0 && (
+                    {practiceQuizError && currentLesson.lesson.type !== "quiz" && (
+                      <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{practiceQuizError}</p>
+                    )}
+                    {practiceQuizLoading && currentLesson.lesson.type !== "quiz" && (
+                      <p className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Preparing quiz questions...</p>
+                    )}
+                                            {practiceQuizData?.questions?.length > 0 && (
                           <div className="mt-5 space-y-4">
                             {practiceQuizData.questions.map((question: any, questionIndex: number) => (
                               <article key={question.id} className="rounded-2xl border border-slate-200 p-4">
@@ -662,10 +676,6 @@ export default function CoursePlayer() {
                             </div>
                           </div>
                         )}
-                      </section>
-                    )}
-
-
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}

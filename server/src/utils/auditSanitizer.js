@@ -6,7 +6,7 @@ const MAX_OBJECT_KEYS = 100;
 export function sanitizeAuditSnapshot(value, depth = 0) {
   if (value == null || typeof value === "boolean" || typeof value === "number") return value;
   if (typeof value === "string") return value.slice(0, MAX_STRING_LENGTH);
-  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString() : "[invalid-date]";
   if (depth >= 6) return "[truncated]";
 
   if (Array.isArray(value)) {

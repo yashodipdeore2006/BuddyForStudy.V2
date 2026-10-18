@@ -22,14 +22,24 @@ export async function operationalAlerts(req, res, next) {
 export async function acknowledgeOperationalAlert(req, res, next) {
   try {
     if (!isValidObjectId(req.params.alertId)) return failure(res, "Invalid alertId", 400);
-    const alert = await OperationalAlert.findById(req.params.alertId);
-    if (!alert) return failure(res, "Operational alert not found", 404);
-    if (alert.status === "resolved") return failure(res, "Resolved alerts cannot be acknowledged", 409);
-    const before = { status: alert.status, severity: alert.severity, occurrenceCount: alert.occurrenceCount };
-    alert.status = "acknowledged";
-    alert.acknowledgedBy = req.user?.user?._id || null;
-    alert.acknowledgedAt = new Date();
-    await alert.save();
+    const current = await OperationalAlert.findById(req.params.alertId).lean();
+    if (!current) return failure(res, "Operational alert not found", 404);
+    if (current.status === "resolved") return failure(res, "Resolved alerts cannot be acknowledged", 409);
+    const before = { status: current.status, severity: current.severity, occurrenceCount: current.occurrenceCount };
+    // Use the observed status as a compare-and-set guard so an acknowledgement
+    // cannot overwrite a concurrent resolution or another state transition.
+    const alert = await OperationalAlert.findOneAndUpdate(
+      { _id: current._id, status: current.status },
+      {
+        $set: {
+          status: "acknowledged",
+          acknowledgedBy: req.user?.user?._id || req.user?.userId || null,
+          acknowledgedAt: new Date()
+        }
+      },
+      { new: true, runValidators: true }
+    );
+    if (!alert) return failure(res, "This operational alert changed while you were acknowledging it. Refresh and try again.", 409);
     const auditResult = await recordAuditEvent({
       actor: req.user?.user?._id || req.user?.userId || null,
       action: "operational_alert.acknowledged",

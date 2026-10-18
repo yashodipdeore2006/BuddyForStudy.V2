@@ -10,7 +10,7 @@ import * as razorpay from "../services/razorpay.service.js";
 import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 import { createNotificationEvent } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
-import { getRemainingRefundableAmount, validateRefundAmount } from "../services/refundBalance.service.js";
+import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATUSES } from "../services/refundBalance.service.js";
 
 const router = Router();
 
@@ -200,7 +200,7 @@ router.post("/refunds", async (req,res,next)=>{ try {
   if(!isValidObjectId(req.body.paymentId)) return failure(res,"Invalid paymentId",400);
   const payment=await Payment.findOne({_id:req.body.paymentId,user:req.user.userId,status:{$in:["paid","partially_refunded"]}});
   if(!payment) return failure(res,"Paid payment not found",404);
-  const existing=await RefundRequest.findOne({payment:payment._id,status:{ $in:["pending","approved"] }});
+  const existing=await RefundRequest.findOne({payment:payment._id,status:{ $in: ACTIVE_REFUND_STATUSES }});
   if(existing) return failure(res,"A refund request already exists for this payment",409);
   const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount);
   const amountValidation = validateRefundAmount(req.body?.amount, remainingAmount);

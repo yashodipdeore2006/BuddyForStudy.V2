@@ -174,23 +174,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
   }
 
   await activateSubscription(subscription, payment, eventAt);
-  const isRenewal = payment.metadata?.get
-    ? payment.metadata.get("renewal") === "true"
-    : payment.metadata?.renewal === "true";
-  if (isRenewal && providerPaymentId) {
-    await createNotificationEvent({
-      userId: String(payment.user),
-      title: "Subscription payment received",
-      message: `Your subscription renewal payment of ${payment.currency || "INR"} ${payment.amount} was received successfully.`,
-      type: "billing",
-      link: "/billing",
-      eventKey: `subscription-charge:${providerPaymentId}`,
-      emailSubject: "Your BuddyForStudy subscription payment receipt",
-      metadata: { paymentId: String(payment._id), subscriptionId: String(subscription.id), providerPaymentId, amount: String(payment.amount), currency: payment.currency || "INR" },
-      templateKeys: { notification: "subscription-payment-in-app", email: "subscription-payment-email" }
-    });
-  }
-}
+  await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);}
 
 export async function razorpayWebhook(req, res, next) {
   let claimedEventId = "";

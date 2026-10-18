@@ -2,6 +2,7 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import { User } from "../models/User.js";
+import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
@@ -175,6 +176,93 @@ export async function users(req, res, next) {
     ]);
     return success(res, { users: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (e) { next(e); }
+}
+
+export async function userFeatureOverrides(req, res, next) {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const user = await User.findById(userId).select("_id role name email").lean();
+    if (!user) return failure(res, "User not found", 404);
+    const overrides = await UserFeatureOverride.find({ user: userId }).sort({ featureKey: 1 }).lean();
+    const features = SUBSCRIPTION_FEATURES.map((feature) => ({
+      ...feature,
+      override: overrides.find((item) => item.featureKey === feature.key) || null
+    }));
+    return success(res, { user: { id: String(user._id), name: user.name, email: user.email }, features });
+  } catch (error) { next(error); }
+}
+
+export async function upsertUserFeatureOverride(req, res, next) {
+  try {
+    const { userId, featureKey } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const feature = SUBSCRIPTION_FEATURES.find((item) => item.key === featureKey);
+    if (!feature) return failure(res, "Unknown subscription feature.", 400);
+    if (typeof req.body?.allowed !== "boolean") return failure(res, "allowed must be a boolean.", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for audit.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    const user = await User.findById(userId).select("_id role");
+    if (!user) return failure(res, "User not found", 404);
+    if (user.role === "admin") return failure(res, "Feature overrides are only available for learner accounts.", 403);
+
+    let expiresAt = null;
+    if (req.body?.expiresAt !== undefined && req.body.expiresAt !== null && String(req.body.expiresAt).trim() !== "") {
+      expiresAt = new Date(req.body.expiresAt);
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+        return failure(res, "expiresAt must be a valid future date, or null for no expiry.", 400);
+      }
+    }
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey }).lean();
+    const before = existing ? {
+      allowed: existing.allowed,
+      expiresAt: existing.expiresAt || null,
+      reason: existing.reason
+    } : null;
+    const actor = req.user?.user?._id || req.user?.userId;
+    const override = await UserFeatureOverride.findOneAndUpdate(
+      { user: userId, featureKey },
+      {
+        $set: { allowed: req.body.allowed, expiresAt, reason, updatedBy: actor },
+        $setOnInsert: { user: userId, featureKey, createdBy: actor }
+      },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+    const auditResult = await audit(req, "user.feature_override.updated", "UserFeatureOverride", override._id, before, {
+      userId: String(userId), featureKey, allowed: override.allowed, expiresAt: override.expiresAt || null
+    }, reason);
+    return success(res, {
+      override: { ...override, feature: { key: feature.key, label: feature.label } },
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "User feature override saved.");
+  } catch (error) {
+    if (error?.code === 11000) return failure(res, "This feature override changed concurrently. Refresh and try again.", 409);
+    next(error);
+  }
+}
+
+export async function deleteUserFeatureOverride(req, res, next) {
+  try {
+    const { userId, featureKey } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    if (!SUBSCRIPTION_FEATURES.some((item) => item.key === featureKey)) return failure(res, "Unknown subscription feature.", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for audit.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey });
+    if (!existing) return failure(res, "No override exists for this feature.", 404);
+    await existing.deleteOne();
+    const auditResult = await audit(req, "user.feature_override.removed", "UserFeatureOverride", existing._id, {
+      userId: String(userId), featureKey, allowed: existing.allowed, expiresAt: existing.expiresAt || null
+    }, null, reason);
+    return success(res, {
+      removed: true,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "User feature override removed. The user's plan entitlement now applies.");
+  } catch (error) { next(error); }
 }
 
 export async function userDetail(req, res, next) {

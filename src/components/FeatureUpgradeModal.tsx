@@ -50,6 +50,18 @@ const FEATURE_LABELS: Record<string, string> = {
   priority_recommendations: "Priority learning recommendations",
 };
 
+const FEATURE_ENTITLEMENT_LABELS: Record<string, string> = {
+  published_courses: "Access published courses",
+  course_search: "Normal course search",
+  learning_progress: "Basic learning progress tracking",
+  ai_course_builder: "Build with AI",
+  personalized_roadmaps: "Personalized learning roadmaps",
+  project_based_learning: "Project-based learning",
+  advanced_ai_paths: "Advanced AI learning assistant (summary, notes & lesson Q&A)",
+  study_planning: "Personalized study planning",
+  priority_recommendations: "Priority learning recommendations",
+};
+
 function formatMoney(amount: number, currency = "INR") {
   try {
     return new Intl.NumberFormat("en-IN", {
@@ -131,8 +143,13 @@ export default function FeatureUpgradeModal() {
       });
       setPlans(ordered);
       setSubscription(subscriptionData.subscription || null);
-      // The most expensive option is the default focus, as requested.
-      setSelectedPlanId(ordered[0]?._id || "");
+      // Default to the most expensive plan that actually includes the blocked feature.
+      // If no plan advertises it, keep the highest-priced plan focused but prevent a misleading checkout.
+      const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
+      const highestPlanWithFeature = requiredFeatureLabel
+        ? ordered.find((plan: Plan) => (plan.features || []).includes(requiredFeatureLabel))
+        : undefined;
+      setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");
     }).catch((error) => {
       if (!cancelled) {
         setMessage({
@@ -161,6 +178,15 @@ export default function FeatureUpgradeModal() {
   }, [open, checkoutPlanId]);
 
   const selectedPlan = plans.find((plan) => plan._id === selectedPlanId) || plans[0] || null;
+  const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
+  const selectedPlanSupportsFeature = Boolean(
+    selectedPlan && (!requiredFeatureLabel || (selectedPlan.features || []).includes(requiredFeatureLabel))
+  );
+  const isSelectedPlanCurrent = Boolean(selectedPlan && (
+    selectedPlan._id === currentPlanId ||
+    selectedPlan._id === currentPlan?._id ||
+    selectedPlan.name === (currentPlanName || request?.currentPlan)
+  ));
 
   async function subscribe(plan: Plan) {
     if (!session) {
@@ -296,9 +322,11 @@ export default function FeatureUpgradeModal() {
                 {plans.map((plan, index) => {
                   const isSelected = selectedPlan?._id === plan._id;
                   const isCurrent = Boolean(currentPlanId && plan._id === currentPlanId) ||
+                    Boolean(currentPlan && currentPlan._id === plan._id) ||
                     (!currentPlanId && plan.name === (request?.currentPlan || ""));
                   const price = Number(plan.price || 0);
                   const isTop = index === 0;
+                  const unlocksFeature = !requiredFeatureLabel || (plan.features || []).includes(requiredFeatureLabel);
                   return (
                     <article
                       key={plan._id}
@@ -326,6 +354,7 @@ export default function FeatureUpgradeModal() {
                         {isTop && <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white"><Crown className="h-3 w-3" /> Highest tier</span>}
                         {!isTop && plan.isPopular && <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700">Popular</span>}
                         {isCurrent && <span className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">Current plan</span>}
+                        {!isCurrent && requiredFeatureLabel && <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${unlocksFeature ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{unlocksFeature ? "Unlocks this feature" : "Feature not included"}</span>}
                       </div>
                       <h3 className="text-lg font-bold text-slate-950">{plan.name}</h3>
                       <p className="mt-1 min-h-10 text-xs leading-5 text-slate-500">{plan.description || "A focused learning plan to keep you moving forward."}</p>
@@ -356,10 +385,10 @@ export default function FeatureUpgradeModal() {
             <button
               type="button"
               className="btn-primary justify-center"
-              disabled={!selectedPlan || loadingPlans || Boolean(checkoutPlanId) || (selectedPlan._id === currentPlanId) || Number(selectedPlan.price) <= 0}
+              disabled={!selectedPlan || loadingPlans || Boolean(checkoutPlanId) || isSelectedPlanCurrent || !selectedPlanSupportsFeature || Number(selectedPlan.price) <= 0}
               onClick={() => selectedPlan && void subscribe(selectedPlan)}
             >
-              {checkoutPlanId ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{selectedPlan && checkoutPlanId === selectedPlan._id ? "Opening checkout…" : "Choose plan"} <ArrowRight className="h-4 w-4" /></>}
+              {checkoutPlanId ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{!selectedPlanSupportsFeature ? "Select a plan with this feature" : isSelectedPlanCurrent ? "Current plan" : "Choose plan"} <ArrowRight className="h-4 w-4" /></>}
             </button>
           </div>
         </footer>

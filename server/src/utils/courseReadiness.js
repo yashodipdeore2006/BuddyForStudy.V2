@@ -65,13 +65,29 @@ export function evaluateCourseReadiness(course) {
     { key: "tutorialContent", label: "Tutorial items contain content or a resource", passed: emptyTutorials.length === 0 },
     { key: "projectContent", label: "Project items include instructions or learning objectives", passed: emptyProjects.length === 0 }
   ];
+  const fixGuidance = {
+    title: "Add a clear course title in the course details.",
+    description: "Write a course description so learners know what they will learn.",
+    category: "Choose a course category in the course details.",
+    duration: "Set an estimated course duration (for example, 6 weeks or 20 hours).",
+    outcomes: "Add at least one non-empty learning outcome describing a skill the learner will gain.",
+    modules: "Open Manage Curriculum and add at least one module.",
+    moduleTitles: "Add a title to each of the " + invalidModuleTitles.length + " module(s) with a missing title.",
+    lessons: "Add at least one lesson or learning item under a module.",
+    lessonTitles: "Add a title to each learning item. " + lessons.filter((lesson) => !hasText(lesson?.title)).length + " item(s) currently have no title.",
+    lessonTypes: "Change the type of each of the " + invalidLessonTypes.length + " unsupported learning item(s) to Tutorial, Project, or Quiz.",
+    paidPrice: "Set the paid course price to a value greater than zero, or switch the pricing mode to Free.",
+    quizContent: "Open Manage Curriculum and edit the " + invalidQuizzes.length + " invalid quiz lesson(s). Each question needs a question prompt, at least two non-empty answer choices, and a valid correct answer.",
+    tutorialContent: "Open Manage Curriculum and add lesson content, a resource URL, or a playable video URL/ID to each of the " + emptyTutorials.length + " empty tutorial lesson(s).",
+    projectContent: "Open Manage Curriculum and add instructions, objectives, an expected outcome, or project description to each of the " + emptyProjects.length + " empty project lesson(s)."
+  };
   const failedChecks = checks.filter((check) => !check.passed);
   return {
     ready: failedChecks.length === 0,
     passedCount: checks.length - failedChecks.length,
     totalChecks: checks.length,
     checks,
-    failedChecks: failedChecks.map(({ key, label }) => ({ key, label })),
+    failedChecks: failedChecks.map(({ key, label }) => ({ key, label, fix: fixGuidance[key] || "Review this field and complete the missing information." })),
     counts: {
       modules: modules.length,
       lessons: lessons.length,

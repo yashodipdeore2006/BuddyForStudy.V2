@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { ArrowRight, Check, Crown, Loader2, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +12,27 @@ type Plan = {
   billingInterval: string;
   description?: string;
   features?: string[];
+  currency?: string;
+  isPopular?: boolean;
 };
+
+function formatMoney(amount: number, currency = "INR") {
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `₹${Math.round(amount)}`;
+  }
+}
+
+function intervalLabel(interval: string) {
+  switch (interval) {
+    case "monthly": return "month";
+    case "quarterly": return "quarter";
+    case "yearly": return "year";
+    case "one_time": return "one time";
+    default: return interval || "billing period";
+  }
+}
 
 type PricingMessage = {
   type: "success" | "info" | "error";
@@ -115,7 +136,7 @@ export default function Pricing() {
           name: session.user.name,
           email: session.user.email,
         },
-        theme: { color: "#2563eb" },
+        theme: { color: "#7C3AED" },
         handler: () => {
           setMessage({
             type: "success",
@@ -175,63 +196,57 @@ export default function Pricing() {
         </div>
       )}
 
-      <div className="mt-10 grid gap-6 md:grid-cols-3">
-        {plans.map((plan, index) => (
-          <div
-            key={plan._id}
-            className={`flex h-full flex-col rounded-[32px] border bg-white p-7 ${index === 0
-              ? "border-blue-500 ring-2 ring-blue-100 shadow-lg"
-              : "border-slate-200"
-              }`}
-          >
-            {index === 0 && (
-              <span className="mb-3 self-start rounded-full bg-blue-600 px-3 py-1 text-xs font-bold text-white">
-                Recommended · Highest access
-              </span>
-            )}
+      {plans.length === 0 && !message && (
+        <div className="bfs-plan-empty mt-10 rounded-3xl border p-10 text-center">
+          <Sparkles className="mx-auto h-8 w-8 text-violet-500" />
+          <h2 className="mt-3 text-xl font-bold">Plans are on their way</h2>
+          <p className="mt-2 text-sm text-slate-500">We couldn't find any available subscription plans right now.</p>
+        </div>
+      )}
 
-            <h2 className="text-xl font-medium text-slate-950">
-              {plan.name}
-            </h2>
-
-            <p className="mt-2 text-3xl font-medium tracking-tight text-slate-950">
-              ₹{plan.price}
-              <span className="text-sm font-normal text-slate-500">
-                /{plan.billingInterval}
-              </span>
-            </p>
-
-            <p className="mt-3 text-sm text-slate-500">
-              {plan.description}
-            </p>
-
-            <ul className="mt-5 space-y-2 text-sm text-slate-600">
-              {(plan.features || []).map((feature) => (
-                <li key={feature}>✓ {feature}</li>
-              ))}
-            </ul>
-
-            <button
-              type="button"
-              disabled={loading === plan._id || Number(plan.price) === 0}
-              onClick={() => void subscribe(plan._id)}
-              className={`mt-auto mt-6 w-full ${Number(plan.price) === 0 ? "btn-secondary" : "btn-buy"
-                }`}
-            >
-              {Number(plan.price) === 0
-                ? "Included"
-                : loading === plan._id
-                  ? "Opening Checkout..."
-                  : "Subscribe"}
-            </button>
-          </div>
-        ))}
+      <div className="mt-10 grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {plans.map((plan, index) => {
+          const featured = index === 0 || plan.isPopular === true;
+          return (
+            <article key={plan._id} className={`bfs-plan-card bfs-interactive-card relative flex h-full flex-col p-6 sm:p-7 ${featured ? "bfs-plan-card--featured" : ""}`}>
+              <div className="mb-4 flex min-h-7 flex-wrap items-center gap-2">
+                {index === 0 && <span className="bfs-plan-badge bfs-plan-badge--featured"><Crown className="h-3.5 w-3.5" /> Highest access</span>}
+                {index !== 0 && plan.isPopular && <span className="bfs-plan-badge"><Sparkles className="h-3.5 w-3.5" /> Most popular</span>}
+                {Number(plan.price) === 0 && <span className="bfs-plan-badge bfs-plan-badge--neutral">Free</span>}
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-950">{plan.name}</h2>
+              <p className="mt-2 min-h-10 text-sm text-slate-500">{plan.description || "A focused learning plan to help you keep moving forward."}</p>
+              <div className="mt-4 flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                <span className="bfs-plan-price">{formatMoney(Number(plan.price || 0), plan.currency || "INR")}</span>
+                <span className="text-sm font-medium text-slate-500">{Number(plan.price) === 0 ? "forever" : `/${intervalLabel(plan.billingInterval)}`}</span>
+              </div>
+              <div className="my-5 border-t border-slate-200" />
+              <ul className="bfs-plan-features flex-1 space-y-3 text-sm">
+                {(plan.features || []).map((feature) => (
+                  <li key={feature} className="flex items-start gap-2.5">
+                    <span className="bfs-plan-check mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"><Check className="h-3.5 w-3.5" /></span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
+                {!(plan.features || []).length && <li className="text-slate-500">Core learning features included.</li>}
+              </ul>
+              <button
+                type="button"
+                disabled={loading === plan._id || Number(plan.price) === 0}
+                onClick={() => void subscribe(plan._id)}
+                className={`mt-7 w-full ${Number(plan.price) === 0 ? "btn-secondary" : "btn-buy"}`}
+              >
+                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : Number(plan.price) === 0 ? "Current free access" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
+              </button>
+            </article>
+          );
+        })}
       </div>
 
       {courseId && (
-        <section className="mx-auto mt-10 max-w-3xl rounded-3xl border border-emerald-200 bg-emerald-50 p-6 sm:flex sm:items-center sm:justify-between">
+        <section className="bfs-course-purchase-callout mx-auto mt-10 max-w-3xl rounded-3xl border p-6 sm:flex sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+            <p className="bfs-eyebrow">
               Prefer a one-time purchase?
             </p>
 
@@ -246,7 +261,7 @@ export default function Pricing() {
 
           <Link
             to={`/courses/${encodeURIComponent(courseId)}`}
-            className="mt-4 inline-flex rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 sm:mt-0"
+            className="btn-primary mt-4 sm:mt-0"
           >
             View course price and buy
           </Link>

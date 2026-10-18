@@ -3,6 +3,9 @@ import { User } from "../models/User.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
+import { Payment } from "../models/Payment.js";
+import { Course } from "../models/Course.js";
+import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 
@@ -10,6 +13,8 @@ const MAX_SELECTED_USERS = 500;
 const MAX_FILTERED_RECIPIENTS = 5000;
 const SUBSCRIPTION_STATUSES = new Set(["trialing", "active", "past_due", "cancelled", "expired"]);
 const AUTH_PROVIDERS = new Set(["local", "google", "local_google"]);
+const PLAN_SEGMENTS = new Set(["popular", "paid", "free", "premium"]);
+const COURSE_SEGMENTS = new Set(["popular", "paid", "free", "featured"]);
 
 function parseDate(value, field) {
   if (value === undefined || value === null || value === "") return null;
@@ -65,6 +70,24 @@ function normalizeFilters(input = {}) {
     const days = Number(input.inactiveDays);
     if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error("inactiveDays must be an integer between 1 and 365");
     filters.inactiveDays = days;
+  }
+  if (input.totalSpendMin !== undefined && input.totalSpendMin !== "") {
+    const amount = Number(input.totalSpendMin);
+    if (!Number.isFinite(amount) || amount < 0 || amount > 100000000) throw new Error("totalSpendMin must be between 0 and 100,000,000");
+    filters.totalSpendMin = amount;
+  }
+  if (input.courseCountMin !== undefined && input.courseCountMin !== "") {
+    const count = Number(input.courseCountMin);
+    if (!Number.isInteger(count) || count < 1 || count > 1000) throw new Error("courseCountMin must be an integer between 1 and 1,000");
+    filters.courseCountMin = count;
+  }
+  if (input.planSegment !== undefined && input.planSegment !== "") {
+    if (!PLAN_SEGMENTS.has(input.planSegment)) throw new Error("Invalid plan segment");
+    filters.planSegment = input.planSegment;
+  }
+  if (input.courseSegment !== undefined && input.courseSegment !== "") {
+    if (!COURSE_SEGMENTS.has(input.courseSegment)) throw new Error("Invalid course segment");
+    filters.courseSegment = input.courseSegment;
   }
   if (input.progressMax !== undefined && input.progressMax !== "") {
     const n = Number(input.progressMax);
@@ -136,19 +159,73 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
       $lte: new Date(Date.now() + normalized.expiresWithinDays * 24 * 60 * 60 * 1000)
     };
   }
+  if (normalized.planSegment) {
+    const activePlans = await SubscriptionPlan.find({ isActive: true }).select("_id price isPopular").lean();
+    let matchingPlanIds = [];
+    if (normalized.planSegment === "popular") matchingPlanIds = activePlans.filter((plan) => plan.isPopular).map((plan) => plan._id);
+    if (normalized.planSegment === "paid") matchingPlanIds = activePlans.filter((plan) => Number(plan.price) > 0).map((plan) => plan._id);
+    if (normalized.planSegment === "free") matchingPlanIds = activePlans.filter((plan) => Number(plan.price) === 0).map((plan) => plan._id);
+    if (normalized.planSegment === "premium") {
+      const highestPrice = activePlans.reduce((highest, plan) => Math.max(highest, Number(plan.price) || 0), 0);
+      matchingPlanIds = activePlans.filter((plan) => Number(plan.price) === highestPrice && highestPrice > 0).map((plan) => plan._id);
+    }
+    subscriptionFilters.plan = { $in: matchingPlanIds };
+  }
   if (Object.keys(subscriptionFilters).length) {
     const subscriptions = await UserSubscription.find(subscriptionFilters).select("user").lean();
     const subscriptionUserIds = subscriptions.map((item) => item.user);
     query._id = query._id ? { $in: subscriptionUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: subscriptionUserIds };
   }
 
-  if (normalized.courseId || normalized.enrollmentStatus) {
+  let segmentCourseIds = null;
+  if (normalized.courseSegment) {
+    if (normalized.courseSegment === "paid") {
+      segmentCourseIds = await Course.find({ "pricing.mode": "paid" }).distinct("_id");
+    } else if (normalized.courseSegment === "free") {
+      segmentCourseIds = await Course.find({ "pricing.mode": "free" }).distinct("_id");
+    } else if (normalized.courseSegment === "featured") {
+      segmentCourseIds = await Course.find({ featured: true }).distinct("_id");
+    } else if (normalized.courseSegment === "popular") {
+      const topCourses = await Enrollment.aggregate([
+        { $match: { status: { $in: ["active", "completed"] } } },
+        { $group: { _id: "$course", enrollments: { $sum: 1 } } },
+        { $sort: { enrollments: -1, _id: 1 } },
+        { $limit: 5 }
+      ]);
+      segmentCourseIds = topCourses.map((item) => item._id);
+    }
+  }
+  if (normalized.courseId || normalized.enrollmentStatus || segmentCourseIds) {
     const enrollmentQuery = {};
-    if (normalized.courseId) enrollmentQuery.course = new mongoose.Types.ObjectId(normalized.courseId);
+    if (normalized.courseId && segmentCourseIds) enrollmentQuery.course = { $in: segmentCourseIds.filter((id) => String(id) === String(normalized.courseId)) };
+    else if (normalized.courseId) enrollmentQuery.course = new mongoose.Types.ObjectId(normalized.courseId);
+    else if (segmentCourseIds) enrollmentQuery.course = { $in: segmentCourseIds };
     if (normalized.enrollmentStatus) enrollmentQuery.status = normalized.enrollmentStatus;
     const enrollments = await Enrollment.find(enrollmentQuery).select("user").lean();
     const enrollmentUserIds = enrollments.map((item) => item.user);
     query._id = query._id ? { $in: enrollmentUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: enrollmentUserIds };
+  }
+
+  if (normalized.courseCountMin !== undefined) {
+    const courseCounts = await Enrollment.aggregate([
+      { $match: { status: { $in: ["active", "completed"] } } },
+      { $group: { _id: "$user", courseCount: { $sum: 1 } } },
+      { $match: { courseCount: { $gte: normalized.courseCountMin } } },
+      { $project: { _id: 1 } }
+    ]);
+    const eligibleUserIds = courseCounts.map((item) => item._id);
+    query._id = query._id ? { $in: eligibleUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: eligibleUserIds };
+  }
+
+  if (normalized.totalSpendMin !== undefined) {
+    const spenders = await Payment.aggregate([
+      { $match: { status: "paid" } },
+      { $group: { _id: "$user", totalSpend: { $sum: "$amount" } } },
+      { $match: { totalSpend: { $gte: normalized.totalSpendMin } } },
+      { $project: { _id: 1 } }
+    ]);
+    const eligibleUserIds = spenders.map((item) => item._id);
+    query._id = query._id ? { $in: eligibleUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: eligibleUserIds };
   }
 
   if (normalized.inactiveDays) {

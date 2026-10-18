@@ -151,6 +151,8 @@ export default function FeatureUpgradeModal() {
       const highestPlanWithFeature = requiredFeatureLabel
         ? ordered.find((plan: Plan) => (plan.features || []).includes(requiredFeatureLabel))
         : undefined;
+      // Start with the most expensive active plan that unlocks the requested feature.
+      // If no configured plan offers it, retain the highest-priced plan but disable checkout.
       setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");
       setPreviewPlanId(null);
     }).catch((error) => {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3 } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush } from "@/lib/pushNotifications";
 
 type NotificationPreferences = {
@@ -87,6 +87,14 @@ export default function Settings() {
   const [notifError, setNotifError] = useState("");
   const [pushAvailable, setPushAvailable] = useState(false);
   const [savingPush, setSavingPush] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try { return localStorage.getItem("bfs-theme") === "dark" ? "dark" : "light"; } catch { return "light"; }
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem("bfs-theme", theme); } catch { /* Theme still applies for this session. */ }
+  }, [theme]);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,11 +218,22 @@ export default function Settings() {
   ];
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-      <PageHeader title="Settings" subtitle="Manage your account and notification preferences." />
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <PageHeader title="Settings" subtitle="Personalize BuddyForStudy, protect your account, and control how we contact you." />
+      <nav aria-label="Settings sections" className="mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><UserRound className="h-4 w-4" />Account</a>
+        <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
+        <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
+        <a href="#notifications" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Bell className="h-4 w-4" />Notifications</a>
+        <a href="/billing" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
+      </nav>
+      <section id="account" className="mt-6 grid gap-4 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Account overview</h2><p className="mt-1 text-sm text-slate-500">Your sign-in identity and learner profile.</p></div></div><div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div><div className="flex items-center justify-between gap-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div></div><a href="/profile" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">Edit profile <ArrowUpRight className="h-4 w-4" /></a></div>
+        <div id="appearance" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><Sun className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Appearance</h2><p className="mt-1 text-sm text-slate-500">Choose the interface theme for this browser.</p></div></div><div className="mt-5 grid grid-cols-2 gap-3"><button type="button" aria-pressed={theme === "light"} onClick={() => setTheme("light")} className={theme === "light" ? "rounded-xl border border-blue-500 bg-blue-50 p-4 text-left ring-2 ring-blue-500/10" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}><Sun className="h-5 w-5 text-amber-500" /><span className="mt-3 block text-sm font-bold text-slate-900">Light</span><span className="mt-1 block text-xs text-slate-500">Bright and clear</span></button><button type="button" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")} className={theme === "dark" ? "rounded-xl border border-blue-500 bg-blue-50 p-4 text-left ring-2 ring-blue-500/10" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}><Moon className="h-5 w-5 text-indigo-500" /><span className="mt-3 block text-sm font-bold text-slate-900">Dark</span><span className="mt-1 block text-xs text-slate-500">Reduced brightness</span></button></div><p className="mt-3 text-xs leading-5 text-slate-500">Theme is saved in this browser and can be changed from the top navigation.</p></div>
+      </section>
 
       {canChangePassword ? (
-        <form onSubmit={handlePasswordChange} className="mt-6 card p-6">
+        <form id="security" onSubmit={handlePasswordChange} className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-slate-400" />
             <h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
@@ -256,7 +275,7 @@ export default function Settings() {
           </div>
         </form>
       ) : (
-        <div className="mt-6 card p-6">
+        <div id="security" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-slate-400" />
             <h2 className="text-lg font-semibold text-slate-900">Password</h2>
@@ -267,7 +286,7 @@ export default function Settings() {
         </div>
       )}
 
-      <section className="mt-6 card p-6">
+      <section id="notifications" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
         <div className="flex items-start gap-3">
           <Bell className="mt-0.5 h-5 w-5 text-slate-400" />
           <div>

@@ -1,11 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LockKeyhole } from "lucide-react";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
 export default function AcceptAdminInvitation() {
-  const [params] = useSearchParams();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -13,8 +12,9 @@ export default function AcceptAdminInvitation() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const email = params.get("email") || "";
-  const token = params.get("token") || "";
+  const invitationParams = new URLSearchParams(window.location.hash.slice(1));
+  const email = invitationParams.get("email") || "";
+  const token = invitationParams.get("token") || "";
 
   async function accept(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

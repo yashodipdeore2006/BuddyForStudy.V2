@@ -148,9 +148,17 @@ export default function FeatureUpgradeModal() {
       // Default to the most expensive purchasable plan that includes the blocked feature.
       // If none includes it, show the highest priced plan for transparency but disable checkout.
       const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
+      const currentSubscription = subscriptionData.subscription as Subscription | null;
+      const activePlanId = typeof currentSubscription?.plan === "object"
+        ? currentSubscription.plan?._id
+        : currentSubscription?.plan;
       const highestPlanWithFeature = requiredFeatureLabel
-        ? ordered.find((plan: Plan) => (plan.features || []).includes(requiredFeatureLabel))
-        : undefined;
+        ? ordered.find((plan: Plan) =>
+            (plan.features || []).includes(requiredFeatureLabel) &&
+            Number(plan.price) > 0 &&
+            plan._id !== activePlanId
+          )
+        : ordered.find((plan: Plan) => Number(plan.price) > 0 && plan._id !== activePlanId);
       // Start with the most expensive active plan that unlocks the requested feature.
       // If no configured plan offers it, retain the highest-priced plan but disable checkout.
       setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");

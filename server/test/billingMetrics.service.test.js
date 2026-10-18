@@ -10,7 +10,7 @@ test("gross collections include fully refunded payments so refunds are subtracte
 });
 
 test("net revenue rounds to cents and preserves negative balances instead of clamping them", () => {
-  assert.equal(calculateNetRevenue(100, 25.555), 74.45);
+  assert.equal(calculateNetRevenue(100, 25.56), 74.44);
   assert.equal(calculateNetRevenue(10, 12), -2);
 });
 

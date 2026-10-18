@@ -36,6 +36,7 @@ import { createNotificationEvent, retryNotificationDelivery } from "../services/
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions } from "../utils/adminRbac.js";
+import { resolveAdminAudience, validateAdminAudienceInput } from "../services/adminAudience.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Centralize redaction and durable fallback for every admin-pro mutation.
@@ -1458,6 +1459,31 @@ export async function reconcileRefund(req, res, next) {
   }
 }
 
+export async function previewNotificationAudience(req, res, next) {
+  try {
+    validateAdminAudienceInput(req.body || {});
+    const users = await resolveAdminAudience(req.body || {}, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5000 });
+    const truncated = users.length >= 5000;
+    return success(res, {
+      recipientCount: users.length,
+      truncated,
+      sample: users.slice(0, 10).map((user) => ({
+        id: String(user._id),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive,
+        emailVerified: user.emailVerified,
+        authProvider: user.authProvider,
+        createdAt: user.createdAt
+      }))
+    }, truncated ? "Audience preview capped at 5,000 recipients; narrow the filters before sending." : "Audience preview ready");
+  } catch (error) {
+    if (error instanceof Error && /Invalid|must be|cannot|Choose|Select|filters|audience|exceed|later than/i.test(error.message)) return failure(res, error.message, 400);
+    next(error);
+  }
+}
+
 export async function sendNotification(req, res, next) {
   try {
     const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
@@ -1470,14 +1496,11 @@ export async function sendNotification(req, res, next) {
     if (!["system", "course", "billing", "promotion", "security"].includes(type)) {
       return failure(res, "Invalid notification type", 400);
     }
-    if (Array.isArray(req.body.userIds) && req.body.userIds.length > 500) {
-      return failure(res, "Send to at most 500 selected users at a time", 400);
-    }
-
-    const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
-    const users = ids.length
-      ? await User.find({ _id: { $in: ids } }).select("_id")
-      : await notificationAudienceUsers(req.body.audience || "all");
+    try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
+    let users;
+    try {
+      users = await resolveAdminAudience(req.body, { select: "_id", limit: 5000 });
+    } catch (error) { return failure(res, error.message, 400); }
     const broadcastId = new mongoose.Types.ObjectId().toString();
     await Promise.all(users.map((user) => createNotificationEvent({
       userId: String(user._id),
@@ -1503,18 +1526,18 @@ export async function sendEmail(req, res, next) {
     if (subject.length > 200 || html.length > 20000) return failure(res, "Email subject or HTML body is too long", 400);
     if (hasUnsafeEmailMarkup(html)) return failure(res, "Email HTML contains unsafe tags, attributes, or URL schemes", 400);
 
-    const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
+    try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
     let users = [];
     let externalEmail = "";
-    if (ids.length) {
-      users = await User.find({ _id: { $in: ids } }).select("_id email name");
-    } else if (req.body.email) {
+    if (req.body.email) {
       externalEmail = String(req.body.email).trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalEmail)) return failure(res, "Enter a valid recipient email address", 400);
       const knownUser = await User.findOne({ email: externalEmail }).select("_id email name");
       if (knownUser) users = [knownUser];
     } else {
-      users = await audienceUsers(req.body.audience || "all");
+      try {
+        users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5000 });
+      } catch (error) { return failure(res, error.message, 400); }
     }
 
     if (externalEmail && users.length === 0) {
@@ -1557,17 +1580,28 @@ export async function sendAnnouncement(req, res, next) {
     const channel = parseAnnouncementChannels(req.body.channel);
     if (!channel) return failure(res, "Choose one or more valid announcement channels", 400);
 
+    try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
+    const targetMode = Array.isArray(req.body.userIds) && req.body.userIds.length
+      ? "selected"
+      : req.body.filters && Object.keys(req.body.filters).length
+        ? "filtered"
+        : "audience";
+    let users;
+    try { users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5000 }); }
+    catch (error) { return failure(res, error.message, 400); }
     const announcement = await Announcement.create({
       title,
       message,
       audience: req.body.audience || "all",
+      targetMode,
+      targetUserIds: targetMode === "selected" ? req.body.userIds : [],
+      targetFilters: targetMode === "filtered" ? req.body.filters : {},
       channel,
       link: typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "",
       status: "sent",
       sentAt: new Date(),
       createdBy: req.user.user._id
     });
-    const users = await audienceUsers(announcement.audience);
     const results = await Promise.all(users.map((user) => createNotificationEvent({
       userId: String(user._id),
       title: announcement.title,

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES } from "../src/services/refundBalance.service.js";
+import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
 
@@ -61,4 +61,14 @@ test("processed refunds release the active-request claim so partial balances rem
   assert.deepEqual(ACTIVE_REFUND_STATUSES, ["pending", "approved"]);
   assert.equal(ACTIVE_REFUND_STATUSES.includes("processed"), false);
   assert.equal(ACTIVE_REFUND_STATUSES.includes("rejected"), false);
+});
+
+test("provider refund status never treats pending or unknown states as processed", () => {
+  assert.equal(classifyProviderRefundStatus("processed"), "processed");
+  assert.equal(classifyProviderRefundStatus("failed"), "retryable");
+  assert.equal(classifyProviderRefundStatus("rejected"), "retryable");
+  assert.equal(classifyProviderRefundStatus("pending"), "pending");
+  assert.equal(classifyProviderRefundStatus("created"), "pending");
+  assert.equal(classifyProviderRefundStatus(""), "pending");
+  assert.equal(classifyProviderRefundStatus(undefined), "pending");
 });

@@ -1,5 +1,5 @@
 import { OperationalAlert } from "../models/OperationalAlert.js";
-import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 
@@ -27,8 +27,8 @@ export async function acknowledgeOperationalAlert(req, res, next) {
     alert.acknowledgedBy = req.user?.user?._id || null;
     alert.acknowledgedAt = new Date();
     await alert.save();
-    await AuditLog.create({
-      actor: req.user?.user?._id || null,
+    const auditResult = await recordAuditEvent({
+      actor: req.user?.user?._id || req.user?.userId || null,
       action: "operational_alert.acknowledged",
       targetType: "OperationalAlert",
       targetId: String(alert._id),
@@ -38,6 +38,7 @@ export async function acknowledgeOperationalAlert(req, res, next) {
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get("user-agent") || "").slice(0, 500)
     });
-    return success(res, { alert }, "Operational alert acknowledged");
+    return success(res, { alert, auditLogRecorded: auditResult.recorded, auditQueued: auditResult.queued },
+      auditResult.recorded || auditResult.queued ? "Operational alert acknowledged" : "Operational alert acknowledged, but audit persistence failed");
   } catch (error) { next(error); }
 }

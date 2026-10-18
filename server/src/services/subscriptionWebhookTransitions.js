@@ -28,3 +28,16 @@ export function subscriptionEventFreshnessFilter(eventAt) {
     ]
   };
 }
+
+export const SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES = Object.freeze([
+  "created",
+  "pending",
+  "paid",
+  "failed"
+]);
+
+export const TERMINAL_PAYMENT_STATUSES = Object.freeze([
+  "refunded",
+  "partially_refunded",
+  "cancelled"
+]);

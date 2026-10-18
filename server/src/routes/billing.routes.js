@@ -146,6 +146,7 @@ router.post("/subscription/cancel", async (req,res,next)=>{ try {
   }, "subscription-cancellation");
   return success(res,{subscription},"Subscription cancellation scheduled");
 } catch(e){next(e)} });
+router.get("/refunds", async (req,res,next)=>{ try { const refunds=await RefundRequest.find({user:req.user.userId}).populate({path:"payment",select:"amount currency status createdAt course plan",populate:[{path:"course",select:"title"},{path:"plan",select:"name"}]}).sort({createdAt:-1}).lean(); return success(res,{refunds}); } catch(e){next(e)} });
 router.post("/refunds", async (req,res,next)=>{ try {
   if(!isValidObjectId(req.body.paymentId)) return failure(res,"Invalid paymentId",400);
   const payment=await Payment.findOne({_id:req.body.paymentId,user:req.user.userId,status:{$in:["paid","partially_refunded"]}});

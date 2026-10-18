@@ -1,6 +1,5 @@
-import { hasPaidCourseAccess, canAccessCourse } from "../services/subscriptionEntitlement.service.js";
+import { canAccessCourse, getEntitlement } from "../services/subscriptionEntitlement.service.js";
 import { failure } from "../utils/response.js";
-import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
 
 export function requireFeature(feature) {
   return async (req, res, next) => {

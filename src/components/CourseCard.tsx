@@ -72,11 +72,16 @@ export default function CourseCard({
     setSaving(true);
     setActionError('');
     try {
-      await apiFetch('/api/saved-courses', {
-        method: 'POST',
-        body: JSON.stringify({ courseId: course.id }),
-      });
-      setSaved(true);
+      if (saved) {
+        await apiFetch(`/api/saved-courses/${course.id}`, { method: 'DELETE' });
+        setSaved(false);
+      } else {
+        await apiFetch('/api/saved-courses', {
+          method: 'POST',
+          body: JSON.stringify({ courseId: course.id }),
+        });
+        setSaved(true);
+      }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Unable to save course.');
     } finally {
@@ -221,8 +226,8 @@ export default function CourseCard({
               <button
                 type="button"
                 onClick={saveCourse}
-                disabled={saving || saved}
-                aria-label={saved ? 'Course saved' : 'Save course'}
+                disabled={saving}
+                aria-label={saved ? 'Remove saved course' : 'Save course'}
                 className={classNames(
                   'inline-flex min-h-7 items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-bold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default',
                   saved
@@ -231,7 +236,7 @@ export default function CourseCard({
                 )}
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className={classNames("h-3.5 w-3.5", saved && "fill-current")} />}
-                {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+                {saving ? (saved ? 'Removing…' : 'Saving…') : saved ? 'Saved' : 'Save'}
               </button>
               <button
                 type="button"

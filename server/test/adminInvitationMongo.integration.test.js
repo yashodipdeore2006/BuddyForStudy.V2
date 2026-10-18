@@ -3,89 +3,61 @@ import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import { AdminInvitation } from "../src/models/AdminInvitation.js";
 
-test("MongoDB atomically permits only one concurrent invitation claim", async (t) => {
+test("MongoDB serializes concurrent invitation acceptance and revocation transitions", async (t) => {
   const uri = process.env.MONGO_URI;
   if (!uri) {
     t.skip("MONGO_URI is not configured; real MongoDB concurrency test is skipped");
     return;
   }
 
-  await mongoose.connect(uri, { dbName: `buddyforstudy_invitation_race_${process.pid}` });
+  const dbName = `buddyforstudy_invitation_races_${process.pid}`;
+  await mongoose.connect(uri, { dbName });
   try {
     await AdminInvitation.deleteMany({});
     const now = new Date();
-    const invitation = await AdminInvitation.create({
-      email: "race-test@example.com",
+    const inviter = new mongoose.Types.ObjectId();
+    const createInvitation = (suffix) => AdminInvitation.create({
+      email: `${suffix}-race-test@example.com`,
       name: "Race Test Admin",
       adminRole: "support_manager",
-      tokenHash: `race-test-${process.pid}-${now.getTime()}`,
-      invitedBy: new mongoose.Types.ObjectId(),
+      tokenHash: `${suffix}-race-${process.pid}-${now.getTime()}`,
+      invitedBy: inviter,
       expiresAt: new Date(now.getTime() + 60_000)
     });
 
+    const claimInvitation = await createInvitation("claim");
     const claimAt = new Date();
-    const filter = {
-      _id: invitation._id,
+    const claimFilter = {
+      _id: claimInvitation._id,
       acceptedAt: null,
       revokedAt: null,
       expiresAt: { $gt: claimAt }
     };
-    const claim = () => AdminInvitation.findOneAndUpdate(
-      filter,
-      { $set: { acceptedAt: claimAt } },
-      { new: true }
-    );
-    const results = await Promise.all([claim(), claim()]);
-    assert.equal(results.filter(Boolean).length, 1, "exactly one request must claim the invitation");
-    const stored = await AdminInvitation.findById(invitation._id);
-    assert.equal(stored.acceptedAt?.getTime(), claimAt.getTime());
-  } finally {
-    await mongoose.connection.dropDatabase();
-    await mongoose.disconnect();
-  }
-});
-
-
-test("MongoDB serializes a concurrent invitation claim and revocation", async (t) => {
-  const uri = process.env.MONGO_URI;
-  if (!uri) {
-    t.skip("MONGO_URI is not configured; real MongoDB race test is skipped");
-    return;
-  }
-
-  await mongoose.connect(uri, { dbName: `buddyforstudy_invitation_revoke_race_${process.pid}` });
-  try {
-    const now = new Date();
-    const invitation = await AdminInvitation.create({
-      email: "revoke-race-test@example.com",
-      name: "Revoke Race Test",
-      adminRole: "support_manager",
-      tokenHash: `revoke-race-${process.pid}-${now.getTime()}`,
-      invitedBy: new mongoose.Types.ObjectId(),
-      expiresAt: new Date(now.getTime() + 60_000)
-    });
-
-    const transitionAt = new Date();
-    const [claim, revoke] = await Promise.all([
-      AdminInvitation.findOneAndUpdate(
-        { _id: invitation._id, acceptedAt: null, revokedAt: null, expiresAt: { $gt: transitionAt } },
-        { $set: { acceptedAt: transitionAt } },
-        { new: true }
-      ),
-      AdminInvitation.findOneAndUpdate(
-        { _id: invitation._id, acceptedAt: null, revokedAt: null, expiresAt: { $gt: transitionAt } },
-        { $set: { revokedAt: transitionAt } },
-        { new: true }
-      )
+    const claims = await Promise.all([
+      AdminInvitation.findOneAndUpdate(claimFilter, { $set: { acceptedAt: claimAt } }, { new: true }),
+      AdminInvitation.findOneAndUpdate(claimFilter, { $set: { acceptedAt: claimAt } }, { new: true })
     ]);
+    assert.equal(claims.filter(Boolean).length, 1, "only one concurrent acceptance claim may succeed");
 
+    const transitionInvitation = await createInvitation("transition");
+    const transitionAt = new Date();
+    const transitionFilter = {
+      _id: transitionInvitation._id,
+      acceptedAt: null,
+      revokedAt: null,
+      expiresAt: { $gt: transitionAt }
+    };
+    const [claim, revoke] = await Promise.all([
+      AdminInvitation.findOneAndUpdate(transitionFilter, { $set: { acceptedAt: transitionAt } }, { new: true }),
+      AdminInvitation.findOneAndUpdate(transitionFilter, { $set: { revokedAt: transitionAt } }, { new: true })
+    ]);
     assert.equal(Number(Boolean(claim)) + Number(Boolean(revoke)), 1,
       "exactly one of acceptance claim or revocation must win");
-    const stored = await AdminInvitation.findById(invitation._id);
+    const stored = await AdminInvitation.findById(transitionInvitation._id);
     assert.equal(Boolean(stored.acceptedAt) !== Boolean(stored.revokedAt), true,
       "invitation must end in exactly one terminal state");
   } finally {
-    await mongoose.connection.dropDatabase();
+    await AdminInvitation.deleteMany({}).catch(() => {});
     await mongoose.disconnect();
   }
 });

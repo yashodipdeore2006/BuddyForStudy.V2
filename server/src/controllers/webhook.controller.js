@@ -8,6 +8,7 @@ import { success, failure } from "../utils/response.js";
 import { createNotificationEvent } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../services/paymentWebhookTransitions.js";
+import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -17,16 +18,48 @@ function eventId(req) {
 
 async function claimEvent(req, event) {
   const id = eventId(req);
-  const existing = await WebhookEvent.findOne({ eventId: id });
-  if (existing) return false;
+  const now = new Date();
+  const claimToken = crypto.randomUUID();
+  const leaseCutoff = new Date(now.getTime() - WEBHOOK_EVENT_LEASE_MS);
+  const claim = {
+    eventId: id,
+    event: event.event,
+    status: "processing",
+    claimToken,
+    claimedAt: now,
+    processedAt: null
+  };
 
   try {
-    await WebhookEvent.create({ eventId: id, event: event.event, processedAt: new Date() });
-    return true;
+    await WebhookEvent.create(claim);
+    return { claimed: true, eventId: id, claimToken };
   } catch (error) {
-    if (error?.code === 11000) return false;
-    throw error;
+    if (error?.code !== 11000) throw error;
   }
+
+  let existing = await WebhookEvent.findOne({ eventId: id });
+  let disposition = getWebhookClaimDisposition(existing, now);
+  if (disposition === "duplicate") return { claimed: false, duplicate: true };
+  if (disposition === "in_progress") return { claimed: false, inProgress: true };
+
+  const reclaimed = await WebhookEvent.findOneAndUpdate(
+    {
+      eventId: id,
+      $or: [
+        { status: "failed" },
+        { status: "processing", claimedAt: { $lte: leaseCutoff } },
+        { status: { $exists: false }, processedAt: null }
+      ]
+    },
+    { $set: claim },
+    { new: true }
+  );
+  if (reclaimed) return { claimed: true, eventId: id, claimToken };
+
+  existing = await WebhookEvent.findOne({ eventId: id });
+  disposition = getWebhookClaimDisposition(existing, new Date());
+  if (disposition === "duplicate") return { claimed: false, duplicate: true };
+  return { claimed: false, inProgress: true };
 }
 
 function periodDate(value) {
@@ -128,6 +161,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
 
 export async function razorpayWebhook(req, res, next) {
   let claimedEventId = "";
+  let claimToken = "";
   try {
     const signature = req.get("x-razorpay-signature");
     if (!req.rawBody || !razorpay.verifyWebhookSignature(req.rawBody, signature, env.razorpayWebhookSecret)) {
@@ -135,9 +169,13 @@ export async function razorpayWebhook(req, res, next) {
     }
 
     const event = req.body;
-    claimedEventId = eventId(req);
-    const claimed = await claimEvent(req, event);
-    if (!claimed) return success(res, { received: true, duplicate: true });
+    const claim = await claimEvent(req, event);
+    if (!claim.claimed) {
+      if (claim.inProgress) return failure(res, "Webhook event is already being processed", 503);
+      return success(res, { received: true, duplicate: true });
+    }
+    claimedEventId = claim.eventId;
+    claimToken = claim.claimToken;
 
     const paymentEntity = event?.payload?.payment?.entity;
     const orderEntity = event?.payload?.order?.entity;
@@ -273,9 +311,23 @@ export async function razorpayWebhook(req, res, next) {
       }
     }
 
+    if (claimedEventId) {
+      const finalized = await WebhookEvent.updateOne(
+        { eventId: claimedEventId, claimToken, status: "processing" },
+        { $set: { status: "processed", processedAt: new Date() }, $unset: { claimToken: "", claimedAt: "" } }
+      );
+      if (!finalized.modifiedCount) {
+        console.error("[billing-webhook] event claim changed before finalization", { eventId: claimedEventId });
+      }
+    }
     return success(res, { received: true });
   } catch (e) {
-    if (claimedEventId) await WebhookEvent.deleteOne({ eventId: claimedEventId }).catch(() => {});
+    if (claimedEventId && claimToken) {
+      await WebhookEvent.updateOne(
+        { eventId: claimedEventId, claimToken, status: "processing" },
+        { $set: { status: "failed" }, $unset: { claimToken: "", claimedAt: "" } }
+      ).catch(() => {});
+    }
     next(e);
   }
 }

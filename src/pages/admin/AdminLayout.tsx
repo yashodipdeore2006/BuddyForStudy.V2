@@ -19,6 +19,7 @@ type AdminLink = {
   icon: typeof LayoutDashboard;
   description: string;
 };
+type CommandItem = { to: string; label: string; description: string; icon: typeof LayoutDashboard; kind: "Page" | "Action" };
 
 const links: AdminLink[] = [
   { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Platform overview and operations" },
@@ -39,11 +40,11 @@ const links: AdminLink[] = [
 const groupOrder: AdminLink["group"][] = ["Overview", "Manage", "Insights", "Settings"];
 const routeLabels: Record<string, string> = Object.fromEntries(links.map((item) => [item.to, item.label]));
 const quickActions = [
-  { to: "/admin/courses", label: "Course management", permission: "courses.read", icon: BookOpen },
-  { to: "/admin/plans", label: "Subscription plans", permission: "plans.read", icon: CreditCard },
-  { to: "/admin/coupons", label: "Coupons and promotions", permission: "coupons.read", icon: Tag },
-  { to: "/admin/communications", label: "Compose communication", permission: "communications.send", icon: Megaphone },
-  { to: "/admin/roles", label: "Invite administrator", permission: "admin_roles.manage", icon: Users },
+  { to: "/admin/courses", label: "Open course management", description: "Create and update learning content", permission: "courses.read", icon: BookOpen },
+  { to: "/admin/plans", label: "Open subscription plans", description: "Manage pricing and entitlements", permission: "plans.read", icon: CreditCard },
+  { to: "/admin/coupons", label: "Open coupons and promotions", description: "Manage discount rules", permission: "coupons.read", icon: Tag },
+  { to: "/admin/communications", label: "Compose communication", description: "Create an announcement or message", permission: "communications.send", icon: Megaphone },
+  { to: "/admin/roles", label: "Invite administrator", description: "Invite a teammate with scoped access", permission: "admin_roles.manage", icon: Users },
 ];
 
 function savedBoolean(key: string, fallback: boolean) {
@@ -144,10 +145,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const permissions = access?.permissions || [];
   const visibleLinks = useMemo(() => links.filter((item) => permissions.includes(item.permission)), [permissions]);
   const visibleQuickActions = useMemo(() => quickActions.filter((item) => permissions.includes(item.permission)), [permissions]);
-  const matchingCommands = useMemo(() => visibleLinks.filter((item) => {
-    const value = (item.label + " " + item.description + " " + item.to).toLowerCase();
-    return value.includes(query.trim().toLowerCase());
-  }), [query, visibleLinks]);
+  const matchingCommands = useMemo<CommandItem[]>(() => {
+    const commands: CommandItem[] = [
+      ...visibleLinks.map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Page" as const })),
+      ...visibleQuickActions.map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Action" as const })),
+    ];
+    const search = query.trim().toLowerCase();
+    return commands.filter((item) => (item.label + " " + item.description + " " + item.to).toLowerCase().includes(search));
+  }, [query, visibleLinks, visibleQuickActions]);
 
   useEffect(() => {
     setActiveResult(0);
@@ -401,8 +406,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="admin-command-search"><Search size={19} aria-hidden="true" /><input ref={commandInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search pages and actions…" aria-label="Search pages and actions" /><kbd>ESC</kbd></div>
           <div className="admin-command-results" role="listbox" aria-label="Search results">
             <p className="admin-command-group-label">Pages</p>
-            {matchingCommands.map(({ to, label, description, icon: Icon }, index) => <button type="button" key={to} role="option" aria-selected={activeResult === index} className="admin-command-result" onMouseEnter={() => setActiveResult(index)} onClick={() => { nav(to); setCommandOpen(false); setQuery(""); }}><Icon size={17} /><span className="admin-command-copy"><strong>{label}</strong><small>{description}</small></span><span className="admin-command-enter">{activeResult === index ? "↵" : ""}</span></button>)}
-            {!matchingCommands.length && <div className="admin-command-empty">No pages match “{query}”. Try another search.</div>}
+            {matchingCommands.map((item, index) => item.kind === "Page" ? <button type="button" key={item.kind + item.to} role="option" aria-selected={activeResult === index} className="admin-command-result" onMouseEnter={() => setActiveResult(index)} onClick={() => { nav(item.to); setCommandOpen(false); setQuery(""); }}><item.icon size={17} /><span className="admin-command-copy"><strong>{item.label}</strong><small>{item.description}</small></span><span className="admin-command-enter">{activeResult === index ? "↵" : ""}</span></button> : null)}
+            {matchingCommands.some((item) => item.kind === "Action") && <p className="admin-command-group-label">Quick actions</p>}
+            {matchingCommands.map((item, index) => item.kind === "Action" ? <button type="button" key={item.kind + item.to} role="option" aria-selected={activeResult === index} className="admin-command-result" onMouseEnter={() => setActiveResult(index)} onClick={() => { nav(item.to); setCommandOpen(false); setQuery(""); }}><item.icon size={17} /><span className="admin-command-copy"><strong>{item.label}</strong><small>{item.description}</small></span><span className="admin-command-enter">{activeResult === index ? "↵" : ""}</span></button> : null)}
+            {!matchingCommands.length && <div className="admin-command-empty">No pages or actions match “{query}”. Try another search.</div>}
           </div>
           <footer className="admin-modal-footer"><span>↑ ↓ Navigate</span><span>Enter Open</span><span>Esc Close</span></footer>
         </section>

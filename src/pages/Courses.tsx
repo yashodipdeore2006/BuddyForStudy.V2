@@ -77,7 +77,7 @@ export default function Courses() {
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          lastResponse = await apiFetch(`/api/courses?${params.toString()}`);
+          lastResponse = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
           batch = lastResponse.courses || lastResponse.items || [];
           allRows.push(...batch);
           page += 1;
@@ -95,7 +95,8 @@ export default function Courses() {
 
           try {
             const playlistData = await apiFetch(
-              `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`
+              `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`,
+              { showFeatureUpgrade: Boolean(catalogQuery.trim()) }
             );
             setYoutubeDiscovery({
               ...discovery,
@@ -209,6 +210,7 @@ export default function Courses() {
           studyTimeMinutesPerDay: aiStudyTime,
           knownSkills: aiKnownSkills.split(',').map((item) => item.trim()).filter(Boolean),
         }),
+        showFeatureUpgrade: true,
       });
       setAiRoadmap(data);
       setExpandedAiModules(new Set([0]));

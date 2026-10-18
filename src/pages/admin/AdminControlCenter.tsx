@@ -116,7 +116,7 @@ export default function AdminControlCenter() {
     [Users, "Total users", s.users, String(s.activeUsers || 0) + " active"],
     [BookOpen, "Courses", s.courses, String(s.published || 0) + " published"],
     [CreditCard, "Subscribers", s.activeSubscribers, String(s.pastDueSubscribers || 0) + " past due"],
-    [IndianRupee, "Revenue", money(s.revenue), String(s.failedPayments || 0) + " failed payments"],
+    [IndianRupee, "Net revenue", money(s.netRevenue ?? s.revenue), "Gross " + money(s.grossRevenue) + " · refunds " + money(s.processedRefunds)],
     [Users, "Enrollments", s.enrollments, "all-time"],
     [AlertTriangle, "Refund queue", s.pendingRefunds, "needs review"],
     [Activity, "Unread notifications", s.unread, "across users"],

@@ -3,7 +3,6 @@ import nodemailer from "nodemailer";
 import { z } from "zod";
 import { User } from "../models/User.js";
 import { AdminInvitation } from "../models/AdminInvitation.js";
-import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
@@ -124,7 +123,7 @@ export async function createInvitation(req, res, next) {
       throw deliveryError;
     }
 
-    await AuditLog.create({
+    const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "admin.invitation.created",
       targetType: "admin_invitation",
@@ -142,8 +141,12 @@ export async function createInvitation(req, res, next) {
         name: invitation.name,
         adminRole: invitation.adminRole,
         expiresAt: invitation.expiresAt
-      }
-    }, "Administrator invitation sent.", 201);
+      },
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, auditResult.recorded ? "Administrator invitation sent."
+      : auditResult.queued ? "Administrator invitation sent; audit event queued for retry."
+      : "Administrator invitation sent, but its audit event could not be recorded or queued. Notify a Super Admin.", 201);
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return next(error);
@@ -163,7 +166,7 @@ export async function revokeInvitation(req, res, next) {
       { new: true }
     );
     if (!invitation) return failure(res, "Pending invitation not found.", 404);
-    await AuditLog.create({
+    const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "admin.invitation.revoked",
       targetType: "admin_invitation",
@@ -174,7 +177,12 @@ export async function revokeInvitation(req, res, next) {
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500)
     });
-    return success(res, {}, "Administrator invitation revoked.");
+    return success(res, {
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, auditResult.recorded ? "Administrator invitation revoked."
+      : auditResult.queued ? "Administrator invitation revoked; audit event queued for retry."
+      : "Administrator invitation revoked, but its audit event could not be recorded or queued. Notify a Super Admin.");
   } catch (error) {
     return next(error);
   }

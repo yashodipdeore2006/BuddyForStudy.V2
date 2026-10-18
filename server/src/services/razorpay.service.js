@@ -95,6 +95,15 @@ export async function fetchPayment(paymentId) {
   return client.payments.fetch(paymentId);
 }
 
+export async function fetchRefund({ refundId, paymentId }) {
+  const client = getClient();
+  try {
+    return await client.refunds.fetch(refundId, { payment_id: paymentId });
+  } catch (error) {
+    wrapProviderError("refund reconciliation", error);
+  }
+}
+
 export async function refundPayment({ paymentId, amount }) {
   const client = getClient();
   const payload = {};

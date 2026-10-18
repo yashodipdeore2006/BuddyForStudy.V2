@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import mongoose from "mongoose";
 import { User } from "../models/User.js";
 import { UserSubscription } from "../models/UserSubscription.js";
@@ -304,4 +305,57 @@ export function validateAdminAudienceInput(input = {}) {
   const hasFilters = input.filters && Object.keys(input.filters).length > 0;
   if ([hasIds, hasEmails, Boolean(hasFilters)].filter(Boolean).length > 1) throw new Error("Choose selected users, selected emails, or filters—not multiple targeting modes");
   return true;
+}
+
+
+function stableAudienceStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableAudienceStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableAudienceStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function audienceTargetFingerprint(input = {}) {
+  const targeting = {
+    audience: input.audience || "all",
+    userIds: input.userIds ?? null,
+    emails: input.emails ?? null,
+    filters: input.filters ?? null
+  };
+  return crypto.createHash("sha256").update(stableAudienceStringify(targeting)).digest("hex");
+}
+
+function audienceRecipientFingerprint(users = []) {
+  const ids = users.map((user) => String(user._id)).sort();
+  return crypto.createHash("sha256").update(ids.join("\\n")).digest("hex");
+}
+
+export function createAdminAudiencePreviewToken(input, users) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("Audience preview signing is not configured");
+  const payload = {
+    target: audienceTargetFingerprint(input),
+    recipients: audienceRecipientFingerprint(users),
+    exp: Date.now() + 10 * 60 * 1000
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto.createHmac("sha256", secret).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+export function verifyAdminAudiencePreviewToken(token, input, users) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || typeof token !== "string") return false;
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+  const [encoded, suppliedSignature] = parts;
+  const expectedSignature = crypto.createHmac("sha256", secret).update(encoded).digest();
+  let actualSignature;
+  try { actualSignature = Buffer.from(suppliedSignature, "base64url"); } catch { return false; }
+  if (actualSignature.length !== expectedSignature.length || !crypto.timingSafeEqual(actualSignature, expectedSignature)) return false;
+  let payload;
+  try { payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")); } catch { return false; }
+  if (!payload || !Number.isFinite(payload.exp) || payload.exp < Date.now()) return false;
+  return payload.target === audienceTargetFingerprint(input) && payload.recipients === audienceRecipientFingerprint(users);
 }

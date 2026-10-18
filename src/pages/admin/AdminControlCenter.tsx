@@ -29,6 +29,7 @@ export default function AdminControlCenter() {
   const [acknowledgingAlert, setAcknowledgingAlert] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   async function load() {
     setLoading(true);
@@ -70,6 +71,7 @@ export default function AdminControlCenter() {
 
   useEffect(() => {
     void load();
+    void adminFetch("/api/admin/access").then((result) => setPermissions(result.access?.permissions || [])).catch(() => setPermissions([]));
   }, []);
 
   async function acknowledgeAlert(alertId: string) {
@@ -121,6 +123,18 @@ export default function AdminControlCenter() {
     [ShieldCheck, "Admins", s.admins, "privileged accounts"],
   ];
 
+  const cardPermissions: Record<string, string> = {
+    "Total users": "users.read",
+    Courses: "courses.read",
+    Subscribers: "billing.read",
+    Revenue: "billing.read",
+    Enrollments: "courses.read",
+    "Refund queue": "refunds.manage",
+    "Unread notifications": "operations.read",
+    Admins: "admin_roles.manage",
+  };
+  const visibleCards = cards.filter(([, label]: any) => permissions.includes(cardPermissions[label]));
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -135,14 +149,14 @@ export default function AdminControlCenter() {
           <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading} aria-label={loading ? "Refreshing admin dashboard" : "Refresh admin dashboard"}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
           </button>
-          <Link to="/admin/courses" className="btn-primary">Manage content <ArrowRight className="h-4 w-4" /></Link>
+          {permissions.includes("courses.read") && <Link to="/admin/courses" className="btn-primary">Manage content <ArrowRight className="h-4 w-4" /></Link>}
         </div>
       </div>
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map(([Icon, label, value, sub]: any) => (
+        {visibleCards.map(([Icon, label, value, sub]: any) => (
           <div className="card p-5" key={label}>
             <div className="flex items-center justify-between">
               <div className="rounded-xl bg-blue-50 p-3 text-blue-600"><Icon className="h-5 w-5" /></div>
@@ -170,9 +184,9 @@ export default function AdminControlCenter() {
                   <p className="mt-1 text-xs text-slate-500">{alert.message || alert.source || "Background operation reported an issue"} · seen {alert.occurrenceCount || 1} time(s)</p>
                   <p className="mt-1 text-[11px] text-slate-400">{alert.lastSeenAt ? new Date(alert.lastSeenAt).toLocaleString() : "Timestamp unavailable"}</p>
                 </div>
-                <button type="button" className="btn-secondary shrink-0" disabled={acknowledgingAlert === alert._id} onClick={() => void acknowledgeAlert(alert._id)}>
+                {permissions.includes("operations.manage") && <button type="button" className="btn-secondary shrink-0" disabled={acknowledgingAlert === alert._id} onClick={() => void acknowledgeAlert(alert._id)}>
                   {acknowledgingAlert === alert._id ? "Acknowledging…" : "Acknowledge"}
-                </button>
+                </button>}
               </div>
             ))}
           </div>
@@ -182,7 +196,7 @@ export default function AdminControlCenter() {
       </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <section className="card overflow-hidden">
+        {permissions.includes("users.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5">
             <div><h2 className="font-bold text-slate-900">Recent users</h2><p className="mt-1 text-xs text-slate-500">Newest accounts and access state.</p></div>
             <Link to="/admin/users" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all</Link>
@@ -198,7 +212,7 @@ export default function AdminControlCenter() {
             ))}
             {!data?.recentUsers?.length && <p className="p-5 text-sm text-slate-500">No user accounts to display yet.</p>}
           </div>
-        </section>
+        </section>}
 
         <section className="card overflow-hidden">
           <div className="border-b border-slate-100 p-5"><h2 className="font-bold text-slate-900">System health</h2><p className="mt-1 text-xs text-slate-500">Operational signals that need attention.</p></div>
@@ -221,7 +235,7 @@ export default function AdminControlCenter() {
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="card overflow-hidden">
+        {permissions.includes("billing.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Recent payments</h2><p className="mt-1 text-xs text-slate-500">Latest billing activity.</p></div><Link to="/admin/billing" className="text-xs font-bold text-blue-600">Billing <ArrowRight className="inline h-3 w-3" /></Link></div>
           <div className="divide-y divide-slate-100">
             {(data?.recentPayments || []).map((payment: any) => (
@@ -233,9 +247,9 @@ export default function AdminControlCenter() {
             ))}
             {!data?.recentPayments?.length && <p className="p-5 text-sm text-slate-500">No payment activity to display yet.</p>}
           </div>
-        </section>
+        </section>}
 
-        <section className="card overflow-hidden">
+        {permissions.includes("courses.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Top courses</h2><p className="mt-1 text-xs text-slate-500">Highest enrollment counts.</p></div><Link to="/admin/courses" className="text-xs font-bold text-blue-600">Content <ArrowRight className="inline h-3 w-3" /></Link></div>
           <div className="divide-y divide-slate-100">
             {(data?.topCourses || []).map((course: any, index: number) => (
@@ -247,10 +261,10 @@ export default function AdminControlCenter() {
             ))}
             {!data?.topCourses?.length && <p className="p-5 text-sm text-slate-500">No enrollment data yet.</p>}
           </div>
-        </section>
+        </section>}
       </div>
 
-      <section className="card mt-6 overflow-hidden">
+      {permissions.includes("audit.read") && <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Recent admin activity</h2><p className="mt-1 text-xs text-slate-500">Sensitive operational changes are audited.</p></div><Link to="/admin/audit" className="text-xs font-bold text-blue-600">Open audit log</Link></div>
         <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
           {(data?.recentAudit || []).map((log: any) => (
@@ -262,7 +276,7 @@ export default function AdminControlCenter() {
           ))}
           {!data?.recentAudit?.length && <p className="text-sm text-slate-500">No recent admin actions.</p>}
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

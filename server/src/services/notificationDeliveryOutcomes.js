@@ -22,3 +22,13 @@ export function mailRecipientAccepted(info, recipient) {
   return accepted.some((address) => normalizeEmailAddress(address) === expected);
 }
 
+
+/** Summarize worker delivery results without hiding retryable or terminal failures. */
+export function summarizeNotificationDeliveryOutcomes(outcomes = []) {
+  return {
+    attempted: outcomes.filter((item) => item?.status !== "not_attempted").length,
+    failures: outcomes.filter((item) =>
+      ["failed", "retrying"].includes(item?.status) || item?.partialFailure === true
+    ).length
+  };
+}

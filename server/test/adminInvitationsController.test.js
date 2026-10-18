@@ -323,6 +323,7 @@ test("invitation creation removes the pending invitation when email delivery is 
   const originalSmtpPass = (await import("../src/config/env.js")).env.smtpPass;
   let deleted = false;
   let auditCalls = 0;
+  let priorInvitationRevocations = 0;
   const invitation = {
     _id: { toString: () => invitationId },
     email: "new-admin@example.com",
@@ -339,7 +340,7 @@ test("invitation creation removes the pending invitation when email delivery is 
     await withMocks([
       [User, { findOne: () => ({ select: async () => null }) }],
       [AdminInvitation, {
-        updateMany: async () => ({}),
+        updateMany: async () => { priorInvitationRevocations += 1; return {}; },
         create: async () => invitation
       }],
       [AuditLog, { create: async () => { auditCalls += 1; } }]
@@ -354,6 +355,7 @@ test("invitation creation removes the pending invitation when email delivery is 
       assert.match(forwardedError?.message || "", /not configured/i);
       assert.equal(deleted, true);
       assert.equal(auditCalls, 0);
+      assert.equal(priorInvitationRevocations, 0, "failed replacement delivery must not revoke an existing working invitation");
     });
   } finally {
     env.smtpHost = originalSmtpHost;

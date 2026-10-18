@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adminMiddleware } from "../src/middleware/auth.js";
+import { adminMiddleware, adminPermissionMiddleware } from "../src/middleware/auth.js";
 
 function responseRecorder() {
   return {
@@ -45,4 +45,36 @@ test("adminMiddleware requires an authenticated admin role and admin access type
       assert.equal(res.body?.message, "Administrator access required.");
     }
   }
+});
+
+test("adminPermissionMiddleware denies a role without the required permission", () => {
+  const req = { user: { role: "admin", accessType: "admin", adminRole: "support_manager", adminPermissionOverrides: [] } };
+  const res = responseRecorder();
+  let nextCalled = false;
+  adminPermissionMiddleware("refunds.manage")(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body?.message, "You do not have permission to perform this action.");
+  assert.equal(res.body?.errors?.requiredPermission, "refunds.manage");
+});
+
+test("adminPermissionMiddleware permits an allowed role and blocks a normal user", () => {
+  const allowedResponse = responseRecorder();
+  let allowedNext = false;
+  adminPermissionMiddleware("payment_issues.manage")(
+    { user: { role: "admin", accessType: "admin", adminRole: "support_manager", adminPermissionOverrides: [] } },
+    allowedResponse,
+    () => { allowedNext = true; },
+  );
+  assert.equal(allowedNext, true);
+
+  const deniedResponse = responseRecorder();
+  let deniedNext = false;
+  adminPermissionMiddleware("payment_issues.manage")(
+    { user: { role: "user", accessType: "user", adminRole: "super_admin" } },
+    deniedResponse,
+    () => { deniedNext = true; },
+  );
+  assert.equal(deniedNext, false);
+  assert.equal(deniedResponse.statusCode, 403);
 });

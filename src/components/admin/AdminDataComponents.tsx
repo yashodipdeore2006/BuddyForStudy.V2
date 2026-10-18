@@ -23,7 +23,7 @@ const STATUS_MAP: Record<StatusDomain, Record<string, { label: string; tone: "ne
 
 export function StatusBadge({ domain, value, label }: { domain: StatusDomain; value: string | boolean; label?: string }) {
   const key = typeof value === "boolean" ? (value ? "active" : "inactive") : String(value || "").toLowerCase();
-  const status = STATUS_MAP[domain][key] || { label: label || String(value || "Unknown").replaceAll("_", " "), tone: "neutral" as const };
+  const status = STATUS_MAP[domain][key] || { label: label || String(value || "Unknown").replace(/_/g, " "), tone: "neutral" as const };
   return <AdminBadge tone={status.tone}>{label || status.label}</AdminBadge>;
 }
 

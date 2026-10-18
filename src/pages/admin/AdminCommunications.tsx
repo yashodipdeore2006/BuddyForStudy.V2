@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, Eye, Mail, Megaphone, Send } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 type Channel = "in_app" | "email" | "push";
 type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean };
@@ -301,11 +302,11 @@ export default function AdminCommunications() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Engagement</p>
-        <h1 className="mt-1 text-3xl font-bold text-slate-950">Communications</h1>
-        <p className="mt-2 text-slate-500">Send targeted in-app notifications, email and announcements with a preview before delivery.</p>
-      </div>
+      <AdminPageHeader
+        eyebrow="Engagement"
+        title="Communications"
+        description="Send targeted in-app notifications, email and announcements with a preview before delivery."
+      />
 
       <div className="mt-6 flex flex-wrap gap-2">
         {[

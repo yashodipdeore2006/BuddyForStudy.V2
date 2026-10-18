@@ -26,6 +26,7 @@ test("Platform Administrator can operate users and courses but not finance or ro
   assert.equal(hasAdminPermission("platform_admin", "refunds.manage"), false);
   assert.equal(hasAdminPermission("platform_admin", "plans.manage"), false);
   assert.equal(hasAdminPermission("platform_admin", "admin_roles.manage"), false);
+  assert.equal(hasAdminPermission("platform_admin", "operations.manage"), true);
 });
 
 test("AI content manager cannot access finance or administrator governance", () => {
@@ -45,6 +46,7 @@ test("Support manager can investigate issues without executing refunds", () => {
   assert.equal(hasAdminPermission("support_manager", "payment_issues.manage"), true);
   assert.equal(hasAdminPermission("support_manager", "billing.read"), true);
   assert.equal(hasAdminPermission("support_manager", "refunds.manage"), false);
+  assert.equal(hasAdminPermission("support_manager", "users.read"), false);
 });
 
 test("Analyst & Auditor is read-only", () => {

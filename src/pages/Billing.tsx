@@ -209,9 +209,22 @@ export default function Billing() {
                   {payment.provider && <p className="mt-1 text-xs capitalize text-slate-500">Provider: {payment.provider}</p>}
                 </div>
                 <div className="sm:min-w-36 sm:text-right"><p className="text-lg font-extrabold text-slate-950">{money(Number(payment.amount || 0), payment.currency || "INR")}</p>
-                  {["paid", "partially_refunded"].includes(status) && <button type="button" className="mt-2 text-xs font-bold text-rose-700 hover:underline" onClick={() => { setRefundId(refundId === payment._id ? null : payment._id); setRefundReason(""); setRefundMessage(""); }}>Request refund</button>}
+                  {["paid", "partially_refunded"].includes(status) && !refunds.some((refund) => String(refund.payment?._id || "") === payment._id && ["pending", "approved", "processed"].includes(String(refund.status).toLowerCase())) && <button type="button" className="mt-2 block text-xs font-bold text-rose-700 hover:underline" onClick={() => { setRefundId(refundId === payment._id ? null : payment._id); setIssueId(null); setRefundReason(""); setRefundMessage(""); }}>Request refund</button>}
+                  <button type="button" className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:underline" onClick={() => { setIssueId(issueId === payment._id ? null : payment._id); setRefundId(null); setIssueCategory(["paid", "partially_refunded"].includes(status) ? "benefit_not_received" : status === "failed" ? "payment_failed" : "other"); setIssueDescription(""); setRefundMessage(""); }}><MessageSquareWarning className="h-3.5 w-3.5" />Report issue</button>
                 </div>
               </div>
+              {issueId === payment._id && <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                <div className="flex items-start gap-2"><MessageSquareWarning className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" /><div><p className="text-sm font-bold text-slate-900">Report a transaction issue</p><p className="mt-1 text-xs text-slate-600">Use this if payment failed, you were charged incorrectly, or a completed payment did not unlock the course or plan benefits.</p></div></div>
+                <label className="mt-3 block text-sm font-semibold text-slate-800">Issue type
+                  <select className="input-field mt-2 bg-white" value={issueCategory} onChange={(e) => setIssueCategory(e.target.value)}>
+                    <option value="benefit_not_received">Payment completed but benefit not received</option><option value="payment_failed">Payment failed or is stuck</option><option value="duplicate_charge">Duplicate charge</option><option value="incorrect_amount">Incorrect amount charged</option><option value="refund_help">Help with an existing refund</option><option value="other">Other transaction issue</option>
+                  </select>
+                </label>
+                <label className="mt-3 block text-sm font-semibold text-slate-800">Describe the issue
+                  <textarea className="input-field mt-2 min-h-24 bg-white" placeholder="Tell us what happened and what benefit you expected…" value={issueDescription} onChange={(e) => setIssueDescription(e.target.value)} maxLength={2000} required />
+                </label>
+                <div className="mt-3 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setIssueId(null)}>Cancel</button><button type="button" className="btn-primary" disabled={submittingIssue || issueDescription.trim().length < 5} onClick={() => void submitIssue(payment._id)}>{submittingIssue ? "Submitting…" : "Submit report"}</button></div>
+              </div>}
               {refundId === payment._id && <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/60 p-4"><label className="block text-sm font-semibold text-slate-800">Why are you requesting a refund? <span className="font-normal text-slate-500">(optional)</span><textarea className="input-field mt-2 min-h-24 bg-white" placeholder="Tell us a little about the issue…" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} maxLength={1000} /></label><div className="mt-3 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setRefundId(null)}>Keep payment</button><button type="button" className="btn-primary" onClick={() => void submitRefund(payment._id)}>Submit request</button></div></div>}
             </article>;
           })}

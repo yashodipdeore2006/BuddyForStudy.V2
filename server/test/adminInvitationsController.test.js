@@ -400,3 +400,115 @@ test("acceptance queues an audit event when audit logging fails after account cr
     assert.match(res.result.body.message, /queued for retry/i);
   });
 });
+
+
+test("invitation creation succeeds and queues its audit event when the primary audit write fails", async () => {
+  const { env } = await import("../src/config/env.js");
+  const nodemailer = (await import("nodemailer")).default;
+  const original = { smtpHost: env.smtpHost, smtpUser: env.smtpUser, smtpPass: env.smtpPass, clientUrl: env.clientUrl, createTransport: nodemailer.createTransport };
+  let invitationCreated = false;
+  let sentMail;
+  let queued;
+  const invitation = {
+    _id: { toString: () => invitationId },
+    email: "new-admin@example.com",
+    name: "New Admin",
+    adminRole: "support_manager",
+    expiresAt: new Date("2026-10-19T10:00:00.000Z"),
+    deleteOne: async () => assert.fail("successful email delivery must not delete the invitation")
+  };
+  env.smtpHost = "smtp.example.com";
+  env.smtpUser = "mailer@example.com";
+  env.smtpPass = "test-password";
+  env.clientUrl = "https://buddyforstudy.example";
+  nodemailer.createTransport = () => ({ sendMail: async (mail) => { sentMail = mail; } });
+  try {
+    await withMocks([
+      [User, { findOne: () => ({ select: async () => null }) }],
+      [AdminInvitation, {
+        updateMany: async () => ({}),
+        create: async (input) => {
+          invitationCreated = true;
+          assert.equal(input.email, "new-admin@example.com");
+          assert.equal(typeof input.tokenHash, "string");
+          assert.equal(input.tokenHash.length, 64);
+          return invitation;
+        }
+      }],
+      [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+      [AuditOutbox, { create: async (entry) => { queued = entry; } }]
+    ], async () => {
+      const res = makeResponse();
+      await createInvitation({
+        body: { name: "New Admin", email: "NEW-ADMIN@example.com", adminRole: "support_manager", reason: "Staff onboarding" },
+        user: { userId: "actor-id", adminRole: "super_admin" },
+        ip: "127.0.0.1",
+        get: () => "admin-invitation-test"
+      }, res, (error) => assert.fail(error));
+      assert.equal(invitationCreated, true);
+      assert.equal(sentMail.to, "new-admin@example.com");
+      assert.match(sentMail.html, /accept-admin-invitation/);
+      assert.equal(queued.status, "pending");
+      assert.equal(queued.event.action, "admin.invitation.created");
+      assert.equal(res.result.statusCode, 201);
+      assert.equal(res.result.body.auditLogRecorded, false);
+      assert.equal(res.result.body.auditQueued, true);
+      assert.match(res.result.body.message, /queued for retry/i);
+    });
+  } finally {
+    env.smtpHost = original.smtpHost;
+    env.smtpUser = original.smtpUser;
+    env.smtpPass = original.smtpPass;
+    env.clientUrl = original.clientUrl;
+    nodemailer.createTransport = original.createTransport;
+  }
+});
+
+test("revocation remains successful and queues its audit event when the primary audit write fails", async () => {
+  const invitation = makeInvitation({ revokedAt: new Date("2026-10-18T10:00:00.000Z") });
+  let queued;
+  await withMocks([
+    [AdminInvitation, { findOneAndUpdate: async () => invitation }],
+    [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+    [AuditOutbox, { create: async (entry) => { queued = entry; } }]
+  ], async () => {
+    const res = makeResponse();
+    await revokeInvitation({
+      params: { invitationId },
+      body: { reason: "Access no longer required" },
+      user: { userId: "actor-id" },
+      ip: "127.0.0.1",
+      get: () => "admin-invitation-test"
+    }, res, (error) => assert.fail(error));
+    assert.equal(res.result.statusCode, 200);
+    assert.equal(res.result.body.success, true);
+    assert.equal(res.result.body.auditLogRecorded, false);
+    assert.equal(res.result.body.auditQueued, true);
+    assert.match(res.result.body.message, /queued for retry/i);
+    assert.equal(queued.status, "pending");
+    assert.equal(queued.event.action, "admin.invitation.revoked");
+    assert.equal(queued.event.targetId, invitationId);
+  });
+});
+
+test("revocation reports audit persistence loss without undoing the completed revocation", async () => {
+  let transitionCalls = 0;
+  await withMocks([
+    [AdminInvitation, { findOneAndUpdate: async () => { transitionCalls += 1; return makeInvitation({ revokedAt: new Date() }); } }],
+    [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+    [AuditOutbox, { create: async () => { throw new Error("outbox database unavailable"); } }]
+  ], async () => {
+    const res = makeResponse();
+    await revokeInvitation({
+      params: { invitationId },
+      body: {},
+      user: { userId: "actor-id" }
+    }, res, (error) => assert.fail(error));
+    assert.equal(transitionCalls, 1);
+    assert.equal(res.result.statusCode, 200);
+    assert.equal(res.result.body.success, true);
+    assert.equal(res.result.body.auditLogRecorded, false);
+    assert.equal(res.result.body.auditQueued, false);
+    assert.match(res.result.body.message, /could not be recorded or queued/i);
+  });
+});

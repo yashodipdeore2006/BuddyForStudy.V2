@@ -1209,14 +1209,34 @@ export async function updateRefund(req, res, next) {
         throw providerError;
       }
 
-      refund.status = "processed";
-      refund.set("activePaymentKey", undefined);
-      refund.providerRefundId = providerRefund.id || "";
-      refund.processedAt = new Date();
+      const providerStatus = String(providerRefund?.status || "").toLowerCase();
+      refund.providerRefundId = String(providerRefund?.id || "");
+      if (providerStatus === "processed") {
+        refund.status = "processed";
+        refund.set("activePaymentKey", undefined);
+        refund.processedAt = new Date();
 
-      const isFullRefund = refund.amount >= remainingAmount;
-      payment.status = isFullRefund ? "refunded" : "partially_refunded";
-      await payment.save();
+        const isFullRefund = refund.amount >= remainingAmount;
+        payment.status = isFullRefund ? "refunded" : "partially_refunded";
+        await payment.save();
+      } else if (["failed", "rejected"].includes(providerStatus)) {
+        // An explicit provider failure is safe to retry; an uncertain or pending
+        // response must keep the active claim and be reconciled first.
+        refund.status = "pending";
+        refund.providerRefundId = "";
+        refund.processedAt = null;
+        refund.adminNote = [
+          refund.adminNote,
+          `Razorpay returned refund status '${providerStatus}'. The request is available for a safe retry.`
+        ].filter(Boolean).join("\\n").slice(0, 2000);
+      } else {
+        refund.status = "approved";
+        refund.processedAt = null;
+        refund.adminNote = [
+          refund.adminNote,
+          `Razorpay refund ${refund.providerRefundId || "(ID unavailable)"} has status '${providerStatus || "unknown"}'. Reconcile with the provider before retrying.`
+        ].filter(Boolean).join("\\n").slice(0, 2000);
+      }
     }
     await refund.save();
     try {

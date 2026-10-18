@@ -98,8 +98,10 @@ async function activateSubscription(subscription, payment, eventAt = null, provi
       provider: "razorpay",
       providerSubscriptionId: subscription.id,
       status: "active",
-      providerEventAt: eventAt
-    }).select("+providerEventAt");
+      providerEventAt: eventAt,
+      providerEventId,
+      providerEventName
+    }).select("+providerEventAt +providerEventId +providerEventName");
     return alreadyApplied || null;
   } catch (error) {
     // A concurrent delivery may have won the unique-user upsert. Recover
@@ -110,8 +112,10 @@ async function activateSubscription(subscription, payment, eventAt = null, provi
         provider: "razorpay",
         providerSubscriptionId: subscription.id,
         status: "active",
-        providerEventAt: eventAt
-      }).select("+providerEventAt");
+        providerEventAt: eventAt,
+        providerEventId,
+        providerEventName
+      }).select("+providerEventAt +providerEventId +providerEventName");
     }
     if (error?.code === 11000) return null;
     throw error;
@@ -337,10 +341,10 @@ export async function razorpayWebhook(req, res, next) {
     } else if (event.event === "subscription.cancelled" || event.event === "subscription.completed") {
       if (subscriptionEntity?.id) {
         const subscription = await UserSubscription.findOneAndUpdate(
-          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id, ...subscriptionEventFreshnessFilter(subscriptionEventAt) },
+          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id, ...subscriptionEventFreshnessFilter(subscriptionEventAt, subscriptionEventId, event.event) },
           {
             $set: {
-              ...(subscriptionEventAt ? { providerEventAt: subscriptionEventAt } : {}),
+              ...(subscriptionEventAt ? { providerEventAt: subscriptionEventAt, providerEventId: subscriptionEventId, providerEventName: event.event } : {}),
               status: event.event === "subscription.completed" ? "expired" : "cancelled",
               cancelAtPeriodEnd: false,
               cancelledAt: new Date(),

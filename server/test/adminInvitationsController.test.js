@@ -290,3 +290,69 @@ test("revocation saves the revoked timestamp and records an audit event", async 
     assert.equal(auditEntry.targetId, invitationId);
   });
 });
+
+
+test("invitation creation rejects an email that already belongs to an account", async () => {
+  let invitationWrites = 0;
+  await withMocks([
+    [User, { findOne: () => ({ select: async () => ({ _id: "existing-user-id", role: "user" }) }) }],
+    [AdminInvitation, {
+      updateMany: async () => { invitationWrites += 1; },
+      create: async () => { invitationWrites += 1; }
+    }]
+  ], async () => {
+    const res = makeResponse();
+    await createInvitation({
+      body: { name: "Existing User", email: "EXISTING@example.com", adminRole: "support_manager" },
+      user: { userId: "actor-id", adminRole: "super_admin" }
+    }, res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 409);
+    assert.match(res.result.body.message, /already belongs to an account/i);
+    assert.equal(invitationWrites, 0);
+  });
+});
+
+test("invitation creation removes the pending invitation when email delivery is not configured", async () => {
+  const originalSmtpHost = (await import("../src/config/env.js")).env.smtpHost;
+  const originalSmtpUser = (await import("../src/config/env.js")).env.smtpUser;
+  const originalSmtpPass = (await import("../src/config/env.js")).env.smtpPass;
+  let deleted = false;
+  let auditCalls = 0;
+  const invitation = {
+    _id: { toString: () => invitationId },
+    email: "new-admin@example.com",
+    name: "New Admin",
+    adminRole: "support_manager",
+    expiresAt: new Date("2026-10-19T10:00:00.000Z"),
+    deleteOne: async () => { deleted = true; }
+  };
+  const { env } = await import("../src/config/env.js");
+  env.smtpHost = "";
+  env.smtpUser = "";
+  env.smtpPass = "";
+  try {
+    await withMocks([
+      [User, { findOne: () => ({ select: async () => null }) }],
+      [AdminInvitation, {
+        updateMany: async () => ({}),
+        create: async () => invitation
+      }],
+      [AuditLog, { create: async () => { auditCalls += 1; } }]
+    ], async () => {
+      const res = makeResponse();
+      let forwardedError;
+      await createInvitation({
+        body: { name: "New Admin", email: "NEW-ADMIN@example.com", adminRole: "support_manager" },
+        user: { userId: "actor-id", adminRole: "super_admin" }
+      }, res, (error) => { forwardedError = error; });
+      assert.equal(forwardedError?.status, 503);
+      assert.match(forwardedError?.message || "", /not configured/i);
+      assert.equal(deleted, true);
+      assert.equal(auditCalls, 0);
+    });
+  } finally {
+    env.smtpHost = originalSmtpHost;
+    env.smtpUser = originalSmtpUser;
+    env.smtpPass = originalSmtpPass;
+  }
+});

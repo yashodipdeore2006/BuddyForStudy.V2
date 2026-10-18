@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
+  ArrowUpDown,
   Eye,
   RefreshCcw,
   Search,
@@ -20,7 +21,7 @@ import { adminFetch } from "@/lib/adminApi";
 import { useAuth } from "@/context/AuthContext";
 import { AdminConfirmDialog, AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
 
-type SavedUserView = { id: string; name: string; q: string; status: string; role: string; authProvider: string; pageSize: number; density: "compact" | "comfortable" };
+type SavedUserView = { id: string; name: string; q: string; status: string; role: string; authProvider: string; pageSize: number; density: "compact" | "comfortable"; sortBy: string; sortOrder: "asc" | "desc" };
 
 function statusClass(active: boolean) {
   return active
@@ -40,6 +41,8 @@ export default function AdminUsersPro() {
   const [status, setStatus] = useState(searchParams.get("status") || "");
   const [role, setRole] = useState(searchParams.get("role") || "");
   const [authProvider, setAuthProvider] = useState(searchParams.get("authProvider") || "");
+  const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(searchParams.get("sortOrder") === "asc" ? "asc" : "desc");
   const [pageSize, setPageSize] = useState(() => {
     const value = Number(searchParams.get("limit") || 25);
     return [25, 50, 100].includes(value) ? value : 25;
@@ -74,7 +77,7 @@ export default function AdminUsersPro() {
   const [featureOverrideExpiresAt, setFeatureOverrideExpiresAt] = useState("");
   const [savingFeatureKey, setSavingFeatureKey] = useState<string | null>(null);
 
-  async function load(page = 1, filters = { q: debouncedQ, status, role, authProvider }, limit = pageSize) {
+  async function load(page = 1, filters = { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, limit = pageSize) {
     setLoading(true);
     setError("");
     try {
@@ -85,6 +88,8 @@ export default function AdminUsersPro() {
       if (filters.status) params.set("status", filters.status);
       if (filters.role) params.set("role", filters.role);
       if (filters.authProvider) params.set("authProvider", filters.authProvider);
+      params.set("sortBy", filters.sortBy);
+      params.set("sortOrder", filters.sortOrder);
       const detailId = searchParams.get("id");
       if (detailId) params.set("id", detailId);
       setSearchParams(params, { replace: true });
@@ -127,6 +132,8 @@ export default function AdminUsersPro() {
       authProvider,
       pageSize,
       density,
+      sortBy,
+      sortOrder,
     };
     setSavedViews((current) => [...current, saved]);
     setViewName("");
@@ -142,11 +149,22 @@ export default function AdminUsersPro() {
     setAuthProvider(view.authProvider);
     setPageSize(view.pageSize);
     setDensity(view.density);
+    setSortBy(view.sortBy || "createdAt");
+    setSortOrder(view.sortOrder === "asc" ? "asc" : "desc");
     setPage(1);
   }
 
   function removeSavedView(id: string) {
     setSavedViews((current) => current.filter((view) => view.id !== id));
+  }
+
+  function toggleSort(field: string) {
+    if (sortBy === field) setSortOrder((current) => current === "asc" ? "desc" : "asc");
+    else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+    setPage(1);
   }
 
   useEffect(() => {
@@ -160,7 +178,7 @@ export default function AdminUsersPro() {
 
   useEffect(() => {
     void load(page, { q: debouncedQ, status, role, authProvider }, pageSize);
-  }, [page, debouncedQ, status, role, authProvider, pageSize]);
+  }, [page, debouncedQ, status, role, authProvider, pageSize, sortBy, sortOrder]);
 
   async function toggleUser(user: any) {
     setSavingId(user._id);

@@ -520,3 +520,13 @@
 
 .admin-shell .admin-confirm-help { color: var(--muted); font-size: var(--fs-xs); }
 .admin-shell .admin-confirm-field textarea { width: 100%; min-height: var(--textarea-min-h); max-height: var(--textarea-max-h); resize: vertical; }
+
+.admin-shell .admin-column-chooser { position: relative; flex: 0 0 auto; }
+.admin-shell .admin-column-chooser summary { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-h); padding: 0 var(--s-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--text-2); cursor: pointer; list-style: none; font-size: var(--fs-sm); }
+.admin-shell .admin-column-chooser summary::-webkit-details-marker { display: none; }
+.admin-shell .admin-column-chooser summary::after { content: "⌄"; margin-left: var(--s-2); }
+.admin-shell .admin-column-chooser[open] summary { border-color: var(--accent); color: var(--accent); }
+.admin-shell .admin-column-chooser-menu { position: absolute; z-index: var(--z-dropdown); top: calc(100% + var(--s-2)); right: 0; display: grid; gap: var(--s-2); min-width: 180px; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-md); }
+.admin-shell .admin-column-choice { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1); border-radius: var(--r-sm); color: var(--text-2); cursor: pointer; font-size: var(--fs-sm); }
+.admin-shell .admin-column-choice:hover { background: var(--surface-2); color: var(--text); }
+.admin-shell .admin-column-choice input { accent-color: var(--accent); }

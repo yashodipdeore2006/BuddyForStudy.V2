@@ -56,3 +56,11 @@ export function matchesProviderRefund({ providerRefund, providerRefundId, paymen
     String(providerRefund.currency || "").toUpperCase() === String(currency || "INR").toUpperCase()
   );
 }
+
+/** Normalize provider states into safe local handling categories. */
+export function classifyProviderRefundStatus(status) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "processed") return "processed";
+  if (["failed", "rejected"].includes(normalized)) return "retryable";
+  return "pending";
+}

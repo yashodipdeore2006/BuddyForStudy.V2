@@ -93,6 +93,7 @@ export default function FeatureUpgradeModal() {
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
+  const [hoverPlanId, setHoverPlanId] = useState<string | null>(null);
   const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
   const [message, setMessage] = useState<ModalMessage | null>(null);
 
@@ -124,6 +125,7 @@ export default function FeatureUpgradeModal() {
       setRequest(detail);
       setSelectedPlanId("");
       setPreviewPlanId(null);
+      setHoverPlanId(null);
       setMessage(null);
     };
     window.addEventListener("bfs:feature-gated", handleFeatureGated);
@@ -163,6 +165,7 @@ export default function FeatureUpgradeModal() {
       // If no configured plan offers it, retain the highest-priced plan but disable checkout.
       setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");
       setPreviewPlanId(null);
+      setHoverPlanId(null);
     }).catch((error) => {
       if (!cancelled) {
         setMessage({
@@ -191,7 +194,7 @@ export default function FeatureUpgradeModal() {
   }, [open, checkoutPlanId]);
 
   const selectedPlan = plans.find((plan) => plan._id === selectedPlanId) || plans[0] || null;
-  const focusedPlanId = previewPlanId || selectedPlan?._id;
+  const focusedPlanId = hoverPlanId || previewPlanId || selectedPlan?._id;
   const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
   const selectedPlanSupportsFeature = Boolean(
     selectedPlan && (!requiredFeatureLabel || (selectedPlan.features || []).includes(requiredFeatureLabel))
@@ -352,8 +355,8 @@ export default function FeatureUpgradeModal() {
                       tabIndex={0}
                       aria-pressed={isSelected}
                       aria-label={`Select ${plan.name} plan`}
-                      onMouseEnter={() => setPreviewPlanId(plan._id)}
-                      onMouseLeave={() => setPreviewPlanId(null)}
+                      onMouseEnter={() => setHoverPlanId(plan._id)}
+                      onMouseLeave={() => setHoverPlanId(null)}
                       onClick={() => setSelectedPlanId(plan._id)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {

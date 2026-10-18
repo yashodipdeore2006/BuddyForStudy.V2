@@ -1,5 +1,6 @@
 import { z } from "zod";
 import * as courseService from "../services/course.service.js";
+import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
@@ -54,38 +55,7 @@ export async function details(req, res, next) {
     const course = await courseService.getPublished(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
 
-    // The public details endpoint is a catalogue preview, not a lesson API.
-    // Never expose tutorial URLs/content, quiz answers, project briefs, or
-    // private lesson resources here; enrolled learners use the guarded learn routes.
-    const preview = {
-      _id: course._id,
-      title: course.title,
-      slug: course.slug,
-      description: course.description,
-      category: course.category,
-      level: course.level,
-      duration: course.duration,
-      thumbnail: course.thumbnail,
-      learningOutcomes: course.learningOutcomes || [],
-      isPublished: course.isPublished,
-      pricing: course.pricing,
-      enrollmentEnabled: course.enrollmentEnabled,
-      certificateEnabled: course.certificateEnabled,
-      featured: course.featured,
-      createdAt: course.createdAt,
-      updatedAt: course.updatedAt,
-      modules: (course.modules || []).map((module) => ({
-        _id: module._id,
-        title: module.title,
-        order: module.order,
-        lessons: (module.lessons || []).map((lesson) => ({
-          _id: lesson._id,
-          title: lesson.title,
-          type: lesson.type,
-          order: lesson.order
-        }))
-      }))
-    };
+    const preview = toPublicCoursePreview(course);
     return success(res, { course: preview });
   } catch (e) { next(e); }
 }

@@ -276,10 +276,10 @@ export default function AdminUsersPro() {
             {status && <button type="button" className="admin-filter-chip" onClick={() => setStatus("")}>Status: {status}<X size={13} aria-hidden="true" /></button>}
             {role && <button type="button" className="admin-filter-chip" onClick={() => setRole("")}>Role: {role}<X size={13} aria-hidden="true" /></button>}
             {authProvider && <button type="button" className="admin-filter-chip" onClick={() => setAuthProvider("")}>Provider: {authProvider}<X size={13} aria-hidden="true" /></button>}
-          </AdminFilterBar>
+          </div>
           <span>{pagination.total || 0} results</span>
         </div>
-      </div>
+      </AdminFilterBar>
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 

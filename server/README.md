@@ -13,6 +13,8 @@ cd server
 npm install
 ```
 
+3. Set `API_URL` to the public backend origin (for example, `https://api.example.com`) in production. Promotional-email unsubscribe links use this origin. `CLIENT_URL` remains the frontend origin.
+
 4. Start development server:
 
 ```bash

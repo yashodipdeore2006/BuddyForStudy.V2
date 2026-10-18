@@ -141,7 +141,7 @@ export default function FeatureUpgradeModal() {
       session ? apiFetch("/api/billing/me").catch(() => ({ subscription: null })) : Promise.resolve({ subscription: null }),
     ]).then(([planData, subscriptionData]) => {
       if (cancelled) return;
-      const ordered = [...(planData.plans || [])].filter((plan: Plan & { isActive?: boolean }) => plan.isActive !== false).sort((a: Plan, b: Plan) => {
+      const ordered = [...(planData.plans || [])].filter((plan: Plan & { isActive?: boolean }) => plan.isActive !== false && plan.billingInterval !== "one_time").sort((a: Plan, b: Plan) => {
         const difference = Number(b.price || 0) - Number(a.price || 0);
         return difference || Number(b.isPopular === true) - Number(a.isPopular === true);
       });

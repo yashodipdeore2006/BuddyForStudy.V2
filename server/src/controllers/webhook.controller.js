@@ -57,6 +57,15 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
   if (providerPaymentId) {
     const duplicate = await Payment.findOne({ provider: "razorpay", providerPaymentId });
     if (duplicate) {
+      // A provider payment ID is globally unique. Never bind a duplicate charge
+      // to a different subscription merely because a webhook references it.
+      if (String(duplicate.providerOrderId || "") !== String(subscription.id)) {
+        console.error("[billing-webhook] duplicate provider payment references a different subscription", {
+          providerPaymentId,
+          paymentId: String(duplicate._id)
+        });
+        return;
+      }
       await activateSubscription(subscription, duplicate);
       return;
     }
@@ -140,7 +149,7 @@ export async function razorpayWebhook(req, res, next) {
           {
             provider: "razorpay",
             providerOrderId: orderId,
-            status: { $in: ["created", "pending"] },
+            status: { $in: ["created", "pending", "failed"] },
             course: { $ne: null }
           },
           {
@@ -244,7 +253,7 @@ export async function razorpayWebhook(req, res, next) {
       }
     } else if (event.event === "payment.failed" && orderId) {
       const failedPayment = await Payment.findOneAndUpdate(
-        { provider: "razorpay", providerOrderId: orderId, status: { $ne: "paid" } },
+        { provider: "razorpay", providerOrderId: orderId, status: { $in: ["created", "pending"] } },
         { $set: { status: "failed", providerPaymentId: paymentEntity?.id || "" } },
         { new: true }
       );

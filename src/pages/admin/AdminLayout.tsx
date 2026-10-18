@@ -107,6 +107,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [activeResult, setActiveResult] = useState(0);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const commandInput = useRef<HTMLInputElement>(null);
+  const commandTrigger = useRef<HTMLButtonElement>(null);
+  const commandWasOpen = useRef(false);
   const commandDialog = useRef<HTMLDivElement>(null);
   const helpDialog = useRef<HTMLElement>(null);
   const mobileSidebar = useRef<HTMLElement>(null);
@@ -162,7 +164,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [query]);
 
   useEffect(() => {
-    if (commandOpen) window.requestAnimationFrame(() => commandInput.current?.focus());
+    if (commandOpen) {
+      commandWasOpen.current = true;
+      window.requestAnimationFrame(() => commandInput.current?.focus());
+    } else if (commandWasOpen.current) {
+      commandWasOpen.current = false;
+      commandTrigger.current?.focus();
+    }
   }, [commandOpen]);
 
   useEffect(() => {
@@ -360,7 +368,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             <AdminIconButton className="admin-desktop-sidebar-toggle" label={collapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setCollapsed((value) => !value)}>
               {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
             </AdminIconButton>
-            <button type="button" className="admin-search-trigger" onClick={() => setCommandOpen(true)} aria-label="Search pages and actions">
+            <button ref={commandTrigger} type="button" className="admin-search-trigger" onClick={() => setCommandOpen(true)} aria-label="Search pages and actions">
               <Search size={16} aria-hidden="true" /><span>Search pages and actions</span><kbd>Ctrl K</kbd>
             </button>
           </div>

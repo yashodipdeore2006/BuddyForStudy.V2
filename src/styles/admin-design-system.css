@@ -530,3 +530,14 @@
 .admin-shell .admin-column-choice { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-1); border-radius: var(--r-sm); color: var(--text-2); cursor: pointer; font-size: var(--fs-sm); }
 .admin-shell .admin-column-choice:hover { background: var(--surface-2); color: var(--text); }
 .admin-shell .admin-column-choice input { accent-color: var(--accent); }
+
+.admin-shell .admin-bulk-action-bar { position: sticky; z-index: var(--z-sticky); top: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); margin-top: var(--s-4); padding: var(--s-3) var(--s-4); border: 1px solid var(--accent); border-radius: var(--r-md); background: var(--accent-soft); color: var(--text); box-shadow: var(--shadow-sm); }
+.admin-shell .admin-bulk-action-bar > span { color: var(--text-2); font-size: var(--fs-sm); }
+.admin-shell .admin-bulk-action-bar > span strong { color: var(--accent); }
+.admin-shell .admin-bulk-action-buttons { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2); }
+.admin-shell .admin-select-column { width: 44px; min-width: 44px; padding: var(--s-2) !important; text-align: center; }
+.admin-shell .admin-select-column input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+@media (max-width: 640px) {
+  .admin-shell .admin-bulk-action-bar { align-items: stretch; flex-direction: column; }
+  .admin-shell .admin-bulk-action-buttons { justify-content: flex-end; }
+}

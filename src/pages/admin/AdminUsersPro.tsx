@@ -16,6 +16,7 @@ import {
   Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { useAuth } from "@/context/AuthContext";
 import { AdminButton, AdminEmptyState, AdminPageHeader, AdminPagination, AdminTableContainer } from "@/components/admin/AdminUI";
 import { DataTable } from "@/components/admin/DataTable";
 import { FilterBar } from "@/components/admin/FilterBar";
@@ -32,6 +33,8 @@ function csvCell(value: unknown) {
 }
 
 export default function AdminUsersPro() {
+  const { session } = useAuth();
+  const savedViewStorageKey = "bfs-admin-users-views:" + (session?.user.email || "administrator");
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -116,7 +119,51 @@ export default function AdminUsersPro() {
     }
   }
 
-  useEffect(() => { void refreshSavedViews(); }, []);
+  async function loadAndImportSavedViews() {
+    await refreshSavedViews();
+    try {
+      const raw = window.localStorage.getItem(savedViewStorageKey);
+      if (!raw) return;
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const current = await adminFetch("/api/admin/saved-views?page=users");
+      const names = new Set<string>((current.items || []).map((view: SavedViewRecord) => view.name.toLowerCase()));
+      let importFailed = false;
+      for (const legacy of parsed) {
+        if (!legacy || typeof legacy !== "object") continue;
+        const view = legacy as Record<string, unknown>;
+        if (typeof view.name !== "string" || !view.name.trim() || typeof view.q !== "string" ||
+          typeof view.status !== "string" || typeof view.role !== "string" || typeof view.authProvider !== "string" ||
+          ![25, 50, 100].includes(Number(view.pageSize)) ||
+          !["compact", "comfortable"].includes(String(view.density)) ||
+          !["asc", "desc"].includes(String(view.sortOrder)) || typeof view.sortBy !== "string" ||
+          !Array.isArray(view.columns)) continue;
+        const name = view.name.trim();
+        if (names.has(name.toLowerCase())) continue;
+        const payload = {
+          page: "users",
+          name,
+          filters: { q: view.q, status: view.status, role: view.role, authProvider: view.authProvider, pageSize: Number(view.pageSize) },
+          columns: view.columns.filter((column): column is string => typeof column === "string" && ["access", "verification", "provider"].includes(column)),
+          sort: { sortBy: view.sortBy, sortOrder: view.sortOrder },
+          density: view.density,
+          shared: false
+        };
+        try {
+          await adminFetch("/api/admin/saved-views", { method: "POST", body: JSON.stringify(payload) });
+          names.add(name.toLowerCase());
+        } catch {
+          importFailed = true;
+        }
+      }
+      if (!importFailed) window.localStorage.removeItem(savedViewStorageKey);
+      await refreshSavedViews();
+    } catch {
+      setSavedViewsError("Some saved views could not be imported. Existing browser-saved views have been kept.");
+    }
+  }
+
+  useEffect(() => { void loadAndImportSavedViews(); }, [savedViewStorageKey]);
 
   async function createSavedView(payload: Omit<SavedViewRecord, "id" | "owner" | "canManage" | "createdAt" | "updatedAt">) {
     setSavedViewsError("");

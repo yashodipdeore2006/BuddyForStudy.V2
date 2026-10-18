@@ -122,11 +122,11 @@ export default function Home() {
         </div>
         <div className="mt-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            { icon: BrainCircuit, title: 'AI learning paths', desc: 'Turn a career goal or any topic into an ordered roadmap built around prerequisites and your level.', tone: 'violet' },
-            { icon: BookOpen, title: 'Curated courses', desc: 'Explore structured courses and relevant learning resources without losing track of what matters.', tone: 'blue' },
-            { icon: Code2, title: 'Practical projects', desc: 'Reinforce concepts through hands-on work and build skills you can demonstrate.', tone: 'green' },
-            { icon: Trophy, title: 'Progress that shows', desc: 'Keep lessons, milestones and achievements visible so it is easier to maintain momentum.', tone: 'amber' }
-          ].map(({ icon: Icon, title, desc, tone }) => <article key={title} className="bfs-feature-card bfs-interactive-card">
+            { icon: BrainCircuit, title: 'AI learning paths', desc: 'Turn a career goal or any topic into an ordered roadmap built around prerequisites and your level.' },
+            { icon: BookOpen, title: 'Curated courses', desc: 'Explore structured courses and relevant learning resources without losing track of what matters.' },
+            { icon: Code2, title: 'Practical projects', desc: 'Reinforce concepts through hands-on work and build skills you can demonstrate.' },
+            { icon: Trophy, title: 'Progress that shows', desc: 'Keep lessons, milestones and achievements visible so it is easier to maintain momentum.' }
+          ].map(({ icon: Icon, title, desc }) => <article key={title} className="bfs-feature-card bfs-interactive-card">
             <div className="bfs-icon-tile"><Icon className="h-6 w-6" /></div>
             <h3 className="mt-5 text-lg font-bold">{title}</h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">{desc}</p>
@@ -136,7 +136,7 @@ export default function Home() {
       </div>
     </section>
 
-    <section className="pb-14 sm:pb-18">
+    <section className="pb-14 sm:pb-16">
       <div className="bfs-shell">
         <div className="bfs-ai-panel relative overflow-hidden p-7 sm:p-10 lg:p-12">
           <div className="absolute -right-10 -top-24 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
@@ -164,7 +164,7 @@ export default function Home() {
 
     <section className="bfs-section">
       <div className="bfs-shell">
-        <div className="relative overflow-hidden rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 sm:p-12 lg:p-14">
+        <div className="relative overflow-hidden bfs-cta-panel relative overflow-hidden rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 sm:p-12 lg:p-14">
           <div className="pointer-events-none absolute -right-8 -top-12 opacity-10"><img src="/buddyforstudy-mascot.svg" alt="" aria-hidden="true" className="h-64 w-64" /></div>
           <div className="relative max-w-3xl">
             <p className="bfs-eyebrow">Your next chapter</p>

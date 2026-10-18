@@ -7,7 +7,10 @@ export async function operationalAlerts(req, res, next) {
   try {
     const status = ["open", "acknowledged", "resolved"].includes(String(req.query.status || "")) ? String(req.query.status) : "";
     const filter = status ? { status } : {};
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+      : 50;
     const [alerts, openCount] = await Promise.all([
       OperationalAlert.find(filter).populate("acknowledgedBy", "name email").sort({ lastSeenAt: -1 }).limit(limit).lean(),
       OperationalAlert.countDocuments({ status: "open" })

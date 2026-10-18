@@ -317,6 +317,9 @@ export async function updateUser(req, res, next) {
     if (typeof req.body?.isActive !== "boolean") {
       return failure(res, "isActive must be a boolean.", 400);
     }
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for account status changes.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
     if (String(req.params.userId) === String(req.user.userId)) {
       return failure(res, "Admin cannot deactivate the current account.", 400);
     }
@@ -328,7 +331,7 @@ export async function updateUser(req, res, next) {
     const before = { isActive: user.isActive };
     user.isActive = req.body.isActive;
     await user.save();
-    await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive }, req.body.reason);
+    await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive }, reason);
     return success(res, { user: user.toJSON() }, "User updated");
   } catch (e) { next(e); }
 }

@@ -94,3 +94,28 @@ test("audit outbox retry records failure details and applies bounded exponential
     assert.equal(updated.lockedAt, null);
   });
 });
+
+test("audit events report immediate persistence without creating an outbox item", async () => {
+  let saved;
+  let outboxCalled = false;
+  await withMocks([
+    [AuditLog, { create: async (event) => { saved = event; return event; } }],
+    [AuditOutbox, { create: async () => { outboxCalled = true; } }]
+  ], async () => {
+    const result = await recordAuditEvent({ action: "admin.plan.updated", targetType: "subscription_plan", targetId: "plan-1" });
+    assert.deepEqual(result, { recorded: true, queued: false });
+    assert.equal(saved.action, "admin.plan.updated");
+    assert.match(saved.eventId, /^[0-9a-f-]{36}$/i);
+    assert.equal(outboxCalled, false);
+  });
+});
+
+test("audit event reports when both primary persistence and outbox fallback fail", async () => {
+  await withMocks([
+    [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+    [AuditOutbox, { create: async () => { throw new Error("outbox database unavailable"); } }]
+  ], async () => {
+    const result = await recordAuditEvent({ action: "admin.role.changed", targetType: "user", targetId: "user-2" });
+    assert.deepEqual(result, { recorded: false, queued: false });
+  });
+});

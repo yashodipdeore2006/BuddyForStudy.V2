@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { GraduationCap, Sparkles, Check } from 'lucide-react';
+import { Sparkles, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface AuthLayoutProps {
@@ -12,12 +12,11 @@ interface AuthLayoutProps {
 export default function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-white lg:grid lg:grid-cols-2">
-      <section className="relative hidden overflow-hidden bg-[#0a1317] text-white lg:flex">
+      <section className="relative hidden overflow-hidden bg-[#1A1B41] text-white lg:flex">
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 18% 22%, rgba(255,255,255,.18), transparent 34%), radial-gradient(circle at 80% 78%, rgba(0,100,224,.28), transparent 38%)' }} />
         <div className="relative flex w-full flex-col justify-between p-12 xl:p-16">
           <Link to="/" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-950"><GraduationCap className="h-5 w-5" /></span>
-            <span className="text-lg font-bold tracking-tight">BuddyForStudy</span>
+            <img src="/buddyforstudy-logo-dark.webp" alt="BuddyForStudy — Learn, Plan, Grow" className="h-auto w-44 rounded-xl ring-1 ring-white/10" />
           </Link>
           <div className="max-w-xl">
             <span className="badge border border-white/20 bg-white/10 text-white"><Sparkles className="h-3.5 w-3.5" /> AI-powered learning</span>
@@ -38,8 +37,8 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
         <div className="w-full max-w-md">
           <div className="mb-8 lg:hidden">
             <Link to="/" className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white"><GraduationCap className="h-5 w-5" /></span>
-              <span className="text-lg font-bold text-slate-950">BuddyForStudy</span>
+              <span className="bfs-brand-mark h-10 w-10 overflow-hidden"><img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" className="h-9 w-9 object-contain" /></span>
+              <span className="bfs-brand-wordmark text-lg">Buddy<span className="brand-accent">For</span>Study</span>
             </Link>
           </div>
           <div className="rounded-[32px] border border-slate-200 bg-white p-6 sm:p-9">

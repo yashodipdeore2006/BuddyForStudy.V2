@@ -71,14 +71,22 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   }
 
   const request = (async () => {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {}),
+        },
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('The request was cancelled or took too long. Please try again.');
+      }
+      throw new Error(`We couldn't connect to BuddyForStudy. Check your internet connection and try again. If the problem continues, contact support.`);
+    }
 
     const data = await response.json().catch(() => ({}));
     const isAuthEntry = AUTH_ENTRY_PATHS.some((entry) => path.startsWith(entry));

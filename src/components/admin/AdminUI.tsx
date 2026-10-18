@@ -226,13 +226,15 @@ export function AdminConfirmDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const canConfirm = !requiredText || value?.trim() === requiredText;
 
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loading) onClose();
+      if (event.key === "Escape" && !loading) onCloseRef.current();
       if (event.key === "Tab" && dialogRef.current) {
         const elements = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])'));
         if (!elements.length) return;
@@ -244,7 +246,7 @@ export function AdminConfirmDialog({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, loading, onClose]);
+  }, [open, loading]);
 
   if (!open) return null;
   return (

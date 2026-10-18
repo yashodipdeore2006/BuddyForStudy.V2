@@ -24,7 +24,12 @@ async function reserveDiscoveryQuota(req, limitKey, usageFeature) {
     const error = new Error("You have reached this plan's monthly course allowance. Upgrade your plan or try again next month.");
     error.status = 429;
     error.code = "COURSE_DISCOVERY_LIMIT";
-    error.details = { limitKey, limit: usage.limit, used: usage.count };
+    error.details = {
+      feature: "priority_recommendations",
+      limitKey,
+      limit: usage.limit,
+      used: usage.count
+    };
     throw error;
   }
   return { userId: req.user.userId, feature: usageFeature };

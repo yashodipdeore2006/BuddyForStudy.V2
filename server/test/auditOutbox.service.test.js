@@ -64,3 +64,33 @@ test("audit outbox replay is idempotent and removes successfully persisted event
     assert.deepEqual(deleted, { _id: "outbox-1", status: "processing" });
   });
 });
+
+
+test("audit outbox retry records failure details and applies bounded exponential backoff", async () => {
+  const now = new Date("2026-10-18T12:00:00.000Z");
+  const item = {
+    _id: "outbox-2",
+    eventId: "event-retry",
+    event: { eventId: "event-retry", action: "admin.invitation.revoked", targetType: "admin_invitation", targetId: "i1" },
+    attempts: 0
+  };
+  let updated;
+  let updateFilter;
+  await withMocks([
+    [AuditOutbox, {
+      updateMany: async () => ({}),
+      findOneAndUpdate: async () => item,
+      updateOne: async (filter, update) => { updateFilter = filter; updated = update.$set; }
+    }],
+    [AuditLog, { updateOne: async () => { throw new Error("audit database temporarily unavailable"); } }]
+  ], async () => {
+    const result = await processPendingAuditOutbox(1, now);
+    assert.deepEqual(result, { processed: 0, failures: 1 });
+    assert.deepEqual(updateFilter, { _id: "outbox-2", status: "processing" });
+    assert.equal(updated.status, "pending");
+    assert.equal(updated.attempts, 1);
+    assert.equal(updated.nextAttemptAt.getTime(), now.getTime() + 2000);
+    assert.match(updated.lastError, /temporarily unavailable/);
+    assert.equal(updated.lockedAt, null);
+  });
+});

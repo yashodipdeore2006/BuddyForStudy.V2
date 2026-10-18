@@ -170,6 +170,43 @@ export async function overview(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function exportUsers(req, res, next) {
+  try {
+    const ids = String(req.query.ids || "").split(",").map((value) => value.trim()).filter(Boolean);
+    if (!ids.length || ids.length > 100) return failure(res, "Select between 1 and 100 users to export.", 400);
+    if (ids.some((id) => !isValidObjectId(id))) return failure(res, "One or more selected user IDs are invalid.", 400);
+
+    const filter = { _id: { $in: ids } };
+    const sortFields = {
+      createdAt: "createdAt",
+      name: "name",
+      email: "email",
+      role: "role",
+      status: "isActive",
+      verification: "emailVerified",
+      authProvider: "authProvider",
+    };
+    const requestedSort = String(req.query.sortBy || "name");
+    const sortField = Object.hasOwn(sortFields, requestedSort) ? sortFields[requestedSort] : "name";
+    const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+    const users = await User.find(filter)
+      .select("_id name email role isActive emailVerified authProvider createdAt")
+      .sort({ [sortField]: sortOrder, _id: -1 })
+      .limit(100)
+      .lean();
+
+    await audit(req, "admin.users.exported", "User", "", null, {
+      count: users.length,
+      selectedCount: ids.length,
+      fields: ["name", "email", "role", "isActive", "emailVerified", "authProvider", "createdAt"],
+    }, "Administrator exported selected user records");
+
+    return success(res, { users, count: users.length });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);

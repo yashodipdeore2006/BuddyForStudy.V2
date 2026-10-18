@@ -60,9 +60,12 @@ const AUTH_ENTRY_PATHS = [
   "/api/auth/resend-otp",
 ];
 
-export async function apiFetch(path: string, options: RequestInit = {}) {
+type ApiFetchOptions = RequestInit & { showFeatureUpgrade?: boolean };
+
+export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
+  const { showFeatureUpgrade = false, ...requestOptions } = options;
   const token = getToken();
-  const method = (options.method || 'GET').toUpperCase();
+  const method = (requestOptions.method || 'GET').toUpperCase();
   const isGet = method === 'GET';
   const key = cacheKey(path, token);
 
@@ -83,11 +86,11 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     let response: Response;
     try {
       response = await fetch(`${API_URL}${path}`, {
-        ...options,
+        ...requestOptions,
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(options.headers || {}),
+          ...(requestOptions.headers || {}),
         },
       });
     } catch (error) {
@@ -141,12 +144,17 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
         : response.status === 429 && limitKey === 'ai_curated_courses_per_month'
           ? 'priority_recommendations'
           : '';
-      const isPlanLimitDenial = Boolean(quotaFeature) && /plan(?:'s|’s) monthly course allowance/i.test(serverMessage);
+      const aiQuotaFeature = response.status === 429 &&
+        entitlementDetails?.feature === "advanced_ai_paths" &&
+        ["advanced_ai_insights_per_month", "advanced_ai_questions_per_month", "advanced_ai_questions_per_lesson"].includes(String(entitlementDetails?.limitKey || ""))
+        ? "advanced_ai_paths"
+        : "";
+      const isPlanLimitDenial = (Boolean(quotaFeature) && /plan(?:'s|’s) monthly course allowance/i.test(serverMessage)) || Boolean(aiQuotaFeature);
       const isPlanGate = isEntitlementDenial || isPlanLimitDenial;
-      if (isPlanGate) {
+      if (showFeatureUpgrade && isPlanGate) {
         window.dispatchEvent(new CustomEvent("bfs:feature-gated", {
           detail: {
-            feature: gatedFeature || quotaFeature,
+            feature: gatedFeature || quotaFeature || aiQuotaFeature,
             currentPlan: typeof entitlementDetails?.plan === 'string' ? entitlementDetails.plan : undefined,
             message: safeServerMessage || serverMessage,
             limit: isPlanLimitDenial ? entitlementDetails.limit : undefined,

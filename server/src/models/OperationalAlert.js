@@ -22,7 +22,7 @@ export async function recordOperationalAlert({ key, severity = "warning", source
   const now = new Date();
   return OperationalAlert.findOneAndUpdate(
     { key },
-    { $set: { severity, source, message: String(message || "Operational issue detected").slice(0, 1000), status: "open", lastSeenAt: now, resolvedAt: null }, $setOnInsert: { firstSeenAt: now }, $inc: { occurrenceCount: 1 } },
+    { $set: { severity, source, message: String(message || "Operational issue detected").slice(0, 1000), status: "open", lastSeenAt: now, acknowledgedBy: null, acknowledgedAt: null, resolvedAt: null }, $setOnInsert: { firstSeenAt: now }, $inc: { occurrenceCount: 1 } },
     { upsert: true, new: true, setDefaultsOnInsert: false }
   );
 }

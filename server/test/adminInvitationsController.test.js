@@ -390,7 +390,7 @@ test("acceptance does not report failure after account creation if audit logging
       assert.equal(forwardedError, undefined);
       assert.equal(res.result.statusCode, 201);
       assert.equal(res.result.body.success, true);
-      assert.equal(res.result.body.data.auditLogRecorded, false);
+      assert.equal(res.result.body.auditLogRecorded, false);
       assert.match(res.result.body.message, /audit event could not be recorded/i);
       assert.equal(errorLogCalls, 1);
     });

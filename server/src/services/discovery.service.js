@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { getYouTubeVideoResource, searchBestYouTubeCourse } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 
 const cache = new Map();
@@ -56,17 +57,29 @@ function formatCourseDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-function normalizePolicy(policy) {
-  const min = Math.max(30, Math.min(2400, Number(policy?.minDurationMinutes) || 180));
-  const target = Math.max(min, Math.min(3000, Number(policy?.targetDurationMinutes) || min));
-  const max = Math.max(target, Math.min(3600, Number(policy?.maxDurationMinutes) || target));
+async function getDiscoveryAdminConfig() {
+  const keys = [
+    "discovery_max_skills_per_course", "discovery_search_results_per_query",
+    "discovery_min_duration_minutes", "discovery_max_duration_minutes",
+    "discovery_exclude_shorts", "discovery_require_embeddable",
+  ];
+  const saved = await PlatformSetting.find({ key: { $in: keys } }).lean();
+  return Object.fromEntries(saved.map((setting) => [setting.key, setting.value]));
+}
+
+function normalizePolicy(policy, config = {}) {
+  const globalMin = Math.max(0, Math.min(1200, Number(config.discovery_min_duration_minutes ?? 30)));
+  const globalMax = Math.max(30, Math.min(6000, Number(config.discovery_max_duration_minutes ?? 3600)));
+  const min = Math.max(globalMin, Math.min(2400, Number(policy?.minDurationMinutes) || 180));
+  const max = Math.max(min, Math.min(globalMax, Number(policy?.maxDurationMinutes) || globalMax));
+  const target = Math.max(min, Math.min(max, Number(policy?.targetDurationMinutes) || min));
   return {
     ...policy,
     minDurationMinutes: min,
     targetDurationMinutes: target,
     maxDurationMinutes: max,
-    excludeShorts: policy?.excludeShorts !== false,
-    requireEmbeddable: policy?.requireEmbeddable !== false,
+    excludeShorts: config.discovery_exclude_shorts === false ? policy?.excludeShorts === true : policy?.excludeShorts !== false,
+    requireEmbeddable: config.discovery_require_embeddable === false ? policy?.requireEmbeddable === true : policy?.requireEmbeddable !== false,
     preferProjectBased: policy?.preferProjectBased !== false,
     preferredLanguage: policy?.preferredLanguage || "en"
   };
@@ -265,19 +278,23 @@ async function createNormalCourseFromAi(aiCourse, query) {
 }
 
 async function searchCourseBySkillsFresh(query) {
+  const adminConfig = await getDiscoveryAdminConfig();
   const spec = await generateSearchSpecification(query);
+  const maxSkills = Math.max(1, Math.min(30, Number(adminConfig.discovery_max_skills_per_course) || 12));
+  const selectedSkills = spec.skills.slice(0, maxSkills);
   const modules = [];
 
-  for (let index = 0; index < spec.skills.length; index += 1) {
-    const skill = spec.skills[index];
-    const policy = normalizePolicy(skill.searchPolicy);
+  for (let index = 0; index < selectedSkills.length; index += 1) {
+    const skill = selectedSkills[index];
+    const policy = normalizePolicy(skill.searchPolicy, adminConfig);
     const selected = await searchBestYouTubeCourse({
       skill: skill.name,
       searchQueries: skill.searchQueries,
       searchPolicy: {
         ...policy,
         requiredTopics: skill.requiredTopics
-      }
+      },
+      maxResultsPerQuery: Math.max(5, Math.min(50, Number(adminConfig.discovery_search_results_per_query) || 20))
     });
 
     modules.push({

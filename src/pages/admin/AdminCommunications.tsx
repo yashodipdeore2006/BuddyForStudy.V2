@@ -430,14 +430,14 @@ export default function AdminCommunications() {
               <label className="mt-3 block text-xs font-semibold text-slate-600">Quick audience presets
                 <select className="input-field mt-1" value={segmentPreset} onChange={(e) => applyAudiencePreset(e.target.value)}>
                   <option value="custom">Custom filters</option>
-                  <option value="premium">Premium subscribers</option>
+                  <option value="premium">Subscribers on highest-priced active plan</option>
                   <option value="popular_plan">Subscribers on the most popular plan</option>
                   <option value="high_spenders">High spenders (₹5,000+ paid)</option>
                   <option value="multi_course_learners">Learners enrolled in 4+ courses</option>
                   <option value="premium_high_value">Premium subscribers who spent ₹5,000+ and enrolled in 4+ courses</option>
                   <option value="popular_course_learners">Learners in the 5 most popular courses</option>
                   <option value="free_course_learners">Learners enrolled in free courses</option>
-                  <option value="inactive_learners">Inactive learners (14+ days)</option>
+                  <option value="inactive_learners">No course progress activity for 14+ days</option>
                   <option value="expiring_subscribers">Subscribers expiring within 7 days</option>
                   <option value="at_risk_subscribers">Past-due subscribers</option>
                   <option value="unverified_accounts">Email addresses not verified</option>

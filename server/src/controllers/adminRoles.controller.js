@@ -1,6 +1,7 @@
 import { User } from "../models/User.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { ADMIN_ROLE_PROFILES, getAdminPermissions, isAdminRoleProfile } from "../utils/adminRbac.js";
@@ -81,7 +82,7 @@ export async function updateAIContentSetting(req, res, next) {
       { $set: { value: normalized, description: config.description, isPublic: false, updatedBy: req.user.user?._id || req.user.userId } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
-    await AuditLog.create({
+    const auditResult = await recordAuditEvent({
       actor: req.user.user?._id || req.user.userId,
       action: "ai_content.setting.updated",
       targetType: "PlatformSetting",
@@ -90,9 +91,15 @@ export async function updateAIContentSetting(req, res, next) {
       before: { key, value: before },
       after: { key, value: normalized },
       ip: String(req.ip || "").slice(0, 100),
-      userAgent: String(req.get("user-agent") || "").slice(0, 500),
+      userAgent: String(req.get?.("user-agent") || "").slice(0, 500),
     });
-    return success(res, { setting: { key, value: normalized } }, "AI/content setting updated.");
+    return success(res, {
+      setting: { key, value: normalized },
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued,
+    }, auditResult.recorded ? "AI/content setting updated."
+      : auditResult.queued ? "AI/content setting updated; audit event queued for retry."
+      : "AI/content setting updated, but its audit event could not be recorded or queued. Notify a Super Admin.");
   } catch (error) { return next(error); }
 }
 
@@ -168,7 +175,7 @@ export async function updateAdministratorRole(req, res, next) {
     target.adminPermissionOverrides = [];
     await target.save();
 
-    await AuditLog.create({
+    const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "admin.role.updated",
       targetType: "user",
@@ -176,7 +183,7 @@ export async function updateAdministratorRole(req, res, next) {
       reason: reason.trim(),
       before,
       after: { adminRole },
-      ip: req.ip || "",
+      ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500),
     });
 
@@ -188,7 +195,11 @@ export async function updateAdministratorRole(req, res, next) {
         adminRole: target.adminRole,
         permissions: getAdminPermissions(target.adminRole),
       },
-    }, "Administrator role updated.");
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued,
+    }, auditResult.recorded ? "Administrator role updated."
+      : auditResult.queued ? "Administrator role updated; audit event queued for retry."
+      : "Administrator role updated, but its audit event could not be recorded or queued. Notify a Super Admin.");
   } catch (error) {
     return next(error);
   }

@@ -207,6 +207,9 @@ export function AdminConfirmDialog({
   requiredText,
   value,
   onValueChange,
+  reason = "",
+  onReasonChange,
+  requireReason = false,
   onConfirm,
   onClose,
   loading = false,
@@ -219,6 +222,9 @@ export function AdminConfirmDialog({
   requiredText?: string;
   value?: string;
   onValueChange?: (value: string) => void;
+  reason?: string;
+  onReasonChange?: (value: string) => void;
+  requireReason?: boolean;
   onConfirm: () => void;
   onClose: () => void;
   loading?: boolean;
@@ -228,7 +234,7 @@ export function AdminConfirmDialog({
   const inputRef = useRef<HTMLInputElement>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
-  const canConfirm = !requiredText || value?.trim() === requiredText;
+  const canConfirm = (!requiredText || value?.trim() === requiredText) && (!requireReason || Boolean(reason.trim()));
 
   useEffect(() => {
     if (!open) return;
@@ -259,6 +265,11 @@ export function AdminConfirmDialog({
         {requiredText && <div className="admin-confirm-field">
           <label htmlFor="admin-confirm-text">Type <strong>{requiredText}</strong> to continue</label>
           <input ref={inputRef} id="admin-confirm-text" value={value || ""} onChange={(event) => onValueChange?.(event.target.value)} autoComplete="off" />
+        </div>}
+        {requireReason && <div className="admin-confirm-field">
+          <label htmlFor="admin-confirm-reason">Reason <strong>(required)</strong></label>
+          <textarea id="admin-confirm-reason" value={reason} maxLength={500} onChange={(event) => onReasonChange?.(event.target.value)} placeholder="Explain why this change is necessary." rows={3} />
+          <span className="admin-confirm-help">{reason.trim().length}/500 characters</span>
         </div>}
         <footer className="admin-confirm-footer">
           <AdminButton variant="secondary" onClick={onClose} disabled={loading}>Cancel</AdminButton>

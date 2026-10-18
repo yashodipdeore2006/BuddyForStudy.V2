@@ -139,6 +139,14 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
       });
       return;
     }
+    if (["refunded", "partially_refunded", "cancelled"].includes(duplicate.status)) {
+      console.warn("[billing-webhook] ignoring charge replay for a terminal payment", {
+        providerPaymentId,
+        paymentId: String(duplicate._id),
+        status: duplicate.status
+      });
+      return;
+    }
     await activateSubscription(subscription, duplicate, eventAt);
     // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
     await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
@@ -247,7 +255,8 @@ export async function razorpayWebhook(req, res, next) {
       if (subscriptionEntity?.id) {
         const payment = await Payment.findOne({
           provider: "razorpay",
-          providerOrderId: subscriptionEntity.id
+          providerOrderId: subscriptionEntity.id,
+          status: { $in: ["created", "pending", "paid", "failed"] }
         }).sort({ createdAt: -1 }).populate("plan", "name billingInterval");
 
         if (payment) {

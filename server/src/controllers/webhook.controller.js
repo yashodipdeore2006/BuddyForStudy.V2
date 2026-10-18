@@ -174,7 +174,8 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
   }
 
   await activateSubscription(subscription, payment, eventAt);
-  await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);}
+  await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);
+}
 
 export async function razorpayWebhook(req, res, next) {
   let claimedEventId = "";

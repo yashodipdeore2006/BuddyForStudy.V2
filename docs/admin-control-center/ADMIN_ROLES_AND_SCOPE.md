@@ -116,6 +116,7 @@ A permission is checked on the backend for every protected endpoint. Frontend vi
 - Enforce a permission check on every existing admin route, including the legacy router.
 - Add pure policy tests and retain the current admin middleware regression tests.
 - Legacy admins default to `platform_admin`; bootstrap the initial owner explicitly with `ADMIN_ROLE=super_admin`.
+- To assign the first Super Admin to an existing admin without resetting its password, set `ADMIN_EMAIL` and `ADMIN_ROLE=super_admin` in the server environment and run `npm run set-admin-role` from `server/`. The script refuses unknown profiles and protects the last active Super Admin. Never commit real environment values.
 
 ### Phase B — Admin identity and role assignment
 - Add a Super Admin-only administrator directory and role assignment endpoints.

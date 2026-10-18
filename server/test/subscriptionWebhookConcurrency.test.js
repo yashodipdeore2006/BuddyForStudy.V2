@@ -22,6 +22,8 @@ test("subscription event ordering metadata is private but queryable", () => {
   const field = UserSubscription.schema.path("providerEventAt");
   assert.ok(field);
   assert.equal(field.options.select, false);
+  assert.equal(UserSubscription.schema.path("providerEventId").options.select, false);
+  assert.equal(UserSubscription.schema.path("providerEventName").options.select, false);
 });
 
 test("an older cancellation event cannot match a subscription updated by a newer activation", () => {
@@ -39,7 +41,8 @@ test("conflicting events from the same provider second are deliberately first-ap
   assert.equal(activation.getTime(), cancellation.getTime());
   const filter = subscriptionEventFreshnessFilter(cancellation, "evt-cancel", "subscription.cancelled");
   assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lt === cancellation), true);
-  assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lte === cancellation), false);\n  assert.equal(filter.$or.some((clause) => clause.providerEventId === "evt-cancel"), true);
+  assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lte === cancellation), false);
+  assert.equal(filter.$or.some((clause) => clause.providerEventId === "evt-cancel"), true);
 });
 
 test("events without timestamps cannot change a timestamped subscription or trigger guarded transition notifications", () => {

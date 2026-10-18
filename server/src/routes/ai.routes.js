@@ -6,7 +6,7 @@ import { generateRoadmap, generateAndSaveCourse, generateQuiz, generatePracticeQ
 const router = Router();
 
 router.get("/usage", authMiddleware, usage);
-router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), generateRoadmap);
+router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), generateRoadmap);
 router.post("/quiz", authMiddleware, generateQuiz);
 router.post("/practice-quiz", authMiddleware, generatePracticeQuiz);
 router.post("/practice-quiz/submit", authMiddleware, submitPracticeQuiz);

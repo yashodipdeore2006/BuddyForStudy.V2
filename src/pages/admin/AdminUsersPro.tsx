@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
@@ -17,7 +17,10 @@ import {
   Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { useAuth } from "@/context/AuthContext";
 import { AdminConfirmDialog, AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
+
+type SavedUserView = { id: string; name: string; q: string; status: string; role: string; authProvider: string; pageSize: number; density: "compact" | "comfortable" };
 
 function statusClass(active: boolean) {
   return active
@@ -26,6 +29,8 @@ function statusClass(active: boolean) {
 }
 
 export default function AdminUsersPro() {
+  const { session } = useAuth();
+  const savedViewStorageKey = "bfs-admin-users-views:" + (session?.user.email || "administrator");
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
   const [pagination, setPagination] = useState<any>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
@@ -39,6 +44,17 @@ export default function AdminUsersPro() {
     const value = Number(searchParams.get("limit") || 25);
     return [25, 50, 100].includes(value) ? value : 25;
   });
+  const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
+  const [savedViews, setSavedViews] = useState<SavedUserView[]>(() => {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(savedViewStorageKey) || "[]");
+      return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item.id === "string" && typeof item.name === "string") : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showSaveView, setShowSaveView] = useState(false);
+  const [viewName, setViewName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<any>(null);
@@ -81,6 +97,56 @@ export default function AdminUsersPro() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(savedViewStorageKey, JSON.stringify(savedViews));
+    } catch {
+      // Saved views remain usable for this session when storage is unavailable.
+    }
+  }, [savedViewStorageKey, savedViews]);
+
+  function saveCurrentView(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = viewName.trim();
+    if (!name) {
+      setError("Enter a name for this saved view.");
+      return;
+    }
+    if (savedViews.length >= 8) {
+      setError("You can save up to 8 user views. Remove one before saving another.");
+      return;
+    }
+    const saved: SavedUserView = {
+      id: String(Date.now()),
+      name,
+      q: debouncedQ,
+      status,
+      role,
+      authProvider,
+      pageSize,
+      density,
+    };
+    setSavedViews((current) => [...current, saved]);
+    setViewName("");
+    setShowSaveView(false);
+    setError("");
+  }
+
+  function applySavedView(view: SavedUserView) {
+    setQ(view.q);
+    setDebouncedQ(view.q);
+    setStatus(view.status);
+    setRole(view.role);
+    setAuthProvider(view.authProvider);
+    setPageSize(view.pageSize);
+    setDensity(view.density);
+    setPage(1);
+  }
+
+  function removeSavedView(id: string) {
+    setSavedViews((current) => current.filter((view) => view.id !== id));
   }
 
   useEffect(() => {
@@ -271,13 +337,24 @@ export default function AdminUsersPro() {
         </button>}
       />
 
-      <div className="admin-saved-views" aria-label="Saved user views">
+      <div className="admin-saved-views" aria-label="Quick and saved user views">
         <button type="button" className="admin-saved-view" aria-pressed={!status && !role && !authProvider && !debouncedQ} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>All users</button>
         <button type="button" className="admin-saved-view" aria-pressed={status === "active" && !role && !authProvider} onClick={() => { setStatus("active"); setRole(""); setAuthProvider(""); setPage(1); }}>Active</button>
         <button type="button" className="admin-saved-view" aria-pressed={status === "disabled" && !role && !authProvider} onClick={() => { setStatus("disabled"); setRole(""); setAuthProvider(""); setPage(1); }}>Disabled</button>
         <button type="button" className="admin-saved-view" aria-pressed={role === "admin"} onClick={() => { setRole("admin"); setStatus(""); setPage(1); }}>Administrators</button>
+        {savedViews.map((view) => <span className="admin-saved-view-item" key={view.id}>
+          <button type="button" className="admin-saved-view" aria-pressed={q === view.q && status === view.status && role === view.role && authProvider === view.authProvider && pageSize === view.pageSize && density === view.density} onClick={() => applySavedView(view)}>{view.name}</button>
+          <button type="button" className="admin-saved-view-remove" aria-label={"Delete saved view " + view.name} title={"Delete saved view " + view.name} onClick={() => removeSavedView(view.id)}><X size={12} /></button>
+        </span>)}
+        <button type="button" className="admin-saved-view admin-saved-view--action" onClick={() => setShowSaveView((value) => !value)}>+ Save current view</button>
         <button type="button" className="admin-saved-view" aria-pressed={Boolean(debouncedQ || status || role || authProvider)} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>Clear filters</button>
       </div>
+      {showSaveView && <form className="admin-save-view-form" onSubmit={saveCurrentView}>
+        <label htmlFor="admin-save-user-view">View name</label>
+        <input id="admin-save-user-view" className="input-field" value={viewName} maxLength={40} onChange={(event) => setViewName(event.target.value)} placeholder="e.g. Unverified administrators" required />
+        <button type="submit" className="btn-primary">Save view</button>
+        <button type="button" className="btn-secondary" onClick={() => { setShowSaveView(false); setViewName(""); }}>Cancel</button>
+      </form>
       <AdminFilterBar className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative xl:col-span-2">
@@ -327,7 +404,7 @@ export default function AdminUsersPro() {
           <div className="admin-table-skeleton" role="status" aria-live="polite" aria-label="Loading users"><AdminSkeleton rows={8} /></div>
         ) : (
           <AdminTableContainer>
-            <table className="w-full text-sm">
+            <table className={"w-full text-sm admin-users-table admin-users-table--" + density}>
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th scope="col" className="px-5 py-3 text-left">User</th>

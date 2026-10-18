@@ -68,13 +68,15 @@ export default function AdminPlans() {
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   async function load() {
     setLoading(true);
     setError("");
 
     try {
-      const data = await adminFetch("/api/admin/plans");
+      const [data, accessData] = await Promise.all([adminFetch("/api/admin/plans"), adminFetch("/api/admin/access")]);
+      setPermissions(accessData.access?.permissions || []);
       setPlans(data.plans || []);
       setAvailableFeatures(data.availableFeatures || []);
     } catch (e) {
@@ -359,7 +361,7 @@ export default function AdminPlans() {
           <p className="mt-2 text-[10px] text-slate-400">0 = blocked by quota; -1 = unlimited.</p>
         </div>
 
-        <button className="btn-primary mt-4" onClick={() => void create()}>
+        <button className="btn-primary mt-4" onClick={() => void create()} disabled={!permissions.includes("plans.manage")}>
           <Plus className="h-4 w-4" />
           Create Plan
         </button>
@@ -426,7 +428,7 @@ export default function AdminPlans() {
                           </div>
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                             <p className="text-[10px] text-slate-400">0 = blocked; -1 = unlimited. Changes apply to new course additions.</p>
-                            <button type="button" onClick={() => void savePlanLimits(plan)} disabled={savingPlan === plan._id} className="btn-secondary">
+                            <button type="button" onClick={() => void savePlanLimits(plan)} disabled={!permissions.includes("plans.manage") || savingPlan === plan._id} className="btn-secondary">
                               {savingPlan === plan._id ? "Saving limits..." : "Save limits"}
                             </button>
                           </div>
@@ -436,10 +438,10 @@ export default function AdminPlans() {
                   </div>
 
                   <div className="flex flex-wrap justify-end gap-2">
-                    <button type="button" onClick={() => setEditingPlan(editingPlan === plan._id ? null : plan._id)} className="btn-secondary">
+                    <button type="button" onClick={() => setEditingPlan(editingPlan === plan._id ? null : plan._id)} className="btn-secondary" disabled={!permissions.includes("plans.manage")}>
                       {editingPlan === plan._id ? "Close editor" : "Edit plan"}
                     </button>
-                    <button onClick={() => void toggle(plan)} className={plan.isActive ? "btn-secondary" : "btn-danger"}>
+                    <button onClick={() => void toggle(plan)} className={plan.isActive ? "btn-secondary" : "btn-danger"} disabled={!permissions.includes("plans.manage")}>
                       <Power className="h-4 w-4" />
                       {plan.isActive ? "Disable" : "Enable"}
                     </button>
@@ -497,7 +499,7 @@ export default function AdminPlans() {
                       <button
                         type="button"
                         className="btn-secondary text-xs"
-                        onClick={() => setAllPlanFeatures(plan._id, true)}
+                        onClick={() => setAllPlanFeatures(plan._id, true)} disabled={!permissions.includes("plans.manage")}
                       >
                         <Check className="h-3.5 w-3.5" />
                         Enable all
@@ -505,7 +507,7 @@ export default function AdminPlans() {
                       <button
                         type="button"
                         className="btn-secondary text-xs"
-                        onClick={() => setAllPlanFeatures(plan._id, false)}
+                        onClick={() => setAllPlanFeatures(plan._id, false)} disabled={!permissions.includes("plans.manage")}
                       >
                         Clear all
                       </button>
@@ -515,7 +517,7 @@ export default function AdminPlans() {
                   {editingPlan === plan._id && (
                     <button
                       type="button"
-                      onClick={() => void savePlanDetails(plan)}
+                      onClick={() => void savePlanDetails(plan)} disabled={!permissions.includes("plans.manage")}
                       disabled={savingPlan === plan._id}
                       className="btn-secondary mt-2 w-full justify-center"
                     >
@@ -526,7 +528,7 @@ export default function AdminPlans() {
 
                   <button
                     type="button"
-                    onClick={() => void saveFeatures(plan)}
+                    onClick={() => void saveFeatures(plan)} disabled={!permissions.includes("plans.manage")}
                     disabled={savingPlan === plan._id}
                     className="btn-primary mt-3 w-full justify-center"
                   >

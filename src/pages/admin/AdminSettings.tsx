@@ -231,7 +231,6 @@ export default function AdminSettings() {
       {!permissions.includes("settings.manage") && <div role="status" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">View-only access: your administrator role can inspect platform setting metadata but cannot change operational controls.</div>}
 
 {permissions.includes("settings.manage") && (
-{permissions.includes("settings.manage") && (
       <section className="card mt-6 p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -264,8 +263,8 @@ export default function AdminSettings() {
         </button>}
       </section>
 )}
-)}
 
+      {permissions.includes("settings.manage") && (
       <section className="card mt-6 p-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Notification control plane</p>
@@ -289,6 +288,7 @@ export default function AdminSettings() {
           <Save className="h-4 w-4" /> {savingNotificationConfig ? "Saving..." : "Save notification controls"}
         </button>}
       </section>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
 {permissions.includes("settings.manage") && (

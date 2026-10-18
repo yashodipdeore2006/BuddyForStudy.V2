@@ -110,7 +110,7 @@ export default function AdminUsersPro() {
     setSavedViewsLoading(true);
     setSavedViewsError("");
     try {
-      const data = await adminFetch("/api/admin/saved-views?page=users");
+      const data = await adminFetch("/api/admin/saved-views?pageKey=users&page=1&limit=100");
       setSavedViews((data.items || []) as SavedViewRecord[]);
     } catch (e) {
       setSavedViewsError(e instanceof Error ? e.message : "Unable to load saved views.");
@@ -126,7 +126,7 @@ export default function AdminUsersPro() {
       if (!raw) return;
       const parsed: unknown = JSON.parse(raw);
       if (!Array.isArray(parsed)) return;
-      const current = await adminFetch("/api/admin/saved-views?page=users");
+      const current = await adminFetch("/api/admin/saved-views?pageKey=users&page=1&limit=100");
       const names = new Set<string>((current.items || []).map((view: SavedViewRecord) => view.name.toLowerCase()));
       let importFailed = false;
       for (const legacy of parsed) {

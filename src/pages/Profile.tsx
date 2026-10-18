@@ -30,6 +30,14 @@ const statusStyle: Record<string, string> = {
   cancelled: "bg-slate-100 text-slate-600 ring-slate-500/15",
 };
 
+function formatMoney(amount: number, currency = "INR") {
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -202,7 +210,7 @@ export default function Profile() {
               return <div key={payment._id} className="flex flex-wrap items-center gap-3 p-5 sm:px-6">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500"><CreditCard className="h-5 w-5" /></div>
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-900">{payment.plan?.name || payment.course?.title || "BuddyForStudy payment"}</p><p className="mt-1 text-xs text-slate-500">{formatDate(payment.createdAt)}{payment.provider ? ` · ${payment.provider}` : ""}</p></div>
-                <div className="text-right"><p className="text-sm font-extrabold text-slate-950">{formatMoney(Number(payment.amount || 0), payment.currency || "INR")}</p><span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold capitalize ring-1 ring-inset ${statusStyle[status] || statusStyle.pending}`}><StatusIcon className="h-3 w-3" />{status.replaceAll("_", " ")}</span></div>
+                <div className="text-right"><p className="text-sm font-extrabold text-slate-950">{formatMoney(Number(payment.amount || 0), payment.currency || "INR")}</p><span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-bold capitalize ring-1 ring-inset ${statusStyle[status] || statusStyle.pending}`}><StatusIcon className="h-3 w-3" />{status.replace(/_/g, " ")}</span></div>
               </div>;
             })}
           </div>

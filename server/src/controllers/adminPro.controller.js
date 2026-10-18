@@ -1914,7 +1914,7 @@ export async function analytics(req, res, next) {
         { $sort: { _id: 1 } }
       ]),
       Payment.aggregate([
-        { $match: { status: { $in: ["paid", "partially_refunded"] }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] } },
+        { $match: { status: { $in: GROSS_COLLECTION_PAYMENT_STATUSES }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] } },
         { $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$paidAt", "$createdAt"] } } },
           amount: { $sum: "$amount" },

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, ExternalLink, FileText, Github, Link as LinkIcon, Loader2, Plus, RefreshCcw, Save, Trash2, Video } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 type TutorialEditor = {
   lessonId: string;
@@ -549,12 +550,10 @@ export default function AdminCoursesPro() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-950">Course Commerce Control</h1>
-          <p className="mt-2 text-slate-500">Publish, price, and fully manage modules, videos, playlists, and learning resources.</p>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Course management"
+        description="Publish, price, and manage modules, videos, playlists, and learning resources."
+      />
 
       <div className="card mt-6 p-4">
         <div className="flex flex-col gap-3 md:flex-row">

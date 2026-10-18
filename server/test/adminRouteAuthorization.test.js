@@ -114,3 +114,27 @@ test("registered admin routes do not rely on frontend navigation to enforce role
   );
   assert.deepEqual(unguardedMutations, []);
 });
+
+
+test("refund provider reconciliation is restricted to finance-capable administrators", () => {
+  const route = getRoutePermissionCases().find((candidate) =>
+    candidate.path === "/refunds/:refundId/reconcile" && candidate.methods.includes("post")
+  );
+  assert.ok(route, "Expected the provider refund reconciliation endpoint");
+  assert.equal(route.permissionHandlers.length, 1);
+  const middleware = route.permissionHandlers[0];
+
+  for (const role of ["super_admin", "finance_manager"]) {
+    const result = runPermissionMiddleware(middleware, role);
+    assert.equal(result.nextCalled, true, role + " should be allowed to reconcile provider refunds");
+  }
+
+  for (const role of ["platform_admin", "ai_content_manager", "support_manager", "analyst_auditor"]) {
+    const result = runPermissionMiddleware(middleware, role);
+    assert.equal(result.nextCalled, false, role + " must not reconcile provider refunds by default");
+    assert.equal(result.statusCode, 403);
+  }
+
+  const supportWithExplicitOverride = runPermissionMiddleware(middleware, "support_manager", ["refunds.manage"]);
+  assert.equal(supportWithExplicitOverride.nextCalled, true, "An explicitly granted permission should be honored");
+});

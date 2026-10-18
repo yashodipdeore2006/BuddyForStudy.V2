@@ -2,12 +2,33 @@ import { z } from "zod";
 import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.service.js";
 import { createCourse } from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
-import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
+import { getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 import { createHash } from "node:crypto";
 import { QuizBank } from "../models/QuizBank.js";
 
 const quizGenerationJobs = new Set();
+
+async function ensureCourseLearningAccess(req, courseId) {
+  if (req.user?.role === "admin" && req.user?.accessType === "admin") {
+    return { allowed: true };
+  }
+  const { Enrollment } = await import("../models/Enrollment.js");
+  const enrollment = await Enrollment.findOne({
+    user: req.user.userId,
+    course: courseId,
+    status: { $in: ["active", "completed"] }
+  });
+  if (!enrollment) {
+    return { allowed: false, status: 403, message: "Active or completed enrollment required" };
+  }
+  const entitlement = await getEntitlement(req.user.userId, "published_courses");
+  const individualAccess = await hasPaidCourseAccess(req.user.userId, courseId);
+  if (!entitlement.allowed && !individualAccess) {
+    return { allowed: false, status: 403, message: "Your current plan does not include access to this course. Upgrade your plan or purchase the course to continue." };
+  }
+  return { allowed: true };
+}
 
 async function queueNextLessonQuiz(courseId, lessonId) {
   const key = `${courseId}:${lessonId}`;
@@ -93,13 +114,8 @@ export async function generateQuiz(req, res, next) {
     });
     const input = quizSchema.parse(req.body);
 
-    const { Enrollment } = await import("../models/Enrollment.js");
-    const enrollment = await Enrollment.findOne({
-      user: req.user.userId,
-      course: input.courseId,
-      status: { $in: ["active", "completed"] }
-    });
-    if (!enrollment) return failure(res, "Active or completed enrollment required", 403);
+    const access = await ensureCourseLearningAccess(req, input.courseId);
+    if (!access.allowed) return failure(res, access.message, access.status);
 
     const result = await generateCourseQuiz({ ...input, userId: req.user.userId });
     return success(res, result, "Quiz generated successfully");
@@ -117,13 +133,8 @@ export async function generatePracticeQuiz(req, res, next) {
       mode: z.enum(["generate", "reattempt"]).default("generate")
     });
     const input = practiceSchema.parse(req.body);
-    const { Enrollment } = await import("../models/Enrollment.js");
-    const enrollment = await Enrollment.findOne({
-      user: req.user.userId,
-      course: input.courseId,
-      status: { $in: ["active", "completed"] }
-    });
-    if (!enrollment) return failure(res, "Active or completed enrollment required", 403);
+    const access = await ensureCourseLearningAccess(req, input.courseId);
+    if (!access.allowed) return failure(res, access.message, access.status);
 
     const filter = { course: input.courseId, lesson: input.lessonId };
     const bank = await QuizBank.find(filter).sort({ generatedAt: 1 });
@@ -211,6 +222,8 @@ export async function submitPracticeQuiz(req, res, next) {
       answers: z.record(z.string(), z.string()).default({})
     });
     const input = schema.parse(req.body);
+    const access = await ensureCourseLearningAccess(req, input.courseId);
+    if (!access.allowed) return failure(res, access.message, access.status);
     const ids = [...new Set([...(input.quizBankId ? [input.quizBankId] : []), ...input.quizBankIds])];
     if (!ids.length) return failure(res, "Quiz set reference is required", 400);
     const bankQuizzes = await QuizBank.find({ _id: { $in: ids }, course: input.courseId, lesson: input.lessonId });

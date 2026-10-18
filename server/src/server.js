@@ -40,6 +40,7 @@ app.use(cors({
   credentials: false
 }));
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));
+app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 // A learner page can legitimately request course data, enrollment state, saved
 // state and reviews in parallel. Keep a broad abuse-protection ceiling here;

@@ -5,28 +5,32 @@ export function subscriptionEventTimestamp(event) {
   return Number.isNaN(timestamp.getTime()) ? null : timestamp;
 }
 
-export function subscriptionEventFreshnessFilter(eventAt) {
+export function subscriptionEventFreshnessFilter(eventAt, eventId = "", eventName = "") {
+  const legacyRecords = [
+    { providerEventAt: { $exists: false } },
+    { providerEventAt: null }
+  ];
   if (!(eventAt instanceof Date) || Number.isNaN(eventAt.getTime())) {
-    // Without provider ordering metadata, only legacy untracked records are
-    // eligible. Unknown-order events must not overwrite timestamped state.
-    return {
-      $or: [
-        { providerEventAt: { $exists: false } },
-        { providerEventAt: null }
-      ]
-    };
+    // Unknown-order events may only update legacy records with no provider
+    // ordering metadata.
+    return { $or: legacyRecords };
   }
 
-  // Razorpay created_at has second-level precision. Strictly older timestamps
-  // are stale; equal timestamps are ambiguous, so first applied event wins.
-  // This avoids arrival-order flapping between activation/cancellation events.
-  return {
-    $or: [
-      { providerEventAt: { $exists: false } },
-      { providerEventAt: null },
-      { providerEventAt: { $lt: eventAt } }
-    ]
-  };
+  const eligible = [
+    ...legacyRecords,
+    { providerEventAt: { $lt: eventAt } }
+  ];
+
+  // An exact retry may repeat the transition and recover downstream work.
+  // Different events with the same second-level timestamp remain first-applied-wins.
+  if (eventId && eventName) {
+    eligible.push({
+      providerEventAt: eventAt,
+      providerEventId: eventId,
+      providerEventName: eventName
+    });
+  }
+  return { $or: eligible };
 }
 
 export const SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES = Object.freeze([

@@ -25,6 +25,20 @@ function normalizeError(error) {
     return { status: 413, message: "That file is too large. Choose a smaller file and try again." };
   }
 
+  if (error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths") {
+    return {
+      status: 429,
+      message: String(error.message || "You have reached this plan's monthly AI allowance."),
+      errors: {
+        feature: error.feature,
+        plan: error.plan || "Free",
+        limitKey: error.limitKey,
+        limit: error.limit,
+        used: error.used
+      }
+    };
+  }
+
   const explicitStatus = Number(error?.status || error?.statusCode);
   if (explicitStatus >= 400 && explicitStatus < 500) {
     const messages = {
@@ -72,6 +86,9 @@ export function errorHandler(error, req, res, _next) {
 
   // Keep actionable validation details for expected client errors; never leak
   // stack traces, provider responses, DB internals, or raw exception messages.
-  const errors = !isProduction && normalized.errors ? normalized.errors : undefined;
+  const errors = normalized.errors && (
+    !isProduction ||
+    error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths"
+  ) ? normalized.errors : undefined;
   return failure(res, normalized.message, normalized.status, errors);
 }

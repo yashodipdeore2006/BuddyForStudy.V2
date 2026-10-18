@@ -1,5 +1,5 @@
 import { MessageTemplate } from "../models/MessageTemplate.js";
-import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
@@ -89,8 +89,8 @@ function templatePayload(body = {}) {
 }
 
 async function auditTemplate(req, action, template, before = null, after = null) {
-  await AuditLog.create({
-    actor: req.user?.user?._id || null,
+  return recordAuditEvent({
+    actor: req.user?.user?._id || req.user?.userId || null,
     action,
     targetType: "MessageTemplate",
     targetId: String(template?._id || ""),
@@ -127,8 +127,8 @@ export async function createMessageTemplate(req, res, next) {
       createdBy: req.user?.user?._id || null,
       updatedBy: req.user?.user?._id || null
     });
-    await auditTemplate(req, "message_template.created", template, null, summary(template));
-    return success(res, { template }, "Message template created", 201);
+    const auditResult = await auditTemplate(req, "message_template.created", template, null, summary(template));
+    return success(res, { template, auditLogRecorded: auditResult.recorded, auditQueued: auditResult.queued }, auditResult.recorded || auditResult.queued ? "Message template created" : "Message template created, but audit persistence failed", 201);
   } catch (error) {
     if (error?.code === 11000) return failure(res, "A template with this key already exists", 409);
     next(error);
@@ -145,8 +145,8 @@ export async function updateMessageTemplate(req, res, next) {
     const before = summary(template);
     Object.assign(template, parsed.value, { updatedBy: req.user?.user?._id || null });
     await template.save();
-    await auditTemplate(req, "message_template.updated", template, before, summary(template));
-    return success(res, { template }, "Message template updated");
+    const auditResult = await auditTemplate(req, "message_template.updated", template, before, summary(template));
+    return success(res, { template, auditLogRecorded: auditResult.recorded, auditQueued: auditResult.queued }, auditResult.recorded || auditResult.queued ? "Message template updated" : "Message template updated, but audit persistence failed");
   } catch (error) {
     if (error?.code === 11000) return failure(res, "A template with this key already exists", 409);
     next(error);
@@ -160,7 +160,7 @@ export async function deleteMessageTemplate(req, res, next) {
     if (!template) return failure(res, "Message template not found", 404);
     const before = summary(template);
     await template.deleteOne();
-    await auditTemplate(req, "message_template.deleted", template, before, null);
-    return success(res, { deletedId: String(template._id) }, "Message template deleted");
+    const auditResult = await auditTemplate(req, "message_template.deleted", template, before, null);
+    return success(res, { deletedId: String(template._id), auditLogRecorded: auditResult.recorded, auditQueued: auditResult.queued }, auditResult.recorded || auditResult.queued ? "Message template deleted" : "Message template deleted, but audit persistence failed");
   } catch (error) { next(error); }
 }

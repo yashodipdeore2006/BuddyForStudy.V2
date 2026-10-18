@@ -19,6 +19,7 @@ export function toPublicCoursePreview(course) {
     enrollmentEnabled: course.enrollmentEnabled,
     certificateEnabled: course.certificateEnabled,
     featured: course.featured,
+    ...(course.enrollmentCount !== undefined ? { enrollmentCount: course.enrollmentCount } : {}),
     createdAt: course.createdAt,
     updatedAt: course.updatedAt,
     modules: (course.modules || []).map((module) => ({

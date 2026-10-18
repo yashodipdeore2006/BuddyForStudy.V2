@@ -127,7 +127,7 @@ export default function AdminUsersPro() {
   async function saveFeatureOverride(feature: any) {
     if (!selected?.user?._id) return;
     const choice = featureChoices[feature.key] ?? (feature.override ? (feature.override.allowed ? "allow" : "deny") : "plan");
-    if (choice !== "plan" && !featureOverrideReason.trim()) {
+    if ((choice !== "plan" || feature.override) && !featureOverrideReason.trim()) {
       setError("Enter a reason before changing feature access.");
       return;
     }

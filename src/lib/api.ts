@@ -91,9 +91,26 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     }
 
     if (!response.ok || data.success === false) {
-      throw new Error(data.message || (response.status === 429
-        ? "Too many requests. Please wait a moment and try again."
-        : "Request failed"));
+      const statusMessages: Record<number, string> = {
+        400: "Some of the information is invalid. Please review it and try again.",
+        401: "Your session has expired. Please sign in again.",
+        403: "You don't have permission to do that.",
+        404: "We couldn't find what you requested. It may have been moved or removed.",
+        408: "The request took too long. Please try again.",
+        409: "This conflicts with an existing record. Refresh the page and try again.",
+        413: "This file or request is too large. Please use a smaller file.",
+        422: "We couldn't process that information. Please check the fields and try again.",
+        429: "You're making requests too quickly. Please wait a moment before trying again.",
+        500: "Something went wrong on our side. Please try again shortly.",
+        502: "The service is temporarily unavailable. Please try again shortly.",
+        503: "The service is temporarily busy. Please try again shortly.",
+        504: "The request timed out. Please try again."
+      };
+      const serverMessage = typeof data.message === 'string' ? data.message.trim() : '';
+      const safeServerMessage = serverMessage && !/internal server error|exception|stack trace|mongo(?:ose|db)?error|econnrefused|undefined|null/i.test(serverMessage)
+        ? serverMessage
+        : '';
+      throw new Error(safeServerMessage || statusMessages[response.status] || "We couldn't complete that request. Please try again.");
     }
 
     if (isGet) getResponseCache.set(key, { data, expiresAt: Date.now() + GET_CACHE_TTL_MS });

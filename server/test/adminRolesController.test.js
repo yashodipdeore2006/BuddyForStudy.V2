@@ -48,6 +48,10 @@ test("administrator role changes stay successful when audit events are queued fo
       findOne: async () => target,
       countDocuments: async () => 2
     }],
+    [PlatformSetting, {
+      findOneAndUpdate: async (_filter, update) => ({ value: update.$set.value }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    }],
     [AuditLog, { create: async () => { throw new Error("audit collection unavailable"); } }],
     [AuditOutbox, { create: async (entry) => { queued = entry; return entry; } }]
   ], async () => {
@@ -104,5 +108,59 @@ test("AI/content setting updates stay successful when audit events are queued fo
     assert.equal(queued.event.action, "ai_content.setting.updated");
     assert.deepEqual(queued.event.before, { key: "advanced_ai_qa_enabled", value: false });
     assert.deepEqual(queued.event.after, { key: "advanced_ai_qa_enabled", value: true });
+  });
+});
+
+test("the last active Super Admin cannot be demoted", async () => {
+  const target = {
+    _id: { toString: () => administratorId },
+    name: "Root Admin",
+    email: "root@example.com",
+    adminRole: "super_admin",
+    adminPermissionOverrides: [],
+    isActive: true,
+    save: async () => { throw new Error("must not save a demotion"); }
+  };
+  await withMocks([
+    [PlatformSetting, {
+      findOneAndUpdate: async (_filter, update) => ({ value: update.$set.value }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    }],
+    [User, {
+      findOne: async () => target,
+      countDocuments: async () => 1
+    }]
+  ], async () => {
+    const res = makeResponse();
+    await updateAdministratorRole({
+      params: { userId: administratorId },
+      body: { adminRole: "platform_admin", reason: "Test last admin protection" },
+      user: { userId: "507f191e810c19729de860ea" },
+      ip: "127.0.0.1",
+      get: () => "admin-role-test"
+    }, res, (error) => assert.fail(error));
+    assert.equal(res.result.statusCode, 409);
+    assert.match(res.result.body.message, /last active Super Admin/i);
+    assert.equal(target.adminRole, "super_admin");
+  });
+});
+
+test("role change is rejected safely when the governance lock is already held", async () => {
+  await withMocks([
+    [PlatformSetting, {
+      findOneAndUpdate: async () => null
+    }],
+    [User, {
+      findOne: async () => { throw new Error("target must not be read without the lock"); }
+    }]
+  ], async () => {
+    const res = makeResponse();
+    await updateAdministratorRole({
+      params: { userId: administratorId },
+      body: { adminRole: "platform_admin" },
+      user: { userId: "507f191e810c19729de860ea" }
+    }, res, (error) => assert.fail(error));
+    assert.equal(res.result.statusCode, 409);
+    assert.match(res.result.body.message, /role change is in progress/i);
   });
 });

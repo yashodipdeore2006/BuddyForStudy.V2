@@ -89,9 +89,10 @@ async function activateSubscription(subscription, payment, eventAt = null) {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
   } catch (error) {
-    // An older event can fail an upsert against the unique user index when a
-    // newer subscription record already exists. Treat that as a stale event.
-    if (eventAt && error?.code === 11000) return null;
+    // A stale or unordered event can fail an upsert against the unique user
+    // index when a newer subscription record already exists. Ignore that
+    // event instead of retrying it forever.
+    if (error?.code === 11000) return null;
     throw error;
   }
 }

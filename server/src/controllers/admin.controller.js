@@ -29,9 +29,30 @@ export async function updateUser(req, res, next) {
     if (user.role === "admin") {
       return failure(res, "Administrator accounts must be managed through the administrator access console.", 403);
     }
+    const before = { isActive: user.isActive };
     user.isActive = req.body.isActive;
     await user.save();
-    return success(res, { user }, "User status updated");
+    const auditResult = await recordAuditEvent({
+      actor: req.user?.userId || req.user?.user?._id || null,
+      action: "admin.user_status.updated",
+      targetType: "user",
+      targetId: String(user._id),
+      before,
+      after: { isActive: user.isActive },
+      reason: String(req.body?.reason || "").trim().slice(0, 500),
+      ip: String(req.ip || "").slice(0, 100),
+      userAgent: String(req.get?.("user-agent") || "").slice(0, 500)
+    });
+    const message = auditResult.recorded
+      ? "User status updated"
+      : auditResult.queued
+        ? "User status updated; audit event queued for retry"
+        : "User status updated, but the audit event could not be recorded or queued";
+    return success(res, {
+      user,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, message);
   } catch (e) { next(e); }
 }
 

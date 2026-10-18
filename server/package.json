@@ -11,7 +11,8 @@
     "test": "node --test",
     "worker": "node src/jobs/worker.js",
     "verify:deployment": "node src/scripts/verifyDeployment.js",
-    "generate:web-push-keys": "web-push generate-vapid-keys"
+    "generate:web-push-keys": "web-push generate-vapid-keys",
+    "set-admin-role": "node src/scripts/setAdminRole.js"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

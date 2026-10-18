@@ -1241,6 +1241,107 @@ export async function updateRefund(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function reconcileRefund(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
+    const providerRefundId = String(req.body?.providerRefundId || "").trim();
+    if (!/^rfnd_[A-Za-z0-9]+$/.test(providerRefundId)) {
+      return failure(res, "Enter a valid Razorpay refund ID from the provider dashboard.", 400);
+    }
+
+    const refund = await RefundRequest.findById(req.params.refundId);
+    if (!refund) return failure(res, "Refund request not found", 404);
+    if (refund.status === "processed") return failure(res, "This refund is already reconciled.", 409);
+    if (refund.status !== "approved") {
+      return failure(res, "Only refunds awaiting provider reconciliation can use this action.", 409);
+    }
+
+    const payment = await Payment.findById(refund.payment);
+    if (!payment) return failure(res, "Payment record not found", 404);
+    if (payment.provider !== "razorpay" || !payment.providerPaymentId) {
+      return failure(res, "Refund cannot be reconciled because the payment provider reference is missing.", 400);
+    }
+
+    const providerRefund = await razorpay.fetchRefund({
+      refundId: providerRefundId,
+      paymentId: payment.providerPaymentId
+    });
+    if (
+      String(providerRefund?.id || "") !== providerRefundId ||
+      String(providerRefund?.payment_id || "") !== String(payment.providerPaymentId) ||
+      Number(providerRefund?.amount) !== Math.round(Number(refund.amount) * 100) ||
+      String(providerRefund?.currency || "").toUpperCase() !== String(payment.currency || "INR").toUpperCase()
+    ) {
+      return failure(res, "Provider refund does not match this payment, amount, and currency. Internal status was not changed.", 409);
+    }
+
+    const providerStatus = String(providerRefund?.status || "").toLowerCase();
+    const before = { status: refund.status, providerRefundId: refund.providerRefundId || "" };
+    if (providerStatus === "processed") {
+      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
+      if (refund.amount > remainingAmount || remainingAmount <= 0) {
+        return failure(res, "Provider confirms a refund, but the local refundable balance is inconsistent. Escalate for finance review.", 409);
+      }
+      refund.status = "processed";
+      refund.providerRefundId = providerRefundId;
+      refund.processedAt = new Date();
+      refund.processedBy = req.user.user?._id || req.user.userId;
+      refund.adminNote = [refund.adminNote, "Provider refund verified during reconciliation."].filter(Boolean).join("\n").slice(0, 2000);
+      payment.status = refund.amount >= remainingAmount ? "refunded" : "partially_refunded";
+      await payment.save();
+      await refund.save();
+
+      try {
+        await createNotificationEvent({
+          userId: String(refund.user),
+          title: "Your refund has been processed",
+          message: `Your refund of ${payment.currency || "INR"} ${refund.amount} has been verified with the payment provider and marked as processed.`,
+          type: "billing",
+          link: "/billing",
+          eventKey: `refund-status:${refund._id}:processed`,
+          emailSubject: "Your BuddyForStudy refund has been processed",
+          metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(refund.amount), currency: payment.currency || "INR", status: "processed" },
+          templateKeys: { notification: "refund-status-in-app", email: "refund-status-email" }
+        });
+      } catch (notificationError) {
+        console.error("[notifications] reconciled refund notice failed", {
+          refundId: String(refund._id),
+          message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+        });
+      }
+      await audit(req, "refund.reconciled", "RefundRequest", refund._id, before, {
+        status: refund.status,
+        providerRefundId,
+        providerStatus
+      }, "Provider refund verified during reconciliation");
+      return success(res, { refund, providerStatus }, "Provider refund verified and reconciled");
+    }
+
+    if (["failed", "rejected"].includes(providerStatus)) {
+      refund.status = "pending";
+      refund.providerRefundId = "";
+      refund.processedAt = null;
+      refund.adminNote = [refund.adminNote, `Provider reports refund status '${providerStatus}'. Retry is now allowed.`].filter(Boolean).join("\n").slice(0, 2000);
+      await refund.save();
+      await audit(req, "refund.reconciliation_failed", "RefundRequest", refund._id, before, {
+        status: refund.status,
+        providerRefundId,
+        providerStatus
+      }, "Provider confirmed refund did not complete");
+      return success(res, { refund, providerStatus }, "Provider confirmed the refund did not complete; the request is available for retry");
+    }
+
+    refund.adminNote = [refund.adminNote, `Provider reconciliation checked refund ${providerRefundId}; current provider status is '${providerStatus || "unknown"}'.`].filter(Boolean).join("\n").slice(0, 2000);
+    await refund.save();
+    await audit(req, "refund.reconciliation_pending", "RefundRequest", refund._id, before, {
+      status: refund.status,
+      providerRefundId,
+      providerStatus
+    }, "Provider refund is not yet in a final state");
+    return success(res, { refund, providerStatus }, "Provider refund is not final yet; internal refund remains on hold");
+  } catch (e) { next(e); }
+}
+
 export async function sendNotification(req, res, next) {
   try {
     const title = typeof req.body.title === "string" ? req.body.title.trim() : "";

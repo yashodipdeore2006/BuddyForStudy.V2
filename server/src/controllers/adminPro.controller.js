@@ -1114,6 +1114,12 @@ export async function updateRefund(req, res, next) {
     if (!["approved", "rejected", "processed"].includes(req.body.status)) return failure(res, "Invalid refund status", 400);
     const payment = await Payment.findById(refund.payment);
     if (!payment) return failure(res, "Payment record not found", 404);
+    if (refund.status === "processed") {
+      return failure(res, "A processed refund is final and cannot be changed.", 409);
+    }
+    if (refund.status === "rejected" && req.body.status !== "rejected") {
+      return failure(res, "A rejected refund request cannot be reopened. Submit a new request if eligible.", 409);
+    }
 
     const before = {
       status: refund.status,

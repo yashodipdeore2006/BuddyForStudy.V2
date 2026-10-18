@@ -74,10 +74,10 @@ function normalizeFilters(input = {}) {
   return filters;
 }
 
-export async function resolveAdminAudience({ audience = "all", userIds, filters } = {}, { select = "_id email name", limit = MAX_FILTERED_RECIPIENTS } = {}) {
+export async function resolveAdminAudience({ audience = "all", userIds, emails, filters } = {}, { select = "_id email name", limit = MAX_FILTERED_RECIPIENTS } = {}) {
   const hasSelectedIds = Array.isArray(userIds) && userIds.length > 0;
-  const emails = Array.isArray(arguments[0]?.emails) ? arguments[0].emails : [];
-  const hasSelectedEmails = emails.length > 0;
+  const selectedEmails = Array.isArray(emails) ? emails : [];
+  const hasSelectedEmails = selectedEmails.length > 0;
   const hasFilters = filters && typeof filters === "object" && Object.keys(filters).length > 0;
   if ([hasSelectedIds, hasSelectedEmails, hasFilters].filter(Boolean).length > 1) throw new Error("Choose selected users, selected emails, or filters—not multiple targeting modes");
   if (hasSelectedIds) {
@@ -87,8 +87,8 @@ export async function resolveAdminAudience({ audience = "all", userIds, filters 
     return User.find({ _id: { $in: uniqueIds } }).select(select).limit(MAX_SELECTED_USERS).lean();
   }
   if (hasSelectedEmails) {
-    if (emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
-    const normalizedEmails = [...new Set(emails.map((email) => String(email).trim().toLowerCase()))];
+    if (selectedEmails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+    const normalizedEmails = [...new Set(selectedEmails.map((email) => String(email).trim().toLowerCase()))];
     if (normalizedEmails.some((email) => !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))) throw new Error("One or more selected email addresses are invalid");
     return User.find({ email: { $in: normalizedEmails } }).select(select).limit(MAX_SELECTED_USERS).lean();
   }
@@ -157,6 +157,7 @@ export async function resolveAdminAudience({ audience = "all", userIds, filters 
 export function validateAdminAudienceInput(input = {}) {
   if (Array.isArray(input.userIds) && input.userIds.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
   if (Array.isArray(input.emails) && input.emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+  if (Array.isArray(input.emails) && input.emails.some((email) => !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(email).trim()))) throw new Error("One or more selected email addresses are invalid");
   normalizeFilters(input.filters || {});
   const hasIds = Array.isArray(input.userIds) && input.userIds.length > 0;
   const hasEmails = Array.isArray(input.emails) && input.emails.length > 0;

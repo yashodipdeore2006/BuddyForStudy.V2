@@ -132,6 +132,8 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
         return;
       }
       await activateSubscription(subscription, duplicate, eventAt);
+      // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
+      await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
       return;
     }
   }

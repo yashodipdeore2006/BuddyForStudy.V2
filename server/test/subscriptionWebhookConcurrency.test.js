@@ -50,3 +50,13 @@ test("events without timestamps cannot change a timestamped subscription or trig
     ]
   });
 });
+
+import { SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../src/services/subscriptionWebhookTransitions.js";
+
+test("activation webhooks cannot revive refunded, partially refunded, or cancelled payments", () => {
+  assert.deepEqual(SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, ["created", "pending", "paid", "failed"]);
+  for (const terminalStatus of TERMINAL_PAYMENT_STATUSES) {
+    assert.equal(SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES.includes(terminalStatus), false);
+  }
+  assert.deepEqual(TERMINAL_PAYMENT_STATUSES, ["refunded", "partially_refunded", "cancelled"]);
+});

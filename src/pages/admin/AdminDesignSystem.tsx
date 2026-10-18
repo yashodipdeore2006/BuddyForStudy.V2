@@ -21,18 +21,17 @@ export default function AdminDesignSystem() {
         eyebrow="Workspace foundations"
         title="Admin design system"
         description="Reference gallery for shared tokens, controls, feedback states and accessible interaction patterns."
-        actions={<AdminButton variant="secondary" icon={<Search size={16} />} onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}>Open command palette</AdminButton>}
       />
 
       <section className="admin-gallery-section">
         <div className="admin-gallery-section-heading"><h2>Color tokens</h2><p>Semantic colors stay consistent across all admin modules.</p></div>
         <div className="admin-token-grid">
           {[
-            ["Canvas", "--bg"], ["Surface", "--surface"], ["Subtle surface", "--surface-2"],
-            ["Border", "--border"], ["Primary accent", "--accent"], ["Success", "--success"],
-            ["Warning", "--warning"], ["Danger", "--danger"], ["Information", "--info"],
-          ].map(([label, token]) => <AdminCard key={token} className="admin-token-card">
-            <span className="admin-token-swatch" style={{ background: `var(${token})` }} />
+            ["Canvas", "--bg", "admin-token-swatch--canvas"], ["Surface", "--surface", "admin-token-swatch--surface"], ["Subtle surface", "--surface-2", "admin-token-swatch--surface-2"],
+            ["Border", "--border", "admin-token-swatch--border"], ["Primary accent", "--accent", "admin-token-swatch--accent"], ["Success", "--success", "admin-token-swatch--success"],
+            ["Warning", "--warning", "admin-token-swatch--warning"], ["Danger", "--danger", "admin-token-swatch--danger"], ["Information", "--info", "admin-token-swatch--info"],
+          ].map(([label, token, swatchClass]) => <AdminCard key={token} className="admin-token-card">
+            <span className={`admin-token-swatch ${swatchClass}`} aria-hidden="true" />
             <strong>{label}</strong><code>{token}</code>
           </AdminCard>)}
         </div>

@@ -1375,6 +1375,12 @@ export async function reconcileRefund(req, res, next) {
       // Persist the provider-confirmed refund first. If the payment write fails,
       // the idempotent processed-refund path above repairs payment status on retry.
       await refund.save();
+      await RefundRequest.updateOne(
+        { _id: refund._id, reconciliationToken },
+        { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+      );
+      reconciliationToken = "";
+      reconciliationRefundId = "";
       await payment.save();
 
       try {
@@ -1411,6 +1417,12 @@ export async function reconcileRefund(req, res, next) {
       refund.processedAt = null;
       refund.adminNote = [refund.adminNote, `Provider reports refund status '${providerStatus}'. Retry is now allowed.`].filter(Boolean).join("\n").slice(0, 2000);
       await refund.save();
+      await RefundRequest.updateOne(
+        { _id: refund._id, reconciliationToken },
+        { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+      );
+      reconciliationToken = "";
+      reconciliationRefundId = "";
       await audit(req, "refund.reconciliation_failed", "RefundRequest", refund._id, before, {
         status: refund.status,
         providerRefundId,
@@ -1423,6 +1435,12 @@ export async function reconcileRefund(req, res, next) {
     refund.set("reconciliationStartedAt", undefined);
     refund.adminNote = [refund.adminNote, `Provider reconciliation checked refund ${providerRefundId}; current provider status is '${providerStatus || "unknown"}'.`].filter(Boolean).join("\n").slice(0, 2000);
     await refund.save();
+    await RefundRequest.updateOne(
+      { _id: refund._id, reconciliationToken },
+      { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+    );
+    reconciliationToken = "";
+    reconciliationRefundId = "";
     await audit(req, "refund.reconciliation_pending", "RefundRequest", refund._id, before, {
       status: refund.status,
       providerRefundId,

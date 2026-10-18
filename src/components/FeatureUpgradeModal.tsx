@@ -372,27 +372,27 @@ export default function FeatureUpgradeModal() {
                       }}
                       onFocusCapture={() => setPreviewPlanId(plan._id)}
                       onBlur={() => setPreviewPlanId(null)}
-                      className={`bfs-plan-option relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
+                      className={`bfs-plan-card bfs-plan-option relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
                         isFocused
-                          ? "bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
+                          ? "bfs-plan-option--selected bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
                           : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30"
                       }`}
                       aria-current={isSelected ? "true" : undefined}
                     >
                       <div className="mb-3 flex min-h-7 flex-wrap items-center gap-2">
-                        {isTop && <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white"><Crown className="h-3 w-3" /> Highest tier</span>}
-                        {!isTop && plan.isPopular && <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700">Popular</span>}
-                        {isCurrent && <span className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">Current plan</span>}
+                        {isTop && <span className="bfs-plan-badge bfs-plan-badge--featured"><Crown className="h-3 w-3" /> Highest access</span>}
+                        {!isTop && plan.isPopular && <span className="bfs-plan-badge"><Sparkles className="h-3 w-3" /> Popular</span>}
+                        {isCurrent && <span className="bfs-plan-badge bfs-plan-badge--neutral">Current plan</span>}
                         {!isCurrent && requiredFeatureLabel && <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${unlocksFeature ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{unlocksFeature ? "Unlocks this feature" : "Feature not included"}</span>}
                       </div>
-                      <h3 className="text-lg font-bold text-slate-950">{plan.name}</h3>
+                      <h3 className="text-xl font-extrabold text-slate-950">{plan.name}</h3>
                       <p className="mt-1 min-h-10 text-xs leading-5 text-slate-500">{plan.description || "A focused learning plan to keep you moving forward."}</p>
-                      <p className="mt-3 text-2xl font-extrabold tracking-tight text-slate-950">
+                      <p className="bfs-plan-price mt-3">
                         {formatMoney(price, plan.currency || "INR")}
                         <span className="ml-1 text-xs font-medium text-slate-500">/{intervalLabel(plan.billingInterval)}</span>
                       </p>
-                      <ul className="mt-4 flex-1 space-y-2 border-t border-slate-200/80 pt-4 text-xs leading-5 text-slate-600">
-                        {(plan.features || []).slice(0, 6).map((feature) => <li key={feature} className="flex items-start gap-2"><Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${isSelected ? "text-violet-700" : "text-emerald-600"}`} /><span>{feature}</span></li>)}
+                      <ul className="bfs-plan-features mt-4 flex-1 space-y-2 border-t border-slate-200/80 pt-4 text-xs leading-5">
+                        {(plan.features || []).slice(0, 6).map((feature) => <li key={feature} className="flex items-start gap-2"><Check className="bfs-plan-check mt-0.5 h-4 w-4 shrink-0 rounded-full p-0.5" /><span>{feature}</span></li>)}
                         {(plan.features || []).length > 6 && <li className="pl-5 font-semibold text-violet-700">+{plan.features!.length - 6} more features</li>}
                       </ul>
                       <div className="mt-5 flex items-center justify-between gap-2">

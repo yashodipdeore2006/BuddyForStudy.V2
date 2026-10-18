@@ -1321,6 +1321,7 @@ export async function reconcileRefund(req, res, next) {
         $or: [
           { reconciliationToken: { $exists: false } },
           { reconciliationToken: null },
+          { reconciliationStartedAt: { $exists: false } },
           { reconciliationStartedAt: { $lte: leaseCutoff } }
         ]
       },

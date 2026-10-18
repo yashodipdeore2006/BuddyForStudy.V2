@@ -42,6 +42,7 @@
   --content-max: 1440px; --form-max: 720px; --drawer-w: 480px; --drawer-w-wide: 720px;
   --row-h: 48px; --row-h-compact: 36px; --row-h-comfortable: 56px;
   --control-h: 36px; --control-h-sm: 30px; --control-h-lg: 44px;
+  --textarea-min-h: 88px; --textarea-max-h: 240px;
   --z-sticky: 10; --z-sidebar: 20; --z-dropdown: 40; --z-drawer: 60;
   --z-modal: 70; --z-toast: 90; --z-tooltip: 100;
   --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 260ms;
@@ -159,7 +160,7 @@
 .admin-shell .admin-button--secondary:hover:not(:disabled) { background: var(--surface-2); }
 .admin-shell .admin-button--ghost { background: transparent; color: var(--text-2); }
 .admin-shell .admin-button--ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
-.admin-shell .admin-button--danger { background: var(--danger); color: #fff; }
+.admin-shell .admin-button--danger { background: var(--danger); color: var(--accent-text); }
 .admin-shell .admin-button--danger:hover:not(:disabled) { filter: brightness(.95); }
 .admin-shell .admin-button--danger-ghost { background: transparent; color: var(--danger); }
 .admin-shell .admin-button--link { min-height: auto; padding: 0; background: transparent; color: var(--accent); }
@@ -518,4 +519,4 @@
 .admin-shell .admin-elevation-sample--lg { box-shadow: var(--shadow-lg); }
 
 .admin-shell .admin-confirm-help { color: var(--muted); font-size: var(--fs-xs); }
-.admin-shell .admin-confirm-field textarea { width: 100%; min-height: var(--form-max); max-height: 240px; resize: vertical; }
+.admin-shell .admin-confirm-field textarea { width: 100%; min-height: var(--textarea-min-h); max-height: var(--textarea-max-h); resize: vertical; }

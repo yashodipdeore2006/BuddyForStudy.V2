@@ -37,7 +37,9 @@ test("subscription order creation refuses to create another provider subscriptio
       findOne: () => ({
         select() {
           return {
-            lean: async () => ({
+            populate() {
+              return {
+                lean: async () => ({
               _id: "507f1f77bcf86cd799439011",
               providerOrderId: "sub_pending_123",
               plan: {
@@ -47,7 +49,9 @@ test("subscription order creation refuses to create another provider subscriptio
                 currency: "INR",
                 billingInterval: "monthly",
               },
-            }),
+                }),
+              };
+            },
           };
         },
       }),

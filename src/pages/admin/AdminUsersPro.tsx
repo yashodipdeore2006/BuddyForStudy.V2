@@ -177,7 +177,7 @@ export default function AdminUsersPro() {
   }, [q, debouncedQ]);
 
   useEffect(() => {
-    void load(page, { q: debouncedQ, status, role, authProvider }, pageSize);
+    void load(page, { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, pageSize);
   }, [page, debouncedQ, status, role, authProvider, pageSize, sortBy, sortOrder]);
 
   async function toggleUser(user: any) {

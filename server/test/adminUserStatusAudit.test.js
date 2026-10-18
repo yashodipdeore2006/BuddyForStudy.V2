@@ -102,3 +102,43 @@ test("admin user status update rejects administrator accounts without changing t
   assert.equal(savedUser.isActive, true);
   assert.equal(savedUser.saveCalled, false);
 });
+
+
+test("admin user status update reports queued audit persistence when the primary audit write fails", async () => {
+  const userId = "507f1f77bcf86cd799439012";
+  const actorId = "507f191e810c19729de860eb";
+  const savedUser = {
+    _id: userId,
+    role: "user",
+    isActive: false,
+    async save() { return this; }
+  };
+  let queuedEntry;
+  const res = responseRecorder();
+
+  await withMocks([
+    [User, { findById: async () => savedUser }],
+    [AuditLog, { create: async () => { throw new Error("audit collection unavailable"); } }],
+    [AuditOutbox, { create: async (entry) => { queuedEntry = entry; return entry; } }]
+  ], async () => {
+    await updateUser({
+      params: { userId },
+      body: { isActive: true, reason: "manual review" },
+      user: { userId: actorId },
+      ip: "192.0.2.8",
+      get: () => "test-agent"
+    }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.user.isActive, true);
+  assert.equal(res.body.auditLogRecorded, false);
+  assert.equal(res.body.auditQueued, true);
+  assert.match(res.body.message, /queued for retry/);
+  assert.equal(queuedEntry.status, "pending");
+  assert.equal(queuedEntry.event.action, "admin.user_status.updated");
+  assert.equal(queuedEntry.event.actor, actorId);
+  assert.deepEqual(queuedEntry.event.before, { isActive: false });
+  assert.deepEqual(queuedEntry.event.after, { isActive: true });
+});

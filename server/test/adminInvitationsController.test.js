@@ -512,3 +512,66 @@ test("revocation reports audit persistence loss without undoing the completed re
     assert.match(res.result.body.message, /could not be recorded or queued/i);
   });
 });
+
+
+test("invitation creation stays successful and exposes audit loss if both audit stores fail", async () => {
+  const { env } = await import("../src/config/env.js");
+  const nodemailer = (await import("nodemailer")).default;
+  const original = {
+    smtpHost: env.smtpHost,
+    smtpUser: env.smtpUser,
+    smtpPass: env.smtpPass,
+    clientUrl: env.clientUrl,
+    createTransport: nodemailer.createTransport,
+    consoleError: console.error
+  };
+  let created = 0;
+  let loggedPersistenceFailure = false;
+  const invitation = {
+    _id: { toString: () => invitationId },
+    email: "new-admin@example.com",
+    name: "New Admin",
+    adminRole: "support_manager",
+    expiresAt: new Date("2026-10-19T10:00:00.000Z"),
+    deleteOne: async () => assert.fail("email delivery succeeded; invitation must remain")
+  };
+  env.smtpHost = "smtp.example.com";
+  env.smtpUser = "mailer@example.com";
+  env.smtpPass = "test-password";
+  env.clientUrl = "https://buddyforstudy.example";
+  nodemailer.createTransport = () => ({ sendMail: async () => ({ accepted: ["new-admin@example.com"] }) });
+  console.error = (message) => {
+    if (String(message).includes("Failed to persist audit event for retry")) loggedPersistenceFailure = true;
+  };
+  try {
+    await withMocks([
+      [User, { findOne: () => ({ select: async () => null }) }],
+      [AdminInvitation, {
+        updateMany: async () => ({}),
+        create: async () => { created += 1; return invitation; }
+      }],
+      [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+      [AuditOutbox, { create: async () => { throw new Error("outbox database unavailable"); } }]
+    ], async () => {
+      const res = makeResponse();
+      await createInvitation({
+        body: { name: "New Admin", email: "NEW-ADMIN@example.com", adminRole: "support_manager" },
+        user: { userId: "actor-id", adminRole: "super_admin" }
+      }, res, (error) => assert.fail(error));
+      assert.equal(created, 1);
+      assert.equal(res.result.statusCode, 201);
+      assert.equal(res.result.body.success, true);
+      assert.equal(res.result.body.auditLogRecorded, false);
+      assert.equal(res.result.body.auditQueued, false);
+      assert.match(res.result.body.message, /could not be recorded or queued/i);
+      assert.equal(loggedPersistenceFailure, true);
+    });
+  } finally {
+    env.smtpHost = original.smtpHost;
+    env.smtpUser = original.smtpUser;
+    env.smtpPass = original.smtpPass;
+    env.clientUrl = original.clientUrl;
+    nodemailer.createTransport = original.createTransport;
+    console.error = original.consoleError;
+  }
+});

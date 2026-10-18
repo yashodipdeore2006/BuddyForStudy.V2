@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Notification } from "../src/models/Notification.js";
-import { list } from "../src/controllers/notification.controller.js";
+import { list, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -57,4 +57,12 @@ test("notification list bounds limits to integers and defaults invalid input saf
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.success, true);
   }
+});
+
+
+test("push endpoint ownership guard prevents cross-account reassignment", () => {
+  assert.equal(isPushSubscriptionOwnedByUser(null, "user-1"), true);
+  assert.equal(isPushSubscriptionOwnedByUser({ user: "user-1" }, "user-1"), true);
+  assert.equal(isPushSubscriptionOwnedByUser({ user: { toString: () => "user-1" } }, "user-1"), true);
+  assert.equal(isPushSubscriptionOwnedByUser({ user: "user-2" }, "user-1"), false);
 });

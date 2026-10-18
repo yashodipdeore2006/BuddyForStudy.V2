@@ -40,7 +40,7 @@ export async function list(req, res, next) {
       level: req.query.level,
       sort: req.query.sort === "popular" ? "popular" : "recent"
     });
-    return success(res, result);
+    return success(res, { ...result, courses: (result.courses || []).map(toPublicCoursePreview) });
   } catch (e) { next(e); }
 }
 

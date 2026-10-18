@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { RefundRequest } from "../models/RefundRequest.js";
+import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Payment } from "../models/Payment.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { success, failure } from "../utils/response.js";
@@ -147,6 +148,39 @@ router.post("/subscription/cancel", async (req,res,next)=>{ try {
   return success(res,{subscription},"Subscription cancellation scheduled");
 } catch(e){next(e)} });
 router.get("/refunds", async (req,res,next)=>{ try { const refunds=await RefundRequest.find({user:req.user.userId}).populate({path:"payment",select:"amount currency status createdAt course plan",populate:[{path:"course",select:"title"},{path:"plan",select:"name"}]}).sort({createdAt:-1}).lean(); return success(res,{refunds}); } catch(e){next(e)} });
+
+router.get("/issues", async (req,res,next)=>{ try {
+  const issues = await PaymentIssue.find({ user: req.user.userId })
+    .populate({ path: "payment", select: "amount currency status createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] })
+    .sort({ createdAt: -1 }).lean();
+  return success(res,{issues});
+} catch(e){next(e)} });
+router.post("/issues", async (req,res,next)=>{ try {
+  const paymentId = String(req.body?.paymentId || "");
+  const category = String(req.body?.category || "");
+  const description = String(req.body?.description || "").trim();
+  const allowedCategories = ["benefit_not_received", "payment_failed", "duplicate_charge", "incorrect_amount", "refund_help", "other"];
+  if (!isValidObjectId(paymentId)) return failure(res,"Invalid paymentId",400);
+  if (!allowedCategories.includes(category)) return failure(res,"Choose a valid issue type",400);
+  if (description.length < 5 || description.length > 2000) return failure(res,"Please describe the issue in 5 to 2000 characters",400);
+  const payment = await Payment.findOne({ _id: paymentId, user: req.user.userId });
+  if (!payment) return failure(res,"Transaction not found",404);
+  const existing = await PaymentIssue.findOne({ user: req.user.userId, payment: payment._id, status: { $in: ["open", "in_review"] } });
+  if (existing) return failure(res,"An issue is already open for this transaction. You can track it in Billing.",409);
+  const issue = await PaymentIssue.create({ user: req.user.userId, payment: payment._id, category, description });
+  await sendNotificationSafely({
+    userId: String(req.user.userId),
+    title: "Payment issue reported",
+    message: "Your report has been received. You can track its status in Billing & transactions.",
+    type: "billing",
+    link: "/billing",
+    eventKey: `payment-issue-reported:${issue._id}`,
+    emailSubject: "We received your BuddyForStudy payment issue report",
+    metadata: { issueId: String(issue._id), paymentId: String(payment._id), category },
+    templateKeys: { notification: "payment-issue-received-in-app", email: "payment-issue-received-email" }
+  }, "payment-issue-report");
+  return success(res,{issue},"Payment issue reported",201);
+} catch(e){next(e)} });
 router.post("/refunds", async (req,res,next)=>{ try {
   if(!isValidObjectId(req.body.paymentId)) return failure(res,"Invalid paymentId",400);
   const payment=await Payment.findOne({_id:req.body.paymentId,user:req.user.userId,status:{$in:["paid","partially_refunded"]}});

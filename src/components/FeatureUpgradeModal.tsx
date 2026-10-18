@@ -127,7 +127,7 @@ export default function FeatureUpgradeModal() {
       if (cancelled) return;
       const ordered = [...(planData.plans || [])].sort((a: Plan, b: Plan) => {
         const difference = Number(b.price || 0) - Number(a.price || 0);
-        return difference || Number(a.isPopular === true) - Number(b.isPopular === true);
+        return difference || Number(b.isPopular === true) - Number(a.isPopular === true);
       });
       setPlans(ordered);
       setSubscription(subscriptionData.subscription || null);

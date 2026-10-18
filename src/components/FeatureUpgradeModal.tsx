@@ -92,6 +92,7 @@ export default function FeatureUpgradeModal() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState("");
+  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
   const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
   const [message, setMessage] = useState<ModalMessage | null>(null);
 
@@ -122,6 +123,7 @@ export default function FeatureUpgradeModal() {
       const detail = (event as CustomEvent<GateRequest>).detail || {};
       setRequest(detail);
       setSelectedPlanId("");
+      setPreviewPlanId(null);
       setMessage(null);
     };
     window.addEventListener("bfs:feature-gated", handleFeatureGated);
@@ -137,19 +139,20 @@ export default function FeatureUpgradeModal() {
       session ? apiFetch("/api/billing/me").catch(() => ({ subscription: null })) : Promise.resolve({ subscription: null }),
     ]).then(([planData, subscriptionData]) => {
       if (cancelled) return;
-      const ordered = [...(planData.plans || [])].sort((a: Plan, b: Plan) => {
+      const ordered = [...(planData.plans || [])].filter((plan: Plan & { isActive?: boolean }) => plan.isActive !== false).sort((a: Plan, b: Plan) => {
         const difference = Number(b.price || 0) - Number(a.price || 0);
         return difference || Number(b.isPopular === true) - Number(a.isPopular === true);
       });
       setPlans(ordered);
       setSubscription(subscriptionData.subscription || null);
-      // Default to the most expensive plan that actually includes the blocked feature.
-      // If no plan advertises it, keep the highest-priced plan focused but prevent a misleading checkout.
+      // Default to the most expensive purchasable plan that includes the blocked feature.
+      // If none includes it, show the highest priced plan for transparency but disable checkout.
       const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
       const highestPlanWithFeature = requiredFeatureLabel
         ? ordered.find((plan: Plan) => (plan.features || []).includes(requiredFeatureLabel))
         : undefined;
       setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");
+      setPreviewPlanId(null);
     }).catch((error) => {
       if (!cancelled) {
         setMessage({
@@ -178,6 +181,7 @@ export default function FeatureUpgradeModal() {
   }, [open, checkoutPlanId]);
 
   const selectedPlan = plans.find((plan) => plan._id === selectedPlanId) || plans[0] || null;
+  const focusedPlanId = previewPlanId || selectedPlan?._id;
   const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
   const selectedPlanSupportsFeature = Boolean(
     selectedPlan && (!requiredFeatureLabel || (selectedPlan.features || []).includes(requiredFeatureLabel))
@@ -321,6 +325,7 @@ export default function FeatureUpgradeModal() {
               <div className="grid gap-4 md:grid-cols-3">
                 {plans.map((plan, index) => {
                   const isSelected = selectedPlan?._id === plan._id;
+                  const isFocused = focusedPlanId === plan._id;
                   const isCurrent = Boolean(currentPlanId && plan._id === currentPlanId) ||
                     Boolean(currentPlan && currentPlan._id === plan._id) ||
                     (!currentPlanId && plan.name === (request?.currentPlan || ""));
@@ -334,7 +339,8 @@ export default function FeatureUpgradeModal() {
                       tabIndex={0}
                       aria-pressed={isSelected}
                       aria-label={`Select ${plan.name} plan`}
-                      onMouseEnter={() => setSelectedPlanId(plan._id)}
+                      onMouseEnter={() => setPreviewPlanId(plan._id)}
+                      onMouseLeave={() => setPreviewPlanId(null)}
                       onClick={() => setSelectedPlanId(plan._id)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -342,9 +348,10 @@ export default function FeatureUpgradeModal() {
                           setSelectedPlanId(plan._id);
                         }
                       }}
-                      onFocusCapture={() => setSelectedPlanId(plan._id)}
+                      onFocusCapture={() => setPreviewPlanId(plan._id)}
+                      onBlur={() => setPreviewPlanId(null)}
                       className={`bfs-plan-option relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
-                        isSelected
+                        isFocused
                           ? "bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
                           : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30"
                       }`}
@@ -367,8 +374,8 @@ export default function FeatureUpgradeModal() {
                         {(plan.features || []).length > 6 && <li className="pl-5 font-semibold text-violet-700">+{plan.features!.length - 6} more features</li>}
                       </ul>
                       <div className="mt-5 flex items-center justify-between gap-2">
-                        <span className={`text-xs font-bold ${isSelected ? "text-violet-700" : "text-slate-500"}`}>{isSelected ? "Selected plan" : "Preview plan"}</span>
-                        {isSelected && <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-white"><Check className="h-3.5 w-3.5" /></span>}
+                        <span className={`text-xs font-bold ${isFocused ? "text-violet-700" : "text-slate-500"}`}>{isSelected ? "Selected plan" : isFocused ? "Previewing plan" : "Choose plan"}</span>
+                        {isSelected && <span aria-label="Selected" className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-white"><Check className="h-3.5 w-3.5" /></span>}
                       </div>
                     </article>
                   );
@@ -379,16 +386,16 @@ export default function FeatureUpgradeModal() {
         </div>
 
         <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-          <p className="text-xs leading-5 text-slate-500">You can review billing details before payment. Your current access stays unchanged until the new subscription is confirmed.</p>
+          <p className="text-xs leading-5 text-slate-500">Hover previews a plan; select it with a click or tap to change your choice. No payment starts until you choose to upgrade. Your current access stays unchanged until the subscription is confirmed.</p>
           <div className="flex shrink-0 gap-2">
-            <button type="button" className="btn-secondary justify-center" onClick={() => setRequest(null)} disabled={Boolean(checkoutPlanId)}>Not now</button>
+            <button type="button" className="btn-secondary justify-center" onClick={() => setRequest(null)} disabled={Boolean(checkoutPlanId)}>Maybe later</button>
             <button
               type="button"
               className="btn-primary justify-center"
               disabled={!selectedPlan || loadingPlans || Boolean(checkoutPlanId) || isSelectedPlanCurrent || !selectedPlanSupportsFeature || Number(selectedPlan.price) <= 0}
               onClick={() => selectedPlan && void subscribe(selectedPlan)}
             >
-              {checkoutPlanId ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{!selectedPlanSupportsFeature ? "Select a plan with this feature" : isSelectedPlanCurrent ? "Current plan" : "Choose plan"} <ArrowRight className="h-4 w-4" /></>}
+              {checkoutPlanId ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{!selectedPlanSupportsFeature ? "Select a plan with this feature" : isSelectedPlanCurrent ? "Current plan" : "Upgrade plan"} <ArrowRight className="h-4 w-4" /></>}
             </button>
           </div>
         </footer>

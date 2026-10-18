@@ -70,10 +70,12 @@ export default function AdminAnalytics() {
         <div role="status" aria-live="polite" aria-label="Loading analytics" className="flex min-h-[50vh] items-center justify-center"><RefreshCcw className="animate-spin text-blue-600" /><span className="sr-only">Loading analytics</span></div>
       ) : (
         <>
-          <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="card p-5"><Users className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{data?.totals?.enrollments || 0}</p><p className="text-sm text-slate-500">Enrollments in period</p></div>
-            <div className="card p-5"><IndianRupee className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{money(data?.totals?.recordedRevenue)}</p><p className="text-sm text-slate-500">Recorded payment value</p></div>
-            <div className="card p-5"><TrendingUp className="h-5 w-5 text-green-600" /><p className="mt-3 text-2xl font-bold">{data?.coursePerformance?.[0]?.enrollments || 0}</p><p className="text-sm text-slate-500">Top course enrollments</p></div>
+            <div className="card p-5"><IndianRupee className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{money(data?.totals?.netRevenue)}</p><p className="text-sm text-slate-500">Net cashflow in period</p><p className="mt-1 text-xs text-slate-400">Gross {money(data?.totals?.grossRevenue)} − refunds {money(data?.totals?.processedRefunds)}</p></div>
+            <div className="card p-5"><Users className="h-5 w-5 text-indigo-600" /><p className="mt-3 text-2xl font-bold">{data?.totals?.newUsers || 0}</p><p className="text-sm text-slate-500">New registered users</p></div>
+            <div className="card p-5"><TrendingUp className="h-5 w-5 text-green-600" /><p className="mt-3 text-2xl font-bold">{data?.totals?.payingUsers || 0}</p><p className="text-sm text-slate-500">Unique paying users</p></div>
+            <div className="card p-5"><TrendingUp className="h-5 w-5 text-amber-600" /><p className="mt-3 text-2xl font-bold">{data?.totals?.failedPayments || 0}</p><p className="text-sm text-slate-500">Failed payment attempts</p></div>
             <div className="card p-5"><Activity className="h-5 w-5 text-purple-600" /><p className="mt-3 text-2xl font-bold">{completions.find((item) => item.label === "100%")?.count || 0}</p><p className="text-sm text-slate-500">Fully completed courses</p></div>
           </div>
 
@@ -93,13 +95,13 @@ export default function AdminAnalytics() {
             </section>
 
             <section className="card p-5">
-              <div className="flex items-center justify-between"><div><h2 className="font-bold">Daily payment activity</h2><p className="text-xs text-slate-500">Recorded paid payment value.</p></div><ArrowDown className="h-4 w-4 text-blue-600" /></div>
+              <div className="flex items-center justify-between"><div><h2 className="font-bold">Daily net cashflow</h2><p className="text-xs text-slate-500">Payments collected minus refunds processed each day.</p></div><ArrowDown className="h-4 w-4 text-blue-600" /></div>
               <div className="mt-5 space-y-2">
                 {(data?.revenueDaily || []).map((item: any) => (
                   <div key={item._id} className="grid grid-cols-[90px_1fr_80px] items-center gap-2 text-xs">
                     <span className="text-slate-400">{item._id}</span>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: (Number(item.amount || 0) / revenueMax) * 100 + "%" }} /></div>
-                    <span className="text-right font-bold text-slate-600">{money(item.amount)}</span>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: (Math.max(0, Number(item.amount || 0)) / revenueMax) * 100 + "%" }} /></div>
+                    <span className="text-right font-bold text-slate-600">{money(item.amount)}{Number(item.refunds || 0) > 0 && <span className="block font-normal text-slate-400">Refunds {money(item.refunds)}</span>}</span>
                   </div>
                 ))}
                 {!data?.revenueDaily?.length && <p className="text-sm text-slate-500">No paid payments in this period.</p>}

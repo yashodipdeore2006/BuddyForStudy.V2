@@ -158,6 +158,7 @@ export default function AdminUsersPro() {
       }
       if (!importFailed) window.localStorage.removeItem(savedViewStorageKey);
       await refreshSavedViews();
+      if (importFailed) setSavedViewsError("Some saved views could not be imported. Existing browser-saved views have been kept.");
     } catch {
       setSavedViewsError("Some saved views could not be imported. Existing browser-saved views have been kept.");
     }

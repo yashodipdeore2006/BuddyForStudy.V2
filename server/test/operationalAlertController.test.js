@@ -45,7 +45,19 @@ test("acknowledging an open operational alert records the administrator and stat
   const res = responseRecorder();
 
   await withMocks([
-    [OperationalAlert, { findById: async (id) => id === alertId ? alert : null }],
+    [OperationalAlert, {
+      findById: (id) => ({ lean: async () => id === alertId ? { ...alert } : null }),
+      findOneAndUpdate: async (filter, update, options) => {
+        assert.deepEqual(filter, { _id: alertId, status: "open" });
+        assert.equal(update.$set.status, "acknowledged");
+        assert.equal(update.$set.acknowledgedBy, actorId);
+        assert.equal(options.new, true);
+        alert.status = update.$set.status;
+        alert.acknowledgedBy = update.$set.acknowledgedBy;
+        alert.acknowledgedAt = update.$set.acknowledgedAt;
+        return alert;
+      }
+    }],
     [AuditLog, { create: async (event) => { auditEvent = event; return event; } }],
     [AuditOutbox, { create: async () => { throw new Error("outbox should not be used"); } }]
   ], async () => {
@@ -83,7 +95,10 @@ test("resolved operational alerts cannot be acknowledged again", async () => {
   const res = responseRecorder();
 
   await withMocks([
-    [OperationalAlert, { findById: async () => alert }],
+    [OperationalAlert, {
+      findById: () => ({ lean: async () => ({ ...alert }) }),
+      findOneAndUpdate: async () => { throw new Error("resolved alert must not be updated"); }
+    }],
     [AuditLog, { create: async () => { throw new Error("audit should not be attempted"); } }],
     [AuditOutbox, { create: async () => { throw new Error("outbox should not be attempted"); } }]
   ], async () => {
@@ -130,4 +145,38 @@ test("operational alert list limit is an integer bounded to 1–100 with a safe 
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.success, true);
   }
+});
+
+
+test("acknowledgement uses compare-and-set and rejects a concurrent state change", async () => {
+  const alertId = "507f1f77bcf86cd799439015";
+  const actorId = "507f191e810c19729de860ec";
+  let attemptedUpdate = false;
+  const res = responseRecorder();
+
+  await withMocks([
+    [OperationalAlert, {
+      findById: () => ({ lean: async () => ({
+        _id: alertId, status: "open", severity: "critical", occurrenceCount: 4
+      }) }),
+      findOneAndUpdate: async (filter) => {
+        attemptedUpdate = true;
+        assert.deepEqual(filter, { _id: alertId, status: "open" });
+        return null;
+      }
+    }],
+    [AuditLog, { create: async () => { throw new Error("audit must not run after failed state transition"); } }],
+    [AuditOutbox, { create: async () => { throw new Error("outbox must not run after failed state transition"); } }]
+  ], async () => {
+    await acknowledgeOperationalAlert({
+      params: { alertId },
+      user: { user: { _id: actorId } },
+      ip: "192.0.2.10",
+      get: () => "operations-test"
+    }, res, (error) => { throw error; });
+  });
+
+  assert.equal(attemptedUpdate, true);
+  assert.equal(res.statusCode, 409);
+  assert.match(res.body.message, /changed while you were acknowledging/i);
 });

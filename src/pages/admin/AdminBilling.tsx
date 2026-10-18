@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CreditCard, IndianRupee, RefreshCcw, Search, XCircle } from "lucide-react";
+import { CheckCircle2, CreditCard, IndianRupee, MessageSquareWarning, RefreshCcw, Search, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 function money(value: number) {
@@ -9,6 +9,8 @@ function money(value: number) {
 export default function AdminBilling() {
   const [refunds, setRefunds] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [issues, setIssues] = useState<any[]>([]);
+  const [issueFilter, setIssueFilter] = useState("open");
   const [refundFilter, setRefundFilter] = useState("pending");
   const [paymentStatus, setPaymentStatus] = useState("");
   const [paymentSearch, setPaymentSearch] = useState("");
@@ -20,12 +22,14 @@ export default function AdminBilling() {
     setLoading(true);
     setError("");
     try {
-      const [refundData, paymentData] = await Promise.all([
+      const [refundData, paymentData, issueData] = await Promise.all([
         adminFetch("/api/admin/refunds"),
         adminFetch("/api/admin/payments?limit=200"),
+        adminFetch("/api/admin/payment-issues?limit=200"),
       ]);
       setRefunds(refundData.refunds || []);
       setPayments(paymentData.payments || []);
+      setIssues(issueData.issues || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load billing data");
     } finally {
@@ -57,6 +61,18 @@ export default function AdminBilling() {
     } finally {
       setActionId(null);
     }
+  }
+
+  async function updateIssue(issue: any, status: string) {
+    const note = window.prompt("Support update for the user (optional)", issue.adminNote || "") || "";
+    setActionId(issue._id);
+    setError("");
+    try {
+      await adminFetch("/api/admin/payment-issues/" + issue._id, { method: "PUT", body: JSON.stringify({ status, adminNote: note }) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update payment issue");
+    } finally { setActionId(null); }
   }
 
   const filteredRefunds = useMemo(
@@ -145,6 +161,16 @@ export default function AdminBilling() {
         )}
       </section>
 
+      <section className="card mt-6 overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-bold text-slate-900">Payment issue reports</h2><p className="mt-1 text-xs text-slate-500">Review failed payments and successful payments where the learner did not receive course or plan benefits.</p></div><select aria-label="Filter payment issues" className="input-field w-auto" value={issueFilter} onChange={(e) => setIssueFilter(e.target.value)}><option value="open">Open</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="all">All statuses</option></select></div>
+        <div className="divide-y divide-slate-100">
+          {issues.filter((issue) => issueFilter === "all" || issue.status === issueFilter).map((issue) => <article key={issue._id} className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-900">{issue.user?.name || "Unknown user"}</p><span className="badge bg-slate-100 text-slate-600">{String(issue.status || "open").replace(/_/g, " ")}</span></div><p className="text-xs text-slate-500">{issue.user?.email || "No email"} · {issue.payment?.course?.title || issue.payment?.plan?.name || "Payment"} · {money(issue.payment?.amount || 0)} · {issue.payment?.status || "unknown payment status"}</p><p className="mt-2 text-sm font-semibold text-violet-700">{String(issue.category || "other").replace(/_/g, " ")}</p><p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{issue.description}</p>{issue.adminNote && <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Last support note: {issue.adminNote}</p>}<p className="mt-2 text-xs text-slate-400">Reported {issue.createdAt ? new Date(issue.createdAt).toLocaleString() : "—"}</p></div>
+            <div className="flex shrink-0 flex-wrap gap-2">{issue.status !== "in_review" && issue.status !== "resolved" && issue.status !== "closed" && <button type="button" className="btn-secondary" disabled={actionId === issue._id} onClick={() => void updateIssue(issue, "in_review")}>Mark in review</button>}{issue.status !== "resolved" && <button type="button" className="btn-secondary" disabled={actionId === issue._id} onClick={() => void updateIssue(issue, "resolved")}>{actionId === issue._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Resolve</button>}{issue.status !== "closed" && <button type="button" className="btn-secondary" disabled={actionId === issue._id} onClick={() => void updateIssue(issue, "closed")}>Close</button>}</div>
+          </article>)}
+          {!issues.some((issue) => issueFilter === "all" || issue.status === issueFilter) && <p className="p-8 text-center text-sm text-slate-500">No payment issues match this filter.</p>}
+        </div>
+      </section>
       <section className="card mt-6 overflow-hidden">
         <div className="border-b border-slate-100 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

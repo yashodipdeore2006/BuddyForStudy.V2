@@ -4,6 +4,18 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { ADMIN_ROLE_PROFILES, getAdminPermissions, isAdminRoleProfile } from "../utils/adminRbac.js";
 
+export async function currentAdminAccess(req, res) {
+  const adminRole = req.user?.adminRole || "platform_admin";
+  const profile = ADMIN_ROLE_PROFILES[adminRole];
+  return success(res, {
+    access: {
+      adminRole,
+      roleLabel: profile?.label || "Administrator",
+      permissions: getAdminPermissions(adminRole, req.user?.adminPermissionOverrides || []),
+    },
+  });
+}
+
 export async function listAdminRoles(_req, res) {
   const roles = Object.entries(ADMIN_ROLE_PROFILES).map(([key, profile]) => ({
     key,

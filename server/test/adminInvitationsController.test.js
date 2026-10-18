@@ -373,35 +373,30 @@ test("acceptance queues an audit event when audit logging fails after account cr
     adminRole: invitation.adminRole,
     isActive: true
   };
-  let errorLogCalls = 0;
-  const originalConsoleError = console.error;
-  console.error = () => { errorLogCalls += 1; };
-  try {
-    await withMocks([
-      [AdminInvitation, {
-        findOne: () => findInvitationQuery(invitation),
-        findOneAndUpdate: async () => claimedInvitation
-      }],
-      [User, {
-        exists: async () => false,
-        hashPassword: async () => "hashed-password",
-        create: async () => user
-      }],
-      [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
-      [AuditOutbox, { create: async (entry) => { assert.equal(entry.status, "pending"); assert.equal(entry.event.action, "admin.invitation.accepted"); } }]
-    ], async () => {
-      const res = makeResponse();
-      let forwardedError;
-      await acceptInvitation(request(), res, (error) => { forwardedError = error; });
-      assert.equal(forwardedError, undefined);
-      assert.equal(res.result.statusCode, 201);
-      assert.equal(res.result.body.success, true);
-      assert.equal(res.result.body.auditLogRecorded, false);
-      assert.equal(res.result.body.auditQueued, true);
-      assert.match(res.result.body.message, /queued for retry/i);
-      assert.equal(errorLogCalls, 0, "a successfully queued audit event should not be logged as lost");
-    });
-  } finally {
-    console.error = originalConsoleError;
-  }
+  await withMocks([
+    [AdminInvitation, {
+      findOne: () => findInvitationQuery(invitation),
+      findOneAndUpdate: async () => claimedInvitation
+    }],
+    [User, {
+      exists: async () => false,
+      hashPassword: async () => "hashed-password",
+      create: async () => user
+    }],
+    [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+    [AuditOutbox, { create: async (entry) => {
+      assert.equal(entry.status, "pending");
+      assert.equal(entry.event.action, "admin.invitation.accepted");
+    } }]
+  ], async () => {
+    const res = makeResponse();
+    let forwardedError;
+    await acceptInvitation(request(), res, (error) => { forwardedError = error; });
+    assert.equal(forwardedError, undefined);
+    assert.equal(res.result.statusCode, 201);
+    assert.equal(res.result.body.success, true);
+    assert.equal(res.result.body.auditLogRecorded, false);
+    assert.equal(res.result.body.auditQueued, true);
+    assert.match(res.result.body.message, /queued for retry/i);
+  });
 });

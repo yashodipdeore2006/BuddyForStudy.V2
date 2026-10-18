@@ -166,7 +166,23 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
   onConfirm: () => void; onClose: () => void; loading?: boolean; danger?: boolean; reasonRequired?: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (!open) return; const previous = document.activeElement as HTMLElement | null; dialogRef.current?.querySelector<HTMLElement>("input,textarea,button")?.focus(); return () => previous?.focus(); }, [open]);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]') || []);
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.stopPropagation(); onCloseRef.current(); return; }
+      if (event.key !== "Tab") return;
+      const elements = focusable(); if (!elements.length) return;
+      if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements[elements.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === elements[elements.length - 1]) { event.preventDefault(); elements[0].focus(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+  }, [open]);
   if (!open) return null;
   const typedMatches = !requiredText || value === requiredText;
   const reasonValid = !reasonRequired || Boolean(reason?.trim() && reason.trim().length >= 10 && reason.trim().length <= 500);

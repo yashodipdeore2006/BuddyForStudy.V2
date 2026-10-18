@@ -18,7 +18,7 @@ test("subscription update filter only accepts events newer than the last applied
     $or: [
       { providerEventAt: { $exists: false } },
       { providerEventAt: null },
-      { providerEventAt: { $lt: eventAt } }
+      { providerEventAt: { $lte: eventAt } }
     ]
   });
 });

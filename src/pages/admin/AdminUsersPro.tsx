@@ -17,6 +17,7 @@ import {
   Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 const pageSize = 20;
 
@@ -203,19 +204,15 @@ export default function AdminUsersPro() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Identity & access</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">User Management</h1>
-          <p className="mt-2 text-slate-500">
-            Search, inspect and control accounts, roles, verification and access status.
-          </p>
-        </div>
-        <button type="button" aria-label="Refresh users" className="btn-secondary" onClick={() => void load(pagination.page || 1)} disabled={loading}>
-          <RefreshCcw className="h-4 w-4" />
+      <AdminPageHeader
+        eyebrow="Identity and access"
+        title="Users"
+        description="Search, inspect and control accounts, roles, verification and access status."
+        actions={<button type="button" aria-label="Refresh users" className="btn-secondary" onClick={() => void load(pagination.page || 1)} disabled={loading}>
+          <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           Refresh
-        </button>
-      </div>
+        </button>}
+      />
 
       <div className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">

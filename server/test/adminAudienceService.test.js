@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateAdminAudienceInput, parseAdminAudienceDate, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../src/services/adminAudience.service.js";
@@ -72,7 +73,7 @@ test("audience targeting accepts an explicit audience group without filter field
 });
 
 
-test("audience preview tokens expire and bind both filters and resolved recipients", () => {
+test("audience preview tokens bind filters and recipients, reject tampering, and expire", () => {
   const previousSecret = process.env.JWT_SECRET;
   process.env.JWT_SECRET = "test-audience-preview-secret";
   try {
@@ -83,6 +84,12 @@ test("audience preview tokens expire and bind both filters and resolved recipien
     assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, filters: { totalSpendMin: 10000 } }, users), false);
     assert.equal(verifyAdminAudiencePreviewToken(token, input, [{ _id: "user-1" }]), false);
     assert.equal(verifyAdminAudiencePreviewToken(`${token}tampered`, input, users), false);
+    const [encoded] = token.split(".");
+    const expiredPayload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    expiredPayload.exp = Date.now() - 1;
+    const expiredEncoded = Buffer.from(JSON.stringify(expiredPayload)).toString("base64url");
+    const expiredSignature = crypto.createHmac("sha256", process.env.JWT_SECRET).update(expiredEncoded).digest("base64url");
+    assert.equal(verifyAdminAudiencePreviewToken(`${expiredEncoded}.${expiredSignature}`, input, users), false);
   } finally {
     if (previousSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = previousSecret;

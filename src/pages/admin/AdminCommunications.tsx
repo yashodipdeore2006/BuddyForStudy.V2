@@ -143,7 +143,7 @@ export default function AdminCommunications() {
   }
 
   function targetingError() {
-    if (targetMode === "emails" && !selectedEmails.split(/[;,\\n]/).some((email) => email.trim())) {
+    if (targetMode === "emails" && !selectedEmails.split(/[;,\n]/).some((email) => email.trim())) {
       return "Enter at least one registered email address.";
     }
     if (targetMode === "filters" && !Object.values(audienceFilters).some((value) => value.trim())) {

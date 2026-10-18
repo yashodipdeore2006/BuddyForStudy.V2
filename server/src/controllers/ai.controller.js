@@ -2,7 +2,7 @@ import { z } from "zod";
 import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.service.js";
 import { createCourse } from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
-import { getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
+import { getEntitlement, canAccessCourse } from "../services/subscriptionEntitlement.service.js";
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 import { createHash } from "node:crypto";
 import { QuizBank } from "../models/QuizBank.js";
@@ -22,10 +22,8 @@ async function ensureCourseLearningAccess(req, courseId) {
   if (!enrollment) {
     return { allowed: false, status: 403, message: "Active or completed enrollment required" };
   }
-  const entitlement = await getEntitlement(req.user.userId, "published_courses");
-  const individualAccess = await hasPaidCourseAccess(req.user.userId, courseId);
-  if (!entitlement.allowed && !individualAccess) {
-    return { allowed: false, status: 403, message: "Your current plan does not include access to this course. Upgrade your plan or purchase the course to continue." };
+  if (!await canAccessCourse(req.user.userId, courseId)) {
+    return { allowed: false, status: 403, message: "Your current plan does not include access to this course or its individual purchase is no longer valid. Upgrade your plan or purchase the course to continue." };
   }
   return { allowed: true };
 }

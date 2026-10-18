@@ -25,8 +25,11 @@ function normalizeFilters(input = {}) {
     const q = String(input.q).trim().slice(0, 100);
     if (q) filters.q = q;
   }
+  if (input.status !== undefined && input.status !== "" && !["active", "disabled"].includes(input.status)) throw new Error("Invalid account status filter");
   if (["active", "disabled"].includes(input.status)) filters.status = input.status;
+  if (input.role !== undefined && input.role !== "" && !["user", "admin"].includes(input.role)) throw new Error("Invalid account role filter");
   if (["user", "admin"].includes(input.role)) filters.role = input.role;
+  if (input.emailVerified !== undefined && input.emailVerified !== "" && typeof input.emailVerified !== "boolean") throw new Error("emailVerified must be a boolean");
   if (typeof input.emailVerified === "boolean") filters.emailVerified = input.emailVerified;
   if (input.authProvider !== undefined) {
     if (!AUTH_PROVIDERS.has(input.authProvider)) throw new Error("Invalid authProvider filter");
@@ -101,7 +104,11 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
     query._id = { $in: activeSubscriptions.map((sub) => sub.user) };
   } else if (audience !== "all") throw new Error("Invalid audience. Choose all, active, or subscribers");
 
-  if (normalized.status) query.isActive = normalized.status === "active";
+  if (normalized.status) {
+    const requestedActive = normalized.status === "active";
+    if (audience === "active" && !requestedActive) query._id = { $in: [] };
+    else query.isActive = requestedActive;
+  }
   if (normalized.role) query.role = normalized.role;
   if (normalized.emailVerified !== undefined) query.emailVerified = normalized.emailVerified;
   if (normalized.authProvider) query.authProvider = normalized.authProvider;
@@ -156,6 +163,7 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
 
 export function validateAdminAudienceInput(input = {}) {
   if (Array.isArray(input.userIds) && input.userIds.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+  if (Array.isArray(input.userIds) && input.userIds.some((id) => !isValidObjectId(String(id)))) throw new Error("One or more selected user IDs are invalid");
   if (Array.isArray(input.emails) && input.emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
   if (Array.isArray(input.emails) && input.emails.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim()))) throw new Error("One or more selected email addresses are invalid");
   normalizeFilters(input.filters || {});

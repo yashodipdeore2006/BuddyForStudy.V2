@@ -226,11 +226,16 @@ export async function razorpayWebhook(req, res, next) {
 
         if (payment) {
           payment.status = "paid";
-          payment.subscriptionNotificationStatus = "pending";
-          payment.subscriptionNotificationLastCheckedAt = null;
           payment.paidAt = payment.paidAt || new Date();
           await payment.save();
           const appliedSubscriptionEvent = await activateSubscription(subscriptionEntity, payment, subscriptionEventAt);
+          if (appliedSubscriptionEvent) {
+            // Queue activation messaging only after the state transition wins
+            // the provider-event freshness guard.
+            payment.subscriptionNotificationStatus = "pending";
+            payment.subscriptionNotificationLastCheckedAt = null;
+            await payment.save();
+          }
           const notification = appliedSubscriptionEvent ? await createNotificationEvent(buildSubscriptionActivatedNotificationPayload({
             userId: String(payment.user),
             payment,

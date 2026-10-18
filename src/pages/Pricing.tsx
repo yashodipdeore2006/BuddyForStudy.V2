@@ -45,6 +45,7 @@ export default function Pricing() {
   const courseId = searchParams.get("courseId");
 
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<PricingMessage | null>(null);
 
@@ -62,7 +63,8 @@ export default function Pricing() {
           type: "error",
           text: "Unable to load plans",
         });
-      });
+      })
+      .finally(() => setLoadingPlans(false));
   }, []);
 
   async function subscribe(planId: string) {
@@ -196,7 +198,10 @@ export default function Pricing() {
         </div>
       )}
 
-      {plans.length === 0 && !message && (
+      {loadingPlans && (
+        <div role="status" aria-live="polite" className="mt-10 flex min-h-40 items-center justify-center gap-3 text-sm font-semibold text-slate-500"><Loader2 className="h-5 w-5 animate-spin text-violet-600" /> Loading subscription plans…</div>
+      )}
+      {!loadingPlans && plans.length === 0 && !message && (
         <div className="bfs-plan-empty mt-10 rounded-3xl border p-10 text-center">
           <Sparkles className="mx-auto h-8 w-8 text-violet-500" />
           <h2 className="mt-3 text-xl font-bold">Plans are on their way</h2>
@@ -204,7 +209,7 @@ export default function Pricing() {
         </div>
       )}
 
-      <div className="mt-10 grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {!loadingPlans && plans.length > 0 && <div className="mt-10 grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
         {plans.map((plan, index) => {
           const featured = index === 0 || plan.isPopular === true;
           return (
@@ -241,7 +246,7 @@ export default function Pricing() {
             </article>
           );
         })}
-      </div>
+      </div>}
 
       {courseId && (
         <section className="bfs-course-purchase-callout mx-auto mt-10 max-w-3xl rounded-3xl border p-6 sm:flex sm:items-center sm:justify-between">

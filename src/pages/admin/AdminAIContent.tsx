@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrainCircuit, Check, RefreshCcw, Save, SlidersHorizontal } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 type Setting = { key: string; value: number | boolean; defaultValue: number | boolean; type: "number" | "boolean"; min?: number; max?: number; description: string };
 const GROUPS = [
@@ -59,14 +60,12 @@ export default function AdminAIContent() {
   const label = (key: string) => key.replace(/^advanced_ai_/, "").replace(/^discovery_/, "").split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 
   return <div className="mx-auto max-w-6xl space-y-6">
-    <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700"><BrainCircuit className="h-3.5 w-3.5"/> AI & learning governance</div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">AI & content controls</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">Manage safe generation limits and discovery quality rules. Provider API keys and secrets are intentionally not exposed here.</p>
-      </div>
-      <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")}/> Refresh</button>
-    </header>
+    <AdminPageHeader
+      eyebrow="AI and learning governance"
+      title="AI and content controls"
+      description="Manage safe generation limits and discovery quality rules. Provider API keys and secrets are intentionally not exposed here."
+      actions={<button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary"><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh</button>}
+    />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
     {loading ? <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading AI settings…</div> : GROUPS.map((group) => <section key={group.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

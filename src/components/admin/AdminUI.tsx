@@ -129,3 +129,72 @@ export function AdminPageHeader({
     </header>
   );
 }
+
+export function AdminFilterBar({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <section className={["admin-filter-bar", className].filter(Boolean).join(" ")} aria-label="List filters">{children}</section>;
+}
+
+export function AdminTableContainer({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={["admin-table-container", className].filter(Boolean).join(" ")}>{children}</div>;
+}
+
+type AdminTabItem = { value: string; label: string; disabled?: boolean };
+export function AdminTabs({
+  items,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  items: AdminTabItem[];
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="admin-tabs" role="tablist" aria-label={ariaLabel}>
+      {items.map((item) => (
+        <button key={item.value} type="button" role="tab" aria-selected={value === item.value} disabled={item.disabled} className="admin-tab" onClick={() => onChange(item.value)}>
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function AdminPagination({
+  page,
+  pages,
+  total,
+  from,
+  to,
+  limit,
+  loading = false,
+  onPageChange,
+  onLimitChange,
+}: {
+  page: number;
+  pages: number;
+  total: number;
+  from: number;
+  to: number;
+  limit: number;
+  loading?: boolean;
+  onPageChange: (page: number) => void;
+  onLimitChange: (limit: number) => void;
+}) {
+  return (
+    <div className="admin-pagination">
+      <label className="admin-page-size">Rows per page
+        <select aria-label="Rows per page" className="input-field" value={limit} onChange={(event) => onLimitChange(Number(event.target.value))}>
+          {[25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+        </select>
+      </label>
+      <span className="admin-pagination-count">Showing {from}–{to} of {total}</span>
+      <div className="admin-pagination-actions">
+        <button type="button" className="btn-secondary" disabled={page <= 1 || loading} onClick={() => onPageChange(page - 1)}>Previous</button>
+        <span aria-live="polite">Page {page} of {Math.max(1, pages)}</span>
+        <button type="button" className="btn-secondary" disabled={page >= pages || loading} onClick={() => onPageChange(page + 1)}>Next</button>
+      </div>
+    </div>
+  );
+}

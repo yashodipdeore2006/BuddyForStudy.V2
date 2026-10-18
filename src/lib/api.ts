@@ -6,6 +6,13 @@ const GET_CACHE_TTL_MS = 5000;
 const getResponseCache = new Map<string, CachedGet>();
 const getInFlight = new Map<string, Promise<any>>();
 
+if (typeof window !== "undefined") {
+  window.addEventListener("bfs:entitlements-updated", () => {
+    getResponseCache.clear();
+    getInFlight.clear();
+  });
+}
+
 function cacheKey(path: string, token: string | null) {
   return `${token ? 'authenticated' : 'public'}:${token || ''}:${path}`;
 }

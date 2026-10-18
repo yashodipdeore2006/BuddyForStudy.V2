@@ -16,15 +16,21 @@ export function resolveFeature(feature) {
   return SUBSCRIPTION_FEATURES.find((item) => item.label.toLowerCase() === normalized || item.key.toLowerCase() === normalized) || null;
 }
 
+/** Keep a subscription plan only while its recorded billing period is current. */
+export function isSubscriptionPeriodCurrent(subscription, now = Date.now()) {
+  if (!subscription?.currentPeriodEnd) return true;
+  const end = new Date(subscription.currentPeriodEnd).getTime();
+  return Number.isFinite(end) && end > Number(now);
+}
+
 export async function getActivePlanForUser(userId) {
   const subscription = await UserSubscription.findOne({
     user: userId,
     status: { $in: ["trialing", "active", "past_due"] }
   }).populate("plan").lean();
 
-  if (subscription?.plan) {
-    const end = subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd) : null;
-    if (!end || end.getTime() > Date.now()) return subscription.plan;
+  if (subscription?.plan && isSubscriptionPeriodCurrent(subscription)) {
+    return subscription.plan;
   }
 
   return SubscriptionPlan.findOne({

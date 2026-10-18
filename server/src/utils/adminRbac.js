@@ -9,7 +9,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     description: "Day-to-day user, course and platform operations.",
     permissions: [
       "dashboard.read", "users.read", "users.manage",
-      "courses.read", "courses.manage", "courses.publish",
+      "courses.read", "courses.manage", "courses.publish", "operations.manage",
       "analytics.read", "plans.read", "billing.read",
       "communications.send", "communications.manage", "coupons.read",
       "settings.read", "audit.read", "operations.read",
@@ -36,7 +36,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Support Manager",
     description: "Learner account support and payment issue investigations.",
     permissions: [
-      "dashboard.read", "users.read", "billing.read", "payment_issues.manage",
+      "dashboard.read", "billing.read", "payment_issues.manage",
       "operations.read",
     ],
   },

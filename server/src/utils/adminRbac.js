@@ -76,7 +76,7 @@ export function hasAdminPermission(adminRole, permission, overrides = []) {
   if (!profile || typeof permission !== "string" || !permission) return false;
   if (profile.permissions.includes("*")) return true;
   if (profile.permissions.includes(permission)) return true;
-  return Array.isArray(overrides) && overrides.includes(permission);
+  return ADMIN_PERMISSION_CATALOG.includes(permission) && Array.isArray(overrides) && overrides.includes(permission);
 }
 
 export function getAdminPermissions(adminRole, overrides = []) {

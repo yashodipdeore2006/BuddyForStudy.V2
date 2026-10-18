@@ -244,7 +244,7 @@ export default function AdminUsersPro() {
       const headings = ["Name", "Email", "Role", "Active", "Email verified", "Authentication provider", "Created at"];
       const rows = [headings, ...((result.users || []) as any[]).map((user) => fields.map((field) => user[field]))];
       const csv = rows.map((row) => row.map((value) => csvCell(value)).join(",")).join("\r\n");
-      const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;

@@ -1133,6 +1133,8 @@ export async function updateRefund(req, res, next) {
     if (req.body.status === "rejected") {
       refund.status = "rejected";
       refund.processedAt = new Date();
+      // Release the unique active-refund claim so a user may submit a new request.
+      refund.set("activePaymentKey", undefined);
     } else if (req.body.status === "approved" || req.body.status === "processed") {
       if (refund.status === "processed") return failure(res, "Refund is already processed", 409);
       if (refund.status === "rejected") return failure(res, "Rejected refund requests cannot be processed", 409);

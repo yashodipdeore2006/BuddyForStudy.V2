@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Payment } from "../src/models/Payment.js";
 import { UserSubscription } from "../src/models/UserSubscription.js";
+import { SubscriptionPlan } from "../src/models/SubscriptionPlan.js";
 import { createSubscriptionOrder } from "../src/controllers/payment.controller.js";
 
 function makeResponse() {
@@ -30,6 +31,16 @@ async function withMocks(mocks, run) {
 
 test("subscription order creation reuses an existing pending provider checkout", async () => {
   await withMocks([
+    [SubscriptionPlan, {
+      findOne: async () => ({
+        _id: "507f1f77bcf86cd799439012",
+        name: "Pro",
+        price: 199,
+        currency: "INR",
+        billingInterval: "monthly",
+        providerPlanId: "plan_razorpay",
+      }),
+    }],
     [UserSubscription, {
       findOne: async () => null,
     }],

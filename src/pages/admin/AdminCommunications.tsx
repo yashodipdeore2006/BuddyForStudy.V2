@@ -186,12 +186,20 @@ export default function AdminCommunications() {
   async function send() {
     const targetingProblem = targetingError();
     if (targetingProblem) { setStatus(targetingProblem); return; }
+    if (!audiencePreview) {
+      setStatus("Preview the recipients and confirm the audience before sending.");
+      return;
+    }
+    if (audiencePreview.truncated) {
+      setStatus("This audience exceeds the 5,000-recipient limit. Narrow the filters and preview again.");
+      return;
+    }
     if (!canSend) {
       setStatus("Complete the required fields first.");
       return;
     }
 
-    if (!window.confirm("Send this communication to the selected audience?")) return;
+    if (!window.confirm(`Send this communication to ${audiencePreview.recipientCount.toLocaleString()} recipient(s)?`)) return;
 
     setSending(true);
     setStatus("Sending...");

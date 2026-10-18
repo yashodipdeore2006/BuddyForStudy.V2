@@ -10,7 +10,7 @@ import { RefundRequest } from "../models/RefundRequest.js";
 import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Notification } from "../models/Notification.js";
 import { Announcement } from "../models/Announcement.js";
-import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
@@ -35,10 +35,17 @@ import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions } from "../utils/adminRbac.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
-  // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
+  // Centralize redaction and durable fallback for every admin-pro mutation.
+  // The business mutation has already committed at most call sites, so audit
+  // storage failure must not turn a successful mutation into a misleading 500.
   const safeReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
-  await AuditLog.create({
-    actor: req.user.user._id,
+  const actor = req.user?.user?._id || req.user?.userId;
+  if (!actor) {
+    console.error("[admin-audit] Missing actor identity; audit event was not submitted.");
+    return { recorded: false, queued: false };
+  }
+  return recordAuditEvent({
+    actor,
     action: String(action || "").slice(0, 160),
     targetType: String(targetType || "").slice(0, 120),
     targetId: String(targetId || "").slice(0, 200),

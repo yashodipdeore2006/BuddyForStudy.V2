@@ -67,10 +67,10 @@ function periodDate(value) {
   return value ? new Date(Number(value) * 1000) : null;
 }
 
-async function activateSubscription(subscription, payment, eventAt = null) {
+async function activateSubscription(subscription, payment, eventAt = null, providerEventId = "", providerEventName = "") {
   const filter = {
     user: payment.user,
-    ...subscriptionEventFreshnessFilter(eventAt)
+    ...subscriptionEventFreshnessFilter(eventAt, providerEventId, providerEventName)
   };
   const set = {
     plan: payment.plan,
@@ -80,7 +80,7 @@ async function activateSubscription(subscription, payment, eventAt = null) {
     currentPeriodStart: periodDate(subscription.current_start) || new Date(),
     currentPeriodEnd: periodDate(subscription.current_end),
     cancelAtPeriodEnd: Boolean(subscription.end_at),
-    ...(eventAt ? { providerEventAt: eventAt } : {})
+    ...(eventAt ? { providerEventAt: eventAt, providerEventId, providerEventName } : {})
   };
   try {
     const updated = await UserSubscription.findOneAndUpdate(
@@ -136,7 +136,7 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
   });
 }
 
-async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null) {
+async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null, providerEventId = "", providerEventName = "") {
   if (!subscription?.id) return;
 
   const providerPaymentId = paymentEntity?.id || "";
@@ -168,7 +168,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
       });
       return;
     }
-    await activateSubscription(subscription, duplicate, eventAt);
+    await activateSubscription(subscription, duplicate, eventAt, providerEventId, providerEventName);
     // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
     await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
     return;
@@ -223,7 +223,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
     }
   }
 
-  await activateSubscription(subscription, payment, eventAt);
+  await activateSubscription(subscription, payment, eventAt, providerEventId, providerEventName);
   await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);
 }
 
@@ -249,6 +249,7 @@ export async function razorpayWebhook(req, res, next) {
     const orderEntity = event?.payload?.order?.entity;
     const subscriptionEntity = event?.payload?.subscription?.entity;
     const subscriptionEventAt = subscriptionEventTimestamp(event);
+    const subscriptionEventId = claimedEventId;
     const orderId = paymentEntity?.order_id || orderEntity?.id;
 
     if (event.event === "payment.captured" || event.event === "order.paid") {
@@ -283,7 +284,7 @@ export async function razorpayWebhook(req, res, next) {
         if (payment) {
           // Apply the ordered subscription transition first. A stale activation
           // must not mutate payment status or enqueue activation messaging.
-          const appliedSubscriptionEvent = await activateSubscription(subscriptionEntity, payment, subscriptionEventAt);
+          const appliedSubscriptionEvent = await activateSubscription(subscriptionEntity, payment, subscriptionEventAt, subscriptionEventId, event.event);
           if (appliedSubscriptionEvent) {
             payment.status = "paid";
             payment.paidAt = payment.paidAt || new Date();
@@ -311,12 +312,12 @@ export async function razorpayWebhook(req, res, next) {
         }
       }
     } else if (event.event === "subscription.charged") {
-      await recordSubscriptionCharge(subscriptionEntity, paymentEntity, subscriptionEventAt);
+      await recordSubscriptionCharge(subscriptionEntity, paymentEntity, subscriptionEventAt, subscriptionEventId, event.event);
     } else if (event.event === "subscription.pending" || event.event === "subscription.halted") {
       if (subscriptionEntity?.id) {
         const subscription = await UserSubscription.findOneAndUpdate(
-          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id, ...subscriptionEventFreshnessFilter(subscriptionEventAt) },
-          { $set: { status: "past_due", ...(subscriptionEventAt ? { providerEventAt: subscriptionEventAt } : {}) } },
+          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id, ...subscriptionEventFreshnessFilter(subscriptionEventAt, subscriptionEventId, event.event) },
+          { $set: { status: "past_due", ...(subscriptionEventAt ? { providerEventAt: subscriptionEventAt, providerEventId: subscriptionEventId, providerEventName: event.event } : {}) } },
           { new: true }
         ).populate("plan", "name");
         if (subscription) {

@@ -17,10 +17,15 @@ const AUTH_PROVIDERS = new Set(["local", "google", "local_google"]);
 const PLAN_SEGMENTS = new Set(["popular", "paid", "free", "premium"]);
 const COURSE_SEGMENTS = new Set(["popular", "paid", "free", "featured"]);
 
-function parseDate(value, field) {
+export function parseAdminAudienceDate(value, field) {
   if (value === undefined || value === null || value === "") return null;
+  const dateOnly = typeof value === "string" && /^\\d{4}-\\d{2}-\\d{2}$/.test(value);
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new Error(`Invalid ${field} date`);
+  if (Number.isNaN(date.getTime()) || (dateOnly && date.toISOString().slice(0, 10) !== value)) {
+    throw new Error(`Invalid ${field} date`);
+  }
+  // Date-picker "before" values are inclusive of the entire selected UTC calendar day.
+  if (dateOnly && field === "registeredBefore") date.setUTCHours(23, 59, 59, 999);
   return date;
 }
 
@@ -98,8 +103,8 @@ function normalizeFilters(input = {}) {
   if (filters.progressMin !== undefined && filters.progressMax !== undefined && filters.progressMin > filters.progressMax) {
     throw new Error("progressMin cannot exceed progressMax");
   }
-  filters.registeredAfter = parseDate(input.registeredAfter, "registeredAfter");
-  filters.registeredBefore = parseDate(input.registeredBefore, "registeredBefore");
+  filters.registeredAfter = parseAdminAudienceDate(input.registeredAfter, "registeredAfter");
+  filters.registeredBefore = parseAdminAudienceDate(input.registeredBefore, "registeredBefore");
   if (filters.registeredAfter && filters.registeredBefore && filters.registeredAfter > filters.registeredBefore) {
     throw new Error("registeredAfter cannot be later than registeredBefore");
   }

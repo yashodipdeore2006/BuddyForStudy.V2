@@ -9,7 +9,6 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminButton, AdminIconButton } from "@/components/admin/AdminUI";
-import "@/styles/admin-design-system.css";
 
 type Permission = { adminRole: string; roleLabel: string; permissions: string[] };
 type AdminLink = {
@@ -97,7 +96,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [access, setAccess] = useState<Permission | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(() => savedBoolean("bfs-admin-sidebar-collapsed", false));
+  const [collapsed, setCollapsed] = useState(() => savedBoolean("bfs-admin-sidebar-collapsed:" + userKey, false));
   const [theme, setTheme] = useState<"light" | "dark">(savedTheme);
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -124,7 +123,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("bfs-admin-sidebar-collapsed", String(collapsed));
+      window.localStorage.setItem("bfs-admin-sidebar-collapsed:" + userKey, String(collapsed));
       window.localStorage.setItem("bfs-admin-theme", theme);
     } catch {
       // Preferences remain active for this session if storage is unavailable.

@@ -7,6 +7,14 @@ import CourseCard from '@/components/CourseCard';
 import { GraduationCap, BookOpen, Trophy, ArrowRight, Code2, Database, Layers, Sparkles, BrainCircuit, Target, Rocket } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 
+function normalizeCourseId(value: any): string {
+  const candidate = value?.course ?? value?.courseId ?? value?.course_id ?? value;
+  const id = candidate && typeof candidate === 'object'
+    ? candidate._id ?? candidate.id ?? candidate.$oid
+    : candidate;
+  return id == null ? '' : String(id);
+}
+
 export default function Home() {
   const [courses,setCourses]=useState<Course[]>([]);
   const [loading,setLoading]=useState(true);
@@ -23,22 +31,26 @@ export default function Home() {
       setEnrolledCourseIds(new Set());
       return;
     }
-    Promise.all([apiFetch('/api/saved-courses'), apiFetch('/api/enrollments')])
-      .then(([savedData, enrollmentData]) => {
+    // Load saved/enrolled state independently so a failure in one endpoint
+    // does not erase the other state or make saved cards look unsaved.
+    apiFetch('/api/saved-courses')
+      .then((savedData) => {
         if (!active) return;
         setSavedCourseIds(new Set((savedData.savedCourses || [])
-          .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.courseId ?? ''))
-          .filter(Boolean)));
-        setEnrolledCourseIds(new Set((enrollmentData.enrollments || [])
-          .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
-          .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.course_id ?? item.courseId ?? ''))
+          .map((item: any) => normalizeCourseId(item))
           .filter(Boolean)));
       })
-      .catch(() => {
+      .catch(() => undefined);
+
+    apiFetch('/api/enrollments')
+      .then((enrollmentData) => {
         if (!active) return;
-        setSavedCourseIds(new Set());
-        setEnrolledCourseIds(new Set());
-      });
+        setEnrolledCourseIds(new Set((enrollmentData.enrollments || [])
+          .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
+          .map((item: any) => normalizeCourseId(item))
+          .filter(Boolean)));
+      })
+      .catch(() => undefined);
     return () => { active = false; };
   }, [session]);
 

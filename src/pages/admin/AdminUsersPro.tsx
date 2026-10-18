@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   RefreshCcw,
   Search,

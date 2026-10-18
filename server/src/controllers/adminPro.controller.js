@@ -1471,8 +1471,8 @@ export async function reconcileRefund(req, res, next) {
 export async function notificationAudienceOptions(req, res, next) {
   try {
     const [plans, courses] = await Promise.all([
-      SubscriptionPlan.find({}).select("name price currency billingInterval isActive isPopular sortOrder").sort({ sortOrder: 1, price: 1 }).limit(100).lean(),
-      Course.find({}).select("title category level isPublished pricing featured").sort({ title: 1 }).limit(250).lean()
+      SubscriptionPlan.find({}).select("name price currency billingInterval isActive isPopular sortOrder").sort({ sortOrder: 1, price: 1 }).limit(500).lean(),
+      Course.find({}).select("title category level isPublished pricing featured").sort({ title: 1 }).limit(1000).lean()
     ]);
     const popularCourseRows = await Enrollment.aggregate([
       { $match: { status: { $in: ["active", "completed"] } } },

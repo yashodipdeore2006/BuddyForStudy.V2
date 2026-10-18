@@ -175,13 +175,16 @@ test("acceptance creates an administrator with the invited role and audits the a
 
 test("acceptance releases its claim when account creation fails so the invite can be retried", async () => {
   const invitation = makeInvitation();
-  const claimedInvitation = { ...invitation, acceptedAt };
+  let claimedAt;
   let releaseFilter;
   let releaseUpdate;
   await withMocks([
     [AdminInvitation, {
       findOne: () => findInvitationQuery(invitation),
-      findOneAndUpdate: async () => claimedInvitation,
+      findOneAndUpdate: async (_filter, update) => {
+        claimedAt = update.$set.acceptedAt;
+        return { ...invitation, acceptedAt: claimedAt };
+      },
       updateOne: async (filter, update) => { releaseFilter = filter; releaseUpdate = update; }
     }],
     [User, {
@@ -195,7 +198,8 @@ test("acceptance releases its claim when account creation fails so the invite ca
     await acceptInvitation(request(), res, (error) => { forwardedError = error; });
     assert.equal(forwardedError?.message, "database write failed");
     assert.equal(releaseFilter._id, invitationId);
-    assert.equal(releaseFilter.acceptedAt, acceptedAt);
+    assert.equal(releaseFilter.acceptedAt, claimedAt);
+    assert.equal(claimedAt instanceof Date, true);
     assert.equal(releaseUpdate.$set.acceptedAt, null);
   });
 });

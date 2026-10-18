@@ -102,9 +102,17 @@ async function activateSubscription(subscription, payment, eventAt = null) {
     }).select("+providerEventAt");
     return alreadyApplied || null;
   } catch (error) {
-    // A stale or unordered event can fail an upsert against the unique user
-    // index when a newer subscription record already exists. Ignore that
-    // event instead of retrying it forever.
+    // A concurrent delivery may have won the unique-user upsert. Recover
+    // post-transition work only if the exact event's active state was applied.
+    if (error?.code === 11000 && eventAt) {
+      return await UserSubscription.findOne({
+        user: payment.user,
+        provider: "razorpay",
+        providerSubscriptionId: subscription.id,
+        status: "active",
+        providerEventAt: eventAt
+      }).select("+providerEventAt");
+    }
     if (error?.code === 11000) return null;
     throw error;
   }

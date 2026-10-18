@@ -63,4 +63,5 @@ test("unknown roles and permissions fail closed", () => {
 test("explicit overrides can add a catalogued permission but cannot make unknown role valid", () => {
   assert.equal(hasAdminPermission("support_manager", "refunds.manage", ["refunds.manage"]), true);
   assert.equal(hasAdminPermission("unknown", "refunds.manage", ["refunds.manage"]), false);
+  assert.equal(hasAdminPermission("support_manager", "not.registered", ["not.registered"]), false);
 });

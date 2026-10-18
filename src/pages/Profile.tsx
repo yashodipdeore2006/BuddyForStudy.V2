@@ -135,7 +135,7 @@ export default function Profile() {
               <p className="mt-2 flex items-center gap-2 text-sm text-slate-300"><Mail className="h-4 w-4" />{session?.user.email || "Email unavailable"}</p>
               <p className="mt-2 text-xs text-slate-400">{profile.role === "admin" ? "Administrator account" : "BuddyForStudy learner"} · ID {profile.id}</p>
             </div>
-            <Link to="/settings" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15">
+            <Link to="#security" className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/15">
               <Settings2 className="h-4 w-4" /> Account settings
             </Link>
           </div>

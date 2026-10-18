@@ -1285,8 +1285,8 @@ export async function reconcileRefund(req, res, next) {
 
     let refund = await RefundRequest.findById(req.params.refundId);
     if (!refund) return failure(res, "Refund request not found", 404);
-    if (refund.status === "processed") return failure(res, "This refund is already reconciled.", 409);
-    if (refund.status !== "approved") {
+    const alreadyProcessed = refund.status === "processed";
+    if (!alreadyProcessed && refund.status !== "approved") {
       return failure(res, "Only refunds awaiting provider reconciliation can use this action.", 409);
     }
 
@@ -1311,6 +1311,23 @@ export async function reconcileRefund(req, res, next) {
     }
 
     const providerStatus = String(providerRefund?.status || "").toLowerCase();
+
+    // If the refund record was committed but the subsequent payment update
+    // failed, allow the same verified provider refund to repair the payment
+    // status instead of leaving an irreversible partial write stuck forever.
+    if (alreadyProcessed) {
+      if (refund.providerRefundId !== providerRefundId || providerStatus !== "processed") {
+        return failure(res, "This refund is already processed. Its provider reference cannot be changed.", 409);
+      }
+      const remainingAfterAllRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
+      const expectedPaymentStatus = remainingAfterAllRefunds <= 0 ? "refunded" : "partially_refunded";
+      if (payment.status !== expectedPaymentStatus) {
+        payment.status = expectedPaymentStatus;
+        await payment.save();
+      }
+      return success(res, { refund, payment, providerStatus, paymentStatusRepaired: true }, "Previously processed refund verified; payment status reconciled");
+    }
+
     reconciliationToken = crypto.randomUUID();
     reconciliationRefundId = String(refund._id);
     const leaseCutoff = new Date(Date.now() - 10 * 60 * 1000);
@@ -1355,8 +1372,10 @@ export async function reconcileRefund(req, res, next) {
       refund.processedBy = req.user.user?._id || req.user.userId;
       refund.adminNote = [refund.adminNote, "Provider refund verified during reconciliation."].filter(Boolean).join("\n").slice(0, 2000);
       payment.status = refund.amount >= remainingAmount ? "refunded" : "partially_refunded";
-      await payment.save();
+      // Persist the provider-confirmed refund first. If the payment write fails,
+      // the idempotent processed-refund path above repairs payment status on retry.
       await refund.save();
+      await payment.save();
 
       try {
         await createNotificationEvent({

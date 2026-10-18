@@ -141,4 +141,27 @@ test("MongoDB enforces webhook event uniqueness and subscription event ordering"
     status: "open"
   });
   assert.ok(followUpIssue._id);
+
+  // The role-governance lease uses a unique setting key and an atomic upsert.
+  // Concurrent app instances must not both acquire the same lock.
+  const { PlatformSetting } = await import("../src/models/PlatformSetting.js");
+  const PlatformSettingModel = connection.model("PlatformSetting", PlatformSetting.schema);
+  await PlatformSettingModel.init();
+  const lockNow = new Date();
+  const lockAttempts = await Promise.allSettled(["role_lock_a", "role_lock_b"].map((token) =>
+    PlatformSettingModel.findOneAndUpdate(
+      {
+        key: "internal_admin_role_change_lock",
+        $or: [
+          { "value.expiresAt": { $exists: false } },
+          { "value.expiresAt": null },
+          { "value.expiresAt": { $lte: lockNow } }
+        ]
+      },
+      { $set: { value: { token, expiresAt: new Date(lockNow.getTime() + 120000) } } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    )
+  ));
+  assert.equal(lockAttempts.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(lockAttempts.filter((result) => result.status === "rejected" && result.reason?.code === 11000).length, 1);
 });

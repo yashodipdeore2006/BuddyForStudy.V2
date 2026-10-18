@@ -32,6 +32,10 @@ test("audience targeting rejects impossible progress ranges and invalid date ran
   assert.throws(() => validateAdminAudienceInput({ filters: { registeredAfter: "2026-10-20", registeredBefore: "2026-10-01" } }), /cannot be later/i);
 });
 
+test("audience targeting rejects invalid inactivity windows", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { inactiveDays: 0 } }), /inactiveDays must be an integer/i);
+});
+
 test("audience targeting validates subscription and course filter identifiers", () => {
   assert.throws(() => validateAdminAudienceInput({ filters: { planId: "bad-id" } }), /Invalid planId/i);
   assert.throws(() => validateAdminAudienceInput({ filters: { courseId: "bad-id" } }), /Invalid courseId/i);

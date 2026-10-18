@@ -61,6 +61,11 @@ function normalizeFilters(input = {}) {
     if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("progressMin must be between 0 and 100");
     filters.progressMin = n;
   }
+  if (input.inactiveDays !== undefined && input.inactiveDays !== "") {
+    const days = Number(input.inactiveDays);
+    if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error("inactiveDays must be an integer between 1 and 365");
+    filters.inactiveDays = days;
+  }
   if (input.progressMax !== undefined && input.progressMax !== "") {
     const n = Number(input.progressMax);
     if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("progressMax must be between 0 and 100");
@@ -144,6 +149,12 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
     const enrollments = await Enrollment.find(enrollmentQuery).select("user").lean();
     const enrollmentUserIds = enrollments.map((item) => item.user);
     query._id = query._id ? { $in: enrollmentUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: enrollmentUserIds };
+  }
+
+  if (normalized.inactiveDays) {
+    const cutoff = new Date(Date.now() - normalized.inactiveDays * 24 * 60 * 60 * 1000);
+    const recentlyActive = await Progress.distinct("user", { lastAccessedAt: { $gte: cutoff } });
+    query.$and = [...(query.$and || []), { _id: { $nin: recentlyActive } }];
   }
 
   if (normalized.progressMin !== undefined || normalized.progressMax !== undefined) {

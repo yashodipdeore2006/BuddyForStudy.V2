@@ -620,3 +620,35 @@ html[data-theme="dark"] .btn-primary,
 html[data-theme="dark"] .btn-buy { color: #fff; background: var(--bfs-ai-action); }
 html[data-theme="dark"] .btn-primary:hover,
 html[data-theme="dark"] .btn-buy:hover { background: #6d28d9; }
+
+
+/* Feature-upgrade modal: selected card follows pointer and keyboard focus in both themes. */
+.bfs-plan-option { outline: none; }
+.bfs-plan-option:focus-visible { outline: 3px solid rgba(139,92,246,.72); outline-offset: 3px; }
+html[data-theme="dark"] .bfs-upgrade-modal { color: #e5e7ff; background: #171b38; border-color: #34305b; }
+html[data-theme="dark"] .bfs-upgrade-modal > header {
+  background: radial-gradient(circle at 88% 10%, rgba(139,92,246,.22), transparent 18rem), #171b38 !important;
+  border-color: #34305b !important;
+}
+html[data-theme="dark"] .bfs-upgrade-modal > footer { background: #171b38 !important; border-color: #34305b !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .text-violet-700,
+html[data-theme="dark"] .bfs-upgrade-modal .text-violet-600 { color: #c4b5fd !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .bfs-plan-option {
+  background: #1e2447 !important; border-color: #343a61 !important; box-shadow: none;
+}
+html[data-theme="dark"] .bfs-upgrade-modal .bfs-plan-option:hover {
+  background: #252344 !important; border-color: #7160b3 !important;
+}
+html[data-theme="dark"] .bfs-upgrade-modal .bfs-plan-option--selected {
+  background: #29244f !important; border-color: #a78bfa !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.18); ring-color: #a78bfa;
+}
+html[data-theme="dark"] .bfs-upgrade-modal .bfs-plan-option h3,
+html[data-theme="dark"] .bfs-upgrade-modal .text-slate-950 { color: #f7f7ff !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .text-slate-600,
+html[data-theme="dark"] .bfs-upgrade-modal .text-slate-500 { color: #b6bdd9 !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .border-slate-200 { border-color: #343a61 !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .bg-white { background-color: #171b38 !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .bg-violet-50\/80 { background-color: #29244f !important; }
+html[data-theme="dark"] .bfs-upgrade-modal .bg-violet-50 { background-color: #252344 !important; }
+html[data-theme="dark"] .bfs-upgrade-modal button[aria-label="Close plan selection"] { background: #1e2447 !important; color: #cbd0e7 !important; border-color: #343a61 !important; }

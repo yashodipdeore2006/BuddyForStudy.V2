@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { acceptInvitation, createInvitation, revokeInvitation } from "../src/controllers/adminInvitations.controller.js";
 import { AdminInvitation } from "../src/models/AdminInvitation.js";
 import { AuditLog } from "../src/models/AuditLog.js";
+import { AuditOutbox } from "../src/models/AuditOutbox.js";
 import { User } from "../src/models/User.js";
 
 function makeResponse() {
@@ -386,7 +387,8 @@ test("acceptance does not report failure after account creation if audit logging
         hashPassword: async () => "hashed-password",
         create: async () => user
       }],
-      [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }]
+      [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }],
+      [AuditOutbox, { create: async (entry) => { assert.equal(entry.status, "pending"); assert.equal(entry.event.action, "admin.invitation.accepted"); } }]
     ], async () => {
       const res = makeResponse();
       let forwardedError;
@@ -395,7 +397,8 @@ test("acceptance does not report failure after account creation if audit logging
       assert.equal(res.result.statusCode, 201);
       assert.equal(res.result.body.success, true);
       assert.equal(res.result.body.auditLogRecorded, false);
-      assert.match(res.result.body.message, /audit event could not be recorded/i);
+      assert.equal(res.result.body.auditQueued, true);
+      assert.match(res.result.body.message, /queued for retry/i);
       assert.equal(errorLogCalls, 1);
     });
   } finally {

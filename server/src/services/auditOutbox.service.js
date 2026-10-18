@@ -34,6 +34,13 @@ export async function processPendingAuditOutbox(limit = 100, now = new Date()) {
   let processed = 0;
   let failures = 0;
 
+  // Recover work abandoned by a worker crash. Idempotent event IDs make
+  // replay safe even if the audit write succeeded before the crash.
+  await AuditOutbox.updateMany(
+    { status: "processing", lockedAt: { $lt: new Date(now.getTime() - 5 * 60 * 1000) } },
+    { $set: { status: "pending", lockedAt: null } }
+  );
+
   for (let index = 0; index < batchSize; index += 1) {
     const item = await AuditOutbox.findOneAndUpdate(
       { status: "pending", nextAttemptAt: { $lte: now } },

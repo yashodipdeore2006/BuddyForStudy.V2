@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { mailRecipientAccepted } from "./notificationDeliveryOutcomes.js";
+import { mailRecipientAccepted, summarizeNotificationDeliveryOutcomes } from "./notificationDeliveryOutcomes.js";
 import { env } from "../config/env.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
@@ -521,10 +521,7 @@ export async function deliverPendingNotificationEmails(limit = 50) {
     $or: [{ emailLastAttemptAt: null }, { emailLastAttemptAt: { $lte: retryBefore } }]
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
   const outcomes = await Promise.all(pending.map((item) => dispatchEmail(item._id)));
-  return {
-    attempted: outcomes.filter((item) => item?.status !== "not_attempted").length,
-    failures: outcomes.filter((item) => ["failed", "retrying"].includes(item?.status) || item?.partialFailure).length
-  };
+  return summarizeNotificationDeliveryOutcomes(outcomes);
 }
 
 export async function deliverPendingNotificationPush(limit = 50) {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus } from "../src/services/refundBalance.service.js";
+import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
 
@@ -78,4 +78,12 @@ test("provider refund status never treats pending or unknown states as processed
   assert.equal(classifyProviderRefundStatus("created"), "pending");
   assert.equal(classifyProviderRefundStatus(""), "pending");
   assert.equal(classifyProviderRefundStatus(undefined), "pending");
+});
+
+test("payment status can be repaired from aggregate confirmed refund balance", () => {
+  assert.equal(paymentStatusForRemainingBalance(70), "partially_refunded");
+  assert.equal(paymentStatusForRemainingBalance(0), "refunded");
+  assert.equal(paymentStatusForRemainingBalance(-0.001), "refunded");
+  assert.equal(paymentStatusForRemainingBalance(0.00000001), "refunded");
+  assert.equal(paymentStatusForRemainingBalance("invalid"), "refunded");
 });

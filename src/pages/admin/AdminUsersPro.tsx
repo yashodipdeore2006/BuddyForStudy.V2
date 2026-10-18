@@ -51,7 +51,7 @@ export default function AdminUsersPro() {
   const [savedViews, setSavedViews] = useState<SavedUserView[]>(() => {
     try {
       const parsed = JSON.parse(window.localStorage.getItem(savedViewStorageKey) || "[]");
-      return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item.id === "string" && typeof item.name === "string") : [];
+      return Array.isArray(parsed) ? parsed.filter((item): item is SavedUserView => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.q === "string" && typeof item.status === "string" && typeof item.role === "string" && typeof item.authProvider === "string" && [25, 50, 100].includes(item.pageSize) && ["compact", "comfortable"].includes(item.density) && ["asc", "desc"].includes(item.sortOrder) && typeof item.sortBy === "string") : [];
     } catch {
       return [];
     }
@@ -117,6 +117,10 @@ export default function AdminUsersPro() {
     const name = viewName.trim();
     if (!name) {
       setError("Enter a name for this saved view.");
+      return;
+    }
+    if (savedViews.some((view) => view.name.toLowerCase() === name.toLowerCase())) {
+      setError("A saved view with that name already exists.");
       return;
     }
     if (savedViews.length >= 8) {

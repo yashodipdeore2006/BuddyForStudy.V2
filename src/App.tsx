@@ -3,6 +3,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import FeatureUpgradeModal from '@/components/FeatureUpgradeModal';
 import Home from '@/pages/Home';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
@@ -38,7 +39,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
   const isAdmin = pathname.startsWith('/admin');
-  return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}</div>;
+  return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /></div>;
 }
 
 function AdminPage({ children }: { children: React.ReactNode }) {

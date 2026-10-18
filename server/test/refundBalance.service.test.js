@@ -23,6 +23,18 @@ test("refund amount defaults to the remaining balance and rejects invalid or exc
   assert.equal(validateRefundAmount("abc", 75).valid, false);
   assert.equal(validateRefundAmount(76, 75).valid, false);
   assert.equal(validateRefundAmount(1, 0).valid, false);
+  assert.deepEqual(validateRefundAmount(0.001, 75), {
+    valid: false,
+    amount: 0,
+    message: "Refund amount must be at least 0.01."
+  });
+  assert.deepEqual(validateRefundAmount(25.554, 25.55), { valid: true, amount: 25.55 });
+  assert.equal(validateRefundAmount(25.555, 25.55).valid, false);
+  assert.deepEqual(validateRefundAmount(0.01, 0.009), {
+    valid: false,
+    amount: 0,
+    message: "Refund amount cannot exceed the remaining refundable balance of 0.01."
+  });
 });
 
 test("refund request schema enforces one active refund claim per payment", () => {

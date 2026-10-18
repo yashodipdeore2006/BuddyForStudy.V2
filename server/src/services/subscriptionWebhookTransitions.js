@@ -6,7 +6,16 @@ export function subscriptionEventTimestamp(event) {
 }
 
 export function subscriptionEventFreshnessFilter(eventAt) {
-  if (!(eventAt instanceof Date) || Number.isNaN(eventAt.getTime())) return {};
+  if (!(eventAt instanceof Date) || Number.isNaN(eventAt.getTime())) {
+    // An event without a provider timestamp can update legacy records only;
+    // it must not overwrite a state already ordered by a timestamped event.
+    return {
+      $or: [
+        { providerEventAt: { $exists: false } },
+        { providerEventAt: null }
+      ]
+    };
+  }
   return {
     $or: [
       { providerEventAt: { $exists: false } },

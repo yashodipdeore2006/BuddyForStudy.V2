@@ -21,7 +21,7 @@ import { adminFetch } from "@/lib/adminApi";
 import { useAuth } from "@/context/AuthContext";
 import { AdminConfirmDialog, AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
 
-type SavedUserView = { id: string; name: string; q: string; status: string; role: string; authProvider: string; pageSize: number; density: "compact" | "comfortable"; sortBy: string; sortOrder: "asc" | "desc" };
+type SavedUserView = { id: string; name: string; q: string; status: string; role: string; authProvider: string; pageSize: number; density: "compact" | "comfortable"; sortBy: string; sortOrder: "asc" | "desc"; columns: string[] };
 
 function statusClass(active: boolean) {
   return active
@@ -48,10 +48,11 @@ export default function AdminUsersPro() {
     return [25, 50, 100].includes(value) ? value : 25;
   });
   const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(["access", "verification", "provider"]);
   const [savedViews, setSavedViews] = useState<SavedUserView[]>(() => {
     try {
       const parsed = JSON.parse(window.localStorage.getItem(savedViewStorageKey) || "[]");
-      return Array.isArray(parsed) ? parsed.filter((item): item is SavedUserView => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.q === "string" && typeof item.status === "string" && typeof item.role === "string" && typeof item.authProvider === "string" && [25, 50, 100].includes(item.pageSize) && ["compact", "comfortable"].includes(item.density) && ["asc", "desc"].includes(item.sortOrder) && typeof item.sortBy === "string") : [];
+      return Array.isArray(parsed) ? parsed.filter((item): item is SavedUserView => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.q === "string" && typeof item.status === "string" && typeof item.role === "string" && typeof item.authProvider === "string" && [25, 50, 100].includes(item.pageSize) && ["compact", "comfortable"].includes(item.density) && ["asc", "desc"].includes(item.sortOrder) && typeof item.sortBy === "string" && Array.isArray(item.columns) && item.columns.every((column: unknown) => ["access", "verification", "provider"].includes(String(column)))) : [];
     } catch {
       return [];
     }
@@ -141,6 +142,7 @@ export default function AdminUsersPro() {
       density,
       sortBy,
       sortOrder,
+      columns: visibleColumns,
     };
     setSavedViews((current) => [...current, saved]);
     setViewName("");
@@ -156,8 +158,9 @@ export default function AdminUsersPro() {
     setAuthProvider(view.authProvider);
     setPageSize(view.pageSize);
     setDensity(view.density);
-    setSortBy(view.sortBy || "createdAt");
-    setSortOrder(view.sortOrder === "asc" ? "asc" : "desc");
+    setSortBy(view.sortBy || "name");
+    setSortOrder(view.sortOrder === "desc" ? "desc" : "asc");
+    setVisibleColumns(Array.isArray(view.columns) ? view.columns.filter((column) => ["access", "verification", "provider"].includes(column)) : ["access", "verification", "provider"]);
     setPage(1);
   }
 
@@ -377,7 +380,7 @@ export default function AdminUsersPro() {
         <button type="button" className="admin-saved-view" aria-pressed={status === "disabled" && !role && !authProvider} onClick={() => { setStatus("disabled"); setRole(""); setAuthProvider(""); setPage(1); }}>Disabled</button>
         <button type="button" className="admin-saved-view" aria-pressed={role === "admin"} onClick={() => { setRole("admin"); setStatus(""); setPage(1); }}>Administrators</button>
         {savedViews.map((view) => <span className="admin-saved-view-item" key={view.id}>
-          <button type="button" className="admin-saved-view" aria-pressed={q === view.q && status === view.status && role === view.role && authProvider === view.authProvider && pageSize === view.pageSize && density === view.density} onClick={() => applySavedView(view)}>{view.name}</button>
+          <button type="button" className="admin-saved-view" aria-pressed={q === view.q && status === view.status && role === view.role && authProvider === view.authProvider && pageSize === view.pageSize && density === view.density && sortBy === view.sortBy && sortOrder === view.sortOrder && visibleColumns.slice().sort().join(",") === (view.columns || []).slice().sort().join(",")} onClick={() => applySavedView(view)}>{view.name}</button>
           <button type="button" className="admin-saved-view-remove" aria-label={"Delete saved view " + view.name} title={"Delete saved view " + view.name} onClick={() => removeSavedView(view.id)}><X size={12} /></button>
         </span>)}
         <button type="button" className="admin-saved-view admin-saved-view--action" onClick={() => setShowSaveView((value) => !value)}>+ Save current view</button>
@@ -426,6 +429,16 @@ export default function AdminUsersPro() {
           <label className="admin-page-size">Density
             <select aria-label="Table density" className="input-field" value={density} onChange={(event) => setDensity(event.target.value as "compact" | "comfortable")}><option value="compact">Compact</option><option value="comfortable">Comfortable</option></select>
           </label>
+          <details className="admin-column-chooser">
+            <summary>Columns</summary>
+            <div className="admin-column-chooser-menu">
+              {[
+                ["access", "Access"],
+                ["verification", "Verification"],
+                ["provider", "Provider"],
+              ].map(([key, label]) => <label key={key} className="admin-column-choice"><input type="checkbox" checked={visibleColumns.includes(key)} onChange={(event) => setVisibleColumns((current) => event.target.checked ? [...current, key] : current.filter((column) => column !== key))} />{label}</label>)}
+            </div>
+          </details>
         </div>
         <div className="admin-filter-summary">
           <div className="admin-active-filter-chips" aria-label="Active filters">
@@ -449,9 +462,9 @@ export default function AdminUsersPro() {
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
                   <th scope="col" aria-sort={sortBy === "name" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("name")}>User <span aria-hidden="true">{sortBy === "name" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
-                  <th scope="col" aria-sort={sortBy === "status" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("status")}>Access <span aria-hidden="true">{sortBy === "status" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
-                  <th scope="col" aria-sort={sortBy === "verification" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("verification")}>Verification <span aria-hidden="true">{sortBy === "verification" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
-                  <th scope="col" aria-sort={sortBy === "authProvider" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("authProvider")}>Provider <span aria-hidden="true">{sortBy === "authProvider" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
+                  {visibleColumns.includes("access") && <th scope="col" aria-sort={sortBy === "status" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("status")}>Access <span aria-hidden="true">{sortBy === "status" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
+                  {visibleColumns.includes("verification") && <th scope="col" aria-sort={sortBy === "verification" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("verification")}>Verification <span aria-hidden="true">{sortBy === "verification" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
+                  {visibleColumns.includes("provider") && <th scope="col" aria-sort={sortBy === "authProvider" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("authProvider")}>Provider <span aria-hidden="true">{sortBy === "authProvider" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
                   <th scope="col" className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -469,7 +482,7 @@ export default function AdminUsersPro() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-4">
+                    {visibleColumns.includes("access") && <td className="px-5 py-4">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={"badge " + statusClass(Boolean(user.isActive))}>
                           {user.isActive ? "Active" : "Disabled"}
@@ -478,17 +491,17 @@ export default function AdminUsersPro() {
                           <span className="badge bg-purple-50 text-purple-700"><Shield className="mr-1 h-3 w-3 inline" />Admin</span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-5 py-4">
+                    </td>}
+                    {visibleColumns.includes("verification") && <td className="px-5 py-4">
                       {user.emailVerified ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700"><CheckCircle2 className="h-3.5 w-3.5" /> Verified</span>
                       ) : (
                         <span className="text-xs font-semibold text-amber-700">Pending</span>
                       )}
-                    </td>
-                    <td className="px-5 py-4 text-xs font-semibold capitalize text-slate-600">
+                    </td>}
+                    {visibleColumns.includes("provider") && <td className="px-5 py-4 text-xs font-semibold capitalize text-slate-600">
                       {user.authProvider === "local_google" ? "Email + Google" : user.authProvider === "google" ? "Google" : "Email + password"}
-                    </td>
+                    </td>}
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
                         <button type="button" className="btn-secondary text-xs" onClick={() => void openUser(user._id)}>
@@ -507,7 +520,7 @@ export default function AdminUsersPro() {
                     </td>
                   </tr>
                 ))}
-                {!users.length && <tr><td role="status" aria-live="polite" colSpan={5} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
+                {!users.length && <tr><td role="status" aria-live="polite" colSpan={2 + visibleColumns.length} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
               </tbody>
             </table>
           </AdminTableContainer>

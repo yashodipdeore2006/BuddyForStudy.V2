@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCcw, ShieldCheck, Users, Save, LockKeyhole, AlertTriangle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 import AdminInvitationManager from "@/pages/admin/AdminInvitationManager";
 
 type AdminRole = { key: string; label: string; description: string; permissions: string[] };
@@ -77,18 +78,14 @@ export default function AdminRoles() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
-            <ShieldCheck className="h-3.5 w-3.5" /> Access governance
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Administrator roles</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">Assign least-privilege role profiles. Changes are enforced by the API and recorded in the audit log.</p>
-        </div>
-        <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50">
+      <AdminPageHeader
+        eyebrow="Access governance"
+        title="Administrator roles"
+        description="Assign least-privilege role profiles. Changes are enforced by the API and recorded in the audit log."
+        actions={<button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary">
           <RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh
-        </button>
-      </header>
+        </button>}
+      />
 
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div>}

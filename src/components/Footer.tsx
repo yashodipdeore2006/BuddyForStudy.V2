@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_.7fr_.7fr]">
         <div>
           <Link to="/" className="inline-flex items-center gap-3" aria-label="BuddyForStudy home">
-            <span className="bfs-brand-mark h-11 w-11 overflow-hidden"><img src="/buddyforstudy-mascot.svg" alt="" aria-hidden="true" className="h-10 w-10 object-contain" /></span>
+            <span className="bfs-brand-mark h-11 w-11 overflow-hidden"><img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" className="h-10 w-10 object-contain" /></span>
             <span className="bfs-brand-wordmark text-lg">Buddy<span className="brand-accent">For</span>Study</span>
           </Link>
           <p className="mt-4 max-w-sm text-sm leading-6 text-slate-600">Your AI-powered learning companion. Turn ambitious goals into structured paths, practical projects and visible progress.</p>

@@ -11,6 +11,7 @@ import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Notification } from "../models/Notification.js";
 import { Announcement } from "../models/Announcement.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
+import { getRemainingRefundableAmount } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
@@ -75,7 +76,7 @@ async function notificationAudienceUsers(audience) {
   if (audience === "active") return User.find({ isActive: true }).select("_id");
   if (audience === "subscribers") {
     const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
-    return User.find({ _id: { $in: subs.map(s => s.user) }, isActive: true }).select("_id");
+    // Subscription audiences include inactive accounts too: account activity must not suppress admin communications.\n    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id");
   }
   return User.find({}).select("_id");
 }
@@ -1127,6 +1128,11 @@ export async function updateRefund(req, res, next) {
       refund.processedAt = new Date();
     } else if (req.body.status === "approved" || req.body.status === "processed") {
       if (refund.status === "processed") return failure(res, "Refund is already processed", 409);
+      if (refund.status === "rejected") return failure(res, "Rejected refund requests cannot be processed", 409);
+      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
+      if (refund.amount > remainingAmount || remainingAmount <= 0) {
+        return failure(res, "Refund exceeds the remaining refundable balance for this payment.", 409);
+      }
       if (payment.provider !== "razorpay" || !payment.providerPaymentId) {
         return failure(res, "Refund cannot be processed because the payment provider reference is missing", 400);
       }
@@ -1140,7 +1146,7 @@ export async function updateRefund(req, res, next) {
       refund.providerRefundId = providerRefund.id || "";
       refund.processedAt = new Date();
 
-      const isFullRefund = refund.amount >= payment.amount;
+      const isFullRefund = refund.amount >= remainingAmount;
       payment.status = isFullRefund ? "refunded" : "partially_refunded";
       await payment.save();
     }

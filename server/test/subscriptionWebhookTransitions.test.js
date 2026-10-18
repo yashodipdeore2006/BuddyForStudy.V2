@@ -18,9 +18,9 @@ test("missing or invalid provider timestamps only permit updates to legacy untra
   assert.deepEqual(subscriptionEventFreshnessFilter(new Date("invalid")), legacyOnlyFilter);
 });
 
-test("subscription update filter only accepts strictly newer events and rejects same-second ambiguity", () => {
+test("subscription update filter accepts strictly newer events and exact retries only", () => {
   const eventAt = new Date("2026-10-18T12:00:00.000Z");
-  assert.deepEqual(subscriptionEventFreshnessFilter(eventAt), {
+  assert.deepEqual(subscriptionEventFreshnessFilter(eventAt, "evt_new", "subscription.activated"), {
     $or: [
       { providerEventAt: { $exists: false } },
       { providerEventAt: null },
@@ -29,15 +29,18 @@ test("subscription update filter only accepts strictly newer events and rejects 
   });
 });
 
-test("same-second provider events use first-applied-wins semantics", () => {
+test("same-second different events are rejected but exact retries are eligible", () => {
   const firstEventAt = subscriptionEventTimestamp({ created_at: 1792324800 });
   const sameSecondEventAt = subscriptionEventTimestamp({ created_at: 1792324800 });
   assert.equal(firstEventAt.getTime(), sameSecondEventAt.getTime());
-  assert.deepEqual(subscriptionEventFreshnessFilter(sameSecondEventAt), {
-    $or: [
-      { providerEventAt: { $exists: false } },
-      { providerEventAt: null },
-      { providerEventAt: { $lt: firstEventAt } }
-    ]
-  });
+  const differentEvent = subscriptionEventFreshnessFilter(sameSecondEventAt, "evt-cancel", "subscription.cancelled");
+  assert.equal(differentEvent.$or.some((clause) => clause.providerEventId === "evt-cancel"), true);
+  assert.equal(differentEvent.$or.some((clause) => clause.providerEventId === "evt-activate"), false);
+
+  const exactRetry = subscriptionEventFreshnessFilter(firstEventAt, "evt-activate", "subscription.activated");
+  assert.equal(exactRetry.$or.some((clause) =>
+    clause.providerEventAt?.getTime?.() === firstEventAt.getTime() &&
+    clause.providerEventId === "evt-activate" &&
+    clause.providerEventName === "subscription.activated"
+  ), true);
 });

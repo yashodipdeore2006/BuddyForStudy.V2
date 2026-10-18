@@ -7,6 +7,7 @@ import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
 import { createNotificationEvent } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
+import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../services/paymentWebhookTransitions.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -149,7 +150,7 @@ export async function razorpayWebhook(req, res, next) {
           {
             provider: "razorpay",
             providerOrderId: orderId,
-            status: { $in: ["created", "pending", "failed"] },
+            status: { $in: CAPTURED_PAYMENT_SOURCE_STATUSES },
             course: { $ne: null }
           },
           {
@@ -253,7 +254,7 @@ export async function razorpayWebhook(req, res, next) {
       }
     } else if (event.event === "payment.failed" && orderId) {
       const failedPayment = await Payment.findOneAndUpdate(
-        { provider: "razorpay", providerOrderId: orderId, status: { $in: ["created", "pending"] } },
+        { provider: "razorpay", providerOrderId: orderId, status: { $in: FAILED_PAYMENT_SOURCE_STATUSES } },
         { $set: { status: "failed", providerPaymentId: paymentEntity?.id || "" } },
         { new: true }
       );

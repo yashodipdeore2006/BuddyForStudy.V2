@@ -32,6 +32,7 @@ import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdm
 import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
+import { getAdminPermissions } from "../utils/adminRbac.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Bound and redact snapshots centrally so future audit callers cannot accidentally persist secrets.
@@ -106,14 +107,28 @@ export async function overview(req, res, next) {
       ])
     ]);
 
+    const permissions = new Set(getAdminPermissions(req.user?.adminRole || "platform_admin", req.user?.adminPermissionOverrides || []));
+    const canUsers = permissions.has("users.read");
+    const canCourses = permissions.has("courses.read");
+    const canBilling = permissions.has("billing.read");
+    const canRefunds = permissions.has("refunds.manage");
+    const canAudit = permissions.has("audit.read");
+    const canRoles = permissions.has("admin_roles.manage");
+    const canOperations = permissions.has("operations.read");
+    const stats = {};
+    if (canUsers) Object.assign(stats, { users, activeUsers });
+    if (canRoles) Object.assign(stats, { admins });
+    if (canCourses) Object.assign(stats, { courses, published, unpublished, emptyCourses, enrollments });
+    if (canBilling) Object.assign(stats, { activeSubscribers, pastDueSubscribers, revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)), failedPayments });
+    if (canRefunds) Object.assign(stats, { pendingRefunds });
+    if (canOperations) Object.assign(stats, { unread });
+
     return success(res, {
-      stats: {
-        users, activeUsers, admins, courses, published, unpublished, emptyCourses,
-        enrollments, activeSubscribers, pastDueSubscribers,
-        revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)),
-        failedPayments, pendingRefunds, unread
-      },
-      recentUsers, recentPayments, recentAudit, topCourses
+      stats,
+      recentUsers: canUsers ? recentUsers : [],
+      recentPayments: canBilling ? recentPayments : [],
+      recentAudit: canAudit ? recentAudit : [],
+      topCourses: canCourses ? topCourses : [],
     });
   } catch (e) { next(e); }
 }

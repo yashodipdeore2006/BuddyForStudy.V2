@@ -152,3 +152,28 @@ A permission is checked on the backend for every protected endpoint. Frontend vi
 - Super Admin is the only profile allowed to assign administrator profiles.
 - Role assignment and sensitive actions are auditable.
 - All CI jobs pass on the final `test` branch head; `main` remains untouched.
+
+
+## Implementation status — 2026-10-18
+
+### Implemented on `test`
+- Six administrator role profiles and the permission catalogue, with backend checks on both admin routers.
+- Super Admin role-profile assignment for existing administrator accounts, audit events, self-role-change protection and last-active-Super-Admin protection.
+- Permission-aware admin navigation and dashboard sections, including role-scoped overview data.
+- Finance UI action gates for plan and coupon mutations; billing/refund console is limited to refund-capable administrators.
+- Dedicated AI & Learning Content console for AI generation limits and YouTube discovery settings. The discovery service now consumes the configured module cap, per-query result count, global duration bounds, Shorts policy and embedding policy.
+- Dedicated Support Cases console for payment/access issue investigation and status updates. The note field is explicitly a learner-visible update, not an internal-only note.
+- Read-only platform settings views no longer return setting values to administrators without `settings.manage`.
+- Regression tests cover role profiles and permission boundaries.
+
+### Still outstanding before calling the admin system production-complete
+- Admin invitation/provisioning UI and an approved account activation/password setup workflow. Current role assignment changes profiles for accounts that are already administrators.
+- Automated integration tests that exercise every admin endpoint with all six profiles against a test database.
+- Browser smoke tests for each role, including mobile navigation and direct URL access.
+- Review the existing generic platform-setting catalogue for any additional values that should be hidden even from read-only metadata viewers.
+- Verify AI setting values against production usage/cost limits and confirm YouTube API quota behavior before enabling high search-result caps.
+- Final deployed environment smoke test and security review.
+
+### Current verification
+- Backend unit tests and JavaScript syntax checks pass on the recent CI run for this implementation.
+- Frontend typecheck and build are being re-run after the latest permission-aware UI changes; do not mark the final branch head fully verified until that workflow finishes successfully.

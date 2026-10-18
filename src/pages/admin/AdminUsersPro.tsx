@@ -372,7 +372,7 @@ export default function AdminUsersPro() {
         <input id="admin-save-user-view" className="input-field" value={viewName} maxLength={40} onChange={(event) => setViewName(event.target.value)} placeholder="e.g. Unverified administrators" required />
         <button type="submit" className="btn-primary">Save view</button>
         <button type="button" className="btn-secondary" onClick={() => { setShowSaveView(false); setViewName(""); }}>Cancel</button>
-      </form>
+      </form>}
       <AdminFilterBar className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative xl:col-span-2">

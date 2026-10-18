@@ -1472,7 +1472,7 @@ export async function previewNotificationAudience(req, res, next) {
   try {
     validateAdminAudienceInput(req.body || {});
     const users = await resolveAdminAudience(req.body || {}, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
-    const truncated = users.length >= 5000;
+    const truncated = users.length > 5000;
     return success(res, {
       recipientCount: truncated ? 5000 : users.length,
       truncated,

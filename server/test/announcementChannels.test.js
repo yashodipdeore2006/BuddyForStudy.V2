@@ -5,10 +5,11 @@ import { parseAnnouncementChannels } from "../src/utils/announcementChannels.js"
 test("announcement channel defaults to in-app", () => {
   assert.deepEqual(parseAnnouncementChannels(undefined), ["in_app"]);
   assert.deepEqual(parseAnnouncementChannels("email"), ["email"]);
+  assert.deepEqual(parseAnnouncementChannels("push"), ["push"]);
 });
 
 test("channel list is deduplicated", () => {
-  assert.deepEqual(parseAnnouncementChannels(["email", "email", "in_app"]), ["email", "in_app"]);
+  assert.deepEqual(parseAnnouncementChannels(["email", "email", "in_app", "push", "push"]), ["email", "in_app", "push"]);
 });
 
 test("empty and unsupported channel selections are rejected", () => {

@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel } from '@/types';
 import CourseCard from '@/components/CourseCard';
+import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
@@ -622,11 +623,7 @@ export default function Courses() {
 
           {loading ? (
             <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {[0, 1, 2].map((item) => (
-                  <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-                ))}
-              </div>
+              <CourseGridSkeleton count={6} />
             </div>
           ) : (
             <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">

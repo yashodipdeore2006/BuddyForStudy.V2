@@ -7,6 +7,8 @@ const userSubscriptionSchema = new mongoose.Schema({
   provider: { type: String, enum: ["razorpay", "stripe", "manual", "other"], default: "manual" },
   providerSubscriptionId: { type: String, default: "" },
   providerEventAt: { type: Date, default: null, select: false },
+  providerEventId: { type: String, default: "", select: false },
+  providerEventName: { type: String, default: "", select: false },
   currentPeriodStart: { type: Date, default: Date.now },
   currentPeriodEnd: { type: Date, default: null },
   cancelAtPeriodEnd: { type: Boolean, default: false },

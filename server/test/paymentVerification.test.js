@@ -55,3 +55,19 @@ test("provider currency comparison is case-insensitive but must match", () => {
     "Payment currency mismatch"
   );
 });
+
+import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../src/services/paymentWebhookTransitions.js";
+
+test("captured webhooks can recover failed attempts but never rewrite refunded payments", () => {
+  assert.deepEqual(CAPTURED_PAYMENT_SOURCE_STATUSES, ["created", "pending", "failed"]);
+  for (const terminalStatus of ["paid", "refunded", "partially_refunded", "cancelled"]) {
+    assert.equal(CAPTURED_PAYMENT_SOURCE_STATUSES.includes(terminalStatus), false);
+  }
+});
+
+test("failed webhooks cannot overwrite successful or refunded payment states", () => {
+  assert.deepEqual(FAILED_PAYMENT_SOURCE_STATUSES, ["created", "pending"]);
+  for (const protectedStatus of ["paid", "failed", "refunded", "partially_refunded", "cancelled"]) {
+    assert.equal(FAILED_PAYMENT_SOURCE_STATUSES.includes(protectedStatus), false);
+  }
+});

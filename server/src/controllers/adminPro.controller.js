@@ -1568,14 +1568,36 @@ export async function updatePaymentIssue(req, res, next) {
     const allowedStatuses = ["open", "in_review", "resolved", "closed"];
     if (!allowedStatuses.includes(status)) return failure(res, "Invalid issue status", 400);
     const adminNote = typeof req.body?.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : "";
-    const issue = await PaymentIssue.findById(req.params.issueId);
-    if (!issue) return failure(res, "Payment issue not found", 404);
-    const before = { status: issue.status, adminNote: issue.adminNote };
-    issue.status = status;
-    issue.adminNote = adminNote;
-    issue.resolvedAt = ["resolved", "closed"].includes(status) ? new Date() : null;
-    issue.resolvedBy = ["resolved", "closed"].includes(status) ? (req.user.user?._id || req.user.userId) : null;
-    await issue.save();
+    const currentIssue = await PaymentIssue.findById(req.params.issueId);
+    if (!currentIssue) return failure(res, "Payment issue not found", 404);
+    if (["resolved", "closed"].includes(currentIssue.status) && status !== currentIssue.status) {
+      return failure(res, "Resolved or closed payment issues cannot be reopened. Create a new report if further help is needed.", 409);
+    }
+    const before = { status: currentIssue.status, adminNote: currentIssue.adminNote };
+    const nowResolved = ["resolved", "closed"].includes(status);
+    let issue;
+    try {
+      issue = await PaymentIssue.findOneAndUpdate(
+        { _id: currentIssue._id, status: currentIssue.status },
+        {
+          $set: {
+            status,
+            adminNote,
+            resolvedAt: nowResolved ? (currentIssue.resolvedAt || new Date()) : null,
+            resolvedBy: nowResolved ? (currentIssue.resolvedBy || req.user.user?._id || req.user.userId) : null,
+            ...(nowResolved ? {} : { activePaymentKey: currentIssue.payment })
+          },
+          ...(nowResolved ? { $unset: { activePaymentKey: "" } } : {})
+        },
+        { new: true, runValidators: true }
+      );
+    } catch (updateError) {
+      if (updateError?.code === 11000) {
+        return failure(res, "Another active report already exists for this payment.", 409);
+      }
+      throw updateError;
+    }
+    if (!issue) return failure(res, "This payment issue was updated by another administrator. Refresh and try again.", 409);
     await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote }, "Admin updated payment issue report");
     await createNotificationEvent({
       userId: String(issue.user),

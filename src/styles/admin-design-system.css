@@ -244,7 +244,7 @@
 .admin-shell .rounded-md { border-radius: var(--r-sm) !important; }
 .admin-shell .shadow, .admin-shell .shadow-sm, .admin-shell .shadow-md, .admin-shell .shadow-lg, .admin-shell .shadow-xl { box-shadow: none !important; }
 .admin-shell .admin-content table { width: 100%; border-collapse: separate; border-spacing: 0; }
-.admin-shell .admin-content th { position: sticky; top: var(--topbar-h); z-index: var(--z-sticky); padding: var(--s-3); border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-align: left; }
+.admin-shell .admin-content th { position: sticky; top: 0; z-index: var(--z-sticky); padding: var(--s-3); border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-align: left; }
 .admin-shell .admin-content td { padding: var(--s-3); border-bottom: 1px solid var(--border); color: var(--text-2); }
 .admin-shell .admin-content tr:hover td { background: var(--surface-2); }
 .admin-shell .admin-content input[type="checkbox"], .admin-shell .admin-content input[type="radio"] { accent-color: var(--accent); }

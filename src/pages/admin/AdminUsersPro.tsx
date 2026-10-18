@@ -432,10 +432,10 @@ export default function AdminUsersPro() {
             <table className={"w-full text-sm admin-users-table admin-users-table--" + density}>
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th scope="col" className="px-5 py-3 text-left">User</th>
-                  <th scope="col" className="px-5 py-3 text-left">Access</th>
-                  <th scope="col" className="px-5 py-3 text-left">Verification</th>
-                  <th scope="col" className="px-5 py-3 text-left">Provider</th>
+                  <th scope="col" aria-sort={sortBy === "name" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("name")}>User <span aria-hidden="true">{sortBy === "name" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
+                  <th scope="col" aria-sort={sortBy === "status" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("status")}>Access <span aria-hidden="true">{sortBy === "status" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
+                  <th scope="col" aria-sort={sortBy === "verification" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("verification")}>Verification <span aria-hidden="true">{sortBy === "verification" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
+                  <th scope="col" aria-sort={sortBy === "authProvider" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("authProvider")}>Provider <span aria-hidden="true">{sortBy === "authProvider" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
                   <th scope="col" className="px-5 py-3 text-right">Actions</th>
                 </tr>
               </thead>

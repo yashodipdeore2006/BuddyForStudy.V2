@@ -53,7 +53,40 @@ export async function details(req, res, next) {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await courseService.getPublished(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
-    return success(res, { course });
+
+    // The public details endpoint is a catalogue preview, not a lesson API.
+    // Never expose tutorial URLs/content, quiz answers, project briefs, or
+    // private lesson resources here; enrolled learners use the guarded learn routes.
+    const preview = {
+      _id: course._id,
+      title: course.title,
+      slug: course.slug,
+      description: course.description,
+      category: course.category,
+      level: course.level,
+      duration: course.duration,
+      thumbnail: course.thumbnail,
+      learningOutcomes: course.learningOutcomes || [],
+      isPublished: course.isPublished,
+      pricing: course.pricing,
+      enrollmentEnabled: course.enrollmentEnabled,
+      certificateEnabled: course.certificateEnabled,
+      featured: course.featured,
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+      modules: (course.modules || []).map((module) => ({
+        _id: module._id,
+        title: module.title,
+        order: module.order,
+        lessons: (module.lessons || []).map((lesson) => ({
+          _id: lesson._id,
+          title: lesson.title,
+          type: lesson.type,
+          order: lesson.order
+        }))
+      }))
+    };
+    return success(res, { course: preview });
   } catch (e) { next(e); }
 }
 

@@ -45,9 +45,9 @@ test("saved view creation validates fields before database writes", async () => 
 test("saved views list is scoped to owner and shared views and returns a bounded list", async () => {
   let query;
   const res = responseRecorder();
-  const chain = { limitValue: 0, sort() { return this; }, limit(value) { this.limitValue = value; return this; }, lean: async () => [] };
-  await withMocks([[SavedView, { find: (value) => { query = value; return chain; } }]], async () => {
-    await listSavedViews({ user: admin, query: { page: "users" } }, res, (error) => { throw error; });
+  const chain = { limitValue: 0, sort() { return this; }, skip() { return this; }, limit(value) { this.limitValue = value; return this; }, lean: async () => [] };
+  await withMocks([[SavedView, { find: (value) => { query = value; return chain; }, countDocuments: async () => 0 }]], async () => {
+    await listSavedViews({ user: admin, query: { pageKey: "users", page: "1", limit: "100" } }, res, (error) => { throw error; });
   });
   assert.equal(res.statusCode, 200);
   assert.equal(query.page, "users");

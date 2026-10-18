@@ -27,6 +27,9 @@ test("operational alerts enforce a unique key and track repeated occurrences ato
   assert.deepEqual(filter, { key: "notification-job-email-delivery-failure" });
   assert.equal(update.$set.severity, "critical");
   assert.equal(update.$set.status, "open");
+  assert.equal(update.$set.acknowledgedBy, null);
+  assert.equal(update.$set.acknowledgedAt, null);
+  assert.equal(update.$set.resolvedAt, null);
   assert.equal(update.$set.message.length, 1000);
   assert.ok(update.$set.lastSeenAt instanceof Date);
   assert.ok(update.$setOnInsert.firstSeenAt instanceof Date);

@@ -221,7 +221,7 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
 
   if (normalized.totalSpendMin !== undefined) {
     const spenders = await Payment.aggregate([
-      { $match: { status: "paid" } },
+      { $match: { status: "paid", currency: "INR" } },
       { $group: { _id: "$user", totalSpend: { $sum: "$amount" } } },
       { $match: { totalSpend: { $gte: normalized.totalSpendMin } } },
       { $project: { _id: 1 } }

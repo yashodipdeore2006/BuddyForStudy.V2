@@ -451,3 +451,8 @@
 .admin-shell .admin-confirm-field label { color: var(--text-2); font-size: var(--fs-sm); }
 .admin-shell .admin-confirm-field label strong { color: var(--text); }
 .admin-shell .admin-confirm-footer { display: flex; justify-content: flex-end; gap: var(--s-2); padding: var(--s-3) var(--s-5); border-top: 1px solid var(--border); }
+
+.admin-shell .admin-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-4); margin: var(--s-5) 0 var(--s-4); border-bottom: 1px solid var(--border); }
+.admin-shell .admin-tab { min-height: 44px; padding: 0 var(--s-2); border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--fs-md); font-weight: var(--fw-medium); }
+.admin-shell .admin-tab:hover { color: var(--text); background: transparent; }
+.admin-shell .admin-tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text); font-weight: var(--fw-semibold); }

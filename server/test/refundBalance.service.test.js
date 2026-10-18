@@ -33,6 +33,13 @@ test("refund request schema enforces one active refund claim per payment", () =>
   assert.equal(activeIndex[1].sparse, true);
 });
 
+test("refund reconciliation has private lease fields for concurrency control", () => {
+  assert.ok(RefundRequest.schema.path("reconciliationToken"));
+  assert.ok(RefundRequest.schema.path("reconciliationStartedAt"));
+  assert.equal(RefundRequest.schema.path("reconciliationToken").options.select, false);
+  assert.equal(RefundRequest.schema.path("reconciliationStartedAt").options.select, false);
+});
+
 test("payment issue schema enforces one active issue per payment", () => {
   const activeIndex = PaymentIssue.schema.indexes().find(([, options]) => options.name === "unique_active_payment_issue_per_payment");
   assert.ok(activeIndex, "Expected a unique active-payment-issue index");

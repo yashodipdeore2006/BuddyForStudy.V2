@@ -382,3 +382,6 @@
   .admin-shell .admin-pagination > button { flex: 1; }
   .admin-shell .admin-pagination-count { width: 100%; order: 3; text-align: center; }
 }
+
+.admin-shell .admin-main { height: 100vh; min-height: 0; overflow: hidden; }
+.admin-shell .admin-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }

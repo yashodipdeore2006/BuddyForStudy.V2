@@ -1,6 +1,5 @@
 import { User } from "../models/User.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
-import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";

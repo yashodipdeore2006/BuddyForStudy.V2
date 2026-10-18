@@ -141,7 +141,7 @@ export async function saveUserNotificationPreferences(userId, updates) {
 async function dispatchEmail(notificationId) {
   const mailer = getMailer();
   const platform = await getNotificationPlatformSettings();
-  if (!mailer || !platform.emailEnabled) return;
+  if (!mailer || !platform.emailEnabled) return { status: "skipped" };
   const filter = {
     _id: notificationId,
     emailStatus: "pending",
@@ -156,12 +156,12 @@ async function dispatchEmail(notificationId) {
     { $inc: { emailAttempts: 1 }, $set: { emailLastAttemptAt: new Date() } },
     { new: true }
   ).populate("user", "name email");
-  if (!notification) return;
+  if (!notification) return { status: "not_attempted" };
   if (!notification.user?.email) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "failed", emailError: "Recipient email is unavailable" }
     });
-    return;
+    return { status: "failed" };
   }
 
   const preferences = await getUserNotificationPreferences(notification.user._id);
@@ -171,7 +171,7 @@ async function dispatchEmail(notificationId) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "skipped", emailError: "Disabled by learner email preferences" }
     });
-    return;
+    return { status: "skipped" };
   }
 
   try {
@@ -194,11 +194,13 @@ async function dispatchEmail(notificationId) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "sent", emailSentAt: new Date(), emailError: "" }
     });
+    return { status: "sent" };
   } catch (error) {
     const attempts = Number(notification.emailAttempts || 1);
+    const terminal = attempts >= platform.emailRetryAttempts;
     await Notification.updateOne({ _id: notification._id }, {
       $set: {
-        emailStatus: attempts >= platform.emailRetryAttempts ? "failed" : "pending",
+        emailStatus: terminal ? "failed" : "pending",
         emailError: String(error?.message || "Email delivery failed").slice(0, 500)
       }
     });
@@ -207,6 +209,7 @@ async function dispatchEmail(notificationId) {
       attempt: attempts,
       message: String(error?.message || "Unknown mail error").slice(0, 200)
     });
+    return { status: terminal ? "failed" : "retrying" };
   }
 }
 
@@ -216,9 +219,9 @@ async function dispatchPush(notificationId) {
     await Notification.updateOne({ _id: notificationId, pushStatus: "pending" }, {
       $set: { pushStatus: "skipped", pushError: "Web Push VAPID keys are not configured" }
     });
-    return;
+    return { status: "skipped" };
   }
-  if (!platform.pushEnabled) return;
+  if (!platform.pushEnabled) return { status: "skipped" };
 
   const filter = {
     _id: notificationId,
@@ -234,14 +237,14 @@ async function dispatchPush(notificationId) {
     { $inc: { pushAttempts: 1 }, $set: { pushLastAttemptAt: new Date() } },
     { new: true }
   );
-  if (!notification) return;
+  if (!notification) return { status: "not_attempted" };
 
   const preferences = await getUserNotificationPreferences(notification.user);
   if (preferences.pushEnabled !== true) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { pushStatus: "skipped", pushError: "Push is not enabled in learner preferences" }
     });
-    return;
+    return { status: "skipped" };
   }
 
   const subscriptions = await PushSubscription.find({ user: notification.user, active: true }).lean();
@@ -249,7 +252,7 @@ async function dispatchPush(notificationId) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { pushStatus: "skipped", pushError: "No active browser push subscriptions" }
     });
-    return;
+    return { status: "skipped" };
   }
 
   let delivered = 0;
@@ -297,19 +300,21 @@ async function dispatchPush(notificationId) {
         pushError: transientFailures ? "Push was accepted for at least one device; another device delivery failed" : ""
       }
     });
-    return;
+    return { status: "sent", partialFailure: transientFailures > 0 };
   }
 
   const attempts = Number(notification.pushAttempts || 1);
   const stillActive = await PushSubscription.exists({ user: notification.user, active: true });
+  const terminal = stillActive && attempts >= platform.pushRetryAttempts;
   await Notification.updateOne({ _id: notification._id }, {
     $set: {
-      pushStatus: !stillActive ? "skipped" : attempts >= platform.pushRetryAttempts ? "failed" : "pending",
+      pushStatus: !stillActive ? "skipped" : terminal ? "failed" : "pending",
       pushError: !stillActive
         ? "All push subscriptions are expired or invalid"
         : "Web Push delivery failed for every active device"
     }
   });
+  return { status: !stillActive ? "skipped" : terminal ? "failed" : "retrying" };
 }
 
 export async function retryNotificationDelivery(notificationId, channel) {
@@ -515,8 +520,11 @@ export async function deliverPendingNotificationEmails(limit = 50) {
     emailAttempts: { $lt: platform.emailRetryAttempts },
     $or: [{ emailLastAttemptAt: null }, { emailLastAttemptAt: { $lte: retryBefore } }]
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
-  for (const item of pending) await dispatchEmail(item._id);
-  return { attempted: pending.length };
+  const outcomes = await Promise.all(pending.map((item) => dispatchEmail(item._id)));
+  return {
+    attempted: outcomes.filter((item) => item?.status !== "not_attempted").length,
+    failures: outcomes.filter((item) => ["failed", "retrying"].includes(item?.status) || item?.partialFailure).length
+  };
 }
 
 export async function deliverPendingNotificationPush(limit = 50) {
@@ -545,8 +553,11 @@ export async function deliverPendingNotificationPush(limit = 50) {
     pushAttempts: { $lt: platform.pushRetryAttempts },
     $or: [{ pushLastAttemptAt: null }, { pushLastAttemptAt: { $lte: retryBefore } }]
   }).sort({ createdAt: 1 }).limit(Math.min(Math.max(limit, 1), 100)).select("_id").lean();
-  for (const item of pending) await dispatchPush(item._id);
-  return { attempted: pending.length };
+  const outcomes = await Promise.all(pending.map((item) => dispatchPush(item._id)));
+  return {
+    attempted: outcomes.filter((item) => item?.status !== "not_attempted").length,
+    failures: outcomes.filter((item) => ["failed", "retrying"].includes(item?.status) || item?.partialFailure).length
+  };
 }
 
 export async function processSubscriptionExpiryReminders(now = new Date()) {

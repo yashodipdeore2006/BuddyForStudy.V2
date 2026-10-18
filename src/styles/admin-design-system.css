@@ -440,3 +440,14 @@
   .admin-shell .admin-pagination-actions { width: 100%; }
   .admin-shell .admin-pagination-actions > button { flex: 1; }
 }
+
+.admin-shell .admin-confirm-dialog { width: min(100%, 520px); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); animation: admin-rise-in var(--dur-base) var(--ease); }
+.admin-shell .admin-confirm-header { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-5); }
+.admin-shell .admin-confirm-header h2 { margin: 0; color: var(--text); font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-semibold); }
+.admin-shell .admin-confirm-header p { margin: var(--s-2) 0 0; color: var(--text-2); }
+.admin-shell .admin-confirm-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent); }
+.admin-shell .admin-confirm-icon--danger { background: var(--danger-soft); color: var(--danger); }
+.admin-shell .admin-confirm-field { display: grid; gap: var(--s-2); padding: 0 var(--s-5) var(--s-4); }
+.admin-shell .admin-confirm-field label { color: var(--text-2); font-size: var(--fs-sm); }
+.admin-shell .admin-confirm-field label strong { color: var(--text); }
+.admin-shell .admin-confirm-footer { display: flex; justify-content: flex-end; gap: var(--s-2); padding: var(--s-3) var(--s-5); border-top: 1px solid var(--border); }

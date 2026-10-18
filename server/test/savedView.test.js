@@ -47,7 +47,7 @@ test("saved views list is scoped to owner and shared views and returns a bounded
   const res = responseRecorder();
   const chain = { limitValue: 0, sort() { return this; }, skip() { return this; }, limit(value) { this.limitValue = value; return this; }, lean: async () => [] };
   await withMocks([[SavedView, { find: (value) => { query = value; return chain; }, countDocuments: async () => 0 }]], async () => {
-    await listSavedViews({ user: admin, query: { pageKey: "users", page: "1", limit: "100" } }, res, (error) => { throw error; });
+    await listSavedViews({ user: admin, query: { pageKey: "users", page: "1", limit: "500" } }, res, (error) => { throw error; });
   });
   assert.equal(res.statusCode, 200);
   assert.equal(query.page, "users");

@@ -9,6 +9,8 @@ const router = Router();
 router.use(authMiddleware, adminMiddleware);
 
 router.get("/access", adminRolesController.currentAdminAccess);
+router.get("/ai-content/settings", adminPermissionMiddleware("ai.manage"), adminRolesController.getAIContentSettings);
+router.put("/ai-content/settings/:key", adminPermissionMiddleware("ai.manage"), adminRolesController.updateAIContentSetting);
 router.get("/roles", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdminRoles);
 router.get("/administrators", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdministrators);
 router.put("/administrators/:userId/role", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.updateAdministratorRole);

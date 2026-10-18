@@ -7,7 +7,7 @@ import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
 import { createNotificationEvent } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
-import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../services/paymentWebhookTransitions.js";
+import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES, buildCapturedPaymentUpdate } from "../services/paymentWebhookTransitions.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
 import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
 
@@ -266,13 +266,7 @@ export async function razorpayWebhook(req, res, next) {
             course: { $ne: null }
           },
           {
-            $set: {
-              status: "paid",
-              providerPaymentId: paymentEntity?.id || "",
-              paidAt: new Date(),
-              purchaseNotificationStatus: "pending",
-              purchaseNotificationLastCheckedAt: null
-            }
+            $set: buildCapturedPaymentUpdate(paymentEntity)
           },
           { new: true }
         );

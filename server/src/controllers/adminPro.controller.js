@@ -37,6 +37,7 @@ import { createNotificationEvent, retryNotificationDelivery } from "../services/
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions } from "../utils/adminRbac.js";
+import { GROSS_COLLECTION_PAYMENT_STATUSES, calculateNetRevenue } from "../services/billingMetrics.service.js";
 import { resolveAdminAudience, validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../services/adminAudience.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
@@ -108,7 +109,7 @@ export async function overview(req, res, next) {
       Enrollment.countDocuments(),
       UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
       UserSubscription.countDocuments({ status: "past_due" }),
-      Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded", "refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Payment.aggregate([{ $match: { status: { $in: GROSS_COLLECTION_PAYMENT_STATUSES } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       RefundRequest.aggregate([{ $match: { status: "processed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Payment.countDocuments({ status: "failed" }),
       RefundRequest.countDocuments({ status: "pending" }),
@@ -144,7 +145,7 @@ export async function overview(req, res, next) {
     if (canBilling) {
       const grossRevenueTotal = Number(grossRevenue[0]?.total || 0);
       const processedRefundsTotal = Number(processedRefunds[0]?.total || 0);
-      const netRevenue = Number((grossRevenueTotal - processedRefundsTotal).toFixed(2));
+      const netRevenue = calculateNetRevenue(grossRevenueTotal, processedRefundsTotal);
       Object.assign(stats, {
         activeSubscribers,
         pastDueSubscribers,

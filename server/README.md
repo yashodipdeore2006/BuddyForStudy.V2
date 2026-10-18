@@ -71,3 +71,31 @@ YOUTUBE_API_KEY=
 The AI service searches YouTube for candidate learning videos, then uses the OpenAI Responses API to construct a structured BuddyForStudy course plan. Generated source URLs are returned with the course plan.
 
 Never commit real API keys or MongoDB credentials.
+
+
+## Production readiness
+
+When `NODE_ENV=production`, startup fails closed unless all of these are configured:
+
+- `MONGO_URI`
+- `JWT_SECRET` with at least 32 characters and no known placeholder value
+- `CLIENT_URL` set to the deployed HTTPS frontend origin
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+- `RAZORPAY_WEBHOOK_SECRET`
+
+Do not use CI/test secrets in production. Keep provider secrets server-side and configure the Razorpay webhook endpoint as `/api/webhooks/razorpay`.
+
+After deployment, run the smoke checks from the server directory:
+
+```bash
+DEPLOYMENT_URL=https://your-api.example.com \
+FRONTEND_DEPLOYMENT_URL=https://your-frontend.example.com \
+npm run verify:deployment
+```
+
+The verifier checks API liveness, database readiness, public billing plans, Google-auth configuration, and (when provided) that the frontend responds with HTML. The frontend URL is optional for API-only smoke checks, but should be supplied for a complete deployment check.
+
+## Regression and CI checks
+
+The GitHub Actions workflow runs frontend lint, TypeScript type-checking, and production build. Backend CI installs from the lockfile, runs the full Node test suite against MongoDB, and syntax-checks server JavaScript. The suite includes admin route permission coverage, audit redaction bounds, subscription entitlement boundaries, refund/payment validation, and webhook transition regressions.

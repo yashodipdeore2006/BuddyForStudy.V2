@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
@@ -42,6 +42,7 @@ export default function AdminUsersPro() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<any>(null);
+  const userDrawerRef = useRef<HTMLElement>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [courseAccess, setCourseAccess] = useState<any[]>([]);
@@ -68,6 +69,8 @@ export default function AdminUsersPro() {
       if (filters.status) params.set("status", filters.status);
       if (filters.role) params.set("role", filters.role);
       if (filters.authProvider) params.set("authProvider", filters.authProvider);
+      const detailId = searchParams.get("id");
+      if (detailId) params.set("id", detailId);
       setSearchParams(params, { replace: true });
 
       const data = await adminFetch("/api/admin/users?" + params.toString());
@@ -116,6 +119,9 @@ export default function AdminUsersPro() {
   }
 
   async function openUser(userId: string) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("id", userId);
+    setSearchParams(nextParams, { replace: true });
     setDetailLoading(true);
     setSelected(null);
     setCourseAccess([]);
@@ -141,6 +147,39 @@ export default function AdminUsersPro() {
       setCourseAccessLoading(false);
     }
   }
+
+  function closeUserDrawer() {
+    setSelected(null);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("id");
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  const selectedUserId = selected?.user?._id as string | undefined;
+  useEffect(() => {
+    if (!selectedUserId) return;
+    const container = userDrawerRef.current;
+    if (!container) return;
+    const focusable = () => Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]'));
+    focusable()[0]?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { closeUserDrawer(); return; }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedUserId]);
+
+  useEffect(() => {
+    const requestedUserId = searchParams.get("id");
+    if (requestedUserId) void openUser(requestedUserId);
+  }, []);
 
   async function saveFeatureOverride(feature: any) {
     if (!selected?.user?._id) return;
@@ -376,15 +415,15 @@ export default function AdminUsersPro() {
       )}
 
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-950/30 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <aside role="dialog" aria-modal="true" aria-labelledby="admin-user-detail-title" className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-950/30 backdrop-blur-sm" onClick={closeUserDrawer}>
+          <aside ref={userDrawerRef} role="dialog" aria-modal="true" aria-labelledby="admin-user-detail-title" className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">User details</p>
                 <h2 id="admin-user-detail-title" className="mt-1 text-2xl font-extrabold text-slate-950">{selected.user?.name}</h2>
                 <p className="mt-1 text-sm text-slate-500">{selected.user?.email}</p>
               </div>
-              <button type="button" className="rounded-xl p-2 hover:bg-slate-100" onClick={() => setSelected(null)}><X className="h-5 w-5" /></button>
+              <button type="button" className="rounded-xl p-2 hover:bg-slate-100" onClick={closeUserDrawer}><X className="h-5 w-5" /></button>
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">

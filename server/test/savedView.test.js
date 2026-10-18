@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SavedView } from "../src/models/SavedView.js";
 import { createSavedView, listSavedViews, updateSavedView, deleteSavedView } from "../src/controllers/savedView.controller.js";
-import { adminPermissionMiddleware } from "../src/middleware/auth.js";
+import { adminPermissionMiddleware, authMiddleware } from "../src/middleware/auth.js";
 
 function responseRecorder() {
   return { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
@@ -16,14 +16,19 @@ async function withMocks(mocks, run) {
 }
 const admin = { role: "admin", accessType: "admin", adminRole: "platform_admin", adminPermissionOverrides: [], userId: "507f191e810c19729de860ea" };
 
-test("saved view permission middleware rejects unauthenticated and unauthorized callers", () => {
-  const middleware = adminPermissionMiddleware("dashboard.read");
+test("saved view routes enforce authentication and dashboard.read permission", () => {
   const unauthenticated = responseRecorder();
-  middleware({ user: null }, unauthenticated, () => assert.fail("must reject"));
-  assert.equal(unauthenticated.statusCode, 403);
+  authMiddleware({ headers: {} }, unauthenticated, () => assert.fail("must reject"));
+  assert.equal(unauthenticated.statusCode, 401);
+
+  const middleware = adminPermissionMiddleware("dashboard.read");
   const unauthorized = responseRecorder();
-  middleware({ user: { role: "admin", accessType: "admin", adminRole: "support_manager", adminPermissionOverrides: [] } }, unauthorized, () => assert.fail("must reject"));
+  middleware({ user: { role: "admin", accessType: "admin", adminRole: "unknown_profile", adminPermissionOverrides: [] } }, unauthorized, () => assert.fail("must reject"));
   assert.equal(unauthorized.statusCode, 403);
+
+  let allowed = false;
+  middleware({ user: { role: "admin", accessType: "admin", adminRole: "super_admin", adminPermissionOverrides: [] } }, responseRecorder(), () => { allowed = true; });
+  assert.equal(allowed, true);
 });
 
 test("saved view creation validates fields before database writes", async () => {
@@ -39,12 +44,13 @@ test("saved view creation validates fields before database writes", async () => 
 test("saved views list is scoped to owner and shared views and returns a bounded list", async () => {
   let query;
   const res = responseRecorder();
-  const chain = { sort() { return this; }, limit() { return this; }, lean: async () => [] };
+  const chain = { limitValue: 0, sort() { return this; }, limit(value) { this.limitValue = value; return this; }, lean: async () => [] };
   await withMocks([[SavedView, { find: (value) => { query = value; return chain; } }]], async () => {
     await listSavedViews({ user: admin, query: { page: "users" } }, res, (error) => { throw error; });
   });
   assert.equal(res.statusCode, 200);
   assert.equal(query.page, "users");
+  assert.equal(chain.limitValue, 100);
   assert.equal(query.$or[0].owner, admin.userId);
   assert.deepEqual(query.$or[1], { shared: true });
 });

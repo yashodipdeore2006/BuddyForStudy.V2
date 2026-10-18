@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import { User } from "../models/User.js";

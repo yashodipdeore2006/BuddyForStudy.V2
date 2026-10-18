@@ -45,10 +45,18 @@ export function validateRefundAmount(requestedAmount, remainingAmount) {
   if (!Number.isFinite(amount) || amount <= 0) {
     return { valid: false, amount: 0, message: "Refund amount must be a positive number." };
   }
-  if (amount > remaining) {
-    return { valid: false, amount: 0, message: `Refund amount cannot exceed the remaining refundable balance of ${remaining}.` };
+
+  // Provider APIs accept integer minor units. Normalize before comparing so a
+  // tiny positive input cannot become a zero-value refund after rounding.
+  const normalizedAmount = Math.round((amount + Number.EPSILON) * 100) / 100;
+  if (normalizedAmount <= 0) {
+    return { valid: false, amount: 0, message: "Refund amount must be at least 0.01." };
   }
-  return { valid: true, amount: Math.round((amount + Number.EPSILON) * 100) / 100 };
+  const normalizedRemaining = Math.round((remaining + Number.EPSILON) * 100) / 100;
+  if (normalizedAmount > normalizedRemaining) {
+    return { valid: false, amount: 0, message: `Refund amount cannot exceed the remaining refundable balance of ${normalizedRemaining}.` };
+  }
+  return { valid: true, amount: normalizedAmount };
 }
 
 /** Validate a provider refund against the exact local payment/refund record. */

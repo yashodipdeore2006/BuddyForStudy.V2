@@ -36,6 +36,8 @@ router.get("/notification-deliveries", controller.notificationDeliveries);
 router.post("/notification-deliveries/:notificationId/retry", controller.retryNotificationDeliveryAdmin);
 router.get("/refunds", controller.refunds);
 router.put("/refunds/:refundId", controller.updateRefund);
+router.get("/payment-issues", controller.paymentIssues);
+router.put("/payment-issues/:issueId", controller.updatePaymentIssue);
 
 router.post("/notifications/send", controller.sendNotification);
 router.post("/emails/send", controller.sendEmail);

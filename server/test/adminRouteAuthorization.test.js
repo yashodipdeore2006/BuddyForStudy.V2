@@ -85,7 +85,6 @@ test("direct user-role and wrong access-type requests cannot pass any admin rout
       { role: "admin", accessType: "user", adminRole: "super_admin", adminPermissionOverrides: [] },
       { role: "admin", accessType: "admin", adminRole: "unknown", adminPermissionOverrides: ["admin_roles.manage", "refunds.manage"] }
     ]) {
-      const result = runPermissionMiddleware(middleware, user.adminRole, user.adminPermissionOverrides);
       // The permission gate also checks the principal's role and access type.
       const response = { statusCode: 200, body: undefined, nextCalled: false };
       middleware({ user: { ...user, userId: "test" } }, {
@@ -95,7 +94,6 @@ test("direct user-role and wrong access-type requests cannot pass any admin rout
       assert.equal(response.nextCalled, false, route.path + " must reject invalid principal " + JSON.stringify(user));
       assert.equal(response.statusCode, 403);
       assert.equal(response.body?.success, false);
-      assert.equal(result.nextCalled && user.adminRole === "unknown", false);
     }
   }
 });

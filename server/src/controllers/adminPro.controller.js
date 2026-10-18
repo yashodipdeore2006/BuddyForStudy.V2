@@ -13,7 +13,7 @@ import { Notification } from "../models/Notification.js";
 import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
-import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus } from "../services/refundBalance.service.js";
+import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
@@ -1320,7 +1320,7 @@ export async function reconcileRefund(req, res, next) {
         return failure(res, "This refund is already processed. Its provider reference cannot be changed.", 409);
       }
       const remainingAfterAllRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
-      const expectedPaymentStatus = remainingAfterAllRefunds <= 0 ? "refunded" : "partially_refunded";
+      const expectedPaymentStatus = paymentStatusForRemainingBalance(remainingAfterAllRefunds);
       if (payment.status !== expectedPaymentStatus) {
         payment.status = expectedPaymentStatus;
         await payment.save();
@@ -1371,7 +1371,7 @@ export async function reconcileRefund(req, res, next) {
       refund.processedAt = new Date();
       refund.processedBy = req.user.user?._id || req.user.userId;
       refund.adminNote = [refund.adminNote, "Provider refund verified during reconciliation."].filter(Boolean).join("\n").slice(0, 2000);
-      payment.status = refund.amount >= remainingAmount ? "refunded" : "partially_refunded";
+      payment.status = paymentStatusForRemainingBalance(remainingAmount - refund.amount);
       // Persist the provider-confirmed refund first. If the payment write fails,
       // the idempotent processed-refund path above repairs payment status on retry.
       await refund.save();

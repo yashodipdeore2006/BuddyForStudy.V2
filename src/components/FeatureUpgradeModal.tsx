@@ -221,7 +221,10 @@ export default function FeatureUpgradeModal() {
           });
           if (sync.activated) {
             setMessage({ type: "success", text: "Your plan is active. Refreshing your learning access…" });
-            window.setTimeout(() => window.location.reload(), 1200);
+            // Invalidate cached billing/usage reads before the protected action is retried by the refreshed app.
+            window.dispatchEvent(new CustomEvent("bfs:entitlements-updated", { detail: { planId: plan._id } }));
+            setRequest(null);
+            window.setTimeout(() => window.location.reload(), 800);
             return true;
           }
           setMessage({ type: "info", text: "Payment received. Waiting for subscription confirmation…" });

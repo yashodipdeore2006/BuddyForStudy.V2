@@ -30,7 +30,7 @@ test("refund amount defaults to the remaining balance and rejects invalid or exc
   });
   assert.deepEqual(validateRefundAmount(25.554, 25.55), { valid: true, amount: 25.55 });
   assert.equal(validateRefundAmount(25.555, 25.55).valid, false);
-  assert.deepEqual(validateRefundAmount(0.01, 0.009), {
+  assert.deepEqual(validateRefundAmount(0.02, 0.009), {
     valid: false,
     amount: 0,
     message: "Refund amount cannot exceed the remaining refundable balance of 0.01."

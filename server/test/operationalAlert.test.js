@@ -35,6 +35,7 @@ test("operational alerts enforce a unique key and track repeated occurrences ato
   assert.deepEqual(update.$inc, { occurrenceCount: 1 });
   assert.equal(options.upsert, true);
   assert.equal(options.new, true);
+  assert.equal(options.setDefaultsOnInsert, false);
 });
 
 test("resolving an operational alert is idempotent for already-resolved alerts", async () => {

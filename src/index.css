@@ -3,29 +3,34 @@
 @tailwind utilities;
 
 /* BuddyForStudy design system — derived from DESIGN.md and adapted for learning workflows. */
+/* BuddyForStudy — Modern Intelligent Buddy theme.
+   60% neutral learning canvas, 30% deep indigo identity, 10% cyber-violet AI accent. */
 :root {
   color-scheme: light;
-  --bfs-primary: #0064e0;
-  --bfs-primary-deep: #0457cb;
-  --bfs-primary-soft: #eaf2ff;
-  --bfs-ink-button: #000000;
-  --bfs-canvas: #ffffff;
+  --bfs-primary: #1A1B41;
+  --bfs-primary-deep: #12132f;
+  --bfs-primary-soft: #eeeffb;
+  --bfs-ink-button: #1A1B41;
+  --bfs-canvas: #f8f9fc;
   --bfs-surface: #ffffff;
-  --bfs-surface-soft: #f1f4f7;
-  --bfs-ink-deep: #0a1317;
-  --bfs-ink: #1c1e21;
-  --bfs-muted: #5d6c7b;
-  --bfs-muted-soft: #8595a4;
-  --bfs-line: #ced0d4;
-  --bfs-line-soft: #dee3e9;
-  --bfs-success: #31a24c;
-  --bfs-success-soft: #edf8ef;
-  --bfs-attention: #f2a918;
-  --bfs-critical: #e41e3f;
-  --bfs-critical-strong: #f0284a;
-  --bfs-radius-control: 8px;
-  --bfs-radius-card: 32px;
-  --bfs-radius-feature: 24px;
+  --bfs-surface-soft: #f0f1f7;
+  --bfs-ink-deep: #191a35;
+  --bfs-ink: #292a40;
+  --bfs-muted: #666980;
+  --bfs-muted-soft: #8588a0;
+  --bfs-line: #dfe1eb;
+  --bfs-line-soft: #e9eaf2;
+  --bfs-success: #15803d;
+  --bfs-success-soft: #ecfdf3;
+  --bfs-attention: #b45309;
+  --bfs-critical: #dc2626;
+  --bfs-critical-strong: #b91c1c;
+  --bfs-ai: #8B5CF6;
+  --bfs-ai-deep: #6d28d9;
+  --bfs-ai-soft: #f3eefe;
+  --bfs-radius-control: 10px;
+  --bfs-radius-card: 24px;
+  --bfs-radius-feature: 20px;
   --bfs-radius-pill: 9999px;
   --bfs-space-1: 4px;
   --bfs-space-2: 8px;
@@ -36,7 +41,7 @@
   --bfs-space-8: 32px;
   --bfs-space-10: 40px;
   --bfs-space-section: 64px;
-  --bfs-font: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
+  --bfs-font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 /* Platform-wide type scale: one readable family, predictable hierarchy, responsive headings. */
 :root {
@@ -261,3 +266,21 @@ button:active:not(:disabled), [role="button"]:active { transform: translateY(1px
 @media (hover: none) {
   .bfs-interactive-card:hover { box-shadow: none; transform: none; }
 }
+
+
+/* Semantic brand applications: violet is reserved for AI and insight moments. */
+.ai-accent, .bfs-ai-accent { color: var(--bfs-ai-deep); }
+.ai-accent-surface, .bfs-ai-surface { color: var(--bfs-ai-deep); background: var(--bfs-ai-soft); border-color: #ddd0ff; }
+.ai-accent-border, .bfs-ai-border { border-color: var(--bfs-ai); }
+.btn-ai {
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-white transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50;
+  background: var(--bfs-ai-deep);
+}
+.btn-ai:hover { background: #5b21b6; }
+.btn-primary { background: var(--bfs-primary); }
+.btn-primary:hover { background: var(--bfs-primary-deep); }
+.btn-primary:active { background: #0c0d24; }
+.btn-buy { background: var(--bfs-primary); }
+.btn-buy:hover { background: var(--bfs-primary-deep); }
+:focus-visible { outline-color: var(--bfs-ai); }
+::selection { background: rgba(139,92,246,.18); }

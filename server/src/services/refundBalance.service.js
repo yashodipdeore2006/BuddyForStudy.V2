@@ -39,3 +39,18 @@ export function validateRefundAmount(requestedAmount, remainingAmount) {
   }
   return { valid: true, amount: Math.round((amount + Number.EPSILON) * 100) / 100 };
 }
+
+/** Validate a provider refund against the exact local payment/refund record. */
+export function matchesProviderRefund({ providerRefund, providerRefundId, paymentId, amount, currency }) {
+  if (!providerRefund || typeof providerRefund !== "object") return false;
+  const expectedAmount = Math.round(Number(amount) * 100);
+  return Boolean(
+    providerRefundId &&
+    String(providerRefund.id || "") === String(providerRefundId) &&
+    String(providerRefund.payment_id || "") === String(paymentId) &&
+    Number.isFinite(expectedAmount) &&
+    expectedAmount > 0 &&
+    Number(providerRefund.amount) === expectedAmount &&
+    String(providerRefund.currency || "").toUpperCase() === String(currency || "INR").toUpperCase()
+  );
+}

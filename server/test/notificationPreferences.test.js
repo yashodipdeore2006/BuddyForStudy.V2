@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeUserNotificationPreferences } from "../src/services/notification.service.js";
+import { normalizeUserNotificationPreferences, createEmailUnsubscribeToken, verifyEmailUnsubscribeToken } from "../src/services/notification.service.js";
 
 test("email product updates default to off for new users", () => {
   const preferences = normalizeUserNotificationPreferences(null, "user-1");
@@ -34,4 +34,18 @@ test("explicit opt-out remains off even if a stale consent timestamp exists", ()
     emailAnnouncementsConsentAt: new Date("2026-10-14T12:00:00Z")
   }, "user-4");
   assert.equal(preferences.emailAnnouncements, false);
+});
+
+
+test("promotional email unsubscribe tokens are signed, user-bound, and expiring", () => {
+  const userId = "507f1f77bcf86cd799439011";
+  const token = createEmailUnsubscribeToken(userId, Date.now() + 60_000);
+  assert.equal(verifyEmailUnsubscribeToken(token)?.userId, userId);
+  assert.equal(verifyEmailUnsubscribeToken(`${token}tampered`), null);
+  assert.equal(verifyEmailUnsubscribeToken(token, Date.now() + 120_000), null);
+  assert.equal(verifyEmailUnsubscribeToken("invalid-token"), null);
+});
+
+test("unsubscribe token creation rejects malformed user IDs", () => {
+  assert.throws(() => createEmailUnsubscribeToken("not-an-object-id"), /valid user ID/i);
 });

@@ -517,8 +517,8 @@ export default function AdminPlans() {
                   {editingPlan === plan._id && (
                     <button
                       type="button"
-                      onClick={() => void savePlanDetails(plan)} disabled={!permissions.includes("plans.manage")}
-                      disabled={savingPlan === plan._id}
+                      onClick={() => void savePlanDetails(plan)}
+                      disabled={!permissions.includes("plans.manage") || savingPlan === plan._id}
                       className="btn-secondary mt-2 w-full justify-center"
                     >
                       <Save className="h-4 w-4" />
@@ -528,8 +528,8 @@ export default function AdminPlans() {
 
                   <button
                     type="button"
-                    onClick={() => void saveFeatures(plan)} disabled={!permissions.includes("plans.manage")}
-                    disabled={savingPlan === plan._id}
+                    onClick={() => void saveFeatures(plan)}
+                    disabled={!permissions.includes("plans.manage") || savingPlan === plan._id}
                     className="btn-primary mt-3 w-full justify-center"
                   >
                     {savingPlan === plan._id ? (

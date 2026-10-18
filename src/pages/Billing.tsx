@@ -64,6 +64,7 @@ export default function Billing() {
   const [loading, setLoading] = useState(true);
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
+  const [submittingRefund, setSubmittingRefund] = useState(false);
   const [refundMessage, setRefundMessage] = useState("");
   const [issueId, setIssueId] = useState<string | null>(null);
   const [issueCategory, setIssueCategory] = useState("benefit_not_received");
@@ -102,6 +103,8 @@ export default function Billing() {
   const failedCount = payments.filter((p) => ["failed", "cancelled"].includes(p.status)).length;
 
   async function submitRefund(paymentId: string) {
+    if (submittingRefund) return;
+    setSubmittingRefund(true);
     try {
       await apiFetch("/api/billing/refunds", { method: "POST", body: JSON.stringify({ paymentId, reason: refundReason }) });
       setRefundMessage("Your refund request has been submitted. You will receive an update when its status changes.");
@@ -111,6 +114,8 @@ export default function Billing() {
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
     } catch (error) {
       setRefundMessage(error instanceof Error ? error.message : "Unable to submit refund request");
+    } finally {
+      setSubmittingRefund(false);
     }
   }
 
@@ -235,7 +240,7 @@ export default function Billing() {
                 </label>
                 <div className="mt-3 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setIssueId(null)}>Cancel</button><button type="button" className="btn-primary" disabled={submittingIssue || issueDescription.trim().length < 5} onClick={() => void submitIssue(payment._id)}>{submittingIssue ? "Submitting…" : "Submit report"}</button></div>
               </div>}
-              {refundId === payment._id && <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/60 p-4"><label className="block text-sm font-semibold text-slate-800">Why are you requesting a refund? <span className="font-normal text-slate-500">(optional)</span><textarea className="input-field mt-2 min-h-24 bg-white" placeholder="Tell us a little about the issue…" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} maxLength={1000} /></label><div className="mt-3 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setRefundId(null)}>Keep payment</button><button type="button" className="btn-primary" onClick={() => void submitRefund(payment._id)}>Submit request</button></div></div>}
+              {refundId === payment._id && <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/60 p-4"><label className="block text-sm font-semibold text-slate-800">Why are you requesting a refund? <span className="font-normal text-slate-500">(optional)</span><textarea className="input-field mt-2 min-h-24 bg-white" placeholder="Tell us a little about the issue…" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} maxLength={1000} /></label><div className="mt-3 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setRefundId(null)}>Keep payment</button><button type="button" className="btn-primary" disabled={submittingRefund} onClick={() => void submitRefund(payment._id)}>{submittingRefund ? "Submitting…" : "Submit request"}</button></div></div>}
             </article>;
           })}
         </div> : <div className="p-12 text-center"><ReceiptText className="mx-auto h-9 w-9 text-slate-300" /><p className="mt-3 font-bold text-slate-800">{payments.length ? "No matching transactions" : "No transactions yet"}</p><p className="mt-1 text-sm text-slate-500">{payments.length ? "Try a different search or status filter." : "Your subscription and payment activity will appear here."}</p>{!payments.length && <Link to="/pricing" className="btn-primary mt-4 inline-flex">Explore plans</Link>}</div>}

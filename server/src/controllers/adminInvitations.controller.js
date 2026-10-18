@@ -88,8 +88,8 @@ export async function createInvitation(req, res, next) {
     });
 
     const inviteUrl = new URL("/accept-admin-invitation", env.clientUrl);
-    inviteUrl.searchParams.set("email", email);
-    inviteUrl.searchParams.set("token", token);
+    // Keep the bearer token in the URL fragment so it is not sent in HTTP requests or referrer headers.
+    inviteUrl.hash = new URLSearchParams({ email, token }).toString();
     const roleLabel = ({
       super_admin: "Super Admin",
       platform_admin: "Platform Administrator",

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
-import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight } from "lucide-react";
+import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight, MessageSquareWarning } from "lucide-react";
 
 type RefundRequest = {
   _id: string;
@@ -12,6 +12,11 @@ type RefundRequest = {
   createdAt: string;
   processedAt?: string | null;
   adminNote?: string;
+  payment?: { _id?: string; amount?: number; currency?: string; course?: { title?: string }; plan?: { name?: string } } | null;
+};
+
+type PaymentIssue = {
+  _id: string; category: string; description: string; status: string; adminNote?: string; createdAt: string;
   payment?: { _id?: string; amount?: number; currency?: string; course?: { title?: string }; plan?: { name?: string } } | null;
 };
 
@@ -54,11 +59,16 @@ function statusClass(status: string) {
 export default function Billing() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
+  const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
   const [refundMessage, setRefundMessage] = useState("");
+  const [issueId, setIssueId] = useState<string | null>(null);
+  const [issueCategory, setIssueCategory] = useState("benefit_not_received");
+  const [issueDescription, setIssueDescription] = useState("");
+  const [submittingIssue, setSubmittingIssue] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -66,10 +76,11 @@ export default function Billing() {
   async function loadBilling() {
     setLoading(true);
     try {
-      const [paymentData, subscriptionData, refundData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds")]);
+      const [paymentData, subscriptionData, refundData, issueData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds"), apiFetch("/api/billing/issues")]);
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
+      setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
       setRefundMessage("");
     } catch (error) {
       setRefundMessage(error instanceof Error ? error.message : "Unable to load billing");
@@ -103,6 +114,18 @@ export default function Billing() {
     }
   }
 
+  async function submitIssue(paymentId: string) {
+    if (issueDescription.trim().length < 5) { setRefundMessage("Please describe the payment issue in at least 5 characters."); return; }
+    setSubmittingIssue(true);
+    try {
+      await apiFetch("/api/billing/issues", { method: "POST", body: JSON.stringify({ paymentId, category: issueCategory, description: issueDescription.trim() }) });
+      setRefundMessage("Your payment issue has been reported. You can track its status below.");
+      setIssueId(null); setIssueDescription("");
+      const issueData = await apiFetch("/api/billing/issues");
+      setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
+    } catch (error) { setRefundMessage(error instanceof Error ? error.message : "Unable to report payment issue"); }
+    finally { setSubmittingIssue(false); }
+  }
   function exportCsv() {
     const escape = (value: unknown) => '"' + String(value ?? "").replace(/"/g, '""') + '"';
     const rows = [

@@ -209,3 +209,55 @@ button[aria-label][class*="p-2.5"] {
   :root { --bfs-text-base: 0.9375rem; --bfs-leading-body: 1.58; }
   h1 { line-height: 1.14; }
 }
+
+
+/* Shared interaction foundations: lightweight, keyboard-aware and reduced-motion safe. */
+:root {
+  --bfs-motion-fast: 140ms;
+  --bfs-motion-control: 190ms;
+  --bfs-motion-panel: 240ms;
+  --bfs-ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+button, a, [role="button"], input, select, textarea, summary {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: var(--bfs-motion-control);
+  transition-timing-function: var(--bfs-ease-out);
+}
+button:not(:disabled), [role="button"], a[href] { cursor: pointer; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+button:active:not(:disabled), [role="button"]:active { transform: translateY(1px); }
+:where(button, a, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 3px solid rgba(0, 100, 224, .62);
+  outline-offset: 3px;
+}
+.bfs-spinner { border-style: solid; animation: bfs-spin .75s linear infinite; }
+.bfs-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #eef1f5 25%, #f7f8fa 38%, #eef1f5 62%);
+  background-size: 300% 100%;
+  animation: bfs-shimmer 1.35s ease-in-out infinite;
+}
+@keyframes bfs-spin { to { transform: rotate(360deg); } }
+@keyframes bfs-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@keyframes bfs-fade-up { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.bfs-enter { animation: bfs-fade-up 220ms var(--bfs-ease-out) both; }
+.bfs-interactive-card {
+  transition: border-color var(--bfs-motion-control) var(--bfs-ease-out), box-shadow var(--bfs-motion-control) var(--bfs-ease-out), transform var(--bfs-motion-control) var(--bfs-ease-out);
+}
+.bfs-interactive-card:hover { border-color: #c7d8f4; box-shadow: 0 8px 24px rgba(15, 23, 42, .07); transform: translateY(-2px); }
+.bfs-interactive-card:active { transform: translateY(0); }
+[aria-live], [role="status"], [role="alert"] { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .bfs-interactive-card:hover, button:active:not(:disabled), [role="button"]:active { transform: none; }
+}
+@media (hover: none) {
+  .bfs-interactive-card:hover { box-shadow: none; transform: none; }
+}

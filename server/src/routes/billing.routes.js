@@ -221,17 +221,24 @@ router.post("/refunds", async (req,res,next)=>{ try {
     }
     throw createError;
   }
-  await createNotificationEvent({
-    userId: String(req.user.userId),
-    title: "Refund request received",
-    message: `We've received your refund request for ${payment.currency || "INR"} ${amountValidation.amount}. We'll review it and update you when the status changes.`,
-    type: "billing",
-    link: "/billing",
-    eventKey: `refund-requested:${refund._id}`,
-    emailSubject: "Your BuddyForStudy refund request was received",
-    metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(amountValidation.amount), currency: payment.currency || "INR" },
-    templateKeys: { notification: "refund-requested-in-app", email: "refund-requested-email" }
-  }, "refund-request");
-  return success(res,{refund},"Refund request submitted",201);
+  try {
+    await createNotificationEvent({
+      userId: String(req.user.userId),
+      title: "Refund request received",
+      message: `We've received your refund request for ${payment.currency || "INR"} ${amountValidation.amount}. We'll review it and update you when the status changes.`,
+      type: "billing",
+      link: "/billing",
+      eventKey: `refund-requested:${refund._id}`,
+      emailSubject: "Your BuddyForStudy refund request was received",
+      metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(amountValidation.amount), currency: payment.currency || "INR" },
+      templateKeys: { notification: "refund-requested-in-app", email: "refund-requested-email" }
+    }, "refund-request");
+  } catch (notificationError) {
+    console.error("[notifications] refund request receipt failed", {
+      refundId: String(refund._id),
+      message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+    });
+  }
+  return success(res, { refund }, "Refund request submitted", 201);
 } catch(e){next(e)} });
 export default router;

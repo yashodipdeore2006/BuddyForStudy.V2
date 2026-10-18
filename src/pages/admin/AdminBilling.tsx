@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard, IndianRupee, RefreshCcw, Search, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -127,16 +128,12 @@ export default function AdminBilling() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Revenue operations</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Billing & Refunds</h1>
-          <p className="mt-2 text-slate-500">Review payments, refund requests and payment-provider references without leaving the admin panel.</p>
-        </div>
-        <button type="button" aria-label="Refresh billing data" className="btn-secondary" onClick={() => void load()} disabled={loading}>
-          <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
-        </button>
-      </div>
+      <AdminPageHeader
+        eyebrow="Revenue operations"
+        title="Billing and refunds"
+        description="Review payments, refund requests and payment-provider references without leaving the admin panel."
+        actions={<button type="button" aria-label="Refresh billing data" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
+      />
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 

@@ -127,7 +127,7 @@ export default function AdminCommunications() {
 
   function audiencePayload() {
     if (targetMode === "emails") {
-      return { emails: selectedEmails.split(/[;,\\n]/).map((email) => email.trim().toLowerCase()).filter(Boolean) };
+      return { emails: selectedEmails.split(/[;,\n]/).map((email) => email.trim().toLowerCase()).filter(Boolean) };
     }
     if (targetMode === "filters") {
       const filters: Record<string, unknown> = {};
@@ -142,7 +142,19 @@ export default function AdminCommunications() {
     return { audience };
   }
 
+  function targetingError() {
+    if (targetMode === "emails" && !selectedEmails.split(/[;,\\n]/).some((email) => email.trim())) {
+      return "Enter at least one registered email address.";
+    }
+    if (targetMode === "filters" && !Object.values(audienceFilters).some((value) => value.trim())) {
+      return "Add at least one audience filter before previewing or sending.";
+    }
+    return "";
+  }
+
   async function previewAudience() {
+    const targetingProblem = targetingError();
+    if (targetingProblem) { setStatus(targetingProblem); return; }
     setPreviewingAudience(true);
     setAudiencePreview(null);
     setStatus("");
@@ -172,6 +184,8 @@ export default function AdminCommunications() {
   }
 
   async function send() {
+    const targetingProblem = targetingError();
+    if (targetingProblem) { setStatus(targetingProblem); return; }
     if (!canSend) {
       setStatus("Complete the required fields first.");
       return;

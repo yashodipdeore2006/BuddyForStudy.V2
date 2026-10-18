@@ -1581,7 +1581,7 @@ export async function sendAnnouncement(req, res, next) {
     if (!channel) return failure(res, "Choose one or more valid announcement channels", 400);
 
     try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
-    const targetMode = Array.isArray(req.body.userIds) && req.body.userIds.length
+    const targetMode = (Array.isArray(req.body.userIds) && req.body.userIds.length) || (Array.isArray(req.body.emails) && req.body.emails.length)
       ? "selected"
       : req.body.filters && Object.keys(req.body.filters).length
         ? "filtered"
@@ -1594,7 +1594,7 @@ export async function sendAnnouncement(req, res, next) {
       message,
       audience: req.body.audience || "all",
       targetMode,
-      targetUserIds: targetMode === "selected" ? req.body.userIds : [],
+      targetUserIds: targetMode === "selected" ? users.map((user) => user._id) : [],
       targetFilters: targetMode === "filtered" ? req.body.filters : {},
       channel,
       link: typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "",

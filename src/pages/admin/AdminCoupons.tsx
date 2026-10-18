@@ -20,15 +20,18 @@ export default function AdminCoupons() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const [couponData, courseData] = await Promise.all([
+      const [couponData, courseData, accessData] = await Promise.all([
         adminFetch("/api/admin/coupons"),
         adminFetch("/api/admin/courses?limit=200"),
+        adminFetch("/api/admin/access"),
       ]);
+      setPermissions(accessData.access?.permissions || []);
       setCoupons(couponData.coupons || []);
       setCourses(courseData.courses || []);
     } catch (e) {
@@ -120,6 +123,7 @@ export default function AdminCoupons() {
         <button type="button" aria-label="Refresh coupons" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className="h-4 w-4" /> Refresh</button>
       </div>
 
+      {!permissions.includes("coupons.manage") && <div role="status" className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">View-only access: your role can review coupons but cannot create or change promotions.</div>}
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <section className="card mt-6 p-5">
@@ -172,7 +176,7 @@ export default function AdminCoupons() {
             <span className="mt-1 block text-xs font-normal text-slate-500">Choose one course or apply the coupon to all courses.</span>
           </label>
         </div>
-        <button type="button" className="btn-primary mt-4" onClick={() => void create()} disabled={saving}>
+        <button type="button" className="btn-primary mt-4" onClick={() => void create()} disabled={saving || !permissions.includes("coupons.manage")}>
           {saving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create Coupon
         </button>
       </section>
@@ -190,7 +194,7 @@ export default function AdminCoupons() {
                   <p className="mt-1 text-xs text-slate-400">Min order ₹{coupon.minOrderAmount || 0} · Used {coupon.usedCount || 0}{coupon.usageLimit ? " / " + coupon.usageLimit : ""}{coupon.expiresAt ? " · expires " + new Date(coupon.expiresAt).toLocaleString() : " · no expiry"}</p>
                   <p className="mt-1 text-xs text-slate-500">{coupon.course?.title ? "Course: " + coupon.course.title : "Applies to all courses"}</p>
                 </div>
-                <button type="button" className={coupon.isActive ? "btn-secondary" : "btn-primary"} onClick={() => void toggle(coupon)}>
+                <button type="button" className={coupon.isActive ? "btn-secondary" : "btn-primary"} onClick={() => void toggle(coupon)} disabled={!permissions.includes("coupons.manage")}>
                   <Power className="h-4 w-4" /> {coupon.isActive ? "Disable" : "Enable"}
                 </button>
               </div>

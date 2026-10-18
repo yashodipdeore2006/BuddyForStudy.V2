@@ -44,7 +44,7 @@ router.get("/notification-deliveries", adminPermissionMiddleware("operations.rea
 router.post("/notification-deliveries/:notificationId/retry", adminPermissionMiddleware("operations.manage"), controller.retryNotificationDeliveryAdmin);
 router.get("/refunds", adminPermissionMiddleware("billing.read"), controller.refunds);
 router.put("/refunds/:refundId", adminPermissionMiddleware("refunds.manage"), controller.updateRefund);
-router.get("/payment-issues", adminPermissionMiddleware("payment_issues.manage"), controller.paymentIssues);
+router.get("/payment-issues", adminPermissionMiddleware("billing.read"), controller.paymentIssues);
 router.put("/payment-issues/:issueId", adminPermissionMiddleware("payment_issues.manage"), controller.updatePaymentIssue);
 
 router.post("/notifications/send", adminPermissionMiddleware("communications.send"), controller.sendNotification);

@@ -37,6 +37,7 @@ import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 import AdminRoles from '@/pages/admin/AdminRoles';
 import AdminAIContent from '@/pages/admin/AdminAIContent';
 import AdminSupport from '@/pages/admin/AdminSupport';
+import AcceptAdminInvitation from '@/pages/AcceptAdminInvitation';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -52,7 +53,7 @@ function AdminPage({ children }: { children: React.ReactNode }) {
 function App() {
   return <AuthProvider><BrowserRouter useTransitions={false}><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
-    <Route path="/verify-email" element={<VerifyEmail />} /><Route path="/verify-login" element={<VerifyLogin />} /><Route path="/forgot-password" element={<ForgotPassword />} />
+    <Route path="/accept-admin-invitation" element={<AcceptAdminInvitation />} /><Route path="/verify-email" element={<VerifyEmail />} /><Route path="/verify-login" element={<VerifyLogin />} /><Route path="/forgot-password" element={<ForgotPassword />} />
     <Route path="/courses" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
     <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />

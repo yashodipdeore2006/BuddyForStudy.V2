@@ -8,6 +8,7 @@ import * as adminRolesController from "../controllers/adminRoles.controller.js";
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
 
+router.get("/access", adminRolesController.currentAdminAccess);
 router.get("/roles", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdminRoles);
 router.get("/administrators", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdministrators);
 router.put("/administrators/:userId/role", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.updateAdministratorRole);

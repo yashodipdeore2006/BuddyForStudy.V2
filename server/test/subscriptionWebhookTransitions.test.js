@@ -6,10 +6,16 @@ test("subscription webhook timestamp parses provider Unix seconds", () => {
   assert.equal(subscriptionEventTimestamp({ created_at: 1792324800 }).toISOString(), "2026-10-18T12:00:00.000Z");
 });
 
-test("missing or invalid provider timestamps do not invent an ordering constraint", () => {
+test("missing or invalid provider timestamps only permit updates to legacy untracked records", () => {
   assert.equal(subscriptionEventTimestamp({}), null);
-  assert.deepEqual(subscriptionEventFreshnessFilter(null), {});
-  assert.deepEqual(subscriptionEventFreshnessFilter(new Date("invalid")), {});
+  const legacyOnlyFilter = {
+    $or: [
+      { providerEventAt: { $exists: false } },
+      { providerEventAt: null }
+    ]
+  };
+  assert.deepEqual(subscriptionEventFreshnessFilter(null), legacyOnlyFilter);
+  assert.deepEqual(subscriptionEventFreshnessFilter(new Date("invalid")), legacyOnlyFilter);
 });
 
 test("subscription update filter only accepts events newer than the last applied provider event", () => {

@@ -141,7 +141,21 @@ export async function overview(req, res, next) {
     if (canUsers) Object.assign(stats, { users, activeUsers });
     if (canRoles) Object.assign(stats, { admins });
     if (canCourses) Object.assign(stats, { courses, published, unpublished, emptyCourses, enrollments });
-    if (canBilling) Object.assign(stats, { activeSubscribers, pastDueSubscribers, revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)), failedPayments });
+    if (canBilling) {
+      const grossRevenueTotal = Number(grossRevenue[0]?.total || 0);
+      const processedRefundsTotal = Number(processedRefunds[0]?.total || 0);
+      const netRevenue = Number((grossRevenueTotal - processedRefundsTotal).toFixed(2));
+      Object.assign(stats, {
+        activeSubscribers,
+        pastDueSubscribers,
+        grossRevenue: grossRevenueTotal,
+        processedRefunds: processedRefundsTotal,
+        netRevenue,
+        // Keep the legacy field so existing dashboard clients remain compatible.
+        revenue: netRevenue,
+        failedPayments
+      });
+    }
     if (canRefunds) Object.assign(stats, { pendingRefunds });
     if (canOperations) Object.assign(stats, { unread });
 

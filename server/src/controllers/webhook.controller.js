@@ -119,23 +119,30 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
   if (!subscription?.id) return;
 
   const providerPaymentId = paymentEntity?.id || "";
-  if (providerPaymentId) {
-    const duplicate = await Payment.findOne({ provider: "razorpay", providerPaymentId });
-    if (duplicate) {
-      // A provider payment ID is globally unique. Never bind a duplicate charge
-      // to a different subscription merely because a webhook references it.
-      if (String(duplicate.providerOrderId || "") !== String(subscription.id)) {
-        console.error("[billing-webhook] duplicate provider payment references a different subscription", {
-          providerPaymentId,
-          paymentId: String(duplicate._id)
-        });
-        return;
-      }
-      await activateSubscription(subscription, duplicate, eventAt);
-      // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
-      await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
+  // Without a stable provider identifier, concurrent deliveries cannot be
+  // deduplicated safely. Do not create an untraceable renewal payment.
+  if (!providerPaymentId) {
+    console.error("[billing-webhook] subscription charge missing provider payment ID", {
+      subscriptionId: String(subscription.id)
+    });
+    return;
+  }
+
+  const duplicate = await Payment.findOne({ provider: "razorpay", providerPaymentId });
+  if (duplicate) {
+    // A provider payment ID is globally unique. Never bind a duplicate charge
+    // to a different subscription merely because a webhook references it.
+    if (String(duplicate.providerOrderId || "") !== String(subscription.id)) {
+      console.error("[billing-webhook] duplicate provider payment references a different subscription", {
+        providerPaymentId,
+        paymentId: String(duplicate._id)
+      });
       return;
     }
+    await activateSubscription(subscription, duplicate, eventAt);
+    // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
+    await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
+    return;
   }
 
   let payment = await Payment.findOne({
@@ -159,18 +166,32 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
     }).select("user plan");
     if (!currentSubscription) return;
 
-    payment = await Payment.create({
-      user: currentSubscription.user,
-      plan: currentSubscription.plan,
-      amount,
-      currency: paymentEntity?.currency || "INR",
-      provider: "razorpay",
-      providerPaymentId,
-      providerOrderId: subscription.id,
-      status: "paid",
-      paidAt: new Date(),
-      metadata: { checkoutType: "subscription", subscriptionId: subscription.id, renewal: "true" }
-    });
+    try {
+      payment = await Payment.create({
+        user: currentSubscription.user,
+        plan: currentSubscription.plan,
+        amount,
+        currency: paymentEntity?.currency || "INR",
+        provider: "razorpay",
+        providerPaymentId,
+        providerOrderId: subscription.id,
+        status: "paid",
+        paidAt: new Date(),
+        metadata: { checkoutType: "subscription", subscriptionId: subscription.id, renewal: "true" }
+      });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
+      // A concurrent delivery may have inserted the same provider payment.
+      // Re-read it and continue only if it belongs to this subscription.
+      payment = await Payment.findOne({ provider: "razorpay", providerPaymentId });
+      if (!payment || String(payment.providerOrderId || "") !== String(subscription.id)) {
+        console.error("[billing-webhook] concurrent charge insert conflicted with another subscription", {
+          providerPaymentId,
+          subscriptionId: String(subscription.id)
+        });
+        return;
+      }
+    }
   }
 
   await activateSubscription(subscription, payment, eventAt);

@@ -75,6 +75,15 @@ async function audienceUsers(audience) {
   return User.find({}).select("_id email name");
 }
 
+async function mapWithConcurrency(items, worker, batchSize = 50) {
+  const results = [];
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    results.push(...await Promise.all(batch.map(worker)));
+  }
+  return results;
+}
+
 async function notificationAudienceUsers(audience) {
   if (audience === "active") return User.find({ isActive: true }).select("_id");
   if (audience === "subscribers") {
@@ -1479,7 +1488,7 @@ export async function previewNotificationAudience(req, res, next) {
       }))
     }, truncated ? "Audience preview capped at 5,000 recipients; narrow the filters before sending." : "Audience preview ready");
   } catch (error) {
-    if (error instanceof Error && /Invalid|must be|cannot|Choose|Select|filters|audience|exceed|later than/i.test(error.message)) return failure(res, error.message, 400);
+    if (error instanceof Error && /invalid|must be|cannot|choose|select|filters|audience|exceed|later than/i.test(error.message)) return failure(res, error.message, 400);
     next(error);
   }
 }
@@ -1502,7 +1511,7 @@ export async function sendNotification(req, res, next) {
       users = await resolveAdminAudience(req.body, { select: "_id", limit: 5000 });
     } catch (error) { return failure(res, error.message, 400); }
     const broadcastId = new mongoose.Types.ObjectId().toString();
-    await Promise.all(users.map((user) => createNotificationEvent({
+    await mapWithConcurrency(users, (user) => createNotificationEvent({
       userId: String(user._id),
       title,
       message,
@@ -1546,7 +1555,7 @@ export async function sendEmail(req, res, next) {
 
     if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");
     const broadcastId = new mongoose.Types.ObjectId().toString();
-    const results = await Promise.all(users.map((user) => createNotificationEvent({
+    const results = await mapWithConcurrency(users, (user) => createNotificationEvent({
       userId: String(user._id),
       title: subject,
       message: "A message from BuddyForStudy has arrived in your email.",
@@ -1616,6 +1625,8 @@ export async function sendAnnouncement(req, res, next) {
     })));
     await audit(req, "announcement.sent", "Announcement", announcement._id, null, {
       audience: announcement.audience,
+      targetMode: announcement.targetMode,
+      filterKeys: announcement.targetMode === "filtered" ? Object.keys(req.body.filters || {}) : [],
       recipients: users.length,
       requestedChannels: channel,
       inAppVisible: results.filter((item) => item?.showInApp).length,

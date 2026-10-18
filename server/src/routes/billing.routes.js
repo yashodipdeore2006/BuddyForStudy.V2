@@ -192,11 +192,25 @@ router.post("/refunds", async (req,res,next)=>{ try {
   const amountValidation = validateRefundAmount(req.body?.amount, remainingAmount);
   if (!amountValidation.valid) return failure(res, amountValidation.message, 400);
   const reason = String(req.body.reason || "").trim().slice(0, 2000);
-  const refund=await RefundRequest.create({user:req.user.userId,payment:payment._id,amount:amountValidation.amount,reason});
+  let refund;
+  try {
+    refund = await RefundRequest.create({
+      user: req.user.userId,
+      payment: payment._id,
+      activePaymentKey: payment._id,
+      amount: amountValidation.amount,
+      reason
+    });
+  } catch (createError) {
+    if (createError?.code === 11000) {
+      return failure(res, "A refund request already exists for this payment. Refresh Billing to see its status.", 409);
+    }
+    throw createError;
+  }
   await createNotificationEvent({
     userId: String(req.user.userId),
     title: "Refund request received",
-    message: `We've received your refund request for ${payment.currency || "INR"} ${amount}. We'll review it and update you when the status changes.`,
+    message: `We've received your refund request for ${payment.currency || "INR"} ${amountValidation.amount}. We'll review it and update you when the status changes.`,
     type: "billing",
     link: "/billing",
     eventKey: `refund-requested:${refund._id}`,

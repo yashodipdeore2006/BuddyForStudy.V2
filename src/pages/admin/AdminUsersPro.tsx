@@ -41,8 +41,8 @@ export default function AdminUsersPro() {
   const [status, setStatus] = useState(searchParams.get("status") || "");
   const [role, setRole] = useState(searchParams.get("role") || "");
   const [authProvider, setAuthProvider] = useState(searchParams.get("authProvider") || "");
-  const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(searchParams.get("sortOrder") === "asc" ? "asc" : "desc");
+  const [sortBy, setSortBy] = useState(searchParams.get("sortBy") || "name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(searchParams.get("sortOrder") === "desc" ? "desc" : "asc");
   const [pageSize, setPageSize] = useState(() => {
     const value = Number(searchParams.get("limit") || 25);
     return [25, 50, 100].includes(value) ? value : 25;

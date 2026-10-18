@@ -13,6 +13,7 @@ import {
   BookOpen,
   Plus,
   Minus,
+  ShieldCheck,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
@@ -41,6 +42,10 @@ export default function AdminUsersPro() {
   const [courseActionId, setCourseActionId] = useState<string | null>(null);
   const [courseSearch, setCourseSearch] = useState("");
   const [courseReason, setCourseReason] = useState("");
+  const [featureOverrides, setFeatureOverrides] = useState<any[]>([]);
+  const [featureChoices, setFeatureChoices] = useState<Record<string, string>>({});
+  const [featureOverrideReason, setFeatureOverrideReason] = useState("");
+  const [savingFeatureKey, setSavingFeatureKey] = useState<string | null>(null);
 
   async function load(page = 1, filters = { q, status, role, authProvider }) {
     setLoading(true);
@@ -98,17 +103,62 @@ export default function AdminUsersPro() {
     setCourseSearch("");
     setCourseReason("");
     try {
-      const [data, courseData] = await Promise.all([
+      const [data, courseData, overrideData] = await Promise.all([
         adminFetch("/api/admin/users/" + userId),
         adminFetch("/api/admin/users/" + userId + "/courses"),
+        adminFetch("/api/admin/users/" + userId + "/feature-overrides"),
       ]);
       setSelected(data);
       setCourseAccess(courseData.courses || []);
+      setFeatureOverrides(overrideData.features || []);
+      setFeatureChoices({});
+      setFeatureOverrideReason("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load user details");
     } finally {
       setDetailLoading(false);
       setCourseAccessLoading(false);
+    }
+  }
+
+  async function saveFeatureOverride(feature: any) {
+    if (!selected?.user?._id) return;
+    const choice = featureChoices[feature.key] ?? (feature.override ? (feature.override.allowed ? "allow" : "deny") : "plan");
+    if (choice !== "plan" && !featureOverrideReason.trim()) {
+      setError("Enter a reason before changing feature access.");
+      return;
+    }
+    setSavingFeatureKey(feature.key);
+    setError("");
+    try {
+      const endpoint = `/api/admin/users/${selected.user._id}/feature-overrides/${feature.key}`;
+      if (choice === "plan") {
+        if (!feature.override) {
+          setStatus("");
+          return;
+        }
+        await adminFetch(endpoint, {
+          method: "DELETE",
+          body: JSON.stringify({ reason: featureOverrideReason.trim() })
+        });
+      } else {
+        await adminFetch(endpoint, {
+          method: "PUT",
+          body: JSON.stringify({
+            allowed: choice === "allow",
+            expiresAt: null,
+            reason: featureOverrideReason.trim()
+          })
+        });
+      }
+      const refreshed = await adminFetch(`/api/admin/users/${selected.user._id}/feature-overrides`);
+      setFeatureOverrides(refreshed.features || []);
+      setFeatureChoices((current) => ({ ...current, [feature.key]: choice }));
+      setFeatureOverrideReason("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update feature access");
+    } finally {
+      setSavingFeatureKey(null);
     }
   }
 
@@ -331,6 +381,42 @@ export default function AdminUsersPro() {
                     <span className="badge bg-blue-50 text-blue-700">{selected.subscription.status}</span>
                   </div>
                 ) : <p className="text-slate-500">No active subscription.</p>}
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-blue-600" />
+                <div>
+                  <h3 className="font-bold text-slate-900">Feature access overrides</h3>
+                  <p className="mt-1 text-xs text-slate-500">Temporarily or indefinitely allow/deny subscription features for this learner. Paid-course purchase checks remain separate.</p>
+                </div>
+              </div>
+              <label className="mb-1 mt-3 block text-xs font-semibold text-slate-600" htmlFor="feature-override-reason">Reason required for audit</label>
+              <textarea id="feature-override-reason" className="input-field min-h-20 w-full" maxLength={500} value={featureOverrideReason} onChange={(e) => setFeatureOverrideReason(e.target.value)} placeholder="e.g. Support-approved access while a billing issue is investigated" />
+              <div className="mt-3 space-y-2">
+                {featureOverrides.map((feature: any) => {
+                  const choice = featureChoices[feature.key] ?? (feature.override ? (feature.override.allowed ? "allow" : "deny") : "plan");
+                  return <div key={feature.key} className="rounded-xl border border-slate-200 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">{feature.label}</p>
+                        <p className="mt-1 text-xs text-slate-500">{feature.key}{feature.override ? ` · Override ${feature.override.allowed ? "allows" : "denies"} access${feature.override.expiresAt ? ` until ${new Date(feature.override.expiresAt).toLocaleDateString()}` : " · no expiry"}` : " · Plan default"}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <select aria-label={`Feature access for ${feature.label}`} className="input-field w-auto text-xs" value={choice} onChange={(e) => setFeatureChoices((current) => ({ ...current, [feature.key]: e.target.value }))}>
+                          <option value="plan">Use plan</option>
+                          <option value="allow">Allow</option>
+                          <option value="deny">Deny</option>
+                        </select>
+                        <button type="button" className="btn-secondary text-xs" disabled={savingFeatureKey === feature.key || (choice === "plan" && !feature.override)} onClick={() => void saveFeatureOverride(feature)}>
+                          {savingFeatureKey === feature.key ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </div>;
+                })}
               </div>
             </section>
 

@@ -19,9 +19,15 @@ import {
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { useAuth } from "@/context/AuthContext";
-import { AdminConfirmDialog, AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
+import { AdminButton, AdminConfirmDialog, AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
 
 type SavedUserView = { id: string; name: string; q: string; status: string; role: string; authProvider: string; pageSize: number; density: "compact" | "comfortable"; sortBy: string; sortOrder: "asc" | "desc"; columns: string[] };
+
+function csvCell(value: unknown) {
+  let text = value instanceof Date ? value.toISOString() : String(value ?? "");
+  if (/^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
 
 function statusClass(active: boolean) {
   return active
@@ -34,6 +40,8 @@ export default function AdminUsersPro() {
   const savedViewStorageKey = "bfs-admin-users-views:" + (session?.user.email || "administrator");
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [pagination, setPagination] = useState<any>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
   const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
   const [q, setQ] = useState(searchParams.get("q") || "");
@@ -190,6 +198,10 @@ export default function AdminUsersPro() {
     void load(page, { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, pageSize);
   }, [page, debouncedQ, status, role, authProvider, pageSize, sortBy, sortOrder]);
 
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [page, debouncedQ, status, role, authProvider, sortBy, sortOrder]);
+
   async function toggleUser(user: any, confirmed = false, reason = "") {
     if (!confirmed) {
       setPendingUserAction(user);
@@ -218,6 +230,34 @@ export default function AdminUsersPro() {
       setError(e instanceof Error ? e.message : "Unable to update user");
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function exportSelectedUsers() {
+    if (!selectedIds.length || exporting) return;
+    setExporting(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ ids: selectedIds.join(","), sortBy, sortOrder });
+      const result = await adminFetch("/api/admin/users/export?" + params.toString());
+      const fields = ["name", "email", "role", "isActive", "emailVerified", "authProvider", "createdAt"] as const;
+      const headings = ["Name", "Email", "Role", "Active", "Email verified", "Authentication provider", "Created at"];
+      const rows = [headings, ...((result.users || []) as any[]).map((user) => fields.map((field) => user[field]))];
+      const csv = rows.map((row) => row.map((value) => csvCell(value)).join(",")).join("\r\n");
+      const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "buddyforstudy-users-" + new Date().toISOString().slice(0, 10) + ".csv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setSelectedIds([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to export selected users.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -453,6 +493,13 @@ export default function AdminUsersPro() {
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
+      {selectedIds.length > 0 && <div className="admin-bulk-action-bar" role="toolbar" aria-label="Selected user actions">
+        <span><strong>{selectedIds.length}</strong> selected on this page</span>
+        <div className="admin-bulk-action-buttons">
+          <AdminButton variant="ghost" onClick={() => setSelectedIds([])} disabled={exporting}>Clear selection</AdminButton>
+          <AdminButton variant="primary" loading={exporting} onClick={() => void exportSelectedUsers()}>Export selected ({selectedIds.length})</AdminButton>
+        </div>
+      </div>}
       <div className="card mt-6 overflow-hidden">
         {loading ? (
           <div className="admin-table-skeleton" role="status" aria-live="polite" aria-label="Loading users"><AdminSkeleton rows={8} /></div>

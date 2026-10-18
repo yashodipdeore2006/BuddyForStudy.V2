@@ -30,7 +30,8 @@ export async function recordAuditEvent(event) {
 }
 
 export async function processPendingAuditOutbox(limit = 100, now = new Date()) {
-  const batchSize = Math.max(1, Math.min(Number(limit) || 100, 500));
+  const requestedBatchSize = Number(limit);
+  const batchSize = Math.max(1, Math.min(Number.isFinite(requestedBatchSize) && requestedBatchSize !== 0 ? Math.trunc(requestedBatchSize) : 100, 500));
   let processed = 0;
   let failures = 0;
 

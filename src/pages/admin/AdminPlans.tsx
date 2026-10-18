@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 type FeatureDefinition = {
   key: string;
@@ -238,12 +239,10 @@ export default function AdminPlans() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-950">Subscription Plans</h1>
-        <p className="mt-2 text-slate-500">
-          Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Subscription plans"
+        description="Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks."
+      />
 
       {error && (
         <div role="alert" className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">

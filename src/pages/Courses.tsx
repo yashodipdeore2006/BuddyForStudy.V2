@@ -140,10 +140,10 @@ export default function Courses() {
       if (!active) return;
       const enrolledIds = (enrollmentData.enrollments || [])
         .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
-        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course_id ?? item.courseId ?? ''))
+        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.course_id ?? item.courseId ?? ''))
         .filter(Boolean);
       const savedIds = (savedData.savedCourses || [])
-        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.courseId ?? ''))
+        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.courseId ?? ''))
         .filter(Boolean);
       setEnrolledCourseIds(new Set(enrolledIds));
       setSavedCourseIds(new Set(savedIds));

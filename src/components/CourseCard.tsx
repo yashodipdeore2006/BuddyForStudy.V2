@@ -47,8 +47,50 @@ export default function CourseCard({
   const [saved, setSaved] = useState(initiallySaved);
   const [enrolled, setEnrolled] = useState(initiallyEnrolled);
 
-  useEffect(() => setSaved(initiallySaved), [initiallySaved]);
-  useEffect(() => setEnrolled(initiallyEnrolled), [initiallyEnrolled]);
+  // Rehydrate this card's state from the authenticated user's persisted records.
+  // This keeps home-page cards correct after a full browser refresh, even if the
+  // parent page's status request resolves later or returns a different shape.
+  useEffect(() => {
+    let active = true;
+    if (!session?.user?.id) {
+      setSaved(false);
+      setEnrolled(false);
+      return () => { active = false; };
+    }
+
+    const normalizeId = (value: any): string => {
+      const candidate = value?.course ?? value?.courseId ?? value?.course_id ?? value;
+      const id = candidate && typeof candidate === 'object'
+        ? candidate._id ?? candidate.id ?? candidate.$oid
+        : candidate;
+      return id == null ? '' : String(id).toLowerCase();
+    };
+
+    apiFetch('/api/saved-courses')
+      .then((data) => {
+        if (!active) return;
+        const ids = new Set<string>((data.savedCourses || []).map((item: any) => normalizeId(item)).filter(Boolean));
+        setSaved(ids.has(String(course.id).toLowerCase()));
+      })
+      .catch(() => {
+        // Preserve the supplied state when the status request itself fails.
+      });
+
+    apiFetch('/api/enrollments')
+      .then((data) => {
+        if (!active) return;
+        const ids = new Set<string>((data.enrollments || [])
+          .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
+          .map((item: any) => normalizeId(item))
+          .filter(Boolean));
+        setEnrolled(ids.has(String(course.id).toLowerCase()));
+      })
+      .catch(() => {
+        // Preserve the supplied state when the status request itself fails.
+      });
+
+    return () => { active = false; };
+  }, [course.id, session?.user?.id]);
   const [actionError, setActionError] = useState('');
   const [rating, setRating] = useState<{ average: number; count: number }>({ average: 0, count: 0 });
 

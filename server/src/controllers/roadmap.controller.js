@@ -2,6 +2,17 @@ import { z } from "zod";
 import * as service from "../services/roadmap.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
+import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
+
+async function requireRoadmapAccess(req, res) {
+  if (req.user?.role === "admin" || req.user?.user?.role === "admin") return true;
+  const entitlement = await getEntitlement(req.user.userId, "personalized_roadmaps");
+  if (entitlement.allowed) return true;
+  const plan = entitlement.plan || await getActivePlanForUser(req.user.userId);
+  failure(res, "Personalized learning roadmaps are not included in your current plan. Upgrade to use this feature.", 403, { feature: "personalized_roadmaps", plan: plan?.name || "Free" });
+  return false;
+}
 
 const saveSchema = z.object({
   query: z.string().trim().min(2).max(200),

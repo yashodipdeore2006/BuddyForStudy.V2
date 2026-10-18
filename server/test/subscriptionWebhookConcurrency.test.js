@@ -27,7 +27,7 @@ test("subscription event ordering metadata is private but queryable", () => {
 test("an older cancellation event cannot match a subscription updated by a newer activation", () => {
   const newerActivation = subscriptionEventTimestamp({ created_at: 1792324802 });
   const olderCancellation = subscriptionEventTimestamp({ created_at: 1792324801 });
-  const filter = subscriptionEventFreshnessFilter(olderCancellation);
+  const filter = subscriptionEventFreshnessFilter(olderCancellation, "evt-cancel-old", "subscription.cancelled");
   assert.equal(newerActivation > olderCancellation, true);
   assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lt === olderCancellation), true);
   assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lte === olderCancellation), false);
@@ -37,9 +37,9 @@ test("conflicting events from the same provider second are deliberately first-ap
   const activation = subscriptionEventTimestamp({ created_at: 1792324800 });
   const cancellation = subscriptionEventTimestamp({ created_at: 1792324800 });
   assert.equal(activation.getTime(), cancellation.getTime());
-  const filter = subscriptionEventFreshnessFilter(cancellation);
+  const filter = subscriptionEventFreshnessFilter(cancellation, "evt-cancel", "subscription.cancelled");
   assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lt === cancellation), true);
-  assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lte === cancellation), false);
+  assert.equal(filter.$or.some((clause) => clause.providerEventAt?.$lte === cancellation), false);\n  assert.equal(filter.$or.some((clause) => clause.providerEventId === "evt-cancel"), true);
 });
 
 test("events without timestamps cannot change a timestamped subscription or trigger guarded transition notifications", () => {

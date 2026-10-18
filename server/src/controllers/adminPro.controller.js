@@ -1701,17 +1701,24 @@ export async function updatePaymentIssue(req, res, next) {
     }
     if (!issue) return failure(res, "This payment issue was updated by another administrator. Refresh and try again.", 409);
     await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote }, "Admin updated payment issue report");
-    await createNotificationEvent({
-      userId: String(issue.user),
-      title: status === "resolved" ? "Payment issue resolved" : "Payment report updated",
-      message: adminNote || (status === "resolved" ? "Your payment issue has been marked as resolved." : `Your payment issue status is now ${status.replace(/_/g, " ")}.`),
-      type: "billing",
-      link: "/billing",
-      eventKey: `payment-issue-status:${issue._id}:${status}:${issue.updatedAt.getTime()}`,
-      emailSubject: "Update on your BuddyForStudy payment issue",
-      metadata: { issueId: String(issue._id), status },
-      templateKeys: { notification: "payment-issue-status-updated-in-app", email: "payment-issue-status-updated-email" }
-    });
+    try {
+      await createNotificationEvent({
+        userId: String(issue.user),
+        title: status === "resolved" ? "Payment issue resolved" : "Payment report updated",
+        message: adminNote || (status === "resolved" ? "Your payment issue has been marked as resolved." : `Your payment issue status is now ${status.replace(/_/g, " ")}.`),
+        type: "billing",
+        link: "/billing",
+        eventKey: `payment-issue-status:${issue._id}:${status}:${issue.updatedAt.getTime()}`,
+        emailSubject: "Update on your BuddyForStudy payment issue",
+        metadata: { issueId: String(issue._id), status },
+        templateKeys: { notification: "payment-issue-status-updated-in-app", email: "payment-issue-status-updated-email" }
+      });
+    } catch (notificationError) {
+      console.error("[notifications] payment issue status notice failed", {
+        issueId: String(issue._id),
+        message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+      });
+    }
     return success(res, { issue }, "Payment issue updated");
   } catch (e) { next(e); }
 }

@@ -205,8 +205,8 @@ export default function AdminUsersPro() {
         }),
       });
       await load(pagination.page || 1);
-      if (selected?._id === user._id) {
-        setSelected({ ...selected, isActive: !user.isActive });
+      if (selected?.user?._id === user._id) {
+        setSelected({ ...selected, user: { ...selected.user, isActive: !user.isActive } });
       }
       setPendingUserAction(null);
       setAdminActionReason("");

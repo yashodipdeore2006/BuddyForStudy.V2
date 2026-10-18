@@ -35,6 +35,8 @@ function mapCourse(raw: any): Course {
 export default function Courses() {
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
+  const [savedCourseIds, setSavedCourseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [youtubeDiscovery, setYoutubeDiscovery] = useState<any>(null);
@@ -122,6 +124,37 @@ export default function Courses() {
 
     fetchCourses();
   }, [selectedLevel, selectedCategory, catalogQuery]);
+
+  useEffect(() => {
+    let active = true;
+    if (!session) {
+      setEnrolledCourseIds(new Set());
+      setSavedCourseIds(new Set());
+      return;
+    }
+
+    Promise.all([
+      apiFetch('/api/enrollments'),
+      apiFetch('/api/saved-courses'),
+    ]).then(([enrollmentData, savedData]) => {
+      if (!active) return;
+      const enrolledIds = (enrollmentData.enrollments || [])
+        .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
+        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course_id ?? item.courseId ?? ''))
+        .filter(Boolean);
+      const savedIds = (savedData.savedCourses || [])
+        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.courseId ?? ''))
+        .filter(Boolean);
+      setEnrolledCourseIds(new Set(enrolledIds));
+      setSavedCourseIds(new Set(savedIds));
+    }).catch(() => {
+      if (!active) return;
+      setEnrolledCourseIds(new Set());
+      setSavedCourseIds(new Set());
+    });
+
+    return () => { active = false; };
+  }, [session]);
 
   const categories = useMemo(() => {
     const cats = new Set(courses.map((c) => c.category).filter(Boolean));
@@ -600,7 +633,7 @@ export default function Courses() {
               {filteredCourses.length > 0 && (
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredCourses.map((course) => (
-                    <CourseCard key={course.id} course={course} showActions />
+                    <CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />
                   ))}
                 </div>
               )}

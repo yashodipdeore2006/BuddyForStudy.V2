@@ -61,13 +61,16 @@ async function audit(req, action, view, after = null) {
 
 export async function listSavedViews(req, res, next) {
   try {
-    const pageResult = pageSchema.safeParse(String(req.query.page || ""));
-    if (!pageResult.success) return failure(res, "A valid page key is required.", 400);
-    const views = await SavedView.find({
-      page: pageResult.data,
-      $or: [{ owner: ownerId(req) }, { shared: true }]
-    }).sort({ createdAt: 1, _id: 1 }).limit(100).lean();
-    return success(res, { items: views.map((view) => ({ ...viewDto(view), canManage: String(view.owner) === String(ownerId(req)) })), total: views.length });
+    const pageResult = pageSchema.safeParse(String(req.query.pageKey || ""));
+    if (!pageResult.success) return failure(res, "A valid pageKey is required.", 400);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 100);
+    const filter = { page: pageResult.data, $or: [{ owner: ownerId(req) }, { shared: true }] };
+    const [views, total] = await Promise.all([
+      SavedView.find(filter).sort({ createdAt: 1, _id: 1 }).skip((page - 1) * limit).limit(limit).lean(),
+      SavedView.countDocuments(filter)
+    ]);
+    return success(res, { items: views.map((view) => ({ ...viewDto(view), canManage: String(view.owner) === String(ownerId(req)) })), total, page, limit });
   } catch (error) { return next(error); }
 }
 

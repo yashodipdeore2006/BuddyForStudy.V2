@@ -4,6 +4,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { ADMIN_ROLE_PROFILES, getAdminPermissions, isAdminRoleProfile } from "../utils/adminRbac.js";
+import { acquireAdminGovernanceLock, releaseAdminGovernanceLock } from "../services/adminGovernanceLock.service.js";
 
 export async function currentAdminAccess(req, res) {
   const adminRole = req.user?.adminRole || "platform_admin";
@@ -130,6 +131,7 @@ export async function listAdministrators(_req, res, next) {
 }
 
 export async function updateAdministratorRole(req, res, next) {
+  let governanceLockToken = "";
   try {
     const { userId } = req.params;
     const { adminRole, reason = "" } = req.body || {};
@@ -138,9 +140,15 @@ export async function updateAdministratorRole(req, res, next) {
     if (typeof reason !== "string" || reason.length > 500) {
       return failure(res, "Reason must be a string of at most 500 characters.", 400);
     }
-
     if (String(req.user?.userId) === String(userId)) {
       return failure(res, "You cannot change your own administrator role.", 409);
+    }
+
+    // Serialize administrator role changes so concurrent requests cannot both
+    // observe two active Super Admins and then demote both of them.
+    governanceLockToken = await acquireAdminGovernanceLock();
+    if (!governanceLockToken) {
+      return failure(res, "Another administrator role change is in progress. Refresh and try again.", 409);
     }
 
     const target = await User.findOne({ _id: userId, role: "admin" });
@@ -201,5 +209,13 @@ export async function updateAdministratorRole(req, res, next) {
       : "Administrator role updated, but its audit event could not be recorded or queued. Notify a Super Admin.");
   } catch (error) {
     return next(error);
+  } finally {
+    if (governanceLockToken) {
+      await releaseAdminGovernanceLock(governanceLockToken).catch((error) => {
+        console.error("[admin-governance] role-change lock release failed", {
+          message: String(error?.message || "Unknown error").slice(0, 200)
+        });
+      });
+    }
   }
 }

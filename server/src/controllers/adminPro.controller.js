@@ -76,7 +76,8 @@ async function notificationAudienceUsers(audience) {
   if (audience === "active") return User.find({ isActive: true }).select("_id");
   if (audience === "subscribers") {
     const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
-    // Subscription audiences include inactive accounts too: account activity must not suppress admin communications.\n    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id");
+    // Subscription audiences include inactive accounts too: account activity must not suppress admin communications.
+    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id");
   }
   return User.find({}).select("_id");
 }

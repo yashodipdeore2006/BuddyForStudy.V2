@@ -79,9 +79,6 @@ export function requireCourseOrFeature(feature) {
         req.subscriptionEntitlement = entitlement;
         return next();
       }
-      if (feature === "published_courses" && courseId && await hasPaidCourseAccess(req.user.userId, courseId)) {
-        return next();
-      }
       return failure(res,
         `This feature is not included in your current plan. Upgrade your plan or purchase this course to continue.`,
         403,

@@ -463,3 +463,18 @@
 @media (max-width: 767px) {
   .admin-shell .admin-content .fixed.inset-0 > aside[role="dialog"] { width: 100vw; max-width: 100vw; }
 }
+
+.admin-shell .admin-saved-view-item { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); }
+.admin-shell .admin-saved-view-item .admin-saved-view { border-color: transparent; background: transparent; }
+.admin-shell .admin-saved-view-remove { display: inline-grid; place-items: center; width: var(--control-h-sm); height: var(--control-h-sm); border: 0; border-radius: var(--r-full); background: transparent; color: var(--muted); }
+.admin-shell .admin-saved-view-remove:hover { background: var(--danger-soft); color: var(--danger); }
+.admin-shell .admin-saved-view--action { border-style: dashed; }
+.admin-shell .admin-save-view-form { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.admin-shell .admin-save-view-form label { color: var(--text-2); font-size: var(--fs-sm); }
+.admin-shell .admin-save-view-form input { width: min(100%, 320px); }
+.admin-shell .admin-users-table--compact th, .admin-shell .admin-users-table--compact td { padding-top: var(--s-2) !important; padding-bottom: var(--s-2) !important; }
+.admin-shell .admin-users-table--comfortable th, .admin-shell .admin-users-table--comfortable td { padding-top: var(--s-3) !important; padding-bottom: var(--s-3) !important; }
+@media (max-width: 640px) {
+  .admin-shell .admin-save-view-form { align-items: stretch; flex-direction: column; }
+  .admin-shell .admin-save-view-form input { width: 100%; }
+}

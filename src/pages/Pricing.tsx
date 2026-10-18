@@ -241,7 +241,7 @@ export default function Pricing() {
                 onClick={() => void subscribe(plan._id)}
                 className={`mt-7 w-full ${Number(plan.price) === 0 ? "btn-secondary" : "btn-buy"}`}
               >
-                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : Number(plan.price) === 0 ? "Current free access" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
+                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : Number(plan.price) === 0 ? "Included" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
               </button>
             </article>
           );

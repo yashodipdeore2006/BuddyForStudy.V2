@@ -213,7 +213,9 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
   if (normalized.courseCountMin !== undefined) {
     const courseCounts = await Enrollment.aggregate([
       { $match: { status: { $in: ["active", "completed"] } } },
-      { $group: { _id: "$user", courseCount: { $sum: 1 } } },
+      // Count distinct courses per learner even if legacy data contains duplicate enrollment rows.
+      { $group: { _id: { user: "$user", course: "$course" } } },
+      { $group: { _id: "$_id.user", courseCount: { $sum: 1 } } },
       { $match: { courseCount: { $gte: normalized.courseCountMin } } },
       { $project: { _id: 1 } }
     ]);
@@ -223,8 +225,34 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
 
   if (normalized.totalSpendMin !== undefined) {
     const spenders = await Payment.aggregate([
-      { $match: { status: "paid", currency: "INR" } },
-      { $group: { _id: "$user", totalSpend: { $sum: "$amount" } } },
+      { $match: { status: { $in: ["paid", "partially_refunded"] }, currency: "INR" } },
+      {
+        $lookup: {
+          from: "refund_requests",
+          let: { paymentId: "$_id" },
+          pipeline: [
+            { $match: { status: "processed", $expr: { $eq: ["$payment", "$paymentId"] } } },
+            { $group: { _id: null, totalRefunded: { $sum: "$amount" } } }
+          ],
+          as: "processedRefundSummary"
+        }
+      },
+      {
+        $addFields: {
+          netSpend: {
+            $max: [
+              {
+                $subtract: [
+                  "$amount",
+                  { $ifNull: [{ $arrayElemAt: ["$processedRefundSummary.totalRefunded", 0] }, 0] }
+                ]
+              },
+              0
+            ]
+          }
+        }
+      },
+      { $group: { _id: "$user", totalSpend: { $sum: "$netSpend" } } },
       { $match: { totalSpend: { $gte: normalized.totalSpendMin } } },
       { $project: { _id: 1 } }
     ]);
@@ -254,6 +282,15 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
 }
 
 export function validateAdminAudienceInput(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Audience input must be an object");
+  const hasUserIdsField = Object.prototype.hasOwnProperty.call(input, "userIds");
+  const hasEmailsField = Object.prototype.hasOwnProperty.call(input, "emails");
+  const hasFiltersField = Object.prototype.hasOwnProperty.call(input, "filters");
+  if (hasUserIdsField && (!Array.isArray(input.userIds) || input.userIds.length === 0)) throw new Error("Selected user targeting requires at least one user ID");
+  if (hasEmailsField && (!Array.isArray(input.emails) || input.emails.length === 0)) throw new Error("Selected email targeting requires at least one email address");
+  if (hasFiltersField && (!input.filters || typeof input.filters !== "object" || Array.isArray(input.filters) || Object.keys(input.filters).length === 0)) {
+    throw new Error("Provide at least one valid audience filter");
+  }
   if (Array.isArray(input.userIds) && input.userIds.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
   if (Array.isArray(input.userIds) && input.userIds.some((id) => !isValidObjectId(String(id)))) throw new Error("One or more selected user IDs are invalid");
   if (Array.isArray(input.emails) && input.emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);

@@ -17,7 +17,7 @@ import {
   Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
+import { AdminConfirmDialog, AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
 
 function statusClass(active: boolean) {
   return active
@@ -49,6 +49,8 @@ export default function AdminUsersPro() {
   const [courseActionId, setCourseActionId] = useState<string | null>(null);
   const [courseSearch, setCourseSearch] = useState("");
   const [courseReason, setCourseReason] = useState("");
+  const [pendingCourseAction, setPendingCourseAction] = useState<any>(null);
+  const [confirmationValue, setConfirmationValue] = useState("");
   const [featureOverrides, setFeatureOverrides] = useState<any[]>([]);
   const [featureChoices, setFeatureChoices] = useState<Record<string, string>>({});
   const [featureOverrideReason, setFeatureOverrideReason] = useState("");
@@ -181,7 +183,7 @@ export default function AdminUsersPro() {
     }
   }
 
-  async function changeCourseAccess(course: any) {
+  async function changeCourseAccess(course: any, confirmed = false) {
     if (!selected?.user?._id || !course?._id) return;
     const currentlyHasAccess = ["active", "completed"].includes(course.enrollment?.status);
     const reason = courseReason.trim();
@@ -190,12 +192,11 @@ export default function AdminUsersPro() {
       return;
     }
     const action = currentlyHasAccess ? "remove" : "grant";
-    const confirmed = window.confirm(
-      currentlyHasAccess
-        ? `Remove ${course.title} from ${selected.user.name}'s account? This does not refund or delete any payment.`
-        : `Grant ${course.title} to ${selected.user.name}'s account? This will not create a payment record.`
-    );
-    if (!confirmed) return;
+    if (!confirmed) {
+      setPendingCourseAction(course);
+      setConfirmationValue("");
+      return;
+    }
     setCourseActionId(String(course._id));
     setError("");
     try {
@@ -210,6 +211,8 @@ export default function AdminUsersPro() {
       const detail = await adminFetch(`/api/admin/users/${selected.user._id}`);
       setSelected(detail);
       setCourseReason("");
+      setPendingCourseAction(null);
+      setConfirmationValue("");
     } catch (e) {
       setError(e instanceof Error ? e.message : `Unable to ${action} course access`);
     } finally {
@@ -508,6 +511,21 @@ export default function AdminUsersPro() {
           </aside>
         </div>
       )}
+      <AdminConfirmDialog
+        open={Boolean(pendingCourseAction)}
+        title={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status) ? "Remove course access?" : "Grant course access?") : "Confirm course access"}
+        description={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status)
+          ? `This removes ${pendingCourseAction.title} from ${selected?.user?.name || "this user"}. Payment and refund records remain unchanged.`
+          : `This grants ${pendingCourseAction.title} to ${selected?.user?.name || "this user"} without creating a payment or receipt.`) : ""}
+        confirmLabel={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status) ? "Remove course access" : "Grant course access") : "Confirm"}
+        requiredText={pendingCourseAction?.title}
+        value={confirmationValue}
+        onValueChange={setConfirmationValue}
+        onConfirm={() => { if (pendingCourseAction) void changeCourseAccess(pendingCourseAction, true); }}
+        onClose={() => { setPendingCourseAction(null); setConfirmationValue(""); }}
+        loading={Boolean(pendingCourseAction && courseActionId === String(pendingCourseAction._id))}
+        danger={Boolean(pendingCourseAction && ["active", "completed"].includes(pendingCourseAction.enrollment?.status))}
+      />
     </div>
   );
 }

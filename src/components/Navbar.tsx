@@ -59,7 +59,7 @@ export default function Navbar() {
         <div className="flex min-w-0 items-center gap-6 xl:gap-8">
           <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label="BuddyForStudy home">
             <span className="bfs-brand-mark h-11 w-11 overflow-hidden">
-              <img src="/buddyforstudy-mascot.svg" alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
+              <img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
             </span>
             <span className="hidden sm:block">
               <span className="bfs-brand-wordmark block text-[17px] leading-tight">Buddy<span className="brand-accent">For</span>Study</span>

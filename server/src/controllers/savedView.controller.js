@@ -4,6 +4,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 
 const pageSchema = z.string().trim().min(1).max(80).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/);
+const viewIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/);
 const scalarSchema = z.union([
   z.string().max(200),
   z.number().finite(),
@@ -87,6 +88,7 @@ export async function createSavedView(req, res, next) {
 
 export async function updateSavedView(req, res, next) {
   try {
+    if (!viewIdSchema.safeParse(req.params.viewId).success) return failure(res, "Invalid saved view ID.", 400);
     const parsed = updateSchema.safeParse(req.body);
     if (!parsed.success) return failure(res, "Saved view data is invalid.", 400, parsed.error.flatten());
     const view = await SavedView.findOne({ _id: req.params.viewId, owner: ownerId(req) });
@@ -104,6 +106,7 @@ export async function updateSavedView(req, res, next) {
 
 export async function deleteSavedView(req, res, next) {
   try {
+    if (!viewIdSchema.safeParse(req.params.viewId).success) return failure(res, "Invalid saved view ID.", 400);
     const view = await SavedView.findOne({ _id: req.params.viewId, owner: ownerId(req) });
     if (!view) return failure(res, "Saved view not found or not owned by this administrator.", 404);
     await view.deleteOne();

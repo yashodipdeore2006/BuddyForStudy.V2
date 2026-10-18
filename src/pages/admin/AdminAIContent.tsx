@@ -49,7 +49,7 @@ export default function AdminAIContent() {
         method: "PUT",
         body: JSON.stringify({ value, reason: "AI & Learning Content Manager updated " + setting.key }),
       });
-      setNotice("Saved " + setting.key.replaceAll("_", " ") + ".");
+      setNotice("Saved " + setting.key.split("_").join(" ") + ".");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save this setting.");

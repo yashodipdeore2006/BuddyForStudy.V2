@@ -1471,10 +1471,10 @@ export async function reconcileRefund(req, res, next) {
 export async function previewNotificationAudience(req, res, next) {
   try {
     validateAdminAudienceInput(req.body || {});
-    const users = await resolveAdminAudience(req.body || {}, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5000 });
+    const users = await resolveAdminAudience(req.body || {}, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
     const truncated = users.length >= 5000;
     return success(res, {
-      recipientCount: users.length,
+      recipientCount: truncated ? 5000 : users.length,
       truncated,
       sample: users.slice(0, 10).map((user) => ({
         id: String(user._id),
@@ -1508,8 +1508,9 @@ export async function sendNotification(req, res, next) {
     try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
     let users;
     try {
-      users = await resolveAdminAudience(req.body, { select: "_id", limit: 5000 });
+      users = await resolveAdminAudience(req.body, { select: "_id", limit: 5001 });
     } catch (error) { return failure(res, error.message, 400); }
+    if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
     const broadcastId = new mongoose.Types.ObjectId().toString();
     await mapWithConcurrency(users, (user) => createNotificationEvent({
       userId: String(user._id),
@@ -1545,7 +1546,7 @@ export async function sendEmail(req, res, next) {
       if (knownUser) users = [knownUser];
     } else {
       try {
-        users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5000 });
+        users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5001 });
       } catch (error) { return failure(res, error.message, 400); }
     }
 
@@ -1553,6 +1554,7 @@ export async function sendEmail(req, res, next) {
       return failure(res, "Campaign email can only be sent to registered users so their notification preferences and consent can be checked.", 400);
     }
 
+    if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
     if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");
     const broadcastId = new mongoose.Types.ObjectId().toString();
     const results = await mapWithConcurrency(users, (user) => createNotificationEvent({
@@ -1598,6 +1600,7 @@ export async function sendAnnouncement(req, res, next) {
     let users;
     try { users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5000 }); }
     catch (error) { return failure(res, error.message, 400); }
+    if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
     const announcement = await Announcement.create({
       title,
       message,

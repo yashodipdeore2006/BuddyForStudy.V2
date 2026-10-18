@@ -302,7 +302,18 @@ export default function FeatureUpgradeModal() {
                   return (
                     <article
                       key={plan._id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`Select ${plan.name} plan`}
                       onMouseEnter={() => setSelectedPlanId(plan._id)}
+                      onClick={() => setSelectedPlanId(plan._id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedPlanId(plan._id);
+                        }
+                      }}
                       onFocusCapture={() => setSelectedPlanId(plan._id)}
                       className={`bfs-plan-option relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
                         isSelected

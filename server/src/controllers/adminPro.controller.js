@@ -195,7 +195,7 @@ export async function users(req, res, next) {
       authProvider: "authProvider",
     };
     const requestedSort = String(req.query.sortBy || "createdAt");
-    const sortField = sortFields[requestedSort] || "createdAt";
+    const sortField = Object.hasOwn(sortFields, requestedSort) ? sortFields[requestedSort] : "createdAt";
     const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
     const sort = { [sortField]: sortOrder, _id: -1 };
     const [items, total] = await Promise.all([

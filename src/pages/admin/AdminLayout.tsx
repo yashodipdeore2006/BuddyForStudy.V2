@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, Navigate, useNavigate } from "react-router-dom";
+import { NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -38,16 +38,16 @@ export function AdminGuard({ children }: { children: ReactNode }) {
 }
 
 const links = [
-  ["/admin", "Overview", LayoutDashboard],
-  ["/admin/users", "Users", Users],
-  ["/admin/courses", "Courses", BookOpen],
-  ["/admin/analytics", "Analytics", Activity],
-  ["/admin/plans", "Plans & Pricing", CreditCard],
-  ["/admin/billing", "Billing & Refunds", CreditCard],
-  ["/admin/communications", "Communications", Megaphone],
-  ["/admin/coupons", "Coupons", Tag],
-  ["/admin/audit", "Audit Log", ScrollText],
-  ["/admin/settings", "Platform Settings", Settings],
+  ["/admin", "Overview", LayoutDashboard, "dashboard.read"],
+  ["/admin/users", "Users", Users, "users.read"],
+  ["/admin/courses", "Courses", BookOpen, "courses.read"],
+  ["/admin/analytics", "Analytics", Activity, "analytics.read"],
+  ["/admin/plans", "Plans & Pricing", CreditCard, "plans.read"],
+  ["/admin/billing", "Billing & Refunds", CreditCard, "billing.read"],
+  ["/admin/communications", "Communications", Megaphone, "communications.send"],
+  ["/admin/coupons", "Coupons", Tag, "coupons.read"],
+  ["/admin/audit", "Audit Log", ScrollText, "audit.read"],
+  ["/admin/settings", "Platform Settings", Settings, "settings.read"],
 ] as const;
 
 function navClass(isActive: boolean) {
@@ -61,15 +61,18 @@ function navClass(isActive: boolean) {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const nav = useNavigate();
+  const { pathname } = useLocation();
   const { session, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [canManageRoles, setCanManageRoles] = useState(false);
+  const [access, setAccess] = useState<{ adminRole: string; roleLabel: string; permissions: string[] } | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    void adminFetch("/api/admin/roles")
-      .then(() => { if (!cancelled) setCanManageRoles(true); })
-      .catch(() => { if (!cancelled) setCanManageRoles(false); });
+    void adminFetch("/api/admin/access")
+      .then((data) => { if (!cancelled) setAccess(data.access || null); })
+      .catch(() => { if (!cancelled) setAccess(null); })
+      .finally(() => { if (!cancelled) setAccessLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -89,7 +92,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     nav("/login", { replace: true });
   };
 
-  const visibleLinks = canManageRoles ? [...links, ["/admin/roles", "Administrator Roles", ShieldCheck] as const] : links;
+  const permissions = access?.permissions || [];
+  const visibleLinks = links.filter(([, , , permission]) => permissions.includes(permission));
+  if (permissions.includes("admin_roles.manage")) {
+    visibleLinks.push(["/admin/roles", "Administrator Roles", ShieldCheck, "admin_roles.manage"]);
+  }
+  const requiredPermissionByPath: Record<string, string> = {
+    "/admin": "dashboard.read",
+    "/admin/users": "users.read",
+    "/admin/courses": "courses.read",
+    "/admin/analytics": "analytics.read",
+    "/admin/plans": "plans.read",
+    "/admin/billing": "billing.read",
+    "/admin/communications": "communications.send",
+    "/admin/coupons": "coupons.read",
+    "/admin/audit": "audit.read",
+    "/admin/settings": "settings.read",
+    "/admin/roles": "admin_roles.manage",
+  };
+  const requiredPermission = requiredPermissionByPath[pathname];
 
   const navigation = (
     <nav aria-label="Admin navigation" className="space-y-1 p-3">
@@ -205,7 +226,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="lg:pl-64">
-        <div className="min-h-screen p-4 sm:p-6 lg:p-8">{children}</div>
+        <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+          {accessLoading ? (
+            <div role="status" className="flex min-h-48 items-center justify-center text-sm text-slate-500">Loading administrator permissions…</div>
+          ) : !access ? (
+            <div role="alert" className="rounded-2xl border border-red-200 bg-white p-6 text-sm text-red-700">Unable to load your administrator permissions. Refresh the page or sign in again.</div>
+          ) : requiredPermission && !permissions.includes(requiredPermission) ? (
+            <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <ShieldCheck className="mx-auto h-10 w-10 text-slate-400" />
+              <h1 className="mt-4 text-xl font-bold text-slate-900">Access restricted</h1>
+              <p className="mt-2 text-sm text-slate-500">Your current role ({access.roleLabel}) does not have permission to access this section.</p>
+              <button type="button" onClick={() => nav("/admin")} className="mt-5 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">Return to overview</button>
+            </div>
+          ) : children}
+        </div>
       </main>
     </div>
   );

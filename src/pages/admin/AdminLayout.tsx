@@ -38,7 +38,7 @@ const links: AdminLink[] = [
 ];
 
 const groupOrder: AdminLink["group"][] = ["Overview", "Manage", "Insights", "Settings"];
-const routeLabels: Record<string, string> = Object.fromEntries(links.map((item) => [item.to, item.label]));
+const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system" };
 const quickActions = [
   { to: "/admin/courses", label: "Open course management", description: "Create and update learning content", permission: "courses.read", icon: BookOpen },
   { to: "/admin/plans", label: "Open subscription plans", description: "Manage pricing and entitlements", permission: "plans.read", icon: CreditCard },
@@ -249,9 +249,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathEntry = visibleLinks.find((item) => item.to === location.pathname)
     || links.find((item) => item.to === location.pathname)
     || visibleLinks.find((item) => item.to !== "/admin" && location.pathname.startsWith(item.to + "/"));
-  const currentLabel = pathEntry?.label || "Admin";
+  const currentLabel = pathEntry?.label || routeLabels[location.pathname] || "Admin";
   const requiredPermission = links.find((item) => item.to === location.pathname)?.permission
-    || (location.pathname === "/admin/roles" ? "admin_roles.manage" : undefined);
+    || (location.pathname === "/admin/roles" ? "admin_roles.manage" : location.pathname === "/admin/design-system" ? "settings.read" : undefined);
   const production = import.meta.env.MODE === "production";
 
   const handleSignOut = async () => {

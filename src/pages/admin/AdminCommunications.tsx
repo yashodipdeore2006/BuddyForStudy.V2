@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, Eye, Mail, Megaphone, Send } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 type Channel = "in_app" | "email" | "push";
 type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean };
@@ -308,17 +308,16 @@ export default function AdminCommunications() {
         description="Send targeted in-app notifications, email and announcements with a preview before delivery."
       />
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        {[
-          ["notification", "In-app notification", Bell],
-          ["email", "Email", Mail],
-          ["announcement", "Announcement", Megaphone],
-        ].map(([value, label, Icon]: any) => (
-          <button key={value} type="button" onClick={() => setTab(value)} className={tab === value ? "btn-primary" : "btn-secondary"}>
-            <Icon className="h-4 w-4" /> {label}
-          </button>
-        ))}
-      </div>
+      <AdminTabs
+        ariaLabel="Communication type"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: "notification", label: "In-app notification" },
+          { value: "email", label: "Email" },
+          { value: "announcement", label: "Announcement" },
+        ]}
+      />
 
       {templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
 

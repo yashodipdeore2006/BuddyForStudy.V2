@@ -38,9 +38,62 @@
   --bfs-space-section: 64px;
   --bfs-font: "Optimistic VF", Montserrat, Helvetica, Arial, "Noto Sans", sans-serif;
 }
-html { scroll-behavior: smooth; }
-body { @apply antialiased; margin: 0; background: var(--bfs-canvas); color: var(--bfs-ink); font-family: var(--bfs-font); font-feature-settings: "ss01", "ss02"; }
-h1,h2,h3,h4,h5,h6 { @apply tracking-tight; font-weight: 500 !important; line-height: 1.22; font-feature-settings: "ss01", "ss02"; }
+/* Platform-wide type scale: one readable family, predictable hierarchy, responsive headings. */
+:root {
+  --bfs-font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bfs-text-xs: 0.75rem;
+  --bfs-text-sm: 0.875rem;
+  --bfs-text-base: 1rem;
+  --bfs-text-lg: 1.125rem;
+  --bfs-text-xl: 1.25rem;
+  --bfs-heading-6: 0.9375rem;
+  --bfs-heading-5: 1rem;
+  --bfs-heading-4: clamp(1.125rem, 1.05rem + 0.25vw, 1.25rem);
+  --bfs-heading-3: clamp(1.25rem, 1.1rem + 0.55vw, 1.625rem);
+  --bfs-heading-2: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+  --bfs-heading-1: clamp(1.875rem, 1.45rem + 1.8vw, 2.75rem);
+  --bfs-display: clamp(2.25rem, 1.5rem + 3vw, 4rem);
+  --bfs-leading-tight: 1.2;
+  --bfs-leading-heading: 1.3;
+  --bfs-leading-body: 1.6;
+  --bfs-leading-compact: 1.45;
+}
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  @apply antialiased;
+  margin: 0;
+  background: var(--bfs-canvas);
+  color: var(--bfs-ink);
+  font-family: var(--bfs-font);
+  font-size: var(--bfs-text-base);
+  line-height: var(--bfs-leading-body);
+  font-feature-settings: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+h1,h2,h3,h4,h5,h6 {
+  @apply tracking-tight;
+  color: var(--bfs-ink-deep);
+  font-family: var(--bfs-font);
+  font-weight: 650 !important;
+  line-height: var(--bfs-leading-heading);
+  text-wrap: balance;
+}
+h1 { font-size: var(--bfs-heading-1); line-height: var(--bfs-leading-tight); }
+h2 { font-size: var(--bfs-heading-2); }
+h3 { font-size: var(--bfs-heading-3); }
+h4 { font-size: var(--bfs-heading-4); }
+h5 { font-size: var(--bfs-heading-5); }
+h6 { font-size: var(--bfs-heading-6); }
+p { line-height: var(--bfs-leading-body); }
+small, .text-xs { line-height: var(--bfs-leading-compact); }
+strong, b { font-weight: 650; }
+button,input,select,textarea { font: inherit; }
+button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
+button { line-height: 1.35; }
+a { text-underline-offset: 0.18em; }
+:focus-visible { outline: 2px solid var(--bfs-primary); outline-offset: 3px; }
+::selection { background: rgba(0,100,224,.18); }
 button,input,select,textarea { font: inherit; }
 button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 2px solid var(--bfs-primary); outline-offset: 3px; }
@@ -137,4 +190,22 @@ button[aria-label][class*="p-2.5"] {
 }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+
+/* Shared semantic typography helpers for new and existing screens. */
+@layer components {
+  .bfs-display { font-size: var(--bfs-display); line-height: 1.08; font-weight: 650; letter-spacing: -0.045em; }
+  .bfs-page-title { font-size: var(--bfs-heading-1); line-height: var(--bfs-leading-tight); font-weight: 650; letter-spacing: -0.035em; color: var(--bfs-ink-deep); }
+  .bfs-section-title { font-size: var(--bfs-heading-2); line-height: var(--bfs-leading-heading); font-weight: 650; letter-spacing: -0.025em; color: var(--bfs-ink-deep); }
+  .bfs-card-title { font-size: var(--bfs-heading-4); line-height: 1.35; font-weight: 650; color: var(--bfs-ink-deep); }
+  .bfs-body { font-size: var(--bfs-text-base); line-height: var(--bfs-leading-body); color: var(--bfs-ink); }
+  .bfs-body-muted { font-size: var(--bfs-text-sm); line-height: var(--bfs-leading-body); color: var(--bfs-muted); }
+  .bfs-caption { font-size: var(--bfs-text-xs); line-height: var(--bfs-leading-compact); color: var(--bfs-muted); }
+  .bfs-label { font-size: var(--bfs-text-sm); line-height: 1.4; font-weight: 600; color: var(--bfs-ink); }
+  .bfs-eyebrow { font-size: var(--bfs-text-xs); line-height: 1.35; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--bfs-primary); }
+}
+@media (max-width: 640px) {
+  :root { --bfs-text-base: 0.9375rem; --bfs-leading-body: 1.58; }
+  h1 { line-height: 1.14; }
 }

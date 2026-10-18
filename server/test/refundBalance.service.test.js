@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateRemainingRefundableAmount, validateRefundAmount } from "../src/services/refundBalance.service.js";
+import { RefundRequest } from "../src/models/RefundRequest.js";
 
 test("remaining refundable balance subtracts only already-processed refunds", () => {
   assert.equal(calculateRemainingRefundableAmount(100, 25), 75);
@@ -21,4 +22,12 @@ test("refund amount defaults to the remaining balance and rejects invalid or exc
   assert.equal(validateRefundAmount("abc", 75).valid, false);
   assert.equal(validateRefundAmount(76, 75).valid, false);
   assert.equal(validateRefundAmount(1, 0).valid, false);
+});
+
+test("refund request schema enforces one active refund claim per payment", () => {
+  const activeIndex = RefundRequest.schema.indexes().find(([, options]) => options.name === "unique_active_refund_per_payment");
+  assert.ok(activeIndex, "Expected a unique active-refund index");
+  assert.deepEqual(activeIndex[0], { activePaymentKey: 1 });
+  assert.equal(activeIndex[1].unique, true);
+  assert.equal(activeIndex[1].sparse, true);
 });

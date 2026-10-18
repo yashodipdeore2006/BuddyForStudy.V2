@@ -29,7 +29,6 @@ import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
-import { validateAdminAccountChange } from "../utils/adminAccountSafety.js";
 import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";

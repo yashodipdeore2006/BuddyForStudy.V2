@@ -67,6 +67,9 @@ export async function generateRoadmap(req, res, next) {
     const isAdmin = req.user?.user?.role === "admin";
     const personalized = isAdmin || (await getEntitlement(req.user.userId, "personalized_roadmaps")).allowed;
     const projectsEnabled = isAdmin || (await getEntitlement(req.user.userId, "project_based_learning")).allowed;
+    if (!personalized) {
+      return failure(res, "Personalized learning roadmaps are not included in your current plan. Upgrade to use this feature.", 403, { feature: "personalized_roadmaps", plan: (await getActivePlanForUser(req.user.userId))?.name || "Free" });
+    }
     const plan = await getActivePlanForUser(req.user.userId);
     const result = await generateAIRoadmap(input, {
       userId: req.user.userId,

@@ -44,3 +44,48 @@ test("MongoDB atomically permits only one concurrent invitation claim", async (t
     await mongoose.disconnect();
   }
 });
+
+
+test("MongoDB serializes a concurrent invitation claim and revocation", async (t) => {
+  const uri = process.env.MONGO_URI;
+  if (!uri) {
+    t.skip("MONGO_URI is not configured; real MongoDB race test is skipped");
+    return;
+  }
+
+  await mongoose.connect(uri, { dbName: `buddyforstudy_invitation_revoke_race_${process.pid}` });
+  try {
+    const now = new Date();
+    const invitation = await AdminInvitation.create({
+      email: "revoke-race-test@example.com",
+      name: "Revoke Race Test",
+      adminRole: "support_manager",
+      tokenHash: `revoke-race-${process.pid}-${now.getTime()}`,
+      invitedBy: new mongoose.Types.ObjectId(),
+      expiresAt: new Date(now.getTime() + 60_000)
+    });
+
+    const transitionAt = new Date();
+    const [claim, revoke] = await Promise.all([
+      AdminInvitation.findOneAndUpdate(
+        { _id: invitation._id, acceptedAt: null, revokedAt: null, expiresAt: { $gt: transitionAt } },
+        { $set: { acceptedAt: transitionAt } },
+        { new: true }
+      ),
+      AdminInvitation.findOneAndUpdate(
+        { _id: invitation._id, acceptedAt: null, revokedAt: null, expiresAt: { $gt: transitionAt } },
+        { $set: { revokedAt: transitionAt } },
+        { new: true }
+      )
+    ]);
+
+    assert.equal(Number(Boolean(claim)) + Number(Boolean(revoke)), 1,
+      "exactly one of acceptance claim or revocation must win");
+    const stored = await AdminInvitation.findById(invitation._id);
+    assert.equal(Boolean(stored.acceptedAt) !== Boolean(stored.revokedAt), true,
+      "invitation must end in exactly one terminal state");
+  } finally {
+    await mongoose.connection.dropDatabase();
+    await mongoose.disconnect();
+  }
+});

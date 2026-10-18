@@ -66,6 +66,27 @@ export default function AdminBilling() {
     }
   }
 
+  async function reconcileRefund(id: string) {
+    const providerRefundId = window.prompt(
+      "Enter the Razorpay refund ID from the provider dashboard. Verify it belongs to this payment before continuing."
+    )?.trim();
+    if (!providerRefundId) return;
+
+    setActionId(id);
+    setError("");
+    try {
+      await adminFetch("/api/admin/refunds/" + id + "/reconcile", {
+        method: "POST",
+        body: JSON.stringify({ providerRefundId }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to reconcile provider refund");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   async function updateIssue(issue: any, status: string) {
     const note = window.prompt("Support update for the user (optional)", issue.adminNote || "") || "";
     setActionId(issue._id);
@@ -145,16 +166,24 @@ export default function AdminBilling() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.user?.name || "Unknown user"}</p><span className="badge bg-slate-100 text-slate-600">{item.status}</span></div>
                   <p className="text-sm text-slate-500">{item.user?.email}</p>
-                  <p className="mt-2 text-sm text-slate-700">{item.reason || "No reason provided."}</p>
+                  <p className="mt-2 text-sm text-slate-700">{item.reason || "No reason provided."}</p>{item.adminNote && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{item.adminNote}</p>}
                   <p className="mt-2 text-xs text-slate-400">{money(item.amount)} · {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</p>
                 </div>
-                {item.status === "pending" && (
+                {item.status === "pending" && permissions.includes("refunds.manage") && (
                   <div className="flex shrink-0 gap-2">
                     <button type="button" className="btn-secondary" disabled={actionId === item._id} onClick={() => void act(item._id, "approved")}>
                       {actionId === item._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Approve & refund
                     </button>
                     <button type="button" className="btn-danger" disabled={actionId === item._id} onClick={() => void act(item._id, "rejected")}>
                       <XCircle className="h-4 w-4" /> Reject
+                    </button>
+                  </div>
+                )}
+                {item.status === "approved" && permissions.includes("refunds.manage") && (
+                  <div className="flex shrink-0 flex-col items-start gap-2 lg:items-end">
+                    <p className="max-w-xs text-xs text-amber-800">Provider response needs reconciliation. Do not retry the refund until the provider status is verified.</p>
+                    <button type="button" className="btn-secondary" disabled={actionId === item._id} onClick={() => void reconcileRefund(item._id)}>
+                      {actionId === item._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />} Reconcile provider refund
                     </button>
                   </div>
                 )}

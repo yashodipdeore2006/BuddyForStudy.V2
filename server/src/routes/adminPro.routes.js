@@ -4,6 +4,7 @@ import * as controller from "../controllers/adminPro.controller.js";
 import * as messageTemplateController from "../controllers/messageTemplate.controller.js";
 import * as operationalAlertController from "../controllers/operationalAlert.controller.js";
 import * as adminRolesController from "../controllers/adminRoles.controller.js";
+import * as adminInvitationsController from "../controllers/adminInvitations.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -13,6 +14,9 @@ router.get("/ai-content/settings", adminPermissionMiddleware("ai.manage"), admin
 router.put("/ai-content/settings/:key", adminPermissionMiddleware("ai.manage"), adminRolesController.updateAIContentSetting);
 router.get("/roles", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdminRoles);
 router.get("/administrators", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdministrators);
+router.get("/invitations", adminPermissionMiddleware("admin_roles.manage"), adminInvitationsController.listInvitations);
+router.post("/invitations", adminPermissionMiddleware("admin_roles.manage"), adminInvitationsController.createInvitation);
+router.delete("/invitations/:invitationId", adminPermissionMiddleware("admin_roles.manage"), adminInvitationsController.revokeInvitation);
 router.put("/administrators/:userId/role", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.updateAdministratorRole);
 
 router.get("/overview", adminPermissionMiddleware("dashboard.read"), controller.overview);

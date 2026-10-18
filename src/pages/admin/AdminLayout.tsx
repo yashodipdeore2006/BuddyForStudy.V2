@@ -19,7 +19,7 @@ type AdminLink = {
   icon: typeof LayoutDashboard;
   description: string;
 };
-type CommandItem = { to: string; label: string; description: string; icon: typeof LayoutDashboard; kind: "Page" | "Action" };
+type CommandItem = { to: string; label: string; description: string; icon: typeof LayoutDashboard; kind: "Recent" | "Page" | "Action" };
 
 const links: AdminLink[] = [
   { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Platform overview and operations" },
@@ -97,6 +97,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [access, setAccess] = useState<Permission | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
+  const [recentPaths, setRecentPaths] = useState<string[]>(() => {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem("bfs-admin-recent-pages:" + userKey) || "[]");
+      return Array.isArray(parsed) ? parsed.filter((path): path is string => typeof path === "string").slice(0, 5) : [];
+    } catch { return []; }
+  });
   const [collapsed, setCollapsed] = useState(() => savedBoolean("bfs-admin-sidebar-collapsed:" + userKey, false));
   const [theme, setTheme] = useState<"light" | "dark">(savedTheme);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -150,14 +156,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const visibleLinks = useMemo(() => links.filter((item) => permissions.includes(item.permission)), [permissions]);
   const visibleQuickActions = useMemo(() => quickActions.filter((item) => permissions.includes(item.permission)), [permissions]);
   const matchingCommands = useMemo<CommandItem[]>(() => {
+    const recentItems = visibleLinks.filter((item) => recentPaths.includes(item.to));
+    const recentCommands: CommandItem[] = query.trim() ? [] : recentPaths.flatMap((path) => {
+      const item = recentItems.find((candidate) => candidate.to === path);
+      return item ? [{ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Recent" as const }] : [];
+    });
     const commands: CommandItem[] = [
-      ...visibleLinks.map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Page" as const })),
-      ...(permissions.includes("settings.read") ? [{ to: "/admin/design-system", label: "Admin design system", description: "Preview tokens and shared components", icon: Settings, kind: "Page" as const }] : []),
+      ...recentCommands,
+      ...visibleLinks.filter((item) => query.trim() || !recentPaths.includes(item.to)).map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Page" as const })),
+      ...(permissions.includes("settings.read") && (query.trim() || !recentPaths.includes("/admin/design-system")) ? [{ to: "/admin/design-system", label: "Admin design system", description: "Preview tokens and shared components", icon: Settings, kind: "Page" as const }] : []),
       ...visibleQuickActions.map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Action" as const })),
     ];
     const search = query.trim().toLowerCase();
     return commands.filter((item) => (item.label + " " + item.description + " " + item.to).toLowerCase().includes(search));
-  }, [query, visibleLinks, visibleQuickActions, permissions]);
+  }, [query, visibleLinks, visibleQuickActions, permissions, recentPaths]);
 
   useEffect(() => {
     setActiveResult(0);
@@ -241,6 +253,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [commandOpen, helpOpen, quickOpen, userMenuOpen, matchingCommands, activeResult, nav, visibleLinks]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("bfs-admin-recent-pages:" + userKey, JSON.stringify(recentPaths.slice(0, 5)));
+    } catch {
+      // Recent-page history is an optional convenience.
+    }
+  }, [recentPaths, userKey]);
+
+  useEffect(() => {
+    if (!visibleLinks.some((item) => item.to === location.pathname)) return;
+    setRecentPaths((current) => [location.pathname, ...current.filter((path) => path !== location.pathname)].slice(0, 5));
+  }, [location.pathname, visibleLinks]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -440,7 +465,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <h2 id="admin-command-title" className="admin-visually-hidden">Search pages and actions</h2>
           <div className="admin-command-search"><Search size={19} aria-hidden="true" /><input ref={commandInput} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search pages and actions…" aria-label="Search pages and actions" /><kbd>ESC</kbd></div>
           <div className="admin-command-results" role="listbox" aria-label="Search results">
-            <p className="admin-command-group-label">Pages</p>
+            {matchingCommands.some((item) => item.kind === "Recent") && <p className="admin-command-group-label">Recent</p>}
+            {matchingCommands.map((item, index) => item.kind === "Recent" ? <button type="button" key={item.kind + item.to} role="option" aria-selected={activeResult === index} className="admin-command-result" onMouseEnter={() => setActiveResult(index)} onClick={() => { nav(item.to); setCommandOpen(false); setQuery(""); }}><item.icon size={17} /><span className="admin-command-copy"><strong>{item.label}</strong><small>{item.description}</small></span><span className="admin-command-enter">{activeResult === index ? "↵" : ""}</span></button> : null)}
+            {matchingCommands.some((item) => item.kind === "Page") && <p className="admin-command-group-label">Pages</p>}
             {matchingCommands.map((item, index) => item.kind === "Page" ? <button type="button" key={item.kind + item.to} role="option" aria-selected={activeResult === index} className="admin-command-result" onMouseEnter={() => setActiveResult(index)} onClick={() => { nav(item.to); setCommandOpen(false); setQuery(""); }}><item.icon size={17} /><span className="admin-command-copy"><strong>{item.label}</strong><small>{item.description}</small></span><span className="admin-command-enter">{activeResult === index ? "↵" : ""}</span></button> : null)}
             {matchingCommands.some((item) => item.kind === "Action") && <p className="admin-command-group-label">Quick actions</p>}
             {matchingCommands.map((item, index) => item.kind === "Action" ? <button type="button" key={item.kind + item.to} role="option" aria-selected={activeResult === index} className="admin-command-result" onMouseEnter={() => setActiveResult(index)} onClick={() => { nav(item.to); setCommandOpen(false); setQuery(""); }}><item.icon size={17} /><span className="admin-command-copy"><strong>{item.label}</strong><small>{item.description}</small></span><span className="admin-command-enter">{activeResult === index ? "↵" : ""}</span></button> : null)}

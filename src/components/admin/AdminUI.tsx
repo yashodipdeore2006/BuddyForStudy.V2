@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode } from "react";
 import { AlertCircle, CheckCircle2, Info, LoaderCircle, XCircle } from "lucide-react";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-ghost" | "link";
@@ -195,6 +195,74 @@ export function AdminPagination({
         <span aria-live="polite">Page {page} of {Math.max(1, pages)}</span>
         <button type="button" className="btn-secondary" disabled={page >= pages || loading} onClick={() => onPageChange(page + 1)}>Next</button>
       </div>
+    </div>
+  );
+}
+
+export function AdminConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  requiredText,
+  value,
+  onValueChange,
+  onConfirm,
+  onClose,
+  loading = false,
+  danger = false,
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  requiredText?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+  loading?: boolean;
+  danger?: boolean;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const canConfirm = !requiredText || value?.trim() === requiredText;
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !loading) onClose();
+      if (event.key === "Tab" && dialogRef.current) {
+        const elements = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])'));
+        if (!elements.length) return;
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, loading, onClose]);
+
+  if (!open) return null;
+  return (
+    <div className="admin-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading) onClose(); }}>
+      <section ref={dialogRef} className="admin-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="admin-confirm-title" aria-describedby="admin-confirm-description" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="admin-confirm-header">
+          <span className={danger ? "admin-confirm-icon admin-confirm-icon--danger" : "admin-confirm-icon"}><AlertCircle size={20} aria-hidden="true" /></span>
+          <div><h2 id="admin-confirm-title">{title}</h2><p id="admin-confirm-description">{description}</p></div>
+        </header>
+        {requiredText && <div className="admin-confirm-field">
+          <label htmlFor="admin-confirm-text">Type <strong>{requiredText}</strong> to continue</label>
+          <input ref={inputRef} id="admin-confirm-text" value={value || ""} onChange={(event) => onValueChange?.(event.target.value)} autoComplete="off" />
+        </div>}
+        <footer className="admin-confirm-footer">
+          <AdminButton variant="secondary" onClick={onClose} disabled={loading}>Cancel</AdminButton>
+          <AdminButton variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading} disabled={!canConfirm}>{confirmLabel}</AdminButton>
+        </footer>
+      </section>
     </div>
   );
 }

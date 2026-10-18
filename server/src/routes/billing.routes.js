@@ -168,7 +168,21 @@ router.post("/issues", async (req,res,next)=>{ try {
   if (!payment) return failure(res,"Transaction not found",404);
   const existing = await PaymentIssue.findOne({ user: req.user.userId, payment: payment._id, status: { $in: ["open", "in_review"] } });
   if (existing) return failure(res,"An issue is already open for this transaction. You can track it in Billing.",409);
-  const issue = await PaymentIssue.create({ user: req.user.userId, payment: payment._id, category, description });
+  let issue;
+  try {
+    issue = await PaymentIssue.create({
+      user: req.user.userId,
+      payment: payment._id,
+      activePaymentKey: payment._id,
+      category,
+      description
+    });
+  } catch (createError) {
+    if (createError?.code === 11000) {
+      return failure(res, "An issue is already open for this transaction. You can track it in Billing.", 409);
+    }
+    throw createError;
+  }
   await sendNotificationSafely({
     userId: String(req.user.userId),
     title: "Payment issue reported",

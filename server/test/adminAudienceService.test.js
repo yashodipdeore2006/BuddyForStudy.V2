@@ -40,6 +40,18 @@ test("audience targeting rejects invalid inactivity windows", () => {
   assert.throws(() => validateAdminAudienceInput({ filters: { inactiveDays: 0 } }), /inactiveDays must be an integer/i);
 });
 
+test("audience targeting validates paid spend and enrolled-course thresholds", () => {
+  assert.equal(validateAdminAudienceInput({ filters: { totalSpendMin: 5000, courseCountMin: 4 } }), true);
+  assert.throws(() => validateAdminAudienceInput({ filters: { totalSpendMin: -1 } }), /totalSpendMin must be between/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { courseCountMin: 1.5 } }), /courseCountMin must be an integer/i);
+});
+
+test("audience targeting only accepts predefined plan and course segments", () => {
+  assert.equal(validateAdminAudienceInput({ filters: { planSegment: "premium", courseSegment: "popular" } }), true);
+  assert.throws(() => validateAdminAudienceInput({ filters: { planSegment: "unknown" } }), /Invalid plan segment/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { courseSegment: "unknown" } }), /Invalid course segment/i);
+});
+
 test("audience targeting validates subscription and course filter identifiers", () => {
   assert.throws(() => validateAdminAudienceInput({ filters: { planId: "bad-id" } }), /Invalid planId/i);
   assert.throws(() => validateAdminAudienceInput({ filters: { courseId: "bad-id" } }), /Invalid courseId/i);

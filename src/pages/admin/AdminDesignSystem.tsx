@@ -38,6 +38,43 @@ export default function AdminDesignSystem() {
       </section>
 
       <section className="admin-gallery-section">
+        <div className="admin-gallery-section-heading"><h2>Typography and spacing</h2><p>Use the shared type scale, spacing rhythm, and semantic elevation tokens.</p></div>
+        <div className="admin-gallery-grid">
+          <AdminCard>
+            <div className="admin-type-sample">
+              <span className="admin-type-label">Display / --fs-3xl</span>
+              <p className="admin-type-sample--3xl">Dashboard metrics</p>
+            </div>
+            <div className="admin-type-sample">
+              <span className="admin-type-label">Page title / --fs-2xl</span>
+              <p className="admin-type-sample--2xl">Subscription plans</p>
+            </div>
+            <div className="admin-type-sample">
+              <span className="admin-type-label">Body / --fs-md</span>
+              <p className="admin-type-sample--md">Manage access, pricing and learner support using clear, consistent controls.</p>
+            </div>
+            <div className="admin-type-sample">
+              <span className="admin-type-label">Caption / --fs-xs</span>
+              <p className="admin-type-sample--xs">Updated 18 Oct 2026 · Production</p>
+            </div>
+          </AdminCard>
+          <AdminCard>
+            <div className="admin-token-scale-grid">
+              {[
+                ["4px", "--s-1", "admin-space-1"], ["8px", "--s-2", "admin-space-2"], ["12px", "--s-3", "admin-space-3"],
+                ["16px", "--s-4", "admin-space-4"], ["24px", "--s-5", "admin-space-5"], ["32px", "--s-6", "admin-space-6"],
+              ].map(([label, token, sampleClass]) => <div className="admin-space-sample" key={token}><span>{label}</span><code>{token}</code><span className={`admin-space-bar ${sampleClass}`} aria-hidden="true" /></div>)}
+            </div>
+            <div className="admin-elevation-samples">
+              <span className="admin-elevation-sample admin-elevation-sample--sm">Small elevation</span>
+              <span className="admin-elevation-sample admin-elevation-sample--md">Medium elevation</span>
+              <span className="admin-elevation-sample admin-elevation-sample--lg">Large elevation</span>
+            </div>
+          </AdminCard>
+        </div>
+      </section>
+
+      <section className="admin-gallery-section">
         <div className="admin-gallery-section-heading"><h2>Buttons and status</h2><p>One primary action per view; destructive actions are explicit.</p></div>
         <AdminCard>
           <div className="admin-gallery-row">

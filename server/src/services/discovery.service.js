@@ -70,7 +70,8 @@ async function getDiscoveryAdminConfig() {
 function normalizePolicy(policy, config = {}) {
   const globalMin = Math.max(0, Math.min(1200, Number(config.discovery_min_duration_minutes ?? 30)));
   const globalMax = Math.max(30, Math.min(6000, Number(config.discovery_max_duration_minutes ?? 3600)));
-  const min = Math.max(globalMin, Math.min(2400, Number(policy?.minDurationMinutes) || 180));
+  const requestedMin = Math.min(2400, Number(policy?.minDurationMinutes) || 180);
+  const min = Math.min(globalMax, Math.max(globalMin, requestedMin));
   const max = Math.max(min, Math.min(globalMax, Number(policy?.maxDurationMinutes) || globalMax));
   const target = Math.max(min, Math.min(max, Number(policy?.targetDurationMinutes) || min));
   return {

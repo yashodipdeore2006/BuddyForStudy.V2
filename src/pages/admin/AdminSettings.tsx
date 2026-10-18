@@ -50,13 +50,15 @@ export default function AdminSettings() {
     pushRetryAttempts: 3,
   });
   const [savingNotificationConfig, setSavingNotificationConfig] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const data = await adminFetch("/api/admin/settings");
+      const [data, accessData] = await Promise.all([adminFetch("/api/admin/settings"), adminFetch("/api/admin/access")]);
       setSettings(data.settings || []);
+      setPermissions(accessData.access?.permissions || []);
       const values = Object.fromEntries((data.settings || []).map((item: any) => [item.key, item.value]));
       setAdvancedAI({
         questionsPerHourVideo: Number(values.advanced_ai_questions_per_hour_video ?? 10),
@@ -254,9 +256,9 @@ export default function AdminSettings() {
           Example: with <strong>10 questions/hour</strong> and a <strong>2-hour video</strong>, a learner can ask up to <strong>20 unique questions</strong> for that lesson (subject to the hard maximum and their plan's monthly Advanced AI limit).
         </div>
 
-        <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI}>
+        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI}>
           <Save className="h-4 w-4" /> {savingAdvancedAI ? "Saving..." : "Save Advanced AI settings"}
-        </button>
+        </button>}
       </section>
 
       <section className="card mt-6 p-6">
@@ -278,9 +280,9 @@ export default function AdminSettings() {
           <label className="block text-xs font-semibold text-slate-500">Email retry attempts<input className="input-field mt-2" type="number" min="1" max="10" value={notificationConfig.emailRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailRetryAttempts: Number(e.target.value) })} /></label>
           <label className="block text-xs font-semibold text-slate-500">Push retry attempts<input className="input-field mt-2" type="number" min="1" max="6" value={notificationConfig.pushRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushRetryAttempts: Number(e.target.value) })} /></label>
         </div>
-        <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig}>
+        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig}>
           <Save className="h-4 w-4" /> {savingNotificationConfig ? "Saving..." : "Save notification controls"}
-        </button>
+        </button>}
       </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
@@ -305,17 +307,17 @@ export default function AdminSettings() {
               {!settings.length && <p className="p-8 text-center text-sm text-slate-500">No platform settings yet.</p>}
               {settings.map((setting) => (
                 <div key={setting._id} className="flex items-start gap-2 p-4 transition hover:bg-slate-50">
-                  <button type="button" onClick={() => edit(setting)} className="min-w-0 flex-1 text-left">
+                  {permissions.includes("settings.manage") ? <button type="button" onClick={() => edit(setting)} className="min-w-0 flex-1 text-left">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-mono text-sm font-bold text-slate-800">{setting.key}</p>
                       <span className="badge bg-slate-100 text-slate-600">{setting.isPublic ? "Public" : "Private"}</span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-sm text-slate-600">{formatValue(setting.value)}</p>
                     <p className="mt-1 text-xs text-slate-400">{setting.description || "No description"} · click to edit</p>
-                  </button>
-                  <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => void removeSetting(setting)} disabled={deletingId === setting._id} aria-label={`Delete ${setting.key} setting`}>
+                  </button> : <div className="min-w-0 flex-1 text-left"><p className="truncate font-semibold text-slate-800">{setting.key}</p><p className="text-xs text-slate-500">{setting.description || "No description"}</p></div>}
+                  {permissions.includes("settings.manage") && <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => void removeSetting(setting)} disabled={deletingId === setting._id} aria-label={`Delete ${setting.key} setting`}>
                     <Trash2 className="h-4 w-4" /> {deletingId === setting._id ? "Deleting..." : "Delete"}
-                  </button>
+                  </button>}
                 </div>
               ))}
             </div>

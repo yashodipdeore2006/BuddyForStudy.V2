@@ -12,7 +12,7 @@ import { Notification } from "../models/Notification.js";
 import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
-import { getRemainingRefundableAmount } from "../services/refundBalance.service.js";
+import { getRemainingRefundableAmount, matchesProviderRefund } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
@@ -1266,12 +1266,13 @@ export async function reconcileRefund(req, res, next) {
       refundId: providerRefundId,
       paymentId: payment.providerPaymentId
     });
-    if (
-      String(providerRefund?.id || "") !== providerRefundId ||
-      String(providerRefund?.payment_id || "") !== String(payment.providerPaymentId) ||
-      Number(providerRefund?.amount) !== Math.round(Number(refund.amount) * 100) ||
-      String(providerRefund?.currency || "").toUpperCase() !== String(payment.currency || "INR").toUpperCase()
-    ) {
+    if (!matchesProviderRefund({
+      providerRefund,
+      providerRefundId,
+      paymentId: payment.providerPaymentId,
+      amount: refund.amount,
+      currency: payment.currency || "INR"
+    })) {
       return failure(res, "Provider refund does not match this payment, amount, and currency. Internal status was not changed.", 409);
     }
 

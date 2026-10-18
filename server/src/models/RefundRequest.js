@@ -5,7 +5,15 @@ const refundRequestSchema = new mongoose.Schema({
   payment: { type: mongoose.Schema.Types.ObjectId, ref: "Payment", required: true },
   // Set only while a payment has an active refund request; sparse uniqueness closes concurrent duplicate-request races.
   activePaymentKey: { type: mongoose.Schema.Types.ObjectId, default: undefined },
-  amount: { type: Number, required: true, min: 0 },
+  amount: {
+    type: Number,
+    required: true,
+    min: [0.01, "Refund amount must be at least 0.01."],
+    validate: {
+      validator: value => Number.isFinite(value) && Math.abs(value * 100 - Math.round(value * 100)) < 1e-8,
+      message: "Refund amount must use at most two decimal places."
+    }
+  },
   reason: { type: String, default: "", maxlength: 2000 },
   providerRefundId: { type: String, default: "", index: true },
   reconciliationToken: { type: String, default: undefined, select: false },

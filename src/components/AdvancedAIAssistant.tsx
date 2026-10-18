@@ -28,6 +28,10 @@ type Usage = {
   }>;
 };
 
+function isUpgradeGateError(error: unknown) {
+  return error instanceof Error && /not included in your current plan|reached your Advanced AI (?:summary|question) limit for this month/i.test(error.message);
+}
+
 export default function AdvancedAIAssistant({
   courseId,
   lessonId,
@@ -92,7 +96,7 @@ export default function AdvancedAIAssistant({
       setOpen(true);
       await loadUsage();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to generate lesson summary");
+      if (!isUpgradeGateError(e)) setError(e instanceof Error ? e.message : "Unable to generate lesson summary");
     } finally {
       setLoadingInsight(false);
     }
@@ -119,7 +123,7 @@ export default function AdvancedAIAssistant({
       setOpen(true);
       setUsage(data.usage);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to answer your question");
+      if (!isUpgradeGateError(e)) setError(e instanceof Error ? e.message : "Unable to answer your question");
     } finally {
       setAsking(false);
     }

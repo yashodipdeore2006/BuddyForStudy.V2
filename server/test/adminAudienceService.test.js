@@ -22,6 +22,10 @@ test("audience targeting rejects mixing explicit recipients with filters", () =>
   assert.throws(() => validateAdminAudienceInput({ emails: ["learner@example.com"], filters: { status: "active" } }), /not multiple targeting modes/i);
 });
 
+test("audience targeting rejects empty custom filters instead of falling back to all users", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { q: "", status: "" } }), /at least one valid audience filter/i);
+});
+
 test("audience targeting rejects unsupported account status and role filters", () => {
   assert.throws(() => validateAdminAudienceInput({ filters: { status: "anything" } }), /account status/i);
   assert.throws(() => validateAdminAudienceInput({ filters: { role: "owner" } }), /account role/i);

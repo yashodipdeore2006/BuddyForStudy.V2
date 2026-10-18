@@ -4,6 +4,7 @@ import { z } from "zod";
 import { User } from "../models/User.js";
 import { AdminInvitation } from "../models/AdminInvitation.js";
 import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
 import { isAdminRoleProfile } from "../utils/adminRbac.js";
@@ -235,32 +236,28 @@ export async function acceptInvitation(req, res, next) {
       );
       throw error;
     }
-    let auditLogRecorded = true;
-    try {
-      await AuditLog.create({
-        actor: invitation.invitedBy,
-        action: "admin.invitation.accepted",
-        targetType: "user",
-        targetId: user._id.toString(),
-        reason: "Administrator invitation accepted and account activated.",
-        before: { invitationId: claimedInvitation._id.toString(), email },
-        after: { adminRole: user.adminRole, isActive: user.isActive },
-        ip: String(req.ip || "").slice(0, 100),
-        userAgent: String(req.get?.("user-agent") || "").slice(0, 500)
-      });
-    } catch (auditError) {
-      // Account creation and invitation consumption have already committed.
-      // Do not report activation as failed: a client retry would find the
-      // existing account and misleadingly report a conflict.
-      auditLogRecorded = false;
-      console.error("[admin-invitations] Account activated but audit logging failed.", auditError);
-    }
+    // Account creation and invitation consumption have already committed.
+    // Persist the audit event directly or enqueue it for durable retry.
+    const auditResult = await recordAuditEvent({
+      actor: invitation.invitedBy,
+      action: "admin.invitation.accepted",
+      targetType: "user",
+      targetId: user._id.toString(),
+      reason: "Administrator invitation accepted and account activated.",
+      before: { invitationId: claimedInvitation._id.toString(), email },
+      after: { adminRole: user.adminRole, isActive: user.isActive },
+      ip: String(req.ip || "").slice(0, 100),
+      userAgent: String(req.get?.("user-agent") || "").slice(0, 500)
+    });
     return success(res, {
       administrator: { id: user._id.toString(), name: user.name, email: user.email, adminRole: user.adminRole },
-      auditLogRecorded
-    }, auditLogRecorded
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, auditResult.recorded
       ? "Invitation accepted. You can now sign in through the standard login page."
-      : "Invitation accepted and account activated, but the audit event could not be recorded. Notify a Super Admin.", 201);
+      : auditResult.queued
+        ? "Invitation accepted. The audit event is queued for retry."
+        : "Invitation accepted and account activated, but the audit event could not be recorded or queued. Notify a Super Admin.", 201);
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return next(error);

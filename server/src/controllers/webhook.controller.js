@@ -96,7 +96,7 @@ async function activateSubscription(subscription, payment, eventAt = null) {
   }
 }
 
-async function recordSubscriptionCharge(subscription, paymentEntity) {
+async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null) {
   if (!subscription?.id) return;
 
   const providerPaymentId = paymentEntity?.id || "";
@@ -112,7 +112,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
         });
         return;
       }
-      await activateSubscription(subscription, duplicate);
+      await activateSubscription(subscription, duplicate, eventAt);
       return;
     }
   }
@@ -152,7 +152,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity) {
     });
   }
 
-  await activateSubscription(subscription, payment);
+  await activateSubscription(subscription, payment, eventAt);
   const isRenewal = payment.metadata?.get
     ? payment.metadata.get("renewal") === "true"
     : payment.metadata?.renewal === "true";
@@ -250,7 +250,7 @@ export async function razorpayWebhook(req, res, next) {
         }
       }
     } else if (event.event === "subscription.charged") {
-      await recordSubscriptionCharge(subscriptionEntity, paymentEntity);
+      await recordSubscriptionCharge(subscriptionEntity, paymentEntity, subscriptionEventAt);
     } else if (event.event === "subscription.pending" || event.event === "subscription.halted") {
       if (subscriptionEntity?.id) {
         const subscription = await UserSubscription.findOneAndUpdate(

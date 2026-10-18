@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateRemainingRefundableAmount, validateRefundAmount } from "../src/services/refundBalance.service.js";
+import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
 
@@ -39,4 +39,20 @@ test("payment issue schema enforces one active issue per payment", () => {
   assert.deepEqual(activeIndex[0], { activePaymentKey: 1 });
   assert.equal(activeIndex[1].unique, true);
   assert.equal(activeIndex[1].sparse, true);
+});
+
+test("provider refund reconciliation requires exact ID, payment, amount and currency", () => {
+  const input = {
+    providerRefundId: "rfnd_123abc",
+    paymentId: "pay_456def",
+    amount: 25.5,
+    currency: "INR",
+    providerRefund: { id: "rfnd_123abc", payment_id: "pay_456def", amount: 2550, currency: "INR", status: "processed" }
+  };
+  assert.equal(matchesProviderRefund(input), true);
+  assert.equal(matchesProviderRefund({ ...input, providerRefund: { ...input.providerRefund, payment_id: "pay_other" } }), false);
+  assert.equal(matchesProviderRefund({ ...input, providerRefund: { ...input.providerRefund, amount: 2500 } }), false);
+  assert.equal(matchesProviderRefund({ ...input, providerRefund: { ...input.providerRefund, currency: "USD" } }), false);
+  assert.equal(matchesProviderRefund({ ...input, providerRefund: { ...input.providerRefund, id: "rfnd_other" } }), false);
+  assert.equal(matchesProviderRefund({ ...input, providerRefund: null }), false);
 });

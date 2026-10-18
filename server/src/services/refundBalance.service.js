@@ -28,7 +28,7 @@ export function calculateRemainingRefundableAmount(totalAmount, alreadyRefunded)
 /** Derive the payment status from the aggregate confirmed refund balance. */
 export function paymentStatusForRemainingBalance(remainingAmount) {
   const remaining = Number(remainingAmount);
-  if (!Number.isFinite(remaining) || remaining <= 0) return "refunded";
+  if (!Number.isFinite(remaining) || Number(remaining.toFixed(2)) <= 0) return "refunded";
   return "partially_refunded";
 }
 

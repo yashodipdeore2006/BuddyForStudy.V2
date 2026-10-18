@@ -79,8 +79,8 @@ function normalizePolicy(policy, config = {}) {
     minDurationMinutes: min,
     targetDurationMinutes: target,
     maxDurationMinutes: max,
-    excludeShorts: config.discovery_exclude_shorts === false ? policy?.excludeShorts === true : policy?.excludeShorts !== false,
-    requireEmbeddable: config.discovery_require_embeddable === false ? policy?.requireEmbeddable === true : policy?.requireEmbeddable !== false,
+    excludeShorts: config.discovery_exclude_shorts === false ? false : policy?.excludeShorts !== false,
+    requireEmbeddable: config.discovery_require_embeddable === false ? false : policy?.requireEmbeddable !== false,
     preferProjectBased: policy?.preferProjectBased !== false,
     preferredLanguage: policy?.preferredLanguage || "en"
   };

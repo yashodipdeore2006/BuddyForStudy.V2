@@ -379,13 +379,11 @@ export default function AdminPlans() {
             const selectedFeatureCount = plan.features?.length || 0;
 
             return (
-              <div className="card flex flex-col p-5" key={plan._id}>
+              <div className="card bfs-plan-card bfs-plan-admin-card flex flex-col p-5" key={plan._id}>
                 <div className="flex flex-col gap-4">
                   <div className="w-full min-w-0">
                     {plan.isPopular && (
-                      <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-blue-700">
-                        Most popular
-                      </span>
+                      <span className="bfs-plan-badge"><Sparkles className="h-3 w-3" /> Most popular</span>
                     )}
                     <h3 className="mt-2 text-xl font-extrabold text-slate-950">{plan.name}</h3>
                     {editingPlan === plan._id ? (

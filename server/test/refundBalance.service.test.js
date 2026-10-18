@@ -85,5 +85,5 @@ test("payment status can be repaired from aggregate confirmed refund balance", (
   assert.equal(paymentStatusForRemainingBalance(0), "refunded");
   assert.equal(paymentStatusForRemainingBalance(-0.001), "refunded");
   assert.equal(paymentStatusForRemainingBalance(0.00000001), "refunded");
-  assert.equal(paymentStatusForRemainingBalance("invalid"), "refunded");
+  assert.equal(paymentStatusForRemainingBalance("invalid"), "partially_refunded");
 });

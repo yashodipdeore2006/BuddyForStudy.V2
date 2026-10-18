@@ -148,11 +148,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const matchingCommands = useMemo<CommandItem[]>(() => {
     const commands: CommandItem[] = [
       ...visibleLinks.map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Page" as const })),
+      ...(permissions.includes("settings.read") ? [{ to: "/admin/design-system", label: "Admin design system", description: "Preview tokens and shared components", icon: Settings, kind: "Page" as const }] : []),
       ...visibleQuickActions.map((item) => ({ to: item.to, label: item.label, description: item.description, icon: item.icon, kind: "Action" as const })),
     ];
     const search = query.trim().toLowerCase();
     return commands.filter((item) => (item.label + " " + item.description + " " + item.to).toLowerCase().includes(search));
-  }, [query, visibleLinks, visibleQuickActions]);
+  }, [query, visibleLinks, visibleQuickActions, permissions]);
 
   useEffect(() => {
     setActiveResult(0);

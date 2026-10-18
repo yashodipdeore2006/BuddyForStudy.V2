@@ -31,8 +31,8 @@ const userSchema = new mongoose.Schema(
     adminRole: {
       type: String,
       enum: ["super_admin", "platform_admin", "ai_content_manager", "finance_manager", "support_manager", "analyst_auditor"],
-      default: "platform_admin",
-      required: true
+      default: undefined,
+      required: false
     },
     adminPermissionOverrides: {
       type: [String],

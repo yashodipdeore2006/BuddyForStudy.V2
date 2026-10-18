@@ -138,16 +138,16 @@ export function AdminTableContainer({ children, className = "" }: { children: Re
   return <div className={["admin-table-container", className].filter(Boolean).join(" ")}>{children}</div>;
 }
 
-type AdminTabItem = { value: string; label: string; disabled?: boolean };
-export function AdminTabs({
+type AdminTabItem<T extends string = string> = { value: T; label: string; disabled?: boolean };
+export function AdminTabs<T extends string>({
   items,
   value,
   onChange,
   ariaLabel,
 }: {
-  items: AdminTabItem[];
-  value: string;
-  onChange: (value: string) => void;
+  items: AdminTabItem<T>[];
+  value: T;
+  onChange: (value: T) => void;
   ariaLabel: string;
 }) {
   return (

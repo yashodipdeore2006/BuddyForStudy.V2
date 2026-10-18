@@ -7,7 +7,7 @@ const announcementSchema = new mongoose.Schema({
   targetMode: { type: String, enum: ["audience", "selected", "filtered"], default: "audience" },
   targetUserIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] },
   targetFilters: { type: mongoose.Schema.Types.Mixed, default: {} },
-  channel: { type: [String], enum: ["in_app", "email"], default: ["in_app"] },
+  channel: { type: [String], enum: ["in_app", "email", "push"], default: ["in_app"] },
   link: { type: String, default: "" },
   status: { type: String, enum: ["draft", "sent"], default: "draft" },
   sentAt: { type: Date, default: null },

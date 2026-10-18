@@ -76,13 +76,21 @@ function normalizeFilters(input = {}) {
 
 export async function resolveAdminAudience({ audience = "all", userIds, filters } = {}, { select = "_id email name", limit = MAX_FILTERED_RECIPIENTS } = {}) {
   const hasSelectedIds = Array.isArray(userIds) && userIds.length > 0;
+  const emails = Array.isArray(arguments[0]?.emails) ? arguments[0].emails : [];
+  const hasSelectedEmails = emails.length > 0;
   const hasFilters = filters && typeof filters === "object" && Object.keys(filters).length > 0;
-  if (hasSelectedIds && hasFilters) throw new Error("Choose selected users or filters, not both");
+  if ([hasSelectedIds, hasSelectedEmails, hasFilters].filter(Boolean).length > 1) throw new Error("Choose selected users, selected emails, or filters—not multiple targeting modes");
   if (hasSelectedIds) {
     if (userIds.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
     if (userIds.some((id) => !isValidObjectId(String(id)))) throw new Error("One or more selected user IDs are invalid");
     const uniqueIds = [...new Set(userIds.map(String))];
     return User.find({ _id: { $in: uniqueIds } }).select(select).limit(MAX_SELECTED_USERS).lean();
+  }
+  if (hasSelectedEmails) {
+    if (emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+    const normalizedEmails = [...new Set(emails.map((email) => String(email).trim().toLowerCase()))];
+    if (normalizedEmails.some((email) => !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email))) throw new Error("One or more selected email addresses are invalid");
+    return User.find({ email: { $in: normalizedEmails } }).select(select).limit(MAX_SELECTED_USERS).lean();
   }
 
   const normalized = normalizeFilters(filters || {});
@@ -147,12 +155,12 @@ export async function resolveAdminAudience({ audience = "all", userIds, filters 
 }
 
 export function validateAdminAudienceInput(input = {}) {
-  if (Array.isArray(input.userIds) && input.userIds.length > MAX_SELECTED_USERS) {
-    throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
-  }
+  if (Array.isArray(input.userIds) && input.userIds.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+  if (Array.isArray(input.emails) && input.emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
   normalizeFilters(input.filters || {});
-  if (input.userIds && input.filters && Object.keys(input.filters).length) {
-    throw new Error("Choose selected users or filters, not both");
-  }
+  const hasIds = Array.isArray(input.userIds) && input.userIds.length > 0;
+  const hasEmails = Array.isArray(input.emails) && input.emails.length > 0;
+  const hasFilters = input.filters && Object.keys(input.filters).length > 0;
+  if ([hasIds, hasEmails, Boolean(hasFilters)].filter(Boolean).length > 1) throw new Error("Choose selected users, selected emails, or filters—not multiple targeting modes");
   return true;
 }

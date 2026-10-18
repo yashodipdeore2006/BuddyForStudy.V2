@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
+import AccountSettings from "@/pages/Settings";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import {
@@ -108,7 +109,14 @@ export default function Profile() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-      <PageHeader title="Your profile" subtitle="Your account, subscription, and recent payments in one place." />
+      <PageHeader title="Your profile" subtitle="Manage your account, learning preferences, subscription, and payments in one place." />
+      <nav aria-label="Profile sections" className="mt-5 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <a href="#personal-information" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Profile</a>
+        <a href="#security" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Security</a>
+        <a href="#appearance" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Appearance</a>
+        <a href="#notifications" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Notifications</a>
+        <Link to="/billing" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Billing</Link>
+      </nav>
 
       <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="relative overflow-hidden bg-slate-950 px-6 py-7 text-white sm:px-8">
@@ -158,7 +166,7 @@ export default function Profile() {
       </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+        <form id="personal-information" onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div>
             <div><h2 className="text-lg font-extrabold text-slate-950">Personal information</h2><p className="mt-1 text-sm text-slate-500">Update the name displayed across your learning account.</p></div>
@@ -183,10 +191,10 @@ export default function Profile() {
             <div><h2 className="text-lg font-extrabold text-slate-950">Account & security</h2><p className="mt-1 text-sm text-slate-500">Manage access and communication preferences.</p></div>
           </div>
           <div className="mt-5 divide-y divide-slate-100">
-            <Link to="/settings#security" className="flex items-center gap-3 py-4 group">
+            <Link to="#security" className="flex items-center gap-3 py-4 group">
               <LockIcon /><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-800">Password & sign-in</span><span className="mt-1 block text-xs text-slate-500">{profile.auth_provider === "google" ? "Managed by Google" : "Change your password"}</span></span><ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-blue-600" />
             </Link>
-            <Link to="/settings#notifications" className="flex items-center gap-3 py-4 group">
+            <Link to="#notifications" className="flex items-center gap-3 py-4 group">
               <Bell className="h-5 w-5 text-slate-400" /><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-800">Notifications</span><span className="mt-1 block text-xs text-slate-500">Email, in-app, push and study reminders</span></span><ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-blue-600" />
             </Link>
             <Link to="/my-courses" className="flex items-center gap-3 py-4 group">
@@ -195,6 +203,11 @@ export default function Profile() {
           </div>
         </section>
       </div>
+
+      <section aria-label="Account settings" className="mt-8">
+        <div className="mb-4"><h2 className="text-xl font-extrabold text-slate-950">Account settings</h2><p className="mt-1 text-sm text-slate-500">Security, appearance, notification preferences and study reminders.</p></div>
+        <AccountSettings embedded />
+      </section>
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">

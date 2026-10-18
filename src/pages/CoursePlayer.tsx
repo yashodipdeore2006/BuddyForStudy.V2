@@ -631,10 +631,10 @@ export default function CoursePlayer() {
                             </button>}
                           </div>
                         </div>
-                    {practiceQuizError && currentLesson.lesson.type !== "quiz" && (
+                    {practiceQuizError && (
                       <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{practiceQuizError}</p>
                     )}
-                    {practiceQuizLoading && currentLesson.lesson.type !== "quiz" && (
+                    {practiceQuizLoading && (
                       <p className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Preparing quiz questions...</p>
                     )}
                                             {practiceQuizData?.questions?.length > 0 && (

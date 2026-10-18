@@ -19,7 +19,7 @@ import {
   Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminEmptyState, AdminPageHeader, AdminSkeleton } from "@/components/admin/AdminUI";
+import { AdminEmptyState, AdminFilterBar, AdminPageHeader, AdminPagination, AdminSkeleton, AdminTableContainer } from "@/components/admin/AdminUI";
 
 function statusClass(active: boolean) {
   return active
@@ -238,7 +238,7 @@ export default function AdminUsersPro() {
         <button type="button" className="admin-saved-view" aria-pressed={role === "admin"} onClick={() => { setRole("admin"); setStatus(""); setPage(1); }}>Administrators</button>
         <button type="button" className="admin-saved-view" aria-pressed={Boolean(debouncedQ || status || role || authProvider)} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>Clear filters</button>
       </div>
-      <div className="card mt-6 p-4">
+      <AdminFilterBar className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative xl:col-span-2">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -275,7 +275,7 @@ export default function AdminUsersPro() {
             {status && <button type="button" className="admin-filter-chip" onClick={() => setStatus("")}>Status: {status}<X size={13} aria-hidden="true" /></button>}
             {role && <button type="button" className="admin-filter-chip" onClick={() => setRole("")}>Role: {role}<X size={13} aria-hidden="true" /></button>}
             {authProvider && <button type="button" className="admin-filter-chip" onClick={() => setAuthProvider("")}>Provider: {authProvider}<X size={13} aria-hidden="true" /></button>}
-          </div>
+          </AdminFilterBar>
           <span>{pagination.total || 0} results</span>
         </div>
       </div>
@@ -286,7 +286,7 @@ export default function AdminUsersPro() {
         {loading ? (
           <div className="admin-table-skeleton" role="status" aria-live="polite" aria-label="Loading users"><AdminSkeleton rows={8} /></div>
         ) : (
-          <div className="overflow-x-auto">
+          <AdminTableContainer>
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
@@ -352,32 +352,20 @@ export default function AdminUsersPro() {
                 {!users.length && <tr><td role="status" aria-live="polite" colSpan={5} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
               </tbody>
             </table>
-          </div>
+          </AdminTableContainer>
         )}
 
-        <div className="admin-pagination">
-          <label className="admin-page-size">Rows per page
-            <select aria-label="Rows per page" className="input-field" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
-          </label>
-          <span className="admin-pagination-count">Showing {users.length ? ((pagination.page || 1) - 1) * pageSize + 1 : 0}–{Math.min((pagination.page || 1) * pageSize, pagination.total || 0)} of {pagination.total || 0}</span>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={(pagination.page || 1) <= 1 || loading}
-            onClick={() => setPage((pagination.page || 1) - 1)}
-          >
-            <ChevronLeft className="h-4 w-4" /> Previous
-          </button>
-          <span className="text-xs font-semibold text-slate-500">Page {pagination.page || 1} / {pagination.pages || 1}</span>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={(pagination.page || 1) >= (pagination.pages || 1) || loading}
-            onClick={() => setPage((pagination.page || 1) + 1)}
-          >
-            Next <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+        <AdminPagination
+          page={pagination.page || 1}
+          pages={pagination.pages || 1}
+          total={pagination.total || 0}
+          from={users.length ? ((pagination.page || 1) - 1) * pageSize + 1 : 0}
+          to={Math.min((pagination.page || 1) * pageSize, pagination.total || 0)}
+          limit={pageSize}
+          loading={loading}
+          onPageChange={setPage}
+          onLimitChange={(limit) => { setPageSize(limit); setPage(1); }}
+        />
       </div>
 
       {detailLoading && (

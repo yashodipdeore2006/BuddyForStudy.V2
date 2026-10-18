@@ -52,6 +52,7 @@ router.post("/refunds/:refundId/reconcile", adminPermissionMiddleware("refunds.m
 router.get("/payment-issues", adminPermissionMiddleware("billing.read"), controller.paymentIssues);
 router.put("/payment-issues/:issueId", adminPermissionMiddleware("payment_issues.manage"), controller.updatePaymentIssue);
 
+router.get("/notifications/audience-options", adminPermissionMiddleware("communications.send"), controller.notificationAudienceOptions);
 router.post("/notifications/audience-preview", adminPermissionMiddleware("communications.send"), controller.previewNotificationAudience);
 router.post("/notifications/send", adminPermissionMiddleware("communications.send"), controller.sendNotification);
 router.post("/emails/send", adminPermissionMiddleware("communications.send"), controller.sendEmail);

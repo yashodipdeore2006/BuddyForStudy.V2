@@ -93,7 +93,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   };
 
   const permissions = access?.permissions || [];
-  const visibleLinks = links.filter(([, , , permission]) => permissions.includes(permission));
+  type AdminNavigationLink = [string, string, typeof LayoutDashboard, string];
+  const visibleLinks: AdminNavigationLink[] = links
+    .filter(([, , , permission]) => permissions.includes(permission))
+    .map(([to, label, Icon, permission]) => [to, label, Icon, permission]);
   if (permissions.includes("admin_roles.manage")) {
     visibleLinks.push(["/admin/roles", "Administrator Roles", ShieldCheck, "admin_roles.manage"]);
   }

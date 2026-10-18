@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCcw, Save, Settings2, Trash2 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 function formatValue(value: any) {
   return typeof value === "string" ? value : JSON.stringify(value ?? "");
@@ -218,14 +219,12 @@ export default function AdminSettings() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Operations</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Platform Settings</h1>
-          <p className="mt-2 text-slate-500">Control operational configuration without a deployment, with typed values and an audit reason.</p>
-        </div>
-        <button type="button" aria-label="Refresh platform settings" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className="h-4 w-4" /> Refresh</button>
-      </div>
+      <AdminPageHeader
+        eyebrow="Operations"
+        title="Platform settings"
+        description="Control operational configuration without a deployment, with typed values and an audit reason."
+        actions={<button type="button" aria-label="Refresh platform settings" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
+      />
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
       {!permissions.includes("settings.manage") && <div role="status" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">View-only access: your administrator role can inspect platform setting metadata but cannot change operational controls.</div>}

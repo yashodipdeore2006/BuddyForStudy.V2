@@ -598,3 +598,25 @@ html[data-theme="dark"] .bfs-skeleton { background: linear-gradient(90deg,#23284
 html[data-theme="dark"] .bfs-hero-art .bg-white { background-color: #171b38 !important; }
 html[data-theme="dark"] .border-t,
 html[data-theme="dark"] .border-b { border-color: var(--bfs-line-soft); }
+
+
+/* Keep action backgrounds saturated in dark mode while text accents become lighter. */
+:root { --bfs-ai-foreground: #6d28d9; --bfs-ai-action: #7c3aed; }
+.btn-primary { background: var(--bfs-ai-action); }
+.btn-primary:hover { background: #6d28d9; }
+.btn-buy { background: var(--bfs-ai-action); }
+.btn-buy:hover { background: #6d28d9; }
+html[data-theme="dark"] {
+  --bfs-primary-deep: #6d28d9;
+  --bfs-ai-deep: #6d28d9;
+  --bfs-ai-foreground: #c4b5fd;
+  --bfs-ai-action: #7c3aed;
+}
+html[data-theme="dark"] .text-blue-600,
+html[data-theme="dark"] .text-blue-700 { color: var(--bfs-ai-foreground) !important; }
+html[data-theme="dark"] .bg-blue-600 { background-color: #6d28d9 !important; }
+html[data-theme="dark"] .bg-blue-700 { background-color: #5b21b6 !important; }
+html[data-theme="dark"] .btn-primary,
+html[data-theme="dark"] .btn-buy { color: #fff; background: var(--bfs-ai-action); }
+html[data-theme="dark"] .btn-primary:hover,
+html[data-theme="dark"] .btn-buy:hover { background: #6d28d9; }

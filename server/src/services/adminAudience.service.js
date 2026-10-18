@@ -169,7 +169,9 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
       const highestPrice = activePlans.reduce((highest, plan) => Math.max(highest, Number(plan.price) || 0), 0);
       matchingPlanIds = activePlans.filter((plan) => Number(plan.price) === highestPrice && highestPrice > 0).map((plan) => plan._id);
     }
-    subscriptionFilters.plan = { $in: matchingPlanIds };
+    const matchingPlanIdSet = new Set(matchingPlanIds.map(String));
+    if (normalized.planId) matchingPlanIdSet.delete(String(normalized.planId));
+    subscriptionFilters.plan = { $in: normalized.planId ? matchingPlanIds.filter((id) => String(id) === String(normalized.planId)) : [...matchingPlanIdSet] };
   }
   if (Object.keys(subscriptionFilters).length) {
     const subscriptions = await UserSubscription.find(subscriptionFilters).select("user").lean();

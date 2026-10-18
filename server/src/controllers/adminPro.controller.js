@@ -1135,9 +1135,28 @@ export async function updateRefund(req, res, next) {
     refund.processedBy = req.user.user._id;
 
     if (req.body.status === "rejected") {
-      refund.status = "rejected";
-      refund.processedAt = new Date();
-      // Release the unique active-refund claim so a user may submit a new request.
+      // Rejection and provider processing race on the same pending state. Claim
+      // the transition atomically so only one admin action can win.
+      const rejectedRefund = await RefundRequest.findOneAndUpdate(
+        { _id: refund._id, status: "pending" },
+        {
+          $set: {
+            status: "rejected",
+            adminNote: typeof req.body.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : refund.adminNote,
+            processedBy: req.user.user._id,
+            processedAt: new Date()
+          },
+          $unset: { activePaymentKey: "" }
+        },
+        { new: true }
+      );
+      if (!rejectedRefund) {
+        return failure(res, "This refund request is no longer pending. Refresh the queue before taking action.", 409);
+      }
+      refund.status = rejectedRefund.status;
+      refund.adminNote = rejectedRefund.adminNote;
+      refund.processedBy = rejectedRefund.processedBy;
+      refund.processedAt = rejectedRefund.processedAt;
       refund.set("activePaymentKey", undefined);
     } else if (req.body.status === "approved" || req.body.status === "processed") {
       if (refund.status === "processed") return failure(res, "Refund is already processed", 409);

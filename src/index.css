@@ -564,3 +564,37 @@ html[data-theme="dark"] .bfs-ai-panel { background: linear-gradient(125deg, #171
 @media (prefers-reduced-motion: reduce) {
   html[data-theme="dark"] *, html[data-theme="dark"] *::before, html[data-theme="dark"] *::after { transition-duration: .01ms !important; }
 }
+
+
+/* Final theme edge cases for existing utility-class screens and selected translucent surfaces. */
+html[data-theme="dark"] header[class~="bg-white/95"] { background-color: rgba(23,27,56,.94) !important; }
+html[data-theme="dark"] [class~="bg-white/90"] { background-color: rgba(23,27,56,.92) !important; }
+html[data-theme="dark"] .bg-violet-50,
+html[data-theme="dark"] .bg-indigo-50,
+html[data-theme="dark"] .bg-purple-50 { background-color: #252344 !important; }
+html[data-theme="dark"] .text-violet-700,
+html[data-theme="dark"] .text-violet-600,
+html[data-theme="dark"] .text-purple-700 { color: #c4b5fd !important; }
+html[data-theme="dark"] .border-violet-100,
+html[data-theme="dark"] .border-violet-200 { border-color: #40356c !important; }
+html[data-theme="dark"] .bfs-cta-panel {
+  border-color: #40356c !important;
+  background: radial-gradient(circle at 90% 20%, rgba(139,92,246,.14), transparent 22rem), #171b38 !important;
+}
+html[data-theme="dark"] .bfs-cta-panel .bfs-eyebrow { color: #c4b5fd; }
+html[data-theme="dark"] .bfs-cta-panel p:not(.bfs-eyebrow) { color: #c8cbea !important; }
+html[data-theme="dark"] .bg-red-50 { background-color: #47232f !important; }
+html[data-theme="dark"] .text-red-700 { color: #fca5a5 !important; }
+html[data-theme="dark"] .bg-emerald-50,
+html[data-theme="dark"] .bg-green-50 { background-color: #113b3b !important; }
+html[data-theme="dark"] .text-emerald-600,
+html[data-theme="dark"] .text-green-600,
+html[data-theme="dark"] .text-green-700 { color: #6ee7b7 !important; }
+html[data-theme="dark"] .bg-amber-50,
+html[data-theme="dark"] .bg-yellow-50 { background-color: #47351e !important; }
+html[data-theme="dark"] .text-amber-600,
+html[data-theme="dark"] .text-amber-700 { color: #fcd34d !important; }
+html[data-theme="dark"] .bfs-skeleton { background: linear-gradient(90deg,#232849 25%,#2a3055 38%,#232849 62%); background-size: 300% 100%; }
+html[data-theme="dark"] .bfs-hero-art .bg-white { background-color: #171b38 !important; }
+html[data-theme="dark"] .border-t,
+html[data-theme="dark"] .border-b { border-color: var(--bfs-line-soft); }

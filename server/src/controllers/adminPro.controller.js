@@ -1333,7 +1333,8 @@ export async function updateRefund(req, res, next) {
 
         const isFullRefund = refund.amount >= remainingAmount;
         payment.status = isFullRefund ? "refunded" : "partially_refunded";
-        await payment.save();
+        // Persist the provider-confirmed refund record first. If the payment
+        // write fails afterward, reconciliation can repair the derived status.
       } else if (providerOutcome === "retryable") {
         // An explicit provider failure is safe to retry; an uncertain or pending
         // response must keep the active claim and be reconciled first.
@@ -1354,6 +1355,9 @@ export async function updateRefund(req, res, next) {
       }
     }
     await refund.save();
+    if (refund.status === "processed") {
+      await payment.save();
+    }
     try {
       await createNotificationEvent({
         userId: String(refund.user),

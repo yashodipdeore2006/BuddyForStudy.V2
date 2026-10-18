@@ -363,7 +363,7 @@ test("invitation creation removes the pending invitation when email delivery is 
 });
 
 
-test("acceptance does not report failure after account creation if audit logging fails", async () => {
+test("acceptance queues an audit event when audit logging fails after account creation", async () => {
   const invitation = makeInvitation();
   const claimedInvitation = { ...invitation, acceptedAt };
   const user = {
@@ -399,7 +399,7 @@ test("acceptance does not report failure after account creation if audit logging
       assert.equal(res.result.body.auditLogRecorded, false);
       assert.equal(res.result.body.auditQueued, true);
       assert.match(res.result.body.message, /queued for retry/i);
-      assert.equal(errorLogCalls, 1);
+      assert.equal(errorLogCalls, 0, "a successfully queued audit event should not be logged as lost");
     });
   } finally {
     console.error = originalConsoleError;

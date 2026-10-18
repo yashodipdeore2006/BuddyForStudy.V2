@@ -118,6 +118,24 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
       const safeServerMessage = serverMessage && !/internal server error|exception|stack trace|mongo(?:ose|db)?error|econnrefused|undefined|null/i.test(serverMessage)
         ? serverMessage
         : '';
+
+      // Open the shared upgrade flow only for an explicit subscription entitlement denial.
+      // Other 403 responses (role permissions, inactive resources, etc.) must remain normal errors.
+      const entitlementDetails = data.errors && typeof data.errors === 'object' ? data.errors : null;
+      const gatedFeature = typeof entitlementDetails?.feature === 'string' ? entitlementDetails.feature : '';
+      const isPlanGate = response.status === 403 &&
+        Boolean(gatedFeature) &&
+        /not included in your current plan|upgrade (?:your plan|to use)|purchase this course to continue/i.test(serverMessage);
+      if (isPlanGate) {
+        window.dispatchEvent(new CustomEvent("bfs:feature-gated", {
+          detail: {
+            feature: gatedFeature,
+            currentPlan: typeof entitlementDetails?.plan === 'string' ? entitlementDetails.plan : undefined,
+            message: safeServerMessage || serverMessage,
+          },
+        }));
+      }
+
       throw new Error(safeServerMessage || statusMessages[response.status] || "We couldn't complete that request. Please try again.");
     }
 

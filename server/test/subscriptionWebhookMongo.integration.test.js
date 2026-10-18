@@ -66,4 +66,79 @@ test("MongoDB enforces webhook event uniqueness and subscription event ordering"
   const persisted = await UserSubscriptionModel.findOne({ user }).select("+providerEventAt +providerEventId +providerEventName");
   assert.equal(persisted.status, "active");
   assert.equal(persisted.providerEventId, "evt_new_activation");
+
+  // Active refund and issue uniqueness must hold in MongoDB, not just in
+  // application-level preflight queries (which can race under concurrent load).
+  const { RefundRequest } = await import("../src/models/RefundRequest.js");
+  const { PaymentIssue } = await import("../src/models/PaymentIssue.js");
+  const RefundRequestModel = connection.model("RefundRequest", RefundRequest.schema);
+  const PaymentIssueModel = connection.model("PaymentIssue", PaymentIssue.schema);
+  await Promise.all([RefundRequestModel.init(), PaymentIssueModel.init()]);
+
+  const paymentId = new mongoose.Types.ObjectId();
+  const ownerId = new mongoose.Types.ObjectId();
+  const firstRefund = await RefundRequestModel.create({
+    user: ownerId,
+    payment: paymentId,
+    activePaymentKey: paymentId,
+    amount: 250,
+    status: "pending"
+  });
+  await assert.rejects(
+    RefundRequestModel.create({
+      user: ownerId,
+      payment: paymentId,
+      activePaymentKey: paymentId,
+      amount: 250,
+      status: "pending"
+    }),
+    (error) => error?.code === 11000
+  );
+
+  await RefundRequestModel.updateOne(
+    { _id: firstRefund._id, status: "pending" },
+    { $set: { status: "rejected" }, $unset: { activePaymentKey: "" } }
+  );
+  const retryRefund = await RefundRequestModel.create({
+    user: ownerId,
+    payment: paymentId,
+    activePaymentKey: paymentId,
+    amount: 250,
+    status: "pending"
+  });
+  assert.ok(retryRefund._id);
+
+  const firstIssue = await PaymentIssueModel.create({
+    user: ownerId,
+    payment: paymentId,
+    activePaymentKey: paymentId,
+    category: "payment_failed",
+    description: "Payment failed during checkout",
+    status: "open"
+  });
+  await assert.rejects(
+    PaymentIssueModel.create({
+      user: ownerId,
+      payment: paymentId,
+      activePaymentKey: paymentId,
+      category: "other",
+      description: "A second report for the same payment",
+      status: "open"
+    }),
+    (error) => error?.code === 11000
+  );
+
+  await PaymentIssueModel.updateOne(
+    { _id: firstIssue._id, status: "open" },
+    { $set: { status: "resolved", resolvedAt: new Date() }, $unset: { activePaymentKey: "" } }
+  );
+  const followUpIssue = await PaymentIssueModel.create({
+    user: ownerId,
+    payment: paymentId,
+    activePaymentKey: paymentId,
+    category: "other",
+    description: "A new report after the first was resolved",
+    status: "open"
+  });
+  assert.ok(followUpIssue._id);
 });

@@ -29,6 +29,8 @@ type GateRequest = {
   feature?: string;
   currentPlan?: string;
   message?: string;
+  limit?: number;
+  used?: number;
 };
 
 type Subscription = {
@@ -317,7 +319,11 @@ export default function FeatureUpgradeModal() {
               <span className="bfs-tag"><Sparkles className="h-3.5 w-3.5" /> Unlock more with BuddyForStudy</span>
               <h2 id="bfs-upgrade-title" className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Take your learning further.</h2>
               <p id="bfs-upgrade-description" className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                <strong className="font-semibold text-violet-700">{featureLabel}</strong> isn’t included in your current plan. Compare plans and choose the one that fits your goals.
+                {request?.limit !== undefined ? (
+                  <><strong className="font-semibold text-violet-700">{featureLabel}</strong> has reached its allowance for your current plan{request.limit >= 0 ? ` (${request.used ?? request.limit} of ${request.limit} used)` : ""}. Compare plans for a higher allowance.</>
+                ) : (
+                  <><strong className="font-semibold text-violet-700">{featureLabel}</strong> isn’t included in your current plan. Compare plans and choose the one that fits your goals.</>
+                )}
               </p>
               {(currentPlanName || request?.currentPlan) && <p className="mt-2 text-xs font-medium text-slate-500">Current plan: {currentPlanName || request?.currentPlan}{currentPlanPrice !== null ? ` · ${formatMoney(currentPlanPrice)}` : ""}</p>}
             </div>

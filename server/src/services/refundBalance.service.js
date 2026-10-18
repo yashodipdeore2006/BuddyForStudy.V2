@@ -1,6 +1,6 @@
-export const ACTIVE_REFUND_STATUSES = Object.freeze(["pending", "approved"]);
-
 import { RefundRequest } from "../models/RefundRequest.js";
+
+export const ACTIVE_REFUND_STATUSES = Object.freeze(["pending", "approved"]);
 
 /**
  * Returns the remaining refundable balance after already processed refunds.

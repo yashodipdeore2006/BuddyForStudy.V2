@@ -36,7 +36,7 @@ import { createNotificationEvent, retryNotificationDelivery } from "../services/
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions } from "../utils/adminRbac.js";
-import { resolveAdminAudience, validateAdminAudienceInput } from "../services/adminAudience.service.js";
+import { resolveAdminAudience, validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../services/adminAudience.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Centralize redaction and durable fallback for every admin-pro mutation.
@@ -1503,6 +1503,7 @@ export async function previewNotificationAudience(req, res, next) {
     return success(res, {
       recipientCount: truncated ? 5000 : users.length,
       truncated,
+      previewToken: createAdminAudiencePreviewToken(req.body || {}, users),
       sample: users.slice(0, 10).map((user) => ({
         id: String(user._id),
         name: user.name,
@@ -1538,6 +1539,9 @@ export async function sendNotification(req, res, next) {
       users = await resolveAdminAudience(req.body, { select: "_id", limit: 5001 });
     } catch (error) { return failure(res, error.message, 400); }
     if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) {
+      return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    }
     const broadcastId = new mongoose.Types.ObjectId().toString();
     await mapWithConcurrency(users, (user) => createNotificationEvent({
       userId: String(user._id),
@@ -1582,6 +1586,9 @@ export async function sendEmail(req, res, next) {
     }
 
     if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) {
+      return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    }
     if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");
     const broadcastId = new mongoose.Types.ObjectId().toString();
     const results = await mapWithConcurrency(users, (user) => createNotificationEvent({
@@ -1628,6 +1635,9 @@ export async function sendAnnouncement(req, res, next) {
     try { users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5000 }); }
     catch (error) { return failure(res, error.message, 400); }
     if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) {
+      return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    }
     const announcement = await Announcement.create({
       title,
       message,

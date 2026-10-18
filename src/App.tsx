@@ -35,6 +35,8 @@ import AdminAudit from '@/pages/admin/AdminAudit';
 import AdminCoupons from '@/pages/admin/AdminCoupons';
 import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 import AdminRoles from '@/pages/admin/AdminRoles';
+import AdminAIContent from '@/pages/admin/AdminAIContent';
+import AdminSupport from '@/pages/admin/AdminSupport';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -74,6 +76,8 @@ function App() {
     <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
     <Route path="/admin/audit" element={<AdminPage><AdminAudit /></AdminPage>} />
     <Route path="/admin/roles" element={<AdminPage><AdminRoles /></AdminPage>} />
+    <Route path="/admin/ai-content" element={<AdminPage><AdminAIContent /></AdminPage>} />
+    <Route path="/admin/support" element={<AdminPage><AdminSupport /></AdminPage>} />
     <Route path="*" element={<Home />} />
   </Routes></Layout></BrowserRouter></AuthProvider>;
 }

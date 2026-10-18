@@ -135,11 +135,23 @@ export async function createSubscriptionOrder(req, res, next) {
       provider: "razorpay",
       status: "pending",
       "metadata.checkoutType": "subscription"
-    }).select("_id providerOrderId").lean();
+    }).select("_id providerOrderId plan").populate("plan", "name price currency billingInterval").lean();
     if (pendingCheckout) {
-      return failure(res, "A subscription checkout is already pending. Finish that checkout before starting another.", 409, {
-        paymentId: String(pendingCheckout._id),
-        subscriptionId: pendingCheckout.providerOrderId || null
+      if (pendingCheckout.providerOrderId && pendingCheckout.plan) {
+        return success(res, {
+          subscriptionId: pendingCheckout.providerOrderId,
+          keyId: razorpay.getPublicKey(),
+          plan: {
+            id: pendingCheckout.plan._id,
+            name: pendingCheckout.plan.name,
+            price: pendingCheckout.plan.price,
+            currency: pendingCheckout.plan.currency,
+            billingInterval: pendingCheckout.plan.billingInterval
+          }
+        }, "Existing subscription checkout reused");
+      }
+      return failure(res, "A subscription checkout is already pending. Contact support before starting another.", 409, {
+        paymentId: String(pendingCheckout._id)
       });
     }
 

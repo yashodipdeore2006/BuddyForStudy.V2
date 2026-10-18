@@ -176,6 +176,16 @@ export default function Billing() {
       </section>
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Reported payment issues</h2><p className="mt-1 text-sm text-slate-500">Track payment problems, including benefits that were not unlocked after a successful charge.</p></div>
+        {issues.length ? <div className="divide-y divide-slate-100">{issues.map((issue) => {
+          const title = issue.payment?.plan?.name || issue.payment?.course?.title || "BuddyForStudy payment";
+          const status = String(issue.status || "open").toLowerCase();
+          const styles: Record<string, string> = { open: "bg-amber-50 text-amber-700", in_review: "bg-blue-50 text-blue-700", resolved: "bg-emerald-50 text-emerald-700", closed: "bg-slate-100 text-slate-700" };
+          const categoryLabels: Record<string, string> = { benefit_not_received: "Benefit not received", payment_failed: "Payment failed", duplicate_charge: "Duplicate charge", incorrect_amount: "Incorrect amount", refund_help: "Refund help", other: "Other issue" };
+          return <article key={issue._id} className="p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-bold text-slate-900">{title}</p><p className="mt-1 text-xs text-slate-500">{categoryLabels[issue.category] || "Payment issue"} · Reported {date(issue.createdAt)}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{issue.description}</p>{issue.adminNote && <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">Support update: {issue.adminNote}</p>}</div><span className={"inline-flex h-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-bold capitalize " + (styles[status] || styles.open)}>{status.replace(/_/g, " ")}</span></div></article>;
+        })}</div> : <p className="p-6 text-sm text-slate-500">No payment issues reported. If a payment succeeds but your course or plan benefits do not appear, report the transaction from the history below.</p>}
+      </section>
+      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Refund requests</h2><p className="mt-1 text-sm text-slate-500">Track the review status of refunds you have requested.</p></div>
         {refunds.length ? <div className="divide-y divide-slate-100">{refunds.map((refund) => {
           const refundStatus = String(refund.status || "pending").toLowerCase();

@@ -652,3 +652,98 @@ html[data-theme="dark"] .bfs-upgrade-modal .bg-white { background-color: #171b38
 html[data-theme="dark"] .bfs-upgrade-modal .bg-violet-50\/80 { background-color: #29244f !important; }
 html[data-theme="dark"] .bfs-upgrade-modal .bg-violet-50 { background-color: #252344 !important; }
 html[data-theme="dark"] .bfs-upgrade-modal button[aria-label="Close plan selection"] { background: #1e2447 !important; color: #cbd0e7 !important; border-color: #343a61 !important; }
+
+
+/* One plan-card language shared by public pricing and the in-app upgrade chooser. */
+.bfs-plan-card {
+  min-width: 0;
+  border: 1px solid var(--bfs-line-soft);
+  border-radius: var(--bfs-radius-feature);
+  background: var(--bfs-surface);
+  color: var(--bfs-ink);
+  box-shadow: var(--bfs-shadow-card);
+  transition: border-color var(--bfs-motion-control) var(--bfs-ease-out),
+    box-shadow var(--bfs-motion-control) var(--bfs-ease-out),
+    transform var(--bfs-motion-control) var(--bfs-ease-out),
+    background-color var(--bfs-motion-control) var(--bfs-ease-out);
+}
+.bfs-plan-card--featured {
+  border-color: #a78bfa;
+  box-shadow: 0 12px 34px rgba(109,40,217,.12);
+}
+.bfs-plan-card--featured:not(.bfs-plan-option) {
+  background: radial-gradient(circle at 100% 0%, rgba(196,181,253,.18), transparent 14rem), var(--bfs-surface);
+}
+.bfs-plan-price {
+  color: var(--bfs-ink-deep);
+  font-size: clamp(1.85rem, 1.6rem + .8vw, 2.35rem);
+  font-weight: 800;
+  letter-spacing: -.045em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.bfs-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #ddd0ff;
+  border-radius: var(--bfs-radius-pill);
+  background: var(--bfs-ai-soft);
+  color: var(--bfs-ai-deep);
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.bfs-plan-badge--featured { background: var(--bfs-ai-action); border-color: transparent; color: #fff; }
+.bfs-plan-badge--neutral { background: var(--bfs-surface-soft); color: var(--bfs-muted); border-color: var(--bfs-line); }
+.bfs-plan-features { color: var(--bfs-muted); }
+.bfs-plan-check { background: var(--bfs-ai-soft); color: var(--bfs-ai-foreground); }
+.bfs-plan-option { outline: none; }
+.bfs-plan-option--selected {
+  border-color: var(--bfs-ai) !important;
+  box-shadow: 0 12px 32px rgba(109,40,217,.14), 0 0 0 2px rgba(139,92,246,.15);
+}
+.bfs-plan-empty {
+  border-color: var(--bfs-line-soft);
+  background: var(--bfs-surface);
+}
+.bfs-course-purchase-callout {
+  border-color: #ddd0ff;
+  background: linear-gradient(120deg, var(--bfs-ai-soft), var(--bfs-surface));
+}
+.bfs-plan-admin-card { border-radius: var(--bfs-radius-feature); }
+html[data-theme="dark"] .bfs-plan-card {
+  background-color: var(--bfs-surface);
+  color: var(--bfs-ink);
+  border-color: var(--bfs-line-soft);
+  box-shadow: var(--bfs-shadow-card);
+}
+html[data-theme="dark"] .bfs-plan-card--featured {
+  border-color: #8b78ce;
+  box-shadow: 0 12px 34px rgba(0,0,0,.24);
+}
+html[data-theme="dark"] .bfs-plan-card--featured:not(.bfs-plan-option) {
+  background: radial-gradient(circle at 100% 0%, rgba(139,92,246,.15), transparent 14rem), var(--bfs-surface);
+}
+html[data-theme="dark"] .bfs-plan-badge {
+  border-color: #40356c;
+  background: #252344;
+  color: #ddd6fe;
+}
+html[data-theme="dark"] .bfs-plan-badge--featured { background: #7c3aed; color: #fff; border-color: transparent; }
+html[data-theme="dark"] .bfs-plan-badge--neutral { background: #252b50; border-color: var(--bfs-line); color: var(--bfs-muted); }
+html[data-theme="dark"] .bfs-plan-check { background: #29244f; color: #c4b5fd; }
+html[data-theme="dark"] .bfs-course-purchase-callout {
+  border-color: #40356c;
+  background: linear-gradient(120deg, #252344, var(--bfs-surface));
+}
+html[data-theme="dark"] .bfs-plan-option--selected {
+  border-color: #a78bfa !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.2), 0 0 0 2px rgba(167,139,250,.18);
+}
+@media (max-width: 640px) {
+  .bfs-plan-card { border-radius: 20px; }
+}

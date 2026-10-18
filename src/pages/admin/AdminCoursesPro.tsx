@@ -621,6 +621,16 @@ export default function AdminCoursesPro() {
                       Featured
                     </label>
 
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" aria-label={`Enable enrollment for ${course.title}`} checked={course.enrollmentEnabled !== false} onChange={(e) => save(course, { enrollmentEnabled: e.target.checked })} />
+                      Enrollment enabled
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" aria-label={`Enable certificates for ${course.title}`} checked={course.certificateEnabled !== false} onChange={(e) => save(course, { certificateEnabled: e.target.checked })} />
+                      Certificates enabled
+                    </label>
+
                     <select
                       aria-label={`Pricing mode for ${course.title}`}
                       className="input-field w-auto"

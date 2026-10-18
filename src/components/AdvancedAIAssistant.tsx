@@ -56,7 +56,7 @@ export default function AdvancedAIAssistant({
           "&lessonId=" +
           encodeURIComponent(lessonId)
       );
-      setUsage(data);
+      setUsage(data.enabled ? data : null);
       setSupported(Boolean(data.enabled));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Advanced AI is unavailable";
@@ -86,6 +86,7 @@ export default function AdvancedAIAssistant({
       const data = await apiFetch("/api/advanced-ai/insight", {
         method: "POST",
         body: JSON.stringify({ courseId, lessonId }),
+        showFeatureUpgrade: true,
       });
       setInsight(data);
       setOpen(true);
@@ -107,6 +108,7 @@ export default function AdvancedAIAssistant({
       const data = await apiFetch("/api/advanced-ai/ask", {
         method: "POST",
         body: JSON.stringify({ courseId, lessonId, question: clean }),
+        showFeatureUpgrade: true,
       });
       setAnswer({
         question: data.question,
@@ -122,8 +124,6 @@ export default function AdvancedAIAssistant({
       setAsking(false);
     }
   }
-
-  if (!supported) return null;
 
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
@@ -268,6 +268,13 @@ export default function AdvancedAIAssistant({
                 </p>
               </div>
             </>
+          ) : !supported ? (
+            <div className="mt-3 rounded-xl border border-indigo-100 bg-white p-3">
+              <p className="text-sm font-bold text-slate-900">Upgrade to unlock Advanced AI</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                You can read the lesson and its resources as usual. Choose Summary or submit a question to see available plans.
+              </p>
+            </div>
           ) : null}
         </aside>
       </div>

@@ -36,4 +36,5 @@ test("sanitizeAuditSnapshot bounds strings, arrays, object keys, and recursion d
 test("sanitizeAuditSnapshot serializes dates safely and preserves nulls", () => {
   assert.equal(sanitizeAuditSnapshot(null), null);
   assert.equal(sanitizeAuditSnapshot(new Date("2026-01-02T03:04:05.000Z")), "2026-01-02T03:04:05.000Z");
+  assert.equal(sanitizeAuditSnapshot(new Date("not-a-date")), "[invalid-date]");
 });

@@ -372,9 +372,9 @@ export default function FeatureUpgradeModal() {
                       }}
                       onFocusCapture={() => setPreviewPlanId(plan._id)}
                       onBlur={() => setPreviewPlanId(null)}
-                      className={`bfs-plan-card bfs-plan-option relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
+                      className={`bfs-plan-card bfs-plan-option ${isTop ? "bfs-plan-card--featured" : ""} relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
                         isFocused
-                          ? "bfs-plan-option--selected bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
+                          ? "bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
                           : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30"
                       }`}
                       aria-current={isSelected ? "true" : undefined}

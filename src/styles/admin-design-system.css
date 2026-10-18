@@ -331,3 +331,33 @@
   .admin-shell .admin-content { padding: var(--s-4); }
   .admin-shell .admin-popover { position: fixed; top: calc(var(--topbar-h) + var(--s-2)); right: var(--s-2); max-width: calc(100vw - var(--s-4)); }
 }
+
+.admin-shell .admin-stat-card { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-5); }
+.admin-shell .admin-stat-card > .flex:first-child { align-items: flex-start; gap: var(--s-3); }
+.admin-shell .admin-stat-card > .flex:first-child > div:first-child { display: grid; place-items: center; width: 40px; height: 40px; padding: 0 !important; border-radius: var(--r-md) !important; background: var(--accent-soft) !important; color: var(--accent) !important; }
+.admin-shell .admin-stat-card > .flex:first-child > span { margin-left: auto; text-align: right; max-width: 65%; }
+.admin-shell .admin-stat-card .text-2xl { font-size: var(--fs-3xl) !important; line-height: var(--lh-3xl) !important; font-weight: var(--fw-semibold) !important; }
+.admin-shell .admin-stat-card p { margin: 0; }
+.admin-shell .admin-content .mx-auto.max-w-7xl > .admin-page-header { margin-bottom: var(--s-5); }
+.admin-shell .admin-content .mx-auto.max-w-7xl > .admin-page-header + [role="alert"] { margin-bottom: var(--s-4); }
+.admin-shell .admin-content .mx-auto.max-w-7xl > div:first-child:not(.admin-page-header) { margin-bottom: var(--s-5); }
+.admin-shell .admin-content .mx-auto.max-w-7xl > div:first-child:not(.admin-page-header) h1 { margin-top: 0 !important; margin-bottom: 0; color: var(--text) !important; font-size: var(--fs-2xl) !important; line-height: var(--lh-2xl) !important; font-weight: var(--fw-semibold) !important; letter-spacing: -0.02em; }
+.admin-shell .admin-content .mx-auto.max-w-7xl > div:first-child:not(.admin-page-header) p { margin-top: var(--s-2); }
+.admin-shell .admin-content .mx-auto.max-w-7xl > div:first-child:not(.admin-page-header) p.uppercase { color: var(--accent) !important; font-size: var(--fs-xs) !important; font-weight: var(--fw-medium) !important; }
+.admin-shell .admin-content .mx-auto.max-w-7xl > .grid { min-width: 0; }
+.admin-shell .admin-content .mt-6 { margin-top: var(--s-5) !important; }
+.admin-shell .admin-content .mt-7 { margin-top: var(--s-5) !important; }
+.admin-shell .admin-content .gap-6 { gap: var(--s-4) !important; }
+.admin-shell .admin-content .p-5 { padding: var(--s-5) !important; }
+.admin-shell .admin-content .p-4 { padding: var(--s-4) !important; }
+.admin-shell .admin-content .px-5 { padding-left: var(--s-5) !important; padding-right: var(--s-5) !important; }
+.admin-shell .admin-content .py-4 { padding-top: var(--s-3) !important; padding-bottom: var(--s-3) !important; }
+.admin-shell .admin-content .bg-amber-50 { background-color: var(--warning-soft) !important; }
+.admin-shell .admin-content .text-amber-800 { color: var(--warning) !important; }
+.admin-shell .admin-content .bg-red-50 { background-color: var(--danger-soft) !important; }
+.admin-shell .admin-content .text-red-700 { color: var(--danger) !important; }
+.admin-shell .admin-content .rounded-xl, .admin-shell .admin-content .rounded-2xl { border-radius: var(--r-md) !important; }
+.admin-shell .admin-content .admin-card { margin-bottom: var(--s-4); }
+@media (max-width: 767px) {
+  .admin-shell .admin-content .mx-auto.max-w-7xl > div:first-child:not(.admin-page-header) { align-items: flex-start; flex-direction: column; }
+}

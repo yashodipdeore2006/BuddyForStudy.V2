@@ -9,6 +9,7 @@ import { createNotificationEvent } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../services/paymentWebhookTransitions.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
+import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter } from "../services/subscriptionWebhookTransitions.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -66,22 +67,33 @@ function periodDate(value) {
   return value ? new Date(Number(value) * 1000) : null;
 }
 
-async function activateSubscription(subscription, payment) {
-  await UserSubscription.findOneAndUpdate(
-    { user: payment.user },
-    {
-      $set: {
-        plan: payment.plan,
-        status: "active",
-        provider: "razorpay",
-        providerSubscriptionId: subscription.id,
-        currentPeriodStart: periodDate(subscription.current_start) || new Date(),
-        currentPeriodEnd: periodDate(subscription.current_end),
-        cancelAtPeriodEnd: Boolean(subscription.end_at)
-      }
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
+async function activateSubscription(subscription, payment, eventAt = null) {
+  const filter = {
+    user: payment.user,
+    ...(eventAt ? subscriptionEventFreshnessFilter(eventAt) : {})
+  };
+  const set = {
+    plan: payment.plan,
+    status: "active",
+    provider: "razorpay",
+    providerSubscriptionId: subscription.id,
+    currentPeriodStart: periodDate(subscription.current_start) || new Date(),
+    currentPeriodEnd: periodDate(subscription.current_end),
+    cancelAtPeriodEnd: Boolean(subscription.end_at),
+    ...(eventAt ? { providerEventAt: eventAt } : {})
+  };
+  try {
+    return await UserSubscription.findOneAndUpdate(
+      filter,
+      { $set: set },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    // An older event can fail an upsert against the unique user index when a
+    // newer subscription record already exists. Treat that as a stale event.
+    if (eventAt && error?.code === 11000) return null;
+    throw error;
+  }
 }
 
 async function recordSubscriptionCharge(subscription, paymentEntity) {
@@ -180,6 +192,7 @@ export async function razorpayWebhook(req, res, next) {
     const paymentEntity = event?.payload?.payment?.entity;
     const orderEntity = event?.payload?.order?.entity;
     const subscriptionEntity = event?.payload?.subscription?.entity;
+    const subscriptionEventAt = subscriptionEventTimestamp(event);
     const orderId = paymentEntity?.order_id || orderEntity?.id;
 
     if (event.event === "payment.captured" || event.event === "order.paid") {
@@ -216,14 +229,14 @@ export async function razorpayWebhook(req, res, next) {
           payment.subscriptionNotificationLastCheckedAt = null;
           payment.paidAt = payment.paidAt || new Date();
           await payment.save();
-          await activateSubscription(subscriptionEntity, payment);
-          const notification = await createNotificationEvent(buildSubscriptionActivatedNotificationPayload({
+          const appliedSubscriptionEvent = await activateSubscription(subscriptionEntity, payment, subscriptionEventAt);
+          const notification = appliedSubscriptionEvent ? await createNotificationEvent(buildSubscriptionActivatedNotificationPayload({
             userId: String(payment.user),
             payment,
             plan: payment.plan,
             subscription: subscriptionEntity,
             subscriptionId: String(subscriptionEntity.id)
-          }));
+          })) : null;
           if (notification) {
             await Payment.updateOne(
               { _id: payment._id, subscriptionNotificationStatus: "pending" },
@@ -241,8 +254,8 @@ export async function razorpayWebhook(req, res, next) {
     } else if (event.event === "subscription.pending" || event.event === "subscription.halted") {
       if (subscriptionEntity?.id) {
         const subscription = await UserSubscription.findOneAndUpdate(
-          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id },
-          { $set: { status: "past_due" } },
+          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id, ...subscriptionEventFreshnessFilter(subscriptionEventAt) },
+          { $set: { status: "past_due", ...(subscriptionEventAt ? { providerEventAt: subscriptionEventAt } : {}) } },
           { new: true }
         ).populate("plan", "name");
         if (subscription) {
@@ -262,9 +275,10 @@ export async function razorpayWebhook(req, res, next) {
     } else if (event.event === "subscription.cancelled" || event.event === "subscription.completed") {
       if (subscriptionEntity?.id) {
         const subscription = await UserSubscription.findOneAndUpdate(
-          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id },
+          { provider: "razorpay", providerSubscriptionId: subscriptionEntity.id, ...subscriptionEventFreshnessFilter(subscriptionEventAt) },
           {
             $set: {
+              ...(subscriptionEventAt ? { providerEventAt: subscriptionEventAt } : {}),
               status: event.event === "subscription.completed" ? "expired" : "cancelled",
               cancelAtPeriodEnd: false,
               cancelledAt: new Date(),

@@ -99,8 +99,8 @@ export default function AdminSupport() {
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500"><AlertCircle className="h-4 w-4"/> Support workflow</div>
         </div>
-        <label className="mt-4 block text-sm font-medium text-slate-700">Internal note / resolution
-          <textarea value={notes[issue._id] ?? issue.adminNote ?? ""} onChange={(e) => setNotes((old) => ({ ...old, [issue._id]: e.target.value }))} rows={2} maxLength={2000} placeholder="Record investigation steps, outcome or next action…" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"/>
+        <label className="mt-4 block text-sm font-medium text-slate-700">Support update / resolution message
+          <textarea value={notes[issue._id] ?? issue.adminNote ?? ""} onChange={(e) => setNotes((old) => ({ ...old, [issue._id]: e.target.value }))} rows={2} maxLength={2000} placeholder="This note is sent to the learner when the case status changes." className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"/>
         </label>
         <div className="mt-3 flex flex-wrap gap-2">
           {issue.status !== "in_review" && <button type="button" disabled={savingId === issue._id} onClick={() => void update(issue, "in_review")} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Mark in review</button>}

@@ -1521,7 +1521,7 @@ export async function sendNotification(req, res, next) {
       email: false,
       push: false,
       metadata: { source: "admin-broadcast", broadcastId, initiatedBy: String(req.user.user._id) }
-    })));
+    }));
     await audit(req, "notification.sent", "Notification", broadcastId, null, { recipients: users.length, title, type });
     return success(res, { sent: users.length }, "Notification queued");
   } catch (e) { next(e); }
@@ -1568,7 +1568,7 @@ export async function sendEmail(req, res, next) {
       inApp: false,
       push: false,
       metadata: { source: "admin-email-campaign", broadcastId, initiatedBy: String(req.user.user._id) }
-    })));
+    }));
     const queued = results.filter((item) => item?.emailStatus === "pending").length;
     const skipped = results.filter((item) => item?.emailStatus === "skipped").length;
     await audit(req, "email.queued", "EmailCampaign", broadcastId, null, {
@@ -1622,7 +1622,7 @@ export async function sendAnnouncement(req, res, next) {
       email: channel.includes("email"),
       push: false,
       metadata: { source: "admin-announcement", announcementId: String(announcement._id) }
-    })));
+    }));
     await audit(req, "announcement.sent", "Announcement", announcement._id, null, {
       audience: announcement.audience,
       targetMode: announcement.targetMode,

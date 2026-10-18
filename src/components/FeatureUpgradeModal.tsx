@@ -179,7 +179,7 @@ export default function FeatureUpgradeModal() {
       if (!cancelled) setLoadingPlans(false);
     });
     return () => { cancelled = true; };
-  }, [open, session]);
+  }, [open, session, request?.feature]);
 
   useEffect(() => {
     if (!open) return;

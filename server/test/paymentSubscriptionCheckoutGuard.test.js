@@ -28,7 +28,7 @@ async function withMocks(mocks, run) {
   }
 }
 
-test("subscription order creation refuses to create another provider subscription while checkout is pending", async () => {
+test("subscription order creation reuses an existing pending provider checkout", async () => {
   await withMocks([
     [UserSubscription, {
       findOne: async () => null,

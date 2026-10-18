@@ -30,6 +30,7 @@ export default function AdminUsersPro() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
   const [pagination, setPagination] = useState<any>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
+  const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [debouncedQ, setDebouncedQ] = useState(searchParams.get("q") || "");
   const [status, setStatus] = useState(searchParams.get("status") || "");
@@ -79,13 +80,17 @@ export default function AdminUsersPro() {
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedQ(q.trim()), 300);
+    const timer = window.setTimeout(() => {
+      const nextQuery = q.trim();
+      if (nextQuery !== debouncedQ) setPage(1);
+      setDebouncedQ(nextQuery);
+    }, 300);
     return () => window.clearTimeout(timer);
-  }, [q]);
+  }, [q, debouncedQ]);
 
   useEffect(() => {
-    void load(1, { q: debouncedQ, status, role, authProvider }, pageSize);
-  }, [debouncedQ, status, role, authProvider, pageSize]);
+    void load(page, { q: debouncedQ, status, role, authProvider }, pageSize);
+  }, [page, debouncedQ, status, role, authProvider, pageSize]);
 
   async function toggleUser(user: any) {
     setSavingId(user._id);
@@ -226,11 +231,11 @@ export default function AdminUsersPro() {
       />
 
       <div className="admin-saved-views" aria-label="Saved user views">
-        <button type="button" className="admin-saved-view" aria-pressed={!status && !role && !authProvider && !debouncedQ} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>All users</button>
-        <button type="button" className="admin-saved-view" aria-pressed={status === "active" && !role && !authProvider} onClick={() => { setStatus("active"); setRole(""); setAuthProvider(""); }}>Active</button>
-        <button type="button" className="admin-saved-view" aria-pressed={status === "disabled" && !role && !authProvider} onClick={() => { setStatus("disabled"); setRole(""); setAuthProvider(""); }}>Disabled</button>
-        <button type="button" className="admin-saved-view" aria-pressed={role === "admin"} onClick={() => { setRole("admin"); setStatus(""); }}>Administrators</button>
-        <button type="button" className="admin-saved-view" aria-pressed={Boolean(debouncedQ || status || role || authProvider)} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button>
+        <button type="button" className="admin-saved-view" aria-pressed={!status && !role && !authProvider && !debouncedQ} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>All users</button>
+        <button type="button" className="admin-saved-view" aria-pressed={status === "active" && !role && !authProvider} onClick={() => { setStatus("active"); setRole(""); setAuthProvider(""); setPage(1); }}>Active</button>
+        <button type="button" className="admin-saved-view" aria-pressed={status === "disabled" && !role && !authProvider} onClick={() => { setStatus("disabled"); setRole(""); setAuthProvider(""); setPage(1); }}>Disabled</button>
+        <button type="button" className="admin-saved-view" aria-pressed={role === "admin"} onClick={() => { setRole("admin"); setStatus(""); setPage(1); }}>Administrators</button>
+        <button type="button" className="admin-saved-view" aria-pressed={Boolean(debouncedQ || status || role || authProvider)} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>Clear filters</button>
       </div>
       <div className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -246,17 +251,17 @@ export default function AdminUsersPro() {
               placeholder="Search name or email"
             />
           </div>
-          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="disabled">Disabled</option>
           </select>
-          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => setRole(e.target.value)}>
+          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); }}>
             <option value="">All roles</option>
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => setAuthProvider(e.target.value)}>
+          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => { setAuthProvider(e.target.value); setPage(1); }}>
             <option value="">All sign-in methods</option>
             <option value="local">Email & password</option>
             <option value="google">Google</option>
@@ -351,14 +356,14 @@ export default function AdminUsersPro() {
 
         <div className="admin-pagination">
           <label className="admin-page-size">Rows per page
-            <select aria-label="Rows per page" className="input-field" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
+            <select aria-label="Rows per page" className="input-field" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
           </label>
           <span className="admin-pagination-count">Showing {users.length ? ((pagination.page || 1) - 1) * pageSize + 1 : 0}–{Math.min((pagination.page || 1) * pageSize, pagination.total || 0)} of {pagination.total || 0}</span>
           <button
             type="button"
             className="btn-secondary"
             disabled={(pagination.page || 1) <= 1 || loading}
-            onClick={() => void load((pagination.page || 1) - 1)}
+            onClick={() => setPage((pagination.page || 1) - 1)}
           >
             <ChevronLeft className="h-4 w-4" /> Previous
           </button>
@@ -367,7 +372,7 @@ export default function AdminUsersPro() {
             type="button"
             className="btn-secondary"
             disabled={(pagination.page || 1) >= (pagination.pages || 1) || loading}
-            onClick={() => void load((pagination.page || 1) + 1)}
+            onClick={() => setPage((pagination.page || 1) + 1)}
           >
             Next <ChevronRight className="h-4 w-4" />
           </button>

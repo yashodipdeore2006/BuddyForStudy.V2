@@ -37,6 +37,17 @@ test("refund amount defaults to the remaining balance and rejects invalid or exc
   });
 });
 
+test("refund request schema rejects zero and sub-cent amounts", () => {
+  const amountPath = RefundRequest.schema.path("amount");
+  assert.equal(amountPath.options.min[0], 0.01);
+  const zero = new RefundRequest({ user: "507f1f77bcf86cd799439011", payment: "507f1f77bcf86cd799439012", amount: 0 });
+  assert.equal(zero.validateSync().errors.amount.kind, "min");
+  const subCent = new RefundRequest({ user: "507f1f77bcf86cd799439011", payment: "507f1f77bcf86cd799439012", amount: 1.234 });
+  assert.equal(subCent.validateSync().errors.amount.kind, "user defined");
+  const valid = new RefundRequest({ user: "507f1f77bcf86cd799439011", payment: "507f1f77bcf86cd799439012", amount: 1.23 });
+  assert.equal(valid.validateSync(), undefined);
+});
+
 test("refund request schema enforces one active refund claim per payment", () => {
   const activeIndex = RefundRequest.schema.indexes().find(([, options]) => options.name === "unique_active_refund_per_payment");
   assert.ok(activeIndex, "Expected a unique active-refund index");

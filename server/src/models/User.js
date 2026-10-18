@@ -28,6 +28,20 @@ const userSchema = new mongoose.Schema(
       default: "user",
       required: true
     },
+    adminRole: {
+      type: String,
+      enum: ["super_admin", "platform_admin", "ai_content_manager", "finance_manager", "support_manager", "analyst_auditor"],
+      default: "platform_admin",
+      required: true
+    },
+    adminPermissionOverrides: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (items) => Array.isArray(items) && items.length <= 50 && items.every((item) => typeof item === "string" && item.length <= 80),
+        message: "Admin permission overrides must contain at most 50 short permission keys."
+      }
+    },
     isActive: {
       type: Boolean,
       default: true,

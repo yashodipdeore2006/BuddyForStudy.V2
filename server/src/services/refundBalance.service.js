@@ -37,5 +37,5 @@ export function validateRefundAmount(requestedAmount, remainingAmount) {
   if (amount > remaining) {
     return { valid: false, amount: 0, message: `Refund amount cannot exceed the remaining refundable balance of ${remaining}.` };
   }
-  return { valid: true, amount: Number(amount.toFixed(2)) };
+  return { valid: true, amount: Math.round((amount + Number.EPSILON) * 100) / 100 };
 }

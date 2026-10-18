@@ -1273,6 +1273,8 @@ export async function updateRefund(req, res, next) {
 }
 
 export async function reconcileRefund(req, res, next) {
+  let reconciliationToken = "";
+  let reconciliationRefundId = "";
   try {
     if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
     const providerRefundId = String(req.body?.providerRefundId || "").trim();
@@ -1280,7 +1282,7 @@ export async function reconcileRefund(req, res, next) {
       return failure(res, "Enter a valid Razorpay refund ID from the provider dashboard.", 400);
     }
 
-    const refund = await RefundRequest.findById(req.params.refundId);
+    let refund = await RefundRequest.findById(req.params.refundId);
     if (!refund) return failure(res, "Refund request not found", 404);
     if (refund.status === "processed") return failure(res, "This refund is already reconciled.", 409);
     if (refund.status !== "approved") {
@@ -1308,6 +1310,28 @@ export async function reconcileRefund(req, res, next) {
     }
 
     const providerStatus = String(providerRefund?.status || "").toLowerCase();
+    reconciliationToken = crypto.randomUUID();
+    reconciliationRefundId = String(refund._id);
+    const leaseCutoff = new Date(Date.now() - 10 * 60 * 1000);
+    const claimedRefund = await RefundRequest.findOneAndUpdate(
+      {
+        _id: refund._id,
+        status: "approved",
+        $or: [
+          { reconciliationToken: { $exists: false } },
+          { reconciliationToken: null },
+          { reconciliationStartedAt: { $lte: leaseCutoff } }
+        ]
+      },
+      { $set: { reconciliationToken, reconciliationStartedAt: new Date() } },
+      { new: true }
+    );
+    if (!claimedRefund) {
+      reconciliationToken = "";
+      reconciliationRefundId = "";
+      return failure(res, "Another administrator is already reconciling this refund. Refresh the request before retrying.", 409);
+    }
+    refund = claimedRefund;
     const before = { status: refund.status, providerRefundId: refund.providerRefundId || "" };
     if (providerStatus === "processed") {
       const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
@@ -1316,6 +1340,8 @@ export async function reconcileRefund(req, res, next) {
       }
       refund.status = "processed";
       refund.set("activePaymentKey", undefined);
+      refund.set("reconciliationToken", undefined);
+      refund.set("reconciliationStartedAt", undefined);
       refund.providerRefundId = providerRefundId;
       refund.processedAt = new Date();
       refund.processedBy = req.user.user?._id || req.user.userId;
@@ -1352,6 +1378,8 @@ export async function reconcileRefund(req, res, next) {
 
     if (["failed", "rejected"].includes(providerStatus)) {
       refund.status = "pending";
+      refund.set("reconciliationToken", undefined);
+      refund.set("reconciliationStartedAt", undefined);
       refund.providerRefundId = "";
       refund.processedAt = null;
       refund.adminNote = [refund.adminNote, `Provider reports refund status '${providerStatus}'. Retry is now allowed.`].filter(Boolean).join("\n").slice(0, 2000);
@@ -1364,6 +1392,8 @@ export async function reconcileRefund(req, res, next) {
       return success(res, { refund, providerStatus }, "Provider confirmed the refund did not complete; the request is available for retry");
     }
 
+    refund.set("reconciliationToken", undefined);
+    refund.set("reconciliationStartedAt", undefined);
     refund.adminNote = [refund.adminNote, `Provider reconciliation checked refund ${providerRefundId}; current provider status is '${providerStatus || "unknown"}'.`].filter(Boolean).join("\n").slice(0, 2000);
     await refund.save();
     await audit(req, "refund.reconciliation_pending", "RefundRequest", refund._id, before, {
@@ -1372,7 +1402,15 @@ export async function reconcileRefund(req, res, next) {
       providerStatus
     }, "Provider refund is not yet in a final state");
     return success(res, { refund, providerStatus }, "Provider refund is not final yet; internal refund remains on hold");
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (reconciliationToken && reconciliationRefundId) {
+      await RefundRequest.updateOne(
+        { _id: reconciliationRefundId, reconciliationToken },
+        { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+      ).catch(() => {});
+    }
+    next(e);
+  }
 }
 
 export async function sendNotification(req, res, next) {

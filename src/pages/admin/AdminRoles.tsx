@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCcw, ShieldCheck, Users, Save, LockKeyhole, AlertTriangle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import AdminInvitationManager from "@/pages/admin/AdminInvitationManager";
 
 type AdminRole = { key: string; label: string; description: string; permissions: string[] };
 type Administrator = {
@@ -164,6 +165,8 @@ export default function AdminRoles() {
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
         <p>Role changes take effect on the next API request. The last active Super Admin cannot be demoted, and administrators cannot change their own role from this screen.</p>
       </div>
+
+      <AdminInvitationManager />
     </div>
   );
 }

@@ -250,7 +250,7 @@ test("revocation rejects malformed invitation IDs without querying the database"
 
 test("revocation returns not found for an invitation that is no longer pending", async () => {
   await withMocks([
-    [AdminInvitation, { findOne: async () => null }]
+    [AdminInvitation, { findOneAndUpdate: async () => null }]
   ], async () => {
     const res = makeResponse();
     await revokeInvitation({ params: { invitationId }, user: { userId: "actor-id" } }, res, () => assert.fail("next must not run"));
@@ -262,12 +262,15 @@ test("revocation returns not found for an invitation that is no longer pending",
 test("revocation saves the revoked timestamp and records an audit event", async () => {
   const invitation = makeInvitation({
     _id: { toString: () => invitationId },
-    save: async function () { this.saved = true; }
+    revokedAt: new Date("2026-10-18T10:00:00.000Z")
   });
   let lookupFilter;
+  let update;
   let auditEntry;
   await withMocks([
-    [AdminInvitation, { findOne: async (filter) => { lookupFilter = filter; return invitation; } }],
+    [AdminInvitation, {
+      findOneAndUpdate: async (filter, change) => { lookupFilter = filter; update = change; return invitation; }
+    }],
     [AuditLog, { create: async (entry) => { auditEntry = entry; } }]
   ], async () => {
     const res = makeResponse();
@@ -280,11 +283,12 @@ test("revocation saves the revoked timestamp and records an audit event", async 
     }, res, (error) => assert.fail(error));
     assert.equal(res.result.statusCode, 200);
     assert.equal(res.result.body.success, true);
-    assert.equal(invitation.saved, true);
     assert.equal(invitation.revokedAt instanceof Date, true);
     assert.equal(lookupFilter._id, invitationId);
     assert.equal(lookupFilter.acceptedAt, null);
     assert.equal(lookupFilter.revokedAt, null);
+    assert.equal(lookupFilter.expiresAt.$gt instanceof Date, true);
+    assert.equal(update.$set.revokedAt instanceof Date, true);
     assert.equal(auditEntry.action, "admin.invitation.revoked");
     assert.equal(auditEntry.reason, "Access no longer required");
     assert.equal(auditEntry.targetId, invitationId);

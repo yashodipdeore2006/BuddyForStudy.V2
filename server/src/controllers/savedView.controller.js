@@ -66,7 +66,7 @@ export async function listSavedViews(req, res, next) {
       page: pageResult.data,
       $or: [{ owner: ownerId(req) }, { shared: true }]
     }).sort({ createdAt: 1, _id: 1 }).limit(100).lean();
-    return success(res, { items: views.map(viewDto), total: views.length });
+    return success(res, { items: views.map((view) => ({ ...viewDto(view), canManage: String(view.owner) === String(ownerId(req)) })), total: views.length });
   } catch (error) { return next(error); }
 }
 

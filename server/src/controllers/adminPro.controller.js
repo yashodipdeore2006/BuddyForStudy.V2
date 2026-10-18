@@ -1956,7 +1956,7 @@ export async function analytics(req, res, next) {
     for (const item of refundsDaily) {
       const current = daily.get(item._id) || { _id: item._id, amount: 0, grossPayments: 0, refunds: 0, paymentCount: 0, refundCount: 0 };
       current.refunds += Number(item.amount || 0);
-      current.amount -= Number(item.amount || 0);
+      current.amount = calculateNetRevenue(current.grossPayments, current.refunds);
       current.refundCount += Number(item.count || 0);
       daily.set(item._id, current);
     }
@@ -1979,8 +1979,8 @@ export async function analytics(req, res, next) {
         failedPayments,
         grossRevenue,
         processedRefunds: totalRefunds,
-        netRevenue: grossRevenue - totalRefunds,
-        recordedRevenue: grossRevenue - totalRefunds
+        netRevenue: calculateNetRevenue(grossRevenue, totalRefunds),
+        recordedRevenue: calculateNetRevenue(grossRevenue, totalRefunds)
       }
     });
   } catch (e) { next(e); }

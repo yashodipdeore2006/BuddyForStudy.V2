@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bell, Eye, Mail, Megaphone, Send } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
-type Channel = "in_app" | "email";
+type Channel = "in_app" | "email" | "push";
 type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean };
 type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
 type AudiencePlanOption = { id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean; isPopular: boolean };
@@ -262,7 +262,7 @@ export default function AdminCommunications() {
           ? `${data.queued} emails queued, ${data.skipped || 0} skipped by preferences or configuration`
           : `${data.sent ?? 0} recipient(s)`
         : tab === "announcement"
-          ? `${data.recipients ?? 0} recipient(s)${data.emailsQueued !== undefined ? `, ${data.emailsQueued} emails queued` : ""}`
+          ? `${data.recipients ?? 0} recipient(s)${data.emailsQueued !== undefined ? `, ${data.emailsQueued} emails queued` : ""}${data.pushQueued !== undefined ? `, ${data.pushQueued} push deliveries queued` : ""}`
           : `${data.sent ?? 0} recipient(s)`;
       setStatus((data.message || "Sent") + " — " + deliverySummary);
     } catch (e) {
@@ -494,11 +494,12 @@ export default function AdminCommunications() {
           {tab === "announcement" && (
             <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Channels</p>
+              <p className="mt-1 text-xs text-slate-500">Push requires the platform push service and a registered device. Learner preferences and platform settings still apply.</p>
               <div className="mt-3 flex flex-wrap gap-3">
-                {(["in_app", "email"] as Channel[]).map((channel) => (
+                {(["in_app", "email", "push"] as Channel[]).map((channel) => (
                   <label key={channel} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold">
                     <input type="checkbox" checked={channels.includes(channel)} onChange={() => toggleChannel(channel)} />
-                    {channel === "in_app" ? "In-app" : "Email"}
+                    {channel === "in_app" ? "In-app" : channel === "email" ? "Email" : "Push"}
                   </label>
                 ))}
               </div>

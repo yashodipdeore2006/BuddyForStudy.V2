@@ -30,6 +30,7 @@ router.get("/plans", async (_req,res,next)=>{ try {
 router.use(authMiddleware);
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
 router.get("/me", async (req,res,next)=>{ try { const { UserSubscription } = await import("../models/UserSubscription.js"); const subscription=await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean(); return success(res,{subscription}); } catch(e){next(e)} });
+router.get("/entitlements", async (req,res,next)=>{ try { const { getActivePlanForUser, getEntitlement } = await import("../services/subscriptionEntitlement.service.js"); const plan = await getActivePlanForUser(req.user.userId); const features = {}; for (const feature of ["published_courses","course_search","learning_progress","ai_course_builder","personalized_roadmaps","project_based_learning","advanced_ai_paths","study_planning","priority_recommendations"]) { const entitlement = await getEntitlement(req.user.userId, feature); features[feature] = Boolean(entitlement.allowed); } return success(res,{plan: plan ? { id: String(plan._id), name: plan.name, slug: plan.slug } : null, features}); } catch(e){next(e)} });
 
 router.post("/subscription/sync", async (req,res,next)=>{ try {
   const subscriptionId = String(req.body?.subscriptionId || "").trim();

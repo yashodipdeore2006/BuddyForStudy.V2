@@ -197,7 +197,7 @@ test("acceptance releases its claim when account creation fails so the invite ca
     let forwardedError;
     await acceptInvitation(request(), res, (error) => { forwardedError = error; });
     assert.equal(forwardedError?.message, "database write failed");
-    assert.equal(releaseFilter._id, invitationId);
+    assert.equal(releaseFilter._id, invitation._id);
     assert.equal(releaseFilter.acceptedAt, claimedAt);
     assert.equal(claimedAt instanceof Date, true);
     assert.equal(releaseUpdate.$set.acceptedAt, null);

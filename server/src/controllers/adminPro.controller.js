@@ -1802,16 +1802,28 @@ export async function analytics(req, res, next) {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
     since.setDate(since.getDate() - (days - 1));
+    const now = new Date();
 
-    const [enrollmentsDaily, revenueDaily, coursePerformance, subscriptionBreakdown, completionBreakdown] = await Promise.all([
+    const [enrollmentsDaily, paymentsDaily, refundsDaily, coursePerformance, subscriptionBreakdown, completionBreakdown, newUsers, payingUsers, failedPayments] = await Promise.all([
       Enrollment.aggregate([
-        { $match: { createdAt: { $gte: since } } },
+        { $match: { createdAt: { $gte: since, $lte: now } } },
         { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
       Payment.aggregate([
-        { $match: { createdAt: { $gte: since }, status: { $in: ["paid", "partially_refunded"] } } },
-        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+        { $match: { status: { $in: ["paid", "partially_refunded"] }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] } },
+        { $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$paidAt", "$createdAt"] } } },
+          amount: { $sum: "$amount" },
+          count: { $sum: 1 },
+          users: { $addToSet: "$user" }
+        } },
+        { $project: { _id: 1, amount: 1, count: 1, payingUsers: { $size: "$users" } } },
+        { $sort: { _id: 1 } }
+      ]),
+      RefundRequest.aggregate([
+        { $match: { status: "processed", processedAt: { $gte: since, $lte: now } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$processedAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
       Enrollment.aggregate([
@@ -1828,22 +1840,44 @@ export async function analytics(req, res, next) {
       ]),
       Progress.aggregate([
         { $bucket: { groupBy: "$percentage", boundaries: [0, 25, 50, 75, 100, 101], default: "other", output: { count: { $sum: 1 } } } }
-      ])
+      ]),
+      User.countDocuments({ createdAt: { $gte: since, $lte: now } }),
+      Payment.distinct("user", { status: { $in: ["paid", "partially_refunded"] }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] }),
+      Payment.countDocuments({ status: "failed", updatedAt: { $gte: since, $lte: now } })
     ]);
 
-    const totalEnrollmentPeriod = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
-    const totalRevenuePeriod = revenueDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const daily = new Map();
+    for (const item of paymentsDaily) {
+      daily.set(item._id, { _id: item._id, amount: Number(item.amount || 0), grossPayments: Number(item.amount || 0), refunds: 0, paymentCount: Number(item.count || 0), refundCount: 0 });
+    }
+    for (const item of refundsDaily) {
+      const current = daily.get(item._id) || { _id: item._id, amount: 0, grossPayments: 0, refunds: 0, paymentCount: 0, refundCount: 0 };
+      current.refunds += Number(item.amount || 0);
+      current.amount -= Number(item.amount || 0);
+      current.refundCount += Number(item.count || 0);
+      daily.set(item._id, current);
+    }
+    const revenueDaily = [...daily.values()].sort((a, b) => a._id.localeCompare(b._id));
+    const totalEnrollments = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
+    const grossRevenue = paymentsDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalRefunds = refundsDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
     return success(res, {
-      period: { days, since, until: new Date() },
+      period: { days, since, until: now },
       enrollmentsDaily,
       revenueDaily,
       coursePerformance,
       subscriptionBreakdown,
       completionBreakdown,
       totals: {
-        enrollments: totalEnrollmentPeriod,
-        recordedRevenue: totalRevenuePeriod
+        enrollments: totalEnrollments,
+        newUsers,
+        payingUsers: payingUsers.length,
+        failedPayments,
+        grossRevenue,
+        processedRefunds: totalRefunds,
+        netRevenue: grossRevenue - totalRefunds,
+        recordedRevenue: grossRevenue - totalRefunds
       }
     });
   } catch (e) { next(e); }

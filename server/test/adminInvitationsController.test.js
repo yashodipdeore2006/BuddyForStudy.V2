@@ -356,3 +356,45 @@ test("invitation creation removes the pending invitation when email delivery is 
     env.smtpPass = originalSmtpPass;
   }
 });
+
+
+test("acceptance does not report failure after account creation if audit logging fails", async () => {
+  const invitation = makeInvitation();
+  const claimedInvitation = { ...invitation, acceptedAt };
+  const user = {
+    _id: { toString: () => "507f1f77bcf86cd799439012" },
+    name: invitation.name,
+    email,
+    adminRole: invitation.adminRole,
+    isActive: true
+  };
+  let errorLogCalls = 0;
+  const originalConsoleError = console.error;
+  console.error = () => { errorLogCalls += 1; };
+  try {
+    await withMocks([
+      [AdminInvitation, {
+        findOne: () => findInvitationQuery(invitation),
+        findOneAndUpdate: async () => claimedInvitation
+      }],
+      [User, {
+        exists: async () => false,
+        hashPassword: async () => "hashed-password",
+        create: async () => user
+      }],
+      [AuditLog, { create: async () => { throw new Error("audit database unavailable"); } }]
+    ], async () => {
+      const res = makeResponse();
+      let forwardedError;
+      await acceptInvitation(request(), res, (error) => { forwardedError = error; });
+      assert.equal(forwardedError, undefined);
+      assert.equal(res.result.statusCode, 201);
+      assert.equal(res.result.body.success, true);
+      assert.equal(res.result.body.data.auditLogRecorded, false);
+      assert.match(res.result.body.message, /audit event could not be recorded/i);
+      assert.equal(errorLogCalls, 1);
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+});

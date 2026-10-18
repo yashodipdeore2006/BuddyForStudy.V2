@@ -11,7 +11,7 @@ export function subscriptionEventFreshnessFilter(eventAt) {
     $or: [
       { providerEventAt: { $exists: false } },
       { providerEventAt: null },
-      { providerEventAt: { $lt: eventAt } }
+      { providerEventAt: { $lte: eventAt } }
     ]
   };
 }

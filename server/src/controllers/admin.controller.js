@@ -23,12 +23,14 @@ export async function users(req, res, next) {
 export async function updateUser(req, res, next) {
   try {
     if (!isValidObjectId(req.params.userId)) return failure(res, "Invalid userId", 400);
-    const user = await User.findByIdAndUpdate(
-      req.params.userId,
-      { $set: { isActive: Boolean(req.body.isActive) } },
-      { new: true, runValidators: true }
-    ).select("-password");
+    if (typeof req.body?.isActive !== "boolean") return failure(res, "isActive must be a boolean.", 400);
+    const user = await User.findById(req.params.userId);
     if (!user) return failure(res, "User not found", 404);
+    if (user.role === "admin") {
+      return failure(res, "Administrator accounts must be managed through the administrator access console.", 403);
+    }
+    user.isActive = req.body.isActive;
+    await user.save();
     return success(res, { user }, "User status updated");
   } catch (e) { next(e); }
 }

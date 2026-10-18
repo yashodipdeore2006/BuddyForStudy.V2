@@ -167,8 +167,15 @@ export async function registerPushSubscription(req, res, next) {
       return failure(res, "The push endpoint must be a public HTTPS browser push-service URL.", 400);
     }
 
+    // A push endpoint is a credential-like identifier. Never let one
+    // authenticated user transfer an endpoint already registered to another.
+    const existingSubscription = await PushSubscription.findOne({ endpoint: input.endpoint }).select("user");
+    if (existingSubscription && String(existingSubscription.user) !== String(req.user.userId)) {
+      return failure(res, "This browser push endpoint is already registered to another account.", 409);
+    }
+
     const subscription = await PushSubscription.findOneAndUpdate(
-      { endpoint: input.endpoint },
+      { endpoint: input.endpoint, user: req.user.userId },
       {
         $set: {
           user: req.user.userId,
@@ -195,6 +202,9 @@ export async function registerPushSubscription(req, res, next) {
     return success(res, { subscription: { id: String(subscription._id), active: subscription.active } }, "Browser push subscription saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Invalid browser push subscription", 400, e.flatten().fieldErrors);
+    // A concurrent registration can race after the ownership check. The
+    // unique endpoint index remains authoritative and must not enable takeover.
+    if (e?.code === 11000) return failure(res, "This browser push endpoint is already registered to another account.", 409);
     next(e);
   }
 }

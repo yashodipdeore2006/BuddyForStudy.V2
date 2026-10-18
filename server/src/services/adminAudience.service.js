@@ -177,7 +177,10 @@ export function validateAdminAudienceInput(input = {}) {
   if (Array.isArray(input.userIds) && input.userIds.some((id) => !isValidObjectId(String(id)))) throw new Error("One or more selected user IDs are invalid");
   if (Array.isArray(input.emails) && input.emails.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
   if (Array.isArray(input.emails) && input.emails.some((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim()))) throw new Error("One or more selected email addresses are invalid");
-  normalizeFilters(input.filters || {});
+  const normalizedFilters = normalizeFilters(input.filters || {});
+  const hasRawFilters = input.filters && Object.keys(input.filters).length > 0;
+  const hasEffectiveFilters = Object.values(normalizedFilters).some((value) => value !== null && value !== undefined && value !== "");
+  if (hasRawFilters && !hasEffectiveFilters) throw new Error("Provide at least one valid audience filter");
   const hasIds = Array.isArray(input.userIds) && input.userIds.length > 0;
   const hasEmails = Array.isArray(input.emails) && input.emails.length > 0;
   const hasFilters = input.filters && Object.keys(input.filters).length > 0;

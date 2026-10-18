@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
-  Activity, ArrowUpRight, Bell, BookOpen, Check, ChevronDown, CircleHelp,
-  CreditCard, ExternalLink, FileText, LayoutDashboard, LogOut, Menu,
+  Activity, ArrowUpRight, Bell, BookOpen, ChevronDown, CircleHelp,
+  CreditCard, ExternalLink, LayoutDashboard, LogOut, Menu,
   Megaphone, Moon, Plus, Search, Settings, ShieldCheck, Sun, Tag,
   Users, X, BrainCircuit, Headset, ScrollText, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
@@ -108,6 +108,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const commandInput = useRef<HTMLInputElement>(null);
   const commandDialog = useRef<HTMLDivElement>(null);
+  const gShortcutAt = useRef(0);
   const userMenu = useRef<HTMLDivElement>(null);
   const quickMenu = useRef<HTMLDivElement>(null);
 
@@ -158,7 +159,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [commandOpen]);
 
   useEffect(() => {
-    if (!commandOpen && !helpOpen && !quickOpen && !userMenuOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       const typing = Boolean(target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)));
@@ -199,20 +199,48 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if (event.key === "?" && !typing) {
+      if (typing || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === "/" && !typing) {
+        const search = document.querySelector<HTMLElement>(".admin-content input[type='search'], .admin-content input[placeholder*='Search'], .admin-content input[aria-label*='Search']");
+        if (search) { event.preventDefault(); search.focus(); }
+      }
+      if (event.key.toLowerCase() === "g") {
+        gShortcutAt.current = Date.now();
+      } else if (Date.now() - gShortcutAt.current < 1200) {
+        const destinations: Record<string, string> = { d: "/admin", u: "/admin/users", c: "/admin/courses", o: "/admin/billing" };
+        const destination = destinations[event.key.toLowerCase()];
+        if (destination && visibleLinks.some((item) => item.to === destination)) {
+          event.preventDefault();
+          nav(destination);
+        }
+        gShortcutAt.current = 0;
+      } else if (event.key.toLowerCase() === "n") {
+        setQuickOpen(true);
+        setUserMenuOpen(false);
+      } else if (event.key === "?" && !typing) {
         event.preventDefault();
         setHelpOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [commandOpen, helpOpen, quickOpen, userMenuOpen, matchingCommands, activeResult, nav]);
+  }, [commandOpen, helpOpen, quickOpen, userMenuOpen, matchingCommands, activeResult, nav, visibleLinks]);
 
   useEffect(() => {
     setMobileOpen(false);
     setQuickOpen(false);
     setUserMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (quickMenu.current && !quickMenu.current.contains(target)) setQuickOpen(false);
+      if (userMenu.current && !userMenu.current.contains(target)) setUserMenuOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
 
   const pathEntry = visibleLinks.find((item) => item.to === location.pathname)
     || links.find((item) => item.to === location.pathname)
@@ -391,7 +419,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               ["G then D", "Go to dashboard"],
               ["G then U", "Go to users"],
               ["G then C", "Go to courses"],
-              ["N", "Open current module to create a record"],
+              ["N", "Open quick actions"],
               ["?", "Show keyboard shortcuts"],
               ["Esc", "Close menu or dialog"],
             ].map(([shortcut, label]) => <div className="admin-shortcut-row" key={shortcut}><span>{label}</span><kbd>{shortcut}</kbd></div>)}

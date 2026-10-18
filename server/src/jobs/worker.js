@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { connectDatabase } from "../config/db.js";
 import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
+import { processPendingAuditOutbox } from "../services/auditOutbox.service.js";
 import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
@@ -34,6 +35,7 @@ async function runMaintenance() {
       )
     ]);
     const notificationJobs = await Promise.allSettled([
+      processPendingAuditOutbox(100, now),
       deliverPendingNotificationEmails(50),
       deliverPendingNotificationPush(50),
       processLearningReminders(now, 500),
@@ -42,6 +44,7 @@ async function runMaintenance() {
       processSubscriptionExpiryReminders(now)
     ]);
     const notificationJobNames = [
+      "audit-outbox",
       "email-delivery",
       "push-delivery",
       "learning-reminders",

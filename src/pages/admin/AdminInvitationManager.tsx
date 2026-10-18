@@ -34,7 +34,7 @@ export default function AdminInvitationManager() {
         adminFetch("/api/admin/roles"),
         adminFetch("/api/admin/invitations")
       ]);
-      setRoles((roleData.roles || []).filter((role: Role) => role.key !== "super_admin" || true));
+      setRoles(roleData.roles || []);
       setInvitations(invitationData.invitations || []);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load invitations.");

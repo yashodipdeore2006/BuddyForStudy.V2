@@ -146,7 +146,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
           : '';
       const aiQuotaFeature = response.status === 429 &&
         entitlementDetails?.feature === "advanced_ai_paths" &&
-        ["advanced_ai_insights_per_month", "advanced_ai_questions_per_month", "advanced_ai_questions_per_lesson"].includes(String(entitlementDetails?.limitKey || ""))
+        ["advanced_ai_insights_per_month", "advanced_ai_questions_per_month"].includes(String(entitlementDetails?.limitKey || ""))
         ? "advanced_ai_paths"
         : "";
       const isPlanLimitDenial = (Boolean(quotaFeature) && /plan(?:'s|’s) monthly course allowance/i.test(serverMessage)) || Boolean(aiQuotaFeature);

@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { GraduationCap, LayoutDashboard, BookOpen, Bookmark, LogOut, User as UserIcon, Settings, Users, BarChart3, Shield, Menu, X, Sparkles, Moon, Sun } from 'lucide-react';
+import { GraduationCap, LayoutDashboard, BookOpen, Bookmark, LogOut, User as UserIcon, Users, BarChart3, Shield, Menu, X, Sparkles, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import NotificationMenu from '@/components/NotificationMenu';
 import { classNames } from '@/lib/utils';
@@ -20,7 +20,6 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(readSavedTheme);
   const isAdmin = profile?.role === 'admin';
-  const settingsPath = isAdmin ? '/admin/settings' : '/settings';
   const profilePath = isAdmin ? '/admin/settings' : '/profile';
 
   useEffect(() => {
@@ -77,7 +76,6 @@ export default function Navbar() {
           {profile ? <>
             {isAdmin && <span className="badge bg-blue-50 text-blue-700"><Shield className="h-3 w-3" />Admin</span>}
             {!isAdmin && <NotificationMenu />}
-            <Link to={settingsPath} className="rounded-full p-2.5 text-slate-600 hover:bg-slate-100" aria-label="Settings"><Settings className="h-5 w-5" /></Link>
             <Link to={profilePath} className="flex items-center gap-2 rounded-full border border-transparent px-2.5 py-1.5 hover:border-slate-200 hover:bg-slate-50">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-indigo-900 text-sm font-bold text-white">{profile.name.charAt(0).toUpperCase()}</span>
               <span className="max-w-28 truncate text-sm font-semibold text-slate-700">{profile.name}</span>
@@ -98,7 +96,6 @@ export default function Navbar() {
       {mobileOpen && <div className="border-t border-slate-200 bg-white px-4 pb-4 pt-3 shadow-xl md:hidden"><div className="flex flex-col gap-1">
         {profile && links.map((link) => <Link key={link.to} to={link.to} onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-950"><link.icon className="h-4 w-4" />{link.label}</Link>)}
         {profile ? <>
-          <Link to={settingsPath} onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"><Settings className="h-4 w-4" />Settings</Link>
           <Link to={profilePath} onClick={() => setMobileOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"><UserIcon className="h-4 w-4" />{isAdmin ? 'Admin Settings' : 'Profile'}</Link>
           <button onClick={() => { setMobileOpen(false); void handleSignOut(); }} className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-600 hover:bg-slate-50"><LogOut className="h-4 w-4" />Sign out</button>
         </> : <div className="grid grid-cols-2 gap-2 pt-2"><Link to="/login" onClick={() => setMobileOpen(false)} className="btn-secondary">Sign in</Link><Link to="/register" onClick={() => setMobileOpen(false)} className="btn-primary">Start learning</Link></div>}

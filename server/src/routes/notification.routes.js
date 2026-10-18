@@ -4,6 +4,9 @@ import { authMiddleware } from "../middleware/auth.js";
 
 const router = Router();
 
+router.get("/unsubscribe", controller.unsubscribeLanding);
+router.post("/unsubscribe", controller.unsubscribePromotionalEmails);
+
 router.use(authMiddleware);
 router.get("/", controller.list);
 router.get("/preferences", controller.getPreferences);

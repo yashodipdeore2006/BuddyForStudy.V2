@@ -2,6 +2,7 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import { User } from "../models/User.js";
+import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
@@ -36,6 +37,7 @@ import { createNotificationEvent, retryNotificationDelivery } from "../services/
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions } from "../utils/adminRbac.js";
+import { GROSS_COLLECTION_PAYMENT_STATUSES, calculateNetRevenue } from "../services/billingMetrics.service.js";
 import { resolveAdminAudience, validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../services/adminAudience.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
@@ -107,7 +109,7 @@ export async function overview(req, res, next) {
       Enrollment.countDocuments(),
       UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
       UserSubscription.countDocuments({ status: "past_due" }),
-      Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Payment.aggregate([{ $match: { status: { $in: GROSS_COLLECTION_PAYMENT_STATUSES } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       RefundRequest.aggregate([{ $match: { status: "processed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Payment.countDocuments({ status: "failed" }),
       RefundRequest.countDocuments({ status: "pending" }),
@@ -140,7 +142,21 @@ export async function overview(req, res, next) {
     if (canUsers) Object.assign(stats, { users, activeUsers });
     if (canRoles) Object.assign(stats, { admins });
     if (canCourses) Object.assign(stats, { courses, published, unpublished, emptyCourses, enrollments });
-    if (canBilling) Object.assign(stats, { activeSubscribers, pastDueSubscribers, revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)), failedPayments });
+    if (canBilling) {
+      const grossRevenueTotal = Number(grossRevenue[0]?.total || 0);
+      const processedRefundsTotal = Number(processedRefunds[0]?.total || 0);
+      const netRevenue = calculateNetRevenue(grossRevenueTotal, processedRefundsTotal);
+      Object.assign(stats, {
+        activeSubscribers,
+        pastDueSubscribers,
+        grossRevenue: grossRevenueTotal,
+        processedRefunds: processedRefundsTotal,
+        netRevenue,
+        // Keep the legacy field so existing dashboard clients remain compatible.
+        revenue: netRevenue,
+        failedPayments
+      });
+    }
     if (canRefunds) Object.assign(stats, { pendingRefunds });
     if (canOperations) Object.assign(stats, { unread });
 
@@ -175,6 +191,93 @@ export async function users(req, res, next) {
     ]);
     return success(res, { users: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (e) { next(e); }
+}
+
+export async function userFeatureOverrides(req, res, next) {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const user = await User.findById(userId).select("_id role name email").lean();
+    if (!user) return failure(res, "User not found", 404);
+    const overrides = await UserFeatureOverride.find({ user: userId }).sort({ featureKey: 1 }).lean();
+    const features = SUBSCRIPTION_FEATURES.map((feature) => ({
+      ...feature,
+      override: overrides.find((item) => item.featureKey === feature.key) || null
+    }));
+    return success(res, { user: { id: String(user._id), name: user.name, email: user.email }, features });
+  } catch (error) { next(error); }
+}
+
+export async function upsertUserFeatureOverride(req, res, next) {
+  try {
+    const { userId, featureKey } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const feature = SUBSCRIPTION_FEATURES.find((item) => item.key === featureKey);
+    if (!feature) return failure(res, "Unknown subscription feature.", 400);
+    if (typeof req.body?.allowed !== "boolean") return failure(res, "allowed must be a boolean.", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for audit.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    const user = await User.findById(userId).select("_id role");
+    if (!user) return failure(res, "User not found", 404);
+    if (user.role === "admin") return failure(res, "Feature overrides are only available for learner accounts.", 403);
+
+    let expiresAt = null;
+    if (req.body?.expiresAt !== undefined && req.body.expiresAt !== null && String(req.body.expiresAt).trim() !== "") {
+      expiresAt = new Date(req.body.expiresAt);
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+        return failure(res, "expiresAt must be a valid future date, or null for no expiry.", 400);
+      }
+    }
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey }).lean();
+    const before = existing ? {
+      allowed: existing.allowed,
+      expiresAt: existing.expiresAt || null,
+      reason: existing.reason
+    } : null;
+    const actor = req.user?.user?._id || req.user?.userId;
+    const override = await UserFeatureOverride.findOneAndUpdate(
+      { user: userId, featureKey },
+      {
+        $set: { allowed: req.body.allowed, expiresAt, reason, updatedBy: actor },
+        $setOnInsert: { user: userId, featureKey, createdBy: actor }
+      },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+    const auditResult = await audit(req, "user.feature_override.updated", "UserFeatureOverride", override._id, before, {
+      userId: String(userId), featureKey, allowed: override.allowed, expiresAt: override.expiresAt || null
+    }, reason);
+    return success(res, {
+      override: { ...override, feature: { key: feature.key, label: feature.label } },
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "User feature override saved.");
+  } catch (error) {
+    if (error?.code === 11000) return failure(res, "This feature override changed concurrently. Refresh and try again.", 409);
+    next(error);
+  }
+}
+
+export async function deleteUserFeatureOverride(req, res, next) {
+  try {
+    const { userId, featureKey } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    if (!SUBSCRIPTION_FEATURES.some((item) => item.key === featureKey)) return failure(res, "Unknown subscription feature.", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for audit.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey });
+    if (!existing) return failure(res, "No override exists for this feature.", 404);
+    await existing.deleteOne();
+    const auditResult = await audit(req, "user.feature_override.removed", "UserFeatureOverride", existing._id, {
+      userId: String(userId), featureKey, allowed: existing.allowed, expiresAt: existing.expiresAt || null
+    }, null, reason);
+    return success(res, {
+      removed: true,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "User feature override removed. The user's plan entitlement now applies.");
+  } catch (error) { next(error); }
 }
 
 export async function userDetail(req, res, next) {
@@ -1802,16 +1905,28 @@ export async function analytics(req, res, next) {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
     since.setDate(since.getDate() - (days - 1));
+    const now = new Date();
 
-    const [enrollmentsDaily, revenueDaily, coursePerformance, subscriptionBreakdown, completionBreakdown] = await Promise.all([
+    const [enrollmentsDaily, paymentsDaily, refundsDaily, coursePerformance, subscriptionBreakdown, completionBreakdown, newUsers, payingUsers, failedPayments] = await Promise.all([
       Enrollment.aggregate([
-        { $match: { createdAt: { $gte: since } } },
+        { $match: { createdAt: { $gte: since, $lte: now } } },
         { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
       Payment.aggregate([
-        { $match: { createdAt: { $gte: since }, status: { $in: ["paid", "partially_refunded"] } } },
-        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+        { $match: { status: { $in: GROSS_COLLECTION_PAYMENT_STATUSES }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] } },
+        { $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$paidAt", "$createdAt"] } } },
+          amount: { $sum: "$amount" },
+          count: { $sum: 1 },
+          users: { $addToSet: "$user" }
+        } },
+        { $project: { _id: 1, amount: 1, count: 1, payingUsers: { $size: "$users" } } },
+        { $sort: { _id: 1 } }
+      ]),
+      RefundRequest.aggregate([
+        { $match: { status: "processed", processedAt: { $gte: since, $lte: now } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$processedAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
       Enrollment.aggregate([
@@ -1828,22 +1943,44 @@ export async function analytics(req, res, next) {
       ]),
       Progress.aggregate([
         { $bucket: { groupBy: "$percentage", boundaries: [0, 25, 50, 75, 100, 101], default: "other", output: { count: { $sum: 1 } } } }
-      ])
+      ]),
+      User.countDocuments({ createdAt: { $gte: since, $lte: now } }),
+      Payment.distinct("user", { status: { $in: ["paid", "partially_refunded"] }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] }),
+      Payment.countDocuments({ status: "failed", updatedAt: { $gte: since, $lte: now } })
     ]);
 
-    const totalEnrollmentPeriod = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
-    const totalRevenuePeriod = revenueDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const daily = new Map();
+    for (const item of paymentsDaily) {
+      daily.set(item._id, { _id: item._id, amount: Number(item.amount || 0), grossPayments: Number(item.amount || 0), refunds: 0, paymentCount: Number(item.count || 0), refundCount: 0 });
+    }
+    for (const item of refundsDaily) {
+      const current = daily.get(item._id) || { _id: item._id, amount: 0, grossPayments: 0, refunds: 0, paymentCount: 0, refundCount: 0 };
+      current.refunds += Number(item.amount || 0);
+      current.amount = calculateNetRevenue(current.grossPayments, current.refunds);
+      current.refundCount += Number(item.count || 0);
+      daily.set(item._id, current);
+    }
+    const revenueDaily = [...daily.values()].sort((a, b) => a._id.localeCompare(b._id));
+    const totalEnrollments = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
+    const grossRevenue = paymentsDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalRefunds = refundsDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
     return success(res, {
-      period: { days, since, until: new Date() },
+      period: { days, since, until: now },
       enrollmentsDaily,
       revenueDaily,
       coursePerformance,
       subscriptionBreakdown,
       completionBreakdown,
       totals: {
-        enrollments: totalEnrollmentPeriod,
-        recordedRevenue: totalRevenuePeriod
+        enrollments: totalEnrollments,
+        newUsers,
+        payingUsers: payingUsers.length,
+        failedPayments,
+        grossRevenue,
+        processedRefunds: totalRefunds,
+        netRevenue: calculateNetRevenue(grossRevenue, totalRefunds),
+        recordedRevenue: calculateNetRevenue(grossRevenue, totalRefunds)
       }
     });
   } catch (e) { next(e); }

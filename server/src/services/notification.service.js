@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import { mailRecipientAccepted, summarizeNotificationDeliveryOutcomes } from "./notificationDeliveryOutcomes.js";
 import { env } from "../config/env.js";
@@ -121,6 +123,28 @@ export async function getUserNotificationPreferences(userId) {
   return normalizeUserNotificationPreferences(stored, userId);
 }
 
+export function createEmailUnsubscribeToken(userId, expiresAt = Date.now() + 90 * 24 * 60 * 60 * 1000) {
+  if (!userId || !mongoose.isValidObjectId(String(userId))) throw new Error("A valid user ID is required for an unsubscribe token");
+  const payload = Buffer.from(JSON.stringify({ sub: String(userId), exp: expiresAt })).toString("base64url");
+  const signature = crypto.createHmac("sha256", env.jwtSecret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+export function verifyEmailUnsubscribeToken(token, now = Date.now()) {
+  if (typeof token !== "string" || token.length > 2048) return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payload, suppliedSignature] = parts;
+  const expected = crypto.createHmac("sha256", env.jwtSecret).update(payload).digest();
+  let actual;
+  try { actual = Buffer.from(suppliedSignature, "base64url"); } catch { return null; }
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null;
+  let claims;
+  try { claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")); } catch { return null; }
+  if (!claims || !mongoose.isValidObjectId(String(claims.sub || "")) || !Number.isFinite(claims.exp) || claims.exp <= now) return null;
+  return { userId: String(claims.sub), expiresAt: claims.exp };
+}
+
 export async function saveUserNotificationPreferences(userId, updates) {
   const patch = {};
   for (const key of Object.keys(DEFAULT_PREFERENCES)) {
@@ -179,14 +203,25 @@ async function dispatchEmail(notificationId) {
     const link = notification.link ? appUrl + notification.link : appUrl + "/notifications";
     const title = escapeHtml(notification.title);
     const message = escapeHtml(notification.message).replace(/\n/g, "<br />");
+    const isPromotional = notification.type === "promotion";
+    const unsubscribeToken = isPromotional ? createEmailUnsubscribeToken(notification.user._id) : "";
+    const unsubscribeUrl = unsubscribeToken
+      ? `${env.apiUrl.replace(/\/$/, "")}/api/notifications/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`
+      : "";
+    const unsubscribeText = unsubscribeUrl ? `\n\nUnsubscribe from promotional emails: ${unsubscribeUrl}` : "";
     const deliveryInfo = await mailer.sendMail({
       from: env.mailFrom,
       to: notification.user.email,
       subject: notification.emailSubject || notification.title,
-      text: notification.emailHtml
+      ...(unsubscribeUrl ? { headers: {
+        "List-Unsubscribe": `<${unsubscribeUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+      } } : {}),
+      text: (notification.emailHtml
         ? String(notification.emailHtml).replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim()
-        : `${notification.title}\n\n${notification.message}\n\nOpen BuddyForStudy: ${link}`,
-      html: notification.emailHtml || `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1c1e21;line-height:1.6"><div style="max-width:560px;margin:24px auto;padding:28px;border:1px solid #dee3e9;border-radius:20px"><p style="font-size:12px;font-weight:700;color:#0064e0;letter-spacing:1px">BUDDYFORSTUDY</p><h1 style="font-size:24px;font-weight:600">${title}</h1><p>${message}</p><p style="margin-top:28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:100px;text-decoration:none;font-weight:700">Open BuddyForStudy</a></p><p style="font-size:12px;color:#5d6c7b">You are receiving this email because of activity on your BuddyForStudy account.</p></div></body></html>`
+        : `${notification.title}\n\n${notification.message}\n\nOpen BuddyForStudy: ${link}`) + unsubscribeText,
+      html: (notification.emailHtml || `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1c1e21;line-height:1.6"><div style="max-width:560px;margin:24px auto;padding:28px;border:1px solid #dee3e9;border-radius:20px"><p style="font-size:12px;font-weight:700;color:#0064e0;letter-spacing:1px">BUDDYFORSTUDY</p><h1 style="font-size:24px;font-weight:600">${title}</h1><p>${message}</p><p style="margin-top:28px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#000;color:#fff;padding:12px 20px;border-radius:100px;text-decoration:none;font-weight:700">Open BuddyForStudy</a></p><p style="font-size:12px;color:#5d6c7b">You are receiving this email because of activity on your BuddyForStudy account.</p></div></body></html>`) +
+        (unsubscribeUrl ? `<p style="font-size:12px;color:#5d6c7b;text-align:center">You received this promotional email because you opted in. <a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe</a>.</p>` : "")
     });
     if (!mailRecipientAccepted(deliveryInfo, notification.user.email)) {
       throw new Error("SMTP server did not confirm acceptance of the recipient");

@@ -3,6 +3,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { UserSubscription } from "../models/UserSubscription.js";
+import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 
 const featureByKey = new Map(SUBSCRIPTION_FEATURES.map((feature) => [feature.key, feature]));
@@ -43,7 +44,25 @@ export async function getEntitlement(userId, feature) {
   const definition = resolveFeature(feature);
   if (!definition) return { allowed: false, feature: null, plan: null, limits: {} };
 
+  const override = await UserFeatureOverride.findOne({
+    user: userId,
+    featureKey: definition.key,
+    $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }]
+  }).lean();
   const plan = await getActivePlanForUser(userId);
+  if (override) {
+    return {
+      allowed: override.allowed,
+      feature: definition,
+      plan: plan || null,
+      limits: plan?.limits || {},
+      override: {
+        allowed: override.allowed,
+        expiresAt: override.expiresAt || null,
+        reason: override.reason
+      }
+    };
+  }
   if (!plan) return { allowed: false, feature: definition, plan: null, limits: {} };
 
   const features = normalizeSubscriptionFeatures(plan.features || []);
@@ -51,7 +70,8 @@ export async function getEntitlement(userId, feature) {
     allowed: features.includes(definition.label),
     feature: definition,
     plan,
-    limits: plan.limits || {}
+    limits: plan.limits || {},
+    override: null
   };
 }
 

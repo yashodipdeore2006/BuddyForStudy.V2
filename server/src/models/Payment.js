@@ -20,6 +20,16 @@ const paymentSchema = new mongoose.Schema({
   paidAt: { type: Date, default: null }
 }, { timestamps: true, collection: "payments" });
 
+paymentSchema.index(
+  { provider: 1, providerPaymentId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      provider: "razorpay",
+      providerPaymentId: { $type: "string", $gt: "" }
+    }
+  }
+);
 paymentSchema.index({ createdAt: -1 });
 paymentSchema.index({ status: 1, purchaseNotificationStatus: 1, purchaseNotificationLastCheckedAt: 1, _id: 1 });
 paymentSchema.index({ status: 1, subscriptionNotificationStatus: 1, subscriptionNotificationLastCheckedAt: 1, _id: 1 });

@@ -98,4 +98,4 @@ The verifier checks API liveness, database readiness, public billing plans, Goog
 
 ## Regression and CI checks
 
-The GitHub Actions workflow runs frontend lint, TypeScript type-checking, and production build. Backend CI installs from the lockfile, runs the full Node test suite against MongoDB, and syntax-checks server JavaScript. The suite includes admin route permission coverage, audit redaction bounds, subscription entitlement boundaries, refund/payment validation, and webhook transition regressions.
+The GitHub Actions workflow runs frontend lint as an advisory check (the existing frontend currently has lint debt), then requires TypeScript type-checking and a production build. Backend CI installs dependencies, runs the full Node test suite against MongoDB, and syntax-checks server JavaScript. The backend lockfile currently needs regeneration before CI can safely switch to `npm ci`. The suite includes admin route permission coverage, audit redaction bounds, subscription entitlement boundaries, refund/payment validation, and webhook transition regressions.

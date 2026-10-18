@@ -103,7 +103,7 @@ export function SavedViews({ page, views, activeId, currentView, onApply, onCrea
   loading?: boolean; error?: string; className?: string;
 }) {
   const [open, setOpen] = useState(false); const [name, setName] = useState(""); const [shared, setShared] = useState(false); const [saving, setSaving] = useState(false);
-  async function save(event: React.FormEvent) {
+  async function save(event: FormEvent) {
     event.preventDefault(); if (!name.trim() || saving) return; setSaving(true);
     try { await onCreate({ page, name: name.trim(), filters: currentView.filters, columns: currentView.columns, sort: currentView.sort, density: currentView.density, shared }); setName(""); setShared(false); setOpen(false); } catch { /* Parent exposes the server error inline. */ } finally { setSaving(false); }
   }

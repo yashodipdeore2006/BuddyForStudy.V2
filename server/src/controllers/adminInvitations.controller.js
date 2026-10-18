@@ -72,11 +72,6 @@ export async function createInvitation(req, res, next) {
     if (existingUser) return failure(res, "This email already belongs to an account. Use the existing administrator role assignment workflow if appropriate.", 409);
 
     const now = new Date();
-    await AdminInvitation.updateMany(
-      { email, acceptedAt: null, revokedAt: null },
-      { $set: { revokedAt: now } }
-    );
-
     const token = crypto.randomBytes(32).toString("base64url");
     const invitation = await AdminInvitation.create({
       email,
@@ -123,6 +118,22 @@ export async function createInvitation(req, res, next) {
       throw deliveryError;
     }
 
+    // Do not revoke a previous working invitation until the replacement email
+    // has been accepted by the mail transport. A failed send must not lock out
+    // the invitee by invalidating the only usable invitation.
+    let previousInvitationsRevoked = true;
+    try {
+      await AdminInvitation.updateMany(
+        { email, _id: { $ne: invitation._id }, acceptedAt: null, revokedAt: null },
+        { $set: { revokedAt: new Date() } }
+      );
+    } catch (error) {
+      previousInvitationsRevoked = false;
+      console.error("[admin-invitations] replacement invitation sent but previous invitations could not be revoked", {
+        message: String(error?.message || "Unknown error").slice(0, 200)
+      });
+    }
+
     const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "admin.invitation.created",
@@ -144,7 +155,9 @@ export async function createInvitation(req, res, next) {
       },
       auditLogRecorded: auditResult.recorded,
       auditQueued: auditResult.queued
-    }, auditResult.recorded ? "Administrator invitation sent."
+    }, !previousInvitationsRevoked
+      ? "Administrator invitation sent, but previous pending invitations could not be revoked. Review the invitation list."
+      : auditResult.recorded ? "Administrator invitation sent."
       : auditResult.queued ? "Administrator invitation sent; audit event queued for retry."
       : "Administrator invitation sent, but its audit event could not be recorded or queued. Notify a Super Admin.", 201);
   } catch (error) {

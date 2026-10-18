@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { Course } from '@/types';
 import CourseCard from '@/components/CourseCard';
@@ -9,8 +10,37 @@ import EmptyState from '@/components/EmptyState';
 export default function Home() {
   const [courses,setCourses]=useState<Course[]>([]);
   const [loading,setLoading]=useState(true);
+  const [savedCourseIds,setSavedCourseIds]=useState<Set<string>>(new Set());
+  const [enrolledCourseIds,setEnrolledCourseIds]=useState<Set<string>>(new Set());
+  const { session } = useAuth();
 
   useEffect(()=>{async function fetchCourses(){try{const data=await apiFetch('/api/courses?limit=6');setCourses((data.courses||[]).map((course:any)=>({...course,id:String(course._id||course.id),learning_outcomes:course.learningOutcomes||course.learning_outcomes||[],is_published:course.isPublished??course.is_published??false,created_at:course.createdAt||course.created_at,updated_at:course.updatedAt||course.updated_at,created_by:course.createdBy||course.created_by||null})) as Course[])}catch{setCourses([])}finally{setLoading(false)}}fetchCourses()},[]);
+
+  useEffect(() => {
+    let active = true;
+    if (!session) {
+      setSavedCourseIds(new Set());
+      setEnrolledCourseIds(new Set());
+      return;
+    }
+    Promise.all([apiFetch('/api/saved-courses'), apiFetch('/api/enrollments')])
+      .then(([savedData, enrollmentData]) => {
+        if (!active) return;
+        setSavedCourseIds(new Set((savedData.savedCourses || [])
+          .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.courseId ?? ''))
+          .filter(Boolean)));
+        setEnrolledCourseIds(new Set((enrollmentData.enrollments || [])
+          .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
+          .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.course_id ?? item.courseId ?? ''))
+          .filter(Boolean)));
+      })
+      .catch(() => {
+        if (!active) return;
+        setSavedCourseIds(new Set());
+        setEnrolledCourseIds(new Set());
+      });
+    return () => { active = false; };
+  }, [session]);
 
   return <div className="overflow-hidden">
     <section className="relative bg-white text-slate-950">
@@ -53,7 +83,7 @@ export default function Home() {
     <section className="bfs-section bg-white">
       <div className="bfs-shell">
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="bfs-eyebrow">Featured learning</p><h2 className="mt-3 text-4xl font-extrabold tracking-[-.03em]">Start with a path that matters.</h2><p className="mt-3 text-slate-500">Explore the courses already available on BuddyForStudy.</p></div><Link to="/courses" className="inline-flex items-center gap-2 text-sm font-bold text-blue-600">View all courses <ArrowRight className="h-4 w-4"/></Link></div>
-        <div className="mt-10">{loading?<div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600"/></div>:courses.length===0?<EmptyState icon={<BookOpen className="h-8 w-8"/>} title="No courses available yet" description="New learning paths are being added regularly."/>:<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{courses.map(course=><CourseCard key={course.id} course={course}/>)}</div>}</div>
+        <div className="mt-10">{loading?<div className="flex justify-center py-16"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600"/></div>:courses.length===0?<EmptyState icon={<BookOpen className="h-8 w-8"/>} title="No courses available yet" description="New learning paths are being added regularly."/>:<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{courses.map(course=><CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />)}</div>}</div>
       </div>
     </section>
 

@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { adminFetch } from "@/lib/adminApi";
 
 export function AdminGuard({ children }: { children: ReactNode }) {
   const { session, profile, loading } = useAuth();
@@ -62,6 +63,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const nav = useNavigate();
   const { session, signOut } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [canManageRoles, setCanManageRoles] = useState(false);
 
   useEffect(() => {
     if (!mobileOpen) return;

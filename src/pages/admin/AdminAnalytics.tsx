@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, IndianRupee, RefreshCcw, TrendingUp, Users } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -47,22 +48,17 @@ export default function AdminAnalytics() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Business intelligence</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Analytics</h1>
-          <p className="mt-2 text-slate-500">Understand learner acquisition, revenue activity, course performance and learning completion.</p>
-        </div>
-        <div className="flex gap-2">
+      <AdminPageHeader
+        eyebrow="Business intelligence"
+        title="Analytics"
+        description="Understand learner acquisition, revenue activity, course performance and learning completion."
+        actions={<div className="flex flex-wrap gap-2">
           <select aria-label="Select analytics reporting period" className="input-field w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={7}>Last 7 days</option>
-            <option value={30}>Last 30 days</option>
-            <option value={60}>Last 60 days</option>
-            <option value={90}>Last 90 days</option>
+            <option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={60}>Last 60 days</option><option value={90}>Last 90 days</option>
           </select>
           <button type="button" aria-label="Refresh analytics" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>
-        </div>
-      </div>
+        </div>}
+      />
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 

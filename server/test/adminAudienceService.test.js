@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateAdminAudienceInput } from "../src/services/adminAudience.service.js";
+import { validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../src/services/adminAudience.service.js";
 
 test("audience targeting accepts a bounded set of selected registered email addresses", () => {
   assert.equal(validateAdminAudienceInput({ emails: ["learner@example.com", "second@example.com"] }), true);
@@ -69,4 +69,22 @@ test("audience targeting rejects an explicitly empty filter object", () => {
 
 test("audience targeting accepts an explicit audience group without filter fields", () => {
   assert.equal(validateAdminAudienceInput({ audience: "active" }), true);
+});
+
+
+test("audience preview tokens expire and bind both filters and resolved recipients", () => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "test-audience-preview-secret";
+  try {
+    const input = { audience: "all", filters: { totalSpendMin: 5000 } };
+    const users = [{ _id: "user-1" }, { _id: "user-2" }];
+    const token = createAdminAudiencePreviewToken(input, users);
+    assert.equal(verifyAdminAudiencePreviewToken(token, input, users), true);
+    assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, filters: { totalSpendMin: 10000 } }, users), false);
+    assert.equal(verifyAdminAudiencePreviewToken(token, input, [{ _id: "user-1" }]), false);
+    assert.equal(verifyAdminAudiencePreviewToken(`${token}tampered`, input, users), false);
+  } finally {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  }
 });

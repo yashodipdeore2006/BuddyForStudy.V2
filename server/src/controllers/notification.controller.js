@@ -2,12 +2,59 @@ import { isValidObjectId } from "../utils/ids.js";
 import { Notification } from "../models/Notification.js";
 import { failure, success } from "../utils/response.js";
 import { z } from "zod";
-import { getUserNotificationPreferences, saveUserNotificationPreferences } from "../services/notification.service.js";
+import { getUserNotificationPreferences, saveUserNotificationPreferences, verifyEmailUnsubscribeToken } from "../services/notification.service.js";
 import { isWithinQuietHours } from "../services/reminderScheduling.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PushSubscription } from "../models/PushSubscription.js";
 import { getWebPushPublicKey, isWebPushConfigured, sendWebPushNotification } from "../services/webPush.service.js";
 import { isIP } from "node:net";
+
+function unsubscribePage(res, { title, message, token = "", status = 200, showForm = false }) {
+  const safeToken = /^[A-Za-z0-9_.-]{1,2048}$/.test(token) ? token : "";
+  const form = showForm
+    ? `<form method="post" action="/api/notifications/unsubscribe"><input type="hidden" name="token" value="${safeToken}"><button type="submit" style="background:#111827;color:#fff;border:0;border-radius:10px;padding:12px 18px;font-weight:600;cursor:pointer">Unsubscribe from promotional emails</button></form>`
+    : "";
+  return res.status(status).type("html").send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:24px;color:#111827"><h1>${title}</h1><p>${message}</p>${form}<p style="color:#6b7280;font-size:13px;margin-top:28px">BuddyForStudy email preferences</p></body></html>`);
+}
+
+export async function unsubscribeLanding(req, res) {
+  const token = String(req.query?.token || "");
+  const claims = verifyEmailUnsubscribeToken(token);
+  if (!claims) return unsubscribePage(res, {
+    title: "Unsubscribe link expired",
+    message: "This link is invalid or has expired. You can update email preferences from your BuddyForStudy account.",
+    status: 400
+  });
+  return unsubscribePage(res, {
+    title: "Manage promotional emails",
+    message: "Confirm below to stop receiving promotional emails from BuddyForStudy. Important account, security, and billing emails are not affected.",
+    token,
+    showForm: true
+  });
+}
+
+export async function unsubscribePromotionalEmails(req, res, next) {
+  try {
+    const token = String(req.body?.token || req.query?.token || "");
+    const claims = verifyEmailUnsubscribeToken(token);
+    if (!claims) return unsubscribePage(res, {
+      title: "Unsubscribe link expired",
+      message: "This link is invalid or has expired. You can update email preferences from your BuddyForStudy account.",
+      status: 400
+    });
+    await NotificationPreference.findOneAndUpdate(
+      { user: claims.userId },
+      { $set: { emailAnnouncements: false, emailAnnouncementsConsentAt: null }, $setOnInsert: { user: claims.userId } },
+      { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+    );
+    return unsubscribePage(res, {
+      title: "You are unsubscribed",
+      message: "Promotional emails have been turned off for this account. Transactional account, security, and billing emails may still be sent."
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
 
 export async function list(req, res, next) {
   try {

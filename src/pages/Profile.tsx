@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
 import { useAuth } from "@/context/AuthContext";
@@ -29,14 +29,6 @@ const statusStyle: Record<string, string> = {
   pending: "bg-blue-50 text-blue-700 ring-blue-600/15",
   cancelled: "bg-slate-100 text-slate-600 ring-slate-500/15",
 };
-
-function formatMoney(amount: number, currency = "INR") {
-  try {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(amount);
-  } catch {
-    return `${currency} ${amount.toFixed(2)}`;
-  }
-}
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -85,7 +77,6 @@ export default function Profile() {
     return () => { cancelled = true; };
   }, []);
 
-  const totalPaid = useMemo(() => payments.filter((p) => ["paid", "partially_refunded"].includes(p.status)).reduce((sum, p) => sum + Number(p.amount || 0), 0), [payments]);
   const latestPayments = payments.slice(0, 3);
 
   const handleSave = async (e: React.FormEvent) => {

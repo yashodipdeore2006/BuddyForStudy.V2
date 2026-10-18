@@ -152,6 +152,7 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
 
   const subscriptionFilters = {};
   if (normalized.subscriptionStatus) subscriptionFilters.status = normalized.subscriptionStatus;
+  else if (normalized.planSegment || normalized.expiresWithinDays) subscriptionFilters.status = { $in: ["trialing", "active"] };
   if (normalized.planId) subscriptionFilters.plan = new mongoose.Types.ObjectId(normalized.planId);
   if (normalized.expiresWithinDays) {
     subscriptionFilters.currentPeriodEnd = {
@@ -203,6 +204,7 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
     else if (normalized.courseId) enrollmentQuery.course = new mongoose.Types.ObjectId(normalized.courseId);
     else if (segmentCourseIds) enrollmentQuery.course = { $in: segmentCourseIds };
     if (normalized.enrollmentStatus) enrollmentQuery.status = normalized.enrollmentStatus;
+    else enrollmentQuery.status = { $in: ["active", "completed"] };
     const enrollments = await Enrollment.find(enrollmentQuery).select("user").lean();
     const enrollmentUserIds = enrollments.map((item) => item.user);
     query._id = query._id ? { $in: enrollmentUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: enrollmentUserIds };

@@ -488,3 +488,7 @@
   .admin-shell .admin-filter-toolbar { align-items: stretch; flex-wrap: wrap; }
   .admin-shell .admin-filter-toolbar .admin-page-size { width: 100%; justify-content: space-between; }
 }
+
+.admin-shell .admin-sort-button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--control-h-sm); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-align: left; }
+.admin-shell .admin-sort-button:hover, .admin-shell .admin-sort-button:focus-visible { color: var(--accent); }
+.admin-shell .admin-sort-button span { display: inline-flex; align-items: center; color: var(--accent); }

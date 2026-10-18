@@ -17,5 +17,6 @@ const refundRequestSchema = new mongoose.Schema({
 }, { timestamps: true, collection: "refund_requests" });
 
 refundRequestSchema.index({ status: 1, createdAt: -1 });
+refundRequestSchema.index({ payment: 1, status: 1 });
 refundRequestSchema.index({ activePaymentKey: 1 }, { unique: true, sparse: true, name: "unique_active_refund_per_payment" });
 export const RefundRequest = mongoose.model("RefundRequest", refundRequestSchema);

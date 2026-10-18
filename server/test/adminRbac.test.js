@@ -68,3 +68,32 @@ test("explicit overrides can add a catalogued permission but cannot make unknown
   assert.equal(hasAdminPermission("unknown", "refunds.manage", ["refunds.manage"]), false);
   assert.equal(hasAdminPermission("support_manager", "not.registered", ["not.registered"]), false);
 });
+
+test("each role remains inside the critical finance, user, content and governance boundaries", () => {
+  const expected = {
+    super_admin: { allow: ["users.manage", "courses.publish", "plans.manage", "refunds.manage", "settings.manage", "admin_roles.manage", "ai.manage"], deny: [] },
+    platform_admin: { allow: ["users.manage", "courses.publish", "operations.manage"], deny: ["plans.manage", "refunds.manage", "settings.manage", "admin_roles.manage", "ai.manage"] },
+    ai_content_manager: { allow: ["courses.manage", "courses.publish", "ai.manage", "resources.manage"], deny: ["users.read", "plans.manage", "refunds.manage", "settings.manage", "admin_roles.manage"] },
+    finance_manager: { allow: ["plans.manage", "coupons.manage", "refunds.manage", "billing.read"], deny: ["users.read", "courses.manage", "courses.publish", "settings.manage", "admin_roles.manage", "ai.manage"] },
+    support_manager: { allow: ["billing.read", "payment_issues.manage"], deny: ["users.read", "users.manage", "refunds.manage", "plans.manage", "courses.manage", "settings.manage", "admin_roles.manage"] },
+    analyst_auditor: { allow: ["analytics.read", "audit.read", "billing.read", "operations.read"], deny: ["users.read", "users.manage", "courses.manage", "plans.manage", "refunds.manage", "settings.manage", "admin_roles.manage", "communications.send"] },
+  };
+
+  for (const [role, matrix] of Object.entries(expected)) {
+    for (const permission of matrix.allow) {
+      assert.equal(hasAdminPermission(role, permission), true, role + " should allow " + permission);
+    }
+    for (const permission of matrix.deny) {
+      assert.equal(hasAdminPermission(role, permission), false, role + " must deny " + permission);
+    }
+    for (const permission of getAdminPermissions(role)) {
+      assert.equal(ADMIN_PERMISSION_CATALOG.includes(permission), true, role + " returned an unknown permission");
+    }
+  }
+});
+
+test("only Super Admin has administrator governance permission by default", () => {
+  for (const role of Object.keys(ADMIN_ROLE_PROFILES)) {
+    assert.equal(hasAdminPermission(role, "admin_roles.manage"), role === "super_admin");
+  }
+});

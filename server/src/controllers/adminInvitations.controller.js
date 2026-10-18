@@ -153,10 +153,15 @@ export async function revokeInvitation(req, res, next) {
   try {
     const { invitationId } = req.params;
     if (!isValidObjectId(invitationId)) return failure(res, "Invalid invitation ID.", 400);
-    const invitation = await AdminInvitation.findOne({ _id: invitationId, acceptedAt: null, revokedAt: null });
+    const revokedAt = new Date();
+    // Make revocation mutually exclusive with acceptance: both operations
+    // must atomically transition only a still-pending invitation.
+    const invitation = await AdminInvitation.findOneAndUpdate(
+      { _id: invitationId, acceptedAt: null, revokedAt: null, expiresAt: { $gt: revokedAt } },
+      { $set: { revokedAt } },
+      { new: true }
+    );
     if (!invitation) return failure(res, "Pending invitation not found.", 404);
-    invitation.revokedAt = new Date();
-    await invitation.save();
     await AuditLog.create({
       actor: req.user.userId,
       action: "admin.invitation.revoked",

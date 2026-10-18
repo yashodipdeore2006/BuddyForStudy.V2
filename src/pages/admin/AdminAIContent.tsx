@@ -56,7 +56,7 @@ export default function AdminAIContent() {
     } finally { setSavingKey(null); }
   }
 
-  const label = (key: string) => key.replace(/^advanced_ai_/, "").replace(/^discovery_/, "").replaceAll("_", " ").replace(/w/g, (letter) => letter.toUpperCase());
+  const label = (key: string) => key.replace(/^advanced_ai_/, "").replace(/^discovery_/, "").split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 
   return <div className="mx-auto max-w-6xl space-y-6">
     <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

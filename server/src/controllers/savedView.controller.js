@@ -79,7 +79,7 @@ export async function createSavedView(req, res, next) {
     const duplicate = await SavedView.findOne({ owner, page: parsed.data.page, name: { $regex: new RegExp("^" + parsed.data.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i") } }).lean();
     if (duplicate) return failure(res, "A saved view with that name already exists for this page.", 409);
     const count = await SavedView.countDocuments({ owner, page: parsed.data.page });
-    if (count >= 8) return failure(res, "You can save up to 8 views per page. Delete one before saving another.", 400);
+    if (count >= 50) return failure(res, "You can save up to 50 views per page. Delete one before saving another.", 400);
     const view = await SavedView.create({ ...parsed.data, owner });
     await audit(req, "admin.saved_view.created", view, view);
     return success(res, { item: viewDto(view) }, "Saved view created.", 201);

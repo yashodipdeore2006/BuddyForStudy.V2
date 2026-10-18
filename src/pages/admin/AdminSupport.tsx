@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, ClipboardList, RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 type Issue = {
   _id: string;
@@ -68,14 +69,12 @@ export default function AdminSupport() {
   });
 
   return <div className="mx-auto max-w-7xl space-y-6">
-    <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <p className="mb-2 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800"><ClipboardList className="h-3.5 w-3.5" /> Learner support</p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Payment & access cases</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">Investigate missing course access, failed payments and billing concerns. Refund execution is handled by Finance permissions.</p>
-      </div>
-      <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")}/> Refresh</button>
-    </header>
+    <AdminPageHeader
+      eyebrow="Learner support"
+      title="Payment and access cases"
+      description="Investigate missing course access, failed payments and billing concerns. Refund execution is handled by Finance permissions."
+      actions={<button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary"><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh</button>}
+    />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
     <section className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">

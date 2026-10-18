@@ -8,6 +8,8 @@ const refundRequestSchema = new mongoose.Schema({
   amount: { type: Number, required: true, min: 0 },
   reason: { type: String, default: "", maxlength: 2000 },
   providerRefundId: { type: String, default: "", index: true },
+  reconciliationToken: { type: String, default: undefined, select: false },
+  reconciliationStartedAt: { type: Date, default: undefined, select: false },
   status: { type: String, enum: ["pending", "approved", "rejected", "processed"], default: "pending", index: true },
   adminNote: { type: String, default: "" },
   processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

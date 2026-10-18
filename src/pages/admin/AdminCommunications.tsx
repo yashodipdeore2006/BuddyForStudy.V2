@@ -19,7 +19,7 @@ export default function AdminCommunications() {
   const [audiencePlans, setAudiencePlans] = useState<AudiencePlanOption[]>([]);
   const [audienceCourses, setAudienceCourses] = useState<AudienceCourseOption[]>([]);
   const [audienceOptionsError, setAudienceOptionsError] = useState("");
-  const [audiencePreview, setAudiencePreview] = useState<{ recipientCount: number; truncated: boolean; sample: Array<{ id: string; name: string; email: string }> } | null>(null);
+  const [audiencePreview, setAudiencePreview] = useState<{ recipientCount: number; truncated: boolean; previewToken: string; sample: Array<{ id: string; name: string; email: string }> } | null>(null);
   const [previewingAudience, setPreviewingAudience] = useState(false);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -199,6 +199,7 @@ export default function AdminCommunications() {
       setAudiencePreview({
         recipientCount: Number(data.recipientCount || 0),
         truncated: Boolean(data.truncated),
+        previewToken: String(data.previewToken || ""),
         sample: Array.isArray(data.sample) ? data.sample : [],
       });
     } catch (error) {
@@ -246,9 +247,10 @@ export default function AdminCommunications() {
 
       const body =
         tab === "email"
-          ? { ...audiencePayload(), subject, html }
+          ? { ...audiencePayload(), subject, html, previewToken: audiencePreview.previewToken }
           : {
               ...audiencePayload(),
+              previewToken: audiencePreview.previewToken,
               title,
               message,
               type: "system",

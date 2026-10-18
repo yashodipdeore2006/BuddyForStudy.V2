@@ -4,7 +4,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { Payment } from "../models/Payment.js";
 import { UserSubscription } from "../models/UserSubscription.js";
-import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 
@@ -139,7 +139,7 @@ export async function grantUserCourse(req, res, next) {
         accessReason: reason
       });
     }
-    await AuditLog.create({
+    const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "user.course_access_granted",
       targetType: "enrollment",
@@ -150,7 +150,13 @@ export async function grantUserCourse(req, res, next) {
       ip: req.ip || "",
       userAgent: req.get("user-agent") || ""
     });
-    return success(res, { enrollment, user: { id: String(user._id), name: user.name, email: user.email }, course: { id: String(course._id), title: course.title } }, "Course access granted", 201);
+    return success(res, {
+      enrollment,
+      user: { id: String(user._id), name: user.name, email: user.email },
+      course: { id: String(course._id), title: course.title },
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, auditResult.recorded || auditResult.queued ? "Course access granted" : "Course access granted, but audit persistence failed", 201);
   } catch (e) {
     if (e?.code === 11000) return failure(res, "Course access already exists; refresh the user record", 409);
     next(e);
@@ -172,7 +178,7 @@ export async function revokeUserCourse(req, res, next) {
     enrollment.revokedAt = new Date();
     enrollment.accessReason = reason;
     await enrollment.save();
-    await AuditLog.create({
+    const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "user.course_access_revoked",
       targetType: "enrollment",
@@ -183,6 +189,10 @@ export async function revokeUserCourse(req, res, next) {
       ip: req.ip || "",
       userAgent: req.get("user-agent") || ""
     });
-    return success(res, { enrollment }, "Course access removed. Payment records were not changed.");
+    return success(res, {
+      enrollment,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, auditResult.recorded || auditResult.queued ? "Course access removed. Payment records were not changed." : "Course access removed, but audit persistence failed.");
   } catch (e) { next(e); }
 }

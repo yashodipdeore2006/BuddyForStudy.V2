@@ -25,7 +25,7 @@ type SavedUserView = { id: string; name: string; q: string; status: string; role
 
 function csvCell(value: unknown) {
   let text = value instanceof Date ? value.toISOString() : String(value ?? "");
-  if (/^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
+  if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 }
 

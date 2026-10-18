@@ -30,7 +30,8 @@ test("operational alerts enforce a unique key and track repeated occurrences ato
   assert.equal(update.$set.message.length, 1000);
   assert.ok(update.$set.lastSeenAt instanceof Date);
   assert.ok(update.$setOnInsert.firstSeenAt instanceof Date);
-  assert.deepEqual(update.$setOnInsert, { firstSeenAt: update.$setOnInsert.firstSeenAt, occurrenceCount: 0 });
+  assert.deepEqual(Object.keys(update.$setOnInsert), ["firstSeenAt"]);
+  assert.equal(update.$setOnInsert.occurrenceCount, undefined);
   assert.deepEqual(update.$inc, { occurrenceCount: 1 });
   assert.equal(options.upsert, true);
   assert.equal(options.new, true);

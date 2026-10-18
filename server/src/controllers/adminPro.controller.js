@@ -7,6 +7,7 @@ import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Payment } from "../models/Payment.js";
 import { RefundRequest } from "../models/RefundRequest.js";
+import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Notification } from "../models/Notification.js";
 import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
@@ -1455,5 +1456,52 @@ export async function health(req, res, next) {
   try {
     const dbState = mongoose.connection.readyState === 1;
     return success(res, { service: "BuddyForStudy API", database: dbState ? "connected" : "disconnected", uptimeSeconds: Math.round(process.uptime()), node: process.version, environment: env.nodeEnv });
+  } catch (e) { next(e); }
+}
+
+
+export async function paymentIssues(req, res, next) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const status = String(req.query.status || "").trim();
+    const allowedStatuses = ["open", "in_review", "resolved", "closed"];
+    const filter = {};
+    if (status && allowedStatuses.includes(status)) filter.status = status;
+    const issues = await PaymentIssue.find(filter)
+      .populate("user", "name email")
+      .populate({ path: "payment", select: "amount currency status provider providerPaymentId createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] })
+      .sort({ createdAt: -1 }).limit(limit).lean();
+    return success(res, { issues });
+  } catch (e) { next(e); }
+}
+
+export async function updatePaymentIssue(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.issueId)) return failure(res, "Invalid issue ID", 400);
+    const status = String(req.body?.status || "").trim();
+    const allowedStatuses = ["open", "in_review", "resolved", "closed"];
+    if (!allowedStatuses.includes(status)) return failure(res, "Invalid issue status", 400);
+    const adminNote = typeof req.body?.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : "";
+    const issue = await PaymentIssue.findById(req.params.issueId);
+    if (!issue) return failure(res, "Payment issue not found", 404);
+    const before = { status: issue.status, adminNote: issue.adminNote };
+    issue.status = status;
+    issue.adminNote = adminNote;
+    issue.resolvedAt = ["resolved", "closed"].includes(status) ? new Date() : null;
+    issue.resolvedBy = ["resolved", "closed"].includes(status) ? (req.user.user?._id || req.user.userId) : null;
+    await issue.save();
+    await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote }, "Admin updated payment issue report");
+    await createNotificationEvent({
+      userId: String(issue.user),
+      title: status === "resolved" ? "Payment issue resolved" : "Payment report updated",
+      message: adminNote || (status === "resolved" ? "Your payment issue has been marked as resolved." : `Your payment issue status is now ${status.replace(/_/g, " ")}.`),
+      type: "billing",
+      link: "/billing",
+      eventKey: `payment-issue-status:${issue._id}:${status}:${issue.updatedAt.getTime()}`,
+      emailSubject: "Update on your BuddyForStudy payment issue",
+      metadata: { issueId: String(issue._id), status },
+      templateKeys: { notification: "payment-issue-status-updated-in-app", email: "payment-issue-status-updated-email" }
+    });
+    return success(res, { issue }, "Payment issue updated");
   } catch (e) { next(e); }
 }

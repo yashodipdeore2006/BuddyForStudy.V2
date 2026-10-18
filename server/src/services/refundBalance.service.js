@@ -1,3 +1,5 @@
+export const ACTIVE_REFUND_STATUSES = Object.freeze(["pending", "approved"]);
+
 import { RefundRequest } from "../models/RefundRequest.js";
 
 /**

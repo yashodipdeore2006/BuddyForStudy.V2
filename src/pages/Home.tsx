@@ -87,7 +87,7 @@ export default function Home() {
         </div>
         <div className="bfs-hero-art">
           <div className="bfs-float-chip bfs-float-chip--top"><Sparkles className="h-4 w-4" /> AI learning path</div>
-          <img src="/buddyforstudy-mascot.svg" alt="BuddyForStudy's friendly dinosaur learning mascot, reading a book" className="bfs-hero-mascot" />
+          <img src="/buddyforstudy-mascot.webp" alt="BuddyForStudy's friendly dinosaur learning mascot, reading a book" className="bfs-hero-mascot" />
           <div className="bfs-float-chip bfs-float-chip--bottom"><Trophy className="h-4 w-4" /> Every step counts</div>
           <div className="absolute bottom-5 right-5 z-10 hidden items-center gap-2 rounded-xl border border-violet-100 bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm sm:flex">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Target className="h-4 w-4" /></span>
@@ -165,7 +165,7 @@ export default function Home() {
     <section className="bfs-section">
       <div className="bfs-shell">
         <div className="relative overflow-hidden bfs-cta-panel rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 sm:p-12 lg:p-14">
-          <div className="pointer-events-none absolute -right-8 -top-12 opacity-10"><img src="/buddyforstudy-mascot.svg" alt="" aria-hidden="true" className="h-64 w-64" /></div>
+          <div className="pointer-events-none absolute -right-8 -top-12 opacity-10"><img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" className="h-64 w-64" /></div>
           <div className="relative max-w-3xl">
             <p className="bfs-eyebrow">Your next chapter</p>
             <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">You don’t need more tutorials.<br />You need a better path.</h2>

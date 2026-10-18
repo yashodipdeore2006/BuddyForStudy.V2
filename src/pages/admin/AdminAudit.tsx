@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, RefreshCcw, Search, X } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 export default function AdminAudit() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -44,14 +45,12 @@ export default function AdminAudit() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Security & accountability</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Audit Log</h1>
-          <p className="mt-2 text-slate-500">Inspect sensitive admin actions with searchable before/after context and reasons.</p>
-        </div>
-        <button type="button" aria-label="Refresh audit events" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>
-      </div>
+      <AdminPageHeader
+        eyebrow="Security and accountability"
+        title="Audit log"
+        description="Inspect sensitive admin actions with searchable before/after context and reasons."
+        actions={<button type="button" aria-label="Refresh audit events" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
+      />
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 

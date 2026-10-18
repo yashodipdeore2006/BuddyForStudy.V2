@@ -1650,7 +1650,7 @@ export async function sendAnnouncement(req, res, next) {
       eventKey: `announcement:${announcement._id}:${user._id}`,
       inApp: channel.includes("in_app"),
       email: channel.includes("email"),
-      push: false,
+      push: channel.includes("push"),
       metadata: { source: "admin-announcement", announcementId: String(announcement._id) }
     }));
     await audit(req, "announcement.sent", "Announcement", announcement._id, null, {
@@ -1660,12 +1660,14 @@ export async function sendAnnouncement(req, res, next) {
       recipients: users.length,
       requestedChannels: channel,
       inAppVisible: results.filter((item) => item?.showInApp).length,
-      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length
+      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length,
+      pushQueued: results.filter((item) => item?.pushStatus === "pending").length
     });
     return success(res, {
       announcement,
       recipients: users.length,
-      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length
+      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length,
+      pushQueued: results.filter((item) => item?.pushStatus === "pending").length
     }, "Announcement queued", 201);
   } catch (e) { next(e); }
 }

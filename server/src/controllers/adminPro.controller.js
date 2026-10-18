@@ -1210,6 +1210,7 @@ export async function updateRefund(req, res, next) {
       }
 
       refund.status = "processed";
+      refund.set("activePaymentKey", undefined);
       refund.providerRefundId = providerRefund.id || "";
       refund.processedAt = new Date();
 
@@ -1293,6 +1294,7 @@ export async function reconcileRefund(req, res, next) {
         return failure(res, "Provider confirms a refund, but the local refundable balance is inconsistent. Escalate for finance review.", 409);
       }
       refund.status = "processed";
+      refund.set("activePaymentKey", undefined);
       refund.providerRefundId = providerRefundId;
       refund.processedAt = new Date();
       refund.processedBy = req.user.user?._id || req.user.userId;

@@ -1308,8 +1308,14 @@ export async function sendAnnouncement(req, res, next) {
 }
 
 export async function settings(req, res, next) {
-  try { return success(res, { settings: await PlatformSetting.find().sort({ key: 1 }).lean() }); }
-  catch (e) { next(e); }
+  try {
+    const settings = await PlatformSetting.find().sort({ key: 1 }).lean();
+    const permissions = new Set(getAdminPermissions(req.user?.adminRole || "platform_admin", req.user?.adminPermissionOverrides || []));
+    if (!permissions.has("settings.manage")) {
+      return success(res, { settings: settings.map(({ _id, key, description, isPublic, updatedAt }) => ({ _id, key, description, isPublic, updatedAt, value: undefined })) });
+    }
+    return success(res, { settings });
+  } catch (e) { next(e); }
 }
 
 export async function deleteSetting(req, res, next) {

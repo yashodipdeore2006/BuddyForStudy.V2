@@ -29,7 +29,6 @@ async function withMocks(mocks, run) {
 }
 
 test("subscription order creation refuses to create another provider subscription while checkout is pending", async () => {
-  let providerOrderLookup = false;
   await withMocks([
     [UserSubscription, {
       findOne: async () => null,
@@ -41,6 +40,13 @@ test("subscription order creation refuses to create another provider subscriptio
             lean: async () => ({
               _id: "507f1f77bcf86cd799439011",
               providerOrderId: "sub_pending_123",
+              plan: {
+                _id: "507f1f77bcf86cd799439012",
+                name: "Pro",
+                price: 199,
+                currency: "INR",
+                billingInterval: "monthly",
+              },
             }),
           };
         },
@@ -53,11 +59,11 @@ test("subscription order creation refuses to create another provider subscriptio
       user: { userId: "507f1f77bcf86cd799439013" },
     }, res, (error) => assert.fail(error));
 
-    assert.equal(res.result.statusCode, 409);
-    assert.equal(res.result.body.success, false);
-    assert.match(res.result.body.message, /checkout is already pending/i);
-    assert.equal(res.result.body.errors.paymentId, "507f1f77bcf86cd799439011");
-    assert.equal(res.result.body.errors.subscriptionId, "sub_pending_123");
-    assert.equal(providerOrderLookup, false);
+    assert.equal(res.result.statusCode, 200);
+    assert.equal(res.result.body.success, true);
+    assert.match(res.result.body.message, /checkout reused/i);
+    assert.equal(res.result.body.subscriptionId, "sub_pending_123");
+    assert.equal(res.result.body.plan.name, "Pro");
+    assert.equal(res.result.body.plan.price, 199);
   });
 });

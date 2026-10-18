@@ -17,7 +17,7 @@ const resourceSchema = z.object({
 
 
 async function reserveDiscoveryQuota(req, limitKey, usageFeature) {
-  if (req.user?.role === "admin" || req.user?.user?.role === "admin") return null;
+  if (req.user?.role === "admin" && req.user?.accessType === "admin") return null;
   const plan = await getActivePlanForUser(req.user.userId);
   const limit = readPlanLimit(plan, limitKey, -1);
   const usage = await consumeUsage({ userId: req.user.userId, feature: usageFeature, period: "month", limit, amount: 1 });

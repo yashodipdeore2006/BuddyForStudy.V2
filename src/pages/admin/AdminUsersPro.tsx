@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -17,9 +18,7 @@ import {
   Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
-
-const pageSize = 20;
+import { AdminEmptyState, AdminPageHeader, AdminSkeleton } from "@/components/admin/AdminUI";
 
 function statusClass(active: boolean) {
   return active
@@ -28,12 +27,18 @@ function statusClass(active: boolean) {
 }
 
 export default function AdminUsersPro() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
-  const [pagination, setPagination] = useState<any>({ page: 1, pages: 1, total: 0 });
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
-  const [role, setRole] = useState("");
-  const [authProvider, setAuthProvider] = useState("");
+  const [pagination, setPagination] = useState<any>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
+  const [q, setQ] = useState(searchParams.get("q") || "");
+  const [debouncedQ, setDebouncedQ] = useState(searchParams.get("q") || "");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
+  const [role, setRole] = useState(searchParams.get("role") || "");
+  const [authProvider, setAuthProvider] = useState(searchParams.get("authProvider") || "");
+  const [pageSize, setPageSize] = useState(() => {
+    const value = Number(searchParams.get("limit") || 25);
+    return [25, 50, 100].includes(value) ? value : 25;
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<any>(null);
@@ -50,17 +55,18 @@ export default function AdminUsersPro() {
   const [featureOverrideExpiresAt, setFeatureOverrideExpiresAt] = useState("");
   const [savingFeatureKey, setSavingFeatureKey] = useState<string | null>(null);
 
-  async function load(page = 1, filters = { q, status, role, authProvider }) {
+  async function load(page = 1, filters = { q: debouncedQ, status, role, authProvider }, limit = pageSize) {
     setLoading(true);
     setError("");
     try {
       const params = new URLSearchParams();
       params.set("page", String(page));
-      params.set("limit", String(pageSize));
+      params.set("limit", String(limit));
       if (filters.q.trim()) params.set("q", filters.q.trim());
       if (filters.status) params.set("status", filters.status);
       if (filters.role) params.set("role", filters.role);
       if (filters.authProvider) params.set("authProvider", filters.authProvider);
+      setSearchParams(params, { replace: true });
 
       const data = await adminFetch("/api/admin/users?" + params.toString());
       setUsers(data.users || []);
@@ -73,8 +79,13 @@ export default function AdminUsersPro() {
   }
 
   useEffect(() => {
-    void load(1);
-  }, []);
+    const timer = window.setTimeout(() => setDebouncedQ(q.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  useEffect(() => {
+    void load(1, { q: debouncedQ, status, role, authProvider }, pageSize);
+  }, [debouncedQ, status, role, authProvider, pageSize]);
 
   async function toggleUser(user: any) {
     setSavingId(user._id);
@@ -214,40 +225,52 @@ export default function AdminUsersPro() {
         </button>}
       />
 
+      <div className="admin-saved-views" aria-label="Saved user views">
+        <button type="button" className="admin-saved-view" aria-pressed={!status && !role && !authProvider && !debouncedQ} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>All users</button>
+        <button type="button" className="admin-saved-view" aria-pressed={status === "active" && !role && !authProvider} onClick={() => { setStatus("active"); setRole(""); setAuthProvider(""); }}>Active</button>
+        <button type="button" className="admin-saved-view" aria-pressed={status === "disabled" && !role && !authProvider} onClick={() => { setStatus("disabled"); setRole(""); setAuthProvider(""); }}>Disabled</button>
+        <button type="button" className="admin-saved-view" aria-pressed={role === "admin"} onClick={() => { setRole("admin"); setStatus(""); }}>Administrators</button>
+        <button type="button" className="admin-saved-view" aria-pressed={Boolean(debouncedQ || status || role || authProvider)} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button>
+      </div>
       <div className="card mt-6 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative xl:col-span-2">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             <input
               aria-label="Search users by name or email"
+              type="search"
               className="input-field pl-10"
               value={q}
               maxLength={100}
               onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void load(1)}
               placeholder="Search name or email"
             />
           </div>
-          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => { const nextStatus = e.target.value; setStatus(nextStatus); void load(1, { q, status: nextStatus, role, authProvider }); }}>
+          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
             <option value="active">Active</option>
             <option value="disabled">Disabled</option>
           </select>
-          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => { const nextRole = e.target.value; setRole(nextRole); void load(1, { q, status, role: nextRole, authProvider }); }}>
+          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="">All roles</option>
             <option value="user">User</option>
             <option value="admin">Admin</option>
           </select>
-          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => { const nextProvider = e.target.value; setAuthProvider(nextProvider); void load(1, { q, status, role, authProvider: nextProvider }); }}>
+          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => setAuthProvider(e.target.value)}>
             <option value="">All sign-in methods</option>
             <option value="local">Email & password</option>
             <option value="google">Google</option>
             <option value="local_google">Email + Google</option>
           </select>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>{pagination.total || 0} users</span>
-          <span>Page {pagination.page || 1} of {pagination.pages || 1}</span>
+        <div className="admin-filter-summary">
+          <div className="admin-active-filter-chips" aria-label="Active filters">
+            {debouncedQ && <button type="button" className="admin-filter-chip" onClick={() => setQ("")}>Search: {debouncedQ}<X size={13} aria-hidden="true" /></button>}
+            {status && <button type="button" className="admin-filter-chip" onClick={() => setStatus("")}>Status: {status}<X size={13} aria-hidden="true" /></button>}
+            {role && <button type="button" className="admin-filter-chip" onClick={() => setRole("")}>Role: {role}<X size={13} aria-hidden="true" /></button>}
+            {authProvider && <button type="button" className="admin-filter-chip" onClick={() => setAuthProvider("")}>Provider: {authProvider}<X size={13} aria-hidden="true" /></button>}
+          </div>
+          <span>{pagination.total || 0} results</span>
         </div>
       </div>
 
@@ -255,7 +278,7 @@ export default function AdminUsersPro() {
 
       <div className="card mt-6 overflow-hidden">
         {loading ? (
-          <div role="status" aria-live="polite" aria-label="Loading users" className="p-12 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading users</span></div>
+          <div className="admin-table-skeleton" role="status" aria-live="polite" aria-label="Loading users"><AdminSkeleton rows={8} /></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -320,13 +343,17 @@ export default function AdminUsersPro() {
                     </td>
                   </tr>
                 ))}
-                {!users.length && <tr><td role="status" aria-live="polite" colSpan={5} className="p-12 text-center text-sm text-slate-500">No users match these filters.</td></tr>}
+                {!users.length && <tr><td role="status" aria-live="polite" colSpan={5} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
               </tbody>
             </table>
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+        <div className="admin-pagination">
+          <label className="admin-page-size">Rows per page
+            <select aria-label="Rows per page" className="input-field" value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select>
+          </label>
+          <span className="admin-pagination-count">Showing {users.length ? ((pagination.page || 1) - 1) * pageSize + 1 : 0}–{Math.min((pagination.page || 1) * pageSize, pagination.total || 0)} of {pagination.total || 0}</span>
           <button
             type="button"
             className="btn-secondary"

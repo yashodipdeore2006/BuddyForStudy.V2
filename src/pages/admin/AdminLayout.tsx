@@ -108,6 +108,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
   const commandInput = useRef<HTMLInputElement>(null);
   const commandDialog = useRef<HTMLDivElement>(null);
+  const helpDialog = useRef<HTMLElement>(null);
+  const mobileSidebar = useRef<HTMLElement>(null);
   const gShortcutAt = useRef(0);
   const userMenu = useRef<HTMLDivElement>(null);
   const quickMenu = useRef<HTMLDivElement>(null);
@@ -176,6 +178,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         return;
       }
       if (event.key === "Escape") {
+        setMobileOpen(false);
         setCommandOpen(false);
         setHelpOpen(false);
         setQuickOpen(false);
@@ -236,6 +239,29 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     setQuickOpen(false);
     setUserMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const container = mobileOpen ? mobileSidebar.current : helpOpen ? helpDialog.current : null;
+    if (!container) return;
+    const focusable = () => Array.from(container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href]'));
+    focusable()[0]?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (mobileOpen) setMobileOpen(false);
+        if (helpOpen) setHelpOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const elements = focusable();
+      if (!elements.length) return;
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", trapFocus);
+    return () => window.removeEventListener("keydown", trapFocus);
+  }, [mobileOpen, helpOpen]);
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -395,7 +421,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       {mobileOpen && <div className="admin-mobile-layer">
         <button type="button" className="admin-overlay" aria-label="Close admin navigation" onClick={() => setMobileOpen(false)} />
-        <aside className="admin-mobile-sidebar" aria-label="Mobile admin navigation">
+        <aside ref={mobileSidebar} className="admin-mobile-sidebar" aria-label="Mobile admin navigation">
           <div className="admin-brand"><span className="admin-brand-mark"><ShieldCheck size={18} /></span><span className="admin-brand-copy"><span className="admin-brand-title">BuddyForStudy</span><span className="admin-brand-caption">Admin control center</span></span><AdminIconButton label="Close navigation" onClick={() => setMobileOpen(false)}><X size={17} /></AdminIconButton></div>
           {renderNavigation(true)}
         </aside>
@@ -417,7 +443,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </div>}
 
       {helpOpen && <div className="admin-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setHelpOpen(false); }}>
-        <section className="admin-help-modal" role="dialog" aria-modal="true" aria-labelledby="admin-help-title" onMouseDown={(event) => event.stopPropagation()}>
+        <section ref={helpDialog} className="admin-help-modal" role="dialog" aria-modal="true" aria-labelledby="admin-help-title" onMouseDown={(event) => event.stopPropagation()}>
           <header className="admin-help-header"><div><p className="admin-page-header__eyebrow">Help and productivity</p><h2 id="admin-help-title">Keyboard shortcuts</h2></div><AdminIconButton label="Close shortcuts" onClick={() => setHelpOpen(false)}><X size={17} /></AdminIconButton></header>
           <div className="admin-shortcut-list">
             {[

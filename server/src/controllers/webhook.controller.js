@@ -260,13 +260,12 @@ export async function razorpayWebhook(req, res, next) {
         }).sort({ createdAt: -1 }).populate("plan", "name billingInterval");
 
         if (payment) {
-          payment.status = "paid";
-          payment.paidAt = payment.paidAt || new Date();
-          await payment.save();
+          // Apply the ordered subscription transition first. A stale activation
+          // must not mutate payment status or enqueue activation messaging.
           const appliedSubscriptionEvent = await activateSubscription(subscriptionEntity, payment, subscriptionEventAt);
           if (appliedSubscriptionEvent) {
-            // Queue activation messaging only after the state transition wins
-            // the provider-event freshness guard.
+            payment.status = "paid";
+            payment.paidAt = payment.paidAt || new Date();
             payment.subscriptionNotificationStatus = "pending";
             payment.subscriptionNotificationLastCheckedAt = null;
             await payment.save();

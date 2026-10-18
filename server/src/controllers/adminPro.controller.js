@@ -1497,13 +1497,19 @@ export async function notificationAudienceOptions(req, res, next) {
 
 export async function previewNotificationAudience(req, res, next) {
   try {
-    validateAdminAudienceInput(req.body || {});
-    const users = await resolveAdminAudience(req.body || {}, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
+    let audienceInput = req.body || {};
+    if (audienceInput.email !== undefined) {
+      const email = String(audienceInput.email || "").trim().toLowerCase();
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return failure(res, "Enter a valid recipient email address", 400);
+      audienceInput = { ...audienceInput, emails: [email] };
+    }
+    validateAdminAudienceInput(audienceInput);
+    const users = await resolveAdminAudience(audienceInput, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
     const truncated = users.length > 5000;
     return success(res, {
       recipientCount: truncated ? 5000 : users.length,
       truncated,
-      previewToken: createAdminAudiencePreviewToken(req.body || {}, users),
+      previewToken: createAdminAudiencePreviewToken(audienceInput, users),
       sample: users.slice(0, 10).map((user) => ({
         id: String(user._id),
         name: user.name,
@@ -1586,7 +1592,8 @@ export async function sendEmail(req, res, next) {
     }
 
     if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
-    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) {
+    const audienceInput = externalEmail ? { ...req.body, emails: [externalEmail] } : req.body;
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, audienceInput, users)) {
       return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
     }
     if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");

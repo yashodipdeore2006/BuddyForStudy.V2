@@ -4,7 +4,7 @@ import { failure } from "../utils/response.js";
 export function requireFeature(feature) {
   return async (req, res, next) => {
     try {
-      if (req.user?.user?.role === "admin") return next();
+      if (req.user?.role === "admin" && req.user?.accessType === "admin") return next();
 
       const entitlement = await getEntitlement(req.user.userId, feature);
       if (!entitlement.allowed) {
@@ -33,7 +33,7 @@ export function requireFeatureIfAuthenticated(feature) {
     if (!req.user) return next();
 
     try {
-      if (req.user.role === "admin") return next();
+      if (req.user.role === "admin" && req.user.accessType === "admin") return next();
 
       const entitlement = await getEntitlement(req.user.userId, feature);
       if (!entitlement.allowed) {

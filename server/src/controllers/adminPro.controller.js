@@ -1143,11 +1143,37 @@ export async function updateRefund(req, res, next) {
       if (payment.provider !== "razorpay" || !payment.providerPaymentId) {
         return failure(res, "Refund cannot be processed because the payment provider reference is missing", 400);
       }
+      if (refund.status !== "pending") {
+        return failure(res, "This refund is already being processed or requires reconciliation.", 409);
+      }
 
-      const providerRefund = await razorpay.refundPayment({
-        paymentId: payment.providerPaymentId,
-        amount: refund.amount
-      });
+      // Atomically claim the pending request before calling the payment provider.
+      // This prevents two concurrent admin requests from issuing duplicate refunds.
+      const claimedRefund = await RefundRequest.findOneAndUpdate(
+        { _id: refund._id, status: "pending" },
+        { $set: { status: "approved", adminNote: refund.adminNote, processedBy: req.user.user._id } },
+        { new: true }
+      );
+      if (!claimedRefund) {
+        return failure(res, "This refund request is no longer pending. Refresh the queue before taking action.", 409);
+      }
+      refund.status = claimedRefund.status;
+      refund.adminNote = claimedRefund.adminNote;
+      refund.processedBy = claimedRefund.processedBy;
+
+      let providerRefund;
+      try {
+        providerRefund = await razorpay.refundPayment({
+          paymentId: payment.providerPaymentId,
+          amount: refund.amount
+        });
+      } catch (providerError) {
+        // Do not automatically release the claim: a timeout can occur after the
+        // provider has accepted the refund. Reconcile the provider record first.
+        refund.adminNote = [refund.adminNote, "Refund attempt needs provider reconciliation before retrying."].filter(Boolean).join("\n").slice(0, 2000);
+        await refund.save();
+        throw providerError;
+      }
 
       refund.status = "processed";
       refund.providerRefundId = providerRefund.id || "";

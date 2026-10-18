@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../src/config/subscriptionFeatures.js";
-import { resolveFeature, isCourseAccessAllowed } from "../src/services/subscriptionEntitlement.service.js";
+import { resolveFeature, isCourseAccessAllowed, isSubscriptionPeriodCurrent } from "../src/services/subscriptionEntitlement.service.js";
 
 test("feature registry exposes unique stable feature keys and labels", () => {
   const keys = SUBSCRIPTION_FEATURES.map((feature) => feature.key);
@@ -43,4 +43,17 @@ test("paid courses require verified individual access even when a plan has gener
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: true, hasIndividualAccess: false }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: true }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: false }), false);
+});
+
+test("subscription plan access expires at the billing-period boundary", () => {
+  const now = new Date("2026-10-18T12:00:00.000Z").getTime();
+  assert.equal(isSubscriptionPeriodCurrent({ currentPeriodEnd: "2026-10-18T12:00:01.000Z" }, now), true);
+  assert.equal(isSubscriptionPeriodCurrent({ currentPeriodEnd: "2026-10-18T12:00:00.000Z" }, now), false);
+  assert.equal(isSubscriptionPeriodCurrent({ currentPeriodEnd: "2026-10-18T11:59:59.000Z" }, now), false);
+});
+
+test("missing subscription end remains compatible while invalid end is not entitled", () => {
+  assert.equal(isSubscriptionPeriodCurrent({}), true);
+  assert.equal(isSubscriptionPeriodCurrent({ currentPeriodEnd: null }), true);
+  assert.equal(isSubscriptionPeriodCurrent({ currentPeriodEnd: "not-a-date" }), false);
 });

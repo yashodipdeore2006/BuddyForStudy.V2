@@ -478,3 +478,13 @@
   .admin-shell .admin-save-view-form { align-items: stretch; flex-direction: column; }
   .admin-shell .admin-save-view-form input { width: 100%; }
 }
+
+.admin-shell .admin-filter-toolbar { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-3); }
+.admin-shell .admin-filter-toolbar-spacer { flex: 1; }
+.admin-shell .admin-filter-reset { border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm); text-decoration: underline; text-underline-offset: 2px; }
+.admin-shell .admin-filter-reset:hover { color: var(--accent); }
+.admin-shell .admin-filter-toolbar .admin-page-size select { width: 136px; }
+@media (max-width: 640px) {
+  .admin-shell .admin-filter-toolbar { align-items: stretch; flex-wrap: wrap; }
+  .admin-shell .admin-filter-toolbar .admin-page-size { width: 100%; justify-content: space-between; }
+}

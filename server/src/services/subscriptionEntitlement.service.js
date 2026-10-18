@@ -49,6 +49,27 @@ export async function getEntitlement(userId, feature) {
   };
 }
 
+export function isCourseAccessAllowed({ isPaidCourse, planEntitled, hasIndividualAccess }) {
+  // A subscription entitlement must never override the payment requirement
+  // for individually priced courses, including after a refund.
+  if (isPaidCourse) return Boolean(hasIndividualAccess);
+  return Boolean(planEntitled || hasIndividualAccess);
+}
+
+export async function canAccessCourse(userId, courseId) {
+  const course = await Course.findOne({ _id: courseId, isPublished: true }).select("pricing.mode").lean();
+  if (!course) return false;
+  const [entitlement, individualAccess] = await Promise.all([
+    getEntitlement(userId, "published_courses"),
+    hasPaidCourseAccess(userId, courseId)
+  ]);
+  return isCourseAccessAllowed({
+    isPaidCourse: course.pricing?.mode === "paid",
+    planEntitled: entitlement.allowed,
+    hasIndividualAccess: individualAccess
+  });
+}
+
 export function readPlanLimit(plan, key, fallback = -1) {
   const raw = plan?.limits;
   let value;

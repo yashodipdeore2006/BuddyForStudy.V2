@@ -1,5 +1,14 @@
 import dotenv from "dotenv";
+import { getProductionConfigErrors } from "./productionConfigValidation.js";
 dotenv.config();
+
+const nodeEnv = process.env.NODE_ENV || "development";
+if (nodeEnv === "production") {
+  const errors = getProductionConfigErrors(process.env);
+  if (errors.length) {
+    throw new Error("Invalid production configuration: " + errors.join("; "));
+  }
+}
 
 const required = ["MONGO_URI", "JWT_SECRET"];
 for (const key of required) {
@@ -7,7 +16,7 @@ for (const key of required) {
 }
 
 export const env = {
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
   port: Number(process.env.PORT || 5000),
   mongoUri: process.env.MONGO_URI,
   jwtSecret: process.env.JWT_SECRET,

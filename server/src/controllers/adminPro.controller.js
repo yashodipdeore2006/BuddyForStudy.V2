@@ -108,7 +108,7 @@ export async function overview(req, res, next) {
       Enrollment.countDocuments(),
       UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
       UserSubscription.countDocuments({ status: "past_due" }),
-      Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded", "refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       RefundRequest.aggregate([{ $match: { status: "processed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Payment.countDocuments({ status: "failed" }),
       RefundRequest.countDocuments({ status: "pending" }),

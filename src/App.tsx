@@ -25,6 +25,7 @@ import Pricing from '@/pages/Pricing';
 import Billing from '@/pages/Billing';
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
 import AdminControlCenter from '@/pages/admin/AdminControlCenter';
+import AdminDesignSystem from '@/pages/admin/AdminDesignSystem';
 import AdminUsersPro from '@/pages/admin/AdminUsersPro';
 import AdminCoursesPro from '@/pages/admin/AdminCoursesPro';
 import AdminPlans from '@/pages/admin/AdminPlans';
@@ -75,6 +76,7 @@ function App() {
     <Route path="/admin/communications" element={<AdminPage><AdminCommunications /></AdminPage>} />
     <Route path="/admin/coupons" element={<AdminPage><AdminCoupons /></AdminPage>} />
     <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
+    <Route path="/admin/design-system" element={<AdminPage><AdminDesignSystem /></AdminPage>} />
     <Route path="/admin/audit" element={<AdminPage><AdminAudit /></AdminPage>} />
     <Route path="/admin/roles" element={<AdminPage><AdminRoles /></AdminPage>} />
     <Route path="/admin/ai-content" element={<AdminPage><AdminAIContent /></AdminPage>} />

@@ -14,6 +14,7 @@ import {
   Plus,
   Minus,
   ShieldCheck,
+  Save,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
@@ -45,6 +46,7 @@ export default function AdminUsersPro() {
   const [featureOverrides, setFeatureOverrides] = useState<any[]>([]);
   const [featureChoices, setFeatureChoices] = useState<Record<string, string>>({});
   const [featureOverrideReason, setFeatureOverrideReason] = useState("");
+  const [featureOverrideExpiresAt, setFeatureOverrideExpiresAt] = useState("");
   const [savingFeatureKey, setSavingFeatureKey] = useState<string | null>(null);
 
   async function load(page = 1, filters = { q, status, role, authProvider }) {
@@ -113,6 +115,7 @@ export default function AdminUsersPro() {
       setFeatureOverrides(overrideData.features || []);
       setFeatureChoices({});
       setFeatureOverrideReason("");
+      setFeatureOverrideExpiresAt("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load user details");
     } finally {
@@ -134,7 +137,6 @@ export default function AdminUsersPro() {
       const endpoint = `/api/admin/users/${selected.user._id}/feature-overrides/${feature.key}`;
       if (choice === "plan") {
         if (!feature.override) {
-          setStatus("");
           return;
         }
         await adminFetch(endpoint, {
@@ -146,7 +148,7 @@ export default function AdminUsersPro() {
           method: "PUT",
           body: JSON.stringify({
             allowed: choice === "allow",
-            expiresAt: null,
+            expiresAt: featureOverrideExpiresAt ? new Date(featureOverrideExpiresAt + "T23:59:59.999Z").toISOString() : null,
             reason: featureOverrideReason.trim()
           })
         });
@@ -155,6 +157,7 @@ export default function AdminUsersPro() {
       setFeatureOverrides(refreshed.features || []);
       setFeatureChoices((current) => ({ ...current, [feature.key]: choice }));
       setFeatureOverrideReason("");
+      setFeatureOverrideExpiresAt("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update feature access");
     } finally {
@@ -394,6 +397,9 @@ export default function AdminUsersPro() {
               </div>
               <label className="mb-1 mt-3 block text-xs font-semibold text-slate-600" htmlFor="feature-override-reason">Reason required for audit</label>
               <textarea id="feature-override-reason" className="input-field min-h-20 w-full" maxLength={500} value={featureOverrideReason} onChange={(e) => setFeatureOverrideReason(e.target.value)} placeholder="e.g. Support-approved access while a billing issue is investigated" />
+              <label className="mb-1 mt-3 block text-xs font-semibold text-slate-600" htmlFor="feature-override-expiry">Override expiry (optional)</label>
+              <input id="feature-override-expiry" type="date" className="input-field w-full" min={new Date().toISOString().slice(0, 10)} value={featureOverrideExpiresAt} onChange={(e) => setFeatureOverrideExpiresAt(e.target.value)} />
+              <p className="mt-1 text-xs text-slate-500">Leave blank for no expiry. Expired overrides automatically stop applying.</p>
               <div className="mt-3 space-y-2">
                 {featureOverrides.map((feature: any) => {
                   const choice = featureChoices[feature.key] ?? (feature.override ? (feature.override.allowed ? "allow" : "deny") : "plan");

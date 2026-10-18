@@ -5,6 +5,8 @@ import { adminFetch } from "@/lib/adminApi";
 type Channel = "in_app" | "email";
 type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean };
 type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
+type AudiencePlanOption = { id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean; isPopular: boolean };
+type AudienceCourseOption = { id: string; title: string; category: string; level: string; isPublished: boolean; pricingMode: string; price: number; featured: boolean };
 const EMPTY_TEMPLATE: TemplateDraft = { name: "", key: "", channel: "notification", title: "", subject: "", body: "", link: "", messageType: "system", isActive: true };
 
 export default function AdminCommunications() {
@@ -13,6 +15,10 @@ export default function AdminCommunications() {
   const [targetMode, setTargetMode] = useState<"audience" | "emails" | "filters">("audience");
   const [selectedEmails, setSelectedEmails] = useState("");
   const [audienceFilters, setAudienceFilters] = useState<Record<string, string>>({});
+  const [segmentPreset, setSegmentPreset] = useState("custom");
+  const [audiencePlans, setAudiencePlans] = useState<AudiencePlanOption[]>([]);
+  const [audienceCourses, setAudienceCourses] = useState<AudienceCourseOption[]>([]);
+  const [audienceOptionsError, setAudienceOptionsError] = useState("");
   const [audiencePreview, setAudiencePreview] = useState<{ recipientCount: number; truncated: boolean; sample: Array<{ id: string; name: string; email: string }> } | null>(null);
   const [previewingAudience, setPreviewingAudience] = useState(false);
   const [title, setTitle] = useState("");
@@ -73,6 +79,11 @@ export default function AdminCommunications() {
 
   useEffect(() => {
     adminFetch("/api/admin/message-templates").then(data => setTemplates(Array.isArray(data.templates) ? data.templates : [])).catch(() => setTemplates([]));
+    adminFetch("/api/admin/notifications/audience-options").then((data) => {
+      setAudiencePlans(Array.isArray(data.plans) ? data.plans : []);
+      setAudienceCourses(Array.isArray(data.courses) ? data.courses : []);
+      setAudienceOptionsError("");
+    }).catch((error) => setAudienceOptionsError(error instanceof Error ? error.message : "Unable to load plan and course filters."));
     void loadDeliveryLogs();
   }, []);
 
@@ -125,6 +136,28 @@ export default function AdminCommunications() {
     return Boolean(title.trim() && message.trim());
   }, [tab, subject, html, title, message, channels]);
 
+  function applyAudiencePreset(preset: string) {
+    const presets: Record<string, Record<string, string>> = {
+      premium: { subscriptionStatus: "active", planSegment: "premium" },
+      popular_plan: { subscriptionStatus: "active", planSegment: "popular" },
+      high_spenders: { totalSpendMin: "5000" },
+      multi_course_learners: { courseCountMin: "4" },
+      premium_high_value: { subscriptionStatus: "active", planSegment: "premium", totalSpendMin: "5000", courseCountMin: "4" },
+      popular_course_learners: { courseSegment: "popular" },
+      free_course_learners: { courseSegment: "free" },
+      inactive_learners: { inactiveDays: "14" },
+      expiring_subscribers: { subscriptionStatus: "active", expiresWithinDays: "7" },
+      at_risk_subscribers: { subscriptionStatus: "past_due" },
+      unverified_accounts: { emailVerified: "false" },
+    };
+    setSegmentPreset(preset);
+    setTargetMode("filters");
+    setAudience("all");
+    setAudienceFilters({ ...(presets[preset] || {}) });
+    setAudiencePreview(null);
+    setStatus("");
+  }
+
   function audiencePayload() {
     if (targetMode === "emails") {
       return { emails: selectedEmails.split(/[;,\n]/).map((email) => email.trim().toLowerCase()).filter(Boolean) };
@@ -134,7 +167,7 @@ export default function AdminCommunications() {
       for (const [key, value] of Object.entries(audienceFilters)) {
         if (!value.trim()) continue;
         if (key === "emailVerified") filters[key] = value === "true";
-        else if (["expiresWithinDays", "progressMin", "progressMax", "inactiveDays"].includes(key)) filters[key] = Number(value);
+        else if (["expiresWithinDays", "progressMin", "progressMax", "inactiveDays", "totalSpendMin", "courseCountMin"].includes(key)) filters[key] = Number(value);
         else filters[key] = value;
       }
       return { audience, filters };
@@ -393,21 +426,41 @@ export default function AdminCommunications() {
               <span className="mt-1 block font-normal text-slate-500">Enter one or more registered email addresses, separated by commas, semicolons, or new lines. Maximum 500.</span>
             </label>}
             {targetMode === "filters" && <div className="mt-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Combine filters (all entered filters must match)</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <label className="text-xs font-semibold text-slate-600">Name or email contains<input className="input-field mt-1" value={audienceFilters.q || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, q: e.target.value }); setAudiencePreview(null); }} placeholder="Search text" /></label>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Choose a predefined segment, then optionally refine it with filters</p>
+              <label className="mt-3 block text-xs font-semibold text-slate-600">Quick audience presets
+                <select className="input-field mt-1" value={segmentPreset} onChange={(e) => applyAudiencePreset(e.target.value)}>
+                  <option value="custom">Custom filters</option>
+                  <option value="premium">Premium subscribers</option>
+                  <option value="popular_plan">Subscribers on the most popular plan</option>
+                  <option value="high_spenders">High spenders (₹5,000+ paid)</option>
+                  <option value="multi_course_learners">Learners enrolled in 4+ courses</option>
+                  <option value="premium_high_value">Premium subscribers who spent ₹5,000+ and enrolled in 4+ courses</option>
+                  <option value="popular_course_learners">Learners in the 5 most popular courses</option>
+                  <option value="free_course_learners">Learners enrolled in free courses</option>
+                  <option value="inactive_learners">Inactive learners (14+ days)</option>
+                  <option value="expiring_subscribers">Subscribers expiring within 7 days</option>
+                  <option value="at_risk_subscribers">Past-due subscribers</option>
+                  <option value="unverified_accounts">Email addresses not verified</option>
+                </select>
+              </label>
+              {audienceOptionsError && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{audienceOptionsError} Course and plan dropdowns may be incomplete.</p>}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <label className="text-xs font-semibold text-slate-600">Account status<select className="input-field mt-1" value={audienceFilters.status || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, status: e.target.value }); setAudiencePreview(null); }}><option value="">Any status</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Account type<select className="input-field mt-1" value={audienceFilters.role || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, role: e.target.value }); setAudiencePreview(null); }}><option value="">Users and admins</option><option value="user">Learners only</option><option value="admin">Administrators only</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Email verified<select className="input-field mt-1" value={audienceFilters.emailVerified || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, emailVerified: e.target.value }); setAudiencePreview(null); }}><option value="">Any</option><option value="true">Verified</option><option value="false">Not verified</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Sign-in provider<select className="input-field mt-1" value={audienceFilters.authProvider || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, authProvider: e.target.value }); setAudiencePreview(null); }}><option value="">Any provider</option><option value="local">Email/password</option><option value="google">Google</option><option value="local_google">Email and Google</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Subscription status<select className="input-field mt-1" value={audienceFilters.subscriptionStatus || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, subscriptionStatus: e.target.value }); setAudiencePreview(null); }}><option value="">Any subscription</option><option value="trialing">Trialing</option><option value="active">Active</option><option value="past_due">Past due</option><option value="cancelled">Cancelled</option><option value="expired">Expired</option></select></label>
-                <label className="text-xs font-semibold text-slate-600">Plan ID<input className="input-field mt-1" value={audienceFilters.planId || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, planId: e.target.value }); setAudiencePreview(null); }} placeholder="Optional MongoDB ID" /></label>
-                <label className="text-xs font-semibold text-slate-600">Expires within (days)<input className="input-field mt-1" type="number" min="1" max="365" value={audienceFilters.expiresWithinDays || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, expiresWithinDays: e.target.value }); setAudiencePreview(null); }} placeholder="e.g. 7" /></label>
-                <label className="text-xs font-semibold text-slate-600">Inactive for (days)<input className="input-field mt-1" type="number" min="1" max="365" value={audienceFilters.inactiveDays || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, inactiveDays: e.target.value }); setAudiencePreview(null); }} placeholder="e.g. 14" /></label>
-                <label className="text-xs font-semibold text-slate-600">Enrolled course ID<input className="input-field mt-1" value={audienceFilters.courseId || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, courseId: e.target.value }); setAudiencePreview(null); }} placeholder="Optional MongoDB ID" /></label>
+                <label className="text-xs font-semibold text-slate-600">Specific subscription plan<select className="input-field mt-1" value={audienceFilters.planId || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, planId: e.target.value, planSegment: "" }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any plan</option>{audiencePlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.currency} {plan.price}{plan.isPopular ? " · Popular" : ""}{!plan.isActive ? " · Inactive" : ""}</option>)}</select></label>
+                <label className="text-xs font-semibold text-slate-600">Expires within<select className="input-field mt-1" value={audienceFilters.expiresWithinDays || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, expiresWithinDays: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any expiry</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Inactive for<select className="input-field mt-1" value={audienceFilters.inactiveDays || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, inactiveDays: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any activity</option><option value="7">7+ days</option><option value="14">14+ days</option><option value="30">30+ days</option><option value="60">60+ days</option><option value="90">90+ days</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Specific course<select className="input-field mt-1" value={audienceFilters.courseId || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, courseId: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any course</option>{audienceCourses.map((course) => <option key={course.id} value={course.id}>{course.title} · {course.category} · {course.pricingMode === "paid" ? `₹${course.price}` : "Free"}{course.featured ? " · Featured" : ""}{!course.isPublished ? " · Draft" : ""}</option>)}</select></label>
                 <label className="text-xs font-semibold text-slate-600">Enrollment status<select className="input-field mt-1" value={audienceFilters.enrollmentStatus || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, enrollmentStatus: e.target.value }); setAudiencePreview(null); }}><option value="">Any enrollment</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
-                <label className="text-xs font-semibold text-slate-600">Minimum course progress %<input className="input-field mt-1" type="number" min="0" max="100" value={audienceFilters.progressMin || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, progressMin: e.target.value }); setAudiencePreview(null); }} placeholder="0–100" /></label>
-                <label className="text-xs font-semibold text-slate-600">Maximum course progress %<input className="input-field mt-1" type="number" min="0" max="100" value={audienceFilters.progressMax || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, progressMax: e.target.value }); setAudiencePreview(null); }} placeholder="0–100" /></label>
+                <label className="text-xs font-semibold text-slate-600">Minimum course progress<select className="input-field mt-1" value={audienceFilters.progressMin || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, progressMin: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any progress</option><option value="25">25%+</option><option value="50">50%+</option><option value="75">75%+</option><option value="90">90%+</option><option value="100">100% complete</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Maximum course progress<select className="input-field mt-1" value={audienceFilters.progressMax || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, progressMax: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any progress</option><option value="25">Up to 25%</option><option value="50">Up to 50%</option><option value="75">Up to 75%</option><option value="90">Up to 90%</option><option value="100">Up to 100%</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Plan segment<select className="input-field mt-1" value={audienceFilters.planSegment || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, planSegment: e.target.value, planId: "" }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any plan type</option><option value="premium">Highest-priced active plan</option><option value="popular">Marked as most popular</option><option value="paid">Any paid plan</option><option value="free">Free plan</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Course segment<select className="input-field mt-1" value={audienceFilters.courseSegment || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, courseSegment: e.target.value, courseId: "" }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any course</option><option value="popular">Top 5 most-enrolled courses</option><option value="paid">Paid courses</option><option value="free">Free courses</option><option value="featured">Featured courses</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Total paid spend<select className="input-field mt-1" value={audienceFilters.totalSpendMin || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, totalSpendMin: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any spend</option><option value="500">₹500+</option><option value="1000">₹1,000+</option><option value="2500">₹2,500+</option><option value="5000">₹5,000+</option><option value="10000">₹10,000+</option><option value="25000">₹25,000+</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Courses enrolled<select className="input-field mt-1" value={audienceFilters.courseCountMin || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, courseCountMin: e.target.value }); setSegmentPreset("custom"); setAudiencePreview(null); }}><option value="">Any course count</option><option value="1">1+ courses</option><option value="2">2+ courses</option><option value="3">3+ courses</option><option value="4">4+ courses</option><option value="5">5+ courses</option><option value="10">10+ courses</option></select></label>
                 <label className="text-xs font-semibold text-slate-600">Registered after<input className="input-field mt-1" type="date" value={audienceFilters.registeredAfter || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, registeredAfter: e.target.value }); setAudiencePreview(null); }} /></label>
                 <label className="text-xs font-semibold text-slate-600">Registered before<input className="input-field mt-1" type="date" value={audienceFilters.registeredBefore || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, registeredBefore: e.target.value }); setAudiencePreview(null); }} /></label>
               </div>

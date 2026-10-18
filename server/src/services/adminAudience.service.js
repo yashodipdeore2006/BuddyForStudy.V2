@@ -1,0 +1,158 @@
+import mongoose from "mongoose";
+import { User } from "../models/User.js";
+import { UserSubscription } from "../models/UserSubscription.js";
+import { Enrollment } from "../models/Enrollment.js";
+import { Progress } from "../models/Progress.js";
+import { isValidObjectId } from "../utils/ids.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
+
+const MAX_SELECTED_USERS = 500;
+const MAX_FILTERED_RECIPIENTS = 5000;
+const SUBSCRIPTION_STATUSES = new Set(["trialing", "active", "past_due", "cancelled", "expired"]);
+const AUTH_PROVIDERS = new Set(["local", "google", "local_google"]);
+
+function parseDate(value, field) {
+  if (value === undefined || value === null || value === "") return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error(`Invalid ${field} date`);
+  return date;
+}
+
+function normalizeFilters(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("filters must be an object");
+  const filters = {};
+  if (input.q !== undefined) {
+    const q = String(input.q).trim().slice(0, 100);
+    if (q) filters.q = q;
+  }
+  if (["active", "disabled"].includes(input.status)) filters.status = input.status;
+  if (["user", "admin"].includes(input.role)) filters.role = input.role;
+  if (typeof input.emailVerified === "boolean") filters.emailVerified = input.emailVerified;
+  if (input.authProvider !== undefined) {
+    if (!AUTH_PROVIDERS.has(input.authProvider)) throw new Error("Invalid authProvider filter");
+    filters.authProvider = input.authProvider;
+  }
+  if (input.subscriptionStatus !== undefined) {
+    if (!SUBSCRIPTION_STATUSES.has(input.subscriptionStatus)) throw new Error("Invalid subscriptionStatus filter");
+    filters.subscriptionStatus = input.subscriptionStatus;
+  }
+  if (input.planId !== undefined && input.planId !== "") {
+    if (!isValidObjectId(String(input.planId))) throw new Error("Invalid planId filter");
+    filters.planId = String(input.planId);
+  }
+  if (input.expiresWithinDays !== undefined && input.expiresWithinDays !== "") {
+    const days = Number(input.expiresWithinDays);
+    if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error("expiresWithinDays must be an integer between 1 and 365");
+    filters.expiresWithinDays = days;
+  }
+  if (input.courseId !== undefined && input.courseId !== "") {
+    if (!isValidObjectId(String(input.courseId))) throw new Error("Invalid courseId filter");
+    filters.courseId = String(input.courseId);
+  }
+  if (input.enrollmentStatus !== undefined && input.enrollmentStatus !== "") {
+    if (!["active", "completed", "cancelled"].includes(input.enrollmentStatus)) throw new Error("Invalid enrollmentStatus filter");
+    filters.enrollmentStatus = input.enrollmentStatus;
+  }
+  if (input.progressMin !== undefined && input.progressMin !== "") {
+    const n = Number(input.progressMin);
+    if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("progressMin must be between 0 and 100");
+    filters.progressMin = n;
+  }
+  if (input.progressMax !== undefined && input.progressMax !== "") {
+    const n = Number(input.progressMax);
+    if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("progressMax must be between 0 and 100");
+    filters.progressMax = n;
+  }
+  if (filters.progressMin !== undefined && filters.progressMax !== undefined && filters.progressMin > filters.progressMax) {
+    throw new Error("progressMin cannot exceed progressMax");
+  }
+  filters.registeredAfter = parseDate(input.registeredAfter, "registeredAfter");
+  filters.registeredBefore = parseDate(input.registeredBefore, "registeredBefore");
+  if (filters.registeredAfter && filters.registeredBefore && filters.registeredAfter > filters.registeredBefore) {
+    throw new Error("registeredAfter cannot be later than registeredBefore");
+  }
+  return filters;
+}
+
+export async function resolveAdminAudience({ audience = "all", userIds, filters } = {}, { select = "_id email name", limit = MAX_FILTERED_RECIPIENTS } = {}) {
+  const hasSelectedIds = Array.isArray(userIds) && userIds.length > 0;
+  const hasFilters = filters && typeof filters === "object" && Object.keys(filters).length > 0;
+  if (hasSelectedIds && hasFilters) throw new Error("Choose selected users or filters, not both");
+  if (hasSelectedIds) {
+    if (userIds.length > MAX_SELECTED_USERS) throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+    if (userIds.some((id) => !isValidObjectId(String(id)))) throw new Error("One or more selected user IDs are invalid");
+    const uniqueIds = [...new Set(userIds.map(String))];
+    return User.find({ _id: { $in: uniqueIds } }).select(select).limit(MAX_SELECTED_USERS).lean();
+  }
+
+  const normalized = normalizeFilters(filters || {});
+  const query = {};
+  if (audience === "active") query.isActive = true;
+  else if (audience === "subscribers") {
+    const activeSubscriptions = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user").lean();
+    query._id = { $in: activeSubscriptions.map((sub) => sub.user) };
+  } else if (audience !== "all") throw new Error("Invalid audience. Choose all, active, or subscribers");
+
+  if (normalized.status) query.isActive = normalized.status === "active";
+  if (normalized.role) query.role = normalized.role;
+  if (normalized.emailVerified !== undefined) query.emailVerified = normalized.emailVerified;
+  if (normalized.authProvider) query.authProvider = normalized.authProvider;
+  if (normalized.q) {
+    const pattern = new RegExp(escapeRegex(normalized.q), "i");
+    query.$or = [{ name: pattern }, { email: pattern }];
+  }
+  if (normalized.registeredAfter || normalized.registeredBefore) {
+    query.createdAt = {};
+    if (normalized.registeredAfter) query.createdAt.$gte = normalized.registeredAfter;
+    if (normalized.registeredBefore) query.createdAt.$lte = normalized.registeredBefore;
+  }
+
+  const subscriptionFilters = {};
+  if (normalized.subscriptionStatus) subscriptionFilters.status = normalized.subscriptionStatus;
+  if (normalized.planId) subscriptionFilters.plan = new mongoose.Types.ObjectId(normalized.planId);
+  if (normalized.expiresWithinDays) {
+    subscriptionFilters.currentPeriodEnd = {
+      $gte: new Date(),
+      $lte: new Date(Date.now() + normalized.expiresWithinDays * 24 * 60 * 60 * 1000)
+    };
+  }
+  if (Object.keys(subscriptionFilters).length) {
+    const subscriptions = await UserSubscription.find(subscriptionFilters).select("user").lean();
+    const subscriptionUserIds = subscriptions.map((item) => item.user);
+    query._id = query._id ? { $in: subscriptionUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: subscriptionUserIds };
+  }
+
+  if (normalized.courseId || normalized.enrollmentStatus) {
+    const enrollmentQuery = {};
+    if (normalized.courseId) enrollmentQuery.course = new mongoose.Types.ObjectId(normalized.courseId);
+    if (normalized.enrollmentStatus) enrollmentQuery.status = normalized.enrollmentStatus;
+    const enrollments = await Enrollment.find(enrollmentQuery).select("user").lean();
+    const enrollmentUserIds = enrollments.map((item) => item.user);
+    query._id = query._id ? { $in: enrollmentUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: enrollmentUserIds };
+  }
+
+  if (normalized.progressMin !== undefined || normalized.progressMax !== undefined) {
+    const progressQuery = {};
+    if (normalized.progressMin !== undefined || normalized.progressMax !== undefined) {
+      progressQuery.percentage = {};
+      if (normalized.progressMin !== undefined) progressQuery.percentage.$gte = normalized.progressMin;
+      if (normalized.progressMax !== undefined) progressQuery.percentage.$lte = normalized.progressMax;
+    }
+    const progressRecords = await Progress.find(progressQuery).select("user").lean();
+    const progressUserIds = progressRecords.map((item) => item.user);
+    query._id = query._id ? { $in: progressUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: progressUserIds };
+  }
+
+  return User.find(query).select(select).sort({ createdAt: -1 }).limit(Math.min(Math.max(Number(limit) || MAX_FILTERED_RECIPIENTS, 1), MAX_FILTERED_RECIPIENTS)).lean();
+}
+
+export function validateAdminAudienceInput(input = {}) {
+  if (Array.isArray(input.userIds) && input.userIds.length > MAX_SELECTED_USERS) {
+    throw new Error(`Select at most ${MAX_SELECTED_USERS} users at a time`);
+  }
+  normalizeFilters(input.filters || {});
+  if (input.userIds && input.filters && Object.keys(input.filters).length) {
+    throw new Error("Choose selected users or filters, not both");
+  }
+  return true;
+}

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ReactNode, type TableHTMLAttributes } from "react";
-import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { AdminButton, AdminBadge, AdminEmptyState, AdminSkeleton, AdminTableContainer } from "./AdminUI";
 
@@ -99,7 +98,7 @@ export function FilterBar({ children, className = "", searchValue, onSearchChang
 export type SavedViewRecord = { id: string; owner?: string; canManage?: boolean; page: string; name: string; filters: Record<string, unknown>; columns: string[]; sort: Record<string, unknown>; density: Density; shared: boolean; createdAt?: string; updatedAt?: string };
 export function SavedViews({ page, views, activeId, currentView, onApply, onCreate, onDelete, onUpdate, loading = false, error, className = "" }: {
   page: string; views: SavedViewRecord[]; activeId?: string | null; currentView: { filters: Record<string, unknown>; columns: string[]; sort: Record<string, unknown>; density: Density }; onApply: (view: SavedViewRecord) => void;
-  onCreate: (payload: Omit<SavedViewRecord, "id" | "page" | "createdAt" | "updatedAt"> & { page: string }) => Promise<void> | void;
+  onCreate: (payload: { page: string; name: string; filters: Record<string, unknown>; columns: string[]; sort: Record<string, unknown>; density: Density; shared: boolean }) => Promise<void> | void;
   onDelete: (view: SavedViewRecord) => Promise<void> | void; onUpdate?: (view: SavedViewRecord, patch: Partial<SavedViewRecord>) => Promise<void> | void;
   loading?: boolean; error?: string; className?: string;
 }) {
@@ -148,7 +147,7 @@ export function DetailDrawer({ open, title, subtitle, children, onClose, onPrevi
     return () => { window.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
   }, [open, onClose]);
   if (!open) return null;
-  return createPortal(<div className="admin-detail-drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return <div className="admin-detail-drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside ref={drawerRef} className={["admin-detail-drawer", wide ? "admin-detail-drawer--wide" : ""].filter(Boolean).join(" ")} role="dialog" aria-modal="true" aria-labelledby="admin-detail-drawer-title" tabIndex={-1}>
       <header className="admin-detail-drawer__header"><div><h2 id="admin-detail-drawer-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
         <div className="admin-detail-drawer__navigation">{onPrevious && <button type="button" aria-label="Previous record" onClick={onPrevious}><ChevronLeft /></button>}{onNext && <button type="button" aria-label="Next record" onClick={onNext}><ChevronRight /></button>}<button type="button" aria-label="Close details" onClick={onClose}><X /></button></div>
@@ -156,7 +155,7 @@ export function DetailDrawer({ open, title, subtitle, children, onClose, onPrevi
       <div className="admin-detail-drawer__body">{children}</div>
       {footer && <footer className="admin-detail-drawer__footer">{footer}</footer>}
     </aside>
-  </div>, document.body);
+  </div>;
 }
 
 export function TypedConfirmDialog({ open, title, description, consequence, confirmLabel = "Confirm action", requiredText, value, onValueChange, reason, onReasonChange, onConfirm, onClose, loading = false, danger = true, reasonRequired = true }: {
@@ -169,7 +168,7 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
   if (!open) return null;
   const typedMatches = !requiredText || value === requiredText;
   const reasonValid = !reasonRequired || Boolean(reason?.trim() && reason.trim().length >= 10 && reason.trim().length <= 500);
-  return createPortal(<div className="admin-typed-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return <div className="admin-typed-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <div ref={dialogRef} className="admin-typed-confirm" role="alertdialog" aria-modal="true" aria-labelledby="admin-typed-confirm-title" aria-describedby="admin-typed-confirm-description" tabIndex={-1}>
       <div className="admin-typed-confirm__icon"><AlertTriangle aria-hidden="true" /></div>
       <h2 id="admin-typed-confirm-title">{title}</h2>
@@ -179,7 +178,7 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
       {reasonRequired && <label className="admin-field-label">Reason (required)<textarea value={reason || ""} onChange={(event) => onReasonChange?.(event.target.value)} minLength={10} maxLength={500} rows={3} placeholder="Explain why this action is needed" /><span className="admin-field-help">Use 10–500 characters. {String((reason || "").trim().length)}/500</span></label>}
       <div className="admin-typed-confirm__actions"><AdminButton variant="secondary" onClick={onClose} disabled={loading}>Cancel</AdminButton><AdminButton variant={danger ? "danger" : "primary"} onClick={onConfirm} disabled={loading || !typedMatches || !reasonValid} loading={loading}>{confirmLabel}</AdminButton></div>
     </div>
-  </div>, document.body);
+  </div>;
 }
 
 export function MoneyCell({ amount, currency = "INR", locale = "en-IN", className = "" }: { amount: number | string | null | undefined; currency?: string; locale?: string; className?: string }) {
@@ -198,12 +197,12 @@ export function PiiCell({ value, kind = "email", masked = true, canReveal = fals
   value: string | null | undefined; kind?: "email" | "phone" | "text"; masked?: boolean; canReveal?: boolean;
   onReveal?: (reason: string) => Promise<string | void> | string | void; className?: string;
 }) {
-  const [revealed, setRevealed] = useState(false); const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const [revealed, setRevealed] = useState(false); const [revealedValue, setRevealedValue] = useState<string | null>(null); const [reason, setReason] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const actual = String(value || "");
-  async function reveal() { if (!onReveal || busy) return; if (reason.trim().length < 10 || reason.trim().length > 500) { setError("Enter a reason between 10 and 500 characters."); return; } setBusy(true); setError(""); try { const result = await onReveal(reason.trim()); if (typeof result === "string") { setRevealed(true); } else setRevealed(true); } catch (e) { setError(e instanceof Error ? e.message : "Could not reveal this value."); } finally { setBusy(false); } }
+  async function reveal() { if (!onReveal || busy) return; if (reason.trim().length < 10 || reason.trim().length > 500) { setError("Enter a reason between 10 and 500 characters."); return; } setBusy(true); setError(""); try { const result = await onReveal(reason.trim()); if (typeof result === "string") setRevealedValue(result); setRevealed(true); } catch (e) { setError(e instanceof Error ? e.message : "Could not reveal this value."); } finally { setBusy(false); } }
   return <span className={["admin-pii-cell", className].filter(Boolean).join(" ")}>
-    <span>{masked && !revealed ? maskPii(actual, kind) : actual || "—"}</span>
-    {masked && canReveal && !revealed && <span className="admin-pii-cell__reveal"><button type="button" aria-label="Reveal personal information" onClick={() => setRevealed(false)} title="Reveal (audited)"><Eye size={14} /></button><label className="admin-pii-cell__reason">Reason for reveal<input value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} placeholder="Required reason" /></label><button type="button" onClick={() => void reveal()} disabled={busy || !onReveal}>{busy ? "Revealing…" : "Reveal"}</button>{error && <span role="alert">{error}</span>}</span>}
-    {revealed && <button type="button" aria-label="Mask personal information" title="Mask personal information" onClick={() => setRevealed(false)}><EyeOff size={14} /></button>}
+    <span>{masked && !revealed ? maskPii(actual, kind) : (revealedValue ?? actual) || "—"}</span>
+    {masked && canReveal && !revealed && <span className="admin-pii-cell__reveal"><Eye size={14} aria-hidden="true" /><label className="admin-pii-cell__reason">Reason for reveal<input value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} placeholder="Required reason" /></label><button type="button" onClick={() => void reveal()} disabled={busy || !onReveal}>{busy ? "Revealing…" : "Reveal"}</button>{error && <span role="alert">{error}</span>}</span>}
+    {revealed && <button type="button" aria-label="Mask personal information" title="Mask personal information" onClick={() => { setRevealed(false); setRevealedValue(null); setReason(""); }}><EyeOff size={14} /></button>}
   </span>;
 }

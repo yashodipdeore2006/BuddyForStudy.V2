@@ -4,6 +4,17 @@ import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight } from "lucide-react";
 
+type RefundRequest = {
+  _id: string;
+  amount: number;
+  status: string;
+  reason?: string;
+  createdAt: string;
+  processedAt?: string | null;
+  adminNote?: string;
+  payment?: { _id?: string; amount?: number; currency?: string; course?: { title?: string }; plan?: { name?: string } } | null;
+};
+
 type Payment = {
   _id: string;
   amount: number;
@@ -42,6 +53,7 @@ function statusClass(status: string) {
 
 export default function Billing() {
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refundId, setRefundId] = useState<string | null>(null);
@@ -54,9 +66,10 @@ export default function Billing() {
   async function loadBilling() {
     setLoading(true);
     try {
-      const [paymentData, subscriptionData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me")]);
+      const [paymentData, subscriptionData, refundData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds")]);
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
+      setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
       setRefundMessage("");
     } catch (error) {
       setRefundMessage(error instanceof Error ? error.message : "Unable to load billing");
@@ -83,6 +96,8 @@ export default function Billing() {
       setRefundMessage("Your refund request has been submitted. You will receive an update when its status changes.");
       setRefundId(null);
       setRefundReason("");
+      const refundData = await apiFetch("/api/billing/refunds");
+      setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
     } catch (error) {
       setRefundMessage(error instanceof Error ? error.message : "Unable to submit refund request");
     }
@@ -135,6 +150,16 @@ export default function Billing() {
             finally { setCancelling(false); }
           }}>{cancelling ? "Cancelling…" : "Cancel auto-renewal"}</button>}</div>
         </div> : <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 p-4"><div><p className="font-bold text-slate-900">You are on the Free plan</p><p className="mt-1 text-sm text-slate-500">Compare subscription plans to unlock additional learning features.</p></div><Link to="/pricing" className="btn-primary">Explore plans</Link></div>}
+      </section>
+
+      <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><h2 className="text-lg font-extrabold text-slate-950">Refund requests</h2><p className="mt-1 text-sm text-slate-500">Track the review status of refunds you have requested.</p></div>
+        {refunds.length ? <div className="divide-y divide-slate-100">{refunds.map((refund) => {
+          const refundStatus = String(refund.status || "pending").toLowerCase();
+          const refundTitle = refund.payment?.plan?.name || refund.payment?.course?.title || "Payment refund";
+          const refundStyles: Record<string, string> = { pending: "bg-amber-50 text-amber-700", approved: "bg-blue-50 text-blue-700", processed: "bg-emerald-50 text-emerald-700", rejected: "bg-rose-50 text-rose-700" };
+          return <article key={refund._id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="font-bold text-slate-900">{refundTitle}</p><p className="mt-1 text-xs text-slate-500">Requested {date(refund.createdAt)} · Ref {refund._id}</p>{refund.reason && <p className="mt-2 text-sm text-slate-600">Reason: {refund.reason}</p>}{refund.adminNote && <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Update: {refund.adminNote}</p>}{refund.processedAt && <p className="mt-1 text-xs text-slate-500">Updated {date(refund.processedAt)}</p>}</div><div className="shrink-0 sm:text-right"><p className="font-extrabold text-slate-950">{money(Number(refund.amount || 0), refund.payment?.currency || "INR")}</p><span className={"mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold capitalize " + (refundStyles[refundStatus] || "bg-slate-100 text-slate-700")}>{refundStatus}</span></div></article>;
+        })}</div> : <p className="p-6 text-sm text-slate-500">No refund requests yet. If you need help with an eligible payment, use Request refund in transaction history.</p>}
       </section>
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

@@ -299,6 +299,11 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
     const error = new Error("You have reached your Advanced AI summary limit for this month.");
     error.status = 429;
     error.code = "AI_USAGE_LIMIT";
+    error.feature = "advanced_ai_paths";
+    error.limitKey = "advanced_ai_insights_per_month";
+    error.limit = reservation.limit;
+    error.used = reservation.count;
+    error.plan = entitlement.plan?.name || "Free";
     throw error;
   }
 
@@ -449,6 +454,11 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
         const error = new Error("You have reached your Advanced AI question limit for this month.");
         error.status = 429;
         error.code = "AI_USAGE_LIMIT";
+        error.feature = "advanced_ai_paths";
+        error.limitKey = "advanced_ai_questions_per_month";
+        error.limit = reservation.limit;
+        error.used = reservation.count;
+        error.plan = entitlement.plan?.name || "Free";
         throw error;
       }
 
@@ -511,6 +521,11 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
     const error = new Error("You have reached your Advanced AI question limit for this month.");
     error.status = 429;
     error.code = "AI_USAGE_LIMIT";
+        error.feature = "advanced_ai_paths";
+        error.limitKey = "advanced_ai_questions_per_month";
+        error.limit = reservation.limit;
+        error.used = reservation.count;
+        error.plan = entitlement.plan?.name || "Free";
     throw error;
   }
 

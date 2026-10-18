@@ -70,7 +70,7 @@ function periodDate(value) {
 async function activateSubscription(subscription, payment, eventAt = null) {
   const filter = {
     user: payment.user,
-    ...(eventAt ? subscriptionEventFreshnessFilter(eventAt) : {})
+    ...subscriptionEventFreshnessFilter(eventAt)
   };
   const set = {
     plan: payment.plan,

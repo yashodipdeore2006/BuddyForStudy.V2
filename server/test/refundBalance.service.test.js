@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund } from "../src/services/refundBalance.service.js";
+import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
 
@@ -55,4 +55,10 @@ test("provider refund reconciliation requires exact ID, payment, amount and curr
   assert.equal(matchesProviderRefund({ ...input, providerRefund: { ...input.providerRefund, currency: "USD" } }), false);
   assert.equal(matchesProviderRefund({ ...input, providerRefund: { ...input.providerRefund, id: "rfnd_other" } }), false);
   assert.equal(matchesProviderRefund({ ...input, providerRefund: null }), false);
+});
+
+test("processed refunds release the active-request claim so partial balances remain refundable", () => {
+  assert.deepEqual(ACTIVE_REFUND_STATUSES, ["pending", "approved"]);
+  assert.equal(ACTIVE_REFUND_STATUSES.includes("processed"), false);
+  assert.equal(ACTIVE_REFUND_STATUSES.includes("rejected"), false);
 });

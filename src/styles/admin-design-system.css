@@ -601,3 +601,7 @@
   .admin-shell .admin-typed-confirm__actions { flex-direction: column-reverse; }
   .admin-shell .admin-typed-confirm__actions .admin-button { width: 100%; }
 }
+
+.admin-shell .admin-data-table__sort { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 32px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
+.admin-shell .admin-data-table__sort:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
+.admin-shell .admin-data-table__sort span { display: inline-flex; align-items: center; }

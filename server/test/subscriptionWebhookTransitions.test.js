@@ -18,13 +18,26 @@ test("missing or invalid provider timestamps only permit updates to legacy untra
   assert.deepEqual(subscriptionEventFreshnessFilter(new Date("invalid")), legacyOnlyFilter);
 });
 
-test("subscription update filter only accepts events newer than the last applied provider event", () => {
+test("subscription update filter only accepts strictly newer events and rejects same-second ambiguity", () => {
   const eventAt = new Date("2026-10-18T12:00:00.000Z");
   assert.deepEqual(subscriptionEventFreshnessFilter(eventAt), {
     $or: [
       { providerEventAt: { $exists: false } },
       { providerEventAt: null },
-      { providerEventAt: { $lte: eventAt } }
+      { providerEventAt: { $lt: eventAt } }
+    ]
+  });
+});
+
+test("same-second provider events use first-applied-wins semantics", () => {
+  const firstEventAt = subscriptionEventTimestamp({ created_at: 1792324800 });
+  const sameSecondEventAt = subscriptionEventTimestamp({ created_at: 1792324800 });
+  assert.equal(firstEventAt.getTime(), sameSecondEventAt.getTime());
+  assert.deepEqual(subscriptionEventFreshnessFilter(sameSecondEventAt), {
+    $or: [
+      { providerEventAt: { $exists: false } },
+      { providerEventAt: null },
+      { providerEventAt: { $lt: firstEventAt } }
     ]
   });
 });

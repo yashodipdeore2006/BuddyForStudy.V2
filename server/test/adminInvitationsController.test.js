@@ -1,0 +1,216 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { acceptInvitation } from "../src/controllers/adminInvitations.controller.js";
+import { AdminInvitation } from "../src/models/AdminInvitation.js";
+import { AuditLog } from "../src/models/AuditLog.js";
+import { User } from "../src/models/User.js";
+
+function makeResponse() {
+  const result = { statusCode: 200, body: undefined };
+  return {
+    result,
+    status(code) { result.statusCode = code; return this; },
+    json(body) { result.body = body; return this; }
+  };
+}
+
+const token = "a".repeat(43);
+const email = "invitee@example.com";
+const invitationId = "507f1f77bcf86cd799439011";
+const acceptedAt = new Date("2026-10-18T10:00:00.000Z");
+
+function makeInvitation(overrides = {}) {
+  return {
+    _id: { toString: () => invitationId },
+    email,
+    name: "Invited Admin",
+    adminRole: "support_manager",
+    invitedBy: "507f191e810c19729de860ea",
+    acceptedAt: null,
+    revokedAt: null,
+    expiresAt: new Date("2026-10-19T10:00:00.000Z"),
+    ...overrides
+  };
+}
+
+async function withMocks(mocks, run) {
+  const originals = new Map();
+  for (const [target, methods] of mocks) {
+    for (const [key, value] of Object.entries(methods)) {
+      originals.set(`${originals.size}`, { target, key, value: target[key] });
+      target[key] = value;
+    }
+  }
+  try {
+    await run();
+  } finally {
+    for (const { target, key, value } of [...originals.values()].reverse()) {
+      target[key] = value;
+    }
+  }
+}
+
+function request(overrides = {}) {
+  return {
+    body: { email, token, password: "a-strong-password-123", ...overrides },
+    ip: "127.0.0.1",
+    get: () => "admin-invitation-test"
+  };
+}
+
+function findInvitationQuery(invitation) {
+  return { select: async () => invitation };
+}
+
+test("acceptance rejects an invalid, expired, revoked, or previously used invitation", async () => {
+  await withMocks([
+    [AdminInvitation, { findOne: () => findInvitationQuery(null) }]
+  ], async () => {
+    const res = makeResponse();
+    let nextCalled = false;
+    await acceptInvitation(request(), res, () => { nextCalled = true; });
+    assert.equal(res.result.statusCode, 400);
+    assert.match(res.result.body.message, /invalid, expired, or has already been used/i);
+    assert.equal(nextCalled, false);
+  });
+});
+
+test("acceptance rejects a name that does not match the invitation", async () => {
+  const invitation = makeInvitation();
+  await withMocks([
+    [AdminInvitation, { findOne: () => findInvitationQuery(invitation) }]
+  ], async () => {
+    const res = makeResponse();
+    await acceptInvitation(request({ name: "Someone Else" }), res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 400);
+    assert.match(res.result.body.message, /name does not match/i);
+  });
+});
+
+test("acceptance atomically rejects a concurrent request that loses the invitation claim", async () => {
+  const invitation = makeInvitation();
+  let userCreateCalls = 0;
+  await withMocks([
+    [AdminInvitation, {
+      findOne: () => findInvitationQuery(invitation),
+      findOneAndUpdate: async () => null
+    }],
+    [User, {
+      exists: async () => false,
+      create: async () => { userCreateCalls += 1; }
+    }]
+  ], async () => {
+    const res = makeResponse();
+    await acceptInvitation(request(), res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 400);
+    assert.match(res.result.body.message, /invalid, expired, revoked, or has already been used/i);
+    assert.equal(userCreateCalls, 0);
+  });
+});
+
+test("acceptance rejects an email that already has an account", async () => {
+  const invitation = makeInvitation();
+  let claimCalls = 0;
+  await withMocks([
+    [AdminInvitation, {
+      findOne: () => findInvitationQuery(invitation),
+      findOneAndUpdate: async () => { claimCalls += 1; return invitation; }
+    }],
+    [User, { exists: async () => true }]
+  ], async () => {
+    const res = makeResponse();
+    await acceptInvitation(request(), res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 409);
+    assert.equal(claimCalls, 0);
+  });
+});
+
+test("acceptance creates an administrator with the invited role and audits the activation", async () => {
+  const invitation = makeInvitation();
+  const claimedInvitation = { ...invitation, acceptedAt };
+  let createdUser;
+  let auditEntry;
+  const hashedPassword = "hashed-password";
+  const user = {
+    _id: { toString: () => "507f1f77bcf86cd799439012" },
+    name: invitation.name,
+    email,
+    adminRole: invitation.adminRole,
+    isActive: true
+  };
+  await withMocks([
+    [AdminInvitation, {
+      findOne: () => findInvitationQuery(invitation),
+      findOneAndUpdate: async (_filter, update) => {
+        assert.equal(update.$set.acceptedAt instanceof Date, true);
+        return claimedInvitation;
+      },
+      updateOne: async () => assert.fail("successful creation must not release the claim")
+    }],
+    [User, {
+      exists: async () => false,
+      hashPassword: async (password) => {
+        assert.equal(password, "a-strong-password-123");
+        return hashedPassword;
+      },
+      create: async (input) => { createdUser = input; return user; }
+    }],
+    [AuditLog, { create: async (entry) => { auditEntry = entry; } }]
+  ], async () => {
+    const res = makeResponse();
+    await acceptInvitation(request(), res, (error) => assert.fail(error));
+    assert.equal(res.result.statusCode, 201);
+    assert.equal(res.result.body.success, true);
+    assert.equal(res.result.body.administrator.adminRole, "support_manager");
+    assert.equal(createdUser.role, "admin");
+    assert.equal(createdUser.adminRole, "support_manager");
+    assert.deepEqual(createdUser.adminPermissionOverrides, []);
+    assert.equal(createdUser.password, hashedPassword);
+    assert.equal(createdUser.emailVerified, true);
+    assert.equal(auditEntry.action, "admin.invitation.accepted");
+    assert.equal(auditEntry.targetType, "user");
+  });
+});
+
+test("acceptance releases its claim when account creation fails so the invite can be retried", async () => {
+  const invitation = makeInvitation();
+  const claimedInvitation = { ...invitation, acceptedAt };
+  let releaseFilter;
+  let releaseUpdate;
+  await withMocks([
+    [AdminInvitation, {
+      findOne: () => findInvitationQuery(invitation),
+      findOneAndUpdate: async () => claimedInvitation,
+      updateOne: async (filter, update) => { releaseFilter = filter; releaseUpdate = update; }
+    }],
+    [User, {
+      exists: async () => false,
+      hashPassword: async () => "hashed-password",
+      create: async () => { throw new Error("database write failed"); }
+    }]
+  ], async () => {
+    const res = makeResponse();
+    let forwardedError;
+    await acceptInvitation(request(), res, (error) => { forwardedError = error; });
+    assert.equal(forwardedError?.message, "database write failed");
+    assert.equal(releaseFilter._id, invitationId);
+    assert.equal(releaseFilter.acceptedAt, acceptedAt);
+    assert.equal(releaseUpdate.$set.acceptedAt, null);
+  });
+});
+
+test("acceptance normalizes email and hashes the supplied token before querying", async () => {
+  let query;
+  const invitation = makeInvitation();
+  await withMocks([
+    [AdminInvitation, { findOne: (filter) => { query = filter; return findInvitationQuery(invitation); } }],
+    [User, { exists: async () => true }]
+  ], async () => {
+    const res = makeResponse();
+    await acceptInvitation(request({ email: "INVITEE@EXAMPLE.COM" }), res, () => assert.fail("next must not run"));
+    assert.equal(query.email, email);
+    assert.equal(query.tokenHash, crypto.createHash("sha256").update(token).digest("hex"));
+    assert.equal(res.result.statusCode, 409);
+  });
+});

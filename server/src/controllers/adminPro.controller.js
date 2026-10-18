@@ -185,8 +185,21 @@ export async function users(req, res, next) {
     if (["local", "google", "local_google"].includes(String(req.query.authProvider || ""))) {
       filter.authProvider = req.query.authProvider;
     }
+    const sortFields = {
+      createdAt: "createdAt",
+      name: "name",
+      email: "email",
+      role: "role",
+      status: "isActive",
+      verification: "emailVerified",
+      authProvider: "authProvider",
+    };
+    const requestedSort = String(req.query.sortBy || "createdAt");
+    const sortField = sortFields[requestedSort] || "createdAt";
+    const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+    const sort = { [sortField]: sortOrder, _id: -1 };
     const [items, total] = await Promise.all([
-      User.find(filter).select("-password").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      User.find(filter).select("-password").sort(sort).skip((page - 1) * limit).limit(limit).lean(),
       User.countDocuments(filter)
     ]);
     return success(res, { users: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });

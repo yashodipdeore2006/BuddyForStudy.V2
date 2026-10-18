@@ -108,11 +108,11 @@ export function getMine(userId) {
 }
 
 export function getOne(userId, enrollmentId) {
-  return Enrollment.findOne({ _id: enrollmentId, user: userId }).populate("course");
+  return Enrollment.findOne({ _id: enrollmentId, user: userId }).populate({ path: "course", select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled certificateEnabled featured" });
 }
 
 export function getForCourse(userId, courseId) {
-  return Enrollment.findOne({ user: userId, course: courseId }).populate("course");
+  return Enrollment.findOne({ user: userId, course: courseId }).populate({ path: "course", select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled certificateEnabled featured" });
 }
 
 export async function cancel(userId, courseId) {

@@ -457,7 +457,7 @@ export default function AdminUsersPro() {
           <AdminButton variant="primary" loading={exporting} onClick={() => void exportSelectedUsers()}>Export selected ({selectedIds.length})</AdminButton>
         </div>
       </div>}
-      <DataTable<any> loading={loading} density={density} pagination={<AdminPagination
+      <DataTable<any> loading={loading && users.length === 0} refreshing={loading && users.length > 0} density={density} pagination={<AdminPagination
         page={pagination.page || 1}
         pages={pagination.pages || 1}
         total={pagination.total || 0}

@@ -119,19 +119,29 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
         ? serverMessage
         : '';
 
-      // Open the shared upgrade flow only for an explicit subscription entitlement denial.
-      // Other 403 responses (role permissions, inactive resources, etc.) must remain normal errors.
+      // Open the shared upgrade flow only for explicit entitlement denials and configured plan quotas.
+      // Other 403 responses (role permissions, inactive resources, payment conflicts) remain normal errors.
       const entitlementDetails = data.errors && typeof data.errors === 'object' ? data.errors : null;
       const gatedFeature = typeof entitlementDetails?.feature === 'string' ? entitlementDetails.feature : '';
-      const isPlanGate = response.status === 403 &&
+      const isEntitlementDenial = response.status === 403 &&
         Boolean(gatedFeature) &&
         /not included in your current plan|upgrade (?:your plan|to use)|purchase this course to continue/i.test(serverMessage);
+      const limitKey = typeof entitlementDetails?.limitKey === 'string' ? entitlementDetails.limitKey : '';
+      const quotaFeature = response.status === 429 && limitKey === 'youtube_discovery_courses_per_month'
+        ? 'priority_recommendations'
+        : response.status === 429 && limitKey === 'ai_curated_courses_per_month'
+          ? 'priority_recommendations'
+          : '';
+      const isPlanLimitDenial = Boolean(quotaFeature) && /plan(?:'s|’s) monthly course allowance/i.test(serverMessage);
+      const isPlanGate = isEntitlementDenial || isPlanLimitDenial;
       if (isPlanGate) {
         window.dispatchEvent(new CustomEvent("bfs:feature-gated", {
           detail: {
-            feature: gatedFeature,
+            feature: gatedFeature || quotaFeature,
             currentPlan: typeof entitlementDetails?.plan === 'string' ? entitlementDetails.plan : undefined,
             message: safeServerMessage || serverMessage,
+            limit: isPlanLimitDenial ? entitlementDetails.limit : undefined,
+            used: isPlanLimitDenial ? entitlementDetails.used : undefined,
           },
         }));
       }

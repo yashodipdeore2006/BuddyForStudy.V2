@@ -119,3 +119,23 @@ test("audit event reports when both primary persistence and outbox fallback fail
     assert.deepEqual(result, { recorded: false, queued: false });
   });
 });
+
+
+test("audit outbox truncates fractional batch limits instead of exceeding the requested work", async () => {
+  let claims = 0;
+  await withMocks([
+    [AuditOutbox, {
+      updateMany: async () => ({}),
+      findOneAndUpdate: async () => {
+        claims += 1;
+        return { _id: `outbox-${claims}`, eventId: `event-${claims}`, event: { eventId: `event-${claims}` }, attempts: 0 };
+      },
+      deleteOne: async () => ({ deletedCount: 1 })
+    }],
+    [AuditLog, { updateOne: async () => ({ acknowledged: true }) }]
+  ], async () => {
+    const result = await processPendingAuditOutbox(1.9, new Date("2026-10-18T12:00:00.000Z"));
+    assert.deepEqual(result, { processed: 1, failures: 0 });
+    assert.equal(claims, 1);
+  });
+});

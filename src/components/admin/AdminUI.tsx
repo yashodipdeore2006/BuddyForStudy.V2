@@ -232,17 +232,19 @@ export function AdminConfirmDialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const canConfirm = (!requiredText || value?.trim() === requiredText) && (!requireReason || Boolean(reason.trim()));
 
   useEffect(() => {
     if (!open) return;
-    inputRef.current?.focus();
+    if (requiredText) inputRef.current?.focus();
+    else if (requireReason) reasonRef.current?.focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !loading) onCloseRef.current();
       if (event.key === "Tab" && dialogRef.current) {
-        const elements = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])'));
+        const elements = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled])'));
         if (!elements.length) return;
         const first = elements[0];
         const last = elements[elements.length - 1];
@@ -268,7 +270,7 @@ export function AdminConfirmDialog({
         </div>}
         {requireReason && <div className="admin-confirm-field">
           <label htmlFor="admin-confirm-reason">Reason <strong>(required)</strong></label>
-          <textarea id="admin-confirm-reason" value={reason} maxLength={500} onChange={(event) => onReasonChange?.(event.target.value)} placeholder="Explain why this change is necessary." rows={3} />
+          <textarea ref={reasonRef} id="admin-confirm-reason" value={reason} maxLength={500} onChange={(event) => onReasonChange?.(event.target.value)} placeholder="Explain why this change is necessary." rows={3} />
           <span className="admin-confirm-help">{reason.trim().length}/500 characters</span>
         </div>}
         <footer className="admin-confirm-footer">

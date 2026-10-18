@@ -25,12 +25,16 @@ interface CourseCardProps {
   course: Course;
   progressPercentage?: number;
   showActions?: boolean;
+  initiallySaved?: boolean;
+  initiallyEnrolled?: boolean;
 }
 
 export default function CourseCard({
   course,
   progressPercentage,
   showActions = false,
+  initiallySaved = false,
+  initiallyEnrolled = false,
 }: CourseCardProps) {
   const hasModules = Array.isArray(course.modules);
   const lessonCount = hasModules ? countAllLessons(course.modules) : null;
@@ -40,8 +44,11 @@ export default function CourseCard({
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [enrolled, setEnrolled] = useState(false);
+  const [saved, setSaved] = useState(initiallySaved);
+  const [enrolled, setEnrolled] = useState(initiallyEnrolled);
+
+  useEffect(() => setSaved(initiallySaved), [initiallySaved]);
+  useEffect(() => setEnrolled(initiallyEnrolled), [initiallyEnrolled]);
   const [actionError, setActionError] = useState('');
   const [rating, setRating] = useState<{ average: number; count: number }>({ average: 0, count: 0 });
 
@@ -80,7 +87,8 @@ export default function CourseCard({
   const enrollCourse = async (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    navigate('/courses/' + course.id);
+    if (enrolled) navigate('/learn/' + course.id);
+    else navigate('/courses/' + course.id);
 
   };
 
@@ -222,7 +230,7 @@ export default function CourseCard({
                     : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-60',
                 )}
               >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className="h-3.5 w-3.5" />}
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bookmark className={classNames("h-3.5 w-3.5", saved && "fill-current")} />}
                 {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
               </button>
               <button
@@ -232,7 +240,7 @@ export default function CourseCard({
                 className="inline-flex min-h-7 items-center justify-center gap-1 rounded-lg bg-black px-2 py-1 text-[11px] font-bold text-white transition-colors duration-200 hover:bg-[#444950] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-60"
               >
                 {enrolling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : enrolled ? <BookOpen className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                {enrolling ? 'Enrolling…' : enrolled ? 'Enrolled' : 'Enroll'}
+                {enrolling ? 'Opening…' : enrolled ? 'Continue Learning' : 'View Course'}
               </button>
             </div>
             {actionError && <p role="alert" className="mt-2 line-clamp-2 text-[11px] font-medium text-red-600">{actionError}</p>}

@@ -191,27 +191,52 @@ export async function acceptInvitation(req, res, next) {
     }
     if (await User.exists({ email })) return failure(res, "An account already exists for this email. Contact a Super Admin.", 409);
 
-    const user = await User.create({
-      name: invitation.name,
-      email,
-      password: await User.hashPassword(input.password),
-      role: "admin",
-      adminRole: invitation.adminRole,
-      adminPermissionOverrides: [],
-      isActive: true,
-      emailVerified: true,
-      authProvider: "local"
-    });
+    // Atomically claim the invitation so concurrent requests or a concurrent
+    // revoke cannot activate the same invitation twice.
+    const claimedAt = new Date();
+    const claimedInvitation = await AdminInvitation.findOneAndUpdate(
+      {
+        _id: invitation._id,
+        tokenHash: hashToken(input.token),
+        acceptedAt: null,
+        revokedAt: null,
+        expiresAt: { $gt: claimedAt }
+      },
+      { $set: { acceptedAt: claimedAt } },
+      { new: true }
+    );
+    if (!claimedInvitation) {
+      return failure(res, "This invitation is invalid, expired, revoked, or has already been used.", 400);
+    }
 
-    invitation.acceptedAt = new Date();
-    await invitation.save();
+    let user;
+    try {
+      user = await User.create({
+        name: claimedInvitation.name,
+        email,
+        password: await User.hashPassword(input.password),
+        role: "admin",
+        adminRole: claimedInvitation.adminRole,
+        adminPermissionOverrides: [],
+        isActive: true,
+        emailVerified: true,
+        authProvider: "local"
+      });
+    } catch (error) {
+      // Release the claim only if account creation failed, allowing a safe retry.
+      await AdminInvitation.updateOne(
+        { _id: claimedInvitation._id, acceptedAt: claimedAt },
+        { $set: { acceptedAt: null } }
+      );
+      throw error;
+    }
     await AuditLog.create({
       actor: invitation.invitedBy,
       action: "admin.invitation.accepted",
       targetType: "user",
       targetId: user._id.toString(),
       reason: "Administrator invitation accepted and account activated.",
-      before: { invitationId: invitation._id.toString(), email },
+      before: { invitationId: claimedInvitation._id.toString(), email },
       after: { adminRole: user.adminRole, isActive: user.isActive },
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500)

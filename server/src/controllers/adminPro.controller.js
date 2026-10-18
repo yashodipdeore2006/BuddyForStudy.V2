@@ -1337,6 +1337,12 @@ export async function reconcileRefund(req, res, next) {
     if (providerStatus === "processed") {
       const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
       if (refund.amount > remainingAmount || remainingAmount <= 0) {
+        await RefundRequest.updateOne(
+          { _id: refund._id, reconciliationToken },
+          { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+        );
+        reconciliationToken = "";
+        reconciliationRefundId = "";
         return failure(res, "Provider confirms a refund, but the local refundable balance is inconsistent. Escalate for finance review.", 409);
       }
       refund.status = "processed";

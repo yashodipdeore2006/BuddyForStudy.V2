@@ -1193,9 +1193,18 @@ export async function updateRefund(req, res, next) {
           amount: refund.amount
         });
       } catch (providerError) {
-        // Do not automatically release the claim: a timeout can occur after the
-        // provider has accepted the refund. Reconcile the provider record first.
-        refund.adminNote = [refund.adminNote, "Refund attempt needs provider reconciliation before retrying."].filter(Boolean).join("\n").slice(0, 2000);
+        // Missing credentials are detected before any provider request is made,
+        // so that case is safe to return to pending. Other failures may be
+        // timeouts after acceptance and must be reconciled before retrying.
+        const providerNotConfigured =
+          providerError?.status === 503 &&
+          String(providerError?.message || "").startsWith("Razorpay is not configured");
+        if (providerNotConfigured) {
+          refund.status = "pending";
+          refund.adminNote = [refund.adminNote, "Razorpay is not configured. Configure the provider before retrying this refund."].filter(Boolean).join("\n").slice(0, 2000);
+        } else {
+          refund.adminNote = [refund.adminNote, "Refund attempt needs provider reconciliation before retrying."].filter(Boolean).join("\n").slice(0, 2000);
+        }
         await refund.save();
         throw providerError;
       }

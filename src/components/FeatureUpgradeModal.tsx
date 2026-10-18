@@ -356,7 +356,7 @@ export default function FeatureUpgradeModal() {
                       aria-pressed={isSelected}
                       aria-label={`Select ${plan.name} plan`}
                       onMouseEnter={() => setHoverPlanId(plan._id)}
-                      onMouseLeave={() => setHoverPlanId(null)}
+                      onMouseLeave={() => { setHoverPlanId(null); setPreviewPlanId(null); }}
                       onClick={() => setSelectedPlanId(plan._id)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {

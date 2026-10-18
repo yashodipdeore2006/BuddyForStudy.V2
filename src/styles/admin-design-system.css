@@ -430,3 +430,13 @@
   .admin-shell .admin-gallery-table-row > :nth-child(3), .admin-shell .admin-gallery-table-row > :nth-child(4) { display: none; }
   .admin-shell .admin-gallery-toolbar { align-items: stretch; flex-direction: column; }
 }
+
+.admin-shell .admin-filter-bar { display: block; }
+.admin-shell .admin-filter-bar .grid { align-items: center; }
+.admin-shell .admin-table-container { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-gutter: stable; }
+.admin-shell .admin-pagination-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--s-2); }
+.admin-shell .admin-pagination-actions > span { min-width: 96px; text-align: center; color: var(--muted); font-size: var(--fs-sm); }
+@media (max-width: 640px) {
+  .admin-shell .admin-pagination-actions { width: 100%; }
+  .admin-shell .admin-pagination-actions > button { flex: 1; }
+}

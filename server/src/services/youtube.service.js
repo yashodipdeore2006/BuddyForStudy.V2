@@ -85,7 +85,7 @@ async function youtubeRequest(endpoint,params){
 }
 
 async function searchVideos(query,maxResults=10){
-  const key=query.trim().toLowerCase();
+  const key=String(maxResults)+":"+query.trim().toLowerCase();
   if(SEARCH_CACHE.has(key))return SEARCH_CACHE.get(key);
   const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:"en",regionCode:"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)});
   SEARCH_CACHE.set(key,promise);
@@ -150,14 +150,15 @@ export async function getYouTubeVideoResource(videoId) {
   return toCandidate(video, channel);
 }
 
-export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy }) {
+export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy, maxResultsPerQuery = 20 }) {
   if (!env.youtubeApiKey) return null;
 
   const queries = (searchQueries || []).slice(0, 3);
+  const boundedMaxResults = Math.max(5, Math.min(50, Number(maxResultsPerQuery) || 20));
   const items = [];
   for (const query of queries) {
     try {
-      const data = await searchVideos(query, 20);
+      const data = await searchVideos(query, boundedMaxResults);
       items.push(...(data?.items || []));
     } catch (error) {
       console.error("YouTube course search failed", { skill, query, message: error.message });

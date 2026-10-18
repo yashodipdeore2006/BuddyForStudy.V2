@@ -386,6 +386,13 @@ export default function AdminUsersPro() {
             <option value="local_google">Email + Google</option>
           </select>
         </div>
+        <div className="admin-filter-toolbar">
+          {(q || status || role || authProvider) && <button type="button" className="admin-filter-reset" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>Reset filters</button>}
+          <span className="admin-filter-toolbar-spacer" />
+          <label className="admin-page-size">Density
+            <select aria-label="Table density" className="input-field" value={density} onChange={(event) => setDensity(event.target.value as "compact" | "comfortable")}><option value="compact">Compact</option><option value="comfortable">Comfortable</option></select>
+          </label>
+        </div>
         <div className="admin-filter-summary">
           <div className="admin-active-filter-chips" aria-label="Active filters">
             {debouncedQ && <button type="button" className="admin-filter-chip" onClick={() => setQ("")}>Search: {debouncedQ}<X size={13} aria-hidden="true" /></button>}

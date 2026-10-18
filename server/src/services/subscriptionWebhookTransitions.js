@@ -7,8 +7,8 @@ export function subscriptionEventTimestamp(event) {
 
 export function subscriptionEventFreshnessFilter(eventAt) {
   if (!(eventAt instanceof Date) || Number.isNaN(eventAt.getTime())) {
-    // An event without a provider timestamp can update legacy records only;
-    // it must not overwrite a state already ordered by a timestamped event.
+    // Without provider ordering metadata, only legacy untracked records are
+    // eligible. Unknown-order events must not overwrite timestamped state.
     return {
       $or: [
         { providerEventAt: { $exists: false } },
@@ -16,11 +16,15 @@ export function subscriptionEventFreshnessFilter(eventAt) {
       ]
     };
   }
+
+  // Razorpay created_at has second-level precision. Strictly older timestamps
+  // are stale; equal timestamps are ambiguous, so first applied event wins.
+  // This avoids arrival-order flapping between activation/cancellation events.
   return {
     $or: [
       { providerEventAt: { $exists: false } },
       { providerEventAt: null },
-      { providerEventAt: { $lte: eventAt } }
+      { providerEventAt: { $lt: eventAt } }
     ]
   };
 }

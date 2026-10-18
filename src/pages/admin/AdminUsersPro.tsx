@@ -64,6 +64,9 @@ export default function AdminUsersPro() {
   const userDrawerRef = useRef<HTMLElement>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [pendingUserAction, setPendingUserAction] = useState<any>(null);
+  const [adminActionReason, setAdminActionReason] = useState("");
+  const [userConfirmationValue, setUserConfirmationValue] = useState("");
   const [courseAccess, setCourseAccess] = useState<any[]>([]);
   const [courseAccessLoading, setCourseAccessLoading] = useState(false);
   const [courseActionId, setCourseActionId] = useState<string | null>(null);
@@ -184,7 +187,13 @@ export default function AdminUsersPro() {
     void load(page, { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, pageSize);
   }, [page, debouncedQ, status, role, authProvider, pageSize, sortBy, sortOrder]);
 
-  async function toggleUser(user: any) {
+  async function toggleUser(user: any, confirmed = false, reason = "") {
+    if (!confirmed) {
+      setPendingUserAction(user);
+      setAdminActionReason("");
+      setUserConfirmationValue("");
+      return;
+    }
     setSavingId(user._id);
     setError("");
     try {
@@ -192,13 +201,16 @@ export default function AdminUsersPro() {
         method: "PUT",
         body: JSON.stringify({
           isActive: !user.isActive,
-          reason: user.isActive ? "Admin disabled account" : "Admin re-enabled account",
+          reason: reason.trim(),
         }),
       });
       await load(pagination.page || 1);
       if (selected?._id === user._id) {
         setSelected({ ...selected, isActive: !user.isActive });
       }
+      setPendingUserAction(null);
+      setAdminActionReason("");
+      setUserConfirmationValue("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update user");
     } finally {
@@ -656,6 +668,24 @@ export default function AdminUsersPro() {
           </aside>
         </div>
       )}
+      <AdminConfirmDialog
+        open={Boolean(pendingUserAction)}
+        title={pendingUserAction?.isActive ? "Disable user account?" : "Re-enable user account?"}
+        description={pendingUserAction?.isActive
+          ? "This blocks the user from accessing BuddyForStudy. The action and your reason will be written to the audit log."
+          : "This restores the user’s account access. The action and your reason will be written to the audit log."}
+        confirmLabel={pendingUserAction?.isActive ? "Disable account" : "Re-enable account"}
+        requiredText={pendingUserAction?.isActive ? pendingUserAction.email : undefined}
+        value={userConfirmationValue}
+        onValueChange={setUserConfirmationValue}
+        reason={adminActionReason}
+        onReasonChange={setAdminActionReason}
+        requireReason
+        onConfirm={() => { if (pendingUserAction) void toggleUser(pendingUserAction, true, adminActionReason); }}
+        onClose={() => { setPendingUserAction(null); setAdminActionReason(""); setUserConfirmationValue(""); }}
+        loading={Boolean(pendingUserAction && savingId === String(pendingUserAction._id))}
+        danger={Boolean(pendingUserAction?.isActive)}
+      />
       <AdminConfirmDialog
         open={Boolean(pendingCourseAction)}
         title={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status) ? "Remove course access?" : "Grant course access?") : "Confirm course access"}

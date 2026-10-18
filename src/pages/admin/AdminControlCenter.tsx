@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminBadge, AdminCard, AdminPageHeader } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -113,65 +114,48 @@ export default function AdminControlCenter() {
   ];
 
   const cards = [
-    [Users, "Total users", s.users, String(s.activeUsers || 0) + " active"],
-    [BookOpen, "Courses", s.courses, String(s.published || 0) + " published"],
-    [CreditCard, "Subscribers", s.activeSubscribers, String(s.pastDueSubscribers || 0) + " past due"],
-    [IndianRupee, "Net revenue", money(s.netRevenue ?? s.revenue), "Gross " + money(s.grossRevenue) + " · refunds " + money(s.processedRefunds)],
-    [Users, "Enrollments", s.enrollments, "all-time"],
-    [AlertTriangle, "Refund queue", s.pendingRefunds, "needs review"],
-    [Activity, "Unread notifications", s.unread, "across users"],
-    [ShieldCheck, "Admins", s.admins, "privileged accounts"],
+    [Users, "Total users", s.users, String(s.activeUsers || 0) + " active", "users.read"],
+    [BookOpen, "Courses", s.courses, String(s.published || 0) + " published", "courses.read"],
+    [CreditCard, "Subscribers", s.activeSubscribers, String(s.pastDueSubscribers || 0) + " past due", "billing.read"],
+    [IndianRupee, "Net revenue", money(s.netRevenue ?? s.revenue), "Gross " + money(s.grossRevenue) + " · refunds " + money(s.processedRefunds), "billing.read"],
   ];
-
-  const cardPermissions: Record<string, string> = {
-    "Total users": "users.read",
-    Courses: "courses.read",
-    Subscribers: "billing.read",
-    Revenue: "billing.read",
-    Enrollments: "courses.read",
-    "Refund queue": "refunds.manage",
-    "Unread notifications": "operations.read",
-    Admins: "admin_roles.manage",
-  };
-  const visibleCards = cards.filter(([, label]: any) => permissions.includes(cardPermissions[label]));
+  const visibleCards = cards.filter(([, , , , permission]: any) => permissions.includes(permission));
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Command center</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Platform Overview</h1>
-          <p className="mt-2 text-slate-500">Monitor content, learners, revenue, operations and platform health from one place.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <AdminPageHeader
+        eyebrow="Command center"
+        title="Platform overview"
+        description="Monitor content, learners, revenue, operations and platform health from one place."
+        actions={<div className="flex flex-wrap items-center gap-2">
           {loading && data && <span role="status" aria-live="polite" className="text-xs text-blue-600">Refreshing dashboard…</span>}
           {lastUpdated && <span role="status" aria-live="polite" className="text-xs text-slate-500">Updated {lastUpdated.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</span>}
           <button type="button" onClick={() => void load()} className="btn-secondary" disabled={loading} aria-label={loading ? "Refreshing admin dashboard" : "Refresh admin dashboard"}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh
           </button>
           {permissions.includes("courses.read") && <Link to="/admin/courses" className="btn-primary">Manage content <ArrowRight className="h-4 w-4" /></Link>}
-        </div>
-      </div>
+        </div>}
+      />
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {visibleCards.map(([Icon, label, value, sub]: any) => (
-          <div className="card p-5" key={label}>
+          <AdminCard className="admin-stat-card" key={label}>
             <div className="flex items-center justify-between">
               <div className="rounded-xl bg-blue-50 p-3 text-blue-600"><Icon className="h-5 w-5" /></div>
               <span className="text-xs text-slate-400">{sub}</span>
             </div>
             <p className="mt-4 text-2xl font-bold text-slate-950">{value}</p>
             <p className="text-sm text-slate-500">{label}</p>
-          </div>
+          </AdminCard>
         ))}
       </div>
 
       <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5">
           <div><h2 className="font-bold text-slate-900">Operational alerts</h2><p className="mt-1 text-xs text-slate-500">Open background-worker and platform issues that need acknowledgement.</p></div>
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">{operationalAlerts.length} open</span>
+          <AdminBadge tone={operationalAlerts.length ? "warning" : "success"}>{operationalAlerts.length} open</AdminBadge>
         </div>
         {alertsError && <p role="status" aria-live="polite" className="border-b border-slate-100 p-4 text-sm text-amber-700">{alertsError}</p>}
         {operationalAlerts.length ? (

@@ -23,6 +23,7 @@ import { SavedViews, type SavedViewRecord } from "@/components/admin/SavedViews"
 import { DetailDrawer } from "@/components/admin/DetailDrawer";
 import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { MoneyCell } from "@/components/admin/MoneyCell";
 
 function csvCell(value: unknown) {
   let text = value instanceof Date ? value.toISOString() : String(value ?? "");
@@ -558,7 +559,7 @@ export default function AdminUsersPro() {
                 {selected.subscription ? (
                   <div className="flex items-center justify-between gap-3">
                     <span>{selected.subscription.plan?.name || "Plan"}</span>
-                    <span className="badge bg-blue-50 text-blue-700">{selected.subscription.status}</span>
+                    <StatusBadge domain="subscription" value={selected.subscription.status} />
                   </div>
                 ) : <p className="text-slate-500">No active subscription.</p>}
               </div>
@@ -612,7 +613,7 @@ export default function AdminUsersPro() {
                 {(selected.enrollments || []).slice(0, 10).map((enrollment: any) => (
                   <div key={enrollment._id} className="rounded-xl border border-slate-200 p-3">
                     <p className="text-sm font-semibold">{enrollment.course?.title || "Course"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{enrollment.status}</p>
+                    <p className="mt-1 text-xs text-slate-500"><StatusBadge domain="enrollment" value={enrollment.status} /></p>
                   </div>
                 ))}
                 {!selected.enrollments?.length && <p className="text-sm text-slate-500">No enrollments.</p>}
@@ -659,8 +660,8 @@ export default function AdminUsersPro() {
               <div className="mt-2 space-y-2">
                 {(selected.payments || []).slice(0, 8).map((payment: any) => (
                   <div key={payment._id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
-                    <div><p className="text-sm font-semibold">₹{Number(payment.amount || 0).toLocaleString("en-IN")}</p><p className="text-xs text-slate-500">{payment.provider}</p></div>
-                    <span className="text-xs font-bold uppercase text-slate-500">{payment.status}</span>
+                    <div><p className="text-sm font-semibold"><MoneyCell amount={payment.amount} currency={payment.currency || "INR"} /></p><p className="text-xs text-slate-500">{payment.provider}</p></div>
+                    <StatusBadge domain="payment" value={payment.status} />
                   </div>
                 ))}
                 {!selected.payments?.length && <p className="text-sm text-slate-500">No payments.</p>}

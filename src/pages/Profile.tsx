@@ -51,6 +51,7 @@ export default function Profile() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingError, setBillingError] = useState("");
@@ -58,6 +59,16 @@ export default function Profile() {
   useEffect(() => {
     setName(profile?.name || "");
   }, [profile?.name]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/enrollments").then((data) => {
+      if (!cancelled) setEnrollments(Array.isArray(data.enrollments) ? data.enrollments : []);
+    }).catch(() => {
+      if (!cancelled) setEnrollments([]);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,21 +134,26 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="grid gap-px bg-slate-100 sm:grid-cols-3">
+        <div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-4">
           <div className="bg-white p-5 sm:p-6">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</p>
             <p className="mt-2 text-xl font-extrabold text-slate-950">{billingLoading ? "Loading…" : subscription?.plan?.name || "Free"}</p>
             <p className="mt-1 text-xs text-slate-500">{subscription?.status ? `Subscription ${subscription.status}` : "Explore plans to unlock more learning tools"}</p>
           </div>
           <div className="bg-white p-5 sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Courses in learning</p>
+            <p className="mt-2 text-xl font-extrabold text-slate-950">{enrollments.filter((item) => ["active", "completed"].includes(String(item.status || "").toLowerCase())).length}</p>
+            <p className="mt-1 text-xs text-slate-500">Courses you are enrolled in</p>
+          </div>
+          <div className="bg-white p-5 sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Completed courses</p>
+            <p className="mt-2 text-xl font-extrabold text-slate-950">{enrollments.filter((item) => String(item.status || "").toLowerCase() === "completed").length}</p>
+            <p className="mt-1 text-xs text-slate-500">Marked complete in your learning record</p>
+          </div>
+          <div className="bg-white p-5 sm:p-6">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Payment records</p>
             <p className="mt-2 text-xl font-extrabold text-slate-950">{billingLoading ? "—" : payments.length}</p>
             <p className="mt-1 text-xs text-slate-500">All recorded checkout attempts</p>
-          </div>
-          <div className="bg-white p-5 sm:p-6">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total paid records</p>
-            <p className="mt-2 text-xl font-extrabold text-slate-950">{billingLoading ? "—" : formatMoney(totalPaid)}</p>
-            <p className="mt-1 text-xs text-slate-500">Includes partially refunded payments before refund deductions</p>
           </div>
         </div>
       </section>

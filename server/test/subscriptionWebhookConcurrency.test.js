@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Payment } from "../src/models/Payment.js";
 import { UserSubscription } from "../src/models/UserSubscription.js";
+import { WebhookEvent } from "../src/models/WebhookEvent.js";
 import { subscriptionEventFreshnessFilter, subscriptionEventTimestamp } from "../src/services/subscriptionWebhookTransitions.js";
 
 test("Razorpay provider payment IDs have a database-level uniqueness guard", () => {
@@ -59,4 +60,13 @@ test("activation webhooks cannot revive refunded, partially refunded, or cancell
     assert.equal(SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES.includes(terminalStatus), false);
   }
   assert.deepEqual(TERMINAL_PAYMENT_STATUSES, ["refunded", "partially_refunded", "cancelled"]);
+});
+
+test("webhook event IDs have a unique database index for concurrent delivery claims", () => {
+  const index = WebhookEvent.schema.indexes().find(([keys, options]) =>
+    keys.eventId === 1 && options.unique === true
+  );
+  assert.ok(index, "Expected a unique webhook event ID index");
+  assert.deepEqual(index[0], { eventId: 1 });
+  assert.equal(index[1].unique, true);
 });

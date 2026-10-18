@@ -160,29 +160,24 @@ export async function userDetail(req, res, next) {
 export async function updateUser(req, res, next) {
   try {
     if (!isValidObjectId(req.params.userId)) return failure(res, "Invalid userId", 400);
-    if (String(req.params.userId) === String(req.user.user._id)) return failure(res, "Admin cannot deactivate the current account", 400);
+    if (Object.hasOwn(req.body || {}, "role")) {
+      return failure(res, "Top-level account roles cannot be changed through user management.", 403);
+    }
+    if (typeof req.body?.isActive !== "boolean") {
+      return failure(res, "isActive must be a boolean.", 400);
+    }
+    if (String(req.params.userId) === String(req.user.userId)) {
+      return failure(res, "Admin cannot deactivate the current account.", 400);
+    }
     const user = await User.findById(req.params.userId);
     if (!user) return failure(res, "User not found", 404);
-    const removesActiveAdmin = user.role === "admin" && user.isActive !== false &&
-      (req.body.role === "user" || req.body.isActive === false);
-    if (removesActiveAdmin) {
-      const activeAdminCount = await User.countDocuments({ role: "admin", isActive: true });
-      const safety = validateAdminAccountChange({
-        actorId: req.user.user._id,
-        targetId: user._id,
-        targetRole: user.role,
-        targetActive: user.isActive,
-        requestedRole: req.body.role,
-        requestedActive: req.body.isActive,
-        activeAdminCount
-      });
-      if (!safety.valid) return failure(res, safety.message, safety.status);
+    if (user.role === "admin") {
+      return failure(res, "Administrator accounts must be managed through the administrator access console.", 403);
     }
-    const before = { isActive: user.isActive, role: user.role };
-    if (typeof req.body.isActive === "boolean") user.isActive = req.body.isActive;
-    if (req.body.role === "user" || req.body.role === "admin") user.role = req.body.role;
+    const before = { isActive: user.isActive };
+    user.isActive = req.body.isActive;
     await user.save();
-    await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive, role: user.role }, req.body.reason);
+    await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive }, req.body.reason);
     return success(res, { user: user.toJSON() }, "User updated");
   } catch (e) { next(e); }
 }

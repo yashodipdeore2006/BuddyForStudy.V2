@@ -492,3 +492,27 @@
 .admin-shell .admin-sort-button { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--control-h-sm); padding: 0; border: 0; background: transparent; color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-align: left; }
 .admin-shell .admin-sort-button:hover, .admin-shell .admin-sort-button:focus-visible { color: var(--accent); }
 .admin-shell .admin-sort-button span { display: inline-flex; align-items: center; color: var(--accent); }
+
+.admin-shell .admin-type-sample { padding: var(--s-3) 0; border-bottom: 1px solid var(--border); }
+.admin-shell .admin-type-sample:last-child { border-bottom: 0; }
+.admin-shell .admin-type-label { display: block; margin-bottom: var(--s-2); color: var(--muted); font: var(--fs-xs)/var(--lh-xs) var(--font-mono); }
+.admin-shell .admin-type-sample p { margin: 0; color: var(--text); }
+.admin-shell .admin-type-sample--3xl { font-size: var(--fs-3xl); line-height: var(--lh-3xl); font-weight: var(--fw-semibold); }
+.admin-shell .admin-type-sample--2xl { font-size: var(--fs-2xl); line-height: var(--lh-2xl); font-weight: var(--fw-semibold); }
+.admin-shell .admin-type-sample--md { font-size: var(--fs-md); line-height: var(--lh-md); }
+.admin-shell .admin-type-sample--xs { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--muted) !important; }
+.admin-shell .admin-token-scale-grid { display: grid; gap: var(--s-3); }
+.admin-shell .admin-space-sample { display: grid; grid-template-columns: 48px 72px minmax(0, 1fr); align-items: center; gap: var(--s-2); color: var(--text-2); font-size: var(--fs-sm); }
+.admin-shell .admin-space-sample code { color: var(--muted); font: var(--fs-xs)/var(--lh-xs) var(--font-mono); }
+.admin-shell .admin-space-bar { display: block; height: var(--s-3); border-radius: var(--r-sm); background: var(--accent); }
+.admin-shell .admin-space-1 { width: var(--s-1); }
+.admin-shell .admin-space-2 { width: var(--s-2); }
+.admin-shell .admin-space-3 { width: var(--s-3); }
+.admin-shell .admin-space-4 { width: var(--s-4); }
+.admin-shell .admin-space-5 { width: var(--s-5); }
+.admin-shell .admin-space-6 { width: var(--s-6); }
+.admin-shell .admin-elevation-samples { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-5); }
+.admin-shell .admin-elevation-sample { display: inline-flex; align-items: center; min-height: var(--control-h-lg); padding: 0 var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text-2); font-size: var(--fs-xs); }
+.admin-shell .admin-elevation-sample--sm { box-shadow: var(--shadow-sm); }
+.admin-shell .admin-elevation-sample--md { box-shadow: var(--shadow-md); }
+.admin-shell .admin-elevation-sample--lg { box-shadow: var(--shadow-lg); }

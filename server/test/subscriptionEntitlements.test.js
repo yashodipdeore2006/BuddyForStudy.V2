@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../src/config/subscriptionFeatures.js";
-import { resolveFeature } from "../src/services/subscriptionEntitlement.service.js";
+import { resolveFeature, isCourseAccessAllowed } from "../src/services/subscriptionEntitlement.service.js";
 
 test("feature registry exposes unique stable feature keys and labels", () => {
   const keys = SUBSCRIPTION_FEATURES.map((feature) => feature.key);
@@ -35,4 +35,12 @@ test("subscription feature normalization supports legacy tier aliases and remove
 test("subscription feature normalization ignores malformed values", () => {
   assert.deepEqual(normalizeSubscriptionFeatures(null), []);
   assert.deepEqual(normalizeSubscriptionFeatures(["", null, 12, "Normal course search"]), ["Normal course search"]);
+});
+
+test("paid courses require verified individual access even when a plan has general course access", () => {
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: true, hasIndividualAccess: false }), false);
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: false, hasIndividualAccess: true }), true);
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: true, hasIndividualAccess: false }), true);
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: true }), true);
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: false }), false);
 });

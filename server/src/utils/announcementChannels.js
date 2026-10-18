@@ -1,4 +1,4 @@
-const ALLOWED_ANNOUNCEMENT_CHANNELS = new Set(["in_app", "email"]);
+const ALLOWED_ANNOUNCEMENT_CHANNELS = new Set(["in_app", "email", "push"]);
 
 export function parseAnnouncementChannels(value) {
   const requested = Array.isArray(value) ? value : [value || "in_app"];

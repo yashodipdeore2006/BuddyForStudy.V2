@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, Power, Plus, RefreshCcw, Tag } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 const emptyForm = {
   code: "",
@@ -114,14 +115,12 @@ export default function AdminCoupons() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Growth & promotions</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Coupons & Promotions</h1>
-          <p className="mt-2 text-slate-500">Create targeted discounts with limits, expiry and course scope.</p>
-        </div>
-        <button type="button" aria-label="Refresh coupons" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className="h-4 w-4" /> Refresh</button>
-      </div>
+      <AdminPageHeader
+        eyebrow="Growth and promotions"
+        title="Coupons and promotions"
+        description="Create targeted discounts with limits, expiry and course scope."
+        actions={<button type="button" aria-label="Refresh coupons" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
+      />
 
       {!permissions.includes("coupons.manage") && <div role="status" className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">View-only access: your role can review coupons but cannot create or change promotions.</div>}
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}

@@ -10,6 +10,11 @@ const EMPTY_TEMPLATE: TemplateDraft = { name: "", key: "", channel: "notificatio
 export default function AdminCommunications() {
   const [tab, setTab] = useState<"notification" | "email" | "announcement">("notification");
   const [audience, setAudience] = useState("all");
+  const [targetMode, setTargetMode] = useState<"audience" | "emails" | "filters">("audience");
+  const [selectedEmails, setSelectedEmails] = useState("");
+  const [audienceFilters, setAudienceFilters] = useState<Record<string, string>>({});
+  const [audiencePreview, setAudiencePreview] = useState<{ recipientCount: number; truncated: boolean; sample: Array<{ id: string; name: string; email: string }> } | null>(null);
+  const [previewingAudience, setPreviewingAudience] = useState(false);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [subject, setSubject] = useState("");
@@ -120,6 +125,44 @@ export default function AdminCommunications() {
     return Boolean(title.trim() && message.trim());
   }, [tab, subject, html, title, message, channels]);
 
+  function audiencePayload() {
+    if (targetMode === "emails") {
+      return { emails: selectedEmails.split(/[;,\\n]/).map((email) => email.trim().toLowerCase()).filter(Boolean) };
+    }
+    if (targetMode === "filters") {
+      const filters: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(audienceFilters)) {
+        if (!value.trim()) continue;
+        if (key === "emailVerified") filters[key] = value === "true";
+        else if (["expiresWithinDays", "progressMin", "progressMax"].includes(key)) filters[key] = Number(value);
+        else filters[key] = value;
+      }
+      return { audience, filters };
+    }
+    return { audience };
+  }
+
+  async function previewAudience() {
+    setPreviewingAudience(true);
+    setAudiencePreview(null);
+    setStatus("");
+    try {
+      const data = await adminFetch("/api/admin/notifications/audience-preview", {
+        method: "POST",
+        body: JSON.stringify(audiencePayload()),
+      });
+      setAudiencePreview({
+        recipientCount: Number(data.recipientCount || 0),
+        truncated: Boolean(data.truncated),
+        sample: Array.isArray(data.sample) ? data.sample : [],
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Unable to preview this audience.");
+    } finally {
+      setPreviewingAudience(false);
+    }
+  }
+
   function toggleChannel(channel: Channel) {
     setChannels((current) =>
       current.includes(channel)
@@ -148,9 +191,9 @@ export default function AdminCommunications() {
 
       const body =
         tab === "email"
-          ? { audience, subject, html }
+          ? { ...audiencePayload(), subject, html }
           : {
-              audience,
+              ...audiencePayload(),
               title,
               message,
               type: "system",
@@ -304,18 +347,57 @@ export default function AdminCommunications() {
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
         <section className="card p-6">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Audience</span>
-              <select className="input-field mt-2" value={audience} onChange={(e) => setAudience(e.target.value)}>
-                <option value="all">All users</option>
-                <option value="active">Active users</option>
-                <option value="subscribers">Subscribers</option>
-              </select>
-            </label>
-            <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-              Delivery reaches the selected audience from the server, including inactive accounts for “All users”.
+          <div className="rounded-2xl border border-slate-200 p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Recipient targeting</span>
+                <select className="input-field mt-2" value={targetMode} onChange={(e) => { setTargetMode(e.target.value as typeof targetMode); setAudiencePreview(null); }}>
+                  <option value="audience">Audience group</option>
+                  <option value="emails">Specific user(s) by email</option>
+                  <option value="filters">Advanced filters</option>
+                </select>
+              </label>
+              {targetMode === "audience" && <label className="block">
+                <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Audience group</span>
+                <select className="input-field mt-2" value={audience} onChange={(e) => { setAudience(e.target.value); setAudiencePreview(null); }}>
+                  <option value="all">All users</option>
+                  <option value="active">Active users</option>
+                  <option value="subscribers">Active subscribers</option>
+                </select>
+              </label>}
             </div>
+            {targetMode === "emails" && <label className="mt-3 block text-xs font-semibold text-slate-600">Recipient email addresses
+              <textarea className="input-field mt-2 min-h-24" value={selectedEmails} onChange={(e) => { setSelectedEmails(e.target.value); setAudiencePreview(null); }} placeholder="user@example.com, another@example.com" />
+              <span className="mt-1 block font-normal text-slate-500">Enter one or more registered email addresses, separated by commas, semicolons, or new lines. Maximum 500.</span>
+            </label>}
+            {targetMode === "filters" && <div className="mt-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Combine filters (all entered filters must match)</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="text-xs font-semibold text-slate-600">Name or email contains<input className="input-field mt-1" value={audienceFilters.q || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, q: e.target.value }); setAudiencePreview(null); }} placeholder="Search text" /></label>
+                <label className="text-xs font-semibold text-slate-600">Account status<select className="input-field mt-1" value={audienceFilters.status || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, status: e.target.value }); setAudiencePreview(null); }}><option value="">Any status</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Account type<select className="input-field mt-1" value={audienceFilters.role || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, role: e.target.value }); setAudiencePreview(null); }}><option value="">Users and admins</option><option value="user">Learners only</option><option value="admin">Administrators only</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Email verified<select className="input-field mt-1" value={audienceFilters.emailVerified || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, emailVerified: e.target.value }); setAudiencePreview(null); }}><option value="">Any</option><option value="true">Verified</option><option value="false">Not verified</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Sign-in provider<select className="input-field mt-1" value={audienceFilters.authProvider || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, authProvider: e.target.value }); setAudiencePreview(null); }}><option value="">Any provider</option><option value="local">Email/password</option><option value="google">Google</option><option value="local_google">Email and Google</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Subscription status<select className="input-field mt-1" value={audienceFilters.subscriptionStatus || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, subscriptionStatus: e.target.value }); setAudiencePreview(null); }}><option value="">Any subscription</option><option value="trialing">Trialing</option><option value="active">Active</option><option value="past_due">Past due</option><option value="cancelled">Cancelled</option><option value="expired">Expired</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Plan ID<input className="input-field mt-1" value={audienceFilters.planId || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, planId: e.target.value }); setAudiencePreview(null); }} placeholder="Optional MongoDB ID" /></label>
+                <label className="text-xs font-semibold text-slate-600">Expires within (days)<input className="input-field mt-1" type="number" min="1" max="365" value={audienceFilters.expiresWithinDays || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, expiresWithinDays: e.target.value }); setAudiencePreview(null); }} placeholder="e.g. 7" /></label>
+                <label className="text-xs font-semibold text-slate-600">Enrolled course ID<input className="input-field mt-1" value={audienceFilters.courseId || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, courseId: e.target.value }); setAudiencePreview(null); }} placeholder="Optional MongoDB ID" /></label>
+                <label className="text-xs font-semibold text-slate-600">Enrollment status<select className="input-field mt-1" value={audienceFilters.enrollmentStatus || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, enrollmentStatus: e.target.value }); setAudiencePreview(null); }}><option value="">Any enrollment</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
+                <label className="text-xs font-semibold text-slate-600">Minimum course progress %<input className="input-field mt-1" type="number" min="0" max="100" value={audienceFilters.progressMin || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, progressMin: e.target.value }); setAudiencePreview(null); }} placeholder="0–100" /></label>
+                <label className="text-xs font-semibold text-slate-600">Maximum course progress %<input className="input-field mt-1" type="number" min="0" max="100" value={audienceFilters.progressMax || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, progressMax: e.target.value }); setAudiencePreview(null); }} placeholder="0–100" /></label>
+                <label className="text-xs font-semibold text-slate-600">Registered after<input className="input-field mt-1" type="date" value={audienceFilters.registeredAfter || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, registeredAfter: e.target.value }); setAudiencePreview(null); }} /></label>
+                <label className="text-xs font-semibold text-slate-600">Registered before<input className="input-field mt-1" type="date" value={audienceFilters.registeredBefore || ""} onChange={(e) => { setAudienceFilters({ ...audienceFilters, registeredBefore: e.target.value }); setAudiencePreview(null); }} /></label>
+              </div>
+            </div>}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button type="button" className="btn-secondary" onClick={() => void previewAudience()} disabled={previewingAudience}>{previewingAudience ? "Checking recipients..." : "Preview recipients"}</button>
+              <span className="text-xs text-slate-500">Sending is capped at 5,000 recipients per campaign. Review the audience before sending.</span>
+            </div>
+            {audiencePreview && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4" aria-live="polite">
+              <p className="font-semibold text-slate-900">{audiencePreview.truncated ? "At least " : ""}{audiencePreview.recipientCount.toLocaleString()} matching recipient(s)</p>
+              {audiencePreview.truncated && <p className="mt-1 text-xs text-amber-700">Preview capped at 5,000. Narrow the audience before sending to avoid an overly broad campaign.</p>}
+              {audiencePreview.sample.length > 0 && <ul className="mt-3 space-y-1 text-sm text-slate-600">{audiencePreview.sample.map((user) => <li key={user.id}>{user.name || "Unnamed user"} <span className="text-slate-400">· {user.email}</span></li>)}</ul>}
+            </div>}
           </div>
 
           {tab !== "email" && (

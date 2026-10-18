@@ -58,6 +58,7 @@ test("unknown roles and permissions fail closed", () => {
   assert.equal(isAdminRoleProfile("unknown"), false);
   assert.equal(hasAdminPermission("unknown", "dashboard.read"), false);
   assert.equal(hasAdminPermission("platform_admin", "unregistered.permission"), false);
+  assert.equal(hasAdminPermission("super_admin", "unregistered.permission"), false);
 });
 
 test("explicit overrides can add a catalogued permission but cannot make unknown role valid", () => {

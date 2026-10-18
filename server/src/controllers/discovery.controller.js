@@ -6,6 +6,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { enroll } from "../services/enrollment.service.js";
 import { getActivePlanForUser, readPlanLimit } from "../services/subscriptionEntitlement.service.js";
 import { consumeUsage, releaseUsage } from "../services/aiUsage.service.js";
+import { toPublicCoursePreview } from "../utils/coursePreview.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
 const resourceSchema = z.object({
@@ -71,7 +72,7 @@ export async function enrollCourseSearch(req, res, next) {
     reservation = await reserveDiscoveryQuota(req, "ai_curated_courses_per_month", "ai_curated_courses");
     const course = await createCourseFromSearch(q);
     const enrollment = await enroll(req.user.userId, course._id);
-    return success(res, { course, enrollment }, "Course enrolled successfully", 201);
+    return success(res, { course: toPublicCoursePreview(course), enrollment }, "Course enrolled successfully", 201);
   } catch (e) {
     if (reservation) await releaseUsage({ ...reservation, period: "month", amount: 1 }).catch(() => {});
     if (e instanceof z.ZodError) return failure(res, "Invalid course query", 400);
@@ -103,7 +104,7 @@ export async function enrollYouTubeResource(req, res, next) {
       }
     }
 
-    return success(res, { course, enrollment }, "Course added to My Learning", 201);
+    return success(res, { course: toPublicCoursePreview(course), enrollment }, "Course added to My Learning", 201);
   } catch (e) {
     if (reservation) await releaseUsage({ ...reservation, period: "month", amount: 1 }).catch(() => {});
     if (e instanceof z.ZodError) return failure(res, "Invalid YouTube course request", 400);
@@ -125,7 +126,7 @@ export async function saveYouTubeResource(req, res, next) {
       select: "title slug description category level duration thumbnail isPublished pricing"
     });
 
-    return success(res, { course, savedCourse }, "Course saved");
+    return success(res, { course: toPublicCoursePreview(course), savedCourse }, "Course saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Invalid YouTube course request", 400);
     next(e);

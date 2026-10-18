@@ -9,7 +9,7 @@ import { createNotificationEvent } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../services/paymentWebhookTransitions.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
-import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter } from "../services/subscriptionWebhookTransitions.js";
+import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -139,7 +139,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
       });
       return;
     }
-    if (["refunded", "partially_refunded", "cancelled"].includes(duplicate.status)) {
+    if (TERMINAL_PAYMENT_STATUSES.includes(duplicate.status)) {
       console.warn("[billing-webhook] ignoring charge replay for a terminal payment", {
         providerPaymentId,
         paymentId: String(duplicate._id),
@@ -256,7 +256,7 @@ export async function razorpayWebhook(req, res, next) {
         const payment = await Payment.findOne({
           provider: "razorpay",
           providerOrderId: subscriptionEntity.id,
-          status: { $in: ["created", "pending", "paid", "failed"] }
+          status: { $in: SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES }
         }).sort({ createdAt: -1 }).populate("plan", "name billingInterval");
 
         if (payment) {

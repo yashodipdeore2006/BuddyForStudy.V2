@@ -130,6 +130,10 @@ const browserPushSubscriptionSchema = z.object({
 
 const pushEndpointSchema = z.object({ endpoint: z.string().url().max(2048) });
 
+export function isPushSubscriptionOwnedByUser(subscription, userId) {
+  return !subscription || String(subscription.user) === String(userId);
+}
+
 function isAllowedPushEndpoint(value) {
   try {
     const url = new URL(value);
@@ -170,7 +174,7 @@ export async function registerPushSubscription(req, res, next) {
     // A push endpoint is a credential-like identifier. Never let one
     // authenticated user transfer an endpoint already registered to another.
     const existingSubscription = await PushSubscription.findOne({ endpoint: input.endpoint }).select("user");
-    if (existingSubscription && String(existingSubscription.user) !== String(req.user.userId)) {
+    if (!isPushSubscriptionOwnedByUser(existingSubscription, req.user.userId)) {
       return failure(res, "This browser push endpoint is already registered to another account.", 409);
     }
 

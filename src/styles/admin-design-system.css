@@ -516,3 +516,6 @@
 .admin-shell .admin-elevation-sample--sm { box-shadow: var(--shadow-sm); }
 .admin-shell .admin-elevation-sample--md { box-shadow: var(--shadow-md); }
 .admin-shell .admin-elevation-sample--lg { box-shadow: var(--shadow-lg); }
+
+.admin-shell .admin-confirm-help { color: var(--muted); font-size: var(--fs-xs); }
+.admin-shell .admin-confirm-field textarea { width: 100%; min-height: var(--form-max); max-height: 240px; resize: vertical; }

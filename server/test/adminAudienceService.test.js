@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../src/services/adminAudience.service.js";
+import { validateAdminAudienceInput, parseAdminAudienceDate, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../src/services/adminAudience.service.js";
 
 test("audience targeting accepts a bounded set of selected registered email addresses", () => {
   assert.equal(validateAdminAudienceInput({ emails: ["learner@example.com", "second@example.com"] }), true);
@@ -87,4 +87,11 @@ test("audience preview tokens expire and bind both filters and resolved recipien
     if (previousSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = previousSecret;
   }
+});
+
+
+test("audience date filters use inclusive UTC calendar-day boundaries and reject impossible dates", () => {
+  assert.equal(parseAdminAudienceDate("2026-10-18", "registeredAfter").toISOString(), "2026-10-18T00:00:00.000Z");
+  assert.equal(parseAdminAudienceDate("2026-10-18", "registeredBefore").toISOString(), "2026-10-18T23:59:59.999Z");
+  assert.throws(() => parseAdminAudienceDate("2026-02-30", "registeredAfter"), /Invalid registeredAfter date/i);
 });

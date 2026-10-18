@@ -1468,6 +1468,33 @@ export async function reconcileRefund(req, res, next) {
   }
 }
 
+export async function notificationAudienceOptions(req, res, next) {
+  try {
+    const [plans, courses] = await Promise.all([
+      SubscriptionPlan.find({}).select("name price currency billingInterval isActive isPopular sortOrder").sort({ sortOrder: 1, price: 1 }).limit(100).lean(),
+      Course.find({}).select("title category level isPublished pricing featured").sort({ title: 1 }).limit(250).lean()
+    ]);
+    const popularCourseRows = await Enrollment.aggregate([
+      { $match: { status: { $in: ["active", "completed"] } } },
+      { $group: { _id: "$course", enrollmentCount: { $sum: 1 } } },
+      { $sort: { enrollmentCount: -1, _id: 1 } },
+      { $limit: 5 }
+    ]);
+    return success(res, {
+      plans: plans.map((plan) => ({
+        id: String(plan._id), name: plan.name, price: plan.price, currency: plan.currency,
+        billingInterval: plan.billingInterval, isActive: plan.isActive, isPopular: plan.isPopular
+      })),
+      courses: courses.map((course) => ({
+        id: String(course._id), title: course.title, category: course.category, level: course.level,
+        isPublished: course.isPublished, pricingMode: course.pricing?.mode || "free",
+        price: Number(course.pricing?.price || 0), featured: Boolean(course.featured)
+      })),
+      popularCourseIds: popularCourseRows.map((item) => String(item._id))
+    });
+  } catch (error) { next(error); }
+}
+
 export async function previewNotificationAudience(req, res, next) {
   try {
     validateAdminAudienceInput(req.body || {});

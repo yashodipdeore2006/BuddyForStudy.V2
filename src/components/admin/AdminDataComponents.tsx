@@ -130,6 +130,8 @@ export function DetailDrawer({ open, title, subtitle, children, onClose, onPrevi
   onPrevious?: () => void; onNext?: () => void; footer?: ReactNode; wide?: boolean;
 }) {
   const drawerRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -137,7 +139,7 @@ export function DetailDrawer({ open, title, subtitle, children, onClose, onPrevi
     const focusable = () => Array.from(root?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]') || []);
     focusable()[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.stopPropagation(); onClose(); return; }
+      if (event.key === "Escape") { event.stopPropagation(); onCloseRef.current(); return; }
       if (event.key !== "Tab") return;
       const elements = focusable(); if (!elements.length) return;
       if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements[elements.length - 1].focus(); }
@@ -145,7 +147,7 @@ export function DetailDrawer({ open, title, subtitle, children, onClose, onPrevi
     };
     window.addEventListener("keydown", onKeyDown);
     return () => { window.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return <div className="admin-detail-drawer-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <aside ref={drawerRef} className={["admin-detail-drawer", wide ? "admin-detail-drawer--wide" : ""].filter(Boolean).join(" ")} role="dialog" aria-modal="true" aria-labelledby="admin-detail-drawer-title" tabIndex={-1}>

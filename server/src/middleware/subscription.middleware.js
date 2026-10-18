@@ -1,4 +1,4 @@
-import { hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
+import { hasPaidCourseAccess, canAccessCourse } from "../services/subscriptionEntitlement.service.js";
 import { failure } from "../utils/response.js";
 import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
 
@@ -64,11 +64,22 @@ export function requireCourseOrFeature(feature) {
     try {
       if (req.user?.role === "admin" && req.user?.accessType === "admin") return next();
       const entitlement = await getEntitlement(req.user.userId, feature);
+      const courseId = req.params.courseId;
+      if (feature === "published_courses" && courseId) {
+        if (await canAccessCourse(req.user.userId, courseId)) {
+          req.subscriptionEntitlement = entitlement;
+          return next();
+        }
+        return failure(res,
+          "This course is not included in your current plan or has no verified individual purchase. Upgrade your plan or purchase this course to continue.",
+          403,
+          { feature: entitlement.feature?.key || feature, plan: entitlement.plan?.name || "Free" }
+        );
+      }
       if (entitlement.allowed) {
         req.subscriptionEntitlement = entitlement;
         return next();
       }
-      const courseId = req.params.courseId;
       if (feature === "published_courses" && courseId && await hasPaidCourseAccess(req.user.userId, courseId)) {
         return next();
       }

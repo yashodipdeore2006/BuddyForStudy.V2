@@ -11,7 +11,10 @@ import { isIP } from "node:net";
 
 export async function list(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const requestedLimit = Number(req.query.limit);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+      : 50;
     const notifications = await Notification.find({ user: req.user.userId, showInApp: { $ne: false } })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -250,36 +253,9 @@ export async function sendTestPush(req, res, next) {
     if (!sent) return failure(res, "Web Push could not deliver to this browser. Check server logs and try subscribing again.", 502);
     return success(res, { attempted: subscriptions.length, sent, failed }, "Test push submitted");
   } catch (error) {
-    failed += 1;
-
-    const statusCode = Number(error?.statusCode || error?.status || 0);
-    const expired = statusCode === 404 || statusCode === 410;
-    const responseBody = String(error?.body || "");
-    const details = [
-      error?.message || "Web Push delivery failed",
-      statusCode ? `HTTP ${statusCode}` : "",
-      responseBody ? `Response: ${responseBody}` : ""
-    ].filter(Boolean).join(" | ").slice(0, 400);
-
-    console.error("[web-push] Test delivery failed", {
-      statusCode,
-      message: error?.message,
-      responseBody: responseBody.slice(0, 300)
-    });
-
-    await PushSubscription.updateOne(
-      { _id: subscription._id },
-      {
-        $set: {
-          ...(expired
-            ? { active: false, deactivatedAt: new Date() }
-            : {}),
-          lastFailureAt: new Date(),
-          lastError: expired
-            ? "Push subscription expired or no longer exists"
-            : details
-        }
-      }
-    );
+    // Per-subscription delivery failures are handled inside the Promise.all
+    // callback above. Errors from preference lookup, subscription retrieval,
+    // or persistence belong to the normal Express error pipeline.
+    return next(error);
   }
 }

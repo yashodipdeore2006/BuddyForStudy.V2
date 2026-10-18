@@ -56,3 +56,17 @@ test("audience targeting validates subscription and course filter identifiers", 
   assert.throws(() => validateAdminAudienceInput({ filters: { planId: "bad-id" } }), /Invalid planId/i);
   assert.throws(() => validateAdminAudienceInput({ filters: { courseId: "bad-id" } }), /Invalid courseId/i);
 });
+
+
+test("audience targeting rejects empty explicit recipient lists instead of falling back to all users", () => {
+  assert.throws(() => validateAdminAudienceInput({ emails: [] }), /at least one email address/i);
+  assert.throws(() => validateAdminAudienceInput({ userIds: [] }), /at least one user ID/i);
+});
+
+test("audience targeting rejects an explicitly empty filter object", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: {} }), /at least one valid audience filter/i);
+});
+
+test("audience targeting accepts an explicit audience group without filter fields", () => {
+  assert.equal(validateAdminAudienceInput({ audience: "active" }), true);
+});

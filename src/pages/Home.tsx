@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { Course } from '@/types';
 import CourseCard from '@/components/CourseCard';
-import { GraduationCap, BookOpen, Trophy, ArrowRight, Code2, Database, Layers, Sparkles, BrainCircuit, Target, Rocket } from 'lucide-react';
+import { BookOpen, Trophy, ArrowRight, Code2, Layers, Sparkles, BrainCircuit, Target } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 
 function normalizeCourseId(value: any): string {
@@ -164,7 +164,7 @@ export default function Home() {
 
     <section className="bfs-section">
       <div className="bfs-shell">
-        <div className="relative overflow-hidden bfs-cta-panel relative overflow-hidden rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 sm:p-12 lg:p-14">
+        <div className="relative overflow-hidden bfs-cta-panel rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 sm:p-12 lg:p-14">
           <div className="pointer-events-none absolute -right-8 -top-12 opacity-10"><img src="/buddyforstudy-mascot.svg" alt="" aria-hidden="true" className="h-64 w-64" /></div>
           <div className="relative max-w-3xl">
             <p className="bfs-eyebrow">Your next chapter</p>

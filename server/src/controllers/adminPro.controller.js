@@ -1611,7 +1611,7 @@ export async function sendAnnouncement(req, res, next) {
       sentAt: new Date(),
       createdBy: req.user.user._id
     });
-    const results = await Promise.all(users.map((user) => createNotificationEvent({
+    const results = await mapWithConcurrency(users, (user) => createNotificationEvent({
       userId: String(user._id),
       title: announcement.title,
       message: announcement.message,

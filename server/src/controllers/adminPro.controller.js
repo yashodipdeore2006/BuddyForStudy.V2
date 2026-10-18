@@ -12,7 +12,7 @@ import { Notification } from "../models/Notification.js";
 import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
-import { getRemainingRefundableAmount, matchesProviderRefund } from "../services/refundBalance.service.js";
+import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
@@ -1210,8 +1210,9 @@ export async function updateRefund(req, res, next) {
       }
 
       const providerStatus = String(providerRefund?.status || "").toLowerCase();
+      const providerOutcome = classifyProviderRefundStatus(providerStatus);
       refund.providerRefundId = String(providerRefund?.id || "");
-      if (providerStatus === "processed") {
+      if (providerOutcome === "processed") {
         refund.status = "processed";
         refund.set("activePaymentKey", undefined);
         refund.processedAt = new Date();
@@ -1219,7 +1220,7 @@ export async function updateRefund(req, res, next) {
         const isFullRefund = refund.amount >= remainingAmount;
         payment.status = isFullRefund ? "refunded" : "partially_refunded";
         await payment.save();
-      } else if (["failed", "rejected"].includes(providerStatus)) {
+      } else if (providerOutcome === "retryable") {
         // An explicit provider failure is safe to retry; an uncertain or pending
         // response must keep the active claim and be reconciled first.
         refund.status = "pending";

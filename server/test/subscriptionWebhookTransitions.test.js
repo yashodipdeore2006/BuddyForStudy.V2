@@ -24,7 +24,8 @@ test("subscription update filter accepts strictly newer events and exact retries
     $or: [
       { providerEventAt: { $exists: false } },
       { providerEventAt: null },
-      { providerEventAt: { $lt: eventAt } }
+      { providerEventAt: { $lt: eventAt } },
+      { providerEventAt: eventAt, providerEventId: "evt_new", providerEventName: "subscription.activated" }
     ]
   });
 });

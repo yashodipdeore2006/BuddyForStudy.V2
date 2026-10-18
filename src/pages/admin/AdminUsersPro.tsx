@@ -508,6 +508,7 @@ export default function AdminUsersPro() {
             <table className={"w-full text-sm admin-users-table admin-users-table--" + density}>
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
                 <tr>
+                  <th scope="col" className="admin-select-column"><input type="checkbox" aria-label="Select all users on this page" checked={users.length > 0 && users.every((user) => selectedIds.includes(String(user._id)))} onChange={(event) => setSelectedIds((current) => event.target.checked ? Array.from(new Set([...current, ...users.map((user) => String(user._id))])) : current.filter((id) => !users.some((user) => String(user._id) === id)))} /></th>
                   <th scope="col" aria-sort={sortBy === "name" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("name")}>User <span aria-hidden="true">{sortBy === "name" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
                   {visibleColumns.includes("access") && <th scope="col" aria-sort={sortBy === "status" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("status")}>Access <span aria-hidden="true">{sortBy === "status" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
                   {visibleColumns.includes("verification") && <th scope="col" aria-sort={sortBy === "verification" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("verification")}>Verification <span aria-hidden="true">{sortBy === "verification" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
@@ -518,6 +519,7 @@ export default function AdminUsersPro() {
               <tbody className="divide-y divide-slate-100">
                 {users.map((user) => (
                   <tr key={user._id} className="hover:bg-slate-50/70">
+                    <td className="admin-select-column"><input type="checkbox" aria-label={"Select " + user.name} checked={selectedIds.includes(String(user._id))} onChange={(event) => setSelectedIds((current) => event.target.checked ? Array.from(new Set([...current, String(user._id)])) : current.filter((id) => id !== String(user._id)))} /></td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
@@ -567,7 +569,7 @@ export default function AdminUsersPro() {
                     </td>
                   </tr>
                 ))}
-                {!users.length && <tr><td role="status" aria-live="polite" colSpan={2 + visibleColumns.length} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
+                {!users.length && <tr><td role="status" aria-live="polite" colSpan={3 + visibleColumns.length} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
               </tbody>
             </table>
           </AdminTableContainer>

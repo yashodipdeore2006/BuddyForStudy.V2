@@ -66,6 +66,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [canManageRoles, setCanManageRoles] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    void adminFetch("/api/admin/roles")
+      .then(() => { if (!cancelled) setCanManageRoles(true); })
+      .catch(() => { if (!cancelled) setCanManageRoles(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (!mobileOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -81,9 +89,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     nav("/login", { replace: true });
   };
 
+  const visibleLinks = canManageRoles ? [...links, ["/admin/roles", "Administrator Roles", ShieldCheck] as const] : links;
+
   const navigation = (
     <nav aria-label="Admin navigation" className="space-y-1 p-3">
-      {links.map(([to, label, Icon]) => (
+      {visibleLinks.map(([to, label, Icon]) => (
         <NavLink
           key={to}
           to={to}

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { OperationalAlert } from "../src/models/OperationalAlert.js";
 import { AuditLog } from "../src/models/AuditLog.js";
 import { AuditOutbox } from "../src/models/AuditOutbox.js";
-import { acknowledgeOperationalAlert } from "../src/controllers/operationalAlert.controller.js";
+import { acknowledgeOperationalAlert, operationalAlerts } from "../src/controllers/operationalAlert.controller.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -98,4 +98,36 @@ test("resolved operational alerts cannot be acknowledged again", async () => {
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.success, false);
   assert.equal(alert.saveCalled, false);
+});
+
+
+test("operational alert list limit is an integer bounded to 1–100 with a safe default", async () => {
+  const cases = [
+    { input: "3.9", expected: 3 },
+    { input: "999", expected: 100 },
+    { input: "0", expected: 50 },
+    { input: "not-a-number", expected: 50 }
+  ];
+
+  for (const { input, expected } of cases) {
+    let appliedLimit;
+    const query = {
+      populate() { return this; },
+      sort() { return this; },
+      limit(value) { appliedLimit = value; return this; },
+      async lean() { return []; }
+    };
+    const res = responseRecorder();
+    await withMocks([
+      [OperationalAlert, {
+        find: () => query,
+        countDocuments: async () => 0
+      }]
+    ], async () => {
+      await operationalAlerts({ query: { limit: input } }, res, (error) => { throw error; });
+    });
+    assert.equal(appliedLimit, expected, `limit input ${input}`);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.success, true);
+  }
 });

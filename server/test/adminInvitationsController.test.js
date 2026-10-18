@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { acceptInvitation } from "../src/controllers/adminInvitations.controller.js";
+import { acceptInvitation, createInvitation, revokeInvitation } from "../src/controllers/adminInvitations.controller.js";
 import { AdminInvitation } from "../src/models/AdminInvitation.js";
 import { AuditLog } from "../src/models/AuditLog.js";
 import { User } from "../src/models/User.js";
@@ -216,5 +216,77 @@ test("acceptance normalizes email and hashes the supplied token before querying"
     assert.equal(query.email, email);
     assert.equal(query.tokenHash, crypto.createHash("sha256").update(token).digest("hex"));
     assert.equal(res.result.statusCode, 409);
+  });
+});
+
+
+test("only a Super Admin can create an invitation for another Super Admin", async () => {
+  let userLookupCalls = 0;
+  await withMocks([
+    [User, { findOne: () => { userLookupCalls += 1; throw new Error("must not query existing users"); } }]
+  ], async () => {
+    const res = makeResponse();
+    await createInvitation({
+      body: { name: "New Super Admin", email: "new-super@example.com", adminRole: "super_admin" },
+      user: { userId: "actor-id", adminRole: "platform_admin" }
+    }, res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 403);
+    assert.match(res.result.body.message, /Only a Super Admin/i);
+    assert.equal(userLookupCalls, 0);
+  });
+});
+
+test("revocation rejects malformed invitation IDs without querying the database", async () => {
+  let lookupCalls = 0;
+  await withMocks([
+    [AdminInvitation, { findOne: () => { lookupCalls += 1; } }]
+  ], async () => {
+    const res = makeResponse();
+    await revokeInvitation({ params: { invitationId: "not-an-object-id" }, user: { userId: "actor-id" } }, res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 400);
+    assert.equal(lookupCalls, 0);
+  });
+});
+
+test("revocation returns not found for an invitation that is no longer pending", async () => {
+  await withMocks([
+    [AdminInvitation, { findOne: async () => null }]
+  ], async () => {
+    const res = makeResponse();
+    await revokeInvitation({ params: { invitationId }, user: { userId: "actor-id" } }, res, () => assert.fail("next must not run"));
+    assert.equal(res.result.statusCode, 404);
+    assert.match(res.result.body.message, /Pending invitation not found/i);
+  });
+});
+
+test("revocation saves the revoked timestamp and records an audit event", async () => {
+  const invitation = makeInvitation({
+    _id: { toString: () => invitationId },
+    save: async function () { this.saved = true; }
+  });
+  let lookupFilter;
+  let auditEntry;
+  await withMocks([
+    [AdminInvitation, { findOne: async (filter) => { lookupFilter = filter; return invitation; } }],
+    [AuditLog, { create: async (entry) => { auditEntry = entry; } }]
+  ], async () => {
+    const res = makeResponse();
+    await revokeInvitation({
+      params: { invitationId },
+      body: { reason: "Access no longer required" },
+      user: { userId: "actor-id" },
+      ip: "127.0.0.1",
+      get: () => "admin-invitation-test"
+    }, res, (error) => assert.fail(error));
+    assert.equal(res.result.statusCode, 200);
+    assert.equal(res.result.body.success, true);
+    assert.equal(invitation.saved, true);
+    assert.equal(invitation.revokedAt instanceof Date, true);
+    assert.equal(lookupFilter._id, invitationId);
+    assert.equal(lookupFilter.acceptedAt, null);
+    assert.equal(lookupFilter.revokedAt, null);
+    assert.equal(auditEntry.action, "admin.invitation.revoked");
+    assert.equal(auditEntry.reason, "Access no longer required");
+    assert.equal(auditEntry.targetId, invitationId);
   });
 });

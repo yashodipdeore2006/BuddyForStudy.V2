@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Power, Plus, RefreshCcw, Save } from "lucide-react";
+import { Check, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 type FeatureDefinition = {

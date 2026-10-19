@@ -42,6 +42,9 @@ test("announcements require a preview token and reason, then queue or schedule i
   assert.match(service, /deferDispatch: true/);
   assert.match(service, /batchLockToken/);
   assert.match(service, /nextBatchAt/);
+  assert.match(service, /const finished = stats\.pending === 0/);
+  assert.match(service, /status: finished \? \(stats\.failed > 0 \? "failed" : "sent"\) : "sending"/);
+  assert.match(service, /new Date\(now\.getTime\(\) \+ 30 \* 1000\)/);
   assert.match(notificationService, /explicitAnnouncementConsent/);
   assert.match(notificationService, /preferences\.emailAnnouncementsConsentAt/);
   assert.match(notificationService, /requestedChannels:/);
@@ -89,6 +92,8 @@ test("template preview validates placeholders and test send targets only the sig
   assert.match(controller, /to: actor\.email/);
   assert.match(controller, /destination: "signed-in administrator"/);
   assert.match(controller, /Template keys are immutable after creation/);
+  assert.match(controller, /findUnknownTemplatePlaceholders\(parsed\.value\)/);
+  assert.match(controller, /Unsupported template placeholders/);
   assert.match(controller, /getTemplateUsage/);
   assert.match(controller, /hasUnsafeEmailMarkup\(preview\.body\)/);
   assert.match(routes, /router\.post\("\/message-templates\/preview", adminPermissionMiddleware\("communications\.manage"\)/);

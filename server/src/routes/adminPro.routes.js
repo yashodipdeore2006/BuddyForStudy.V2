@@ -75,10 +75,17 @@ router.post("/notifications/audience-preview", adminPermissionMiddleware("commun
 router.post("/notifications/send", adminPermissionMiddleware("communications.send"), controller.sendNotification);
 router.post("/emails/send", adminPermissionMiddleware("communications.send"), controller.sendEmail);
 router.post("/announcements/send", adminPermissionMiddleware("communications.send"), controller.sendAnnouncement);
+router.get("/announcements", adminPermissionMiddleware("communications.manage"), controller.listAnnouncements);
+router.post("/announcements/:announcementId/cancel", adminPermissionMiddleware("communications.manage"), controller.cancelAnnouncement);
+router.get("/announcements/:announcementId/report", adminPermissionMiddleware("communications.manage"), controller.announcementReport);
+router.get("/deliveries", adminPermissionMiddleware("notifications.read"), controller.deliveryLog);
+router.post("/deliveries/:notificationId/retry", adminPermissionMiddleware("notifications.retry"), controller.retryDeliveryLog);
 
 router.get("/message-templates", adminPermissionMiddleware("communications.manage"), messageTemplateController.listMessageTemplates);
 router.post("/message-templates", adminPermissionMiddleware("communications.manage"), messageTemplateController.createMessageTemplate);
 router.put("/message-templates/:templateId", adminPermissionMiddleware("communications.manage"), messageTemplateController.updateMessageTemplate);
+router.post("/message-templates/:templateId/preview", adminPermissionMiddleware("communications.manage"), messageTemplateController.previewMessageTemplate);
+router.post("/message-templates/:templateId/test-send", adminPermissionMiddleware("communications.manage"), messageTemplateController.testSendMessageTemplate);
 router.delete("/message-templates/:templateId", adminPermissionMiddleware("communications.manage"), messageTemplateController.deleteMessageTemplate);
 
 router.get("/settings", adminPermissionMiddleware("settings.read"), controller.settings);

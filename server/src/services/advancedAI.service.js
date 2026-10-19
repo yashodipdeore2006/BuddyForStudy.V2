@@ -69,19 +69,52 @@ async function findCourseLesson(courseId, lessonId, userId = null) {
       }
     ]
   }];
-  if (userId) accessBranches.push({ visibility: "private", createdForUser: userId });
-  const course = await Course.findOne({ _id: courseId, deletedAt: null, $or: accessBranches });
+  if (userId) accessBranches.push({
+    visibility: "private",
+    createdForUser: userId,
+    aiReviewStatus: "approved",
+    $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+  });
+
+  let course = await Course.findOne({ _id: courseId, deletedAt: null, $or: accessBranches });
+  let existingEnrollment = null;
+  if (!course && userId) {
+    existingEnrollment = await Enrollment.findOne({
+      user: userId,
+      course: courseId,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    }).select("_id").lean();
+    if (existingEnrollment) {
+      course = await Course.findOne({
+        _id: courseId,
+        deletedAt: null,
+        isPublished: true,
+        visibility: { $ne: "private" },
+        aiReviewStatus: { $nin: ["pending", "rejected"] }
+      });
+    }
+  }
+
   const generated = ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
-  const isApproved = !generated || (course?.aiReviewStatus === "approved" && (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic"));
-  if (!course || (generated && !isApproved)) {
+  const approvedByPolicy = !generated || (
+    course?.aiReviewStatus === "approved" &&
+    (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic")
+  );
+  const legacyPublishedEnrollment = Boolean(
+    course &&
+    existingEnrollment &&
+    course.isPublished &&
+    course.visibility !== "private" &&
+    !["pending", "rejected"].includes(course.aiReviewStatus)
+  );
+  if (!course || (generated && !approvedByPolicy && !legacyPublishedEnrollment)) {
     const error = new Error("Course not found or awaiting human content review");
     error.status = 404;
     throw error;
   }
 
-  // The owner-only lookup is not an enrollment grant. Mirror the course
-  // service gate so private AI features cannot be used after access is
-  // cancelled/revoked or before an enrollment has been granted.
+  // Private course assistance requires both ownership and a valid enrollment.
   if (course.visibility === "private") {
     if (!userId || String(course.createdForUser || "") !== String(userId) || course.status === "archived") {
       const error = new Error("Course not found");

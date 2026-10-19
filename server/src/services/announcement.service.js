@@ -129,12 +129,13 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
     const start = Math.max(0, Number(announcement.nextRecipientIndex) || 0);
     if (start >= recipientIds.length) {
       const stats = await refreshAnnouncementStats(announcement);
+      const finished = stats.pending === 0;
       await Announcement.updateOne(
         { _id: announcement._id, batchLockToken: lockToken },
         { $set: {
-          status: stats.failed > 0 ? "failed" : "sent",
-          sentAt: now, completedAt: now, batchLockUntil: null, batchLockToken: "",
-          batchAttempts: 0
+          status: finished ? (stats.failed > 0 ? "failed" : "sent") : "sending",
+          ...(finished ? { sentAt: now, completedAt: now, nextBatchAt: null } : { nextBatchAt: new Date(now.getTime() + 30 * 1000) }),
+          batchLockUntil: null, batchLockToken: "", batchAttempts: 0
         } }
       );
       continue;
@@ -165,11 +166,12 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
     recipientsQueued += batch.length;
     const stats = await refreshAnnouncementStats(announcement);
     if (nextIndex >= recipientIds.length) {
+      const finished = stats.pending === 0;
       await Announcement.updateOne(
         { _id: announcement._id, nextRecipientIndex: nextIndex, batchLockToken: "" },
         { $set: {
-          status: stats.failed > 0 ? "failed" : "sent",
-          sentAt: now, completedAt: now
+          status: finished ? (stats.failed > 0 ? "failed" : "sent") : "sending",
+          ...(finished ? { sentAt: now, completedAt: now, nextBatchAt: null } : { nextBatchAt: new Date(now.getTime() + 30 * 1000) })
         } }
       );
     }

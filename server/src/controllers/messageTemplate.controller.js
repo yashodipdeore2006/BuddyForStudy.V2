@@ -116,6 +116,20 @@ function summary(template) {
   };
 }
 
+const TEMPLATE_EVENT_USAGE = [
+  { notification: "course-purchase-confirmed-in-app", email: "course-purchase-confirmed-email", event: "Paid course purchase confirmed", source: "billingNotificationPayloads.js" },
+  { notification: "subscription-activated-in-app", email: "subscription-activated-email", event: "Subscription activated", source: "billingNotificationPayloads.js" },
+  { notification: "subscription-expiring-in-app", email: "subscription-expiring-email", event: "Subscription expiry reminder", source: "notification.service.js" },
+  { notification: "learning-reminder-in-app", email: "learning-reminder-email", event: "Learning reminder", source: "notification.service.js" },
+  { notification: "course-completed-in-app", email: "course-completed-email", event: "Course completion", source: "progress.service.js" },
+  { notification: "free-course-enrolled-in-app", email: "free-course-enrolled-email", event: "Free course enrollment", source: "enrollment.service.js" },
+  { notification: "refund-status-in-app", email: "refund-status-email", event: "Refund status update / reconciliation", source: "adminPro.controller.js" },
+  { notification: "payment-issue-status-updated-in-app", email: "payment-issue-status-updated-email", event: "Payment issue status update", source: "adminPro.controller.js" }
+];
+
+function getTemplateUsage(template) {
+  return TEMPLATE_EVENT_USAGE.filter((entry) => entry[template.channel] === template.key).map((entry) => ({ event: entry.event, source: entry.source }));
+}
 const TEMPLATE_SAMPLE_DEFAULTS = {
   userName: "Alex Morgan", courseTitle: "Introduction to MERN Stack", planName: "Premium",
   amount: "1,299.00", currency: "INR", purchaseDate: "19 Oct 2026", paymentReference: "TEST-REF-12345",
@@ -208,7 +222,7 @@ export async function listMessageTemplates(req, res, next) {
   try {
     await ensureDefaultAutomatedTemplates();
     const templates = await MessageTemplate.find({}).sort({ channel: 1, name: 1 }).lean();
-    return success(res, { templates });
+    return success(res, { templates: templates.map((template) => ({ ...template, usedBy: getTemplateUsage(template) })) });
   } catch (error) { next(error); }
 }
 
@@ -236,8 +250,9 @@ export async function updateMessageTemplate(req, res, next) {
     if (parsed.error) return failure(res, parsed.error, 400);
     const template = await MessageTemplate.findById(req.params.templateId);
     if (!template) return failure(res, "Message template not found", 404);
+    if (parsed.value.key !== template.key) return failure(res, "Template keys are immutable after creation. Create a new template for a new event key.", 409);
     const before = summary(template);
-    Object.assign(template, parsed.value, { updatedBy: req.user?.user?._id || null });
+    Object.assign(template, { ...parsed.value, key: template.key, updatedBy: req.user?.user?._id || null });
     await template.save();
     const auditResult = await auditTemplate(req, "message_template.updated", template, before, summary(template));
     return success(res, { template, auditLogRecorded: auditResult.recorded, auditQueued: auditResult.queued }, auditResult.recorded || auditResult.queued ? "Message template updated" : "Message template updated, but audit persistence failed");

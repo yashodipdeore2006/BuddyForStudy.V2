@@ -173,6 +173,21 @@ test("enrolled learners retain access to published legacy courses while pending 
 });
 
 
+test("course catalogue returns real module and lesson counts without loading full modules", async () => {
+  const service = await read("../src/services/course.service.js");
+  const page = await read("../../src/pages/Courses.tsx");
+  const card = await read("../../src/components/CourseCard.tsx");
+  const types = await read("../../src/types/index.ts");
+  assert.match(service, /function courseContentCountsStage\(\)/);
+  assert.match(service, /moduleCount: \{ \$size: \{ \$ifNull: \["\$modules", \[\]\] \} \}/);
+  assert.match(service, /lessonCount: \{/);
+  assert.match(service, /courseContentCountsStage\(\)/);
+  assert.match(page, /lesson_count: Number\.isFinite\(Number\(raw\.lessonCount\)\)/);
+  assert.match(card, /course\.lesson_count/);
+  assert.match(types, /lesson_count\?: number/);
+});
+
+
 test("content quality admin page exposes lifecycle, review, moderation, roadmaps and link checking", async () => {
   const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
   for (const phrase of ["Approve & publish if ready", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);

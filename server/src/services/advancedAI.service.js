@@ -57,7 +57,7 @@ function lessonDurationSeconds(lesson) {
 }
 
 async function findCourseLesson(courseId, lessonId) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true });
+  const course = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
   if (!course) {
     const error = new Error("Course not found");
     error.status = 404;
@@ -275,8 +275,11 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   const existing = await AILessonInsight.findOne({
     course: course._id,
     lesson: lesson._id,
-    contentHash: contextHash
+    contentHash: contextHash,
+    isHidden: { $ne: true }
   }).lean();
+  const hiddenInsight = await AILessonInsight.exists({ course: course._id, lesson: lesson._id, contentHash: contextHash, isHidden: true });
+  if (hiddenInsight) throw Object.assign(new Error("This AI lesson insight is hidden by content moderation."), { status: 403 });
 
   if (existing) {
     return {
@@ -415,8 +418,11 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
     course: course._id,
     lesson: lesson._id,
     questionHash,
-    contextHash
+    contextHash,
+    isHidden: { $ne: true }
   });
+  const hiddenAnswer = await AIQuestionAnswer.exists({ course: course._id, lesson: lesson._id, questionHash, contextHash, isHidden: true });
+  if (hiddenAnswer) throw Object.assign(new Error("This cached AI answer is hidden by content moderation."), { status: 403 });
 
   if (cached) {
     const questionLimit = await getQuestionLimit(course, lesson);

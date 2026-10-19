@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { SavedView } from "../src/models/SavedView.js";
 import { AuditLog } from "../src/models/AuditLog.js";
 import { createSavedView, listSavedViews, updateSavedView, deleteSavedView } from "../src/controllers/savedView.controller.js";
-import { adminPermissionMiddleware, authMiddleware } from "../src/middleware/auth.js";
+import { adminMiddleware, adminPermissionMiddleware, authMiddleware } from "../src/middleware/auth.js";
 
 function responseRecorder() {
   return { statusCode: 200, body: null, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
@@ -30,6 +30,19 @@ test("saved view routes enforce authentication and dashboard.read permission", (
   let allowed = false;
   middleware({ user: { role: "admin", accessType: "admin", adminRole: "super_admin", adminPermissionOverrides: [] } }, responseRecorder(), () => { allowed = true; });
   assert.equal(allowed, true);
+});
+
+test("saved view routes reject non-admins and administrators without dashboard.read", () => {
+  const nonAdmin = responseRecorder();
+  adminMiddleware({ user: { role: "user", accessType: "user" } }, nonAdmin, () => assert.fail("must reject non-admin"));
+  assert.equal(nonAdmin.statusCode, 403);
+
+  const missingPermission = responseRecorder();
+  adminPermissionMiddleware("dashboard.read")({
+    user: { role: "admin", accessType: "admin", adminRole: "support_manager", adminPermissionOverrides: [] }
+  }, missingPermission, () => assert.fail("must reject missing permission"));
+  assert.equal(missingPermission.statusCode, 403);
+  assert.match(missingPermission.body.message, /permission/i);
 });
 
 test("saved view creation validates fields before database writes", async () => {
@@ -70,6 +83,37 @@ test("saved view creation persists the validated view and returns 201", async ()
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.item.name, "Active users");
   assert.equal(res.body.item.shared, true);
+});
+
+test("saved view update audit stores only the safe before/after summary", async () => {
+  const view = {
+    _id: "507f1f77bcf86cd799439011",
+    owner: admin.userId,
+    page: "users",
+    name: "Current users",
+    shared: false,
+    filters: { q: "private@example.com" },
+    columns: ["access"],
+    sort: { sortBy: "name", sortOrder: "asc" },
+    density: "comfortable",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    async save() {},
+  };
+  const events = [];
+  const res = responseRecorder();
+  await withMocks([
+    [SavedView, { findOne: async () => view }],
+    [AuditLog, { create: async (event) => { events.push(event); return event; } }],
+  ], async () => {
+    await updateSavedView({ user: admin, params: { viewId: view._id }, body: { shared: true } }, res, (error) => { throw error; });
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].action, "admin.saved_view.updated");
+  assert.deepEqual(events[0].before, { page: "users", name: "Current users", shared: false });
+  assert.deepEqual(events[0].after, { page: "users", name: "Current users", shared: true });
+  assert.equal(JSON.stringify(events[0]).includes("private@example.com"), false);
 });
 
 test("saved view mutations require ownership", async () => {

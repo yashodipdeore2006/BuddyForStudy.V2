@@ -556,26 +556,54 @@ export async function getAny(courseId) {
 
 export async function createCourse(input) {
   const slug = input.slug ? normalizeSlug(input.slug) : normalizeSlug(input.title);
-  const course = await Course.create({ ...input, slug });
+  const generated = ["normal", "ai", "module", "discovery"].includes(input.generation?.mode);
+  const course = await Course.create({
+    ...input, slug, isPublished: false, status: "draft",
+    ...(generated ? { aiReviewStatus: "pending", aiReviewedBy: null, aiReviewedAt: null } : {})
+  });
   await cacheDelete(`course:${course._id}`);
   return course;
 }
 
-export async function updateCourse(courseId, input) {
+export async function updateCourse(courseId, input, context = {}) {
   if (input.slug) input.slug = normalizeSlug(input.slug);
-  const course = await Course.findByIdAndUpdate(courseId, input, { new: true, runValidators: true });
+  if (input.isPublished === true) {
+    const error = new Error("Use the readiness-gated publish action to publish a course.");
+    error.status = 400;
+    throw error;
+  }
+  const course = await Course.findById(courseId);
+  if (!course || course.deletedAt) return null;
+  for (const [key, value] of Object.entries(input)) {
+    if (key === "isPublished" && value === true) continue;
+    if (key === "reason" || key === "deletedAt" || key === "status" || key === "aiReviewStatus" || key === "aiReviewedBy" || key === "aiReviewedAt") continue;
+    course.set(key, value);
+  }
+  if (input.isPublished === false) course.isPublished = false;
+  course.$locals.revisionContext = {
+    actor: context.actor || null, source: "admin",
+    reason: String(context.reason || "Admin course update").trim().slice(0, 500),
+    summary: "Course updated through course API"
+  };
+  await course.save();
   await cacheDelete(`course:${courseId}`);
   return course;
 }
 
-export async function deleteCourse(courseId) {
-  const course = await Course.findByIdAndDelete(courseId);
+export async function deleteCourse(courseId, context = {}) {
+  const course = await Course.findById(courseId);
   if (!course) return null;
+  if (course.deletedAt) return course;
+  course.deletedAt = new Date();
+  course.isPublished = false;
+  course.status = "draft";
+  course.$locals.revisionContext = {
+    actor: context.actor || null, source: "admin",
+    reason: String(context.reason || "Admin soft delete").trim().slice(0, 500),
+    summary: "Course soft-deleted through course API"
+  };
+  await course.save();
   await cacheDelete(`course:${courseId}`);
-  await Promise.all([
-    Enrollment.deleteMany({ course: courseId }),
-    Progress.deleteMany({ course: courseId })
-  ]);
   return course;
 }
 

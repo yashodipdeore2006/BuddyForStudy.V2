@@ -67,6 +67,8 @@ export default function CoursePlayer() {
   const [error, setError] = useState("");
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState("");
+  const [quizRetryCount, setQuizRetryCount] = useState(0);
   const [quizData, setQuizData] = useState<any>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
@@ -134,6 +136,7 @@ export default function CoursePlayer() {
 
     async function loadQuiz() {
       setQuizLoading(true);
+      setQuizError("");
       setQuizData(null);
       setQuizAnswers({});
       setQuizSubmitted(false);
@@ -149,16 +152,20 @@ export default function CoursePlayer() {
           method: "POST",
           body: JSON.stringify({ courseId, lessonId }),
         });
+        if (!data?.quiz?.questions?.length) {
+          setQuizError("No questions are available yet. BuddyForStudy will try to generate them again when you retry.");
+          return;
+        }
         setQuizData(data.quiz);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load this quiz.");
+        setQuizError(err instanceof Error ? err.message : "Unable to load this quiz. Try again.");
       } finally {
         setQuizLoading(false);
       }
     }
 
     void loadQuiz();
-  }, [currentLesson?.lesson.type, courseId, lessonId]);
+  }, [currentLesson?.lesson.type, courseId, lessonId, quizRetryCount]);
 
   useEffect(() => {
     if (!course || lessonId || allLessons.length === 0) return;
@@ -534,8 +541,18 @@ export default function CoursePlayer() {
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">
-                          This quiz could not be generated. Try opening the lesson again.
+                        <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+                          <p className="font-semibold">{quizError || "No quiz questions are available yet."}</p>
+                          <p className="mt-1 text-amber-800">The course remains available. Quiz generation can be retried without rebuilding the course.</p>
+                          <button
+                            type="button"
+                            onClick={() => setQuizRetryCount((count) => count + 1)}
+                            disabled={quizLoading}
+                            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-900 px-4 py-2 font-semibold text-white transition hover:bg-amber-800 disabled:opacity-60"
+                          >
+                            {quizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                            {quizLoading ? "Retrying quiz generation..." : "Retry quiz generation"}
+                          </button>
                         </div>
                       )}
                     </div>

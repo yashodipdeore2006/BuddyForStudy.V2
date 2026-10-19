@@ -86,6 +86,8 @@ test("private AI draft courses remain owner-only and never enter the public cata
   const service = await read("../src/services/course.service.js");
   const discovery = await read("../src/services/discovery.service.js");
   const entitlement = await read("../src/services/subscriptionEntitlement.service.js");
+  const enrollment = await read("../src/services/enrollment.service.js");
+  const courseRoutes = await read("../src/routes/course.routes.js");
   assert.match(model, /visibility: \{ type: String, enum: \["public", "private"\]/);
   assert.match(discovery, /createPrivateCourseForUser/);
   assert.match(discovery, /visibility = "private"/);
@@ -93,6 +95,8 @@ test("private AI draft courses remain owner-only and never enter the public cata
   assert.match(service, /cached\.visibility === "private"/);
   assert.match(service, /createdForUser: userId/);
   assert.match(entitlement, /visibility: "private", createdForUser: userId/);
+  assert.match(enrollment, /visibility: "private", createdForUser: userId/);
+  assert.match(courseRoutes, /optionalAuthMiddleware, controller\.details/);
 });
 
 test("editing a learner review resets its moderation decision", async () => {

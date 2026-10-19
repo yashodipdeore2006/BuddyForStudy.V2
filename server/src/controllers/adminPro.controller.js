@@ -1683,15 +1683,19 @@ export async function payments(req, res, next) {
 
 export async function subscriptions(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     const status = String(req.query.status || "").trim();
     const allowed = ["trialing", "active", "past_due", "cancelled", "expired"];
     const filter = status && allowed.includes(status) ? { status } : {};
-    const items = await UserSubscription.find(filter)
-      .populate("user", "name email")
-      .populate("plan", "name price currency billingInterval features")
-      .sort({ updatedAt: -1 }).limit(limit).lean();
-    return success(res, { subscriptions: items });
+    const [items, total] = await Promise.all([
+      UserSubscription.find(filter)
+        .populate("user", "name email")
+        .populate("plan", "name price currency billingInterval features")
+        .sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      UserSubscription.countDocuments(filter)
+    ]);
+    return success(res, { subscriptions: items, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 
@@ -2462,7 +2466,8 @@ export async function updateCoupon(req, res, next) {
 
 export async function auditLogs(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     // Treat search input as literal text, not a user-supplied regular expression.
     const q = String(req.query.q || "").trim().slice(0, 100);
     const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -2478,8 +2483,11 @@ export async function auditLogs(req, res, next) {
     }
     if (req.query.action) filter.action = String(req.query.action);
     if (req.query.targetType) filter.targetType = String(req.query.targetType);
-    const logs = await AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).limit(limit).lean();
-    return success(res, { logs });
+    const [logs, total] = await Promise.all([
+      AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      AuditLog.countDocuments(filter)
+    ]);
+    return success(res, { logs, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 
@@ -2588,11 +2596,23 @@ export async function paymentIssueAssignees(req, res, next) {
 
 export async function paymentIssues(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     const status = String(req.query.status || "").trim();
     const allowedStatuses = ["open", "in_review", "resolved", "closed"];
     const filter = {};
     if (status && allowedStatuses.includes(status)) filter.status = status;
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const escapedQuery = q.replace(/[.*+?^$\u007b\u007d()|[\]\\]/g, "\\    if (status && allowedStatuses.includes(status)) filter.status = status;");
+    if (escapedQuery) {
+      const searchPattern = new RegExp(escapedQuery, "i");
+      const matchingUsers = await User.find({ $or: [{ name: searchPattern }, { email: searchPattern }] }).select("_id").limit(1000).lean();
+      filter.$or = [
+        { description: searchPattern },
+        { category: searchPattern },
+        { user: { $in: matchingUsers.map((user) => user._id) } }
+      ];
+    }
     const canReadSupportPrivate = hasAdminPermission(req.user?.adminRole, "payment_issues.manage", req.user?.adminPermissionOverrides);
     let query = PaymentIssue.find(filter)
       .populate("user", "name email")
@@ -2600,8 +2620,14 @@ export async function paymentIssues(req, res, next) {
     if (canReadSupportPrivate) {
       query = query.populate("assignedTo", "name email adminRole").populate("internalNotes.author", "name email");
     }
-    const issues = await query.sort({ createdAt: -1 }).limit(limit).lean();
-    return success(res, { issues: canReadSupportPrivate ? issues : issues.map(({ assignedTo, internalNotes, ...issue }) => issue) });
+    const [issues, total] = await Promise.all([
+      query.sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      PaymentIssue.countDocuments(filter)
+    ]);
+    return success(res, {
+      issues: canReadSupportPrivate ? issues : issues.map(({ assignedTo, internalNotes, ...issue }) => issue),
+      total, page, pages: Math.max(1, Math.ceil(total / limit)), limit
+    });
   } catch (e) { next(e); }
 }
 

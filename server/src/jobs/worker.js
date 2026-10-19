@@ -113,6 +113,8 @@ async function runAnnouncementBatches() {
   try {
     const result = await processScheduledAnnouncements(new Date(), 5, 100);
     if (result.batches) console.info("[worker] announcement batches processed", result);
+    await deliverPendingNotificationEmails(100);
+    await deliverPendingNotificationPush(100);
   } catch (error) {
     console.error("[worker] announcement processing failed", { name: error?.name || "Error", message: String(error?.message || "Announcement processing failed").slice(0, 300) });
   } finally {

@@ -1601,6 +1601,62 @@ export async function notificationDeliveries(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function deliveryLog(req, res, next) {
+  try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const filter = {};
+    const status = String(req.query.status || "");
+    const channel = String(req.query.channel || "");
+    const type = String(req.query.type || "");
+    if (status && ["pending", "sent", "failed", "skipped"].includes(status)) {
+      if (channel === "email") filter.emailStatus = status;
+      else if (channel === "push") filter.pushStatus = status;
+      else if (channel === "in_app") filter.showInApp = status === "sent";
+      else filter.$or = [{ emailStatus: status }, { pushStatus: status }, ...(status === "sent" ? [{ showInApp: true }] : status === "skipped" ? [{ showInApp: false }] : [])];
+    }
+    if (channel === "email" && !filter.emailStatus) filter.emailStatus = { $in: ["pending", "sent", "failed", "skipped"] };
+    if (channel === "push" && !filter.pushStatus) filter.pushStatus = { $in: ["pending", "sent", "failed", "skipped"] };
+    if (channel === "in_app") filter.showInApp = true;
+    if (type && ["system", "course", "billing", "promotion", "security", "learning"].includes(type)) filter.type = type;
+    const from = req.query.from ? new Date(String(req.query.from)) : null;
+    const to = req.query.to ? new Date(String(req.query.to)) : null;
+    if (from && Number.isNaN(from.getTime())) return failure(res, "Invalid from date", 400);
+    if (to && Number.isNaN(to.getTime())) return failure(res, "Invalid to date", 400);
+    if (from || to) { filter.createdAt = {}; if (from) filter.createdAt.$gte = from; if (to) filter.createdAt.$lte = to; }
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const userIds = await User.find({ $or: [{ email: new RegExp(escapeRegex(q), "i") }, { name: new RegExp(escapeRegex(q), "i") }] }).select("_id").limit(500).lean();
+      const userClause = { user: { $in: userIds.map((item) => item._id) } };
+      const eventClause = { eventKey: new RegExp(escapeRegex(q), "i") };
+      filter.$and = [...(filter.$and || []), { $or: [userClause, eventClause] }];
+    }
+    const [items, total] = await Promise.all([
+      Notification.find(filter).populate("user", "name email").sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Notification.countDocuments(filter)
+    ]);
+    return success(res, { page, limit, total, pages: Math.ceil(total / limit), sentMeans: "Provider accepted the request; this does not confirm inbox delivery, browser display, or that the learner read it.",
+      deliveries: items.map((item) => ({
+        id: String(item._id), time: item.updatedAt || item.createdAt, recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null,
+        type: item.type, eventKey: item.eventKey || "", title: item.title,
+        channels: { in_app: { status: item.showInApp ? "sent" : "skipped" }, email: { status: item.emailStatus, attempts: item.emailAttempts || 0, lastAttemptAt: item.emailLastAttemptAt, sentAt: item.emailSentAt, error: safeDeliveryError(item.emailError) }, push: { status: item.pushStatus, attempts: item.pushAttempts || 0, lastAttemptAt: item.pushLastAttemptAt, sentAt: item.pushSentAt, error: safeDeliveryError(item.pushError) } }
+      }))
+    });
+  } catch (error) { next(error); }
+}
+
+export async function retryDeliveryLog(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.notificationId)) return failure(res, "Invalid notificationId", 400);
+    const channel = String(req.body?.channel || "");
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const result = await retryNotificationDelivery(req.params.notificationId, channel);
+    await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, { channel: result.channel, status: result.status, attempts: result.attempts }, reason);
+    return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry queued/processed: ${result.status}`);
+  } catch (error) { if (error?.status) return failure(res, error.message, error.status); next(error); }
+}
 export async function payments(req, res, next) {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);

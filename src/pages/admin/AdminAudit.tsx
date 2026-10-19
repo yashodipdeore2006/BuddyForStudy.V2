@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, RefreshCcw, Search, X } from "lucide-react";
+import { ChevronDown, RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
+import { DetailDrawer } from "@/components/admin/DetailDrawer";
 import { SavedViews, type SavedViewRecord } from "@/components/admin/SavedViews";
 import JsonDiff from "@/components/admin/JsonDiff";
 
@@ -96,15 +97,6 @@ export default function AdminAudit() {
 
   useEffect(() => { void load(); void refreshSavedViews(); }, []);
 
-  useEffect(() => {
-    if (!selected) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSelected(null);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selected]);
-
   return (
     <div className="mx-auto max-w-7xl">
       <AdminPageHeader
@@ -165,15 +157,35 @@ export default function AdminAudit() {
         <AdminPagination page={page} pages={pages} total={total} from={total ? (page - 1) * limit + 1 : 0} to={Math.min(page * limit, total)} limit={limit} loading={loading} onPageChange={(nextPage) => { setPage(nextPage); void load({ q, action, targetType, page: nextPage, limit }); }} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); void load({ q, action, targetType, page: 1, limit: nextLimit }); }} />
       </div>
 
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <section role="dialog" aria-modal="true" aria-labelledby="audit-event-title" className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Audit event</p><h2 id="audit-event-title" className="mt-1 font-mono text-lg font-extrabold">{selected.action}</h2><p className="mt-1 text-xs text-slate-500">{selected.actor?.email || "system"} · {selected.createdAt ? new Date(selected.createdAt).toLocaleString() : "—"}</p></div><button type="button" aria-label="Close audit event details" className="rounded-xl p-2 hover:bg-slate-100" onClick={() => setSelected(null)}><X className="h-5 w-5" /></button></div>
-            <div className="mt-5"><JsonDiff before={selected.before ?? null} after={selected.after ?? null} /></div>
-            <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm"><span className="font-bold">Reason:</span> {selected.reason || "No reason recorded."}</div>
+      <DetailDrawer
+        open={Boolean(selected)}
+        title={selected?.action || "Audit event"}
+        subtitle={selected ? `${selected.actor?.email || "system"} · ${selected.createdAt ? new Date(selected.createdAt).toLocaleString() : "—"}` : undefined}
+        onClose={() => setSelected(null)}
+        wide
+      >
+        {selected && <div className="space-y-5">
+          <section className="grid gap-3 sm:grid-cols-2" aria-label="Audit event target">
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Target type</p>
+              <p className="mt-1 font-semibold text-slate-900">{selected.targetType || "—"}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Target ID</p>
+              <p className="mt-1 break-all font-mono text-sm text-slate-700">{selected.targetId || "—"}</p>
+            </div>
           </section>
-        </div>
-      )}
+          <section>
+            <h3 className="font-semibold text-slate-900">Before and after</h3>
+            <p className="mt-1 text-sm text-slate-500">Field-level differences recorded for this event.</p>
+            <div className="mt-3"><JsonDiff before={selected.before ?? null} after={selected.after ?? null} /></div>
+          </section>
+          <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-bold text-slate-900">Reason</h3>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{selected.reason || "No reason recorded."}</p>
+          </section>
+        </div>}
+      </DetailDrawer>
     </div>
   );
 }

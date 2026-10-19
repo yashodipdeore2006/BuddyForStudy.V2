@@ -1223,6 +1223,11 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
 
   located.lesson.quiz.questions = questions;
   located.lesson.quiz.generatedAt = new Date();
+  course.$locals.revisionContext = {
+    source: "system",
+    summary: "On-demand quiz generation",
+    reason: "Generate missing quiz questions when a learner opens the quiz"
+  };
   await course.save();
 
   return {

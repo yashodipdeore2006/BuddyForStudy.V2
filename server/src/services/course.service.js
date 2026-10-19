@@ -6,6 +6,18 @@ import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { searchYouTubeCourseRecommendations } from "./youtube.service.js";
 
+const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
+const PUBLICATION_APPROVAL_FILTER = {
+  $or: [
+    { "generation.mode": { $nin: GENERATED_COURSE_MODES } },
+    { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+  ]
+};
+function isHumanReviewedForPublication(course) {
+  return !GENERATED_COURSE_MODES.includes(course?.generation?.mode) ||
+    (course?.aiReviewStatus === "approved" && Boolean(course?.aiReviewedBy));
+}
+
 function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
@@ -174,6 +186,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
     isPublished: true,
     deletedAt: null,
     "generation.mode": { $ne: "module" },
+    $and: [PUBLICATION_APPROVAL_FILTER],
     ...(category ? { category } : {}),
     ...(level ? { level } : {}),
     $or: [
@@ -220,7 +233,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
 
     const existing = await Course.findOne(matchFilter).lean();
     if (existing) {
-      if (existing.isPublished) courses.push(existing);
+      if (existing.isPublished && isHumanReviewedForPublication(existing)) courses.push(existing);
       continue;
     }
 
@@ -369,7 +382,7 @@ function courseSummary(course) {
 
 
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
-  const filter = { isPublished: true, deletedAt: null };
+  const filter = { isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
   if (level) filter.level = level;
 
@@ -508,9 +521,13 @@ export async function getPublished(courseId) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);
   if (cached) {
+    if (!isHumanReviewedForPublication(cached) || cached.deletedAt) {
+      await cacheDelete(key);
+      return null;
+    }
     if (!hasMultipleTutorialVideos(cached)) return cached;
 
-    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
+    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] });
     if (!courseDoc) return null;
     if (normalizeMultiVideoLessons(courseDoc)) {
       await courseDoc.save();

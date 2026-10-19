@@ -127,6 +127,7 @@ async function refreshVideoDuration(course, lesson) {
       lesson.tutorial.videos[0].durationSeconds = resource.durationSeconds;
       lesson.tutorial.videos[0].duration = resource.duration || "";
       lesson.markModified?.("tutorial.videos");
+      course.$locals.revisionContext = { source: "system", summary: "Video duration metadata refresh", reason: "" };
       await course.save();
       return resource.durationSeconds;
     }

@@ -682,7 +682,7 @@ export default function Courses() {
               <CourseGridSkeleton count={6} />
             </div>
           ) : (
-            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
+            <div className="mt-5 rounded-2xl">
               {filteredCourses.length > 0 && (
                 <div className="bfs-course-results-grid grid gap-4">
                   {filteredCourses.map((course) => (

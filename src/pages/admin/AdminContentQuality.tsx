@@ -118,8 +118,8 @@ export default function AdminContentQuality() {
 
 
   async function publish(course: any) {
-    if (aiGenerated(course) && (course.aiReviewStatus !== "approved" || !course.aiReviewedBy)) {
-      setError("This AI-generated course needs an explicit human approval before publishing."); return;
+    if (aiGenerated(course) && (course.aiReviewStatus !== "approved" || (!course.aiReviewedBy && course.aiReviewSource !== "automatic"))) {
+      setError("This AI-generated course must be approved by an administrator or the configured automatic approval policy before publishing."); return;
     }
     const reason = reasonPrompt("publishing " + course.title);
     if (!reason) { setError("A reason of 10–500 characters is required."); return; }

@@ -25,6 +25,7 @@ const links: AdminLink[] = [
   { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Platform overview and operations" },
   { to: "/admin/users", label: "Users", permission: "users.read", group: "Manage", icon: Users, description: "Accounts, roles and access" },
   { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Manage", icon: BookOpen, description: "Courses and learning content" },
+  { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Manage", icon: BookOpen, description: "AI review, revisions, moderation and link health" },
   { to: "/admin/support", label: "Support cases", permission: "payment_issues.manage", group: "Manage", icon: Headset, description: "Resolve learner support issues" },
   { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Manage", icon: ServerCog, description: "Health, queues, webhooks, alerts and delivery logs" },
   { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Insights", icon: Activity, description: "Platform performance and revenue" },

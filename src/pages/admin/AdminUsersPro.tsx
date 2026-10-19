@@ -641,7 +641,7 @@ export default function AdminUsersPro() {
       )}
 
       {selected && (
-        <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={<PiiCell value={undefined} maskedValue={selected.user?.emailMasked} kind="email" canReveal={canRevealPii} onReveal={(reason) => revealUserEmail(String(selected.user?._id), reason)} />} onClose={closeUserDrawer}>
+        <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={<PiiCell key={String(selected.user?._id || "selected-user-email")} value={undefined} maskedValue={selected.user?.emailMasked} kind="email" canReveal={canRevealPii} onReveal={(reason) => revealUserEmail(String(selected.user?._id), reason)} />} onClose={closeUserDrawer}>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Role</p><p className="mt-1 font-bold capitalize">{selected.user?.role}</p></div>
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Sign-in</p><p className="mt-1 font-bold">{selected.user?.authProvider}</p></div>

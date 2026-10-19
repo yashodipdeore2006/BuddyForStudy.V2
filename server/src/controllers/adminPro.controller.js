@@ -2608,7 +2608,7 @@ export async function paymentIssues(req, res, next) {
     const filter = {};
     if (status && allowedStatuses.includes(status)) filter.status = status;
     const q = String(req.query.q || "").trim().slice(0, 100);
-    const escapedQuery = q.replace(/[.*+?^$\u007b\u007d()|[\]\\]/g, "\\    if (status && allowedStatuses.includes(status)) filter.status = status;");
+    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     if (escapedQuery) {
       const searchPattern = new RegExp(escapedQuery, "i");
       const matchingUsers = await User.find({ $or: [{ name: searchPattern }, { email: searchPattern }] }).select("_id").limit(1000).lean();

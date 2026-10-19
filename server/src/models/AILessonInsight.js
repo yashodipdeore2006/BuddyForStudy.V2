@@ -8,7 +8,12 @@ const aiLessonInsightSchema = new mongoose.Schema({
   keyNotes: { type: [String], default: [] },
   model: { type: String, default: "" },
   generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-  generatedAt: { type: Date, default: Date.now }
+  generatedAt: { type: Date, default: Date.now },
+  moderationStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending", index: true },
+  moderationNote: { type: String, default: "", maxlength: 2000 },
+  moderatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  moderatedAt: { type: Date, default: null },
+  isHidden: { type: Boolean, default: false, index: true }
 }, { timestamps: true, collection: "ai_lesson_insights" });
 
 aiLessonInsightSchema.index(

@@ -29,7 +29,12 @@ const quizBankSchema = new mongoose.Schema({
   questions: { type: [quizQuestionSchema], required: true },
   attempts: { type: [quizAttemptSchema], default: [] },
   generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-  generatedAt: { type: Date, default: Date.now }
+  generatedAt: { type: Date, default: Date.now },
+  moderationStatus: { type: String, enum: ["pending", "approved", "rejected"], default: "pending", index: true },
+  moderationNote: { type: String, default: "", maxlength: 2000 },
+  moderatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  moderatedAt: { type: Date, default: null },
+  isHidden: { type: Boolean, default: false, index: true }
 }, { timestamps: true, collection: "quiz_bank" });
 
 quizBankSchema.index({ course: 1, lesson: 1, fingerprint: 1 }, { unique: true });

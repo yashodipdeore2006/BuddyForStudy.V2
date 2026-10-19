@@ -1680,9 +1680,50 @@ export async function retryDeliveryLog(req, res, next) {
 }
 export async function payments(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-    const items = await Payment.find().populate("user", "name email").populate("course", "title").populate("plan", "name price billingInterval").sort({ createdAt: -1 }).limit(limit).lean();
-    return success(res, { payments: items });
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const requestedStatus = String(req.query.status || "").trim();
+    const allowedStatuses = ["created", "pending", "paid", "failed", "refunded", "partially_refunded", "cancelled"];
+    const filter = requestedStatus && allowedStatuses.includes(requestedStatus) ? { status: requestedStatus } : {};
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const [users, courses, plans] = await Promise.all([
+        User.find({ $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(500).lean(),
+        Course.find({ title: pattern }).select("_id").limit(500).lean(),
+        SubscriptionPlan.find({ name: pattern }).select("_id").limit(500).lean()
+      ]);
+      filter.$or = [
+        { provider: pattern },
+        { providerPaymentId: pattern },
+        { providerOrderId: pattern },
+        { user: { $in: users.map((user) => user._id) } },
+        { course: { $in: courses.map((course) => course._id) } },
+        { plan: { $in: plans.map((plan) => plan._id) } }
+      ];
+      if (isValidObjectId(q)) filter.$or.push({ _id: new mongoose.Types.ObjectId(q) });
+    }
+    const [items, total, totalPayments, paidValue] = await Promise.all([
+      Payment.find(filter)
+        .populate("user", "name email")
+        .populate("course", "title")
+        .populate("plan", "name price billingInterval")
+        .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Payment.countDocuments(filter),
+      Payment.countDocuments({}),
+      Payment.aggregate([
+        { $match: { status: { $in: ["paid", "partially_refunded"] } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ])
+    ]);
+    return success(res, {
+      payments: items,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      limit,
+      summary: { totalPayments, paidTotal: Number(paidValue[0]?.total || 0) }
+    });
   } catch (e) { next(e); }
 }
 
@@ -1706,12 +1747,45 @@ export async function subscriptions(req, res, next) {
 
 export async function refunds(req, res, next) {
   try {
-    const items = await RefundRequest.find().populate("user", "name email").populate({ path: "payment", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name price billingInterval" }] }).populate("processedBy", "name email").sort({ createdAt: -1 }).limit(200).lean();
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const requestedStatus = String(req.query.status || "").trim();
+    const allowedStatuses = ["pending", "approved", "rejected", "processed"];
+    const filter = requestedStatus && allowedStatuses.includes(requestedStatus) ? { status: requestedStatus } : {};
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const [users, matchingPayments] = await Promise.all([
+        User.find({ $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(500).lean(),
+        Payment.find({ $or: [{ providerPaymentId: pattern }, { providerOrderId: pattern }] }).select("_id").limit(500).lean()
+      ]);
+      filter.$or = [
+        { reason: pattern },
+        { decisionReason: pattern },
+        { adminNote: pattern },
+        { providerRefundId: pattern },
+        { user: { $in: users.map((user) => user._id) } },
+        { payment: { $in: matchingPayments.map((payment) => payment._id) } }
+      ];
+      if (isValidObjectId(q)) filter.$or.push({ _id: new mongoose.Types.ObjectId(q) });
+    }
+    const [items, total, statusCounts] = await Promise.all([
+      RefundRequest.find(filter)
+        .populate("user", "name email")
+        .populate({ path: "payment", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name price billingInterval" }] })
+        .populate("processedBy", "name email")
+        .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      RefundRequest.countDocuments(filter),
+      RefundRequest.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
+    ]);
+    const summary = { pending: 0, approved: 0, rejected: 0, processed: 0 };
+    for (const row of statusCounts) if (Object.prototype.hasOwnProperty.call(summary, row._id)) summary[row._id] = row.count;
     const now = Date.now();
-    return success(res, { refunds: items.map((item) => {
+    const refunds = items.map((item) => {
       const dueAt = item.slaDueAt || new Date(new Date(item.createdAt).getTime() + 24 * 60 * 60 * 1000);
       return { ...item, sla: { dueAt, breached: dueAt.getTime() < now && ["pending", "approved"].includes(item.status), hoursRemaining: Math.ceil((dueAt.getTime() - now) / 3600000) } };
-    }) });
+    });
+    return success(res, { refunds, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit, summary });
   } catch (e) { next(e); }
 }
 

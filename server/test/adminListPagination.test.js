@@ -37,3 +37,22 @@ test("admin course catalogue supports bounded server-side pagination and literal
   assert.match(section, /Course\.countDocuments\(filter\)/);
   assert.match(section, /pages: Math\.max\(1, Math\.ceil\(total \/ limit\)\)/);
 });
+
+
+test("admin payments are searchable and use bounded server-side pagination with global finance metrics", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const section = controller.slice(controller.indexOf("export async function payments"), controller.indexOf("export async function subscriptions"));
+  assert.match(section, /escapeRegex\(q\)/);
+  assert.match(section, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
+  assert.match(section, /Payment\.countDocuments\(filter\)/);
+  assert.match(section, /paidTotal: Number\(paidValue\[0\]\?\.total \|\| 0\)/);
+});
+
+test("admin refunds are searchable and use bounded server-side pagination with status summaries", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const section = controller.slice(controller.indexOf("export async function refunds"), controller.indexOf("export async function updateRefund"));
+  assert.match(section, /escapeRegex\(q\)/);
+  assert.match(section, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
+  assert.match(section, /RefundRequest\.countDocuments\(filter\)/);
+  assert.match(section, /summary/);
+});

@@ -55,12 +55,13 @@ export async function refreshAnnouncementStats(announcement) {
   const row = rows[0] || {};
   const total = Number(announcement.recipientIds?.length || announcement.stats?.total || 0);
   const sent = Number(row.sent || 0);
-  const failed = Number(row.failed || 0);
+  const channelFailed = Number(row.failed || 0);
   const channelPending = Number(row.pending || 0);
   const processed = Number(row.total || 0);
   const unprocessed = Math.max(0, total - processed);
   const cancelled = announcement.status === "cancelled";
   const abandoned = announcement.status === "failed" ? unprocessed : 0;
+  const failed = channelFailed + abandoned;
   const skipped = cancelled
     ? Math.max(0, total - sent - failed - channelPending)
     : Math.max(0, processed - sent - failed - channelPending);

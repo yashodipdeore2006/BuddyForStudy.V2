@@ -150,10 +150,37 @@ export function AdminTabs<T extends string>({
   onChange: (value: T) => void;
   ariaLabel: string;
 }) {
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const moveFocus = (event: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    const enabled = items.map((item, index) => item.disabled ? -1 : index).filter((index) => index >= 0);
+    if (!enabled.length) return;
+    const position = enabled.indexOf(currentIndex);
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight") nextIndex = enabled[(position + 1) % enabled.length];
+    else if (event.key === "ArrowLeft") nextIndex = enabled[(position - 1 + enabled.length) % enabled.length];
+    else if (event.key === "Home") nextIndex = enabled[0];
+    else if (event.key === "End") nextIndex = enabled[enabled.length - 1];
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    onChange(items[nextIndex].value);
+    tabRefs.current[nextIndex]?.focus();
+  };
+
   return (
     <div className="admin-tabs" role="tablist" aria-label={ariaLabel}>
-      {items.map((item) => (
-        <button key={item.value} type="button" role="tab" aria-selected={value === item.value} disabled={item.disabled} className="admin-tab" onClick={() => onChange(item.value)}>
+      {items.map((item, index) => (
+        <button
+          key={item.value}
+          ref={(node) => { tabRefs.current[index] = node; }}
+          type="button"
+          role="tab"
+          aria-selected={value === item.value}
+          tabIndex={value === item.value ? 0 : -1}
+          disabled={item.disabled}
+          className="admin-tab"
+          onClick={() => onChange(item.value)}
+          onKeyDown={(event) => moveFocus(event, index)}
+        >
           {item.label}
         </button>
       ))}

@@ -180,7 +180,8 @@ export default function AdminCoupons() {
         />
       </div>
 
-      {activeSection === "create" && <section className="card mt-4 p-5">
+      {activeSection === "create" && <>
+      <section className="card mt-4 p-5">
         <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-blue-600" /><div><h2 className="font-bold">Create promotion</h2><p className="text-xs text-slate-500">Use caps and expiry dates to prevent accidental open-ended discounts.</p></div></div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-sm font-medium text-slate-700">
@@ -244,7 +245,7 @@ export default function AdminCoupons() {
           <div className="flex items-end"><button type="button" className="btn-primary w-full" onClick={() => void generateBulk()} disabled={saving || !permissions.includes("coupons.manage")}>{saving ? "Generating…" : "Generate batch"}</button></div>
         </div>
         <p className="mt-2 text-xs text-slate-500">Uses the discount type, value, limits, expiry and course scope configured in the creation form above.</p>
-      </section>}
+      </section></>}
 
       {activeSection === "promotions" && <section className="card mt-4 overflow-hidden">
         <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Active & past promotions</h2><p className="mt-1 text-xs text-slate-500">{coupons.length} coupon records</p></div>

@@ -170,8 +170,6 @@ export default function AdminRoles() {
       {activeSection === "administrators" && <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
         <p>Role changes take effect on the next API request. The last active Super Admin cannot be demoted, and administrators cannot change their own role from this screen.</p>
-      </div>
-
       </div>}
 
       {activeSection === "invitations" && <AdminInvitationManager />}

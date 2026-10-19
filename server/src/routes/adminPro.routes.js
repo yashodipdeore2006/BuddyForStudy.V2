@@ -83,6 +83,7 @@ router.post("/deliveries/:notificationId/retry", adminPermissionMiddleware("noti
 
 router.get("/message-templates", adminPermissionMiddleware("communications.manage"), messageTemplateController.listMessageTemplates);
 router.post("/message-templates", adminPermissionMiddleware("communications.manage"), messageTemplateController.createMessageTemplate);
+router.post("/message-templates/preview", adminPermissionMiddleware("communications.manage"), messageTemplateController.previewMessageTemplate);
 router.put("/message-templates/:templateId", adminPermissionMiddleware("communications.manage"), messageTemplateController.updateMessageTemplate);
 router.post("/message-templates/:templateId/preview", adminPermissionMiddleware("communications.manage"), messageTemplateController.previewMessageTemplate);
 router.post("/message-templates/:templateId/test-send", adminPermissionMiddleware("communications.manage"), messageTemplateController.testSendMessageTemplate);

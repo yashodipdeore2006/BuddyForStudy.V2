@@ -9,7 +9,7 @@ type Issue = {
   description: string;
   status: "open" | "in_review" | "resolved" | "closed";
   adminNote?: string;
-  assignedTo?: { _id?: string; id?: string; name?: string; email?: string } | string | null;
+  assignedTo?: { _id?: string; id?: string; name?: string; email?: string } | null;
   internalNotes?: { _id?: string; note: string; reason: string; createdAt: string; author?: { name?: string; email?: string } }[];
   createdAt: string;
   user?: { name?: string; email?: string };
@@ -50,7 +50,7 @@ export default function AdminSupport() {
       setAssignees(assigneeData.assignees || []);
       setAssignments((current) => {
         const next = { ...current };
-        for (const issue of data.issues || []) if (next[issue._id] === undefined) next[issue._id] = issue.assignedTo?._id || issue.assignedTo?.id || (typeof issue.assignedTo === "string" ? issue.assignedTo : "");
+        for (const issue of data.issues || []) if (next[issue._id] === undefined) next[issue._id] = issue.assignedTo?._id || issue.assignedTo?.id || "";
         return next;
       });
     } catch (e) {
@@ -59,7 +59,7 @@ export default function AdminSupport() {
   }
   useEffect(() => { void load(); }, [filter]);
 
-  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? (typeof issue.assignedTo === "string" ? issue.assignedTo : issue.assignedTo?._id || issue.assignedTo?.id || "")) {
+  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? (issue.assignedTo?._id || issue.assignedTo?.id || "")) {
     const adminNote = (notes[issue._id] ?? issue.adminNote ?? "").trim();
     const internalNote = (internalNotes[issue._id] || "").trim();
     const reason = window.prompt("Reason for this support case change (10–500 characters):")?.trim() || "";
@@ -121,7 +121,7 @@ export default function AdminSupport() {
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
           <label className="block text-sm font-medium text-slate-700">Assigned administrator
-            <select value={assignments[issue._id] ?? (typeof issue.assignedTo === "string" ? issue.assignedTo : issue.assignedTo?._id || issue.assignedTo?.id || "")} onChange={(e) => setAssignments((old) => ({ ...old, [issue._id]: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+            <select value={assignments[issue._id] ?? (issue.assignedTo?._id || issue.assignedTo?.id || "")} onChange={(e) => setAssignments((old) => ({ ...old, [issue._id]: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">
               <option value="">Unassigned</option>
               {assignees.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.role}</option>)}
             </select>

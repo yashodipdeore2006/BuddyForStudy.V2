@@ -33,6 +33,7 @@ const announcementSchema = new mongoose.Schema({
   stats: {
     total: { type: Number, default: 0, min: 0 },
     sent: { type: Number, default: 0, min: 0 },
+    pending: { type: Number, default: 0, min: 0 },
     failed: { type: Number, default: 0, min: 0 },
     skipped: { type: Number, default: 0, min: 0 },
     in_app: { type: channelStatsSchema, default: () => ({}) },

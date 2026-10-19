@@ -1,12 +1,47 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, CreditCard, IndianRupee, RefreshCcw, Search, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminConfirmDialog, AdminPageHeader, AdminPagination, AdminTabs } from "@/components/admin/AdminUI";
 import { DetailDrawer } from "@/components/admin/DetailDrawer";
 
-type Refund = any;
-type PaymentRecord = any;
-type PaymentIssue = any;
+type Person = { _id?: string; name?: string; email?: string };
+type PaymentRecord = {
+  _id: string;
+  user?: Person;
+  course?: { title?: string } | null;
+  plan?: { name?: string } | null;
+  amount?: number;
+  currency?: string;
+  provider?: string;
+  providerPaymentId?: string;
+  providerOrderId?: string;
+  status: string;
+  createdAt?: string;
+};
+type Refund = {
+  _id: string;
+  user?: Person;
+  payment?: PaymentRecord | null;
+  amount?: number;
+  reason?: string;
+  status: "pending" | "approved" | "rejected" | "processed";
+  adminNote?: string;
+  decisionReason?: string;
+  providerRefundId?: string;
+  createdAt?: string;
+  processedBy?: Person | null;
+  sla?: { dueAt?: string; breached?: boolean; hoursRemaining?: number };
+};
+type PaymentIssue = {
+  _id: string;
+  user?: Person;
+  payment?: PaymentRecord | null;
+  category?: string;
+  description?: string;
+  status: "open" | "in_review" | "resolved" | "closed";
+  adminNote?: string;
+  createdAt?: string;
+};
 type BillingAction =
   | { kind: "refund"; item: Refund; status: "approved" | "rejected" }
   | { kind: "issue"; item: PaymentIssue; status: "in_review" | "resolved" | "closed" };
@@ -148,7 +183,10 @@ export default function AdminBilling() {
     await Promise.all([loadRefunds(), loadPayments(), loadIssues(), loadPermissions()]);
   }, [loadRefunds, loadPayments, loadIssues, loadPermissions]);
 
-  useEffect(() => { void loadAll(); }, [loadAll]);
+  useEffect(() => { void loadRefunds(); }, [loadRefunds]);
+  useEffect(() => { void loadPayments(); }, [loadPayments]);
+  useEffect(() => { void loadIssues(); }, [loadIssues]);
+  useEffect(() => { void loadPermissions(); }, [loadPermissions]);
 
   function openRefundAction(item: Refund, status: "approved" | "rejected") {
     setActionError("");
@@ -165,6 +203,7 @@ export default function AdminBilling() {
     setActionNote(item.adminNote || "");
     setActionConfirmText("");
     setPendingAction({ kind: "issue", item, status });
+    setDetailDrawer(null);
   }
 
   async function submitAction() {
@@ -198,7 +237,7 @@ export default function AdminBilling() {
     } finally { setActionId(null); }
   }
 
-  async function submitReconciliation(event: React.FormEvent<HTMLFormElement>) {
+  async function submitReconciliation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!reconcileItem) return;
     const id = String(providerRefundId || "").trim();

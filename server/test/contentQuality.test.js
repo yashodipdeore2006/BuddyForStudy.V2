@@ -121,3 +121,12 @@ test("legacy admin course endpoints cannot publish directly or permanently delet
   assert.doesNotMatch(service, /Course\.findByIdAndDelete\(courseId\)/);
   assert.doesNotMatch(service, /Course\.findByIdAndUpdate\(courseId, input/);
 });
+
+test("admin roadmap listing uses bounded server-side pagination and reports page metadata", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const roadmaps = controller.slice(controller.indexOf("export async function contentRoadmaps"), controller.indexOf("function collectCourseLinks"));
+  assert.match(roadmaps, /const page = Math\.max\(1,/);
+  assert.match(roadmaps, /const limit = Math\.min\(Math\.max\(/);
+  assert.match(roadmaps, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
+  assert.match(roadmaps, /pages: Math\.max\(1, Math\.ceil\(total \/ limit\)\)/);
+});

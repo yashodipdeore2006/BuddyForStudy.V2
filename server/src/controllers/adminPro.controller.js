@@ -631,14 +631,15 @@ export async function moderateContent(req, res, next) {
 
 export async function contentRoadmaps(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 300);
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     const status = String(req.query.status || "");
     const filter = status && ["active", "completed"].includes(status) ? { status } : {};
     const [items, total] = await Promise.all([
-      LearningRoadmap.find(filter).populate("user", "name email").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).limit(limit).lean(),
+      LearningRoadmap.find(filter).populate("user", "name email").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       LearningRoadmap.countDocuments(filter)
     ]);
-    return success(res, { roadmaps: items, total });
+    return success(res, { roadmaps: items, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 

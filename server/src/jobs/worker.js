@@ -128,7 +128,7 @@ async function shutdown(signal) {
   if (heartbeatHandle) clearInterval(heartbeatHandle);
   if (announcementHandle) clearInterval(announcementHandle);
   try {
-    while (maintenanceInProgress) {
+    while (maintenanceInProgress || announcementRunInProgress) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     await heartbeatWorker("stopped").catch((error) => console.error("[worker] unable to record shutdown heartbeat", { code: error?.code }));

@@ -29,6 +29,7 @@ import AdminDesignSystem from '@/pages/admin/AdminDesignSystem';
 import AdminUsersPro from '@/pages/admin/AdminUsersPro';
 import AdminCoursesPro from '@/pages/admin/AdminCoursesPro';
 import AdminContentQuality from '@/pages/admin/AdminContentQuality';
+import AdminRoadmaps from '@/pages/admin/AdminRoadmaps';
 import AdminPlans from '@/pages/admin/AdminPlans';
 import AdminBilling from '@/pages/admin/AdminBilling';
 import AdminSubscriptions from '@/pages/admin/AdminSubscriptions';
@@ -75,6 +76,7 @@ function App() {
     <Route path="/admin/users" element={<AdminPage><AdminUsersPro /></AdminPage>} />
     <Route path="/admin/courses" element={<AdminPage><AdminCoursesPro /></AdminPage>} />
     <Route path="/admin/content-quality" element={<AdminPage><AdminContentQuality /></AdminPage>} />
+    <Route path="/admin/roadmaps" element={<AdminPage><AdminRoadmaps /></AdminPage>} />
     <Route path="/admin/plans" element={<AdminPage><AdminPlans /></AdminPage>} />
     <Route path="/admin/billing" element={<AdminPage><AdminBilling /></AdminPage>} />
     <Route path="/admin/subscriptions" element={<AdminPage><AdminSubscriptions /></AdminPage>} />

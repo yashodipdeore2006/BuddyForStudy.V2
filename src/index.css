@@ -747,3 +747,26 @@ html[data-theme="dark"] .bfs-plan-option--selected {
 @media (max-width: 640px) {
   .bfs-plan-card { border-radius: 20px; }
 }
+
+
+/* Catalog layout: use the available viewport width like a responsive video grid. */
+.bfs-catalog-shell {
+  width: 100%;
+  max-width: min(100%, 1920px);
+  padding-inline: clamp(12px, 2.2vw, 40px);
+}
+.bfs-course-results-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 1fr));
+  align-items: stretch;
+  gap: clamp(12px, 1.2vw, 22px);
+}
+.bfs-course-results-grid > * { min-width: 0; }
+.bfs-course-card { min-width: 0; }
+.bfs-course-card__media { height: clamp(112px, 10vw, 170px); }
+@media (min-width: 1500px) {
+  .bfs-course-results-grid { grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); }
+}
+@media (max-width: 520px) {
+  .bfs-catalog-shell { padding-inline: 12px; }
+  .bfs-course-results-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
+}

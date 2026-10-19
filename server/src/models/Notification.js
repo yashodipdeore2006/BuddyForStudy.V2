@@ -22,6 +22,15 @@ const notificationSchema = new mongoose.Schema({
   pushLastAttemptAt: { type: Date, default: null },
   pushSentAt: { type: Date, default: null },
   pushError: { type: String, default: "", maxlength: 500 },
+  retryHistory: [{
+    channel: { type: String, enum: ["email", "push"], required: true },
+    priorAttempts: { type: Number, min: 0, default: 0 },
+    previousError: { type: String, maxlength: 500, default: "" },
+    previousLastAttemptAt: { type: Date, default: null },
+    retriedAt: { type: Date, required: true },
+    actorId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    reason: { type: String, maxlength: 500, default: "" }
+  }],
   link: { type: String, default: "" },
   readAt: { type: Date, default: null },
   sentBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }

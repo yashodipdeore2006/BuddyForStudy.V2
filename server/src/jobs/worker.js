@@ -8,12 +8,15 @@ import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
 import { heartbeatWorker, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed } from "../services/jobHeartbeat.service.js";
 import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
+import { processScheduledAnnouncements } from "../services/announcement.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
 let stopping = false;
 let intervalHandle;
 let heartbeatHandle;
+let announcementHandle;
+let announcementRunInProgress = false;
 
 async function runMaintenance() {
   if (maintenanceInProgress || stopping) {
@@ -104,12 +107,26 @@ async function runMaintenance() {
   }
 }
 
+async function runAnnouncementBatches() {
+  if (announcementRunInProgress || stopping) return;
+  announcementRunInProgress = true;
+  try {
+    const result = await processScheduledAnnouncements(new Date(), 5, 100);
+    if (result.batches) console.info("[worker] announcement batches processed", result);
+  } catch (error) {
+    console.error("[worker] announcement processing failed", { name: error?.name || "Error", message: String(error?.message || "Announcement processing failed").slice(0, 300) });
+  } finally {
+    announcementRunInProgress = false;
+  }
+}
+
 async function shutdown(signal) {
   if (stopping) return;
   stopping = true;
   console.info(`[worker] received ${signal}; stopping maintenance scheduler`);
   if (intervalHandle) clearInterval(intervalHandle);
   if (heartbeatHandle) clearInterval(heartbeatHandle);
+  if (announcementHandle) clearInterval(announcementHandle);
   try {
     while (maintenanceInProgress) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -130,7 +147,9 @@ heartbeatHandle = setInterval(() => {
   void heartbeatWorker("running").catch((error) => console.error("[worker] heartbeat write failed", { code: error?.code, name: error?.name }));
 }, 60 * 1000);
 await runMaintenance();
+await runAnnouncementBatches();
 intervalHandle = setInterval(() => void runMaintenance(), intervalMs);
+announcementHandle = setInterval(() => void runAnnouncementBatches(), 30 * 1000);
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 console.info("[worker] background maintenance worker started");

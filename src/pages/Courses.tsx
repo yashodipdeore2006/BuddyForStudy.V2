@@ -231,7 +231,12 @@ export default function Courses() {
       const data = await apiFetch("/api/courses/" + encodeURIComponent(courseId));
       setAiRoadmap((current: any) => current ? {
         ...current,
-        course: { ...current.course, ...data.course, isPublished: data.course?.isPublished ?? true }
+        course: {
+          ...current.course,
+          ...data.course,
+          isPublished: Boolean(data.course?.isPublished),
+          ...(data.course?.isPublished ? { aiReviewStatus: "approved" } : {})
+        }
       } : current);
       setAiEnrollError(null);
     } catch {

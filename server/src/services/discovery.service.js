@@ -407,7 +407,8 @@ export async function getOrCreateNormalCourse(query) {
 export async function getOrCreateYouTubeResourceCourse({
   query,
   resourceType,
-  resourceId
+  resourceId,
+  userId = null
 }) {
   const type = resourceType === "playlist" ? "playlist" : "video";
   const id = String(resourceId || "").trim();
@@ -421,10 +422,13 @@ export async function getOrCreateYouTubeResourceCourse({
     "generation.mode": "discovery",
     "generation.sourceResourceType": type,
     "generation.sourceResourceId": id,
-    isPublished: true
+    deletedAt: null
   }).lean();
 
-  if (existing) return existing;
+  if (existing) {
+    if (existing.isPublished && existing.aiReviewStatus === "approved" && existing.aiReviewedBy) return existing;
+    return userId ? createPrivateCourseForUser(existing, userId, { resourceType: type, resourceId: id }) : existing;
+  }
 
   let title = query || "YouTube Course";
   let description = "";
@@ -546,16 +550,20 @@ export async function getOrCreateYouTubeResourceCourse({
   };
 
   try {
-    return await Course.create(payload);
+    const created = await Course.create(payload);
+    return userId ? createPrivateCourseForUser(created, userId, { resourceType: type, resourceId: id }) : created;
   } catch (error) {
     if (error?.code === 11000) {
       const retry = await Course.findOne({
         "generation.mode": "discovery",
         "generation.sourceResourceType": type,
         "generation.sourceResourceId": id,
-        isPublished: true
+        deletedAt: null
       }).lean();
-      if (retry) return retry;
+      if (retry) {
+        if (retry.isPublished && retry.aiReviewStatus === "approved" && retry.aiReviewedBy) return retry;
+        return userId ? createPrivateCourseForUser(retry, userId, { resourceType: type, resourceId: id }) : retry;
+      }
     }
     throw error;
   }
@@ -565,8 +573,9 @@ export async function searchCourseBySkills(query) {
   return (await getOrCreateNormalCourse(query)).result;
 }
 
-export async function createCourseFromSearch(query) {
-  return (await getOrCreateNormalCourse(query)).course;
+export async function createCourseFromSearch(query, userId = null) {
+  const baseCourse = (await getOrCreateNormalCourse(query)).course;
+  return userId ? createPrivateCourseForUser(baseCourse, userId, { query: String(query || "") }) : baseCourse;
 }
 
 // Legacy playlist discovery remains available for direct playlist browsing.

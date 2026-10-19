@@ -143,9 +143,8 @@ test("saved-view creation validates input and writes a redacted audit event", as
 test("saved views cannot be updated by another administrator", async () => {
   const res = responseRecorder();
   let saveCalled = false;
-  await withMocks([[SavedView, { findOne: () => ({ then: undefined, lean: async () => null }) }]], async () => {
+  await withMocks([[SavedView, { findOne: async () => null }]], async () => {
     // The controller looks up an owned document and must return before mutating it.
-    SavedView.findOne = () => Promise.resolve(null);
     await updateSavedView({ params: { viewId: VIEW_ID }, user: { userId: OWNER_ID }, body: { name: "Changed" } }, res, (error) => { throw error; });
   });
   assert.equal(res.statusCode, 404);

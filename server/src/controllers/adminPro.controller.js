@@ -570,8 +570,57 @@ export async function reviewAiCourse(req, res, next) {
     course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "AI review decision: " + decision };
     await course.save();
-    await audit(req, "course.ai_review." + decision, "Course", course._id, before, { aiReviewStatus: course.aiReviewStatus, aiReviewSource: course.aiReviewSource, aiReviewNote: course.aiReviewNote, isPublished: course.isPublished, visibility: course.visibility }, reason);
-    return success(res, { course }, "AI course review recorded");
+
+    let learnerEnrollmentStatus = null;
+    if (course.createdForUser && course.visibility === "private") {
+      let enrollment = await Enrollment.findOne({ user: course.createdForUser, course: course._id });
+      if (decision === "approved") {
+        if (enrollment?.revokedBy) {
+          learnerEnrollmentStatus = "revoked_by_admin";
+        } else if (enrollment && ["active", "completed"].includes(enrollment.status)) {
+          learnerEnrollmentStatus = enrollment.status;
+        } else if (enrollment) {
+          enrollment.status = "active";
+          enrollment.accessSource = "admin";
+          enrollment.grantedBy = adminActorId(req);
+          enrollment.accessReason = reason;
+          enrollment.revokedBy = null;
+          enrollment.revokedAt = null;
+          enrollment.enrolledAt = new Date();
+          await enrollment.save();
+          learnerEnrollmentStatus = "active";
+        } else {
+          await Enrollment.create({
+            user: course.createdForUser,
+            course: course._id,
+            status: "active",
+            accessSource: "admin",
+            grantedBy: adminActorId(req),
+            accessReason: reason
+          });
+          learnerEnrollmentStatus = "active";
+        }
+      } else if (enrollment && ["active", "completed"].includes(enrollment.status)) {
+        enrollment.status = "cancelled";
+        enrollment.revokedBy = adminActorId(req);
+        enrollment.revokedAt = new Date();
+        enrollment.accessReason = reason;
+        await enrollment.save();
+        learnerEnrollmentStatus = "cancelled";
+      } else {
+        learnerEnrollmentStatus = enrollment?.status || "not_enrolled";
+      }
+    }
+
+    await audit(req, "course.ai_review." + decision, "Course", course._id, before, {
+      aiReviewStatus: course.aiReviewStatus,
+      aiReviewSource: course.aiReviewSource,
+      aiReviewNote: course.aiReviewNote,
+      isPublished: course.isPublished,
+      visibility: course.visibility,
+      learnerEnrollmentStatus
+    }, reason);
+    return success(res, { course, learnerEnrollmentStatus }, decision === "approved" && course.createdForUser ? "AI course approved and learner access enabled" : "AI course review recorded");
   } catch (e) { next(e); }
 }
 

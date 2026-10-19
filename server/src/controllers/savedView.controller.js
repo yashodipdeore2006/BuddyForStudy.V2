@@ -61,13 +61,21 @@ async function audit(req, action, view, before = null, after = null) {
 
 export async function listSavedViews(req, res, next) {
   try {
-    const pageResult = pageSchema.safeParse(String(req.query.pageKey || ""));
-    if (!pageResult.success) return failure(res, "A valid pageKey is required.", 400);
-    const requestedPage = Number(req.query.page);
-    const requestedLimit = Number(req.query.limit);
-    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-    const limit = Number.isInteger(requestedLimit) && requestedLimit > 0 ? Math.min(requestedLimit, 100) : 100;
-    const filter = { page: pageResult.data, $or: [{ owner: ownerId(req) }, { shared: true }] };
+    const queryResult = z.object({
+      pageKey: pageSchema,
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).default(100)
+    }).safeParse({
+      pageKey: req.query.pageKey,
+      page: req.query.page,
+      limit: req.query.limit
+    });
+    if (!queryResult.success) return failure(res, "Saved view query is invalid.", 400, queryResult.error.flatten());
+    const page = queryResult.data.page;
+    const limit = Math.min(queryResult.data.limit, 100);
+    const owner = ownerId(req);
+    if (!owner) return failure(res, "Authentication required.", 401);
+    const filter = { page: queryResult.data.pageKey, $or: [{ owner }, { shared: true }] };
     const [views, total] = await Promise.all([
       SavedView.find(filter).sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       SavedView.countDocuments(filter)

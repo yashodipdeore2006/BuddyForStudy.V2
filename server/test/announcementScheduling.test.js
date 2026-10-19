@@ -95,6 +95,8 @@ test("delivery log is paginated, masks recipients and retries only failed channe
   assert.match(page, /Sent = provider accepted/);
   const retry = (await read("../src/services/notification.service.js")).split("export async function retryNotificationDelivery")[1].split("export async function createNotificationEvent")[0];
   assert.match(retry, /findOneAndUpdate/);
+  assert.match(retry, /\[statusField\]: "failed"/);
+  assert.doesNotMatch(retry, /\[statusField\]: "skipped"/);
   assert.match(retry, /queued: true/);
   assert.match(retry, /status: "pending"/);
   assert.doesNotMatch(retry, /dispatchEmail|dispatchPush/);

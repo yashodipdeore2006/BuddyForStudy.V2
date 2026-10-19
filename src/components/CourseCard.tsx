@@ -36,8 +36,10 @@ export default function CourseCard({
   initiallySaved = false,
   initiallyEnrolled = false,
 }: CourseCardProps) {
-  const hasModules = Array.isArray(course.modules);
-  const lessonCount = hasModules ? countAllLessons(course.modules) : null;
+  const hasModules = Array.isArray(course.modules) && course.modules.length > 0;
+  const lessonCount = hasModules
+    ? countAllLessons(course.modules)
+    : Number.isFinite(course.lesson_count) ? course.lesson_count! : null;
   const CategoryIcon = categoryIcons[course.category] || BookOpen;
 
   const { session } = useAuth();

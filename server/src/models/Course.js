@@ -151,7 +151,7 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   } else {
     this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
   }
-  if (["ai", "module", "discovery"].includes(this.generation?.mode) && contentChanged) {
+  if (["normal", "ai", "module", "discovery"].includes(this.generation?.mode) && contentChanged) {
     this.aiReviewStatus = "pending";
     this.aiReviewedBy = null;
     this.aiReviewedAt = null;

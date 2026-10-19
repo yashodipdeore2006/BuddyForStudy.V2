@@ -43,6 +43,9 @@ test("announcements require a preview token and reason, then queue or schedule i
   assert.match(send, /Announcement\.create/);
   assert.doesNotMatch(send, /createNotificationEvent/);
   assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), 30 \* 1000\)/);
+  assert.match(worker, /for \(let batch = 0; batch < 5; batch \+= 1\)/);
+  assert.match(worker, /processScheduledAnnouncements\(new Date\(\), 1, 100\)/);
+  assert.match(worker, /Drain each newly queued batch before claiming more recipients/);
   assert.match(service, /eventKey: "announcement:" \+ announcement\._id \+ ":" \+ userId/);
   assert.match(service, /deferDispatch: true/);
   assert.match(service, /batchLockToken/);

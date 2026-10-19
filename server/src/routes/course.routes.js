@@ -9,7 +9,7 @@ router.get("/", optionalAuthMiddleware, requireFeatureIfAuthenticated("course_se
 router.get("/search", optionalAuthMiddleware, requireFeatureIfAuthenticated("course_search"), controller.search);
 router.get("/:courseId/learn/:itemId", authMiddleware, requireCourseOrFeature("published_courses"), controller.learningItem);
 router.get("/:courseId/learn", authMiddleware, requireCourseOrFeature("published_courses"), controller.learn);
-router.get("/:courseId", controller.details);
+router.get("/:courseId", optionalAuthMiddleware, controller.details);
 
 router.post("/", authMiddleware, adminMiddleware, controller.create);
 router.put("/:courseId", authMiddleware, adminMiddleware, controller.update);

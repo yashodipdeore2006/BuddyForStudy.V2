@@ -403,18 +403,16 @@ export default function AdminCommunications() {
         ]} />
       </div>
 
-      {workspaceView === "compose" && (
-      <AdminTabs
+      {workspaceView === "compose" && <AdminTabs
         ariaLabel="Communication type"
         value={tab}
         onChange={(nextTab) => { setTab(nextTab); setAudiencePreview(null); setStatus(""); }}
         items={[
           { value: "notification", label: "In-app notification" },
           { value: "email", label: "Email" },
-          { value: "announcement", labe
-      )}l: "Announcement" },
+          { value: "announcement", label: "Announcement" },
         ]}
-      />
+      />}
 
       {workspaceView === "compose" && templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setAudiencePreview(null); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
 
@@ -713,6 +711,7 @@ export default function AdminCommunications() {
           </div>
         )}
       </section>}
+
       {workspaceView === "campaigns" && <section className="card mt-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
           <div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Campaigns</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Announcement schedule and reports</h2><p className="mt-1 text-sm text-slate-500">Scheduled campaigns can be cancelled before the worker starts sending. Reports show provider acceptance, not inbox delivery or reading.</p></div>

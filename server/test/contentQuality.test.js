@@ -227,4 +227,6 @@ test("missing AI quiz questions do not block course readiness and can be retried
   assert.match(player, /setQuizRetryCount\(\(count\) => count \+ 1\)/);
   assert.match(player, /Retry quiz generation/);
   assert.match(player, /The course remains available/);
+  assert.match(player, /practiceAutoAttemptRef/);
+  assert.match(player, /lessonTab !== "quiz"/);
 });

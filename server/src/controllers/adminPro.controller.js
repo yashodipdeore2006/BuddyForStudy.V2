@@ -1267,22 +1267,6 @@ export async function updateCourse(req, res, next) {
     if (req.body.isPublished === true) {
       return failure(res, "Use the readiness-gated publish action to publish a course.", 400);
     }
-    // Kept for clarity if publishing semantics are expanded in a future version.
-    if (req.body.isPublished === true && !course.isPublished) {
-      if (course.deletedAt) return failure(res, "Deleted courses must be restored before publishing.", 409);
-      if (isAiGeneratedCourse(course) && (course.aiReviewStatus !== "approved" || !course.aiReviewedBy)) {
-        return res.status(409).json({ success: false, message: "Human review is required before publishing an AI-generated course.", reviewRequired: true, aiReviewStatus: course.aiReviewStatus || "pending" });
-      }
-      const readiness = getCoursePublishBlock(course, Boolean(course.isPublished));
-      if (readiness) {
-        return res.status(409).json({
-          success: false,
-          message: "Course is not ready to publish. Resolve the failed readiness checks first.",
-          readiness
-        });
-      }
-    }
-
     if (req.body.title !== undefined) {
       const value = String(req.body.title).trim();
       if (!value) return failure(res, "Course title cannot be empty", 400);

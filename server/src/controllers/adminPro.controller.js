@@ -17,6 +17,7 @@ import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
+import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
@@ -1919,6 +1920,8 @@ export async function deleteSetting(req, res, next) {
 export async function upsertSetting(req, res, next) {
   try {
     if (!req.body.key) return failure(res, "key is required", 400);
+    const typedValidation = validateTypedSetting(req.body.key, req.body.value);
+    if (!typedValidation.valid) return failure(res, typedValidation.message, 400);
     const current = await PlatformSetting.findOne({ key: req.body.key });
     const before = current?.value ?? null;
     const setting = await PlatformSetting.findOneAndUpdate({ key: req.body.key }, { $set: { value: req.body.value, description: req.body.description || "", isPublic: Boolean(req.body.isPublic), updatedBy: req.user.user._id } }, { upsert: true, new: true, setDefaultsOnInsert: true });

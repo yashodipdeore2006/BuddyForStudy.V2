@@ -136,7 +136,7 @@ function standaloneCourseFromModule(parent, module) {
       order: 1,
       lessons
     }],
-    isPublished: true,
+    isPublished: false,
     pricing: parent.pricing || { mode: "free", price: 0, currency: "INR" },
     enrollmentEnabled: parent.enrollmentEnabled !== false,
     certificateEnabled: parent.certificateEnabled !== false,
@@ -215,13 +215,12 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
       "generation.mode": "module",
       "generation.sourceCourse": parent._id,
       "generation.sourceModuleId": module._id,
-      isPublished: true,
       deletedAt: null
     };
 
     const existing = await Course.findOne(matchFilter).lean();
     if (existing) {
-      courses.push(existing);
+      if (existing.isPublished) courses.push(existing);
       continue;
     }
 
@@ -238,11 +237,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
 
-      if (created) courses.push(created);
+      if (created?.isPublished && !created.deletedAt) courses.push(created);
     } catch (error) {
       if (error?.code === 11000) {
         const duplicate = await Course.findOne(matchFilter).lean();
-        if (duplicate) courses.push(duplicate);
+        if (duplicate?.isPublished && !duplicate.deletedAt) courses.push(duplicate);
         else throw error;
       } else {
         throw error;

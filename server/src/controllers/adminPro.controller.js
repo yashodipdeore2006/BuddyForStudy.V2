@@ -2195,7 +2195,8 @@ export async function updatePaymentIssue(req, res, next) {
     if (!allowedStatuses.includes(status)) return failure(res, "Invalid issue status", 400);
     const adminNote = typeof req.body?.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : "";
     const internalNote = typeof req.body?.internalNote === "string" ? req.body.internalNote.trim().slice(0, 2000) : "";
-    const assignedTo = req.body?.assignedTo === null || req.body?.assignedTo === "" ? null : req.body?.assignedTo;
+    const assignmentProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "assignedTo");
+    const assignedTo = !assignmentProvided ? undefined : (req.body.assignedTo === null || req.body.assignedTo === "" ? null : req.body.assignedTo);
     if (assignedTo && !isValidObjectId(assignedTo)) return failure(res, "Invalid assignee ID", 400);
     if (assignedTo) {
       const assignee = await User.findOne({ _id: assignedTo, role: "admin", isActive: true }).select("_id");
@@ -2216,7 +2217,7 @@ export async function updatePaymentIssue(req, res, next) {
           $set: {
             status,
             adminNote,
-            assignedTo,
+            ...(assignmentProvided ? { assignedTo } : {}),
             ...(internalNote ? { internalNotes: [...(currentIssue.internalNotes || []), { author: req.user.user?._id || req.user.userId, note: internalNote, reason, createdAt: new Date() }] } : {}),
             resolvedAt: nowResolved ? (currentIssue.resolvedAt || new Date()) : null,
             resolvedBy: nowResolved ? (currentIssue.resolvedBy || req.user.user?._id || req.user.userId) : null,

@@ -681,6 +681,10 @@ export async function publishCourse(req, res, next) {
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
 
+    if (course.deletedAt) return failure(res, "Deleted courses must be restored before publishing.", 409);
+    if (isAiGeneratedCourse(course) && (course.aiReviewStatus !== "approved" || !course.aiReviewedBy)) {
+      return res.status(409).json({ success: false, message: "Human review is required before publishing an AI-generated course.", reviewRequired: true, aiReviewStatus: course.aiReviewStatus || "pending" });
+    }
     const blockedReadiness = getCoursePublishBlock(course, Boolean(course.isPublished));
     if (blockedReadiness) {
       return res.status(409).json({
@@ -1253,6 +1257,10 @@ export async function updateCourse(req, res, next) {
 
     // Prevent the legacy generic update endpoint from bypassing the publishing preflight.
     if (req.body.isPublished === true && !course.isPublished) {
+      if (course.deletedAt) return failure(res, "Deleted courses must be restored before publishing.", 409);
+      if (isAiGeneratedCourse(course) && (course.aiReviewStatus !== "approved" || !course.aiReviewedBy)) {
+        return res.status(409).json({ success: false, message: "Human review is required before publishing an AI-generated course.", reviewRequired: true, aiReviewStatus: course.aiReviewStatus || "pending" });
+      }
       const readiness = getCoursePublishBlock(course, Boolean(course.isPublished));
       if (readiness) {
         return res.status(409).json({

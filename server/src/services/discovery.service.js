@@ -709,7 +709,7 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
       };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.min(maxResults, 6));
+    .slice(0, Math.max(1, Math.min(Number(maxResults) || 30, 30)));
 
   playlistCache.set(key, results);
   return results;

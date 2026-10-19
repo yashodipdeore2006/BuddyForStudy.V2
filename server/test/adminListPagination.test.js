@@ -28,3 +28,12 @@ test("support cases paginate and search safely across case descriptions and user
   assert.match(section, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
   assert.match(section, /PaymentIssue\.countDocuments\(filter\)/);
 });
+
+test("admin course catalogue supports bounded server-side pagination and literal search", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const section = controller.slice(controller.indexOf("export async function courses"), controller.indexOf("function adminActorId"));
+  assert.match(section, /escapeRegex\(q\)/);
+  assert.match(section, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
+  assert.match(section, /Course\.countDocuments\(filter\)/);
+  assert.match(section, /pages: Math\.max\(1, Math\.ceil\(total \/ limit\)\)/);
+});

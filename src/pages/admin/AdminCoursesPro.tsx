@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, ExternalLink, FileText, Github, Link as LinkIcon, Loader2, Plus, RefreshCcw, Save, Trash2, Video } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
 
 type TutorialEditor = {
   lessonId: string;
@@ -79,6 +79,11 @@ function youtubeEmbedUrl(url: string) {
 export default function AdminCoursesPro() {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
   const [courseDetails, setCourseDetails] = useState<Record<string, any>>({});
   const [detailLoading, setDetailLoading] = useState<Record<string, boolean>>({});
@@ -92,12 +97,18 @@ export default function AdminCoursesPro() {
   const [readinessResults, setReadinessResults] = useState<Record<string, any>>({});
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
 
-  async function load(query = courseQuery) {
+  async function load(query = courseQuery, selectedPage = page, selectedLimit = limit) {
     setLoading(true);
+    setLoadError("");
     try {
-      const suffix = query.trim() ? "?q=" + encodeURIComponent(query.trim()) : "";
-      const data = await adminFetch("/api/admin/courses" + suffix);
+      const params = new URLSearchParams({ page: String(selectedPage), limit: String(selectedLimit) });
+      if (query.trim()) params.set("q", query.trim());
+      const data = await adminFetch("/api/admin/courses?" + params.toString());
       setCourses(data.courses || []);
+      setTotal(Number(data.total || 0));
+      setPages(Math.max(1, Number(data.pages || 1)));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load courses.");
     } finally {
       setLoading(false);
     }
@@ -560,12 +571,13 @@ export default function AdminCoursesPro() {
             <ChevronRight className="h-4 w-4 rotate-180" /> Back to course catalogue
           </button>
         ) : (
-          <button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="btn-secondary" onClick={() => { setPage(1); void load(courseQuery, 1, limit); }} disabled={loading}>
             <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh courses
           </button>
         )}
       />
 
+      {loadError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>}
       {!openCourseId && <div className="card mt-6 p-4">
         <div className="flex flex-col gap-3 md:flex-row">
           <input
@@ -577,7 +589,7 @@ export default function AdminCoursesPro() {
             onKeyDown={(e) => e.key === "Enter" && void load()}
             placeholder="Search courses by title or category"
           />
-          <button type="button" className="btn-primary" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="btn-primary" onClick={() => { setPage(1); void load(courseQuery, 1, limit); }} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
             Search courses
           </button>
@@ -1184,6 +1196,10 @@ export default function AdminCoursesPro() {
             );
           })
         )}
+        {!openCourseId && <div className="border-t border-slate-100 pt-3">
+          <AdminPagination page={page} pages={pages} total={total} from={total ? (page - 1) * limit + 1 : 0} to={Math.min(page * limit, total)} limit={limit} loading={loading} onPageChange={(nextPage) => { setPage(nextPage); void load(courseQuery, nextPage, limit); }} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); void load(courseQuery, 1, nextLimit); }} />
+        </div>}
+
       </div>
     </div>
   );

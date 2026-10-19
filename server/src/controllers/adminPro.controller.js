@@ -431,6 +431,8 @@ export async function updateUser(req, res, next) {
 
 export async function courses(req, res, next) {
   try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     const q = String(req.query.q || "").trim().slice(0, 100);
     const searchPattern = q ? new RegExp(escapeRegex(q), "i") : null;
     const includeDeleted = String(req.query.includeDeleted || "") === "true";
@@ -438,10 +440,13 @@ export async function courses(req, res, next) {
       ...(includeDeleted ? {} : { deletedAt: null }),
       ...(searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {})
     };
-    const courses = await Course.find(filter)
-      .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
-      .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).lean();
-    return success(res, { courses });
+    const [courses, total] = await Promise.all([
+      Course.find(filter)
+        .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+        .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Course.countDocuments(filter)
+    ]);
+    return success(res, { courses, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 

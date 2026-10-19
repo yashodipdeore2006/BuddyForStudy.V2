@@ -197,7 +197,12 @@ export default function AdminDeliveries() {
       open={Boolean(retryTarget)}
       title="Retry failed notification delivery?"
       description={retryTarget ? `Queue a new ${retryTarget.channel} attempt for “${retryTarget.item.title}” to ${retryTarget.item.recipient?.email || "the selected recipient"}.` : ""}
-      consequence={<>This will enqueue another provider attempt; it does not guarantee delivery. The action will be recorded in the audit log.</>}
+      consequence={
+        <>
+          This will enqueue another provider attempt; it does not guarantee delivery. The action will be recorded in the audit log.
+          {retryDialogError && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{retryDialogError}</p>}
+        </>
+      }
       confirmLabel="Queue retry"
       requiredText="RETRY"
       value={confirmRetryValue}

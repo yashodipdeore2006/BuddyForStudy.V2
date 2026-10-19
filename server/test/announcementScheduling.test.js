@@ -136,3 +136,24 @@ test("new notification permissions are catalogued and used at route boundaries",
   assert.match(routes, /adminPermissionMiddleware\("notifications\.read"\)/);
   assert.match(routes, /adminPermissionMiddleware\("notifications\.retry"\)/);
 });
+
+test("manual delivery retries preserve the previous failure and enforce a bounded retry limit", async () => {
+  const model = await read("../src/models/Notification.js");
+  const service = await read("../src/services/notification.service.js");
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  assert.match(model, /retryHistory:\s*\[/);
+  for (const field of ["channel", "priorAttempts", "previousError", "previousLastAttemptAt", "retriedAt", "actorId", "reason"]) {
+    assert.match(model, new RegExp(field + ":"));
+  }
+  const retry = service.slice(service.indexOf("export async function retryNotificationDelivery"), service.indexOf("export async function createNotificationEvent"));
+  assert.match(retry, /\$expr:\s*\{\s*\$lt:/);
+  assert.match(retry, /\$concatArrays/);
+  assert.match(retry, /priorAttempts:/);
+  assert.match(retry, /previousError:/);
+  assert.match(retry, /Manual retry limit reached/);
+  assert.match(retry, /\[statusField\]: "failed"/);
+  assert.match(retry, /\[statusField\]: "pending"/);
+  assert.match(retry, /retryCount:/);
+  assert.match(controller, /retryNotificationDelivery\(req\.params\.notificationId, channel, \{ reason, actorId:/);
+  assert.match(controller, /retryCount: result\.retryCount/);
+});

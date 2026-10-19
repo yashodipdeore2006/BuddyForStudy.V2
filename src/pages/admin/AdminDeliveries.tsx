@@ -69,6 +69,17 @@ export default function AdminDeliveries() {
   }, [search, channel, status, type, dateFrom, dateTo, page]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    const nextQ = searchParams.get("q") || "";
+    setQ(nextQ); setSearch(nextQ);
+    setChannel(searchParams.get("channel") || "");
+    setStatus(searchParams.get("status") || "");
+    setType(searchParams.get("type") || "");
+    setDateFrom(searchParams.get("from") || "");
+    setDateTo(searchParams.get("to") || "");
+    setDatePreset(searchParams.get("range") || "custom");
+    setPage(Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1));
+  }, [searchParams]);
+  useEffect(() => {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
     if (channel) params.set("channel", channel);

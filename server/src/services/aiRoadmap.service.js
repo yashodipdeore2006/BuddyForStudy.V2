@@ -1234,7 +1234,7 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? JSON.stringify(input.knownSkills || []) : "",
     personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
   );
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true });
   if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {

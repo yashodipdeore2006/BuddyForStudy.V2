@@ -219,7 +219,8 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
   if (!normalizedQuery) return [];
 
   const searchQuery = normalizedQuery + " complete course tutorial";
-  const data = await searchVideos(searchQuery, 20);
+  const requestedResults = Math.max(1, Math.min(Number(maxResults) || 30, 50));
+  const data = await searchVideos(searchQuery, requestedResults);
   const items = data?.items || [];
 
   const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];

@@ -27,7 +27,7 @@ test("course edits unpublish changed content and invalidate AI review approval",
   const model = await read("../src/models/Course.js");
   assert.match(model, /contentChanged && this\.isPublished/);
   assert.match(model, /this\.isPublished = false/);
-  assert.match(model, /\["ai", "module", "discovery"\]\.includes\(this\.generation\?\.mode\) && contentChanged/);
+  assert.match(model, /\["normal", "ai", "module", "discovery"\]\.includes\(this\.generation\?\.mode\) && contentChanged/);
   assert.match(model, /this\.aiReviewedBy = null/);
 });
 

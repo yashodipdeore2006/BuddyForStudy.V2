@@ -30,6 +30,8 @@ export async function findRecentGeneratedCourse({ mode, topicKeys, exactQuery })
 
   const filter = {
     isPublished: true,
+    aiReviewStatus: "approved",
+    $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }],
     "generation.mode": mode,
     "generation.topicKeys": { $in: keys },
     createdAt: { $gte: generatedCourseCutoff() }

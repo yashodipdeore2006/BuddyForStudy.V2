@@ -583,7 +583,9 @@ export async function contentModerationList(req, res, next) {
     const config = MODERATED_MODELS[type];
     if (!config) return failure(res, "Unknown content type. Use review, quiz, insight or qa.", 400);
     const status = String(req.query.status || "pending");
-    const filter = status === "all" ? {} : { moderationStatus: status };
+    const filter = status === "all" ? {} : status === "pending"
+      ? { $or: [{ moderationStatus: "pending" }, { moderationStatus: { $exists: false } }] }
+      : { moderationStatus: status };
     const items = await config.model.find(filter).select(config.fields).populate(config.populate).sort({ createdAt: -1 }).limit(200).lean();
     return success(res, { contentType: type, items });
   } catch (e) { next(e); }

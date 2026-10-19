@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { User } from "../src/models/User.js";
 import { AuditLog } from "../src/models/AuditLog.js";
 import { AuditOutbox } from "../src/models/AuditOutbox.js";
-import { revealUserPii } from "../src/controllers/adminPro.controller.js";
+import { revealUserPii, users } from "../src/controllers/adminPro.controller.js";
 
 const USER_ID = "507f1f77bcf86cd799439011";
 const ACTOR_ID = "507f191e810c19729de860ea";
@@ -95,4 +95,35 @@ test("PII reveal fails closed when neither audit log nor outbox can persist the 
   } finally { console.error = originalError; }
   assert.equal(res.statusCode, 503);
   assert.equal(JSON.stringify(res.body).includes("learner@example.com"), false);
+});
+
+
+test("user list omits raw email and returns a masked display value", async () => {
+  const row = {
+    _id: USER_ID,
+    name: "Learner One",
+    email: "learner@example.com",
+    role: "user",
+    isActive: true
+  };
+  const query = {
+    select() { return this; },
+    sort() { return this; },
+    skip() { return this; },
+    limit() { return this; },
+    lean: async () => [row]
+  };
+  const res = responseRecorder();
+  await withMocks([
+    [User, {
+      find: () => query,
+      countDocuments: async () => 1
+    }]
+  ], async () => {
+    await users({ query: { page: "1", limit: "25" } }, res, (error) => { throw error; });
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.users.length, 1);
+  assert.equal(res.body.users[0].email, undefined);
+  assert.equal(res.body.users[0].emailMasked, "l***@example.com");
 });

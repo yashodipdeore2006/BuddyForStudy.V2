@@ -1,6 +1,5 @@
 import crypto from "crypto";
 import mongoose from "mongoose";
-import { z } from "zod";
 import nodemailer from "nodemailer";
 import { User } from "../models/User.js";
 import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
@@ -208,8 +207,6 @@ export async function exportUsers(req, res, next) {
   }
 }
 
-const piiRevealSchema = z.object({ reason: z.string().trim().min(10).max(500) }).strict();
-
 function maskEmail(email) {
   const value = String(email || "");
   const separator = value.indexOf("@");
@@ -362,11 +359,10 @@ export async function revealUserPii(req, res, next) {
   try {
     const { userId } = req.params;
     if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
-    const parsed = piiRevealSchema.safeParse(req.body || {});
-    if (!parsed.success) {
-      return failure(res, "A reason between 10 and 500 characters is required to reveal personal information.", 400, parsed.error.flatten());
+    const reason = String(req.body?.reason || "").trim();
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to reveal personal information.", 400);
     }
-    const reason = parsed.data.reason;
     const user = await User.findById(userId).select("_id email").lean();
     if (!user) return failure(res, "User not found", 404);
 

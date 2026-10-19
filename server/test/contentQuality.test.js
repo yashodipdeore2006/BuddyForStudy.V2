@@ -135,6 +135,16 @@ test("content approval policies are typed, permission-gated and independently co
   assert.match(page, /automatic/);
 });
 
+test("private lesson assistance requires an active, non-revoked enrollment", async () => {
+  const ai = await read("../src/services/advancedAI.service.js");
+  assert.match(ai, /import \{ Enrollment \} from "\.\.\/models\/Enrollment\.js";/);
+  const access = ai.slice(ai.indexOf("async function findCourseLesson"), ai.indexOf("function buildLessonContext"));
+  assert.match(access, /if \(course\.visibility === "private"\)/);
+  assert.match(access, /Enrollment\.exists\(\{/);
+  assert.match(access, /status: \{ \$in: \["active", "completed"\] \}/);
+  assert.match(access, /revokedBy: null/);
+  assert.match(access, /course\.status === "archived"/);
+});
 test("content quality admin page exposes lifecycle, review, moderation, roadmaps and link checking", async () => {
   const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
   for (const phrase of ["Approve & publish if ready", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);

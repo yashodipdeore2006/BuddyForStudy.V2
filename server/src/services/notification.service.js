@@ -352,60 +352,69 @@ async function dispatchPush(notificationId) {
   return { status: !stillActive ? "skipped" : terminal ? "failed" : "retrying" };
 }
 
-export async function retryNotificationDelivery(notificationId, channel) {
+export async function retryNotificationDelivery(notificationId, channel, { reason = "", actorId = null } = {}) {
   if (!["email", "push"].includes(channel)) {
     const error = new Error("Channel must be email or push.");
     error.status = 400;
     throw error;
   }
-
   const platform = await getNotificationPlatformSettings();
   if (channel === "email") {
-    if (!platform.emailEnabled) {
-      const error = new Error("Email delivery is globally disabled in Platform Settings.");
-      error.status = 409;
-      throw error;
-    }
-    if (!getMailer()) {
-      const error = new Error("Configure SMTP in the server environment before retrying email.");
-      error.status = 503;
-      throw error;
-    }
+    if (!platform.emailEnabled) { const error = new Error("Email delivery is globally disabled in Platform Settings."); error.status = 409; throw error; }
+    if (!getMailer()) { const error = new Error("Configure SMTP in the server environment before retrying email."); error.status = 503; throw error; }
   } else {
-    if (!platform.pushEnabled) {
-      const error = new Error("Push delivery is globally disabled in Platform Settings.");
-      error.status = 409;
-      throw error;
-    }
-    if (!isWebPushConfigured()) {
-      const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push.");
-      error.status = 503;
-      throw error;
-    }
+    if (!platform.pushEnabled) { const error = new Error("Push delivery is globally disabled in Platform Settings."); error.status = 409; throw error; }
+    if (!isWebPushConfigured()) { const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push."); error.status = 503; throw error; }
   }
-
   const statusField = channel === "email" ? "emailStatus" : "pushStatus";
   const attemptsField = channel === "email" ? "emailAttempts" : "pushAttempts";
   const lastAttemptField = channel === "email" ? "emailLastAttemptAt" : "pushLastAttemptAt";
   const errorField = channel === "email" ? "emailError" : "pushError";
   const notification = await Notification.findOneAndUpdate(
-    { _id: notificationId, [statusField]: "failed" },
-    { $set: { [statusField]: "pending", [attemptsField]: 0, [lastAttemptField]: null, [errorField]: "" } },
-    { new: true }
+    {
+      _id: notificationId,
+      [statusField]: "failed",
+      $expr: { $lt: [{ $size: { $ifNull: ["$retryHistory", []] } }, 3] }
+    },
+    [{
+      $set: {
+        retryHistory: {
+          $concatArrays: [
+            { $ifNull: ["$retryHistory", []] },
+            [{
+              channel: { $literal: channel },
+              priorAttempts: { $ifNull: [channel === "email" ? "$emailAttempts" : "$pushAttempts", 0] },
+              previousError: { $ifNull: [channel === "email" ? "$emailError" : "$pushError", ""] },
+              previousLastAttemptAt: { $ifNull: [channel === "email" ? "$emailLastAttemptAt" : "$pushLastAttemptAt", null] },
+              retriedAt: "$$NOW",
+              actorId: { $literal: actorId || null },
+              reason: { $literal: String(reason || "").slice(0, 500) }
+            }]
+          ]
+        },
+        [statusField]: "pending",
+        [attemptsField]: 0,
+        [lastAttemptField]: null,
+        [errorField]: "",
+        updatedAt: "$$NOW"
+      }
+    }],
+    { new: true, updatePipeline: true }
   );
   if (!notification) {
-    const error = new Error("Only failed deliveries can be retried.");
+    const current = await Notification.findById(notificationId).select(statusField + " retryHistory").lean();
+    const error = new Error(current?.[statusField] !== "failed"
+      ? "Only failed deliveries can be retried."
+      : "Manual retry limit reached for this notification.");
     error.status = 409;
     throw error;
   }
-
-  // The atomic failed -> pending transition claims this retry exactly once.
-  // The background worker performs provider I/O so an admin request never waits on SMTP/Web Push.
   return {
     notificationId: String(notification._id),
     channel,
     status: "pending",
     attempts: 0,
+    retryCount: Array.isArray(notification.retryHistory) ? notification.retryHistory.length : 0,
     error: "",
     queued: true
   };

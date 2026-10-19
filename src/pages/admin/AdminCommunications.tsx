@@ -740,6 +740,29 @@ export default function AdminCommunications() {
           </div>
         )}
       </section>
+      <section className="card mt-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Campaigns</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Announcement schedule and reports</h2><p className="mt-1 text-sm text-slate-500">Scheduled campaigns can be cancelled before the worker starts sending. Reports show provider acceptance, not inbox delivery or reading.</p></div>
+          <button type="button" className="btn-secondary" onClick={() => void loadCampaigns()} disabled={loadingCampaigns}>{loadingCampaigns ? "Refreshing..." : "Refresh campaigns"}</button>
+        </div>
+        {campaignError && <p role="alert" className="m-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">{campaignError}</p>}
+        {campaignNotice && <p role="status" className="m-5 rounded-lg bg-green-50 p-3 text-sm text-green-700">{campaignNotice}</p>}
+        {loadingCampaigns && !campaigns.length ? <p className="p-6 text-sm text-slate-500">Loading campaigns…</p> : !campaigns.length ? <p className="p-6 text-sm text-slate-500">No announcement campaigns yet.</p> :
+          <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="p-4">Announcement</th><th className="p-4">Status</th><th className="p-4">Audience</th><th className="p-4">Schedule / sent</th><th className="p-4">Actions</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{campaigns.map((campaign) => {
+              const report = campaignReports[campaign._id];
+              const stats = report?.announcement?.stats || campaign.stats || {};
+              return <tr key={campaign._id} className="align-top">
+                <td className="p-4"><p className="font-semibold text-slate-900">{campaign.title}</p><p className="mt-1 text-xs text-slate-500">{(campaign.channel || []).join(", ")}</p></td>
+                <td className="p-4"><span className="rounded-full border border-slate-200 px-2 py-1 text-xs font-semibold">{campaign.status}</span></td>
+                <td className="p-4"><p>{Number(stats.total || 0).toLocaleString()} users</p><p className="mt-1 text-xs text-slate-500">Accepted {Number(stats.sent || 0)} · Pending {Number(stats.pending || 0)} · Failed {Number(stats.failed || 0)} · Skipped {Number(stats.skipped || 0)}</p></td>
+                <td className="p-4 text-xs text-slate-500">{campaign.scheduledAt ? <p>Scheduled {new Date(campaign.scheduledAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p> : <p>Created {campaign.createdAt ? new Date(campaign.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}</p>}{campaign.sentAt && <p className="mt-1">Queue completed {new Date(campaign.sentAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p>}{campaign.lastError && <p className="mt-1 text-red-600">{campaign.lastError}</p>}</td>
+                <td className="p-4"><div className="flex flex-wrap gap-2"><button type="button" className="btn-secondary text-xs" disabled={campaignBusy === campaign._id} onClick={() => void loadCampaignReport(campaign._id)}>{campaignBusy === campaign._id ? "Loading…" : report ? "Refresh report" : "View report"}</button>{(campaign.status === "scheduled" || campaign.status === "draft") && <button type="button" className="btn-secondary text-xs" disabled={campaignBusy === campaign._id} onClick={() => void cancelCampaign(campaign._id, campaign.title)}>Cancel</button>}</div>
+                  {report && <div className="mt-3 min-w-64 rounded-lg border border-slate-200 bg-slate-50 p-3"><p className="font-semibold">Channel acceptance report</p>{(["in_app", "email", "push"] as const).map((channel) => <p key={channel} className="mt-1 text-xs text-slate-600">{channel}: accepted {Number(report.channels?.[channel]?.sent || 0)}, pending {Number(report.channels?.[channel]?.pending || 0)}, failed {Number(report.channels?.[channel]?.failed || 0)}, skipped {Number(report.channels?.[channel]?.skipped || 0)}</p>)}{report.topErrors?.length > 0 && <div className="mt-2 border-t border-slate-200 pt-2"><p className="text-xs font-semibold text-red-700">Recent failures</p>{report.topErrors.slice(0, 5).map((error: any, idx: number) => <p key={idx} className="mt-1 text-xs text-red-600">{error.recipient?.email || "Masked recipient"} · {error.emailError || error.pushError || "Provider rejected request"}</p>)}</div>}</div>}</td>
+              </tr>;
+            })}</tbody></table></div>
+        }
+      </section>
     </div>
   );
 }

@@ -259,7 +259,7 @@ export default function AdminCommunications() {
     try {
       const data = await adminFetch("/api/admin/notifications/audience-preview", {
         method: "POST",
-        body: JSON.stringify(audiencePayload()),
+        body: JSON.stringify({ ...audiencePayload(), ...(tab === "announcement" ? { channels } : {}) }),
       });
       setAudiencePreview({
         recipientCount: Number(data.recipientCount || 0),
@@ -281,6 +281,7 @@ export default function AdminCommunications() {
         ? current.filter((item) => item !== channel)
         : [...current, channel]
     );
+    if (tab === "announcement") setAudiencePreview(null);
   }
 
   async function send() {

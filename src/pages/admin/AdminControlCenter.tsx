@@ -14,7 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminBadge, AdminCard, AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminBadge, AdminCard, AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -32,6 +32,7 @@ export default function AdminControlCenter() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [dashboardView, setDashboardView] = useState<"overview" | "finance" | "learning" | "governance">("overview");
 
   async function load() {
     setLoading(true);
@@ -190,7 +191,21 @@ export default function AdminControlCenter() {
         )}
       </section>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+      <div className="mt-6">
+        <AdminTabs
+          ariaLabel="Dashboard work areas"
+          value={dashboardView}
+          onChange={setDashboardView}
+          items={[
+            { value: "overview", label: "Overview" },
+            ...(permissions.includes("billing.read") ? [{ value: "finance" as const, label: "Finance activity" }] : []),
+            ...(permissions.includes("courses.read") ? [{ value: "learning" as const, label: "Learning performance" }] : []),
+            ...(permissions.includes("audit.read") ? [{ value: "governance" as const, label: "Admin activity" }] : []),
+          ]}
+        />
+      </div>
+
+      {dashboardView === "overview" && <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         {permissions.includes("users.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5">
             <div><h2 className="font-bold text-slate-900">Recent users</h2><p className="mt-1 text-xs text-slate-500">Newest accounts and access state.</p></div>
@@ -229,8 +244,8 @@ export default function AdminControlCenter() {
         </section>
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        {permissions.includes("billing.read") && <section className="card overflow-hidden">
+      {(dashboardView === "finance" || dashboardView === "learning") && <div className="mt-6 grid gap-6">
+        {dashboardView === "finance" && permissions.includes("billing.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Recent payments</h2><p className="mt-1 text-xs text-slate-500">Latest billing activity.</p></div><Link to="/admin/billing" className="text-xs font-bold text-blue-600">Billing <ArrowRight className="inline h-3 w-3" /></Link></div>
           <div className="divide-y divide-slate-100">
             {(data?.recentPayments || []).map((payment: any) => (
@@ -244,7 +259,7 @@ export default function AdminControlCenter() {
           </div>
         </section>}
 
-        {permissions.includes("courses.read") && <section className="card overflow-hidden">
+        {dashboardView === "learning" && permissions.includes("courses.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Top courses</h2><p className="mt-1 text-xs text-slate-500">Highest enrollment counts.</p></div><Link to="/admin/courses" className="text-xs font-bold text-blue-600">Content <ArrowRight className="inline h-3 w-3" /></Link></div>
           <div className="divide-y divide-slate-100">
             {(data?.topCourses || []).map((course: any, index: number) => (
@@ -257,9 +272,9 @@ export default function AdminControlCenter() {
             {!data?.topCourses?.length && <p className="p-5 text-sm text-slate-500">No enrollment data yet.</p>}
           </div>
         </section>}
-      </div>
+      </div>}
 
-      {permissions.includes("audit.read") && <section className="card mt-6 overflow-hidden">
+      {dashboardView === "governance" && permissions.includes("audit.read") && <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Recent admin activity</h2><p className="mt-1 text-xs text-slate-500">Sensitive operational changes are audited.</p></div><Link to="/admin/audit" className="text-xs font-bold text-blue-600">Open audit log</Link></div>
         <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
           {(data?.recentAudit || []).map((log: any) => (

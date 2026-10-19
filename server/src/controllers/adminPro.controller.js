@@ -1261,7 +1261,11 @@ export async function updateCourse(req, res, next) {
     });
     const before = summarizeCourseForAudit(course);
 
-    // Prevent the legacy generic update endpoint from bypassing the publishing preflight.
+    // Publishing is deliberately available only through the readiness-gated endpoint.
+    if (req.body.isPublished === true) {
+      return failure(res, "Use the readiness-gated publish action to publish a course.", 400);
+    }
+    // Kept for clarity if publishing semantics are expanded in a future version.
     if (req.body.isPublished === true && !course.isPublished) {
       if (course.deletedAt) return failure(res, "Deleted courses must be restored before publishing.", 409);
       if (isAiGeneratedCourse(course) && (course.aiReviewStatus !== "approved" || !course.aiReviewedBy)) {

@@ -44,7 +44,7 @@ test("course rollback restores a prior snapshot as a draft and records a reason"
 test("soft-deleted courses are excluded from learner-facing catalogue and detail queries", async () => {
   const service = await read("../src/services/course.service.js");
   assert.match(service, /const filter = \{ isPublished: true, deletedAt: null, \$and: \[PUBLICATION_APPROVAL_FILTER\] \}/);
-  assert.match(service, /_id: courseId, isPublished: true, deletedAt: null/);
+  assert.match(service, /accessBranches = \[\{ isPublished: true, \$and: \[PUBLICATION_APPROVAL_FILTER\] \}\]/);
   assert.match(service, /deletedAt: null,/);
   assert.match(service, /PUBLICATION_APPROVAL_FILTER/);
   assert.match(service, /isHumanReviewedForPublication/);

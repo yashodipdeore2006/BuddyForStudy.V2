@@ -9,6 +9,7 @@ test("AI-generated and derived courses are forced into drafts pending human revi
   assert.match(model, /enforceHumanReviewForGeneratedCourses/);
   assert.match(model, /this\.isPublished = false/);
   assert.match(model, /this\.aiReviewStatus = "pending"/);
+  assert.match(model, /\["normal", "ai", "module", "discovery"\]/);
   assert.match(model, /createRevisionBeforeCourseChange/);
   assert.match(model, /CourseRevision\.create/);
 });
@@ -45,6 +46,8 @@ test("soft-deleted courses are excluded from learner-facing catalogue and detail
   assert.match(service, /const filter = \{ isPublished: true, deletedAt: null \}/);
   assert.match(service, /_id: courseId, isPublished: true, deletedAt: null/);
   assert.match(service, /deletedAt: null,/);
+  assert.match(service, /PUBLICATION_APPROVAL_FILTER/);
+  assert.match(service, /isHumanReviewedForPublication/);
 });
 
 test("review, quiz, AI insight and Q&A records support moderation and audit", async () => {

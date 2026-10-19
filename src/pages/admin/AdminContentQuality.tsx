@@ -15,7 +15,7 @@ const reasonPrompt = (label: string) => {
   const reason = window.prompt("Reason for " + label + " (10–500 characters):")?.trim() || "";
   return reason.length >= 10 && reason.length <= 500 ? reason : null;
 };
-const aiGenerated = (course: any) => ["ai", "module", "discovery"].includes(course.generation?.mode);
+const aiGenerated = (course: any) => ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
 
 export default function AdminContentQuality() {
   const [tab, setTab] = useState<Tab>("courses");

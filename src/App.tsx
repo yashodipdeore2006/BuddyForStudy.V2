@@ -38,6 +38,7 @@ import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 import AdminRoles from '@/pages/admin/AdminRoles';
 import AdminAIContent from '@/pages/admin/AdminAIContent';
 import AdminSupport from '@/pages/admin/AdminSupport';
+import AdminOperations from '@/pages/admin/AdminOperations';
 import AcceptAdminInvitation from '@/pages/AcceptAdminInvitation';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,7 @@ function App() {
     <Route path="/admin/roles" element={<AdminPage><AdminRoles /></AdminPage>} />
     <Route path="/admin/ai-content" element={<AdminPage><AdminAIContent /></AdminPage>} />
     <Route path="/admin/support" element={<AdminPage><AdminSupport /></AdminPage>} />
+    <Route path="/admin/operations" element={<AdminPage><AdminOperations /></AdminPage>} />
     <Route path="*" element={<Home />} />
   </Routes></Layout></BrowserRouter></AuthProvider>;
 }

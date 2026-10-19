@@ -52,6 +52,8 @@ async function queueNextLessonQuiz(courseId, lessonId) {
           generatedAt: new Date(),
           moderationStatus: automaticallyApproved ? "approved" : "pending",
           moderationNote: automaticallyApproved ? "Automatically approved by the platform content policy." : "",
+          moderatedBy: null,
+          moderatedAt: automaticallyApproved ? new Date() : null,
           isHidden: false
         } },
         { upsert: true }

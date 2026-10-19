@@ -368,7 +368,7 @@ function courseSummary(course) {
 
 
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
-  const filter = { isPublished: true };
+  const filter = { isPublished: true, deletedAt: null, deletedAt: null };
   if (category) filter.category = category;
   if (level) filter.level = level;
 
@@ -509,7 +509,7 @@ export async function getPublished(courseId) {
   if (cached) {
     if (!hasMultipleTutorialVideos(cached)) return cached;
 
-    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
+    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
     if (!courseDoc) return null;
     if (normalizeMultiVideoLessons(courseDoc)) {
       await courseDoc.save();

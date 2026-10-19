@@ -2094,7 +2094,7 @@ export async function previewNotificationAudience(req, res, next) {
     let audienceInput = req.body || {};
     if (audienceInput.email !== undefined) {
       const email = String(audienceInput.email || "").trim().toLowerCase();
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return failure(res, "Enter a valid recipient email address", 400);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return failure(res, "Enter a valid recipient email address", 400);
       audienceInput = { ...audienceInput, emails: [email] };
     }
     validateAdminAudienceInput(audienceInput);

@@ -237,6 +237,11 @@ export function AdminConfirmDialog({
   reason = "",
   onReasonChange,
   requireReason = false,
+  note,
+  onNoteChange,
+  noteLabel = "Additional note (optional)",
+  notePlaceholder = "Add context for the record, if needed.",
+  error,
   onConfirm,
   onClose,
   loading = false,
@@ -252,6 +257,11 @@ export function AdminConfirmDialog({
   reason?: string;
   onReasonChange?: (value: string) => void;
   requireReason?: boolean;
+  note?: string;
+  onNoteChange?: (value: string) => void;
+  noteLabel?: string;
+  notePlaceholder?: string;
+  error?: string;
   onConfirm: () => void;
   onClose: () => void;
   loading?: boolean;
@@ -300,6 +310,11 @@ export function AdminConfirmDialog({
           <textarea ref={reasonRef} id="admin-confirm-reason" value={reason} maxLength={500} onChange={(event) => onReasonChange?.(event.target.value)} placeholder="Explain why this change is necessary." rows={3} />
           <span className="admin-confirm-help">{reason.trim().length}/500 characters</span>
         </div>}
+        {onNoteChange && <div className="admin-confirm-field">
+          <label htmlFor="admin-confirm-note">{noteLabel}</label>
+          <textarea id="admin-confirm-note" value={note || ""} maxLength={2000} onChange={(event) => onNoteChange(event.target.value)} placeholder={notePlaceholder} rows={3} />
+        </div>}
+        {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{error}</p>}
         <footer className="admin-confirm-footer">
           <AdminButton variant="secondary" onClick={onClose} disabled={loading}>Cancel</AdminButton>
           <AdminButton variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={loading} disabled={!canConfirm}>{confirmLabel}</AdminButton>

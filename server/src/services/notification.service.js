@@ -407,8 +407,7 @@ export async function retryNotificationDelivery(notificationId, channel) {
     status: "pending",
     attempts: 0,
     error: "",
-    queued: true,
-    idempotencyKey: channel === "push" ? notification.pushIdempotencyKey : (notification.eventKey || String(notification._id))
+    queued: true
   };
 }
 

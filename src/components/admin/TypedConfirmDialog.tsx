@@ -9,14 +9,16 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
+  const loadingRef = useRef(loading);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]') || []);
     focusable()[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loading) { event.stopPropagation(); onCloseRef.current(); return; }
+      if (event.key === "Escape" && !loadingRef.current) { event.stopPropagation(); onCloseRef.current(); return; }
       if (event.key !== "Tab") return;
       const elements = focusable(); if (!elements.length) return;
       if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements[elements.length - 1].focus(); }

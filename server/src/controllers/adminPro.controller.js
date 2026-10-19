@@ -602,9 +602,9 @@ export async function reviewAiCourse(req, res, next) {
           learnerEnrollmentStatus = "active";
         }
       } else if (enrollment && ["active", "completed"].includes(enrollment.status)) {
+        // Content rejection suspends this course enrollment, but is not a permanent
+        // enrollment revocation. A later approval may restore the learner's access.
         enrollment.status = "cancelled";
-        enrollment.revokedBy = adminActorId(req);
-        enrollment.revokedAt = new Date();
         enrollment.accessReason = reason;
         await enrollment.save();
         learnerEnrollmentStatus = "cancelled";

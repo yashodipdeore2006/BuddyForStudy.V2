@@ -147,6 +147,8 @@ test("manual delivery retries preserve the previous failure and enforce a bounde
   }
   const retry = service.slice(service.indexOf("export async function retryNotificationDelivery"), service.indexOf("export async function createNotificationEvent"));
   assert.match(retry, /\$expr:\s*\{\s*\$lt:/);
+  assert.match(retry, /\$filter:\s*\{\s*input:\s*\{\s*\$ifNull:/);
+  assert.match(retry, /\$\$retry\.channel/);
   assert.match(retry, /\$concatArrays/);
   assert.match(retry, /priorAttempts:/);
   assert.match(retry, /previousError:/);

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { CourseRevision } from "./CourseRevision.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -87,6 +88,12 @@ const courseSchema = new mongoose.Schema({
   duration: { type: String, required: true, trim: true }, thumbnail: { type: String, default: "" },
   learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] },
   isPublished: { type: Boolean, default: false, required: true },
+  status: { type: String, enum: ["draft", "published", "archived"], default: "draft", index: true },
+  deletedAt: { type: Date, default: null, index: true },
+  aiReviewStatus: { type: String, enum: ["not_required", "pending", "approved", "rejected"], default: "not_required", index: true },
+  aiReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  aiReviewedAt: { type: Date, default: null },
+  aiReviewNote: { type: String, default: "", maxlength: 2000 },
   pricing: {
     mode: { type: String, enum: ["free", "paid"], default: "free" },
     price: { type: Number, default: 0, min: 0 },
@@ -111,6 +118,22 @@ const courseSchema = new mongoose.Schema({
 }, { timestamps: true, collection: "courses" });
 
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
+courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
+  if (this.isNew || !this.isModified()) return;
+  const previous = await this.constructor.findById(this._id).lean();
+  if (!previous) return;
+  const snapshot = { ...previous };
+  delete snapshot.__v;
+  const revisionNumber = (await CourseRevision.countDocuments({ course: this._id })) + 1;
+  const context = this.$locals?.revisionContext || {};
+  await CourseRevision.create({
+    course: this._id, revisionNumber, snapshot, changedBy: context.actor || null,
+    changeSource: context.source || (context.actor ? "admin" : "system"),
+    reason: String(context.reason || "").slice(0, 500),
+    summary: String(context.summary || "Course content or metadata changed").slice(0, 200)
+  });
+  this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
+});
 courseSchema.index({ "pricing.mode": 1, isPublished: 1 });
 courseSchema.index({ "generation.mode": 1, "generation.topicKeys": 1, createdAt: -1 });
 courseSchema.index({ "generation.mode": 1, "generation.sourceCourse": 1, "generation.sourceModuleId": 1 });

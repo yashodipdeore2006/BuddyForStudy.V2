@@ -638,7 +638,7 @@ function collectCourseLinks(course) {
   const links = [];
   const add = (url, path) => { if (typeof url === "string" && /^https?:\/\//i.test(url.trim())) links.push({ url: url.trim(), path }); };
   (course.modules || []).forEach((module, mi) => {
-    (module.resources || []).forEach((resource, ri) => add(resource.url, "modules[" + mi + "].resources[" + ri + "].url"));
+    (module.resources || []).forEach((resource, ri) => add(typeof resource === "string" ? resource : resource?.url, "modules[" + mi + "].resources[" + ri + "].url"));
     (module.lessons || []).forEach((lesson, li) => {
       (lesson.tutorial?.resources || []).forEach((url, ri) => add(url, "modules[" + mi + "].lessons[" + li + "].tutorial.resources[" + ri + "]"));
       (lesson.tutorial?.videos || []).forEach((video, vi) => add(video.url, "modules[" + mi + "].lessons[" + li + "].tutorial.videos[" + vi + "].url"));

@@ -414,7 +414,7 @@ export async function retryNotificationDelivery(notificationId, channel, { reaso
     channel,
     status: "pending",
     attempts: 0,
-    retryCount: Array.isArray(notification.retryHistory) ? notification.retryHistory.length : 0,
+    retryCount: Array.isArray(notification.retryHistory) ? notification.retryHistory.filter((entry) => entry.channel === channel).length : 0,
     error: "",
     queued: true
   };

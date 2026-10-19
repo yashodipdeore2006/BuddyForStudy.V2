@@ -608,6 +608,8 @@ export default function AdminCommunications() {
                 {(["in_app", "email", "push"] as const).map((channel) => {
                   const item = audiencePreview.channelCounts?.[channel];
                   return <div key={channel} className="rounded-lg border border-slate-200 bg-white p-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{channel === "in_app" ? "In-app" : channel === "email" ? "Email" : "Push"}</p><p className="mt-1 text-lg font-bold text-slate-900">Will reach: {Number(item?.willReach || 0).toLocaleString()}</p><p className="mt-1 text-xs text-slate-500">Consent eligible: {Number(item?.consentEligible || 0).toLocaleString()}</p>{channel === "push" && <p className="mt-1 text-xs text-slate-500">Active subscriptions: {Number(item?.activeSubscriptions || 0).toLocaleString()}</p>}{item?.providerConfigured === false && <p className="mt-1 text-xs text-amber-700">Provider not configured</p>}{item?.platformEnabled === false && <p className="mt-1 text-xs text-amber-700">Disabled in platform settings</p>}</div>;
+                })}
+              </div>}
               {audiencePreview.sample.length > 0 && <ul className="mt-3 space-y-1 text-sm text-slate-600">{audiencePreview.sample.map((user) => <li key={user.id}>{user.name || "Unnamed user"} <span className="text-slate-400">· {user.email}</span></li>)}</ul>}
             </div>}
           </div>

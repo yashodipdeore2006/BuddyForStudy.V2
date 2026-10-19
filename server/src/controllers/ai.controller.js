@@ -17,7 +17,8 @@ async function ensureCourseLearningAccess(req, courseId) {
   const enrollment = await Enrollment.findOne({
     user: req.user.userId,
     course: courseId,
-    status: { $in: ["active", "completed"] }
+    status: { $in: ["active", "completed"] },
+    revokedBy: null
   });
   if (!enrollment) {
     return { allowed: false, status: 403, message: "Active or completed enrollment required" };

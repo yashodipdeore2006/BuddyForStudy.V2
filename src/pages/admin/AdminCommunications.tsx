@@ -316,6 +316,7 @@ export default function AdminCommunications() {
         truncated: Boolean(data.truncated),
         previewToken: String(data.previewToken || ""),
         sample: Array.isArray(data.sample) ? data.sample : [],
+        channelCounts: data.channelCounts || undefined,
       });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to preview this audience.");
@@ -348,7 +349,16 @@ export default function AdminCommunications() {
       return;
     }
 
-    if (!window.confirm(`Send this communication to ${audiencePreview.recipientCount.toLocaleString()} recipient(s)?`)) return;
+    let announcementReason = "";
+    if (tab === "announcement") {
+      announcementReason = window.prompt("Reason for this announcement (10–500 characters):") || "";
+      if (announcementReason.trim().length < 10 || announcementReason.trim().length > 500) { setStatus("Announcement reason must be between 10 and 500 characters."); return; }
+    }
+    if (audiencePreview.recipientCount > 500) {
+      const expected = "SEND TO " + audiencePreview.recipientCount.toLocaleString("en-US") + " USERS";
+      const typed = window.prompt("This campaign targets more than 500 users. Type exactly:\n" + expected);
+      if (typed !== expected) return;
+    } else if (!window.confirm((tab === "announcement" && scheduledAt ? "Schedule" : "Send") + " this communication to " + audiencePreview.recipientCount.toLocaleString() + " recipient(s)?")) return;
 
     setSending(true);
     setStatus("Sending...");
@@ -371,6 +381,11 @@ export default function AdminCommunications() {
               type: "system",
               link: link.trim(),
               channel: channels,
+              ...(tab === "announcement" ? {
+                ...(scheduledAt ? { scheduledAt: new Date(scheduledAt + ":00+05:30").toISOString() } : {}),
+                timezone: "Asia/Kolkata",
+                reason: announcementReason.trim(),
+              } : {}),
             };
 
       const data = await adminFetch(path, { method: "POST", body: JSON.stringify(body) });
@@ -382,6 +397,7 @@ export default function AdminCommunications() {
           ? `${data.recipients ?? 0} recipient(s)${data.emailsQueued !== undefined ? `, ${data.emailsQueued} emails queued` : ""}${data.pushQueued !== undefined ? `, ${data.pushQueued} push deliveries queued` : ""}`
           : `${data.sent ?? 0} recipient(s)`;
       setStatus((data.message || "Sent") + " — " + deliverySummary);
+      if (tab === "announcement") { setScheduledAt(""); await loadCampaigns(); }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Unable to send communication");
     } finally {
@@ -588,6 +604,10 @@ export default function AdminCommunications() {
             {audiencePreview && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-4" aria-live="polite">
               <p className="font-semibold text-slate-900">{audiencePreview.truncated ? "At least " : ""}{audiencePreview.recipientCount.toLocaleString()} matching recipient(s)</p>
               {audiencePreview.truncated && <p className="mt-1 text-xs text-amber-700">Preview capped at 5,000. Narrow the audience before sending to avoid an overly broad campaign.</p>}
+              {audiencePreview.channelCounts && <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                {(["in_app", "email", "push"] as const).map((channel) => {
+                  const item = audiencePreview.channelCounts?.[channel];
+                  return <div key={channel} className="rounded-lg border border-slate-200 bg-white p-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{channel === "in_app" ? "In-app" : channel === "email" ? "Email" : "Push"}</p><p className="mt-1 text-lg font-bold text-slate-900">Will reach: {Number(item?.willReach || 0).toLocaleString()}</p><p className="mt-1 text-xs text-slate-500">Consent eligible: {Number(item?.consentEligible || 0).toLocaleString()}</p>{channel === "push" && <p className="mt-1 text-xs text-slate-500">Active subscriptions: {Number(item?.activeSubscriptions || 0).toLocaleString()}</p>}{item?.providerConfigured === false && <p className="mt-1 text-xs text-amber-700">Provider not configured</p>}{item?.platformEnabled === false && <p className="mt-1 text-xs text-amber-700">Disabled in platform settings</p>}</div>;
               {audiencePreview.sample.length > 0 && <ul className="mt-3 space-y-1 text-sm text-slate-600">{audiencePreview.sample.map((user) => <li key={user.id}>{user.name || "Unnamed user"} <span className="text-slate-400">· {user.email}</span></li>)}</ul>}
             </div>}
           </div>

@@ -247,8 +247,14 @@ export async function submitPracticeQuiz(req, res, next) {
     if (!access.allowed) return failure(res, access.message, access.status);
     const ids = [...new Set([...(input.quizBankId ? [input.quizBankId] : []), ...input.quizBankIds])];
     if (!ids.length) return failure(res, "Quiz set reference is required", 400);
-    const bankQuizzes = await QuizBank.find({ _id: { $in: ids }, course: input.courseId, lesson: input.lessonId });
-    if (!bankQuizzes.length) return failure(res, "Quiz set not found", 404);
+    const bankQuizzes = await QuizBank.find({
+      _id: { $in: ids },
+      course: input.courseId,
+      lesson: input.lessonId,
+      moderationStatus: "approved",
+      isHidden: { $ne: true }
+    });
+    if (bankQuizzes.length !== ids.length) return failure(res, "One or more quiz sets are not approved or are no longer available.", 404);
     for (const bankQuiz of bankQuizzes) {
       const reattempt = input.quizBankIds.includes(String(bankQuiz._id));
       const questions = bankQuiz.questions || [];

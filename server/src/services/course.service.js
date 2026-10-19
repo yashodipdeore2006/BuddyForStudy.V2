@@ -522,7 +522,7 @@ export async function getPublished(courseId) {
     return normalized;
   }
 
-  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
+  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
   if (!courseDoc) return null;
 
   if (normalizeMultiVideoLessons(courseDoc)) {

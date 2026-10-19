@@ -74,6 +74,7 @@ export default function Courses() {
         let page = 1;
         let batch: any[] = [];
         let lastResponse: any = null;
+        let searchDiscovery: any = null;
         do {
           const params = new URLSearchParams({ page: String(page), limit: '50' });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
@@ -81,16 +82,17 @@ export default function Courses() {
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
           lastResponse = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
           batch = lastResponse.courses || lastResponse.items || [];
+          if (lastResponse.discovery) searchDiscovery = lastResponse.discovery;
           allRows.push(...batch);
           page += 1;
         } while (batch.length === 50 && page <= 200);
         setCourses(allRows.map(mapCourse));
 
         if (
-          lastResponse?.discovery?.mode === 'youtube_fallback' ||
-          lastResponse?.discovery?.mode === 'youtube_supplementary'
+          searchDiscovery?.mode === 'youtube_fallback' ||
+          searchDiscovery?.mode === 'youtube_supplementary'
         ) {
-          const discovery = lastResponse.discovery;
+          const discovery = searchDiscovery;
           setYoutubeDiscovery(discovery);
           setYoutubePlaylistsLoading(true);
           setYoutubePlaylistError("");

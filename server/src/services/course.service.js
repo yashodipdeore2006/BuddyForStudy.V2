@@ -474,9 +474,11 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
     let youtubeError = "";
 
     try {
+      const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+      const configuredResultCount = Math.max(1, Math.min(50, Number(resultSetting?.value) || 30));
       youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(
         normalizedSearch,
-        3
+        configuredResultCount
       );
     } catch (error) {
       youtubeError =

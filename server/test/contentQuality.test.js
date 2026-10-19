@@ -103,9 +103,9 @@ test("private AI draft courses remain owner-only and never enter the public cata
   assert.match(courseRoutes, /optionalAuthMiddleware, controller\.details/);
 });
 
-test("editing a learner review resets its moderation decision", async () => {
+test("editing a learner review resets its moderation decision according to the active policy", async () => {
   const service = await read("../src/services/review.service.js");
-  assert.match(service, /moderationStatus: "pending"/);
+  assert.match(service, /moderationStatus: automaticallyApproved \? "approved" : "pending"/);
   assert.match(service, /moderatedBy: null/);
   assert.match(service, /isHidden: false/);
 });

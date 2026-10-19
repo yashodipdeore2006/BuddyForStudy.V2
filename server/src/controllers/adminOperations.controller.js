@@ -1,10 +1,9 @@
-import { JobHeartbeat } from "../models/JobHeartbeat.js";
 import { AuditOutbox } from "../models/AuditOutbox.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
 import { Notification } from "../models/Notification.js";
 import { Payment } from "../models/Payment.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
-import { getTypedSettingsRegistry } from "../utils/typedSettingsRegistry.js";
+import { getTypedSettingsRegistry, validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { checkWorkerHeartbeat } from "../services/jobHeartbeat.service.js";
 import { success } from "../utils/response.js";
 
@@ -23,15 +22,16 @@ export async function systemHealth(_req, res, next) {
       PlatformSetting.find().select("key updatedAt").lean()
     ]);
 
+    const integration = (keys) => ({ configured: keys.every((key) => Boolean(process.env[key])), missing: keys.filter((key) => !process.env[key]) });
     const integrationStatus = {
-      razorpay: {
-        configured: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && process.env.RAZORPAY_WEBHOOK_SECRET),
-        missing: ["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"].filter((key) => !process.env[key])
-      },
-      email: {
-        configured: Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS),
-        missing: ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"].filter((key) => !process.env[key])
-      },
+      razorpay: integration(["RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"]),
+      email: integration(["SMTP_HOST", "SMTP_USER", "SMTP_PASS"]),
+      googleOAuth: integration(["GOOGLE_CLIENT_ID"]),
+      geminiAI: integration(["GEMINI_API_KEY"]),
+      youtube: integration(["YOUTUBE_API_KEY"]),
+      redis: process.env.REDIS_URL ? { configured: true, missing: [] } : { configured: false, missing: ["REDIS_URL"] },
+      webPush: integration(["WEB_PUSH_VAPID_PUBLIC_KEY", "WEB_PUSH_VAPID_PRIVATE_KEY", "WEB_PUSH_SUBJECT"]),
+      sentry: process.env.SENTRY_DSN ? { configured: true, missing: [] } : { configured: false, missing: ["SENTRY_DSN"] },
       database: { connected: true }
     };
 
@@ -96,7 +96,7 @@ export async function typedSettingsRegistry(_req, res, next) {
     return success(res, { settings: registry.map((definition) => {
       const current = byKey.get(definition.key);
       const value = current?.value;
-      const valueMatchesType = value === undefined ? false : definition.type === "number" ? typeof value === "number" && Number.isFinite(value) : definition.type === "boolean" ? typeof value === "boolean" : typeof value === definition.type;
+      const valueMatchesType = value === undefined ? false : validateTypedSetting(definition.key, value).valid;
       return { ...definition, configured: Boolean(current), valueMatchesType, updatedAt: current?.updatedAt || null };
     }) });
   } catch (error) { next(error); }

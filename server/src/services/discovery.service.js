@@ -383,7 +383,7 @@ export async function getOrCreateNormalCourse(query) {
     return { course: existingNormal, result: courseToSearchSnapshot(existingNormal, normalized), cached: true };
   }
 
-  const existingAi = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
+  const existingAi = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: normalized });
   if (existingAi) {
     const derived = await createNormalCourseFromAi(existingAi, normalized);
     if (derived) {

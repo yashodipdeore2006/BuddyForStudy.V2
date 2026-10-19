@@ -424,8 +424,8 @@ export async function courses(req, res, next) {
   try {
     const q = String(req.query.q || "").trim().slice(0, 100);
     const searchPattern = q ? new RegExp(escapeRegex(q), "i") : null;
-    const filter = searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {};
-    const courses = await Course.find(filter).select("title slug category level isPublished pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt").sort({ createdAt: -1 }).lean();
+    const filter = searchPattern ? { deletedAt: null, $or: [{ title: searchPattern }, { category: searchPattern }] } : { deletedAt: null };
+    const courses = await Course.find(filter).select("title slug category level isPublished status deletedAt aiReviewStatus generation.mode pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt").sort({ createdAt: -1 }).lean();
     return success(res, { courses });
   } catch (e) { next(e); }
 }
@@ -458,6 +458,7 @@ export async function publishCourse(req, res, next) {
 
     const before = { isPublished: course.isPublished };
     course.isPublished = true;
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.published", "Course", course._id, before, { isPublished: true, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
@@ -545,6 +546,7 @@ export async function addCourseModule(req, res, next) {
     });
     course.modules.push(module);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.created", "Course", course._id, null, {
@@ -575,6 +577,7 @@ export async function updateCourseModule(req, res, next) {
     }
     if (req.body.description !== undefined) module.description = String(req.body.description || "").trim();
 
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.updated", "Course", course._id, before, summarizeModuleForAudit(module), req.body.reason || "");
@@ -593,6 +596,7 @@ export async function deleteCourseModule(req, res, next) {
     course.modules.splice(index, 1);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.deleted", "Course", course._id, {
@@ -645,7 +649,8 @@ export async function addCourseVideo(req, res, next) {
       module.lessons.push(...imported);
       renumberModules(course);
       course.markModified("modules");
-      await course.save();
+      course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    await course.save();
       await cacheDelete(`course:${course._id}`);
       await audit(req, "course.videos.playlist.imported", "Course", course._id, null, {
         moduleId: String(module._id), playlistId, count: imported.length
@@ -682,6 +687,7 @@ export async function addCourseVideo(req, res, next) {
     module.lessons.push(lesson);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.video.added", "Course", course._id, null, {
@@ -738,6 +744,7 @@ export async function addCourseLesson(req, res, next) {
     module.lessons.push(lesson);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.lesson.created", "Course", course._id, null, {
@@ -760,6 +767,7 @@ export async function deleteCourseLesson(req, res, next) {
     module.lessons.splice(index, 1);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.lesson.deleted", "Course", course._id, {
@@ -787,6 +795,7 @@ export async function addModuleResource(req, res, next) {
 
     const resource = module.resources.create({ title, url: resourceUrl, type });
     module.resources.push(resource);
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     let resourceHost = "";
@@ -816,6 +825,7 @@ export async function deleteModuleResource(req, res, next) {
     let removedResourceHost = "";
     try { removedResourceHost = new URL(removed.url).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* Legacy resources may contain invalid URLs. */ }
     module.resources.splice(index, 1);
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
@@ -943,6 +953,7 @@ export async function updateCourseTutorial(req, res, next) {
     }
 
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
 
@@ -1043,6 +1054,7 @@ export async function updateCourse(req, res, next) {
       if (typeof p.saleEnabled === "boolean") course.pricing.saleEnabled = p.saleEnabled;
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     // Course catalogue caches must not retain stale publish state or metadata.
     await cacheDelete(`course:${course._id}`);

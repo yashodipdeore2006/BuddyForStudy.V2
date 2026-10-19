@@ -117,6 +117,15 @@ const courseSchema = new mongoose.Schema({
   }
 }, { timestamps: true, collection: "courses" });
 
+courseSchema.pre("validate", function enforceHumanReviewForGeneratedCourses() {
+  if (this.isNew && ["ai", "module", "discovery"].includes(this.generation?.mode)) {
+    this.isPublished = false;
+    this.status = "draft";
+    this.aiReviewStatus = "pending";
+    this.aiReviewedBy = null;
+    this.aiReviewedAt = null;
+  }
+});
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
 courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   if (this.isNew || !this.isModified()) return;

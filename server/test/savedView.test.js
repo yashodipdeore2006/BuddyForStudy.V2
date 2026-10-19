@@ -38,7 +38,7 @@ test("saved view routes reject non-admins and administrators without dashboard.r
   assert.equal(nonAdmin.statusCode, 403);
 
   const missingPermission = responseRecorder();
-  adminPermissionMiddleware("dashboard.read")({
+  adminPermissionMiddleware("users.manage")({
     user: { role: "admin", accessType: "admin", adminRole: "support_manager", adminPermissionOverrides: [] }
   }, missingPermission, () => assert.fail("must reject missing permission"));
   assert.equal(missingPermission.statusCode, 403);

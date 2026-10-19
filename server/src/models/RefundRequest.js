@@ -20,6 +20,8 @@ const refundRequestSchema = new mongoose.Schema({
   reconciliationStartedAt: { type: Date, default: undefined, select: false },
   status: { type: String, enum: ["pending", "approved", "rejected", "processed"], default: "pending", index: true },
   adminNote: { type: String, default: "" },
+  decisionReason: { type: String, default: "", maxlength: 500 },
+  slaDueAt: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), index: true },
   processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   processedAt: { type: Date, default: null }
 }, { timestamps: true, collection: "refund_requests" });

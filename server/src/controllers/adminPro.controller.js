@@ -2109,6 +2109,11 @@ export async function previewNotificationAudience(req, res, next) {
       audienceInput = { ...audienceInput, emails: [email] };
     }
     validateAdminAudienceInput(audienceInput);
+    let selectedChannels = null;
+    if (audienceInput.channels !== undefined) {
+      selectedChannels = parseAnnouncementChannels(audienceInput.channels);
+      if (!selectedChannels) return failure(res, "Choose one or more valid announcement channels", 400);
+    }
     const users = await resolveAdminAudience(audienceInput, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
     const truncated = users.length > 5000;
     const countedUsers = users.slice(0, 5000);
@@ -2131,9 +2136,9 @@ export async function previewNotificationAudience(req, res, next) {
     const activePushSet = new Set(activePushUsers.map(String));
     const pushReachable = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.pushEnabled === true && activePushSet.has(String(user._id))).length;
     const channelCounts = {
-      in_app: { consentEligible: inAppConsent, willReach: inAppEnabled ? inAppConsent : 0, platformEnabled: inAppEnabled },
-      email: { consentEligible: emailConsent, willReach: emailEnabled && emailConfigured ? emailConsent : 0, platformEnabled: emailEnabled, providerConfigured: emailConfigured },
-      push: { consentEligible: pushConsent, activeSubscriptions: pushReachable, willReach: pushEnabled && pushConfigured ? pushReachable : 0, platformEnabled: pushEnabled, providerConfigured: pushConfigured }
+      in_app: { selected: !selectedChannels || selectedChannels.includes("in_app"), consentEligible: inAppConsent, willReach: (!selectedChannels || selectedChannels.includes("in_app")) && inAppEnabled ? inAppConsent : 0, platformEnabled: inAppEnabled },
+      email: { selected: !selectedChannels || selectedChannels.includes("email"), consentEligible: emailConsent, willReach: (!selectedChannels || selectedChannels.includes("email")) && emailEnabled && emailConfigured ? emailConsent : 0, platformEnabled: emailEnabled, providerConfigured: emailConfigured },
+      push: { selected: !selectedChannels || selectedChannels.includes("push"), consentEligible: pushConsent, activeSubscriptions: pushReachable, willReach: (!selectedChannels || selectedChannels.includes("push")) && pushEnabled && pushConfigured ? pushReachable : 0, platformEnabled: pushEnabled, providerConfigured: pushConfigured }
     };
     return success(res, {
       recipientCount: truncated ? 5000 : users.length, truncated, channelCounts,

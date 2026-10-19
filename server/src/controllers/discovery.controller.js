@@ -9,9 +9,20 @@ import { consumeUsage, releaseUsage } from "../services/aiUsage.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
-function needsAdminApproval(course) {
-  return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode) &&
-    (course?.aiReviewStatus !== "approved" || (!course?.aiReviewedBy && course?.aiReviewSource !== "automatic"));
+function pendingCourseAccessState(course) {
+  const generated = ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
+  if (!generated) return null;
+  const approved = course?.aiReviewStatus === "approved" && (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic");
+  if (!approved) return "review";
+  if (course?.visibility === "private" && course?.createdForUser) return null;
+  return course?.isPublished ? null : "publication";
+}
+
+function pendingCourseAccessMessage(state, courseType) {
+  if (state === "publication") {
+    return "This course is approved but not available yet. Administrators must complete the readiness and publication checks before learners can enroll.";
+  }
+  return "Your " + courseType + " has been submitted for administrator review. Access and enrollment will be enabled after approval and required publication checks.";
 }
 
 const resourceSchema = z.object({
@@ -76,12 +87,14 @@ export async function enrollCourseSearch(req, res, next) {
     const { q } = searchSchema.parse(req.body);
     reservation = await reserveDiscoveryQuota(req, "ai_curated_courses_per_month", "ai_curated_courses");
     const course = await createCourseFromSearch(q, req.user.userId);
-    if (needsAdminApproval(course)) {
+    const accessHold = pendingCourseAccessState(course);
+    if (accessHold) {
       return success(res, {
         course: toPublicCoursePreview(course),
         enrollment: null,
-        pendingApproval: true
-      }, "Your AI-assembled course has been submitted for administrator review. Access and enrollment will be enabled after approval.", 202);
+        pendingApproval: accessHold === "review",
+        pendingPublication: accessHold === "publication"
+      }, pendingCourseAccessMessage(accessHold, "AI-assembled course"), 202);
     }
     const enrollment = await enroll(req.user.userId, course._id);
     return success(res, { course: toPublicCoursePreview(course), enrollment }, "Course enrolled successfully", 201);
@@ -100,12 +113,14 @@ export async function enrollYouTubeResource(req, res, next) {
     const input = resourceSchema.parse(req.body);
     reservation = await reserveDiscoveryQuota(req, "youtube_discovery_courses_per_month", "youtube_discovery_courses");
     const course = await getOrCreateYouTubeResourceCourse({ ...input, userId: req.user.userId });
-    if (needsAdminApproval(course)) {
+    const accessHold = pendingCourseAccessState(course);
+    if (accessHold) {
       return success(res, {
         course: toPublicCoursePreview(course),
         enrollment: null,
-        pendingApproval: true
-      }, "Your YouTube learning course has been submitted for administrator review. Access and enrollment will be enabled after approval.", 202);
+        pendingApproval: accessHold === "review",
+        pendingPublication: accessHold === "publication"
+      }, pendingCourseAccessMessage(accessHold, "YouTube learning course"), 202);
     }
     let enrollment;
 

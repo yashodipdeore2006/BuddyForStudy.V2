@@ -8,7 +8,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Platform Administrator",
     description: "Day-to-day user, course and platform operations.",
     permissions: [
-      "dashboard.read", "users.read", "users.manage",
+      "dashboard.read", "saved_views.manage", "users.read", "users.manage",
       "courses.read", "courses.manage", "courses.publish", "operations.manage",
       "analytics.read", "plans.read", "billing.read",
       "communications.send", "communications.manage", "coupons.read",
@@ -19,7 +19,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "AI & Learning Content Manager",
     description: "Learning content, curriculum and AI resource operations.",
     permissions: [
-      "dashboard.read", "courses.read", "courses.manage", "courses.publish",
+      "dashboard.read", "saved_views.manage", "courses.read", "courses.manage", "courses.publish",
       "ai.manage", "resources.manage", "analytics.read", "operations.read",
     ],
   },
@@ -27,7 +27,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Finance & Subscription Manager",
     description: "Plans, coupons, payment reporting and refund decisions.",
     permissions: [
-      "dashboard.read", "plans.read", "plans.manage", "billing.read",
+      "dashboard.read", "saved_views.manage", "plans.read", "plans.manage", "billing.read",
       "refunds.manage", "coupons.read", "coupons.manage", "analytics.read",
       "operations.read",
     ],
@@ -36,7 +36,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Support Manager",
     description: "Learner account support and payment issue investigations.",
     permissions: [
-      "dashboard.read", "billing.read", "payment_issues.manage",
+      "dashboard.read", "saved_views.manage", "billing.read", "payment_issues.manage",
       "operations.read",
     ],
   },
@@ -44,14 +44,14 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Analyst & Auditor",
     description: "Read-only analytics, audit and operational reporting.",
     permissions: [
-      "dashboard.read", "analytics.read", "audit.read", "operations.read",
+      "dashboard.read", "saved_views.manage", "analytics.read", "audit.read", "operations.read",
       "billing.read",
     ],
   },
 });
 
 export const ADMIN_PERMISSION_CATALOG = Object.freeze([
-  "dashboard.read",
+  "dashboard.read", "saved_views.manage",
   "users.read", "users.manage",
   "courses.read", "courses.manage", "courses.publish",
   "ai.manage", "resources.manage",

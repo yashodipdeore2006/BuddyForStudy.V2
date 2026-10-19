@@ -30,13 +30,13 @@ const links: AdminLink[] = [
   { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Reviews, revisions, moderation and link health" },
   { to: "/admin/roadmaps", label: "Learning roadmaps", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Generated roadmaps and learner progress" },
 
-  { to: "/admin/support", label: "Support cases", permission: "payment_issues.manage", group: "Operations", icon: Headset, description: "Resolve learner payment and access issues" },
+  { to: "/admin/support", label: "Support cases", permission: "billing.read", group: "Operations", icon: Headset, description: "Review learner payment and access issues" },
   { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Operations", icon: ServerCog, description: "Service health, queues, webhooks and alerts" },
   { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Operations", icon: Megaphone, description: "Announcements, templates and notifications" },
   { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Operations", icon: MailCheck, description: "Delivery attempts, errors and safe retries" },
 
   { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Finance & governance", icon: CreditCard, description: "Subscription plans and entitlements" },
-  { to: "/admin/billing", label: "Billing and refunds", permission: "refunds.manage", group: "Finance & governance", icon: CreditCard, description: "Payments, refunds and payment issues" },
+  { to: "/admin/billing", label: "Billing and refunds", permission: "billing.read", group: "Finance & governance", icon: CreditCard, description: "Payments, refunds and payment issue reports" },
   { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Finance & governance", icon: CreditCard, description: "Subscriber status and billing periods" },
   { to: "/admin/coupons", label: "Coupons", permission: "coupons.read", group: "Finance & governance", icon: Tag, description: "Discounts and promotions" },
   { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Finance & governance", icon: BrainCircuit, description: "AI controls and discovery settings" },

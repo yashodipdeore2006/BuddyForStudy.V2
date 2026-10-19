@@ -118,7 +118,7 @@ const courseSchema = new mongoose.Schema({
 }, { timestamps: true, collection: "courses" });
 
 courseSchema.pre("validate", function enforceHumanReviewForGeneratedCourses() {
-  if (this.isNew && ["ai", "module", "discovery"].includes(this.generation?.mode)) {
+  if (this.isNew && ["normal", "ai", "module", "discovery"].includes(this.generation?.mode)) {
     this.isPublished = false;
     this.status = "draft";
     this.aiReviewStatus = "pending";

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, type ButtonHTMLAttributes, type HTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { AlertCircle, CheckCircle2, Info, LoaderCircle, XCircle } from "lucide-react";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-ghost" | "link";
@@ -151,7 +151,7 @@ export function AdminTabs<T extends string>({
   ariaLabel: string;
 }) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+  const moveFocus = (event: ReactKeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
     const enabled = items.map((item, index) => item.disabled ? -1 : index).filter((index) => index >= 0);
     if (!enabled.length) return;
     const position = enabled.indexOf(currentIndex);

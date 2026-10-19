@@ -431,7 +431,7 @@ export async function courses(req, res, next) {
       ...(searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {})
     };
     const courses = await Course.find(filter)
-      .select("title slug category level isPublished status deletedAt aiReviewStatus aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+      .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
       .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).lean();
     return success(res, { courses });
   } catch (e) { next(e); }

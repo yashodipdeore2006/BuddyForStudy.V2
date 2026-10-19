@@ -35,7 +35,7 @@ function statsPipeline(announcement) {
       _id: null,
       total: { $sum: 1 },
       sent: { $sum: { $cond: [any(successConditions), 1, 0] } },
-      failed: { $sum: { $cond: [{ $and: [{ $not: [any(successConditions)] }, any(failedConditions)] }, 1, 0] } },
+      failed: { $sum: { $cond: [any(failedConditions), 1, 0] } },
       pending: { $sum: { $cond: [any(pendingConditions), 1, 0] } },
       in_app_sent: { $sum: { $cond: [{ $eq: ["$showInApp", true] }, 1, 0] } },
       email_sent: { $sum: { $cond: [{ $eq: ["$emailStatus", "sent"] }, 1, 0] } },

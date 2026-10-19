@@ -56,3 +56,21 @@ test("admin refunds are searchable and use bounded server-side pagination with s
   assert.match(section, /RefundRequest\.countDocuments\(filter\)/);
   assert.match(section, /summary/);
 });
+
+test("notification deliveries support bounded server pagination and literal search", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const section = controller.slice(controller.indexOf("export async function notificationDeliveries"), controller.indexOf("export async function deliveryLog"));
+  assert.ok(section.includes("escapeRegex(q)"));
+  assert.ok(section.includes("Notification.countDocuments(filter)"));
+  assert.ok(section.includes(".skip((page - 1) * limit).limit(limit)"));
+  assert.ok(section.includes("pages: Math.max(1, Math.ceil(total / limit))"));
+});
+
+test("announcement campaigns support bounded pagination, status filters and literal search", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const section = controller.slice(controller.indexOf("export async function listAnnouncements"), controller.indexOf("export async function cancelAnnouncement"));
+  assert.ok(section.includes("escapeRegex(q)"));
+  assert.ok(section.includes("Announcement.countDocuments(filter)"));
+  assert.ok(section.includes(".skip((page - 1) * limit).limit(limit)"));
+  assert.ok(section.includes("filter.status"));
+});

@@ -1569,18 +1569,33 @@ export async function retryNotificationDeliveryAdmin(req, res, next) {
 
 export async function notificationDeliveries(req, res, next) {
   try {
-    const deliveries = await Notification.find({
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const filter = {
       $or: [
         { emailStatus: { $in: ["pending", "sent", "failed"] } },
         { pushStatus: { $in: ["pending", "sent", "failed"] } },
         { emailError: { $ne: "" } },
         { pushError: { $ne: "" } }
       ]
-    })
-      .populate("user", "name email")
-      .sort({ updatedAt: -1 })
-      .limit(100)
-      .lean();
+    };
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const users = await User.find({ $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(1000).lean();
+      const matches = [
+        { title: pattern }, { message: pattern }, { type: pattern }, { link: pattern },
+        { eventKey: pattern }, { emailError: pattern }, { pushError: pattern },
+        { user: { $in: users.map((user) => user._id) } }
+      ];
+      if (isValidObjectId(q)) matches.push({ _id: new mongoose.Types.ObjectId(q) });
+      filter.$and = [{ $or: matches }];
+    }
+    const [deliveries, total] = await Promise.all([
+      Notification.find(filter).populate("user", "name email").sort({ updatedAt: -1, _id: -1 })
+        .skip((page - 1) * limit).limit(limit).lean(),
+      Notification.countDocuments(filter)
+    ]);
     return success(res, {
       deliveries: deliveries.map((item) => ({
         id: String(item._id),
@@ -1599,7 +1614,8 @@ export async function notificationDeliveries(req, res, next) {
         pushAttempts: item.pushAttempts,
         pushSentAt: item.pushSentAt,
         pushError: safeDeliveryError(item.pushError)
-      }))
+      })),
+      page, limit, total, pages: Math.max(1, Math.ceil(total / limit))
     });
   } catch (e) { next(e); }
 }
@@ -2383,11 +2399,19 @@ export async function listAnnouncements(req, res, next) {
     const allowed = ["draft", "scheduled", "sending", "sent", "failed", "cancelled"];
     const filter = {};
     if (req.query.status && allowed.includes(String(req.query.status))) filter.status = String(req.query.status);
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const creators = await User.find({ name: pattern }).select("_id").limit(500).lean();
+      const matches = [{ title: pattern }, { createdBy: { $in: creators.map((user) => user._id) } }];
+      if (isValidObjectId(q)) matches.push({ _id: new mongoose.Types.ObjectId(q) });
+      filter.$and = [{ $or: matches }];
+    }
     const [items, total] = await Promise.all([
       Announcement.find(filter).select("title status audience targetMode channel scheduledAt timezone startedAt sentAt completedAt cancelledAt stats lastError createdBy createdAt updatedAt").populate("createdBy", "name").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       Announcement.countDocuments(filter)
     ]);
-    return success(res, { announcements: items.map((item) => ({ ...item, lastError: safeDeliveryError(item.lastError) })), page, limit, total, pages: Math.ceil(total / limit) });
+    return success(res, { announcements: items.map((item) => ({ ...item, lastError: safeDeliveryError(item.lastError) })), page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) });
   } catch (error) { next(error); }
 }
 

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, Send } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminConfirmDialog, AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { AdminConfirmDialog, AdminPageHeader, AdminPagination, AdminTabs } from "@/components/admin/AdminUI";
 
 type Channel = "in_app" | "email" | "push";
 type CommunicationConfirmation =
@@ -13,6 +13,18 @@ type MessageTemplate = { _id: string; name: string; key: string; channel: "notif
 type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
 type TemplatePreview = { channel: string; title: string; subject: string; body: string; placeholders: string[]; unknownPlaceholders: string[] };
 type AnnouncementRecord = { _id: string; title: string; status: string; channel: Channel[]; scheduledAt?: string; timezone?: string; startedAt?: string; sentAt?: string; completedAt?: string; createdAt?: string; stats?: { total?: number; sent?: number; pending?: number; failed?: number; skipped?: number }; lastError?: string };
+type CampaignReport = {
+  announcement?: { stats?: AnnouncementRecord["stats"] };
+  channels?: Partial<Record<Channel, { sent?: number; pending?: number; failed?: number; skipped?: number }>>;
+  topErrors?: Array<{ recipient?: { email?: string }; emailError?: string; pushError?: string }>;
+};
+type DeliveryRecord = {
+  id: string; title?: string; message?: string; type?: string; link?: string;
+  createdAt?: string; updatedAt?: string;
+  user?: { name?: string; email?: string } | null;
+  emailStatus?: string; emailAttempts?: number; emailError?: string; emailSentAt?: string;
+  pushStatus?: string; pushAttempts?: number; pushError?: string; pushSentAt?: string;
+};
 type AudiencePlanOption = { id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean; isPopular: boolean };
 type AudienceCourseOption = { id: string; title: string; category: string; level: string; isPublished: boolean; pricingMode: string; price: number; featured: boolean };
 const EMPTY_TEMPLATE: TemplateDraft = { name: "", key: "", channel: "notification", title: "", subject: "", body: "", link: "", messageType: "system", isActive: true };
@@ -43,7 +55,14 @@ export default function AdminCommunications() {
   const [preview, setPreview] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [deliveries, setDeliveries] = useState<any[]>([]);
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
+  const [deliverySearchInput, setDeliverySearchInput] = useState("");
+  const [deliverySearch, setDeliverySearch] = useState("");
+  const [deliveryPage, setDeliveryPage] = useState(1);
+  const [deliveryLimit, setDeliveryLimit] = useState(25);
+  const [deliveryPages, setDeliveryPages] = useState(1);
+  const [deliveryTotal, setDeliveryTotal] = useState(0);
+  const deliveryRequestId = useRef(0);
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [deliveryError, setDeliveryError] = useState("");
   const [deliveryNotice, setDeliveryNotice] = useState("");
@@ -59,10 +78,18 @@ export default function AdminCommunications() {
   const [previewingTemplate, setPreviewingTemplate] = useState(false);
   const [testSendingTemplate, setTestSendingTemplate] = useState(false);
   const [campaigns, setCampaigns] = useState<AnnouncementRecord[]>([]);
+  const [campaignPage, setCampaignPage] = useState(1);
+  const [campaignLimit, setCampaignLimit] = useState(25);
+  const [campaignPages, setCampaignPages] = useState(1);
+  const [campaignTotal, setCampaignTotal] = useState(0);
+  const [campaignStatus, setCampaignStatus] = useState("all");
+  const [campaignSearchInput, setCampaignSearchInput] = useState("");
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const campaignRequestId = useRef(0);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [campaignError, setCampaignError] = useState("");
   const [campaignNotice, setCampaignNotice] = useState("");
-  const [campaignReports, setCampaignReports] = useState<Record<string, any>>({});
+  const [campaignReports, setCampaignReports] = useState<Record<string, CampaignReport>>({});
   const [campaignBusy, setCampaignBusy] = useState("");
   const [confirmationAction, setConfirmationAction] = useState<CommunicationConfirmation | null>(null);
   const [confirmationReason, setConfirmationReason] = useState("");
@@ -89,11 +116,29 @@ export default function AdminCommunications() {
     requestConfirmation({ kind: "retry-delivery", notificationId, channel });
   }
 
-  async function loadCampaigns() {
+  async function loadCampaigns(page = campaignPage, limit = campaignLimit, statusFilter = campaignStatus, search = campaignSearch) {
+    const requestId = ++campaignRequestId.current;
     setLoadingCampaigns(true); setCampaignError("");
-    try { const data = await adminFetch("/api/admin/announcements?limit=50"); setCampaigns(Array.isArray(data.announcements) ? data.announcements : []); }
-    catch (error) { setCampaignError(error instanceof Error ? error.message : "Unable to load announcement history."); }
-    finally { setLoadingCampaigns(false); }
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (search.trim()) params.set("q", search.trim().slice(0, 100));
+      const data = await adminFetch("/api/admin/announcements?" + params.toString());
+      if (requestId !== campaignRequestId.current) return;
+      const nextPages = Math.max(1, Number(data.pages || 1));
+      setCampaignTotal(Number(data.total || 0));
+      setCampaignPages(nextPages);
+      if (page > nextPages) {
+        setCampaignPage(nextPages);
+        await loadCampaigns(nextPages, limit, statusFilter, search);
+        return;
+      }
+      setCampaigns(Array.isArray(data.announcements) ? data.announcements : []);
+    } catch (error) {
+      if (requestId === campaignRequestId.current) setCampaignError(error instanceof Error ? error.message : "Unable to load announcement history.");
+    } finally {
+      if (requestId === campaignRequestId.current) setLoadingCampaigns(false);
+    }
   }
 
   async function loadCampaignReport(announcementId: string) {
@@ -107,16 +152,28 @@ export default function AdminCommunications() {
     requestConfirmation({ kind: "cancel-campaign", announcementId, title: titleText });
   }
 
-  async function loadDeliveryLogs() {
+  async function loadDeliveryLogs(page = deliveryPage, limit = deliveryLimit, search = deliverySearch) {
+    const requestId = ++deliveryRequestId.current;
     setLoadingDeliveries(true);
     setDeliveryError("");
     try {
-      const data = await adminFetch("/api/admin/notification-deliveries");
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search.trim()) params.set("q", search.trim().slice(0, 100));
+      const data = await adminFetch("/api/admin/notification-deliveries?" + params.toString());
+      if (requestId !== deliveryRequestId.current) return;
+      const nextPages = Math.max(1, Number(data.pages || 1));
+      setDeliveryTotal(Number(data.total || 0));
+      setDeliveryPages(nextPages);
+      if (page > nextPages) {
+        setDeliveryPage(nextPages);
+        await loadDeliveryLogs(nextPages, limit, search);
+        return;
+      }
       setDeliveries(Array.isArray(data.deliveries) ? data.deliveries : []);
     } catch (error) {
-      setDeliveryError(error instanceof Error ? error.message : "Unable to load notification delivery logs.");
+      if (requestId === deliveryRequestId.current) setDeliveryError(error instanceof Error ? error.message : "Unable to load notification delivery logs.");
     } finally {
-      setLoadingDeliveries(false);
+      if (requestId === deliveryRequestId.current) setLoadingDeliveries(false);
     }
   }
 
@@ -496,7 +553,7 @@ export default function AdminCommunications() {
           { value: "compose", label: "Compose" },
           { value: "templates", label: `Templates (${templates.length})` },
           { value: "deliveries", label: "Delivery log" },
-          { value: "campaigns", label: `Campaigns (${campaigns.length})` },
+          { value: "campaigns", label: `Campaigns (${campaignTotal})` },
         ]} />
       </div>
 
@@ -754,15 +811,18 @@ export default function AdminCommunications() {
       </div>}
 
       {workspaceView === "deliveries" && <section className="card mt-6 overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Operations</p>
             <h2 className="mt-1 text-xl font-semibold text-slate-950">Notification delivery logs</h2>
-            <p className="mt-1 text-sm text-slate-500">Latest automated and manual deliveries, retry attempts, and provider errors.</p>
+            <p className="mt-1 text-sm text-slate-500">{deliveryTotal.toLocaleString()} records · failed sends can be retried with a reason.</p>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => void loadDeliveryLogs()} disabled={loadingDeliveries}>
-            {loadingDeliveries ? "Refreshing..." : "Refresh logs"}
-          </button>
+          <form className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_auto_auto]" onSubmit={(event) => { event.preventDefault(); const next = deliverySearchInput.trim(); setDeliverySearch(next); setDeliveryPage(1); void loadDeliveryLogs(1, deliveryLimit, next); }}>
+            <input aria-label="Search notification delivery logs" className="input-field" maxLength={100} value={deliverySearchInput} onChange={(event) => setDeliverySearchInput(event.target.value)} placeholder="Notification, recipient, type or ID" />
+            <button type="submit" className="btn-primary"><Eye className="h-4 w-4" /> Search</button>
+            <button type="button" className="btn-secondary" onClick={() => { setDeliverySearchInput(""); setDeliverySearch(""); setDeliveryPage(1); void loadDeliveryLogs(1, deliveryLimit, ""); }}>Reset</button>
+            <button type="button" className="btn-secondary sm:col-span-3 sm:justify-self-end" onClick={() => void loadDeliveryLogs()} disabled={loadingDeliveries}>{loadingDeliveries ? "Refreshing..." : "Refresh logs"}</button>
+          </form>
         </div>
         {deliveryError && <p role="alert" className="m-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{deliveryError}</p>}
         {deliveryNotice && <p role="status" className="m-5 rounded-xl bg-green-50 p-3 text-sm text-green-700">{deliveryNotice}</p>}
@@ -807,12 +867,21 @@ export default function AdminCommunications() {
             </table>
           </div>
         )}
+        <AdminPagination page={deliveryPage} pages={deliveryPages} total={deliveryTotal} from={deliveryTotal ? (deliveryPage - 1) * deliveryLimit + 1 : 0} to={Math.min(deliveryPage * deliveryLimit, deliveryTotal)} limit={deliveryLimit} loading={loadingDeliveries} onPageChange={(nextPage) => { setDeliveryPage(nextPage); void loadDeliveryLogs(nextPage, deliveryLimit, deliverySearch); }} onLimitChange={(nextLimit) => { setDeliveryLimit(nextLimit); setDeliveryPage(1); void loadDeliveryLogs(1, nextLimit, deliverySearch); }} />
       </section>}
 
       {workspaceView === "campaigns" && <section className="card mt-6 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
-          <div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Campaigns</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Announcement schedule and reports</h2><p className="mt-1 text-sm text-slate-500">Scheduled campaigns can be cancelled before the worker starts sending. Reports show provider acceptance, not inbox delivery or reading.</p></div>
-          <button type="button" className="btn-secondary" onClick={() => void loadCampaigns()} disabled={loadingCampaigns}>{loadingCampaigns ? "Refreshing..." : "Refresh campaigns"}</button>
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 xl:flex-row xl:items-end xl:justify-between">
+          <div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Campaigns</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Announcement schedule and reports</h2><p className="mt-1 text-sm text-slate-500">{campaignTotal.toLocaleString()} campaigns · scheduled work can be cancelled before processing starts.</p></div>
+          <form className="grid gap-2 sm:grid-cols-[180px_minmax(220px,1fr)_auto_auto]" onSubmit={(event) => { event.preventDefault(); const next = campaignSearchInput.trim(); setCampaignSearch(next); setCampaignPage(1); void loadCampaigns(1, campaignLimit, campaignStatus, next); }}>
+            <select aria-label="Filter campaigns by status" className="input-field" value={campaignStatus} onChange={(event) => { const next = event.target.value; setCampaignStatus(next); setCampaignPage(1); void loadCampaigns(1, campaignLimit, next, campaignSearch); }}>
+              <option value="all">All statuses</option><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="sending">Sending</option><option value="sent">Sent</option><option value="failed">Failed</option><option value="cancelled">Cancelled</option>
+            </select>
+            <input aria-label="Search announcement campaigns" className="input-field" maxLength={100} value={campaignSearchInput} onChange={(event) => setCampaignSearchInput(event.target.value)} placeholder="Campaign title, creator or ID" />
+            <button type="submit" className="btn-primary"><Eye className="h-4 w-4" /> Search</button>
+            <button type="button" className="btn-secondary" onClick={() => { setCampaignSearchInput(""); setCampaignSearch(""); setCampaignStatus("all"); setCampaignPage(1); void loadCampaigns(1, campaignLimit, "all", ""); }}>Reset</button>
+            <button type="button" className="btn-secondary sm:col-span-4 sm:justify-self-end" onClick={() => void loadCampaigns()} disabled={loadingCampaigns}>{loadingCampaigns ? "Refreshing..." : "Refresh campaigns"}</button>
+          </form>
         </div>
         {campaignError && <p role="alert" className="m-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">{campaignError}</p>}
         {campaignNotice && <p role="status" className="m-5 rounded-lg bg-green-50 p-3 text-sm text-green-700">{campaignNotice}</p>}
@@ -831,6 +900,7 @@ export default function AdminCommunications() {
               </tr>;
             })}</tbody></table></div>
         }
+        <AdminPagination page={campaignPage} pages={campaignPages} total={campaignTotal} from={campaignTotal ? (campaignPage - 1) * campaignLimit + 1 : 0} to={Math.min(campaignPage * campaignLimit, campaignTotal)} limit={campaignLimit} loading={loadingCampaigns} onPageChange={(nextPage) => { setCampaignPage(nextPage); void loadCampaigns(nextPage, campaignLimit, campaignStatus, campaignSearch); }} onLimitChange={(nextLimit) => { setCampaignLimit(nextLimit); setCampaignPage(1); void loadCampaigns(1, nextLimit, campaignStatus, campaignSearch); }} />
       </section>}
       <AdminConfirmDialog
         open={Boolean(confirmationAction)}

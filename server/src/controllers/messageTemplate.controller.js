@@ -195,7 +195,7 @@ export async function testSendMessageTemplate(req, res, next) {
     if (!template) return failure(res, "Message template not found", 404);
     const actorId = req.user?.user?._id || req.user?.userId;
     const actor = await User.findById(actorId).select("name email").lean();
-    if (!actor?.email) return failure(res, "The signed-in administrator must have a registered email address for test sends", 400);
+    if (!actor?.email) { await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, cause: "administrator_email_missing" }, reason); return failure(res, "The signed-in administrator must have a registered email address for test sends", 400); }
     const preview = renderTemplatePreview(template.toObject ? template.toObject() : template, { userName: actor.name || "Administrator" });
     if (preview.unknownPlaceholders.length) { await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, unknownPlaceholders: preview.unknownPlaceholders }, reason); return failure(res, "Template has unsupported placeholders: " + preview.unknownPlaceholders.join(", "), 400); }
     if (template.channel === "email") {
@@ -212,13 +212,18 @@ export async function testSendMessageTemplate(req, res, next) {
         if (typeof transport.close === "function") transport.close();
       }
     } else {
-      await Notification.create({
-        user: actorId, title: String(preview.title || template.name).slice(0, 200), message: String(preview.body || "").slice(0, 5000),
-        type: template.channel === "announcement" ? "promotion" : (template.messageType || "system"),
-        eventKey: "admin-template-test:" + template._id + ":" + randomUUID(), showInApp: true, link: template.link || "/notifications",
-        emailStatus: "skipped", emailError: "Template test was sent in-app only", pushStatus: "skipped", pushError: "Template test was sent in-app only", sentBy: actorId,
-        metadata: { source: "admin-template-test", templateId: String(template._id), requestedChannels: ["in_app"] }
-      });
+      try {
+        await Notification.create({
+          user: actorId, title: String(preview.title || template.name).slice(0, 200), message: String(preview.body || "").slice(0, 5000),
+          type: template.channel === "announcement" ? "promotion" : (template.messageType || "system"),
+          eventKey: "admin-template-test:" + template._id + ":" + randomUUID(), showInApp: true, link: template.link || "/notifications",
+          emailStatus: "skipped", emailError: "Template test was sent in-app only", pushStatus: "skipped", pushError: "Template test was sent in-app only", sentBy: actorId,
+          metadata: { source: "admin-template-test", templateId: String(template._id), requestedChannels: ["in_app"] }
+        });
+      } catch {
+        await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, cause: "in_app_persistence_failed" }, reason);
+        return failure(res, "The in-app test notification could not be saved.", 500);
+      }
     }
     const auditResult = await auditTemplate(req, "message_template.test_send", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: true }, reason);
     return success(res, { accepted: true, channel: template.channel, destination: "signed-in administrator", auditRecorded: auditResult.recorded || auditResult.queued }, "Test message sent to your administrator account");

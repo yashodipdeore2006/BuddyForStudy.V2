@@ -72,13 +72,15 @@ export default function AdminCommunications() {
   async function retryDelivery(notificationId: string, channel: "email" | "push") {
     const label = channel === "email" ? "email" : "push notification";
     if (!window.confirm(`Retry this ${label} delivery now?`)) return;
+    const reason = window.prompt("Reason for retrying this delivery (10–500 characters):") || "";
+    if (reason.trim().length < 10 || reason.trim().length > 500) { setDeliveryError("Retry reason must be between 10 and 500 characters."); return; }
     setRetryingDelivery(`${notificationId}:${channel}`);
     setDeliveryError("");
     setDeliveryNotice("");
     try {
       const data = await adminFetch(`/api/admin/notification-deliveries/${notificationId}/retry`, {
         method: "POST",
-        body: JSON.stringify({ channel }),
+        body: JSON.stringify({ channel, reason: reason.trim() }),
       });
       setDeliveryNotice(data.message || `${label} retry finished.`);
       await loadDeliveryLogs();

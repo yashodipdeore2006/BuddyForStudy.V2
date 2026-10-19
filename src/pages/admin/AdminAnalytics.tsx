@@ -132,9 +132,9 @@ export default function AdminAnalytics() {
                 ))}
               </div>
             </section>
-          </div>
+          </div>}
 
-          <section className="card mt-4 p-5">
+          {analyticsView === "learning" && <section className="card mt-4 p-5">
             <div><h2 className="font-bold">Learning completion</h2><p className="mt-1 text-xs text-slate-500">Progress distribution across saved learner progress records.</p></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-5">
               {completions.map((item: { label: string; count: number }) => (

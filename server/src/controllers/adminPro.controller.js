@@ -76,13 +76,11 @@ async function audit(req, action, targetType, targetId = "", before = null, afte
   });
 }
 
-function maskEmail(value) {
-  const email = String(value || "");
-  const at = email.indexOf("@");
-  if (at < 1) return "Hidden";
-  const local = email.slice(0, at);
-  const domain = email.slice(at + 1);
-  return (local[0] || "*") + "***@" + (domain ? domain.split(".")[0].slice(0, 1) + "***" : "***") + (domain.includes(".") ? "." + domain.split(".").slice(1).join(".") : "");
+function maskEmail(email) {
+  const value = String(email || "");
+  const separator = value.indexOf("@");
+  if (separator <= 0 || separator === value.length - 1) return value ? value[0] + "***" : "";
+  return value[0] + "***@" + value.slice(separator + 1);
 }
 
 function safeDeliveryError(value) {

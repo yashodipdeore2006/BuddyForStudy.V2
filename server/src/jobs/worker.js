@@ -111,10 +111,24 @@ async function runAnnouncementBatches() {
   if (announcementRunInProgress || stopping) return;
   announcementRunInProgress = true;
   try {
-    const result = await processScheduledAnnouncements(new Date(), 5, 100);
-    if (result.batches) console.info("[worker] announcement batches processed", result);
-    await deliverPendingNotificationEmails(100);
-    await deliverPendingNotificationPush(100);
+    let totalBatches = 0;
+    let totalQueued = 0;
+    let totalFailures = 0;
+    for (let batch = 0; batch < 5; batch += 1) {
+      const result = await processScheduledAnnouncements(new Date(), 1, 100);
+      totalBatches += result.batches || 0;
+      totalQueued += result.recipientsQueued || 0;
+      totalFailures += result.failures || 0;
+      if (!result.batches) break;
+      // Drain each newly queued batch before claiming more recipients, keeping provider queues bounded.
+      await deliverPendingNotificationEmails(100);
+      await deliverPendingNotificationPush(100);
+    }
+    if (!totalBatches) {
+      await deliverPendingNotificationEmails(100);
+      await deliverPendingNotificationPush(100);
+    }
+    if (totalBatches) console.info("[worker] announcement batches processed", { batches: totalBatches, recipientsQueued: totalQueued, failures: totalFailures });
   } catch (error) {
     console.error("[worker] announcement processing failed", { name: error?.name || "Error", message: String(error?.message || "Announcement processing failed").slice(0, 300) });
   } finally {

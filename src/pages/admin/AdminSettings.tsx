@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCcw, Save, Settings2, Trash2 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 function formatValue(value: any) {
   return typeof value === "string" ? value : JSON.stringify(value ?? "");
@@ -31,6 +31,7 @@ export default function AdminSettings() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [activeSection, setActiveSection] = useState<"ai" | "notifications" | "configuration">("ai");
   const [advancedAI, setAdvancedAI] = useState({
     questionsPerHourVideo: 10,
     unknownDurationQuestions: 10,
@@ -229,8 +230,21 @@ export default function AdminSettings() {
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
       {!permissions.includes("settings.manage") && <div role="status" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">View-only access: your administrator role can inspect platform setting metadata but cannot change operational controls.</div>}
 
-{permissions.includes("settings.manage") && (
-      <section className="card mt-6 p-6">
+      <div className="mt-6">
+        <AdminTabs
+          ariaLabel="Platform settings areas"
+          value={activeSection}
+          onChange={setActiveSection}
+          items={[
+            { value: "ai", label: "AI controls" },
+            { value: "notifications", label: "Notifications" },
+            { value: "configuration", label: `Configuration (${settings.length})` },
+          ]}
+        />
+      </div>
+
+{activeSection === "ai" && permissions.includes("settings.manage") && (
+      <section className="card mt-4 p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">AI control plane</p>
@@ -263,8 +277,8 @@ export default function AdminSettings() {
       </section>
 )}
 
-      {permissions.includes("settings.manage") && (
-      <section className="card mt-6 p-6">
+      {activeSection === "notifications" && permissions.includes("settings.manage") && (
+      <section className="card mt-4 p-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Notification control plane</p>
           <h2 className="mt-1 text-xl font-extrabold text-slate-950">Automated delivery & learning reminders</h2>
@@ -289,7 +303,7 @@ export default function AdminSettings() {
       </section>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      {activeSection === "configuration" && <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
 {permissions.includes("settings.manage") && (
         <section className="card p-6">
           <div className="flex items-center gap-2"><Settings2 className="h-5 w-5 text-blue-600" /><h2 className="font-bold">{settings.some((item) => item.key === key) ? "Edit setting" : "Create setting"}</h2></div>
@@ -329,7 +343,7 @@ export default function AdminSettings() {
             </div>
           )}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }

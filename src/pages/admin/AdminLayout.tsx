@@ -109,6 +109,26 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     } catch { return []; }
   });
   const [collapsed, setCollapsed] = useState(() => savedBoolean("bfs-admin-sidebar-collapsed:" + userKey, false));
+  const [expandedGroups, setExpandedGroups] = useState<Record<AdminLink["group"], boolean>>(() => {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("bfs-admin-nav-groups:" + userKey) || "null");
+      if (stored && typeof stored === "object") {
+        return {
+          Overview: stored.Overview !== false,
+          Manage: stored.Manage !== false,
+          Insights: stored.Insights === true,
+          Settings: stored.Settings === true,
+        };
+      }
+    } catch {
+      // Navigation group state is a convenience; use predictable defaults if storage is unavailable.
+    }
+    const activeGroup = links.find((item) => item.to === location.pathname)?.group;
+    return { Overview: true, Manage: true, Insights: activeGroup === "Insights", Settings: activeGroup === "Settings" };
+  });
+  const [pageSections, setPageSections] = useState<Array<{ id: string; label: string }>>([]);
+  const [activePageSection, setActivePageSection] = useState("");
+  const pageContentRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<"light" | "dark">(savedTheme);
   const [commandOpen, setCommandOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -268,6 +288,51 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [recentPaths, userKey]);
 
   useEffect(() => {
+    try {
+      window.localStorage.setItem("bfs-admin-nav-groups:" + userKey, JSON.stringify(expandedGroups));
+    } catch {
+      // Expanded navigation groups are optional convenience state.
+    }
+  }, [expandedGroups, userKey]);
+
+  useEffect(() => {
+    const activeGroup = links.find((item) => item.to === location.pathname)?.group;
+    if (activeGroup) setExpandedGroups((current) => current[activeGroup] ? current : { ...current, [activeGroup]: true });
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const root = pageContentRef.current;
+    if (!root) return;
+
+    const updateSections = () => {
+      const seen = new Set<string>();
+      const next = Array.from(root.querySelectorAll<HTMLElement>("h2, h3"))
+        .filter((heading) => !heading.closest('[role="dialog"], .admin-modal-backdrop, [hidden], [aria-hidden="true"], .admin-visually-hidden'))
+        .map((heading) => {
+          const label = (heading.innerText || heading.textContent || "").replace(/\\s+/g, " ").trim();
+          if (!label) return null;
+          const slug = label.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "section";
+          let id = heading.id || "admin-section-" + slug;
+          let suffix = 2;
+          while (seen.has(id) || (document.getElementById(id) && document.getElementById(id) !== heading)) {
+            id = "admin-section-" + slug + "-" + suffix++;
+          }
+          if (heading.id !== id) heading.id = id;
+          seen.add(id);
+          return { id, label };
+        })
+        .filter((item): item is { id: string; label: string } => Boolean(item));
+      setPageSections((current) => current.length === next.length && current.every((item, index) => item.id === next[index].id && item.label === next[index].label) ? current : next);
+      setActivePageSection((current) => next.some((item) => item.id === current) ? current : next[0]?.id || "");
+    };
+
+    updateSections();
+    const observer = new MutationObserver(updateSections);
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [location.pathname, accessLoading, access]);
+
+  useEffect(() => {
     if (!visibleLinks.some((item) => item.to === location.pathname)) return;
     setRecentPaths((current) => [location.pathname, ...current.filter((path) => path !== location.pathname)].slice(0, 5));
   }, [location.pathname, visibleLinks]);
@@ -332,7 +397,16 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         if (!groupLinks.length) return null;
         return (
           <div className="admin-nav-group" key={group}>
-            <p className="admin-nav-heading">{group}</p>
+            <button
+              type="button"
+              className="admin-nav-heading admin-nav-heading-button"
+              aria-expanded={expandedGroups[group]}
+              onClick={() => setExpandedGroups((current) => ({ ...current, [group]: !current[group] }))}
+            >
+              <span>{group}</span>
+              <ChevronDown aria-hidden="true" size={14} />
+            </button>
+            <div className="admin-nav-group-items" hidden={!expandedGroups[group] && !(collapsed && !mobile)}>
             {groupLinks.map(({ to, label, icon: Icon, description }) => (
               <NavLink
                 key={to}
@@ -347,6 +421,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <span className="admin-nav-link-label">{label}</span>
               </NavLink>
             ))}
+            </div>
           </div>
         );
       })}
@@ -442,6 +517,25 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             {location.pathname !== "/admin" && <><span aria-hidden="true">/</span><span aria-current="page">{currentLabel}</span></>}
           </nav>
 
+          {pageSections.length > 1 && (
+            <nav className="admin-section-nav" aria-label="Page sections">
+              <span className="admin-section-nav__label">On this page</span>
+              {pageSections.map((section) => (
+                <button
+                  type="button"
+                  key={section.id}
+                  className="admin-section-nav__item"
+                  aria-current={activePageSection === section.id ? "location" : undefined}
+                  onClick={() => {
+                    setActivePageSection(section.id);
+                    document.getElementById(section.id)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+                  }}
+                >{section.label}</button>
+              ))}
+            </nav>
+          )}
+
+          <div ref={pageContentRef} className="admin-content-body">
           {accessLoading ? (
             <div role="status" aria-live="polite" className="admin-shell-status"><span className="admin-loading-spinner" aria-hidden="true" />Loading administrator permissions…</div>
           ) : !access ? (
@@ -454,6 +548,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <AdminButton variant="primary" onClick={() => nav("/admin")}>Return to dashboard</AdminButton>
             </div>
           ) : children}
+          </div>
         </div>
       </main>
 

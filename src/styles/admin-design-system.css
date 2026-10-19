@@ -614,3 +614,92 @@
 .admin-shell .admin-data-table__sort { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 32px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; cursor: pointer; }
 .admin-shell .admin-data-table__sort:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
 .admin-shell .admin-data-table__sort span { display: inline-flex; align-items: center; }
+
+
+/* Navigation and page-density refinements: keep workspace chrome fixed and expose long pages by section. */
+.admin-shell .admin-main {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+.admin-shell .admin-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+}
+.admin-shell .admin-nav-heading-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-shell .admin-nav-heading-button:hover { background: var(--surface-2); color: var(--text-2); }
+.admin-shell .admin-nav-heading-button svg { flex: 0 0 auto; transition: transform var(--dur-fast) var(--ease); }
+.admin-shell .admin-nav-heading-button[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.admin-shell .admin-nav-group-items { display: grid; gap: 2px; }
+.admin-shell .admin-nav-group-items[hidden] { display: none; }
+.admin-shell .admin-nav-group-items .admin-nav-link { margin: 0; }
+.admin-shell .admin-section-nav {
+  position: sticky;
+  z-index: calc(var(--z-sticky) + 1);
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: 100%;
+  margin: 0 0 var(--s-4);
+  padding: var(--s-2);
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  scrollbar-width: thin;
+}
+.admin-shell .admin-section-nav__label {
+  flex: 0 0 auto;
+  padding: 0 var(--s-2);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+.admin-shell .admin-section-nav__item {
+  flex: 0 0 auto;
+  min-height: 32px;
+  max-width: 240px;
+  padding: 0 var(--s-3);
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-shell .admin-section-nav__item:hover { background: var(--surface-2); color: var(--text); }
+.admin-shell .admin-section-nav__item[aria-current="location"] {
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+.admin-shell .admin-content-body h2,
+.admin-shell .admin-content-body h3 { scroll-margin-top: 64px; }
+.admin-shell .admin-content-body > :first-child { margin-top: 0; }
+@media (max-width: 1279px) and (min-width: 1024px) {
+  .admin-shell .admin-nav-group-items { display: grid !important; }
+}
+@media (max-width: 767px) {
+  .admin-shell .admin-section-nav { margin-bottom: var(--s-3); }
+  .admin-shell .admin-section-nav__label { display: none; }
+  .admin-shell .admin-section-nav__item { max-width: 180px; }
+}

@@ -4,7 +4,7 @@ import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 type Channel = "in_app" | "email" | "push";
-type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean };
+type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean; usedBy?: Array<{ event: string; source: string }> };
 type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
 type TemplatePreview = { channel: string; title: string; subject: string; body: string; placeholders: string[]; unknownPlaceholders: string[] };
 type AnnouncementRecord = { _id: string; title: string; status: string; channel: Channel[]; scheduledAt?: string; timezone?: string; startedAt?: string; sentAt?: string; completedAt?: string; createdAt?: string; stats?: { total?: number; sent?: number; pending?: number; failed?: number; skipped?: number }; lastError?: string };
@@ -418,6 +418,8 @@ export default function AdminCommunications() {
                 <p className="text-sm font-semibold text-slate-900">{template.name}</p>
                 <p className="mt-1 break-all font-mono text-[10px] text-slate-500">{template.key}</p>
                 <p className="mt-1 text-xs text-slate-500">{template.channel} · {template.isActive ? "Active" : "Inactive"}</p>
+                <p className="mt-2 text-xs font-semibold text-slate-600">Used by</p>
+                {template.usedBy?.length ? <ul className="mt-1 space-y-1">{template.usedBy.map((usage) => <li key={usage.event} className="text-xs text-slate-500">{usage.event} <span className="text-slate-400">· {usage.source}</span></li>)}</ul> : <p className="mt-1 text-xs text-slate-400">No built-in event mapping</p>}
               </div>
               <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => editTemplate(template)}>Edit</button>
             </div>

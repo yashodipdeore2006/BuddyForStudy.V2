@@ -30,6 +30,8 @@ router.put("/users/:userId/feature-overrides/:featureKey", adminPermissionMiddle
 router.delete("/users/:userId/feature-overrides/:featureKey", adminPermissionMiddleware("users.manage"), controller.deleteUserFeatureOverride);
 router.put("/users/:userId", adminPermissionMiddleware("users.manage"), controller.updateUser);
 
+router.get("/content-policies", adminPermissionMiddleware("courses.read"), controller.contentApprovalPolicies);
+router.put("/content-policies", adminPermissionMiddleware("courses.manage"), controller.updateContentApprovalPolicies);
 router.get("/courses", adminPermissionMiddleware("courses.read"), controller.courses);
 router.get("/courses/:courseId", adminPermissionMiddleware("courses.read"), controller.courseDetail);
 router.get("/courses/:courseId/readiness", adminPermissionMiddleware("courses.read"), controller.courseReadiness);

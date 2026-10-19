@@ -2308,7 +2308,7 @@ export async function cancelAnnouncement(req, res, next) {
     const before = await Announcement.findById(req.params.announcementId).select("status scheduledAt stats").lean();
     if (!before) return failure(res, "Announcement not found", 404);
     if (before.status !== "scheduled" && before.status !== "draft") return failure(res, "Only draft or scheduled announcements can be cancelled before sending starts", 409);
-    const cancelled = await Announcement.findOneAndUpdate({ _id: req.params.announcementId, status: { $in: ["draft", "scheduled"] } }, { $set: { status: "cancelled", cancelledAt: new Date(), cancelledBy: req.user.user._id, reason } }, { new: true });
+    const cancelled = await Announcement.findOneAndUpdate({ _id: req.params.announcementId, status: { $in: ["draft", "scheduled"] } }, { $set: { status: "cancelled", cancelledAt: new Date(), cancelledBy: req.user.user._id } }, { new: true });
     if (!cancelled) return failure(res, "Announcement started processing before cancellation completed", 409);
     await audit(req, "announcement.cancelled", "Announcement", cancelled._id, before, { status: cancelled.status, cancelledAt: cancelled.cancelledAt }, reason);
     return success(res, { announcement: { id: String(cancelled._id), status: cancelled.status, cancelledAt: cancelled.cancelledAt } }, "Announcement cancelled");

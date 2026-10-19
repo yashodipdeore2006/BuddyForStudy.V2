@@ -240,7 +240,7 @@ export default function Courses() {
       } : current);
       setAiEnrollError(null);
     } catch {
-      setAiEnrollError("This course is not available yet. An administrator must approve it, and public courses must pass readiness checks and be published before enrollment.");
+      setAiEnrollError("This course is not available yet. Content approval and the required readiness/publication checks must pass before enrollment.");
     } finally {
       setAiEnrolling(false);
     }

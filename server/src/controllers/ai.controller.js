@@ -34,7 +34,7 @@ async function queueNextLessonQuiz(courseId, lessonId) {
   quizGenerationJobs.add(key);
   setImmediate(async () => {
     try {
-      const bank = await QuizBank.find({ course: courseId, lesson: lessonId }).lean();
+      const bank = await QuizBank.find({ course: courseId, lesson: lessonId, isHidden: { $ne: true } }).lean();
       const excluded = bank.flatMap((item) => item.questions || []).map((question) => question.question).slice(0, 150);
       const { generateCourseQuiz } = await import("../services/aiRoadmap.service.js");
       const generated = await generateCourseQuiz({ courseId, lessonId, practiceOnly: true, excludeQuestions: excluded });
@@ -134,7 +134,7 @@ export async function generatePracticeQuiz(req, res, next) {
     const access = await ensureCourseLearningAccess(req, input.courseId);
     if (!access.allowed) return failure(res, access.message, access.status);
 
-    const filter = { course: input.courseId, lesson: input.lessonId };
+    const filter = { course: input.courseId, lesson: input.lessonId, isHidden: { $ne: true } };
     const bank = await QuizBank.find(filter).sort({ generatedAt: 1 });
     if (input.mode === "reattempt") {
       const attempted = bank.filter((item) => item.attempts.some((attempt) => String(attempt.user) === String(req.user.userId)));

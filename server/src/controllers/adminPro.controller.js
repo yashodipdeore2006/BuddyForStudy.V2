@@ -1549,14 +1549,16 @@ export async function retryNotificationDeliveryAdmin(req, res, next) {
   try {
     if (!isValidObjectId(req.params.notificationId)) return failure(res, "Invalid notificationId", 400);
     const channel = String(req.body?.channel || "");
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
 
     const result = await retryNotificationDelivery(req.params.notificationId, channel);
     await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, {
       channel: result.channel,
       status: result.status,
       attempts: result.attempts
-    });
+    }, reason);
     return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry finished: ${result.status}`);
   } catch (e) {
     if (e?.status) return failure(res, e.message, e.status);
@@ -1581,7 +1583,7 @@ export async function notificationDeliveries(req, res, next) {
     return success(res, {
       deliveries: deliveries.map((item) => ({
         id: String(item._id),
-        user: item.user ? { name: item.user.name, email: item.user.email } : null,
+        user: item.user ? { name: item.user.name, email: maskEmail(item.user.email) } : null,
         title: item.title,
         message: item.message,
         type: item.type,
@@ -1591,11 +1593,11 @@ export async function notificationDeliveries(req, res, next) {
         emailStatus: item.emailStatus,
         emailAttempts: item.emailAttempts,
         emailSentAt: item.emailSentAt,
-        emailError: item.emailError,
+        emailError: safeDeliveryError(item.emailError),
         pushStatus: item.pushStatus,
         pushAttempts: item.pushAttempts,
         pushSentAt: item.pushSentAt,
-        pushError: item.pushError
+        pushError: safeDeliveryError(item.pushError)
       }))
     });
   } catch (e) { next(e); }

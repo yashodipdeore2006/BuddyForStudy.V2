@@ -19,6 +19,8 @@ import { Payment } from "../models/Payment.js";
 import { RefundRequest } from "../models/RefundRequest.js";
 import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Notification } from "../models/Notification.js";
+import { NotificationPreference } from "../models/NotificationPreference.js";
+import { PushSubscription } from "../models/PushSubscription.js";
 import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
@@ -43,6 +45,8 @@ import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
 import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
+import { isWebPushConfigured } from "../services/webPush.service.js";
+import { refreshAnnouncementStats } from "../services/announcement.service.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions, hasAdminPermission } from "../utils/adminRbac.js";
@@ -70,6 +74,19 @@ async function audit(req, action, targetType, targetId = "", before = null, afte
     ip: String(req.ip || "").slice(0, 100),
     userAgent: String(req.get("user-agent") || "").slice(0, 500)
   });
+}
+
+function maskEmail(value) {
+  const email = String(value || "");
+  const at = email.indexOf("@");
+  if (at < 1) return "Hidden";
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return (local[0] || "*") + "***@" + (domain ? domain.split(".")[0].slice(0, 1) + "***" : "***") + (domain.includes(".") ? "." + domain.split(".").slice(1).join(".") : "");
+}
+
+function safeDeliveryError(value) {
+  return String(value || "").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[masked email]").replace(/https?:\/\/[^\s]+/gi, "[provider URL]").slice(0, 240);
 }
 
 function mailer() {

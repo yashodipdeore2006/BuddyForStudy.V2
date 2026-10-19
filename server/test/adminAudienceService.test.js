@@ -102,3 +102,18 @@ test("audience date filters use inclusive UTC calendar-day boundaries and reject
   assert.equal(parseAdminAudienceDate("2026-10-18", "registeredBefore").toISOString(), "2026-10-18T23:59:59.999Z");
   assert.throws(() => parseAdminAudienceDate("2026-02-30", "registeredAfter"), /Invalid registeredAfter date/i);
 });
+
+test("announcement preview tokens bind the selected channels as well as audience and recipients", () => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "test-audience-preview-secret";
+  try {
+    const users = [{ _id: "user-1" }, { _id: "user-2" }];
+    const input = { audience: "all", filters: { status: "active" }, channels: ["email", "in_app"] };
+    const token = createAdminAudiencePreviewToken(input, users);
+    assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, channel: ["in_app", "email"] }, users), true);
+    assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, channel: ["in_app"] , channels: undefined }, users), false);
+  } finally {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  }
+});

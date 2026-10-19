@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.service.js";
-import { createCourse } from "../services/course.service.js";
 import { failure, success } from "../utils/response.js";
 import { getEntitlement, canAccessCourse } from "../services/subscriptionEntitlement.service.js";
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
@@ -252,9 +251,11 @@ export async function submitPracticeQuiz(req, res, next) {
 export async function generateAndSaveCourse(req, res, next) {
   try {
     const input = schema.parse(req.body);
+    // generateAIRoadmap persists the Course itself. Do not create a second
+    // Course from its public response projection (which intentionally omits
+    // generation metadata and can collide on the unique slug).
     const result = await generateAIRoadmap(input);
-    const course = await createCourse(result.course);
-    return success(res, { course, sources: result.sources }, "Course generated and saved successfully", 201);
+    return success(res, { course: result.course, sources: result.sources }, "Course generated and saved successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

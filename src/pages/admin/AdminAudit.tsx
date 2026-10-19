@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, RefreshCcw, Search, X } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
@@ -105,9 +105,6 @@ export default function AdminAudit() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selected]);
 
-  const actions = useMemo(() => [...new Set(logs.map((log) => log.action).filter(Boolean))].sort(), [logs]);
-  const targets = useMemo(() => [...new Set(logs.map((log) => log.targetType).filter(Boolean))].sort(), [logs]);
-
   return (
     <div className="mx-auto max-w-7xl">
       <AdminPageHeader
@@ -131,12 +128,13 @@ export default function AdminAudit() {
           loading={savedViewsLoading}
           error={savedViewsError}
         />
-        <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto]">
-          <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Search audit events" className="input-field pl-10" value={q} maxLength={100} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); void load({ q, action, targetType, page: 1, limit }); } }} placeholder="Search action, target, ID or reason" /></div>
-          <select aria-label="Filter audit events by action" className="input-field" value={action} onChange={(e) => { const nextAction = e.target.value; setAction(nextAction); setPage(1); void load({ q, action: nextAction, targetType, page: 1, limit }); }}><option value="">All actions</option>{actions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-          <select aria-label="Filter audit events by target type" className="input-field" value={targetType} onChange={(e) => { const nextTargetType = e.target.value; setTargetType(nextTargetType); setPage(1); void load({ q, action, targetType: nextTargetType, page: 1, limit }); }}><option value="">All targets</option>{targets.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-          <button type="button" aria-label="Clear audit log filters" className="btn-secondary" onClick={() => { setQ(""); setAction(""); setTargetType(""); setPage(1); void load({ q: "", action: "", targetType: "", page: 1, limit }); }}>Clear</button>
-        </div>
+        <form className="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto_auto]" onSubmit={(event) => { event.preventDefault(); setPage(1); void load({ q, action, targetType, page: 1, limit }); }}>
+          <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Search audit events" className="input-field pl-10" value={q} maxLength={100} onChange={(e) => setQ(e.target.value)} placeholder="Search action, target ID or reason" /></div>
+          <input aria-label="Filter audit events by action" className="input-field" value={action} maxLength={100} onChange={(e) => setAction(e.target.value)} placeholder="Action (e.g. user.updated)" />
+          <input aria-label="Filter audit events by target type" className="input-field" value={targetType} maxLength={100} onChange={(e) => setTargetType(e.target.value)} placeholder="Target type (e.g. User)" />
+          <button type="submit" className="btn-primary"><Search className="h-4 w-4" /> Apply</button>
+          <button type="button" aria-label="Clear audit log filters" className="btn-secondary" onClick={() => { setQ(""); setAction(""); setTargetType(""); setPage(1); setActiveSavedViewId(null); void load({ q: "", action: "", targetType: "", page: 1, limit }); }}>Clear</button>
+        </form>
         <p className="mt-3 text-xs text-slate-400" role="status" aria-live="polite">Showing {total ? (page - 1) * limit + 1 : 0}–{Math.min(page * limit, total)} of {total.toLocaleString()} events</p>
       </div>
 

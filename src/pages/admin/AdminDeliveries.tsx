@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { useSearchParams } from "react-router-dom";
@@ -34,6 +34,7 @@ function shiftDate(value: string, offset: number) {
 export default function AdminDeliveries() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Delivery[]>([]);
+  const requestSequence = useRef(0);
   const initialQuery = searchParams.get("q") || "";
   const [q, setQ] = useState(initialQuery);
   const [search, setSearch] = useState(initialQuery);
@@ -51,7 +52,9 @@ export default function AdminDeliveries() {
   const [notice, setNotice] = useState("");
   const [retrying, setRetrying] = useState("");
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    const requestId = ++requestSequence.current;
+    setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams({ limit: "25", page: String(page) });
       if (search.trim()) params.set("q", search.trim());
@@ -61,12 +64,16 @@ export default function AdminDeliveries() {
       if (dateFrom) params.set("from", new Date(dateFrom + "T00:00:00+05:30").toISOString());
       if (dateTo) params.set("to", new Date(dateTo + "T23:59:59.999+05:30").toISOString());
       const data = await adminFetch("/api/admin/deliveries?" + params.toString());
+      if (requestId !== requestSequence.current) return;
       setItems(Array.isArray(data.deliveries) ? data.deliveries : []);
       setPages(Math.max(1, Number(data.pages || 1)));
       setTotal(Number(data.total || 0));
     } catch (e) {
+      if (requestId !== requestSequence.current) return;
       setError(e instanceof Error ? e.message : "Unable to load notification deliveries.");
-    } finally { setLoading(false); }
+    } finally {
+      if (requestId === requestSequence.current) setLoading(false);
+    }
   }, [search, channel, status, type, dateFrom, dateTo, page]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {

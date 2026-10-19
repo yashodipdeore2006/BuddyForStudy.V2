@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, RefreshCcw, Search, X } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
 import { SavedViews, type SavedViewRecord } from "@/components/admin/SavedViews";
 import JsonDiff from "@/components/admin/JsonDiff";
 
@@ -10,6 +10,10 @@ export default function AdminAudit() {
   const [q, setQ] = useState("");
   const [action, setAction] = useState("");
   const [targetType, setTargetType] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<any>(null);
@@ -18,16 +22,20 @@ export default function AdminAudit() {
   const [savedViewsError, setSavedViewsError] = useState("");
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
 
-  async function load(filters = { q, action, targetType }) {
+  async function load(filters: { q: string; action: string; targetType: string; page?: number; limit?: number } = { q, action, targetType, page, limit }) {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ limit: "500" });
+      const selectedPage = filters.page ?? page;
+      const selectedLimit = filters.limit ?? limit;
+      const params = new URLSearchParams({ page: String(selectedPage), limit: String(selectedLimit) });
       if (filters.q.trim()) params.set("q", filters.q.trim());
       if (filters.action) params.set("action", filters.action);
       if (filters.targetType) params.set("targetType", filters.targetType);
       const data = await adminFetch("/api/admin/audit-logs?" + params.toString());
       setLogs(data.logs || []);
+      setTotal(Number(data.total || 0));
+      setPages(Math.max(1, Number(data.pages || 1)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load audit log");
     } finally {
@@ -82,7 +90,8 @@ export default function AdminAudit() {
     setAction(next.action);
     setTargetType(next.targetType);
     setActiveSavedViewId(view.id);
-    void load(next);
+    setPage(1);
+    void load({ ...next, page: 1, limit });
   }
 
   useEffect(() => { void load(); void refreshSavedViews(); }, []);
@@ -123,12 +132,12 @@ export default function AdminAudit() {
           error={savedViewsError}
         />
         <div className="grid gap-3 md:grid-cols-[1fr_220px_220px_auto]">
-          <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Search audit events" className="input-field pl-10" value={q} maxLength={100} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void load()} placeholder="Search action, target, ID or reason" /></div>
-          <select aria-label="Filter audit events by action" className="input-field" value={action} onChange={(e) => { const nextAction = e.target.value; setAction(nextAction); void load({ q, action: nextAction, targetType }); }}><option value="">All actions</option>{actions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-          <select aria-label="Filter audit events by target type" className="input-field" value={targetType} onChange={(e) => { const nextTargetType = e.target.value; setTargetType(nextTargetType); void load({ q, action, targetType: nextTargetType }); }}><option value="">All targets</option>{targets.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-          <button type="button" aria-label="Clear audit log filters" className="btn-secondary" onClick={() => { setQ(""); setAction(""); setTargetType(""); void load({ q: "", action: "", targetType: "" }); }}>Clear</button>
+          <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input aria-label="Search audit events" className="input-field pl-10" value={q} maxLength={100} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { setPage(1); void load({ q, action, targetType, page: 1, limit }); } }} placeholder="Search action, target, ID or reason" /></div>
+          <select aria-label="Filter audit events by action" className="input-field" value={action} onChange={(e) => { const nextAction = e.target.value; setAction(nextAction); setPage(1); void load({ q, action: nextAction, targetType, page: 1, limit }); }}><option value="">All actions</option>{actions.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <select aria-label="Filter audit events by target type" className="input-field" value={targetType} onChange={(e) => { const nextTargetType = e.target.value; setTargetType(nextTargetType); setPage(1); void load({ q, action, targetType: nextTargetType, page: 1, limit }); }}><option value="">All targets</option>{targets.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <button type="button" aria-label="Clear audit log filters" className="btn-secondary" onClick={() => { setQ(""); setAction(""); setTargetType(""); setPage(1); void load({ q: "", action: "", targetType: "", page: 1, limit }); }}>Clear</button>
         </div>
-        <p className="mt-3 text-xs text-slate-400" role="status" aria-live="polite">{logs.length} events loaded</p>
+        <p className="mt-3 text-xs text-slate-400" role="status" aria-live="polite">Showing {total ? (page - 1) * limit + 1 : 0}–{Math.min(page * limit, total)} of {total.toLocaleString()} events</p>
       </div>
 
       <div className="card mt-6 overflow-hidden">
@@ -152,6 +161,10 @@ export default function AdminAudit() {
             {!logs.length && <div role="status" aria-live="polite" className="p-10 text-center text-sm text-slate-500">No audit events match these filters.</div>}
           </div>
         )}
+      </div>
+
+      <div className="border-t border-slate-100 px-4 py-3">
+        <AdminPagination page={page} pages={pages} total={total} from={total ? (page - 1) * limit + 1 : 0} to={Math.min(page * limit, total)} limit={limit} loading={loading} onPageChange={(nextPage) => { setPage(nextPage); void load({ q, action, targetType, page: nextPage, limit }); }} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); void load({ q, action, targetType, page: 1, limit: nextLimit }); }} />
       </div>
 
       {selected && (

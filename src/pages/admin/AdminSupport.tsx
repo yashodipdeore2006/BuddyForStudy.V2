@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, ClipboardList, RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
 
 type Issue = {
   _id: string;
@@ -30,6 +30,11 @@ export default function AdminSupport() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [filter, setFilter] = useState("open");
   const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [internalNotes, setInternalNotes] = useState<Record<string, string>>({});
   const [assignments, setAssignments] = useState<Record<string, string>>({});
@@ -42,11 +47,16 @@ export default function AdminSupport() {
   async function load() {
     setLoading(true); setError("");
     try {
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (filter) params.set("status", filter);
+      if (search) params.set("q", search);
       const [data, assigneeData] = await Promise.all([
-        adminFetch("/api/admin/payment-issues?limit=300" + (filter ? "&status=" + filter : "")),
+        adminFetch("/api/admin/payment-issues?" + params.toString()),
         adminFetch("/api/admin/payment-issues/assignees"),
       ]);
       setIssues(data.issues || []);
+      setTotal(Number(data.total || 0));
+      setPages(Math.max(1, Number(data.pages || 1)));
       setAssignees(assigneeData.assignees || []);
       setAssignments((current) => {
         const next = { ...current };
@@ -57,7 +67,7 @@ export default function AdminSupport() {
       setError(e instanceof Error ? e.message : "Unable to load support cases.");
     } finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, [filter]);
+  useEffect(() => { void load(); }, [filter, search, page, limit]);
 
   async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? (issue.assignedTo?._id || issue.assignedTo?.id || "")) {
     const adminNote = (notes[issue._id] ?? issue.adminNote ?? "").trim();
@@ -84,10 +94,7 @@ export default function AdminSupport() {
     } finally { setSavingId(null); }
   }
 
-  const filtered = issues.filter((issue) => {
-    const haystack = [issue.user?.name, issue.user?.email, issue.description, issue.category, issue.payment?.course?.title, issue.payment?.plan?.name].join(" ").toLowerCase();
-    return haystack.includes(query.toLowerCase());
-  });
+  const filtered = issues;
 
   return <div className="mx-auto max-w-7xl space-y-6">
     <AdminPageHeader
@@ -98,16 +105,18 @@ export default function AdminSupport() {
     />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
-    <section className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)]">
+    <section className="grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)_auto]">
       <label className="text-sm font-medium text-slate-700">Case status
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+        <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">
           <option value="open">Open</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="">All cases</option>
         </select>
       </label>
       <label className="text-sm font-medium text-slate-700">Search cases
-        <span className="mt-1.5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3"><Search className="h-4 w-4 text-slate-400"/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Name, email, course or issue…" className="w-full py-2.5 text-sm outline-none"/></span>
+        <span className="mt-1.5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3"><Search className="h-4 w-4 text-slate-400"/><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { setSearch(query.trim()); setPage(1); } }} placeholder="Name, email, or issue…" className="w-full py-2.5 text-sm outline-none"/></span>
       </label>
+      <button type="button" className="btn-secondary self-end" onClick={() => { setSearch(query.trim()); setPage(1); }}>Search</button>
     </section>
+    <div className="text-sm text-slate-600">{total.toLocaleString()} matching cases · page {page} of {pages}</div>
     {loading ? <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading support cases…</div> : filtered.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center"><CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500"/><p className="mt-3 font-semibold text-slate-900">No matching cases</p><p className="mt-1 text-sm text-slate-500">Try another status or search term.</p></div> :
       <div className="space-y-4">{filtered.map((issue) => <article key={issue._id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -143,5 +152,8 @@ export default function AdminSupport() {
           {issue.status !== "closed" && <button type="button" disabled={savingId === issue._id} onClick={() => void update(issue, "closed")} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Close case</button>}
         </div>
       </article>)}</div>}
+    <div className="border-t border-slate-100 pt-3">
+      <AdminPagination page={page} pages={pages} total={total} from={total ? (page - 1) * limit + 1 : 0} to={Math.min(page * limit, total)} limit={limit} loading={loading} onPageChange={setPage} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); }} />
+    </div>
   </div>;
 }

@@ -27,6 +27,7 @@ interface CourseCardProps {
   showActions?: boolean;
   initiallySaved?: boolean;
   initiallyEnrolled?: boolean;
+  onSavedChange?: (courseId: string, saved: boolean) => void;
 }
 
 export default function CourseCard({
@@ -35,6 +36,7 @@ export default function CourseCard({
   showActions = false,
   initiallySaved = false,
   initiallyEnrolled = false,
+  onSavedChange,
 }: CourseCardProps) {
   const hasModules = Array.isArray(course.modules) && course.modules.length > 0;
   const lessonCount = hasModules
@@ -119,12 +121,14 @@ export default function CourseCard({
       if (saved) {
         await apiFetch(`/api/saved-courses/${course.id}`, { method: 'DELETE' });
         setSaved(false);
+        onSavedChange?.(course.id, false);
       } else {
         await apiFetch('/api/saved-courses', {
           method: 'POST',
           body: JSON.stringify({ courseId: course.id }),
         });
         setSaved(true);
+        onSavedChange?.(course.id, true);
       }
     } catch (error) {
       setActionError(error instanceof Error ? error.message : 'Unable to save course.');

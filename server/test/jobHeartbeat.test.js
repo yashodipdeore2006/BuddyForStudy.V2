@@ -32,7 +32,7 @@ test("worker heartbeat is persisted with a stable job identity", async () => {
 test("stale or missing worker heartbeat raises a critical alert", async () => {
   let alert;
   await withMocks([
-    [JobHeartbeat, { findOne: async () => ({ jobName: WORKER_JOB_NAME, workerStatus: "running", lastHeartbeatAt: new Date("2026-10-19T09:00:00Z") }) }],
+    [JobHeartbeat, { findOne: () => ({ lean: async () => ({ jobName: WORKER_JOB_NAME, workerStatus: "running", lastHeartbeatAt: new Date("2026-10-19T09:00:00Z") }) }) }],
     [OperationalAlert, { findOneAndUpdate: async (filter, update) => { alert = { filter, update }; return {}; } }]
   ], async () => {
     const result = await checkWorkerHeartbeat(new Date("2026-10-19T09:10:00Z"));
@@ -47,7 +47,7 @@ test("stale or missing worker heartbeat raises a critical alert", async () => {
 test("fresh worker heartbeat resolves the stale-worker alert", async () => {
   let resolved = false;
   await withMocks([
-    [JobHeartbeat, { findOne: async () => ({ jobName: WORKER_JOB_NAME, workerStatus: "running", lastHeartbeatAt: new Date("2026-10-19T10:00:00Z") }) }],
+    [JobHeartbeat, { findOne: () => ({ lean: async () => ({ jobName: WORKER_JOB_NAME, workerStatus: "running", lastHeartbeatAt: new Date("2026-10-19T10:00:00Z") }) }) }],
     [OperationalAlert, { findOneAndUpdate: async (filter, update) => { resolved = filter.key === "background-worker-heartbeat-stale" && update.$set.status === "resolved"; return {}; } }]
   ], async () => {
     const result = await checkWorkerHeartbeat(new Date("2026-10-19T10:01:00Z"));

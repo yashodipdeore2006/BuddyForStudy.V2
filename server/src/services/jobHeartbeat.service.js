@@ -23,15 +23,9 @@ export async function markMaintenanceStarted(now = new Date()) {
 export async function markMaintenanceCompleted(now = new Date()) {
   return JobHeartbeat.findOneAndUpdate(
     { jobName: WORKER_JOB_NAME },
-    { $set: { workerStatus: "running", lastHeartbeatAt: now, lastMaintenanceCompletedAt: now, lastError: "" }, $setOnInsert: { consecutiveFailures: 0 }, $inc: { consecutiveFailures: -1 } },
+    { $set: { workerStatus: "running", lastHeartbeatAt: now, lastMaintenanceCompletedAt: now, lastError: "", consecutiveFailures: 0 } },
     { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
-  ).then(async (heartbeat) => {
-    if (heartbeat && heartbeat.consecutiveFailures < 0) {
-      heartbeat.consecutiveFailures = 0;
-      await heartbeat.save();
-    }
-    return heartbeat;
-  });
+  );
 }
 
 export async function markMaintenanceFailed(error, now = new Date()) {

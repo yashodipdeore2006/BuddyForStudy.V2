@@ -469,7 +469,7 @@ export default function YouTubeSearchFallback({
                     key={course.videoId}
                     className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white text-left transition-colors duration-200 hover:bg-slate-50"
                   >
-                    <div className="relative aspect-video overflow-hidden bg-slate-100">
+                    <div className="bfs-course-card__media relative block shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
                       {course.thumbnail ? (
                         <img src={course.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                       ) : (
@@ -519,7 +519,7 @@ export default function YouTubeSearchFallback({
                             });
                           }}
                           disabled={savingId === `video-course-${course.videoId}`}
-                          className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-xs font-bold transition ${
                             savedIds.has(`video-course-${course.videoId}`)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -548,7 +548,7 @@ export default function YouTubeSearchFallback({
                             });
                           }}
                           disabled={enrollingId === `video-course-${course.videoId}` || enrolledIds.has(`video-course-${course.videoId}`)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60"
                         >
                           {enrollingId === `video-course-${course.videoId}` ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -588,7 +588,7 @@ export default function YouTubeSearchFallback({
                 Loading the highest-ranked playlists...
               </div>
             ) : playlists.length > 0 ? (
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="bfs-course-grid mt-4">
                 {playlists.slice(0, 6).map((playlist, index) => {
                   const built = builtCourses.find(
                     (course) =>
@@ -599,7 +599,7 @@ export default function YouTubeSearchFallback({
                   return (
                     <article
                       key={playlist.playlistId}
-                      className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                      className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50"
                     >
                       <div className="relative aspect-video overflow-hidden bg-slate-100">
                         {playlist.thumbnail ? (
@@ -721,7 +721,7 @@ export default function YouTubeSearchFallback({
                             void openCourse(course);
                           }}
                           disabled={openingId === `playlist-course-${playlist.playlistId}`}
-                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
                         >
                           {openingId === `playlist-course-${playlist.playlistId}` ? (
                             <>

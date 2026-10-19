@@ -83,8 +83,21 @@ export function isCourseAccessAllowed({ isPaidCourse, planEntitled, hasIndividua
 }
 
 export async function canAccessCourse(userId, courseId) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true }).select("pricing.mode").lean();
+  const course = await Course.findOne({
+    _id: courseId,
+    deletedAt: null,
+    $or: [
+      { isPublished: true, $or: [
+        { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+        { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+      ] },
+      { visibility: "private", createdForUser: userId }
+    ]
+  }).select("pricing.mode visibility createdForUser").lean();
   if (!course) return false;
+  if (course.visibility === "private") {
+    return Boolean(await Enrollment.exists({ user: userId, course: courseId, status: { $in: ["active", "completed"] } }));
+  }
   const [entitlement, individualAccess] = await Promise.all([
     getEntitlement(userId, "published_courses"),
     hasPaidCourseAccess(userId, courseId)

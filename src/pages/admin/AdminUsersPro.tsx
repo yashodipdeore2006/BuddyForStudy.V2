@@ -450,7 +450,7 @@ export default function AdminUsersPro() {
       sortable: true,
       render: (user: any) => (
         <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge domain="user" value={Boolean(user.isActive)} label={user.isActive ? "Active" : "Disabled"} />
+          <StatusBadge domain="user" value={Boolean(user.isActive)} />
           {user.role === "admin" && <StatusBadge domain="enrollmentSource" value="admin" label="Admin" />}
         </div>
       ),

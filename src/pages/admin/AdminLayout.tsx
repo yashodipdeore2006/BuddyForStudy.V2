@@ -30,6 +30,7 @@ const links: AdminLink[] = [
   { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Insights", icon: Activity, description: "Platform performance and revenue" },
   { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Settings", icon: CreditCard, description: "Subscription plans and entitlements" },
   { to: "/admin/billing", label: "Billing and refunds", permission: "refunds.manage", group: "Settings", icon: CreditCard, description: "Payments, refunds and disputes" },
+  { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Settings", icon: CreditCard, description: "Subscriber status and billing periods" },
   { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Settings", icon: BrainCircuit, description: "AI content controls" },
   { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Settings", icon: Megaphone, description: "Announcements and notifications" },
   { to: "/admin/coupons", label: "Coupons", permission: "coupons.read", group: "Settings", icon: Tag, description: "Promotions and coupon rules" },

@@ -38,7 +38,7 @@ import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdm
 import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
-import { getAdminPermissions } from "../utils/adminRbac.js";
+import { getAdminPermissions, hasAdminPermission } from "../utils/adminRbac.js";
 import { GROSS_COLLECTION_PAYMENT_STATUSES, calculateNetRevenue } from "../services/billingMetrics.service.js";
 import { resolveAdminAudience, validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../services/adminAudience.service.js";
 
@@ -2185,13 +2185,15 @@ export async function paymentIssues(req, res, next) {
     const allowedStatuses = ["open", "in_review", "resolved", "closed"];
     const filter = {};
     if (status && allowedStatuses.includes(status)) filter.status = status;
-    const issues = await PaymentIssue.find(filter)
+    const canReadSupportPrivate = hasAdminPermission(req.user?.adminRole, "payment_issues.manage", req.user?.adminPermissionOverrides);
+    let query = PaymentIssue.find(filter)
       .populate("user", "name email")
-      .populate("assignedTo", "name email adminRole")
-      .populate("internalNotes.author", "name email")
-      .populate({ path: "payment", select: "amount currency status provider providerPaymentId providerOrderId createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] })
-      .sort({ createdAt: -1 }).limit(limit).lean();
-    return success(res, { issues });
+      .populate({ path: "payment", select: "amount currency status provider providerPaymentId providerOrderId createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] });
+    if (canReadSupportPrivate) {
+      query = query.populate("assignedTo", "name email adminRole").populate("internalNotes.author", "name email");
+    }
+    const issues = await query.sort({ createdAt: -1 }).limit(limit).lean();
+    return success(res, { issues: canReadSupportPrivate ? issues : issues.map(({ assignedTo, internalNotes, ...issue }) => issue) });
   } catch (e) { next(e); }
 }
 

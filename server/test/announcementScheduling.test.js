@@ -30,6 +30,7 @@ test("announcements require a preview token and reason, then queue or schedule i
   const controller = await read("../src/controllers/adminPro.controller.js");
   const worker = await read("../src/jobs/worker.js");
   const service = await read("../src/services/announcement.service.js");
+  const notificationService = await read("../src/services/notification.service.js");
   const send = controller.slice(controller.indexOf("export async function sendAnnouncement"), controller.indexOf("export async function listAnnouncements"));
   assert.match(send, /reason\.length < 10/);
   assert.match(send, /verifyAdminAudiencePreviewToken/);
@@ -41,6 +42,9 @@ test("announcements require a preview token and reason, then queue or schedule i
   assert.match(service, /deferDispatch: true/);
   assert.match(service, /batchLockToken/);
   assert.match(service, /nextBatchAt/);
+  assert.match(notificationService, /explicitAnnouncementConsent/);
+  assert.match(notificationService, /preferences\.emailAnnouncementsConsentAt/);
+  assert.match(notificationService, /requestedChannels:/);
 });
 
 test("scheduled announcements can be cancelled only before the worker starts and reports refresh channel statistics", async () => {
@@ -54,6 +58,8 @@ test("scheduled announcements can be cancelled only before the worker starts and
   assert.match(service, /refreshAnnouncementStats/);
   assert.match(service, /email_pending/);
   assert.match(service, /push_failed/);
+  assert.match(service, /announcement\.status === "cancelled"/);
+  assert.match(service, /announcement\.status === "failed" \? unprocessed : 0/);
 });
 
 test("delivery log is paginated, masks recipients and retries only failed channel attempts with a reason", async () => {
@@ -65,7 +71,7 @@ test("delivery log is paginated, masks recipients and retries only failed channe
   assert.match(controller, /export async function retryDeliveryLog/);
   assert.match(controller, /Only failed deliveries can be retried from the delivery log/);
   assert.match(controller, /reason\.length < 10/);
-  assert.match(routes, /GET|router\.get\("\/deliveries", adminPermissionMiddleware\("notifications\.read"\)/);
+  assert.match(routes, /router\.get\("\/deliveries", adminPermissionMiddleware\("notifications\.read"\)/);
   assert.match(routes, /router\.post\("\/deliveries\/:notificationId\/retry", adminPermissionMiddleware\("notifications\.retry"\)/);
   for (const token of ["recipient", "eventKey", "dateFrom", "dateTo", "Retry "]) assert.ok(page.includes(token), "missing delivery-log feature " + token);
   assert.match(page, /Sent = provider accepted/);

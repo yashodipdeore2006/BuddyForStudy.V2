@@ -141,7 +141,7 @@ button,a,input,select,textarea { -webkit-tap-highlight-color: transparent; }
     @apply inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold;
     border-radius: var(--bfs-radius-pill);
   }
-  .bfs-shell { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+  .bfs-shell { @apply mx-auto w-full px-4 sm:px-6 lg:px-8; max-width: min(100%, 1920px); }
   .bfs-section { @apply py-12 sm:py-16 lg:py-20; }
   .bfs-eyebrow { @apply text-xs font-bold uppercase tracking-[.16em]; color: var(--bfs-primary); }
   .bfs-surface-card { background: var(--bfs-canvas); border: 1px solid var(--bfs-line-soft); border-radius: var(--bfs-radius-card); }
@@ -780,4 +780,22 @@ html[data-theme="dark"] .bfs-plan-option--selected {
 }
 @media (min-width: 1920px) {
   .bfs-navbar-shell { margin-inline: auto; }
+}
+
+/* Consistent wide layout and shared course-card rhythm across learner pages. */
+.bfs-shell { padding-inline: clamp(12px, 2.2vw, 40px); }
+.bfs-navbar-shell { max-width: min(100%, 1920px); }
+.bfs-footer-shell { max-width: min(100%, 1920px); }
+.bfs-course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 1fr));
+  align-items: stretch;
+  gap: clamp(12px, 1.2vw, 22px);
+}
+.bfs-course-grid > * { min-width: 0; }
+.bfs-course-card { min-width: 0; }
+.bfs-course-card__media { height: clamp(112px, 10vw, 170px); }
+@media (max-width: 520px) {
+  .bfs-shell { padding-inline: 12px; }
+  .bfs-course-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
 }

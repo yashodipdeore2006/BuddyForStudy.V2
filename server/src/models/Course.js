@@ -132,10 +132,16 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
     reason: String(context.reason || "").slice(0, 500),
     summary: String(context.summary || "Course content or metadata changed").slice(0, 200)
   });
-  this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
-  const reviewOnlyPaths = ["status", "isPublished", "aiReviewStatus", "aiReviewedBy", "aiReviewedAt", "aiReviewNote", "deletedAt"];
-  const substantiveChange = this.modifiedPaths().some((path) => !reviewOnlyPaths.some((allowed) => path === allowed || path.startsWith(allowed + ".")));
-  if (["ai", "module", "discovery"].includes(this.generation?.mode) && substantiveChange) {
+  const modifiedPaths = this.modifiedPaths();
+  const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation"];
+  const contentChanged = modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
+  if (contentChanged && this.isPublished) {
+    this.isPublished = false;
+    this.status = "draft";
+  } else {
+    this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
+  }
+  if (["ai", "module", "discovery"].includes(this.generation?.mode) && contentChanged) {
     this.aiReviewStatus = "pending";
     this.aiReviewedBy = null;
     this.aiReviewedAt = null;

@@ -622,22 +622,34 @@ function formatDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
-export async function searchStructuredPlaylists(query, maxResults = 12) {
-  const key = `search:${query.trim().toLowerCase()}`;
+export async function searchStructuredPlaylists(query, maxResults) {
+  const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+  const requestedCount = Math.max(1, Math.min(Number(maxResults ?? setting?.value) || 30, 30));
+  const normalizedQuery = String(query || "").trim();
+  const key = `search:${normalizedQuery.toLowerCase()}:${requestedCount}`;
   if (playlistCache.has(key)) return playlistCache.get(key);
 
-  const data = await youtubeRequest("search", {
-    part: "snippet",
-    type: "playlist",
-    order: "relevance",
-    q: query,
-    maxResults: Math.min(maxResults, 25),
-    relevanceLanguage: "en",
-    regionCode: "IN",
-    safeSearch: "moderate"
-  });
+  const searchItems = [];
+  let pageToken = "";
+  while (searchItems.length < requestedCount) {
+    const pageSize = Math.min(25, requestedCount - searchItems.length);
+    const data = await youtubeRequest("search", {
+      part: "snippet",
+      type: "playlist",
+      order: "relevance",
+      q: normalizedQuery,
+      maxResults: pageSize,
+      ...(pageToken ? { pageToken } : {}),
+      relevanceLanguage: "en",
+      regionCode: "IN",
+      safeSearch: "moderate"
+    });
+    searchItems.push(...(data.items || []));
+    pageToken = data.nextPageToken || "";
+    if (!pageToken || !(data.items || []).length) break;
+  }
 
-  const ids = (data.items || []).map((item) => item.id?.playlistId).filter(Boolean);
+  const ids = searchItems.map((item) => item.id?.playlistId).filter(Boolean);
   if (!ids.length) {
     playlistCache.set(key, []);
     return [];
@@ -683,6 +695,7 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
     .map((playlist) => {
       const searchable = `${playlist.title} ${playlist.description} ${playlist.channelTitle}`.toLowerCase();
       const matchedTerms = queryTerms.filter((term) => searchable.includes(term)).length;
+      const titleMatchedTerms = queryTerms.filter((term) => playlist.title.toLowerCase().includes(term)).length;
       const relevance = queryTerms.length ? (matchedTerms / queryTerms.length) * 100 : 50;
       const depth = Math.min(
         100,
@@ -700,6 +713,11 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
       return {
         ...playlist,
         score,
+        queryRelevance: {
+          matchedTerms,
+          totalTerms: queryTerms.length,
+          titleMatchedTerms
+        },
         ranking: {
           algorithm: "youtube-playlist-fallback-v1",
           relevance: Math.round(relevance),
@@ -708,8 +726,13 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
         }
       };
     })
+    .filter((playlist) =>
+      queryTerms.length === 0 ||
+      playlist.queryRelevance.titleMatchedTerms > 0 ||
+      playlist.queryRelevance.matchedTerms / queryTerms.length >= 0.6
+    )
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(Number(maxResults) || 30, 30)));
+    .slice(0, requestedCount);
 
   playlistCache.set(key, results);
   return results;

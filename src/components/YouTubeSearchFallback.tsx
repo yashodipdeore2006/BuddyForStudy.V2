@@ -346,16 +346,6 @@ export default function YouTubeSearchFallback({
 
           {builtCourses.length > 0 && (
             <div className="mt-7">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                <div>
-                  <h4 className="font-bold text-slate-900">Learning resources</h4>
-                  <p className="text-xs text-slate-500">
-                    Built from the highest-ranked YouTube playlists, with videos used as fallback.
-                  </p>
-                </div>
-              </div>
-
               <div className="bfs-course-grid mt-4">
                 {builtCourses.map((course, index) => (
                   <article
@@ -453,16 +443,6 @@ export default function YouTubeSearchFallback({
 
           {courses.length > 0 && (
             <div className="mt-8">
-              <div className="flex items-center gap-2">
-                <PlayCircle className="h-4 w-4 text-blue-600" />
-                <div>
-                  <h4 className="font-bold text-slate-900">More learning resources</h4>
-                  <p className="text-xs text-slate-500">
-                    Ranked YouTube videos shown separately from the course options above.
-                  </p>
-                </div>
-              </div>
-
               <div className="bfs-course-grid mt-4">
                 {courses.map((course, index) => (
                   <article
@@ -573,16 +553,6 @@ export default function YouTubeSearchFallback({
           )}
 
           <div className="mt-8">
-            <div className="flex items-center gap-2">
-              <ListVideo className="h-4 w-4 text-blue-600" />
-              <div>
-                <h4 className="font-bold text-slate-900">Learning resources</h4>
-                <p className="text-xs text-slate-500">
-                  Ranked playlist/course series. They open as a multi-lesson course inside BuddyForStudy.
-                </p>
-              </div>
-            </div>
-
             {loadingPlaylists ? (
               <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
                 Loading the highest-ranked playlists...

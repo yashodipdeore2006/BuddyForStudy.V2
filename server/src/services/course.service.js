@@ -415,6 +415,23 @@ function courseSummary(course) {
 }
 
 
+function courseContentCountsStage() {
+  return {
+    $addFields: {
+      moduleCount: { $size: { $ifNull: ["$modules", []] } },
+      lessonCount: {
+        $sum: {
+          $map: {
+            input: { $ifNull: ["$modules", []] },
+            as: "module",
+            in: { $size: { $ifNull: ["$module.lessons", []] } }
+          }
+        }
+      }
+    }
+  };
+}
+
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
   const filter = { isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
@@ -425,10 +442,12 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   if (normalizedSearch) {
     const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
     const directCandidates = directFilter
-      ? await Course.find({ ...filter, ...directFilter })
-          .select("-modules")
-          .sort({ createdAt: -1 })
-          .lean()
+      ? await Course.aggregate([
+          { $match: { ...filter, ...directFilter } },
+          courseContentCountsStage(),
+          { $project: { modules: 0 } },
+          { $sort: { createdAt: -1 } }
+        ])
       : [];
 
     const nonModuleDirectCourses = directCandidates.filter(
@@ -522,6 +541,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
             }
           }
         },
+        courseContentCountsStage(),
         { $project: { modules: 0, enrollmentStats: 0 } },
         { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
         { $skip: (page - 1) * limit },
@@ -537,12 +557,14 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   }
 
   const [courses, total] = await Promise.all([
-    Course.find(filter)
-      .select("-modules")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
+    Course.aggregate([
+      { $match: filter },
+      courseContentCountsStage(),
+      { $project: { modules: 0 } },
+      { $sort: { createdAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit }
+    ]),
     Course.countDocuments(filter)
   ]);
 

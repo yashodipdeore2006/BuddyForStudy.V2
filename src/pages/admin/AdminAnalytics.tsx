@@ -108,7 +108,7 @@ export default function AdminAnalytics() {
                 {!data?.revenueDaily?.length && <p className="text-sm text-slate-500">No paid payments in this period.</p>}
               </div>
             </section>
-          </div>
+          </div>}
 
           {analyticsView === "performance" && <div className="mt-4 grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
             <section className="card overflow-hidden">

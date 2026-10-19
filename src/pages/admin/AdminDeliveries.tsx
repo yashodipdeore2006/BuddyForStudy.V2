@@ -20,6 +20,15 @@ type Delivery = {
 const statuses = ["pending", "sent", "failed", "skipped"];
 const statusClass = (status: string) => status === "sent" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : status === "failed" ? "border-red-200 bg-red-50 text-red-800" : status === "pending" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-slate-200 bg-slate-50 text-slate-600";
 const date = (value?: string) => value ? new Date(value).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "—";
+function istDate(value = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(value);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "00";
+  return get("year") + "-" + get("month") + "-" + get("day");
+}
+function shiftDate(value: string, offset: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + offset)).toISOString().slice(0, 10);
+}
 
 export default function AdminDeliveries() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -32,6 +41,7 @@ export default function AdminDeliveries() {
   const [type, setType] = useState(searchParams.get("type") || "");
   const [dateFrom, setDateFrom] = useState(searchParams.get("from") || "");
   const [dateTo, setDateTo] = useState(searchParams.get("to") || "");
+  const [datePreset, setDatePreset] = useState(searchParams.get("range") || "custom");
   const [page, setPage] = useState(Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1));
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -66,9 +76,19 @@ export default function AdminDeliveries() {
     if (type) params.set("type", type);
     if (dateFrom) params.set("from", dateFrom);
     if (dateTo) params.set("to", dateTo);
+    if (datePreset !== "custom" || dateFrom || dateTo) params.set("range", datePreset);
     if (page > 1) params.set("page", String(page));
     setSearchParams(params, { replace: true });
-  }, [search, channel, status, type, dateFrom, dateTo, page, setSearchParams]);
+  }, [search, channel, status, type, dateFrom, dateTo, datePreset, page, setSearchParams]);
+
+  function applyDatePreset(value: string) {
+    setDatePreset(value);
+    if (value === "custom") { setPage(1); return; }
+    const today = istDate();
+    setDateTo(today);
+    setDateFrom(value === "today" ? today : value === "last7" ? shiftDate(today, -6) : value === "last30" ? shiftDate(today, -29) : value === "thisMonth" ? today.slice(0, 8) + "01" : "");
+    setPage(1);
+  }
 
   async function retry(item: Delivery, selectedChannel: "email" | "push") {
     const current = item.channels[selectedChannel];
@@ -91,14 +111,15 @@ export default function AdminDeliveries() {
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_140px_140px_160px_160px_180px_auto]">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-[minmax(220px,1fr)_130px_130px_150px_150px_150px_150px_auto]">
         <form className="relative" onSubmit={(e) => { e.preventDefault(); setPage(1); setSearch(q); }}><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><input className="input-field pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search recipient or event key" aria-label="Search recipient or event key"/></form>
         <select className="input-field" value={channel} onChange={(e) => { setChannel(e.target.value); setPage(1); }} aria-label="Filter channel"><option value="">All channels</option><option value="in_app">In-app</option><option value="email">Email</option><option value="push">Push</option></select>
         <select className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="Filter status"><option value="">All statuses</option>{statuses.map((value) => <option key={value} value={value}>{value}</option>)}</select>
         <select className="input-field" value={type} onChange={(e) => { setType(e.target.value); setPage(1); }} aria-label="Filter notification type"><option value="">All types</option>{["system", "course", "billing", "promotion", "security", "learning"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
-        <label className="text-xs font-semibold text-slate-500">From<input type="date" className="input-field mt-1" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></label>
-        <label className="text-xs font-semibold text-slate-500">To<input type="date" className="input-field mt-1" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} /></label>
-        <button type="button" className="btn-secondary" onClick={() => { setQ(""); setSearch(""); setChannel(""); setStatus(""); setType(""); setDateFrom(""); setDateTo(""); setPage(1); }}>Reset</button>
+        <select className="input-field" value={datePreset} onChange={(e) => applyDatePreset(e.target.value)} aria-label="Date range preset"><option value="custom">Custom range</option><option value="today">Today</option><option value="last7">Last 7 days</option><option value="last30">Last 30 days</option><option value="thisMonth">This month</option></select>
+        <label className="text-xs font-semibold text-slate-500">From<input type="date" className="input-field mt-1" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setDatePreset("custom"); setPage(1); }} /></label>
+        <label className="text-xs font-semibold text-slate-500">To<input type="date" className="input-field mt-1" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setDatePreset("custom"); setPage(1); }} /></label>
+        <button type="button" className="btn-secondary" onClick={() => { setQ(""); setSearch(""); setChannel(""); setStatus(""); setType(""); setDateFrom(""); setDateTo(""); setDatePreset("custom"); setPage(1); }}>Reset</button>
       </div>
       <p className="mt-3 text-xs text-slate-500">{total.toLocaleString()} matching delivery record(s) · page {page} of {pages}</p>
     </section>

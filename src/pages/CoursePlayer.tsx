@@ -208,10 +208,19 @@ export default function CoursePlayer() {
             method: "POST",
             body: JSON.stringify({ courseId, lessonId, mode: "generate" }),
           });
+          if (data.pendingReview) break;
+        }
+        if (data.pendingReview) {
+          setPracticeQuizError(data.message || "These AI-generated practice questions are waiting for administrator approval.");
+          return;
         }
         if (data.generating || !data.quiz) {
           throw new Error("New questions are still being prepared. Please try Generate More again shortly.");
         }
+      }
+      if (data.pendingReview) {
+        setPracticeQuizError(data.message || "These AI-generated practice questions are waiting for administrator approval.");
+        return;
       }
       setPracticeQuizError("");
       setPracticeQuizData(data.quiz);

@@ -1,4 +1,5 @@
 import { AuditOutbox } from "../models/AuditOutbox.js";
+import { OperationalAlert } from "../models/OperationalAlert.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
 import { Notification } from "../models/Notification.js";
 import { Payment } from "../models/Payment.js";
@@ -10,7 +11,7 @@ import { success } from "../utils/response.js";
 export async function systemHealth(_req, res, next) {
   try {
     const now = new Date();
-    const [worker, auditOutbox, failedWebhooks, processingWebhooks, failedEmails, pendingEmails, failedPush, pendingPush, settings] = await Promise.all([
+    const [worker, auditOutbox, failedWebhooks, processingWebhooks, failedEmails, pendingEmails, failedPush, pendingPush, settings, openCriticalAlerts] = await Promise.all([
       checkWorkerHeartbeat(now),
       AuditOutbox.countDocuments({ status: { $in: ["pending", "processing"] } }),
       WebhookEvent.countDocuments({ status: "failed" }),
@@ -19,7 +20,8 @@ export async function systemHealth(_req, res, next) {
       Notification.countDocuments({ emailStatus: "pending" }),
       Notification.countDocuments({ pushStatus: "failed" }),
       Notification.countDocuments({ pushStatus: "pending" }),
-      PlatformSetting.find().select("key updatedAt").lean()
+      PlatformSetting.find().select("key updatedAt").lean(),
+      OperationalAlert.countDocuments({ status: "open", severity: "critical" })
     ]);
 
     const integration = (keys) => ({ configured: keys.every((key) => Boolean(process.env[key])), missing: keys.filter((key) => !process.env[key]) });
@@ -37,7 +39,8 @@ export async function systemHealth(_req, res, next) {
 
     return success(res, {
       checkedAt: now.toISOString(),
-      overallStatus: worker.status === "healthy" && failedWebhooks === 0 && failedEmails === 0 && failedPush === 0 ? "healthy" : "needs_attention",
+      overallStatus: worker.status === "healthy" && failedWebhooks === 0 && failedEmails === 0 && failedPush === 0 && openCriticalAlerts === 0 ? "healthy" : "needs_attention",
+      openCriticalAlerts,
       worker,
       queues: {
         auditOutbox: { pendingOrProcessing: auditOutbox },

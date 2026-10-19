@@ -69,6 +69,10 @@ export default function AdminDeliveries() {
   }, [search, channel, status, type, dateFrom, dateTo, page]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
+    const handle = window.setTimeout(() => { setSearch(q.trim()); setPage(1); }, 300);
+    return () => window.clearTimeout(handle);
+  }, [q]);
+  useEffect(() => {
     const nextQ = searchParams.get("q") || "";
     setQ(nextQ); setSearch(nextQ);
     setChannel(searchParams.get("channel") || "");
@@ -118,7 +122,7 @@ export default function AdminDeliveries() {
   }
 
   return <div className="mx-auto max-w-7xl space-y-5">
-    <AdminPageHeader eyebrow="Communications" title="Delivery log" description="Search notification attempts, inspect channel acceptance and retry eligible failures. Sent means the provider accepted the request, not that it reached an inbox or was read." actions={<button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")}/> Refresh</button>} />
+    <AdminPageHeader eyebrow="Communications" title="Delivery log" description="Search notification attempts, inspect channel acceptance and retry eligible failures. Sent means the provider accepted the request, not that it reached an inbox or was read." actions={<button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={"h-4 w-4 " + (loading ? "motion-safe:animate-spin motion-reduce:animate-none" : "")}/> Refresh</button>} />
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <section className="rounded-2xl border border-slate-200 bg-white p-4">

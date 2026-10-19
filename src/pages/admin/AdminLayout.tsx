@@ -3,7 +3,7 @@ import { Link, NavLink, Navigate, useLocation, useNavigate } from "react-router-
 import {
   Activity, ArrowUpRight, Bell, BookOpen, ChevronDown, CircleHelp,
   CreditCard, ExternalLink, LayoutDashboard, LogOut, Menu,
-  Megaphone, Moon, Plus, Search, Settings, ShieldCheck, Sun, Tag,
+  Megaphone, Moon, Plus, Search, Settings, ShieldCheck, Sun, Tag, MailCheck,
   Users, X, BrainCircuit, Headset, ScrollText, PanelLeftClose, PanelLeftOpen, ServerCog,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -35,6 +35,7 @@ const links: AdminLink[] = [
   { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Settings", icon: CreditCard, description: "Subscriber status and billing periods" },
   { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Settings", icon: BrainCircuit, description: "AI content controls" },
   { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Settings", icon: Megaphone, description: "Announcements and notifications" },
+  { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Settings", icon: MailCheck, description: "Delivery attempts, errors and safe retries" },
   { to: "/admin/coupons", label: "Coupons", permission: "coupons.read", group: "Settings", icon: Tag, description: "Promotions and coupon rules" },
   { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Settings", icon: ScrollText, description: "Sensitive actions and accountability" },
   { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Settings", icon: Settings, description: "Platform configuration" },

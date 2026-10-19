@@ -322,11 +322,16 @@ function stableAudienceStringify(value) {
 }
 
 function audienceTargetFingerprint(input = {}) {
+  const rawChannels = input.channels ?? input.channel;
+  const channels = Array.isArray(rawChannels)
+    ? [...new Set(rawChannels.map((value) => String(value)))].sort()
+    : rawChannels ? [String(rawChannels)] : null;
   const targeting = {
     audience: input.audience || "all",
     userIds: input.userIds ?? null,
     emails: input.emails ?? null,
-    filters: input.filters ?? null
+    filters: input.filters ?? null,
+    channels
   };
   return crypto.createHash("sha256").update(stableAudienceStringify(targeting)).digest("hex");
 }

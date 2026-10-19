@@ -4,7 +4,7 @@ import {
   Activity, ArrowUpRight, Bell, BookOpen, ChevronDown, CircleHelp,
   CreditCard, ExternalLink, LayoutDashboard, LogOut, Menu,
   Megaphone, Moon, Plus, Search, Settings, ShieldCheck, Sun, Tag,
-  Users, X, BrainCircuit, Headset, ScrollText, PanelLeftClose, PanelLeftOpen,
+  Users, X, BrainCircuit, Headset, ScrollText, PanelLeftClose, PanelLeftOpen, ServerCog,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { adminFetch } from "@/lib/adminApi";
@@ -26,6 +26,7 @@ const links: AdminLink[] = [
   { to: "/admin/users", label: "Users", permission: "users.read", group: "Manage", icon: Users, description: "Accounts, roles and access" },
   { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Manage", icon: BookOpen, description: "Courses and learning content" },
   { to: "/admin/support", label: "Support cases", permission: "payment_issues.manage", group: "Manage", icon: Headset, description: "Resolve learner support issues" },
+  { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Manage", icon: ServerCog, description: "Health, queues, webhooks, alerts and delivery logs" },
   { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Insights", icon: Activity, description: "Platform performance and revenue" },
   { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Settings", icon: CreditCard, description: "Subscription plans and entitlements" },
   { to: "/admin/billing", label: "Billing and refunds", permission: "refunds.manage", group: "Settings", icon: CreditCard, description: "Payments, refunds and disputes" },

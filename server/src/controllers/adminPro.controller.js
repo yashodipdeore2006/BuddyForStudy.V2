@@ -1325,7 +1325,7 @@ export async function subscriptions(req, res, next) {
 
 export async function refunds(req, res, next) {
   try {
-    const items = await RefundRequest.find().populate("user", "name email").populate({ path: "payment", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name price billingInterval" }] }).populate("processedBy", "name email").populate("assignedTo", "name email").sort({ createdAt: -1 }).limit(200).lean();
+    const items = await RefundRequest.find().populate("user", "name email").populate({ path: "payment", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name price billingInterval" }] }).populate("processedBy", "name email").sort({ createdAt: -1 }).limit(200).lean();
     const now = Date.now();
     return success(res, { refunds: items.map((item) => {
       const dueAt = item.slaDueAt || new Date(new Date(item.createdAt).getTime() + 24 * 60 * 60 * 1000);
@@ -1685,7 +1685,7 @@ export async function reconcileRefund(req, res, next) {
       status: refund.status,
       providerRefundId,
       providerStatus
-    }, "Provider refund is not yet in a final state");
+    }, reason);
     return success(res, { refund, providerStatus }, "Provider refund is not final yet; internal refund remains on hold");
   } catch (e) {
     if (reconciliationToken && reconciliationRefundId) {
@@ -1971,6 +1971,40 @@ export async function coupons(req, res, next) {
   catch (e) { next(e); }
 }
 
+export async function bulkCreateCoupons(req, res, next) {
+  try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for bulk coupon generation.", 400);
+    const count = Number(req.body?.count);
+    if (!Number.isInteger(count) || count < 1 || count > 100) return failure(res, "Bulk coupon count must be an integer from 1 to 100.", 400);
+    const prefix = String(req.body?.prefix || "BFS").trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,20}$/.test(prefix)) return failure(res, "Coupon prefix must contain 1–20 letters, numbers, underscores or hyphens.", 400);
+    const template = { ...req.body, code: prefix + "-TEMP", type: req.body.type || "percentage", isActive: true };
+    const validation = validateCouponAdminInput(template);
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon template contains invalid fields", errors: validation.errors });
+    const created = [];
+    for (let index = 0; index < count; index += 1) {
+      const code = prefix + "-" + crypto.randomBytes(5).toString("hex").toUpperCase();
+      const coupon = await Coupon.create({
+        code, type: template.type, value: Number(template.value),
+        maxDiscount: template.maxDiscount == null || template.maxDiscount === "" ? null : Number(template.maxDiscount),
+        minOrderAmount: Number(template.minOrderAmount) || 0,
+        usageLimit: template.usageLimit == null || template.usageLimit === "" ? null : Number(template.usageLimit),
+        expiresAt: template.expiresAt || null,
+        course: isValidObjectId(template.course) ? template.course : null,
+        isActive: true
+      });
+      await audit(req, "coupon.bulk_created", "Coupon", coupon._id, null, {
+        code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount,
+        minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt,
+        course: coupon.course, isActive: coupon.isActive, batchPrefix: prefix, batchSize: count
+      }, reason);
+      created.push(coupon);
+    }
+    return success(res, { coupons: created, count: created.length, prefix }, "Bulk coupons generated", 201);
+  } catch (e) { next(e); }
+}
+
 export async function createCoupon(req, res, next) {
   try {
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
@@ -1984,7 +2018,7 @@ export async function createCoupon(req, res, next) {
       usageLimit: req.body.usageLimit == null ? null : Number(req.body.usageLimit), expiresAt: req.body.expiresAt || null,
       course: isValidObjectId(req.body.course) ? req.body.course : null, isActive: req.body.isActive !== false
     });
-    await audit(req, "coupon.created", "Coupon", coupon._id, null, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, req.body.reason);
+    await audit(req, "coupon.created", "Coupon", coupon._id, null, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, reason);
     return success(res, { coupon }, "Coupon created", 201);
   } catch (e) { next(e); }
 }
@@ -2003,7 +2037,7 @@ export async function updateCoupon(req, res, next) {
     if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon contains invalid fields", errors: validation.errors });
     const before = { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive };
     for (const key of ["type","value","maxDiscount","minOrderAmount","usageLimit","expiresAt","isActive"]) if (req.body[key] !== undefined) coupon[key] = req.body[key];
-    await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, req.body.reason);
+    await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, reason);
     return success(res, { coupon }, "Coupon updated");
   } catch (e) { next(e); }
 }

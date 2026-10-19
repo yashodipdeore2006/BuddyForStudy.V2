@@ -1440,6 +1440,11 @@ export async function updateRefund(req, res, next) {
           refund.adminNote = [refund.adminNote, "Refund attempt needs provider reconciliation before retrying."].filter(Boolean).join("\n").slice(0, 2000);
         }
         await refund.save();
+        await audit(req, "refund.provider_attempt_failed", "RefundRequest", refund._id, before, {
+          status: refund.status,
+          providerRefundId: refund.providerRefundId || "",
+          hasAdminNote: Boolean(refund.adminNote)
+        }, reason);
         throw providerError;
       }
 
@@ -1620,6 +1625,11 @@ export async function reconcileRefund(req, res, next) {
       // Persist the provider-confirmed refund first. If the payment write fails,
       // the idempotent processed-refund path above repairs payment status on retry.
       await refund.save();
+      await audit(req, "refund.reconciled", "RefundRequest", refund._id, before, {
+        status: refund.status,
+        providerRefundId,
+        providerStatus
+      }, reason);
       await RefundRequest.updateOne(
         { _id: refund._id, reconciliationToken },
         { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
@@ -1646,11 +1656,6 @@ export async function reconcileRefund(req, res, next) {
           message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
         });
       }
-      await audit(req, "refund.reconciled", "RefundRequest", refund._id, before, {
-        status: refund.status,
-        providerRefundId,
-        providerStatus
-      }, reason);
       return success(res, { refund, providerStatus }, "Provider refund verified and reconciled");
     }
 

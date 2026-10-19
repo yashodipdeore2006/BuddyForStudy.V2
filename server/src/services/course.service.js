@@ -172,6 +172,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
 
   const candidateFilter = {
     isPublished: true,
+    deletedAt: null,
     "generation.mode": { $ne: "module" },
     ...(category ? { category } : {}),
     ...(level ? { level } : {}),
@@ -214,7 +215,8 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
       "generation.mode": "module",
       "generation.sourceCourse": parent._id,
       "generation.sourceModuleId": module._id,
-      isPublished: true
+      isPublished: true,
+      deletedAt: null
     };
 
     const existing = await Course.findOne(matchFilter).lean();
@@ -368,7 +370,7 @@ function courseSummary(course) {
 
 
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
-  const filter = { isPublished: true, deletedAt: null, deletedAt: null };
+  const filter = { isPublished: true, deletedAt: null };
   if (category) filter.category = category;
   if (level) filter.level = level;
 

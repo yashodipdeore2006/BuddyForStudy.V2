@@ -374,7 +374,7 @@ export async function retryNotificationDelivery(notificationId, channel, { reaso
     {
       _id: notificationId,
       [statusField]: "failed",
-      $expr: { $lt: [{ $size: { $filter: { input: { $ifNull: ["$retryHistory", []] }, as: "retry", cond: { $eq: ["$retry.channel", channel] } } } }, 3] }
+      $expr: { $lt: [{ $size: { $filter: { input: { $ifNull: ["$retryHistory", []] }, as: "retry", cond: { $eq: ["$$retry.channel", channel] } } } }, 3] }
     },
     [{
       $set: {

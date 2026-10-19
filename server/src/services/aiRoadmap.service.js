@@ -1272,7 +1272,6 @@ function buildTopicFallback(topic, level = "Beginner") {
     { id: "applied-practice", name: "Applied Practice and Problem Solving", topics: ["analyze realistic scenarios", "compare approaches and trade-offs", "apply concepts to a practical problem"], project: "Solve a realistic " + canonicalTopic + " problem and explain the decisions" },
     { id: "portfolio-capstone", name: "Portfolio Capstone", topics: ["define a measurable objective", "plan and implement a solution", "test, document and present the result"], project: "Build and document a portfolio-ready " + canonicalTopic + " capstone" }
   ];
-  const slug = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const modules = stages.map((stage, index) => {
     const query = stage.name + " complete course tutorial";
     const project = stage.project;

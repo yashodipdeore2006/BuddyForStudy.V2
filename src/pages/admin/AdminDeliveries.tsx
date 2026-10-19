@@ -32,7 +32,7 @@ export default function AdminDeliveries() {
   const [type, setType] = useState(searchParams.get("type") || "");
   const [dateFrom, setDateFrom] = useState(searchParams.get("from") || "");
   const [dateTo, setDateTo] = useState(searchParams.get("to") || "");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1));
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

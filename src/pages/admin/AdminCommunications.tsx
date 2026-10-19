@@ -443,7 +443,7 @@ export default function AdminCommunications() {
                 <input className="input-field mt-1 font-mono" value={templateDraft.key} onChange={(e) => setTemplateDraft({ ...templateDraft, key: e.target.value })} disabled={Boolean(editingTemplateId)} />
               </label>
               <label className="block text-xs font-semibold text-slate-600">Channel
-                <select className="input-field mt-1" value={templateDraft.channel} disabled={Boolean(editingTemplateId)} onChange={(e) => setTemplateDraft({ ...templateDraft, channel: e.target.value as TemplateDraft["channel"] })}>
+                <select className="input-field mt-1" value={templateDraft.channel} disabled={Boolean(editingTemplateId)} onChange={(e) => { const channel = e.target.value as TemplateDraft["channel"]; setTemplateDraft({ ...templateDraft, channel }); setPlaceholderTarget(channel === "email" ? "subject" : "title"); }}>
                   <option value="notification">In-app notification</option>
                   <option value="email">Email</option>
                   <option value="announcement">Announcement</option>

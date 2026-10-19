@@ -448,7 +448,7 @@ function requireContentReason(req, res, label) {
   return reason;
 }
 function isAiGeneratedCourse(course) {
-  return ["ai", "module", "discovery"].includes(course?.generation?.mode);
+  return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
 }
 
 export async function courseRevisions(req, res, next) {

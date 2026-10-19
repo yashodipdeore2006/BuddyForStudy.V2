@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 type FeatureDefinition = {
   key: string;
@@ -75,6 +75,7 @@ export default function AdminPlans() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<"plans" | "create">("plans");
 
   async function load() {
     setLoading(true);
@@ -259,6 +260,7 @@ export default function AdminPlans() {
       <AdminPageHeader
         title="Subscription plans"
         description="Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks."
+        actions={<button type="button" className="btn-primary" onClick={() => setActiveSection("create")} disabled={!permissions.includes("plans.manage")}><Plus className="h-4 w-4" /> Create plan</button>}
       />
 
       {error && (
@@ -267,7 +269,11 @@ export default function AdminPlans() {
         </div>
       )}
 
-      <div className="card mt-6 p-5">
+      <div className="mt-6">
+        <AdminTabs ariaLabel="Subscription plan work areas" value={activeSection} onChange={setActiveSection} items={[{ value: "plans", label: `Plans (${plans.length})` }, { value: "create", label: "Create plan" }]} />
+      </div>
+
+      {activeSection === "create" && <div className="card mt-4 p-5">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Add another plan</p>
           <h2 className="mt-1 text-xl font-extrabold text-slate-950">Create plan</h2>
@@ -381,9 +387,9 @@ export default function AdminPlans() {
           <Plus className="h-4 w-4" />
           Create Plan
         </button>
-      </div>
+      </div>}
 
-      <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {activeSection === "plans" && <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
           <div role="status" aria-live="polite" aria-label="Loading subscription plans" className="card col-span-full p-12 text-center">
             <RefreshCcw className="mx-auto animate-spin text-slate-400" /><span className="sr-only">Loading subscription plans</span>
@@ -566,7 +572,7 @@ export default function AdminPlans() {
             );
           })
         )}
-      </div>
+      </div>}
     </div>
   );
 }

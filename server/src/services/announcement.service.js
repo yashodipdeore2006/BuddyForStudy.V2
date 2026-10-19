@@ -176,7 +176,7 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
       await Announcement.updateOne(
         { _id: announcement._id, nextRecipientIndex: nextIndex, batchLockToken: "" },
         { $set: {
-          status: finished ? (stats.failed > 0 ? "failed" : "sent") : "sending",
+          status: finished ? terminalAnnouncementStatus(stats) : "sending",
           ...(finished ? { sentAt: now, completedAt: now, nextBatchAt: null } : { nextBatchAt: new Date(now.getTime() + 30 * 1000) })
         } }
       );

@@ -399,18 +399,16 @@ export async function retryNotificationDelivery(notificationId, channel) {
     throw error;
   }
 
-  if (channel === "email") await dispatchEmail(notification._id);
-  else await dispatchPush(notification._id);
-
-  const updated = await Notification.findById(notification._id)
-    .select("emailStatus emailAttempts emailError pushStatus pushAttempts pushError")
-    .lean();
+  // The atomic failed -> pending transition claims this retry exactly once.
+  // The background worker performs provider I/O so an admin request never waits on SMTP/Web Push.
   return {
     notificationId: String(notification._id),
     channel,
-    status: channel === "email" ? updated?.emailStatus : updated?.pushStatus,
-    attempts: channel === "email" ? updated?.emailAttempts : updated?.pushAttempts,
-    error: channel === "email" ? updated?.emailError : updated?.pushError
+    status: "pending",
+    attempts: 0,
+    error: "",
+    queued: true,
+    idempotencyKey: channel === "push" ? notification.pushIdempotencyKey : (notification.eventKey || String(notification._id))
   };
 }
 

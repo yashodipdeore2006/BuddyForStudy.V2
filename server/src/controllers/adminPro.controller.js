@@ -2298,7 +2298,7 @@ export async function listAnnouncements(req, res, next) {
       Announcement.find(filter).select("title status audience targetMode channel scheduledAt timezone startedAt sentAt completedAt cancelledAt stats lastError createdBy createdAt updatedAt").populate("createdBy", "name").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       Announcement.countDocuments(filter)
     ]);
-    return success(res, { announcements: items, page, limit, total, pages: Math.ceil(total / limit) });
+    return success(res, { announcements: items.map((item) => ({ ...item, lastError: safeDeliveryError(item.lastError) })), page, limit, total, pages: Math.ceil(total / limit) });
   } catch (error) { next(error); }
 }
 

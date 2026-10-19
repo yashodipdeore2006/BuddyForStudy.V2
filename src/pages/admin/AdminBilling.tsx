@@ -288,5 +288,6 @@ export default function AdminBilling() {
           </aside>
         </div>
       )}
+    </div>
   );
 }

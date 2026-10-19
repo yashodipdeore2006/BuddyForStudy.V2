@@ -52,7 +52,7 @@ export async function search(req, res, next) {
 export async function details(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const course = await courseService.getPublished(req.params.courseId);
+    const course = await courseService.getPublished(req.params.courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
 
     const preview = toPublicCoursePreview(course);

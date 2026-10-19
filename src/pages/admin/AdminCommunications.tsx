@@ -54,6 +54,9 @@ export default function AdminCommunications() {
   const [sending, setSending] = useState(false);
   const [preview, setPreview] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+  const [templatesLoadError, setTemplatesLoadError] = useState("");
+  const templateRequestId = useRef(0);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [deliveries, setDeliveries] = useState<DeliveryRecord[]>([]);
   const [deliverySearchInput, setDeliverySearchInput] = useState("");
@@ -118,6 +121,24 @@ export default function AdminCommunications() {
     requestConfirmation({ kind: "retry-delivery", notificationId, channel });
   }
 
+  async function loadTemplates(): Promise<boolean> {
+    const requestId = ++templateRequestId.current;
+    setLoadingTemplates(true);
+    setTemplatesLoadError("");
+    try {
+      const data = await adminFetch("/api/admin/message-templates");
+      if (requestId !== templateRequestId.current) return false;
+      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+      return true;
+    } catch (error) {
+      if (requestId !== templateRequestId.current) return false;
+      setTemplatesLoadError(error instanceof Error ? error.message : "Unable to load message templates.");
+      return false;
+    } finally {
+      if (requestId === templateRequestId.current) setLoadingTemplates(false);
+    }
+  }
+
   async function loadCampaigns(page = campaignPage, limit = campaignLimit, statusFilter = campaignStatus, search = campaignSearch) {
     const requestId = ++campaignRequestId.current;
     setLoadingCampaigns(true); setCampaignError("");
@@ -180,7 +201,7 @@ export default function AdminCommunications() {
   }
 
   useEffect(() => {
-    adminFetch("/api/admin/message-templates").then(data => setTemplates(Array.isArray(data.templates) ? data.templates : [])).catch(() => setTemplates([]));
+    void loadTemplates();
     adminFetch("/api/admin/notifications/audience-options").then((data) => {
       setAudiencePlans(Array.isArray(data.plans) ? data.plans : []);
       setAudienceCourses(Array.isArray(data.courses) ? data.courses : []);
@@ -240,8 +261,11 @@ export default function AdminCommunications() {
         method: editingTemplateId ? "PUT" : "POST",
         body: JSON.stringify(templateDraft),
       });
-      const data = await adminFetch("/api/admin/message-templates");
-      setTemplates(Array.isArray(data.templates) ? data.templates : []);
+      const refreshed = await loadTemplates();
+      if (!refreshed) {
+        setTemplateStatus("Template saved, but the template list could not be refreshed. Retry the template list above before making further edits.");
+        return;
+      }
       setTemplateStatus("Template saved. Automatic event notifications will use it when its key matches a built-in event.");
       setTemplatePreview(null);
       setEditingTemplateId("");
@@ -560,7 +584,7 @@ export default function AdminCommunications() {
       <div className="mt-6">
         <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={setWorkspaceView} items={[
           { value: "compose", label: "Compose" },
-          { value: "templates", label: `Templates (${templates.length})` },
+          { value: "templates", label: loadingTemplates ? "Templates…" : templatesLoadError ? "Templates" : `Templates (${templates.length})` },
           { value: "deliveries", label: "Delivery log" },
           { value: "campaigns", label: `Campaigns (${campaignTotal})` },
         ]} />
@@ -589,20 +613,27 @@ export default function AdminCommunications() {
           <button type="button" className="btn-secondary shrink-0" onClick={() => editTemplate()}>New template</button>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {templates.map((template) => (
-            <div key={template._id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 p-3">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{template.name}</p>
-                <p className="mt-1 break-all font-mono text-[10px] text-slate-500">{template.key}</p>
-                <p className="mt-1 text-xs text-slate-500">{template.channel} · {template.isActive ? "Active" : "Inactive"}</p>
-                <p className="mt-2 text-xs font-semibold text-slate-600">Used by</p>
-                {template.usedBy?.length ? <ul className="mt-1 space-y-1">{template.usedBy.map((usage) => <li key={usage.event} className="text-xs text-slate-500">{usage.event} <span className="text-slate-400">· {usage.source}</span></li>)}</ul> : <p className="mt-1 text-xs text-slate-400">No built-in event mapping</p>}
+        {templatesLoadError && <div role="alert" className="mt-4 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between"><span>Unable to refresh templates: {templatesLoadError}</span><button type="button" className="btn-secondary shrink-0" onClick={() => { void loadTemplates(); }} disabled={loadingTemplates}>{loadingTemplates ? "Retrying…" : "Retry loading"}</button></div>}
+        {loadingTemplates && !templates.length ? (
+          <div className="mt-4 rounded-xl border border-slate-200 p-5 text-sm text-slate-500" role="status">Loading message templates…</div>
+        ) : templates.length ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {templates.map((template) => (
+              <div key={template._id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 p-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">{template.name}</p>
+                  <p className="mt-1 break-all font-mono text-[10px] text-slate-500">{template.key}</p>
+                  <p className="mt-1 text-xs text-slate-500">{template.channel} · {template.isActive ? "Active" : "Inactive"}</p>
+                  <p className="mt-2 text-xs font-semibold text-slate-600">Used by</p>
+                  {template.usedBy?.length ? <ul className="mt-1 space-y-1">{template.usedBy.map((usage) => <li key={usage.event} className="text-xs text-slate-500">{usage.event} <span className="text-slate-400">· {usage.source}</span></li>)}</ul> : <p className="mt-1 text-xs text-slate-400">No built-in event mapping</p>}
+                </div>
+                <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => editTemplate(template)}>Edit</button>
               </div>
-              <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => editTemplate(template)}>Edit</button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : !templatesLoadError ? (
+          <div className="mt-4 rounded-xl border border-slate-200 p-5 text-sm text-slate-500">No message templates have been configured yet.</div>
+        ) : null}
 
         {templateEditorOpen && (
           <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/40 p-4 sm:p-5">

@@ -8,6 +8,8 @@ type MessageTemplate = { _id: string; name: string; key: string; channel: "notif
 type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
 type TemplatePreview = { channel: string; title: string; subject: string; body: string; placeholders: string[]; unknownPlaceholders: string[] };
 type AnnouncementRecord = { _id: string; title: string; status: string; channel: Channel[]; scheduledAt?: string; timezone?: string; startedAt?: string; sentAt?: string; completedAt?: string; createdAt?: string; stats?: { total?: number; sent?: number; pending?: number; failed?: number; skipped?: number }; lastError?: string };
+type TemplatePreview = { channel: string; title: string; subject: string; body: string; placeholders: string[]; unknownPlaceholders: string[] };
+type AnnouncementRecord = { _id: string; title: string; status: string; channel: Channel[]; scheduledAt?: string; timezone?: string; startedAt?: string; sentAt?: string; completedAt?: string; createdAt?: string; stats?: { total?: number; sent?: number; pending?: number; failed?: number; skipped?: number }; lastError?: string };
 type AudiencePlanOption = { id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean; isPopular: boolean };
 type AudienceCourseOption = { id: string; title: string; category: string; level: string; isPublished: boolean; pricingMode: string; price: number; featured: boolean };
 const EMPTY_TEMPLATE: TemplateDraft = { name: "", key: "", channel: "notification", title: "", subject: "", body: "", link: "", messageType: "system", isActive: true };
@@ -30,6 +32,7 @@ export default function AdminCommunications() {
   const [html, setHtml] = useState("");
   const [link, setLink] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
   const [channels, setChannels] = useState<Channel[]>(["in_app"]);
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
@@ -47,6 +50,15 @@ export default function AdminCommunications() {
   const [templateStatus, setTemplateStatus] = useState("");
   const [templateError, setTemplateError] = useState("");
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  const [templatePreview, setTemplatePreview] = useState<TemplatePreview | null>(null);
+  const [previewingTemplate, setPreviewingTemplate] = useState(false);
+  const [testSendingTemplate, setTestSendingTemplate] = useState(false);
+  const [campaigns, setCampaigns] = useState<AnnouncementRecord[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [campaignError, setCampaignError] = useState("");
+  const [campaignNotice, setCampaignNotice] = useState("");
+  const [campaignReports, setCampaignReports] = useState<Record<string, any>>({});
+  const [campaignBusy, setCampaignBusy] = useState("");
   const [templatePreview, setTemplatePreview] = useState<TemplatePreview | null>(null);
   const [previewingTemplate, setPreviewingTemplate] = useState(false);
   const [testSendingTemplate, setTestSendingTemplate] = useState(false);
@@ -102,6 +114,30 @@ export default function AdminCommunications() {
     } catch (error) { setCampaignError(error instanceof Error ? error.message : "Unable to cancel this announcement."); }
     finally { setCampaignBusy(""); }
   }
+  async function loadCampaigns() {
+    setLoadingCampaigns(true); setCampaignError("");
+    try { const data = await adminFetch("/api/admin/announcements?limit=50"); setCampaigns(Array.isArray(data.announcements) ? data.announcements : []); }
+    catch (error) { setCampaignError(error instanceof Error ? error.message : "Unable to load announcement history."); }
+    finally { setLoadingCampaigns(false); }
+  }
+
+  async function loadCampaignReport(announcementId: string) {
+    setCampaignBusy(announcementId); setCampaignError("");
+    try { const data = await adminFetch("/api/admin/announcements/" + announcementId + "/report"); setCampaignReports((current) => ({ ...current, [announcementId]: data })); }
+    catch (error) { setCampaignError(error instanceof Error ? error.message : "Unable to load the announcement report."); }
+    finally { setCampaignBusy(""); }
+  }
+
+  async function cancelCampaign(announcementId: string, titleText: string) {
+    if (!window.confirm("Cancel scheduled announcement \"" + titleText + "\" before sending starts?")) return;
+    const reason = window.prompt("Reason for cancelling this announcement (10–500 characters):") || "";
+    if (reason.trim().length < 10 || reason.trim().length > 500) { setCampaignError("Cancellation reason must be between 10 and 500 characters."); return; }
+    setCampaignBusy(announcementId); setCampaignError(""); setCampaignNotice("");
+    try { const data = await adminFetch("/api/admin/announcements/" + announcementId + "/cancel", { method: "POST", body: JSON.stringify({ reason: reason.trim() }) }); setCampaignNotice(data.message || "Announcement cancelled."); await loadCampaigns(); }
+    catch (error) { setCampaignError(error instanceof Error ? error.message : "Unable to cancel this announcement."); }
+    finally { setCampaignBusy(""); }
+  }
+
   async function loadDeliveryLogs() {
     setLoadingDeliveries(true);
     setDeliveryError("");
@@ -165,6 +201,24 @@ export default function AdminCommunications() {
     } catch (error) { setTemplateError(error instanceof Error ? error.message : "Unable to send this template test."); }
     finally { setTestSendingTemplate(false); }
   }
+  async function previewTemplate() {
+    setPreviewingTemplate(true); setTemplateError(""); setTemplateStatus("");
+    try { const data = await adminFetch("/api/admin/message-templates/preview", { method: "POST", body: JSON.stringify({ template: templateDraft, sampleData: { userName: "Template Preview" } }) }); setTemplatePreview(data.preview || null); if (data.warning) setTemplateError(data.warning); }
+    catch (error) { setTemplateError(error instanceof Error ? error.message : "Unable to preview this template."); setTemplatePreview(null); }
+    finally { setPreviewingTemplate(false); }
+  }
+
+  async function testSendTemplate() {
+    if (!editingTemplateId) { setTemplateError("Save the template first, then reopen it to send a test."); return; }
+    const reason = window.prompt("Reason for sending a template test to your own administrator account (10–500 characters):") || "";
+    if (reason.trim().length < 10 || reason.trim().length > 500) { setTemplateError("Test-send reason must be between 10 and 500 characters."); return; }
+    if (!window.confirm("Send a test using this saved template to your own administrator account only?")) return;
+    setTestSendingTemplate(true); setTemplateError(""); setTemplateStatus("");
+    try { const data = await adminFetch("/api/admin/message-templates/" + editingTemplateId + "/test-send", { method: "POST", body: JSON.stringify({ reason: reason.trim() }) }); setTemplateStatus(data.message || "Test message sent to your administrator account."); }
+    catch (error) { setTemplateError(error instanceof Error ? error.message : "Unable to send this template test."); }
+    finally { setTestSendingTemplate(false); }
+  }
+
   async function saveTemplate() {
     setSavingTemplate(true);
     setTemplateStatus("");

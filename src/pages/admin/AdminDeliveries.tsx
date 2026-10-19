@@ -27,6 +27,8 @@ export default function AdminDeliveries() {
   const [channel, setChannel] = useState("");
   const [status, setStatus] = useState("");
   const [type, setType] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -42,6 +44,8 @@ export default function AdminDeliveries() {
       if (channel) params.set("channel", channel);
       if (status) params.set("status", status);
       if (type) params.set("type", type);
+      if (dateFrom) params.set("from", new Date(dateFrom + "T00:00:00+05:30").toISOString());
+      if (dateTo) params.set("to", new Date(dateTo + "T23:59:59.999+05:30").toISOString());
       const data = await adminFetch("/api/admin/deliveries?" + params.toString());
       setItems(Array.isArray(data.deliveries) ? data.deliveries : []);
       setPages(Math.max(1, Number(data.pages || 1)));
@@ -49,7 +53,7 @@ export default function AdminDeliveries() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load notification deliveries.");
     } finally { setLoading(false); }
-  }, [search, channel, status, type, page]);
+  }, [search, channel, status, type, dateFrom, dateTo, page]);
   useEffect(() => { void load(); }, [load]);
 
   async function retry(item: Delivery, selectedChannel: "email" | "push") {
@@ -74,12 +78,14 @@ export default function AdminDeliveries() {
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
     <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_160px_160px_180px_auto]">
+      <div className="grid gap-3 md:grid-cols-[minmax(220px,1fr)_140px_140px_160px_160px_180px_auto]">
         <form className="relative" onSubmit={(e) => { e.preventDefault(); setPage(1); setSearch(q); }}><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><input className="input-field pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search recipient or event key" aria-label="Search recipient or event key"/></form>
         <select className="input-field" value={channel} onChange={(e) => { setChannel(e.target.value); setPage(1); }} aria-label="Filter channel"><option value="">All channels</option><option value="in_app">In-app</option><option value="email">Email</option><option value="push">Push</option></select>
         <select className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="Filter status"><option value="">All statuses</option>{statuses.map((value) => <option key={value} value={value}>{value}</option>)}</select>
         <select className="input-field" value={type} onChange={(e) => { setType(e.target.value); setPage(1); }} aria-label="Filter notification type"><option value="">All types</option>{["system", "course", "billing", "promotion", "security", "learning"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
-        <button type="button" className="btn-secondary" onClick={() => { setQ(""); setSearch(""); setChannel(""); setStatus(""); setType(""); setPage(1); }}>Reset</button>
+        <label className="text-xs font-semibold text-slate-500">From<input type="date" className="input-field mt-1" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} /></label>
+        <label className="text-xs font-semibold text-slate-500">To<input type="date" className="input-field mt-1" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} /></label>
+        <button type="button" className="btn-secondary" onClick={() => { setQ(""); setSearch(""); setChannel(""); setStatus(""); setType(""); setDateFrom(""); setDateTo(""); setPage(1); }}>Reset</button>
       </div>
       <p className="mt-3 text-xs text-slate-500">{total.toLocaleString()} matching delivery record(s) · page {page} of {pages}</p>
     </section>

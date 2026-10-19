@@ -34,7 +34,10 @@ export async function upsertReview(userId, courseId, rating, comment) {
   if (!course) { const error = new Error("Course not found"); error.status = 404; throw error; }
   return Review.findOneAndUpdate(
     { user: userId, course: courseId },
-    { $set: { rating, comment } },
+    { $set: {
+      rating, comment, moderationStatus: "pending", moderationNote: "",
+      moderatedBy: null, moderatedAt: null, isHidden: false
+    } },
     { new: true, upsert: true, runValidators: true }
   ).populate("user", "name");
 }

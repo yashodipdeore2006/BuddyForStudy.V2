@@ -271,7 +271,7 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
       }
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(Number(maxResults) || 3, 5)));
+    .slice(0, Math.max(1, Math.min(Number(maxResults) || 30, 50)));
 }
 async function attachProjectYouTubeVideos(project) {
   const queries = (project.videoSearchQueries || []).filter(Boolean).slice(0, 2);

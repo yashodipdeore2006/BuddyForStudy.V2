@@ -218,8 +218,11 @@ test("missing AI quiz questions do not block course readiness and can be retried
   const readiness = await read("../src/utils/courseReadiness.js");
   const player = await read("../../src/pages/CoursePlayer.tsx");
   const model = await read("../src/models/Course.js");
+  const ai = await read("../src/services/aiRoadmap.service.js");
   assert.match(readiness, /label: "Missing quiz questions can be generated when a learner opens the quiz", passed: true/);
   assert.match(model, /const readiness = evaluateCourseReadiness\(course\)/);
+  assert.match(model, /"On-demand quiz generation"/);
+  assert.match(ai, /summary: "On-demand quiz generation"/);
   assert.match(player, /apiFetch\("\/api\/ai\/quiz"/);
   assert.match(player, /setQuizRetryCount\(\(count\) => count \+ 1\)/);
   assert.match(player, /Retry quiz generation/);

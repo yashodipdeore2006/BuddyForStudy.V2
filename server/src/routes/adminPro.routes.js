@@ -50,11 +50,13 @@ router.post("/plans", adminPermissionMiddleware("plans.manage"), controller.crea
 router.put("/plans/:planId", adminPermissionMiddleware("plans.manage"), controller.updatePlan);
 
 router.get("/payments", adminPermissionMiddleware("billing.read"), controller.payments);
+router.get("/subscriptions", adminPermissionMiddleware("billing.read"), controller.subscriptions);
 router.get("/notification-deliveries", adminPermissionMiddleware("operations.read"), controller.notificationDeliveries);
 router.post("/notification-deliveries/:notificationId/retry", adminPermissionMiddleware("operations.manage"), controller.retryNotificationDeliveryAdmin);
 router.get("/refunds", adminPermissionMiddleware("billing.read"), controller.refunds);
 router.put("/refunds/:refundId", adminPermissionMiddleware("refunds.manage"), controller.updateRefund);
 router.post("/refunds/:refundId/reconcile", adminPermissionMiddleware("refunds.manage"), controller.reconcileRefund);
+router.get("/payment-issues/assignees", adminPermissionMiddleware("payment_issues.manage"), controller.paymentIssueAssignees);
 router.get("/payment-issues", adminPermissionMiddleware("billing.read"), controller.paymentIssues);
 router.put("/payment-issues/:issueId", adminPermissionMiddleware("payment_issues.manage"), controller.updatePaymentIssue);
 
@@ -75,6 +77,7 @@ router.delete("/settings/:settingId", adminPermissionMiddleware("settings.manage
 
 router.get("/coupons", adminPermissionMiddleware("coupons.read"), controller.coupons);
 router.post("/coupons", adminPermissionMiddleware("coupons.manage"), controller.createCoupon);
+router.post("/coupons/bulk", adminPermissionMiddleware("coupons.manage"), controller.bulkCreateCoupons);
 router.put("/coupons/:couponId", adminPermissionMiddleware("coupons.manage"), controller.updateCoupon);
 
 router.get("/audit-logs", adminPermissionMiddleware("audit.read"), controller.auditLogs);

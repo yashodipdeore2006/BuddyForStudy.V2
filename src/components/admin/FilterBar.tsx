@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AdminButton } from "./AdminUI";
-import type { Density } from "./DataTable";
 
 export type FilterChip = { key: string; label: string; onRemove: () => void };
 export function FilterBar({ children, className = "", searchValue, onSearchChange, searchLabel = "Search", chips = [], onReset, resultCount, debounceMs = 300 }: {

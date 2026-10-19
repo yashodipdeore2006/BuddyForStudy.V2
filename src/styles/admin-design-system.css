@@ -432,7 +432,8 @@
   .admin-shell .admin-gallery-toolbar { align-items: stretch; flex-direction: column; }
 }
 
-.admin-shell .admin-filter-bar { display: block; }
+.admin-shell .admin-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-3); }
+.admin-shell .admin-filter-bar__summary { width: 100%; }
 .admin-shell .admin-filter-bar .grid { align-items: center; }
 .admin-shell .admin-table-container { width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-gutter: stable; }
 .admin-shell .admin-pagination-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--s-2); }

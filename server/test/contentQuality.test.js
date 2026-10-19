@@ -50,7 +50,8 @@ test("soft-deleted courses are excluded from learner-facing catalogue and detail
   assert.match(service, /accessBranches = \[\{ isPublished: true, \$and: \[PUBLICATION_APPROVAL_FILTER\] \}\]/);
   assert.match(service, /deletedAt: null,/);
   assert.match(service, /PUBLICATION_APPROVAL_FILTER/);
-  assert.match(service, /isApprovedForPublication/);\n  assert.match(service, /aiReviewSource === "automatic"/);
+  assert.match(service, /isApprovedForPublication/);
+  assert.match(service, /aiReviewSource === "automatic"/);
 });
 
 test("review, quiz, AI insight and Q&A records support moderation and audit", async () => {

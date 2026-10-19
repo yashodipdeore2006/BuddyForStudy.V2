@@ -76,7 +76,7 @@ export function DataTable<T>({
 }
 
 export type FilterChip = { key: string; label: string; onRemove: () => void };
-export function FilterBar({ children, className = "", searchValue, onSearchChange, searchLabel = "Search", chips = [], onReset, resultCount }: {
+export function FilterBar({ children, className = "", searchValue, onSearchChange, searchLabel = "Search", chips = [], onReset, resultCount, debounceMs = 300 }: {
   children?: ReactNode; className?: string; searchValue?: string; onSearchChange?: (value: string) => void;
   searchLabel?: string; chips?: FilterChip[]; onReset?: () => void; resultCount?: number; debounceMs?: number;
 }) {
@@ -122,8 +122,8 @@ export function SavedViews({ page, views, activeId, currentView, onApply, onCrea
       <label htmlFor={`saved-view-name-${page}`}>View name</label>
       <input id={`saved-view-name-${page}`} className="input-field" value={name} maxLength={40} onChange={(event) => setName(event.target.value)} required placeholder="e.g. Unverified administrators" />
       <label className="admin-saved-views__share"><input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} /> Share with the admin team</label>
-      <button type="submit" className="btn-primary" disabled={saving}>{saving ? "Saving…" : "Save view"}</button>
-      <button type="button" className="btn-secondary" onClick={() => { setOpen(false); setName(""); }}>Cancel</button>
+      <AdminButton type="submit" variant="primary" loading={saving}>Save view</AdminButton>
+      <AdminButton type="button" variant="secondary" onClick={() => { setOpen(false); setName(""); }}>Cancel</AdminButton>
     </form>}
   </div>;
 }

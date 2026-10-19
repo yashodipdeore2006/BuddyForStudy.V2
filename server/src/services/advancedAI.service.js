@@ -58,8 +58,9 @@ function lessonDurationSeconds(lesson) {
 
 async function findCourseLesson(courseId, lessonId) {
   const course = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
-  if (!course) {
-    const error = new Error("Course not found");
+  if (!course || (["normal", "ai", "module", "discovery"].includes(course.generation?.mode) &&
+    (course.aiReviewStatus !== "approved" || !course.aiReviewedBy))) {
+    const error = new Error("Course not found or awaiting human content review");
     error.status = 404;
     throw error;
   }

@@ -430,6 +430,242 @@ export async function courses(req, res, next) {
   } catch (e) { next(e); }
 }
 
+function adminActorId(req) {
+  return req.user?.user?._id || req.user?.userId || null;
+}
+function requireContentReason(req, res, label) {
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (reason.length < 10 || reason.length > 500) {
+    failure(res, "A reason of 10–500 characters is required for " + label + ".", 400);
+    return null;
+  }
+  return reason;
+}
+function isAiGeneratedCourse(course) {
+  return ["ai", "module", "discovery"].includes(course?.generation?.mode);
+}
+
+export async function courseRevisions(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const exists = await Course.exists({ _id: req.params.courseId });
+    if (!exists) return failure(res, "Course not found", 404);
+    const revisions = await CourseRevision.find({ course: req.params.courseId })
+      .select("revisionNumber changedBy changeSource reason summary createdAt")
+      .populate("changedBy", "name email").sort({ revisionNumber: -1 }).limit(100).lean();
+    return success(res, { revisions });
+  } catch (e) { next(e); }
+}
+
+export async function rollbackCourseRevision(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId) || !isValidObjectId(req.params.revisionId)) return failure(res, "Invalid course or revision ID", 400);
+    const reason = requireContentReason(req, res, "course rollback");
+    if (!reason) return;
+    const [course, revision] = await Promise.all([
+      Course.findById(req.params.courseId),
+      CourseRevision.findOne({ _id: req.params.revisionId, course: req.params.courseId })
+    ]);
+    if (!course) return failure(res, "Course not found", 404);
+    if (!revision) return failure(res, "Course revision not found", 404);
+    const snapshot = revision.snapshot || {};
+    const { _id, __v, createdAt, updatedAt, ...restorable } = snapshot;
+    course.set(restorable);
+    course.isPublished = false;
+    course.status = "draft";
+    course.deletedAt = null;
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "rollback", reason, summary: "Rolled back to revision " + revision.revisionNumber };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.revision.rolled_back", "Course", course._id, { revisionNumber: "current" }, { restoredRevisionId: String(revision._id), restoredRevisionNumber: revision.revisionNumber, isPublished: false }, reason);
+    return success(res, { course, restoredRevision: revision.revisionNumber }, "Course restored as a draft. Re-check readiness before publishing.");
+  } catch (e) { next(e); }
+}
+
+export async function reviewAiCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "AI course review");
+    if (!reason) return;
+    const decision = String(req.body?.decision || "").trim();
+    if (!["approved", "rejected", "pending"].includes(decision)) return failure(res, "Decision must be approved, rejected or pending.", 400);
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    if (!isAiGeneratedCourse(course)) return failure(res, "Human AI review is only required for AI-generated or derived courses.", 400);
+    const before = { aiReviewStatus: course.aiReviewStatus, aiReviewNote: course.aiReviewNote || "" };
+    course.aiReviewStatus = decision;
+    course.aiReviewedBy = adminActorId(req);
+    course.aiReviewedAt = new Date();
+    course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "AI review decision: " + decision };
+    await course.save();
+    await audit(req, "course.ai_review." + decision, "Course", course._id, before, { aiReviewStatus: course.aiReviewStatus, aiReviewNote: course.aiReviewNote }, reason);
+    return success(res, { course }, "AI course review recorded");
+  } catch (e) { next(e); }
+}
+
+export async function setCourseLifecycle(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "course lifecycle change");
+    if (!reason) return;
+    const status = String(req.body?.status || "").trim();
+    if (!["draft", "archived"].includes(status)) return failure(res, "Status must be draft or archived; publish through the readiness-gated publish action.", 400);
+    const course = await Course.findById(req.params.courseId);
+    if (!course || course.deletedAt) return failure(res, "Active course not found", 404);
+    const before = { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled };
+    course.status = status;
+    course.isPublished = false;
+    if (status === "archived") course.enrollmentEnabled = false;
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course status changed to " + status };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.status.updated", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled }, reason);
+    return success(res, { course }, "Course status updated");
+  } catch (e) { next(e); }
+}
+
+export async function softDeleteCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "course soft delete");
+    if (!reason) return;
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    if (course.deletedAt) return success(res, { course }, "Course is already in the trash");
+    const before = { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt };
+    course.deletedAt = new Date();
+    course.isPublished = false;
+    course.status = "draft";
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course soft-deleted" };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.soft_deleted", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt }, reason);
+    return success(res, { course }, "Course moved to trash");
+  } catch (e) { next(e); }
+}
+
+export async function restoreCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "course restore");
+    if (!reason) return;
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const before = { deletedAt: course.deletedAt, status: course.status, isPublished: course.isPublished };
+    course.deletedAt = null;
+    course.isPublished = false;
+    course.status = "draft";
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course restored from trash as draft" };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.restored", "Course", course._id, before, { deletedAt: null, status: course.status, isPublished: false }, reason);
+    return success(res, { course }, "Course restored as a draft");
+  } catch (e) { next(e); }
+}
+
+const MODERATED_MODELS = {
+  review: { model: Review, fields: "course user rating comment moderationStatus moderationNote moderatedBy moderatedAt isHidden createdAt updatedAt", populate: [{ path: "course", select: "title" }, { path: "user", select: "name email" }] },
+  quiz: { model: QuizBank, fields: "course lesson title questions moderationStatus moderationNote moderatedBy moderatedAt isHidden generatedBy generatedAt createdAt", populate: [{ path: "course", select: "title" }] },
+  insight: { model: AILessonInsight, fields: "course lesson summary keyNotes model moderationStatus moderationNote moderatedBy moderatedAt isHidden generatedAt createdAt", populate: [{ path: "course", select: "title" }] },
+  qa: { model: AIQuestionAnswer, fields: "course lesson question answer model moderationStatus moderationNote moderatedBy moderatedAt isHidden hitCount lastAskedAt createdAt", populate: [{ path: "course", select: "title" }] }
+};
+
+export async function contentModerationList(req, res, next) {
+  try {
+    const type = String(req.params.contentType || "");
+    const config = MODERATED_MODELS[type];
+    if (!config) return failure(res, "Unknown content type. Use review, quiz, insight or qa.", 400);
+    const status = String(req.query.status || "pending");
+    const filter = status === "all" ? {} : { moderationStatus: status };
+    const items = await config.model.find(filter).select(config.fields).populate(config.populate).sort({ createdAt: -1 }).limit(200).lean();
+    return success(res, { contentType: type, items });
+  } catch (e) { next(e); }
+}
+
+export async function moderateContent(req, res, next) {
+  try {
+    const type = String(req.params.contentType || "");
+    const config = MODERATED_MODELS[type];
+    if (!config) return failure(res, "Unknown content type. Use review, quiz, insight or qa.", 400);
+    if (!isValidObjectId(req.params.contentId)) return failure(res, "Invalid content ID", 400);
+    const reason = requireContentReason(req, res, "content moderation");
+    if (!reason) return;
+    const status = String(req.body?.status || "").trim();
+    if (!["pending", "approved", "rejected"].includes(status)) return failure(res, "Invalid moderation status", 400);
+    const item = await config.model.findById(req.params.contentId);
+    if (!item) return failure(res, "Content record not found", 404);
+    const before = { moderationStatus: item.moderationStatus || "pending", isHidden: Boolean(item.isHidden), moderationNote: item.moderationNote || "" };
+    item.moderationStatus = status;
+    item.moderationNote = String(req.body?.note || reason).trim().slice(0, 2000);
+    item.moderatedBy = adminActorId(req);
+    item.moderatedAt = new Date();
+    item.isHidden = typeof req.body?.isHidden === "boolean" ? req.body.isHidden : status === "rejected";
+    await item.save();
+    await audit(req, "content." + type + ".moderated", type, item._id, before, { moderationStatus: item.moderationStatus, isHidden: item.isHidden, moderationNote: item.moderationNote }, reason);
+    return success(res, { item }, "Content moderation saved");
+  } catch (e) { next(e); }
+}
+
+export async function contentRoadmaps(req, res, next) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 300);
+    const status = String(req.query.status || "");
+    const filter = status && ["active", "completed"].includes(status) ? { status } : {};
+    const [items, total] = await Promise.all([
+      LearningRoadmap.find(filter).populate("user", "name email").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).limit(limit).lean(),
+      LearningRoadmap.countDocuments(filter)
+    ]);
+    return success(res, { roadmaps: items, total });
+  } catch (e) { next(e); }
+}
+
+function collectCourseLinks(course) {
+  const links = [];
+  const add = (url, path) => { if (typeof url === "string" && /^https?:\/\//i.test(url.trim())) links.push({ url: url.trim(), path }); };
+  (course.modules || []).forEach((module, mi) => {
+    (module.resources || []).forEach((resource, ri) => add(resource.url, "modules[" + mi + "].resources[" + ri + "].url"));
+    (module.lessons || []).forEach((lesson, li) => {
+      (lesson.tutorial?.resources || []).forEach((url, ri) => add(url, "modules[" + mi + "].lessons[" + li + "].tutorial.resources[" + ri + "]"));
+      (lesson.tutorial?.videos || []).forEach((video, vi) => add(video.url, "modules[" + mi + "].lessons[" + li + "].tutorial.videos[" + vi + "].url"));
+      (lesson.project?.resources || []).forEach((url, ri) => add(url, "modules[" + mi + "].lessons[" + li + "].project.resources[" + ri + "]"));
+      (lesson.project?.videos || []).forEach((video, vi) => add(video.url, "modules[" + mi + "].lessons[" + li + "].project.videos[" + vi + "].url"));
+    });
+  });
+  return links;
+}
+function isUnsafeLinkHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return true;
+  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) return true;
+  const parts = host.split(".").map(Number);
+  if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+    return parts[0] === 10 || parts[0] === 127 || (parts[0] === 169 && parts[1] === 254) ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || parts[0] === 0;
+  }
+  return false;
+}
+async function checkContentLink(link) {
+  let parsed;
+  try { parsed = new URL(link.url); } catch { return { ...link, status: "invalid", httpStatus: null }; }
+  if (!["http:", "https:"].includes(parsed.protocol) || isUnsafeLinkHost(parsed.hostname)) return { ...link, status: "skipped_unsafe", httpStatus: null };
+  try {
+    const response = await fetch(parsed.toString(), { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(5000), headers: { "user-agent": "BuddyForStudy-LinkHealth/1.0" } });
+    return { ...link, status: response.status >= 400 ? "broken" : response.status >= 300 ? "redirect" : "ok", httpStatus: response.status };
+  } catch (error) {
+    return { ...link, status: error?.name === "TimeoutError" ? "timeout" : "unreachable", httpStatus: null };
+  }
+}
+export async function brokenCourseLinks(req, res, next) {
+  try {
+    const courses = await Course.find({ deletedAt: null }).select("title slug modules").sort({ updatedAt: -1 }).limit(100).lean();
+    const links = courses.flatMap((course) => collectCourseLinks(course).map((link) => ({ ...link, courseId: String(course._id), courseTitle: course.title, slug: course.slug }))).slice(0, 500);
+    const results = [];
+    for (let i = 0; i < links.length; i += 10) results.push(...await Promise.all(links.slice(i, i + 10).map(checkContentLink)));
+    return success(res, { checked: results.length, brokenCount: results.filter((item) => ["broken", "invalid", "unreachable", "timeout"].includes(item.status)).length, links: results });
+  } catch (e) { next(e); }
+}
+
 export async function courseReadiness(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);

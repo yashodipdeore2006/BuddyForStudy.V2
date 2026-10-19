@@ -117,7 +117,7 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
         $set: { status: "sending", batchLockUntil: lockUntil, batchLockToken: lockToken, lastError: "" },
         $inc: { batchAttempts: 1 }
       },
-      { new: true, sort: { scheduledAt: 1, createdAt: 1 } }
+      { new: true, sort: { lastBatchAt: 1, createdAt: 1, _id: 1 } }
     );
     if (!announcement) break;
     batches += 1;
@@ -160,7 +160,7 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
     const nextIndex = start + batch.length;
     const updated = await Announcement.updateOne(
       { _id: announcement._id, batchLockToken: lockToken, nextRecipientIndex: start },
-      { $set: { nextRecipientIndex: nextIndex, batchLockUntil: null, nextBatchAt: null, batchLockToken: "", batchAttempts: 0 } }
+      { $set: { nextRecipientIndex: nextIndex, batchLockUntil: null, nextBatchAt: null, lastBatchAt: now, batchLockToken: "", batchAttempts: 0 } }
     );
     if (!updated.modifiedCount) continue;
     recipientsQueued += batch.length;

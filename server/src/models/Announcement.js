@@ -17,6 +17,7 @@ const announcementSchema = new mongoose.Schema({
   recipientIds: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], default: [] },
   nextRecipientIndex: { type: Number, default: 0, min: 0 },
   batchLockUntil: { type: Date, default: null },
+  nextBatchAt: { type: Date, default: null },
   batchLockToken: { type: String, default: "", maxlength: 64 },
   batchAttempts: { type: Number, default: 0, min: 0 },
   channel: { type: [String], enum: ["in_app", "email", "push"], default: ["in_app"] },

@@ -426,7 +426,7 @@ export async function getOrCreateYouTubeResourceCourse({
   }).lean();
 
   if (existing) {
-    if (existing.isPublished && existing.aiReviewStatus === "approved" && existing.aiReviewedBy) return existing;
+    if (existing.isPublished && existing.aiReviewStatus === "approved" && (existing.aiReviewedBy || existing.aiReviewSource === "automatic")) return existing;
     return userId ? createPrivateCourseForUser(existing, userId, { resourceType: type, resourceId: id }) : existing;
   }
 
@@ -561,7 +561,7 @@ export async function getOrCreateYouTubeResourceCourse({
         deletedAt: null
       }).lean();
       if (retry) {
-        if (retry.isPublished && retry.aiReviewStatus === "approved" && retry.aiReviewedBy) return retry;
+        if (retry.isPublished && retry.aiReviewStatus === "approved" && (retry.aiReviewedBy || retry.aiReviewSource === "automatic")) return retry;
         return userId ? createPrivateCourseForUser(retry, userId, { resourceType: type, resourceId: id }) : retry;
       }
     }

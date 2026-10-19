@@ -70,6 +70,8 @@ export default function AdminCommunications() {
   const [deliveryError, setDeliveryError] = useState("");
   const [deliveryPermissionsLoaded, setDeliveryPermissionsLoaded] = useState(false);
   const [canManageDeliveries, setCanManageDeliveries] = useState(false);
+  const [canManageCommunications, setCanManageCommunications] = useState(false);
+  const [canReadCommunicationDeliveries, setCanReadCommunicationDeliveries] = useState(false);
   const [deliveryNotice, setDeliveryNotice] = useState("");
   const [retryingDelivery, setRetryingDelivery] = useState("");
   const [editingTemplateId, setEditingTemplateId] = useState("");
@@ -201,21 +203,38 @@ export default function AdminCommunications() {
   }
 
   useEffect(() => {
-    void loadTemplates();
+    if (!deliveryPermissionsLoaded) return;
+    const restrictedManagementView = (workspaceView === "templates" || workspaceView === "campaigns") && !canManageCommunications;
+    const restrictedDeliveryView = workspaceView === "deliveries" && !canReadCommunicationDeliveries;
+    if (restrictedManagementView || restrictedDeliveryView) setWorkspaceView("compose");
+  }, [deliveryPermissionsLoaded, workspaceView, canManageCommunications, canReadCommunicationDeliveries]);
+
+  useEffect(() => {
     adminFetch("/api/admin/notifications/audience-options").then((data) => {
       setAudiencePlans(Array.isArray(data.plans) ? data.plans : []);
       setAudienceCourses(Array.isArray(data.courses) ? data.courses : []);
       setAudienceOptionsError("");
     }).catch((error) => setAudienceOptionsError(error instanceof Error ? error.message : "Unable to load plan and course filters."));
     adminFetch("/api/admin/access").then((data) => {
-      setCanManageDeliveries((data.access?.permissions || []).includes("operations.manage"));
+      const permissions: string[] = data.access?.permissions || [];
+      const canManageCommunicationContent = permissions.includes("communications.manage");
+      const canReadDeliveryOperations = permissions.includes("operations.read");
+      setCanManageCommunications(canManageCommunicationContent);
+      setCanReadCommunicationDeliveries(canReadDeliveryOperations);
+      setCanManageDeliveries(permissions.includes("operations.manage"));
       setDeliveryPermissionsLoaded(true);
+      // Avoid protected 403 requests and expose each workspace only when its read permission is present.
+      if (canManageCommunicationContent) {
+        void loadTemplates();
+        void loadCampaigns();
+      }
+      if (canReadDeliveryOperations) void loadDeliveryLogs();
     }).catch(() => {
+      setCanManageCommunications(false);
+      setCanReadCommunicationDeliveries(false);
       setCanManageDeliveries(false);
       setDeliveryPermissionsLoaded(true);
     });
-    void loadDeliveryLogs();
-    void loadCampaigns();
   }, []);
 
   function editTemplate(template?: MessageTemplate) {
@@ -435,7 +454,7 @@ export default function AdminCommunications() {
           ? `${data.recipients ?? 0} recipient(s)${data.emailsQueued !== undefined ? `, ${data.emailsQueued} emails queued` : ""}${data.pushQueued !== undefined ? `, ${data.pushQueued} push deliveries queued` : ""}`
           : `${data.sent ?? 0} recipient(s)`;
       setStatus((data.message || "Sent") + " — " + deliverySummary);
-      if (channel === "announcement") { setScheduledAt(""); await loadCampaigns(); }
+      if (channel === "announcement") { setScheduledAt(""); if (canManageCommunications) await loadCampaigns(); }
       return true;
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Unable to send communication";
@@ -584,9 +603,11 @@ export default function AdminCommunications() {
       <div className="mt-6">
         <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={setWorkspaceView} items={[
           { value: "compose", label: "Compose" },
-          { value: "templates", label: loadingTemplates ? "Templates…" : templatesLoadError ? "Templates" : `Templates (${templates.length})` },
-          { value: "deliveries", label: "Delivery log" },
-          { value: "campaigns", label: `Campaigns (${campaignTotal})` },
+          ...(canManageCommunications ? [
+            { value: "templates", label: loadingTemplates ? "Templates…" : templatesLoadError ? "Templates" : `Templates (${templates.length})` },
+            { value: "campaigns", label: `Campaigns (${campaignTotal})` },
+          ] : []),
+          ...(canReadCommunicationDeliveries ? [{ value: "deliveries", label: "Delivery log" }] : []),
         ]} />
       </div>
 

@@ -598,8 +598,8 @@ export default function AdminUsersPro() {
         refreshing={loading && users.length > 0}
         error={error ? <span>{error}</span> : undefined}
         empty={<AdminEmptyState
-          title={pagination.total ? "No users match these filters" : "No users yet"}
-          description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."}
+          title={debouncedQ || status || role || authProvider ? "No users match these filters" : "No users yet"}
+          description={debouncedQ || status || role || authProvider ? "Clear one or more filters and try again." : "User accounts will appear here after people register."}
           action={Boolean(debouncedQ || status || role || authProvider) ? <AdminButton variant="secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setActiveSavedViewId(null); setPage(1); }}>Clear filters</AdminButton> : undefined}
           icon={<Users size={28} />}
         />}

@@ -481,7 +481,7 @@
   .admin-shell .admin-save-view-form input { width: 100%; }
 }
 
-.admin-shell .admin-filter-toolbar { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-3); }
+.admin-shell .admin-filter-toolbar { display: flex; flex: 1 1 640px; align-items: center; flex-wrap: wrap; gap: var(--s-3); margin-top: 0; }
 .admin-shell .admin-filter-toolbar-spacer { flex: 1; }
 .admin-shell .admin-filter-reset { border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm); text-decoration: underline; text-underline-offset: 2px; }
 .admin-shell .admin-filter-reset:hover { color: var(--accent); }
@@ -546,6 +546,9 @@
 
 /* Phase 0 shared data components. All visual values resolve through admin design tokens. */
 .admin-shell .admin-data-table { position: relative; min-width: 0; }
+.admin-shell .admin-user-avatar { background: var(--accent-soft); color: var(--accent); }
+.admin-shell .admin-user-email { color: var(--muted); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.admin-shell .admin-user-provider { color: var(--text-2); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
 .admin-shell .admin-data-table__loading { padding: var(--s-4); }
 .admin-shell .admin-data-table__error { margin: var(--s-3); padding: var(--s-3) var(--s-4); border: 1px solid var(--danger); border-radius: var(--r-md); color: var(--danger); background: var(--danger-soft); }
 .admin-shell .admin-table-progress { position: absolute; z-index: var(--z-sticky); top: 0; left: 0; right: 0; height: 3px; overflow: hidden; background: var(--accent-soft); }

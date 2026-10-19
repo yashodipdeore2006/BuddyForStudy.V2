@@ -87,26 +87,49 @@ export async function canAccessCourse(userId, courseId) {
     _id: courseId,
     deletedAt: null,
     $or: [
-      { isPublished: true, $or: [
-        { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
-        { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
-      ] },
+      { isPublished: true },
       { visibility: "private", createdForUser: userId }
     ]
-  }).select("pricing.mode visibility createdForUser").lean();
+  }).select("pricing.mode visibility createdForUser isPublished generation.mode aiReviewStatus aiReviewSource aiReviewedBy").lean();
   if (!course) return false;
+
+  const enrollment = await Enrollment.findOne({
+    user: userId,
+    course: courseId,
+    status: { $in: ["active", "completed"] },
+    revokedBy: null
+  }).select("accessSource").lean();
+
+  const generated = ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
+  const explicitlyBlocked = ["pending", "rejected"].includes(course.aiReviewStatus);
+  const approvedGenerated = course.aiReviewStatus === "approved" &&
+    (Boolean(course.aiReviewedBy) || course.aiReviewSource === "automatic");
+
   if (course.visibility === "private") {
-    return Boolean(await Enrollment.exists({ user: userId, course: courseId, status: { $in: ["active", "completed"] } }));
+    return Boolean(
+      enrollment &&
+      String(course.createdForUser || "") === String(userId) &&
+      course.aiReviewStatus === "approved" &&
+      (!generated || approvedGenerated)
+    );
   }
-  const [entitlement, individualAccess] = await Promise.all([
-    getEntitlement(userId, "published_courses"),
-    hasPaidCourseAccess(userId, courseId)
-  ]);
-  return isCourseAccessAllowed({
-    isPaidCourse: course.pricing?.mode === "paid",
-    planEntitled: entitlement.allowed,
-    hasIndividualAccess: individualAccess
-  });
+
+  if (!course.isPublished) return false;
+
+  // Keep existing learners working when older published generated courses
+  // predate the review-source metadata. Do not grandfather pending/rejected
+  // content, and do not let an enrollment replace paid-course verification.
+  const legacyEnrolledCourse = Boolean(enrollment) && !explicitlyBlocked;
+  if (generated && !approvedGenerated && !legacyEnrolledCourse) return false;
+  if (explicitlyBlocked) return false;
+
+  if (course.pricing?.mode === "paid") {
+    return await hasPaidCourseAccess(userId, courseId);
+  }
+  if (enrollment) return true;
+
+  const entitlement = await getEntitlement(userId, "published_courses");
+  return Boolean(entitlement.allowed);
 }
 
 export function readPlanLimit(plan, key, fallback = -1) {

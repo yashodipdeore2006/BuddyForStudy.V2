@@ -56,21 +56,24 @@ export async function refreshAnnouncementStats(announcement) {
   const total = Number(announcement.recipientIds?.length || announcement.stats?.total || 0);
   const sent = Number(row.sent || 0);
   const failed = Number(row.failed || 0);
-  const pending = Number(row.pending || 0);
-  const skipped = Math.max(0, Number(row.total || 0) - sent - failed - pending);
+  const channelPending = Number(row.pending || 0);
+  const processed = Number(row.total || 0);
+  const skipped = Math.max(0, processed - sent - failed - channelPending);
+  const pending = Math.max(channelPending, total - sent - failed - skipped);
+  const unprocessed = Math.max(0, total - processed);
   const stats = {
     total, sent, failed, skipped, pending,
     in_app: {
       sent: announcement.channel?.includes("in_app") ? Number(row.in_app_sent || 0) : 0,
-      pending: 0, failed: 0,
-      skipped: announcement.channel?.includes("in_app") ? Math.max(0, Number(row.total || 0) - Number(row.in_app_sent || 0)) : 0
+      pending: announcement.channel?.includes("in_app") ? unprocessed : 0, failed: 0,
+      skipped: announcement.channel?.includes("in_app") ? Math.max(0, processed - Number(row.in_app_sent || 0)) : 0
     },
     email: announcement.channel?.includes("email") ? {
-      sent: Number(row.email_sent || 0), pending: Number(row.email_pending || 0),
+      sent: Number(row.email_sent || 0), pending: Number(row.email_pending || 0) + unprocessed,
       failed: Number(row.email_failed || 0), skipped: Number(row.email_skipped || 0)
     } : { sent: 0, pending: 0, failed: 0, skipped: 0 },
     push: announcement.channel?.includes("push") ? {
-      sent: Number(row.push_sent || 0), pending: Number(row.push_pending || 0),
+      sent: Number(row.push_sent || 0), pending: Number(row.push_pending || 0) + unprocessed,
       failed: Number(row.push_failed || 0), skipped: Number(row.push_skipped || 0)
     } : { sent: 0, pending: 0, failed: 0, skipped: 0 }
   };

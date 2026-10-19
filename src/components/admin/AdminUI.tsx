@@ -278,7 +278,7 @@ export function AdminConfirmDialog({
     if (!open) return;
     if (requiredText) inputRef.current?.focus();
     else if (requireReason) reasonRef.current?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape" && !loading) onCloseRef.current();
       if (event.key === "Tab" && dialogRef.current) {
         const elements = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled])'));

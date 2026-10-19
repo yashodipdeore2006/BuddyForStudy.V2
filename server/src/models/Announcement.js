@@ -18,6 +18,7 @@ const announcementSchema = new mongoose.Schema({
   nextRecipientIndex: { type: Number, default: 0, min: 0 },
   batchLockUntil: { type: Date, default: null },
   batchLockToken: { type: String, default: "", maxlength: 64 },
+  batchAttempts: { type: Number, default: 0, min: 0 },
   channel: { type: [String], enum: ["in_app", "email", "push"], default: ["in_app"] },
   link: { type: String, default: "" },
   status: { type: String, enum: ["draft", "scheduled", "sending", "sent", "failed", "cancelled"], default: "draft", index: true },

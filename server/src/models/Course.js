@@ -90,6 +90,8 @@ const courseSchema = new mongoose.Schema({
   isPublished: { type: Boolean, default: false, required: true },
   status: { type: String, enum: ["draft", "published", "archived"], default: "draft", index: true },
   deletedAt: { type: Date, default: null, index: true },
+  visibility: { type: String, enum: ["public", "private"], default: "public", index: true },
+  createdForUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
   aiReviewStatus: { type: String, enum: ["not_required", "pending", "approved", "rejected"], default: "not_required", index: true },
   aiReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   aiReviewedAt: { type: Date, default: null },

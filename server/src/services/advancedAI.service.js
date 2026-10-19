@@ -391,6 +391,8 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
           generatedBy: userId,
           moderationStatus: approvalMode === "automatic" ? "approved" : "pending",
           moderationNote: approvalMode === "automatic" ? "Automatically approved by the platform content policy." : "",
+          moderatedBy: null,
+          moderatedAt: approvalMode === "automatic" ? new Date() : null,
           isHidden: false
         }
       },

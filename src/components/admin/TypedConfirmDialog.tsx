@@ -16,7 +16,7 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
     const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]') || []);
     focusable()[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.stopPropagation(); onCloseRef.current(); return; }
+      if (event.key === "Escape" && !loading) { event.stopPropagation(); onCloseRef.current(); return; }
       if (event.key !== "Tab") return;
       const elements = focusable(); if (!elements.length) return;
       if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements[elements.length - 1].focus(); }
@@ -28,7 +28,7 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
   if (!open) return null;
   const typedMatches = !requiredText || value === requiredText;
   const reasonValid = !reasonRequired || Boolean(reason?.trim() && reason.trim().length >= 10 && reason.trim().length <= 500);
-  return <div className="admin-typed-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+  return <div className="admin-typed-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading && !danger) onClose(); }}>
     <div ref={dialogRef} className="admin-typed-confirm" role="alertdialog" aria-modal="true" aria-labelledby="admin-typed-confirm-title" aria-describedby="admin-typed-confirm-description" tabIndex={-1}>
       <div className="admin-typed-confirm__icon"><AlertTriangle aria-hidden="true" /></div>
       <h2 id="admin-typed-confirm-title">{title}</h2>

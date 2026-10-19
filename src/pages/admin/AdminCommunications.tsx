@@ -11,6 +11,7 @@ type AnnouncementRecord = { _id: string; title: string; status: string; channel:
 type AudiencePlanOption = { id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean; isPopular: boolean };
 type AudienceCourseOption = { id: string; title: string; category: string; level: string; isPublished: boolean; pricingMode: string; price: number; featured: boolean };
 const EMPTY_TEMPLATE: TemplateDraft = { name: "", key: "", channel: "notification", title: "", subject: "", body: "", link: "", messageType: "system", isActive: true };
+const TEMPLATE_PLACEHOLDERS = ["userName", "courseTitle", "planName", "amount", "currency", "purchaseDate", "paymentReference", "billingInterval", "currentPeriodStart", "currentPeriodEnd", "periodSummary", "status", "link"] as const;
 
 export default function AdminCommunications() {
   const [tab, setTab] = useState<"notification" | "email" | "announcement">("notification");
@@ -43,6 +44,7 @@ export default function AdminCommunications() {
   const [retryingDelivery, setRetryingDelivery] = useState("");
   const [editingTemplateId, setEditingTemplateId] = useState("");
   const [templateDraft, setTemplateDraft] = useState<TemplateDraft>(EMPTY_TEMPLATE);
+  const [placeholderTarget, setPlaceholderTarget] = useState<"title" | "subject" | "body">("body");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateStatus, setTemplateStatus] = useState("");
   const [templateError, setTemplateError] = useState("");
@@ -468,6 +470,10 @@ export default function AdminCommunications() {
               <label className="block text-xs font-semibold text-slate-600 sm:col-span-2">Body {templateDraft.channel === "email" ? "(HTML)" : "(plain text)"}
                 <textarea className="input-field mt-1 min-h-40 font-mono text-sm" value={templateDraft.body} onChange={(e) => setTemplateDraft({ ...templateDraft, body: e.target.value })} />
               </label>
+              <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Placeholder picker</p><select className="input-field w-auto" value={placeholderTarget} onChange={(e) => setPlaceholderTarget(e.target.value as "title" | "subject" | "body")} aria-label="Placeholder insertion field">{templateDraft.channel === "email" ? <option value="subject">Email subject</option> : <option value="title">Notification title</option>}<option value="body">Message body</option></select></div>
+                <div className="mt-2 flex flex-wrap gap-2">{TEMPLATE_PLACEHOLDERS.map((token) => <button key={token} type="button" className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-mono text-slate-600 hover:bg-slate-50" onClick={() => setTemplateDraft((current) => ({ ...current, [placeholderTarget]: (current[placeholderTarget] || "") + "{{" + token + "}}" }))}>{"{{" + token + "}}"}</button>)}</div>
+              </div>
               <label className="block text-xs font-semibold text-slate-600 sm:col-span-2">Destination route (optional)
                 <input className="input-field mt-1" value={templateDraft.link} onChange={(e) => setTemplateDraft({ ...templateDraft, link: e.target.value })} placeholder="/billing" />
               </label>

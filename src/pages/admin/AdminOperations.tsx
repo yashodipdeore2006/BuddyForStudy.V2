@@ -22,6 +22,8 @@ export default function AdminOperations() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [canManageOperations, setCanManageOperations] = useState(false);
+  const [acknowledgingAlert, setAcknowledgingAlert] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -47,6 +49,22 @@ export default function AdminOperations() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void adminFetch("/api/admin/access")
+      .then((result) => setCanManageOperations(Array.isArray(result.access?.permissions) && result.access.permissions.includes("operations.manage")))
+      .catch(() => setCanManageOperations(false));
+  }, []);
+  async function acknowledgeAlert(alertId: string) {
+    setAcknowledgingAlert(alertId);
+    try {
+      await adminFetch("/api/admin/operations/alerts/" + alertId + "/acknowledge", { method: "POST" });
+      setAlerts((current) => current.filter((item) => item._id !== alertId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to acknowledge operational alert.");
+    } finally {
+      setAcknowledgingAlert(null);
+    }
+  }
 
   const worker = health?.worker;
   const healthy = worker?.status === "healthy";

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { useSearchParams } from "react-router-dom";
 import { AdminPageHeader } from "@/components/admin/AdminUI";
 
 type Delivery = {
@@ -21,14 +22,16 @@ const statusClass = (status: string) => status === "sent" ? "border-emerald-200 
 const date = (value?: string) => value ? new Date(value).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) + " IST" : "—";
 
 export default function AdminDeliveries() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Delivery[]>([]);
-  const [q, setQ] = useState("");
-  const [search, setSearch] = useState("");
-  const [channel, setChannel] = useState("");
-  const [status, setStatus] = useState("");
-  const [type, setType] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const initialQuery = searchParams.get("q") || "";
+  const [q, setQ] = useState(initialQuery);
+  const [search, setSearch] = useState(initialQuery);
+  const [channel, setChannel] = useState(searchParams.get("channel") || "");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
+  const [type, setType] = useState(searchParams.get("type") || "");
+  const [dateFrom, setDateFrom] = useState(searchParams.get("from") || "");
+  const [dateTo, setDateTo] = useState(searchParams.get("to") || "");
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -55,6 +58,17 @@ export default function AdminDeliveries() {
     } finally { setLoading(false); }
   }, [search, channel, status, type, dateFrom, dateTo, page]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    if (channel) params.set("channel", channel);
+    if (status) params.set("status", status);
+    if (type) params.set("type", type);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    if (page > 1) params.set("page", String(page));
+    setSearchParams(params, { replace: true });
+  }, [search, channel, status, type, dateFrom, dateTo, page, setSearchParams]);
 
   async function retry(item: Delivery, selectedChannel: "email" | "push") {
     const current = item.channels[selectedChannel];

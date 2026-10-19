@@ -231,12 +231,13 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
   const byId = new Map(videoDetails.map((video) => [video.id, video]));
 
   const searchPolicy = {
-    minDurationMinutes: 45,
-    targetDurationMinutes: 360,
+    // Normal search is discovery, not a strict long-form course builder.
+    minDurationMinutes: 1,
+    targetDurationMinutes: 60,
     maxDurationMinutes: 1440,
     excludeShorts: true,
     requireEmbeddable: true,
-    preferProjectBased: true,
+    preferProjectBased: false,
     preferredLanguage: "en",
     requiredTopics: [normalizedQuery]
   };

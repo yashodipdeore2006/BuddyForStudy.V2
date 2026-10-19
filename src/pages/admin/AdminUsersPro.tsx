@@ -53,6 +53,7 @@ export default function AdminUsersPro() {
   const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
   const [visibleColumns, setVisibleColumns] = useState<string[]>(["access", "verification", "provider"]);
   const [savedViews, setSavedViews] = useState<SavedViewRecord[]>([]);
+  const [canRevealPii, setCanRevealPii] = useState(false);
   const [savedViewsLoading, setSavedViewsLoading] = useState(false);
   const [savedViewsError, setSavedViewsError] = useState("");
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
@@ -102,6 +103,23 @@ export default function AdminUsersPro() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    void adminFetch("/api/admin/access").then((data) => {
+      if (!cancelled) setCanRevealPii(Array.isArray(data.access?.permissions) && data.access.permissions.includes("users.pii.reveal"));
+    }).catch(() => { if (!cancelled) setCanRevealPii(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function revealUserEmail(userId: string, reason: string): Promise<string> {
+    const data = await adminFetch("/api/admin/users/" + userId + "/pii-reveal", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    if (typeof data.email !== "string" || !data.email) throw new Error("The server did not return an email address.");
+    return data.email;
   }
 
   async function refreshSavedViews() {
@@ -439,7 +457,7 @@ export default function AdminUsersPro() {
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold">{user.name || "Unnamed user"}</p>
-            <p className="admin-user-email truncate"><PiiCell value={user.email} kind="email" /></p>
+            <p className="admin-user-email truncate"><PiiCell value={undefined} maskedValue={user.emailMasked} kind="email" canReveal={canRevealPii} onReveal={(reason) => revealUserEmail(String(user._id), reason)} /></p>
           </div>
         </div>
       ),
@@ -623,7 +641,7 @@ export default function AdminUsersPro() {
       )}
 
       {selected && (
-        <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={<PiiCell value={selected.user?.email} kind="email" />} onClose={closeUserDrawer}>
+        <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={<PiiCell value={undefined} maskedValue={selected.user?.emailMasked} kind="email" canReveal={canRevealPii} onReveal={(reason) => revealUserEmail(String(selected.user?._id), reason)} />} onClose={closeUserDrawer}>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Role</p><p className="mt-1 font-bold capitalize">{selected.user?.role}</p></div>
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Sign-in</p><p className="mt-1 font-bold">{selected.user?.authProvider}</p></div>

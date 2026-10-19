@@ -207,6 +207,13 @@ export async function exportUsers(req, res, next) {
   }
 }
 
+function maskEmail(email) {
+  const value = String(email || "");
+  const separator = value.indexOf("@");
+  if (separator <= 0 || separator === value.length - 1) return value ? value[0] + "***" : "";
+  return value[0] + "***@" + value.slice(separator + 1);
+}
+
 export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
@@ -239,7 +246,8 @@ export async function users(req, res, next) {
       User.find(filter).select("-password").sort(sort).skip((page - 1) * limit).limit(limit).lean(),
       User.countDocuments(filter)
     ]);
-    return success(res, { users: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    const safeUsers = items.map(({ email, ...user }) => ({ ...user, emailMasked: maskEmail(email) }));
+    return success(res, { users: safeUsers, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (e) { next(e); }
 }
 
@@ -254,7 +262,7 @@ export async function userFeatureOverrides(req, res, next) {
       ...feature,
       override: overrides.find((item) => item.featureKey === feature.key) || null
     }));
-    return success(res, { user: { id: String(user._id), name: user.name, email: user.email }, features });
+    return success(res, { user: { id: String(user._id), name: user.name }, features });
   } catch (error) { next(error); }
 }
 
@@ -341,8 +349,36 @@ export async function userDetail(req, res, next) {
       Enrollment.find({ user: user._id }).populate("course", "title pricing").sort({ createdAt: -1 }).lean(),
       Notification.find({ user: user._id }).sort({ createdAt: -1 }).limit(20).lean()
     ]);
-    return success(res, { user, subscription, payments, enrollments, notifications });
+    const { email, ...safeUser } = user;
+    return success(res, { user: { ...safeUser, emailMasked: maskEmail(email) }, subscription, payments, enrollments, notifications });
   } catch (e) { next(e); }
+}
+
+
+export async function revealUserPii(req, res, next) {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to reveal personal information.", 400);
+    }
+    const user = await User.findById(userId).select("_id email").lean();
+    if (!user) return failure(res, "User not found", 404);
+
+    const auditResult = await audit(req, "admin.users.pii_revealed", "User", user._id, null, {
+      field: "email",
+      revealed: true
+    }, reason);
+    if (!auditResult.recorded && !auditResult.queued) {
+      return failure(res, "The reveal audit could not be recorded. Personal information was not disclosed; please retry.", 503);
+    }
+    return success(res, {
+      email: user.email,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "Email revealed and access audited.");
+  } catch (error) { next(error); }
 }
 
 export async function updateUser(req, res, next) {
@@ -369,7 +405,7 @@ export async function updateUser(req, res, next) {
     user.isActive = req.body.isActive;
     await user.save();
     await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive }, reason);
-    return success(res, { user: user.toJSON() }, "User updated");
+    return success(res, { user: { id: String(user._id), name: user.name, emailMasked: maskEmail(user.email), isActive: user.isActive } }, "User updated");
   } catch (e) { next(e); }
 }
 

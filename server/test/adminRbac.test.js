@@ -97,3 +97,13 @@ test("only Super Admin has administrator governance permission by default", () =
     assert.equal(hasAdminPermission(role, "admin_roles.manage"), role === "super_admin");
   }
 });
+
+
+test("PII reveal is an explicit, least-privilege permission", () => {
+  assert.equal(ADMIN_PERMISSION_CATALOG.includes("users.pii.reveal"), true);
+  assert.equal(hasAdminPermission("super_admin", "users.pii.reveal"), true);
+  assert.equal(hasAdminPermission("platform_admin", "users.pii.reveal"), true);
+  for (const role of ["ai_content_manager", "finance_manager", "support_manager", "analyst_auditor"]) {
+    assert.equal(hasAdminPermission(role, "users.pii.reveal"), false, role + " must not reveal user PII by default");
+  }
+});

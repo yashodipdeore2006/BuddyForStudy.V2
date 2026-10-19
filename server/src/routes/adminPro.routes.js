@@ -23,6 +23,7 @@ router.get("/overview", adminPermissionMiddleware("dashboard.read"), controller.
 router.get("/users", adminPermissionMiddleware("users.read"), controller.users);
 router.get("/users/export", adminPermissionMiddleware("users.read"), controller.exportUsers);
 router.get("/users/:userId", adminPermissionMiddleware("users.read"), controller.userDetail);
+router.post("/users/:userId/pii-reveal", adminPermissionMiddleware("users.pii.reveal"), controller.revealUserPii);
 router.get("/users/:userId/feature-overrides", adminPermissionMiddleware("users.read"), controller.userFeatureOverrides);
 router.put("/users/:userId/feature-overrides/:featureKey", adminPermissionMiddleware("users.manage"), controller.upsertUserFeatureOverride);
 router.delete("/users/:userId/feature-overrides/:featureKey", adminPermissionMiddleware("users.manage"), controller.deleteUserFeatureOverride);

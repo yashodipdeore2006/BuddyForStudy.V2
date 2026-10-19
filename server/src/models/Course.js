@@ -133,6 +133,14 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
     summary: String(context.summary || "Course content or metadata changed").slice(0, 200)
   });
   this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
+  const reviewOnlyPaths = ["status", "isPublished", "aiReviewStatus", "aiReviewedBy", "aiReviewedAt", "aiReviewNote", "deletedAt"];
+  const substantiveChange = this.modifiedPaths().some((path) => !reviewOnlyPaths.some((allowed) => path === allowed || path.startsWith(allowed + ".")));
+  if (["ai", "module", "discovery"].includes(this.generation?.mode) && substantiveChange) {
+    this.aiReviewStatus = "pending";
+    this.aiReviewedBy = null;
+    this.aiReviewedAt = null;
+    this.aiReviewNote = "";
+  }
 });
 courseSchema.index({ "pricing.mode": 1, isPublished: 1 });
 courseSchema.index({ "generation.mode": 1, "generation.topicKeys": 1, createdAt: -1 });

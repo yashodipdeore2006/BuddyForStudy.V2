@@ -70,7 +70,7 @@ export async function enrollCourseSearch(req, res, next) {
   try {
     const { q } = searchSchema.parse(req.body);
     reservation = await reserveDiscoveryQuota(req, "ai_curated_courses_per_month", "ai_curated_courses");
-    const course = await createCourseFromSearch(q);
+    const course = await createCourseFromSearch(q, req.user.userId);
     const enrollment = await enroll(req.user.userId, course._id);
     return success(res, { course: toPublicCoursePreview(course), enrollment }, "Course enrolled successfully", 201);
   } catch (e) {
@@ -87,7 +87,7 @@ export async function enrollYouTubeResource(req, res, next) {
   try {
     const input = resourceSchema.parse(req.body);
     reservation = await reserveDiscoveryQuota(req, "youtube_discovery_courses_per_month", "youtube_discovery_courses");
-    const course = await getOrCreateYouTubeResourceCourse(input);
+    const course = await getOrCreateYouTubeResourceCourse({ ...input, userId: req.user.userId });
     let enrollment;
 
     try {

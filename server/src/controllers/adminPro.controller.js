@@ -556,25 +556,74 @@ export async function reviewAiCourse(req, res, next) {
     if (!["approved", "rejected", "pending"].includes(decision)) return failure(res, "Decision must be approved, rejected or pending.", 400);
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
+    if (course.deletedAt) return failure(res, "Restore a deleted course before reviewing it.", 409);
     if (!isAiGeneratedCourse(course)) return failure(res, "Human AI review is only required for AI-generated or derived courses.", 400);
-    const before = { aiReviewStatus: course.aiReviewStatus, aiReviewSource: course.aiReviewSource || "manual", aiReviewNote: course.aiReviewNote || "", isPublished: course.isPublished, visibility: course.visibility || "public" };
+
+    const before = {
+      aiReviewStatus: course.aiReviewStatus,
+      aiReviewSource: course.aiReviewSource || "manual",
+      aiReviewNote: course.aiReviewNote || "",
+      status: course.status,
+      isPublished: course.isPublished,
+      visibility: course.visibility || "public"
+    };
     course.aiReviewStatus = decision;
     course.aiReviewSource = "manual";
+    course.aiReviewedBy = adminActorId(req);
+    course.aiReviewedAt = new Date();
+    course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
+
+    let readiness = null;
+    let publishedByApproval = false;
+    const isLearnerPrivateCourse = Boolean(course.createdForUser && course.visibility === "private");
+
     if (decision !== "approved") {
       course.isPublished = false;
       course.status = "draft";
       if (course.createdForUser) course.visibility = "private";
+    } else if (isLearnerPrivateCourse) {
+      // A learner-specific course stays private. Approval enables its owner's
+      // access below; it must never become part of the public catalog.
+      course.isPublished = false;
+      course.status = "draft";
+    } else if (course.status === "archived") {
+      course.isPublished = false;
+      course.status = "archived";
+      readiness = evaluateCourseReadiness(course);
+    } else {
+      readiness = evaluateCourseReadiness(course);
+      if (readiness.ready) {
+        // The human review action also publishes when all readiness gates pass.
+        // If not ready, preserve the approval but keep public access disabled.
+        course.isPublished = true;
+        course.status = "published";
+        course.visibility = "public";
+        publishedByApproval = true;
+      } else {
+        course.isPublished = false;
+        course.status = "draft";
+      }
     }
-    course.aiReviewedBy = adminActorId(req);
-    course.aiReviewedAt = new Date();
-    course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
-    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "AI review decision: " + decision };
+
+    course.$locals.revisionContext = {
+      actor: adminActorId(req),
+      source: "admin",
+      reason,
+      summary: "AI review decision: " + decision
+    };
     await course.save();
     await cacheDelete(`course:${course._id}`);
 
+    if (publishedByApproval) {
+      await audit(req, "course.published", "Course", course._id,
+        { isPublished: before.isPublished, visibility: before.visibility, status: before.status },
+        { isPublished: true, visibility: "public", status: "published", publishedAfterHumanReview: true, readinessPassed: readiness?.passedCount || 0, readinessChecks: readiness?.totalChecks || 0 },
+        reason);
+    }
+
     let learnerEnrollmentStatus = null;
-    if (course.createdForUser && course.visibility === "private") {
-      let enrollment = await Enrollment.findOne({ user: course.createdForUser, course: course._id });
+    if (isLearnerPrivateCourse) {
+      const enrollment = await Enrollment.findOne({ user: course.createdForUser, course: course._id });
       if (decision === "approved") {
         if (enrollment?.revokedBy) {
           learnerEnrollmentStatus = "revoked_by_admin";
@@ -617,14 +666,29 @@ export async function reviewAiCourse(req, res, next) {
       aiReviewStatus: course.aiReviewStatus,
       aiReviewSource: course.aiReviewSource,
       aiReviewNote: course.aiReviewNote,
+      status: course.status,
       isPublished: course.isPublished,
       visibility: course.visibility,
-      learnerEnrollmentStatus
+      learnerEnrollmentStatus,
+      publishedByApproval,
+      readiness: readiness ? { ready: readiness.ready, passedCount: readiness.passedCount, totalChecks: readiness.totalChecks, failedChecks: readiness.failedChecks } : null
     }, reason);
-    return success(res, { course, learnerEnrollmentStatus }, decision === "approved" && course.createdForUser ? "AI course approved and learner access enabled" : "AI course review recorded");
+
+    let message = "AI course review recorded";
+    if (decision === "approved" && isLearnerPrivateCourse) {
+      message = learnerEnrollmentStatus === "revoked_by_admin"
+        ? "AI course approved, but an existing administrator enrollment revocation still blocks access."
+        : "AI course approved and learner access enabled";
+    } else if (decision === "approved" && publishedByApproval) {
+      message = "AI course approved and published. Learners can now enroll.";
+    } else if (decision === "approved" && course.status === "archived") {
+      message = "AI course approved; it remains archived until an administrator restores it.";
+    } else if (decision === "approved" && readiness && !readiness.ready) {
+      message = "AI content approved, but publication is blocked until course-readiness checks pass.";
+    }
+    return success(res, { course, learnerEnrollmentStatus, readiness, publishedByApproval }, message);
   } catch (e) { next(e); }
 }
-
 export async function setCourseLifecycle(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);

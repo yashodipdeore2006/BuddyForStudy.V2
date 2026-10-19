@@ -434,12 +434,12 @@ export default function AdminUsersPro() {
       sortable: true,
       render: (user) => (
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
+          <div className="admin-user-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold">
             {user.name?.[0]?.toUpperCase() || "U"}
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold">{user.name || "Unnamed user"}</p>
-            <p className="truncate text-xs text-slate-500"><PiiCell value={user.email} kind="email" masked={false} /></p>
+            <p className="admin-user-email truncate"><PiiCell value={user.email} kind="email" masked={false} /></p>
           </div>
         </div>
       ),
@@ -466,7 +466,7 @@ export default function AdminUsersPro() {
       header: "Provider",
       sortable: true,
       render: (user: any) => (
-        <span className="text-xs font-semibold capitalize text-slate-600">
+        <span className="admin-user-provider capitalize">
           {user.authProvider === "local_google" ? "Email + Google" : user.authProvider === "google" ? "Google" : "Email + password"}
         </span>
       ),

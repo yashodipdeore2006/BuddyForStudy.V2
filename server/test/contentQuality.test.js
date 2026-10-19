@@ -213,3 +213,15 @@ test("admin roadmap listing uses bounded server-side pagination and reports page
   assert.match(roadmaps, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
   assert.match(roadmaps, /pages: Math\.max\(1, Math\.ceil\(total \/ limit\)\)/);
 });
+
+test("missing AI quiz questions do not block course readiness and can be retried from the player", async () => {
+  const readiness = await read("../src/utils/courseReadiness.js");
+  const player = await read("../../src/pages/CoursePlayer.tsx");
+  const model = await read("../src/models/Course.js");
+  assert.match(readiness, /label: "Missing quiz questions can be generated when a learner opens the quiz", passed: true/);
+  assert.match(model, /const readiness = evaluateCourseReadiness\(course\)/);
+  assert.match(player, /apiFetch\("\/api\/ai\/quiz"/);
+  assert.match(player, /setQuizRetryCount\(\(count\) => count \+ 1\)/);
+  assert.match(player, /Retry quiz generation/);
+  assert.match(player, /The course remains available/);
+});

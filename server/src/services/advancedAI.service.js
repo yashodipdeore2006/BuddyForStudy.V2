@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { Course } from "../models/Course.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { AILessonInsight } from "../models/AILessonInsight.js";
 import { AIQuestionAnswer } from "../models/AIQuestionAnswer.js";
 import { AIQuestionAsk } from "../models/AIQuestionAsk.js";
@@ -76,6 +77,28 @@ async function findCourseLesson(courseId, lessonId, userId = null) {
     const error = new Error("Course not found or awaiting human content review");
     error.status = 404;
     throw error;
+  }
+
+  // The owner-only lookup is not an enrollment grant. Mirror the course
+  // service gate so private AI features cannot be used after access is
+  // cancelled/revoked or before an enrollment has been granted.
+  if (course.visibility === "private") {
+    if (!userId || String(course.createdForUser || "") !== String(userId) || course.status === "archived") {
+      const error = new Error("Course not found");
+      error.status = 404;
+      throw error;
+    }
+    const enrollment = await Enrollment.exists({
+      user: userId,
+      course: course._id,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (!enrollment) {
+      const error = new Error("Course not found or enrollment access is required");
+      error.status = 404;
+      throw error;
+    }
   }
 
   for (const module of course.modules || []) {

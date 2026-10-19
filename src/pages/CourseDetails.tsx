@@ -291,7 +291,7 @@ export default function CourseDetails() {
   const progressPct = progress?.percentage || 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="bfs-shell py-8 sm:py-10">
       <Link
         to="/courses"
         className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"

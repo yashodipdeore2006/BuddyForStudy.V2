@@ -15,6 +15,7 @@ const TEMPLATE_PLACEHOLDERS = ["userName", "courseTitle", "planName", "amount", 
 
 export default function AdminCommunications() {
   const [tab, setTab] = useState<"notification" | "email" | "announcement">("notification");
+  const [workspaceView, setWorkspaceView] = useState<"compose" | "templates" | "deliveries" | "campaigns">("compose");
   const [audience, setAudience] = useState("all");
   const [targetMode, setTargetMode] = useState<"audience" | "emails" | "filters">("audience");
   const [selectedEmails, setSelectedEmails] = useState("");
@@ -390,9 +391,19 @@ export default function AdminCommunications() {
       <AdminPageHeader
         eyebrow="Engagement"
         title="Communications"
-        description="Send targeted in-app notifications, email and announcements with a preview before delivery."
+        description="Compose targeted messages, maintain reusable templates, and inspect delivery and campaign outcomes."
       />
 
+      <div className="mt-6">
+        <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={setWorkspaceView} items={[
+          { value: "compose", label: "Compose" },
+          { value: "templates", label: `Templates (${templates.length})` },
+          { value: "deliveries", label: "Delivery log" },
+          { value: "campaigns", label: `Campaigns (${campaigns.length})` },
+        ]} />
+      </div>
+
+      {workspaceView === "compose" && (
       <AdminTabs
         ariaLabel="Communication type"
         value={tab}
@@ -400,13 +411,14 @@ export default function AdminCommunications() {
         items={[
           { value: "notification", label: "In-app notification" },
           { value: "email", label: "Email" },
-          { value: "announcement", label: "Announcement" },
+          { value: "announcement", labe
+      )}l: "Announcement" },
         ]}
       />
 
-      {templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setAudiencePreview(null); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
+      {workspaceView === "compose" && templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setAudiencePreview(null); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
 
-      <section className="card mt-5 p-5 sm:p-6">
+      {workspaceView === "templates" && <section className="card mt-5 p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Automation templates</p>
@@ -501,9 +513,9 @@ export default function AdminCommunications() {
             </div>}
           </div>
         )}
-      </section>
+      </section>}
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+      {workspaceView === "compose" && <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
         <section className="card p-6">
           <div className="rounded-2xl border border-slate-200 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -644,9 +656,9 @@ export default function AdminCommunications() {
             </ul>
           </div>
         )}
-      </div>
+      </div>}
 
-      <section className="card mt-6 overflow-hidden">
+      {workspaceView === "deliveries" && <section className="card mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Operations</p>
@@ -700,8 +712,8 @@ export default function AdminCommunications() {
             </table>
           </div>
         )}
-      </section>
-      <section className="card mt-6 overflow-hidden">
+      </section>}
+      {workspaceView === "campaigns" && <section className="card mt-6 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
           <div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Campaigns</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Announcement schedule and reports</h2><p className="mt-1 text-sm text-slate-500">Scheduled campaigns can be cancelled before the worker starts sending. Reports show provider acceptance, not inbox delivery or reading.</p></div>
           <button type="button" className="btn-secondary" onClick={() => void loadCampaigns()} disabled={loadingCampaigns}>{loadingCampaigns ? "Refreshing..." : "Refresh campaigns"}</button>
@@ -723,7 +735,7 @@ export default function AdminCommunications() {
               </tr>;
             })}</tbody></table></div>
         }
-      </section>
+      </section>}
     </div>
   );
 }

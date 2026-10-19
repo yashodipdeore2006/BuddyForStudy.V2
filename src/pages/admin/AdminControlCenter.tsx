@@ -242,7 +242,7 @@ export default function AdminControlCenter() {
             )}
           </div>
         </section>
-      </div>
+      </div>}
 
       {(dashboardView === "finance" || dashboardView === "learning") && <div className="mt-6 grid gap-6">
         {dashboardView === "finance" && permissions.includes("billing.read") && <section className="card overflow-hidden">

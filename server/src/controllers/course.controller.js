@@ -108,7 +108,7 @@ export async function learn(req, res, next) {
     const course = await courseService.getPublished(req.params.courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
     const enrolled = await (await import("../models/Enrollment.js")).Enrollment.findOne({
-      user: req.user.userId, course: req.params.courseId, status: { $in: ["active", "completed"] }
+      user: req.user.userId, course: req.params.courseId, status: { $in: ["active", "completed"] }, revokedBy: null
     });
     if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
 

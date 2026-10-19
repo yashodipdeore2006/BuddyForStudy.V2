@@ -1,4 +1,10 @@
 import { MessageTemplate } from "../models/MessageTemplate.js";
+import { User } from "../models/User.js";
+import { Notification } from "../models/Notification.js";
+import { randomUUID } from "node:crypto";
+import nodemailer from "nodemailer";
+import { env } from "../config/env.js";
+import { mailRecipientAccepted } from "../services/notificationDeliveryOutcomes.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -88,7 +94,7 @@ function templatePayload(body = {}) {
   return { value: { name, key, channel, title, subject, body: messageBody, messageType, link, isActive: body.isActive !== false } };
 }
 
-async function auditTemplate(req, action, template, before = null, after = null) {
+async function auditTemplate(req, action, template, before = null, after = null, reason = "") {
   return recordAuditEvent({
     actor: req.user?.user?._id || req.user?.userId || null,
     action,
@@ -96,7 +102,7 @@ async function auditTemplate(req, action, template, before = null, after = null)
     targetId: String(template?._id || ""),
     before: sanitizeAuditSnapshot(before),
     after: sanitizeAuditSnapshot(after),
-    reason: "",
+    reason: String(reason || "").trim().slice(0, 500),
     ip: String(req.ip || "").slice(0, 100),
     userAgent: String(req.get("user-agent") || "").slice(0, 500)
   });
@@ -110,6 +116,94 @@ function summary(template) {
   };
 }
 
+const TEMPLATE_SAMPLE_DEFAULTS = {
+  userName: "Alex Morgan", courseTitle: "Introduction to MERN Stack", planName: "Premium",
+  amount: "1,299.00", currency: "INR", purchaseDate: "19 Oct 2026", paymentReference: "TEST-REF-12345",
+  billingInterval: "monthly", currentPeriodStart: "19 Oct 2026", currentPeriodEnd: "19 Nov 2026",
+  periodSummary: "19 Oct – 19 Nov 2026", status: "active", link: "/dashboard"
+};
+
+function escapeTemplateHtml(value) {
+  return String(value ?? "").replace(/[&<>"\']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" })[character]);
+}
+
+function renderTemplatePreview(template, sampleData = {}) {
+  const values = { ...TEMPLATE_SAMPLE_DEFAULTS };
+  if (sampleData && typeof sampleData === "object" && !Array.isArray(sampleData)) {
+    for (const key of Object.keys(TEMPLATE_SAMPLE_DEFAULTS)) {
+      if (typeof sampleData[key] === "string") values[key] = sampleData[key].slice(0, 200);
+    }
+  }
+  const rawLink = String(template.link || values.link || "/dashboard");
+  values.link = /^https?:\/\//i.test(rawLink) ? rawLink : env.clientUrl.replace(/\/$/, "") + (rawLink.startsWith("/") ? rawLink : "/" + rawLink);
+  const render = (source, html = false) => String(source || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
+    const actual = Object.keys(values).find((name) => name.toLowerCase() === String(key).toLowerCase());
+    const value = actual ? values[actual] : "";
+    return html ? escapeTemplateHtml(value) : String(value);
+  });
+  const tokens = [...new Set([template.title, template.subject, template.body].join("\\n").match(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)?.map((token) => token.replace(/\{\{|\}\}/g, "").trim()) || [])];
+  const unknownPlaceholders = tokens.filter((key) => !Object.keys(TEMPLATE_SAMPLE_DEFAULTS).some((name) => name.toLowerCase() === key.toLowerCase()));
+  return {
+    channel: template.channel, title: render(template.title), subject: render(template.subject),
+    body: render(template.body, template.channel === "email"), placeholders: tokens, unknownPlaceholders, sampleData: values
+  };
+}
+
+export async function previewMessageTemplate(req, res, next) {
+  try {
+    let template;
+    if (req.params.templateId) {
+      if (!isValidObjectId(req.params.templateId)) return failure(res, "Invalid templateId", 400);
+      template = await MessageTemplate.findById(req.params.templateId).lean();
+      if (!template) return failure(res, "Message template not found", 404);
+    } else {
+      const parsed = templatePayload(req.body?.template || req.body || {});
+      if (parsed.error) return failure(res, parsed.error, 400);
+      template = parsed.value;
+    }
+    const preview = renderTemplatePreview(template, req.body?.sampleData || {});
+    return success(res, { preview, valid: preview.unknownPlaceholders.length === 0, warning: preview.unknownPlaceholders.length ? "Replace unsupported placeholders before saving or sending this template." : "" });
+  } catch (error) { next(error); }
+}
+
+export async function testSendMessageTemplate(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.templateId)) return failure(res, "Invalid templateId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const template = await MessageTemplate.findById(req.params.templateId);
+    if (!template) return failure(res, "Message template not found", 404);
+    const actorId = req.user?.user?._id || req.user?.userId;
+    const actor = await User.findById(actorId).select("name email").lean();
+    if (!actor?.email) return failure(res, "The signed-in administrator must have a registered email address for test sends", 400);
+    const preview = renderTemplatePreview(template.toObject ? template.toObject() : template, { userName: actor.name || "Administrator" });
+    if (preview.unknownPlaceholders.length) return failure(res, "Template has unsupported placeholders: " + preview.unknownPlaceholders.join(", "), 400);
+    if (template.channel === "email") {
+      if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) return failure(res, "SMTP is not configured for test email", 503);
+      if (hasUnsafeEmailMarkup(preview.body)) return failure(res, "Rendered email contains unsafe HTML markup", 400);
+      const transport = nodemailer.createTransport({ host: env.smtpHost, port: env.smtpPort, secure: env.smtpSecure, auth: { user: env.smtpUser, pass: env.smtpPass } });
+      try {
+        const result = await transport.sendMail({ from: env.mailFrom, to: actor.email, subject: preview.subject || preview.title || "BuddyForStudy template test", text: String(preview.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), html: preview.body });
+        if (!mailRecipientAccepted(result, actor.email)) throw new Error("SMTP did not confirm acceptance");
+      } catch (error) {
+        await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false }, reason);
+        return failure(res, "The SMTP provider did not accept the test email. Check server delivery logs.", 502);
+      } finally {
+        if (typeof transport.close === "function") transport.close();
+      }
+    } else {
+      await Notification.create({
+        user: actorId, title: String(preview.title || template.name).slice(0, 200), message: String(preview.body || "").slice(0, 5000),
+        type: template.channel === "announcement" ? "promotion" : (template.messageType || "system"),
+        eventKey: "admin-template-test:" + template._id + ":" + randomUUID(), showInApp: true, link: template.link || "/notifications",
+        emailStatus: "skipped", emailError: "Template test was sent in-app only", pushStatus: "skipped", pushError: "Template test was sent in-app only", sentBy: actorId,
+        metadata: { source: "admin-template-test", templateId: String(template._id) }
+      });
+    }
+    const auditResult = await auditTemplate(req, "message_template.test_send", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: true }, reason);
+    return success(res, { accepted: true, channel: template.channel, destination: "signed-in administrator", auditRecorded: auditResult.recorded || auditResult.queued }, "Test message sent to your administrator account");
+  } catch (error) { next(error); }
+}
 export async function listMessageTemplates(req, res, next) {
   try {
     await ensureDefaultAutomatedTemplates();

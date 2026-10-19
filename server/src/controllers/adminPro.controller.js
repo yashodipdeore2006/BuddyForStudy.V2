@@ -1171,6 +1171,8 @@ export async function plans(req, res, next) {
 
 export async function createPlan(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for subscription plan creation.", 400);
     const validation = validateSubscriptionPlanAdminInput({ ...req.body, billingInterval: req.body.billingInterval || "monthly", currency: req.body.currency || "INR" });
     if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
     const plan = await SubscriptionPlan.create({
@@ -1193,13 +1195,15 @@ export async function createPlan(req, res, next) {
       sortOrder: plan.sortOrder,
       featuresCount: plan.features.length,
       limitKeys: [...plan.limits.keys()]
-    });
+    }, reason);
     return success(res, { plan }, "Plan created", 201);
   } catch (e) { next(e); }
 }
 
 export async function updatePlan(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for subscription plan changes.", 400);
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
     const validation = validateSubscriptionPlanAdminInput(req.body, {
@@ -1240,7 +1244,7 @@ export async function updatePlan(req, res, next) {
       sortOrder: plan.sortOrder,
       featuresCount: plan.features.length,
       limitKeys: [...plan.limits.keys()]
-    }, req.body.reason);
+    }, reason);
     return success(res, { plan }, "Plan updated");
   } catch (e) { next(e); }
 }

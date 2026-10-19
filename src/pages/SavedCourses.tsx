@@ -60,6 +60,21 @@ export default function SavedCourses() {
 
       {loading ? (
         <div className="bfs-course-grid mt-8">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
+          ))}
+        </div>
+      ) : savedCourses.length === 0 ? (
+        <div className="mt-8">
+          <EmptyState
+            icon={<Bookmark className="h-8 w-8" />}
+            title="No saved courses"
+            description="Use Save Course on a course you want to learn later."
+            action={<Link to="/courses" className="btn-primary">Browse Courses</Link>}
+          />
+        </div>
+      ) : (
+        <div className="bfs-course-grid mt-8">
           {savedCourses.map((saved) => (
             <div key={saved._id} className="relative min-w-0">
               <CourseCard course={{
@@ -78,8 +93,14 @@ export default function SavedCourses() {
                 created_at: "",
                 updated_at: ""
               }} showActions initiallySaved />
-              <button type="button" onClick={() => void remove(saved.course._id)} disabled={removing === saved.course._id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
-                <Trash2 className="h-4 w-4" /> {removing === saved.course._id ? "Removing..." : "Remove from saved"}
+              <button
+                type="button"
+                onClick={() => void remove(saved.course._id)}
+                disabled={removing === saved.course._id}
+                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                {removing === saved.course._id ? "Removing..." : "Remove from saved"}
               </button>
             </div>
           ))}

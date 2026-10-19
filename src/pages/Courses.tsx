@@ -26,6 +26,8 @@ function mapCourse(raw: any): Course {
     modules: raw.modules ?? [],
     is_published: raw.isPublished ?? true,
     enrollment_count: raw.enrollmentCount,
+    module_count: Number.isFinite(Number(raw.moduleCount)) ? Number(raw.moduleCount) : undefined,
+    lesson_count: Number.isFinite(Number(raw.lessonCount)) ? Number(raw.lessonCount) : undefined,
     pricing: raw.pricing,
     created_by: raw.createdBy ?? null,
     created_at: raw.createdAt ?? '',

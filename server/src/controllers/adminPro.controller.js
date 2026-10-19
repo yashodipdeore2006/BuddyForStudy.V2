@@ -499,14 +499,18 @@ export async function reviewAiCourse(req, res, next) {
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
     if (!isAiGeneratedCourse(course)) return failure(res, "Human AI review is only required for AI-generated or derived courses.", 400);
-    const before = { aiReviewStatus: course.aiReviewStatus, aiReviewNote: course.aiReviewNote || "" };
+    const before = { aiReviewStatus: course.aiReviewStatus, aiReviewNote: course.aiReviewNote || "", isPublished: course.isPublished };
     course.aiReviewStatus = decision;
+    if (decision !== "approved") {
+      course.isPublished = false;
+      course.status = "draft";
+    }
     course.aiReviewedBy = adminActorId(req);
     course.aiReviewedAt = new Date();
     course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "AI review decision: " + decision };
     await course.save();
-    await audit(req, "course.ai_review." + decision, "Course", course._id, before, { aiReviewStatus: course.aiReviewStatus, aiReviewNote: course.aiReviewNote }, reason);
+    await audit(req, "course.ai_review." + decision, "Course", course._id, before, { aiReviewStatus: course.aiReviewStatus, aiReviewNote: course.aiReviewNote, isPublished: course.isPublished }, reason);
     return success(res, { course }, "AI course review recorded");
   } catch (e) { next(e); }
 }

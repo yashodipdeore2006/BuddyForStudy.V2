@@ -2042,27 +2042,40 @@ export async function previewNotificationAudience(req, res, next) {
     validateAdminAudienceInput(audienceInput);
     const users = await resolveAdminAudience(audienceInput, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
     const truncated = users.length > 5000;
+    const countedUsers = users.slice(0, 5000);
+    const ids = countedUsers.map((user) => user._id);
+    const [preferenceRows, settingRows, activePushUsers] = await Promise.all([
+      NotificationPreference.find({ user: { $in: ids } }).select("user inAppAnnouncements emailAnnouncements emailAnnouncementsConsentAt pushEnabled").lean(),
+      PlatformSetting.find({ key: { $in: ["notification_in_app_enabled", "notification_email_enabled", "notification_push_enabled"] } }).select("key value").lean(),
+      PushSubscription.distinct("user", { user: { $in: ids }, active: true })
+    ]);
+    const preferenceMap = new Map(preferenceRows.map((item) => [String(item.user), item]));
+    const settings = Object.fromEntries(settingRows.map((item) => [item.key, item.value]));
+    const inAppEnabled = settings.notification_in_app_enabled === undefined ? true : Boolean(settings.notification_in_app_enabled);
+    const emailEnabled = settings.notification_email_enabled === undefined ? true : Boolean(settings.notification_email_enabled);
+    const pushEnabled = settings.notification_push_enabled === undefined ? true : Boolean(settings.notification_push_enabled);
+    const emailConfigured = Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
+    const pushConfigured = isWebPushConfigured();
+    const inAppConsent = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.inAppAnnouncements !== false).length;
+    const emailConsent = countedUsers.filter((user) => { const p = preferenceMap.get(String(user._id)); return p?.emailAnnouncements === true && Boolean(p.emailAnnouncementsConsentAt); }).length;
+    const pushConsent = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.pushEnabled === true).length;
+    const activePushSet = new Set(activePushUsers.map(String));
+    const pushReachable = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.pushEnabled === true && activePushSet.has(String(user._id))).length;
+    const channelCounts = {
+      in_app: { consentEligible: inAppConsent, willReach: inAppEnabled ? inAppConsent : 0, platformEnabled: inAppEnabled },
+      email: { consentEligible: emailConsent, willReach: emailEnabled && emailConfigured ? emailConsent : 0, platformEnabled: emailEnabled, providerConfigured: emailConfigured },
+      push: { consentEligible: pushConsent, activeSubscriptions: pushReachable, willReach: pushEnabled && pushConfigured ? pushReachable : 0, platformEnabled: pushEnabled, providerConfigured: pushConfigured }
+    };
     return success(res, {
-      recipientCount: truncated ? 5000 : users.length,
-      truncated,
+      recipientCount: truncated ? 5000 : users.length, truncated, channelCounts,
       previewToken: createAdminAudiencePreviewToken(audienceInput, users),
-      sample: users.slice(0, 10).map((user) => ({
-        id: String(user._id),
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        isActive: user.isActive,
-        emailVerified: user.emailVerified,
-        authProvider: user.authProvider,
-        createdAt: user.createdAt
-      }))
+      sample: countedUsers.slice(0, 10).map((user) => ({ id: String(user._id), name: user.name, email: maskEmail(user.email), role: user.role, isActive: user.isActive, emailVerified: user.emailVerified, authProvider: user.authProvider, createdAt: user.createdAt }))
     }, truncated ? "Audience preview capped at 5,000 recipients; narrow the filters before sending." : "Audience preview ready");
   } catch (error) {
     if (error instanceof Error && /invalid|must be|cannot|choose|select|filters|audience|exceed|later than/i.test(error.message)) return failure(res, error.message, 400);
     next(error);
   }
 }
-
 export async function sendNotification(req, res, next) {
   try {
     const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
@@ -2164,67 +2177,89 @@ export async function sendAnnouncement(req, res, next) {
   try {
     const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
     const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
     if (!title || !message) return failure(res, "title and message are required", 400);
+    if (title.length > 200 || message.length > 5000) return failure(res, "Announcement title or message is too long", 400);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
     const channel = parseAnnouncementChannels(req.body.channel);
     if (!channel) return failure(res, "Choose one or more valid announcement channels", 400);
-
     try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
     const targetMode = (Array.isArray(req.body.userIds) && req.body.userIds.length) || (Array.isArray(req.body.emails) && req.body.emails.length)
-      ? "selected"
-      : req.body.filters && Object.keys(req.body.filters).length
-        ? "filtered"
-        : "audience";
+      ? "selected" : req.body.filters && Object.keys(req.body.filters).length ? "filtered" : "audience";
     let users;
-    try { users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5000 }); }
+    try { users = await resolveAdminAudience(req.body, { select: "_id", limit: 5001 }); }
     catch (error) { return failure(res, error.message, 400); }
     if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
-    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) {
-      return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    let scheduledAt = null;
+    if (req.body.scheduledAt !== undefined && req.body.scheduledAt !== null && req.body.scheduledAt !== "") {
+      scheduledAt = new Date(req.body.scheduledAt);
+      if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) return failure(res, "Scheduled time must be a valid future date and time", 400);
     }
+    const timezone = typeof req.body.timezone === "string" ? req.body.timezone.trim().slice(0, 64) : "Asia/Kolkata";
+    try { new Intl.DateTimeFormat("en-US", { timeZone: timezone }); } catch { return failure(res, "Choose a valid IANA timezone", 400); }
+    const status = scheduledAt ? "scheduled" : "sending";
     const announcement = await Announcement.create({
-      title,
-      message,
-      audience: req.body.audience || "all",
-      targetMode,
+      title, message, audience: req.body.audience || "all", targetMode,
       targetUserIds: targetMode === "selected" ? users.map((user) => user._id) : [],
       targetFilters: targetMode === "filtered" ? req.body.filters : {},
-      channel,
+      recipientIds: users.map((user) => user._id), channel,
       link: typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "",
-      status: "sent",
-      sentAt: new Date(),
-      createdBy: req.user.user._id
+      status, scheduledAt, timezone, stats: { total: users.length },
+      reason, createdBy: req.user.user._id
     });
-    const results = await mapWithConcurrency(users, (user) => createNotificationEvent({
-      userId: String(user._id),
-      title: announcement.title,
-      message: announcement.message,
-      type: "promotion",
-      link: announcement.link,
-      eventKey: `announcement:${announcement._id}:${user._id}`,
-      inApp: channel.includes("in_app"),
-      email: channel.includes("email"),
-      push: channel.includes("push"),
-      metadata: { source: "admin-announcement", announcementId: String(announcement._id) }
-    }));
-    await audit(req, "announcement.sent", "Announcement", announcement._id, null, {
-      audience: announcement.audience,
-      targetMode: announcement.targetMode,
-      filterKeys: announcement.targetMode === "filtered" ? Object.keys(req.body.filters || {}) : [],
-      recipients: users.length,
-      requestedChannels: channel,
-      inAppVisible: results.filter((item) => item?.showInApp).length,
-      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length,
-      pushQueued: results.filter((item) => item?.pushStatus === "pending").length
-    });
-    return success(res, {
-      announcement,
-      recipients: users.length,
-      emailsQueued: results.filter((item) => item?.emailStatus === "pending").length,
-      pushQueued: results.filter((item) => item?.pushStatus === "pending").length
-    }, "Announcement queued", 201);
-  } catch (e) { next(e); }
+    const auditResult = await audit(req, scheduledAt ? "announcement.scheduled" : "announcement.send", "Announcement", announcement._id, null, {
+      status, audience: announcement.audience, targetMode, filterKeys: targetMode === "filtered" ? Object.keys(req.body.filters || {}) : [],
+      recipients: users.length, requestedChannels: channel, scheduledAt, timezone
+    }, reason);
+    return success(res, { announcement: { id: String(announcement._id), title: announcement.title, status: announcement.status, scheduledAt: announcement.scheduledAt, timezone: announcement.timezone, stats: announcement.stats }, recipients: users.length, auditRecorded: auditResult.recorded || auditResult.queued }, scheduledAt ? "Announcement scheduled" : "Announcement queued for background delivery", 201);
+  } catch (error) { next(error); }
 }
 
+export async function listAnnouncements(req, res, next) {
+  try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const allowed = ["draft", "scheduled", "sending", "sent", "failed", "cancelled"];
+    const filter = {};
+    if (req.query.status && allowed.includes(String(req.query.status))) filter.status = String(req.query.status);
+    const [items, total] = await Promise.all([
+      Announcement.find(filter).select("title status audience targetMode channel scheduledAt timezone startedAt sentAt completedAt cancelledAt stats lastError createdBy createdAt updatedAt").populate("createdBy", "name").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Announcement.countDocuments(filter)
+    ]);
+    return success(res, { announcements: items, page, limit, total, pages: Math.ceil(total / limit) });
+  } catch (error) { next(error); }
+}
+
+export async function cancelAnnouncement(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.announcementId)) return failure(res, "Invalid announcementId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const before = await Announcement.findById(req.params.announcementId).select("status scheduledAt stats").lean();
+    if (!before) return failure(res, "Announcement not found", 404);
+    if (before.status !== "scheduled" && before.status !== "draft") return failure(res, "Only draft or scheduled announcements can be cancelled before sending starts", 409);
+    const cancelled = await Announcement.findOneAndUpdate({ _id: req.params.announcementId, status: { $in: ["draft", "scheduled"] } }, { $set: { status: "cancelled", cancelledAt: new Date(), cancelledBy: req.user.user._id, reason } }, { new: true });
+    if (!cancelled) return failure(res, "Announcement started processing before cancellation completed", 409);
+    await audit(req, "announcement.cancelled", "Announcement", cancelled._id, before, { status: cancelled.status, cancelledAt: cancelled.cancelledAt }, reason);
+    return success(res, { announcement: { id: String(cancelled._id), status: cancelled.status, cancelledAt: cancelled.cancelledAt } }, "Announcement cancelled");
+  } catch (error) { next(error); }
+}
+
+export async function announcementReport(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.announcementId)) return failure(res, "Invalid announcementId", 400);
+    const announcement = await Announcement.findById(req.params.announcementId).lean();
+    if (!announcement) return failure(res, "Announcement not found", 404);
+    const stats = await refreshAnnouncementStats(announcement);
+    const failed = await Notification.find({ "metadata.announcementId": String(announcement._id), $or: [{ emailStatus: "failed" }, { pushStatus: "failed" }] })
+      .populate("user", "name email").sort({ updatedAt: -1 }).limit(20).select("user emailStatus emailError pushStatus pushError updatedAt").lean();
+    return success(res, { announcement: { id: String(announcement._id), title: announcement.title, status: announcement.status, channel: announcement.channel, scheduledAt: announcement.scheduledAt, startedAt: announcement.startedAt, sentAt: announcement.sentAt, completedAt: announcement.completedAt, stats, lastError: safeDeliveryError(announcement.lastError) },
+      channels: { in_app: stats.in_app, email: stats.email, push: stats.push },
+      topErrors: failed.map((item) => ({ recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null, emailStatus: item.emailStatus, emailError: safeDeliveryError(item.emailError), pushStatus: item.pushStatus, pushError: safeDeliveryError(item.pushError), updatedAt: item.updatedAt }))
+    });
+  } catch (error) { next(error); }
+}
 export async function settings(req, res, next) {
   try {
     const settings = await PlatformSetting.find().sort({ key: 1 }).lean();

@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 test("announcement model has scheduled lifecycle, cancellation metadata and channel reports", async () => {
   const model = await read("../src/models/Announcement.js");
   assert.match(model, /enum: \["draft", "scheduled", "sending", "sent", "failed", "cancelled"\]/);
-  for (const field of ["scheduledAt", "startedAt", "sentAt", "cancelledAt", "cancelledBy", "recipientIds", "nextRecipientIndex", "batchLockUntil", "nextBatchAt"]) {
+  for (const field of ["scheduledAt", "startedAt", "sentAt", "cancelledAt", "cancelledBy", "recipientIds", "nextRecipientIndex", "batchLockUntil", "nextBatchAt", "lastBatchAt"]) {
     assert.match(model, new RegExp(field + ":"));
   }
   for (const field of ["total", "sent", "pending", "failed", "skipped", "in_app", "email", "push"]) assert.match(model, new RegExp(field + ":"));
@@ -43,6 +43,9 @@ test("announcements require a preview token and reason, then queue or schedule i
   assert.match(send, /Announcement\.create/);
   assert.doesNotMatch(send, /createNotificationEvent/);
   assert.match(worker, /setInterval\(\(\) => void runAnnouncementBatches\(\), 30 \* 1000\)/);
+  assert.match(worker, /processScheduledAnnouncements\(new Date\(\), 1, 100\)/);
+  assert.match(worker, /await deliverPendingNotificationEmails\(100\)/);
+  assert.match(worker, /await deliverPendingNotificationPush\(100\)/);
   assert.match(worker, /for \(let batch = 0; batch < 5; batch \+= 1\)/);
   assert.match(worker, /processScheduledAnnouncements\(new Date\(\), 1, 100\)/);
   assert.match(worker, /Drain each newly queued batch before claiming more recipients/);

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrainCircuit, Check, RefreshCcw, Save, SlidersHorizontal } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 type Setting = { key: string; value: number | boolean; defaultValue: number | boolean; type: "number" | "boolean"; min?: number; max?: number; description: string };
 const GROUPS = [
@@ -16,6 +16,7 @@ export default function AdminAIContent() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [activeGroup, setActiveGroup] = useState(GROUPS[0].title);
 
   async function load() {
     setLoading(true); setError("");
@@ -68,7 +69,10 @@ export default function AdminAIContent() {
     />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
-    {loading ? <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading AI settings…</div> : GROUPS.map((group) => <section key={group.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="mt-6">
+      <AdminTabs ariaLabel="AI configuration areas" value={activeGroup} onChange={setActiveGroup} items={GROUPS.map((group) => ({ value: group.title, label: group.title }))} />
+    </div>
+    {loading ? <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading AI settings…</div> : GROUPS.filter((group) => group.title === activeGroup).map((group) => <section key={group.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4"><div className="flex items-center gap-2"><SlidersHorizontal className="h-5 w-5 text-violet-600"/><h2 className="font-semibold text-slate-950">{group.title}</h2></div><p className="mt-1 text-sm text-slate-500">{group.description}</p></div>
       <div className="divide-y divide-slate-100">{group.keys.map((key) => {
         const setting = settings.find((item) => item.key === key);

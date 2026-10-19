@@ -1552,6 +1552,9 @@ export async function retryNotificationDeliveryAdmin(req, res, next) {
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
     if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const existing = await Notification.findById(req.params.notificationId).select("emailStatus pushStatus").lean();
+    if (!existing) return failure(res, "Notification delivery not found", 404);
+    if (existing[channel === "email" ? "emailStatus" : "pushStatus"] !== "failed") return failure(res, "Only failed deliveries can be retried from the delivery log", 409);
 
     const result = await retryNotificationDelivery(req.params.notificationId, channel);
     await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, {
@@ -1668,6 +1671,9 @@ export async function retryDeliveryLog(req, res, next) {
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
     if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const existing = await Notification.findById(req.params.notificationId).select("emailStatus pushStatus").lean();
+    if (!existing) return failure(res, "Notification delivery not found", 404);
+    if (existing[channel === "email" ? "emailStatus" : "pushStatus"] !== "failed") return failure(res, "Only failed deliveries can be retried from the delivery log", 409);
     const result = await retryNotificationDelivery(req.params.notificationId, channel);
     await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, { channel: result.channel, status: result.status, attempts: result.attempts }, reason);
     return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry queued/processed: ${result.status}`);

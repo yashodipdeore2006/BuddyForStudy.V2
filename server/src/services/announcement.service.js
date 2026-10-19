@@ -3,8 +3,6 @@ import { Announcement } from "../models/Announcement.js";
 import { Notification } from "../models/Notification.js";
 import { createNotificationEvent } from "./notification.service.js";
 
-const CHANNELS = ["in_app", "email", "push"];
-
 async function mapLimit(items, limit, callback) {
   const results = [];
   for (let index = 0; index < items.length; index += limit) {
@@ -101,7 +99,10 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
           { status: "sending" },
           { status: "scheduled", scheduledAt: { $lte: now } }
         ],
-        $and: [{ $or: [{ batchLockUntil: null }, { batchLockUntil: { $lte: now } }] }]
+        $and: [
+          { $or: [{ batchLockUntil: null }, { batchLockUntil: { $lte: now } }] },
+          { $or: [{ nextBatchAt: null }, { nextBatchAt: { $lte: now } }] }
+        ]
       },
       {
         $set: { status: "sending", batchLockUntil: lockUntil, batchLockToken: lockToken, lastError: "" },
@@ -149,7 +150,7 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
     const nextIndex = start + batch.length;
     const updated = await Announcement.updateOne(
       { _id: announcement._id, batchLockToken: lockToken, nextRecipientIndex: start },
-      { $set: { nextRecipientIndex: nextIndex, batchLockUntil: null, batchLockToken: "", batchAttempts: 0 } }
+      { $set: { nextRecipientIndex: nextIndex, batchLockUntil: null, nextBatchAt: null, batchLockToken: "", batchAttempts: 0 } }
     );
     if (!updated.modifiedCount) continue;
     recipientsQueued += batch.length;
@@ -176,7 +177,8 @@ export async function recoverAnnouncementBatch(announcementId, lockToken, error,
     { _id: announcementId, batchLockToken: lockToken },
     { $set: {
       ...(attempts >= 5 ? { status: "failed", completedAt: now } : {}),
-      batchLockUntil: null, batchLockToken: "", lastError: message
+      batchLockUntil: null, batchLockToken: "", lastError: message,
+      ...(attempts < 5 ? { nextBatchAt: new Date(now.getTime() + Math.min(15 * 60 * 1000, 30 * 1000 * (2 ** Math.max(0, attempts - 1)))) } : {})
     } }
   );
   if (attempts < 5) console.warn("[announcements] batch will be retried", { announcementId: String(announcementId), attempts });

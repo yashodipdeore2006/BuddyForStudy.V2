@@ -1480,6 +1480,13 @@ export async function updateRefund(req, res, next) {
       }
     }
     await refund.save();
+    await audit(req, "refund.updated", "RefundRequest", refund._id, before, {
+      status: refund.status,
+      amount: refund.amount,
+      hasAdminNote: Boolean(refund.adminNote),
+      decisionReason: refund.decisionReason || "",
+      processedAt: refund.processedAt
+    }, reason);
     if (refund.status === "processed") {
       await payment.save();
     }
@@ -1505,13 +1512,6 @@ export async function updateRefund(req, res, next) {
         message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
       });
     }
-    await audit(req, "refund.updated", "RefundRequest", refund._id, before, {
-      status: refund.status,
-      amount: refund.amount,
-      hasAdminNote: Boolean(refund.adminNote),
-      decisionReason: refund.decisionReason || "",
-      processedAt: refund.processedAt
-    }, reason);
     return success(res, { refund }, "Refund updated");
   } catch (e) { next(e); }
 }

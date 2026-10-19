@@ -222,6 +222,25 @@ export default function Courses() {
     }
   };
 
+  const checkGeneratedCourseStatus = async () => {
+    const courseId = String(aiRoadmap?.course?._id ?? aiRoadmap?.course?.id ?? "");
+    if (!courseId || courseId === "undefined" || courseId === "null") return;
+    setAiEnrolling(true);
+    setAiEnrollError(null);
+    try {
+      const data = await apiFetch("/api/courses/" + encodeURIComponent(courseId));
+      setAiRoadmap((current: any) => current ? {
+        ...current,
+        course: { ...current.course, ...data.course, isPublished: data.course?.isPublished ?? true }
+      } : current);
+      setAiEnrollError(null);
+    } catch {
+      setAiEnrollError("This course is not available yet. An administrator must approve it, and public courses must pass readiness checks and be published before enrollment.");
+    } finally {
+      setAiEnrolling(false);
+    }
+  };
+
   const enrollGeneratedCourse = async () => {
     const courseId = String(aiRoadmap?.course?._id ?? aiRoadmap?.course?.id ?? '');
     if (!courseId || courseId === 'undefined' || courseId === 'null') {
@@ -506,13 +525,35 @@ export default function Courses() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => navigate(`/courses/${String(aiRoadmap.course._id ?? aiRoadmap.course.id)}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
-                  <ExternalLink className="h-4 w-4" /> Course details
-                </button>
+                {aiRoadmap.course.isPublished ? (
+                  <button type="button" onClick={() => navigate(`/courses/${String(aiRoadmap.course._id ?? aiRoadmap.course.id)}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
+                    <ExternalLink className="h-4 w-4" /> Course details
+                  </button>
+                ) : (
+                  <span className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-300">Details unlock after approval</span>
+                )}
                 <button onClick={() => { setAiRoadmap(null); setAiEnrollError(null); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">Close</button>
               </div>
             </div>
           </div>
+
+          {!aiRoadmap.course.isPublished && (
+            <div role="status" className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:mx-7">
+              <p className="font-bold text-slate-900">
+                {aiRoadmap.course.aiReviewStatus === "approved"
+                  ? "AI content approved — publication is still pending"
+                  : "Course awaiting administrator approval"}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">
+                {aiRoadmap.course.aiReviewStatus === "approved"
+                  ? "This course has approval, but it is not yet published. Public courses must pass the course-readiness checks before learners can enroll."
+                  : "You can review this generated roadmap preview, but enrollment and course-player access remain locked until an administrator approves it. After approval, public courses also need to pass readiness checks and be published."}
+              </p>
+              <button type="button" className="btn-secondary mt-3" onClick={() => void checkGeneratedCourseStatus()} disabled={aiEnrolling}>
+                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking status…</> : "Check approval status"}
+              </button>
+            </div>
+          )}
 
           {aiRoadmap.personalization && (
             <div className="m-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:m-7">
@@ -598,12 +639,22 @@ export default function Courses() {
             {aiEnrollError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{aiEnrollError}</div>}
             <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-extrabold text-slate-900">Ready to start learning?</p>
-                <p className="mt-1 text-sm text-slate-600">Enroll to track progress, take generated MCQ quizzes, and continue learning from My Learning.</p>
+                <p className="font-extrabold text-slate-900">{aiRoadmap.course.isPublished ? "Ready to start learning?" : "Learning access is locked"}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {aiRoadmap.course.isPublished
+                    ? "Enroll to track progress, take generated MCQ quizzes, and continue learning from My Learning."
+                    : "The generated outline is a preview only. Enrollment is enabled after the content approval and publication workflow is complete."}
+                </p>
               </div>
-              <button type="button" onClick={enrollGeneratedCourse} disabled={aiEnrolling} className="btn-primary min-w-48 justify-center">
-                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Enrolling...</> : <><GraduationCap className="h-4 w-4" /> Enroll and start learning</>}
-              </button>
+              {aiRoadmap.course.isPublished ? (
+                <button type="button" onClick={enrollGeneratedCourse} disabled={aiEnrolling} className="btn-primary min-w-48 justify-center">
+                  {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Enrolling...</> : <><GraduationCap className="h-4 w-4" /> Enroll and start learning</>}
+                </button>
+              ) : (
+                <button type="button" onClick={() => void checkGeneratedCourseStatus()} disabled={aiEnrolling} className="btn-secondary min-w-48 justify-center">
+                  {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</> : "Check approval status"}
+                </button>
+              )}
             </div>
           </div>
         </section>

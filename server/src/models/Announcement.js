@@ -18,6 +18,7 @@ const announcementSchema = new mongoose.Schema({
   nextRecipientIndex: { type: Number, default: 0, min: 0 },
   batchLockUntil: { type: Date, default: null },
   nextBatchAt: { type: Date, default: null },
+  lastBatchAt: { type: Date, default: null },
   batchLockToken: { type: String, default: "", maxlength: 64 },
   batchAttempts: { type: Number, default: 0, min: 0 },
   channel: { type: [String], enum: ["in_app", "email", "push"], default: ["in_app"] },
@@ -47,5 +48,6 @@ const announcementSchema = new mongoose.Schema({
 
 announcementSchema.index({ status: 1, scheduledAt: 1, createdAt: 1 });
 announcementSchema.index({ status: 1, batchLockUntil: 1, createdAt: 1 });
+announcementSchema.index({ status: 1, nextBatchAt: 1, lastBatchAt: 1 });
 
 export const Announcement = mongoose.model("Announcement", announcementSchema);

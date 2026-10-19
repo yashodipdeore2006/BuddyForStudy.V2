@@ -21,7 +21,12 @@ test("audience preview masks sample emails and reports channel reach after prefe
   assert.match(controller, /pushEnabled === true/);
   assert.match(controller, /PushSubscription\.distinct\("user"/);
   assert.match(controller, /channelCounts/);
+  assert.match(controller, /selectedChannels = parseAnnouncementChannels\(audienceInput\.channels\)/);
+  assert.match(controller, /selected: !selectedChannels \|\| selectedChannels\.includes\("email"\)/);
   assert.match(controller, /email: maskEmail\(user\.email\)/);
+  const communications = await read("../../src/pages/admin/AdminCommunications.tsx");
+  assert.match(communications, /Not selected/);
+  assert.match(communications, /channels \}\s*:\s*\{\}/);
   assert.match(prefs, /emailAnnouncementsConsentAt: \{ type: Date, default: null \}/);
   assert.match(prefs, /pushEnabled: \{ type: Boolean, default: false \}/);
 });

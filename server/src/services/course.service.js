@@ -539,7 +539,7 @@ export async function getPublished(courseId) {
     return normalized;
   }
 
-  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
+  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] });
   if (!courseDoc) return null;
 
   if (normalizeMultiVideoLessons(courseDoc)) {

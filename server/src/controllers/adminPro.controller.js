@@ -715,12 +715,13 @@ export async function publishCourse(req, res, next) {
     const readiness = evaluateCourseReadiness(course);
     if (course.isPublished) return success(res, { course, readiness }, "Course is already published");
 
-    const before = { isPublished: course.isPublished };
+    const before = { isPublished: course.isPublished, visibility: course.visibility || "public" };
     course.isPublished = true;
+    course.visibility = "public";
     course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
-    await audit(req, "course.published", "Course", course._id, before, { isPublished: true, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
+    await audit(req, "course.published", "Course", course._id, before, { isPublished: true, visibility: course.visibility, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
     return success(res, { course, readiness }, "Course published");
   } catch (error) { next(error); }
 }

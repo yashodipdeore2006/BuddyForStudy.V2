@@ -25,6 +25,8 @@ async function claimEvent(req, event) {
   const claim = {
     eventId: id,
     event: event.event,
+    providerOrderId: String(event?.payload?.payment?.entity?.order_id || event?.payload?.order?.entity?.id || event?.payload?.subscription?.entity?.id || "").slice(0, 200),
+    providerPaymentId: String(event?.payload?.payment?.entity?.id || "").slice(0, 200),
     status: "processing",
     claimToken,
     claimedAt: now,

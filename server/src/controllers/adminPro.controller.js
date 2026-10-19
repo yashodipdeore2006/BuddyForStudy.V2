@@ -1646,6 +1646,7 @@ export async function deliveryLog(req, res, next) {
         return {
           id: String(item._id), time: item.updatedAt || item.createdAt, recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null,
           type: item.type, eventKey: item.eventKey || "", title: item.title,
+          retryHistory: (item.retryHistory || []).map((entry) => ({ channel: entry.channel, priorAttempts: Number(entry.priorAttempts || 0), previousError: safeDeliveryError(entry.previousError), previousLastAttemptAt: entry.previousLastAttemptAt, retriedAt: entry.retriedAt, reason: String(entry.reason || "").slice(0, 500) })),
           channels: {
             in_app: { status: requested ? (requested.includes("in_app") ? (item.showInApp ? "sent" : "skipped") : "not_requested") : (item.showInApp ? "sent" : "not_requested") },
             email: { status: requested && !requested.includes("email") ? "not_requested" : item.emailStatus, attempts: item.emailAttempts || 0, lastAttemptAt: item.emailLastAttemptAt, sentAt: item.emailSentAt, error: safeDeliveryError(item.emailError) },

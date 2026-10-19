@@ -27,6 +27,7 @@ import webhookRoutes from "./routes/webhook.routes.js";
 import healthRoutes from "./routes/health.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import savedCourseRoutes from "./routes/savedCourse.routes.js";
+import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -89,6 +90,11 @@ app.use(errorHandler);
 
 connectDatabase()
   .then(() => {
+    const workerHealthTimer = setInterval(() => {
+      void checkWorkerHeartbeat().catch((error) => console.error("[operations] worker heartbeat monitor failed", { name: error?.name || "Error", code: error?.code }));
+    }, 60 * 1000);
+    workerHealthTimer.unref?.();
+    void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
     app.listen(env.port, '0.0.0.0', () => {
       console.log(`BuddyForStudy API running on port ${env.port}`);
     });

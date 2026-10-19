@@ -5,6 +5,7 @@ import * as messageTemplateController from "../controllers/messageTemplate.contr
 import * as operationalAlertController from "../controllers/operationalAlert.controller.js";
 import * as adminRolesController from "../controllers/adminRoles.controller.js";
 import * as adminInvitationsController from "../controllers/adminInvitations.controller.js";
+import * as adminOperationsController from "../controllers/adminOperations.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -79,6 +80,7 @@ router.put("/coupons/:couponId", adminPermissionMiddleware("coupons.manage"), co
 router.get("/audit-logs", adminPermissionMiddleware("audit.read"), controller.auditLogs);
 router.get("/analytics", adminPermissionMiddleware("analytics.read"), controller.analytics);
 router.get("/health", adminPermissionMiddleware("operations.read"), controller.health);
+router.get("/operations/system-health", adminPermissionMiddleware("operations.read"), adminOperationsController.systemHealth);
 router.get("/operations/alerts", adminPermissionMiddleware("operations.read"), operationalAlertController.operationalAlerts);
 router.post("/operations/alerts/:alertId/acknowledge", adminPermissionMiddleware("operations.manage"), operationalAlertController.acknowledgeOperationalAlert);
 

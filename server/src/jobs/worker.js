@@ -6,12 +6,14 @@ import { processPendingAuditOutbox } from "../services/auditOutbox.service.js";
 import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
+import { heartbeatWorker, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed } from "../services/jobHeartbeat.service.js";
 import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
 let stopping = false;
 let intervalHandle;
+let heartbeatHandle;
 
 async function runMaintenance() {
   if (maintenanceInProgress || stopping) {
@@ -21,6 +23,7 @@ async function runMaintenance() {
 
   maintenanceInProgress = true;
   const startedAt = Date.now();
+  await markMaintenanceStarted().catch((error) => console.error("[worker] unable to record maintenance start", { code: error?.code }));
 
   try {
     const now = new Date();
@@ -81,8 +84,10 @@ async function runMaintenance() {
       }
     }
     await resolveOperationalAlert("background-maintenance-failure");
+    await markMaintenanceCompleted().catch((error) => console.error("[worker] unable to record maintenance completion", { code: error?.code }));
     console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);
   } catch (error) {
+    await markMaintenanceFailed(error).catch((heartbeatError) => console.error("[worker] unable to record maintenance failure", { code: heartbeatError?.code }));
     // Do not dump provider payloads or raw objects into logs; the message is bounded.
     try {
       await recordOperationalAlert({ key: "background-maintenance-failure", severity: "critical", source: "background-worker", message: `Maintenance failed: ${String(error?.message || "Unknown error").slice(0, 700)}` });
@@ -104,10 +109,12 @@ async function shutdown(signal) {
   stopping = true;
   console.info(`[worker] received ${signal}; stopping maintenance scheduler`);
   if (intervalHandle) clearInterval(intervalHandle);
+  if (heartbeatHandle) clearInterval(heartbeatHandle);
   try {
     while (maintenanceInProgress) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    await heartbeatWorker("stopped").catch((error) => console.error("[worker] unable to record shutdown heartbeat", { code: error?.code }));
     await mongoose.disconnect();
     console.info("[worker] database connection closed");
     process.exitCode = 0;
@@ -118,6 +125,10 @@ async function shutdown(signal) {
 }
 
 await connectDatabase();
+await heartbeatWorker("running");
+heartbeatHandle = setInterval(() => {
+  void heartbeatWorker("running").catch((error) => console.error("[worker] heartbeat write failed", { code: error?.code, name: error?.name }));
+}, 60 * 1000);
 await runMaintenance();
 intervalHandle = setInterval(() => void runMaintenance(), intervalMs);
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

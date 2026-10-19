@@ -105,7 +105,7 @@ export async function remove(req, res, next) {
 export async function learn(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const course = await courseService.getPublished(req.params.courseId);
+    const course = await courseService.getPublished(req.params.courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
     const enrolled = await (await import("../models/Enrollment.js")).Enrollment.findOne({
       user: req.user.userId, course: req.params.courseId, status: { $in: ["active", "completed"] }
@@ -150,7 +150,7 @@ export async function learningItem(req, res, next) {
   try {
     const { courseId, itemId } = req.params;
     if (!isValidObjectId(courseId) || !isValidObjectId(itemId)) return failure(res, "Invalid identifier", 400);
-    const course = await courseService.getPublished(courseId);
+    const course = await courseService.getPublished(courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
     const enrolled = await (await import("../models/Enrollment.js")).Enrollment.findOne({
       user: req.user.userId, course: courseId, status: { $in: ["active", "completed"] }

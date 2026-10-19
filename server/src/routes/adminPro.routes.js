@@ -33,6 +33,16 @@ router.put("/users/:userId", adminPermissionMiddleware("users.manage"), controll
 router.get("/courses", adminPermissionMiddleware("courses.read"), controller.courses);
 router.get("/courses/:courseId", adminPermissionMiddleware("courses.read"), controller.courseDetail);
 router.get("/courses/:courseId/readiness", adminPermissionMiddleware("courses.read"), controller.courseReadiness);
+router.get("/courses/:courseId/revisions", adminPermissionMiddleware("courses.read"), controller.courseRevisions);
+router.post("/courses/:courseId/revisions/:revisionId/rollback", adminPermissionMiddleware("courses.manage"), controller.rollbackCourseRevision);
+router.post("/courses/:courseId/ai-review", adminPermissionMiddleware("courses.publish"), controller.reviewAiCourse);
+router.post("/courses/:courseId/status", adminPermissionMiddleware("courses.manage"), controller.setCourseLifecycle);
+router.post("/courses/:courseId/soft-delete", adminPermissionMiddleware("courses.manage"), controller.softDeleteCourse);
+router.post("/courses/:courseId/restore", adminPermissionMiddleware("courses.manage"), controller.restoreCourse);
+router.get("/content-moderation/:contentType", adminPermissionMiddleware("courses.read"), controller.contentModerationList);
+router.post("/content-moderation/:contentType/:contentId", adminPermissionMiddleware("courses.manage"), controller.moderateContent);
+router.get("/content-roadmaps", adminPermissionMiddleware("courses.read"), controller.contentRoadmaps);
+router.post("/content/broken-links/check", adminPermissionMiddleware("courses.manage"), controller.brokenCourseLinks);
 router.post("/courses/:courseId/publish", adminPermissionMiddleware("courses.publish"), controller.publishCourse);
 router.put("/courses/:courseId", adminPermissionMiddleware("courses.manage"), controller.updateCourse);
 router.put("/courses/:courseId/tutorial", adminPermissionMiddleware("courses.manage"), controller.updateCourseTutorial);

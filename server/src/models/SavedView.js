@@ -11,8 +11,8 @@ const savedViewSchema = new mongoose.Schema({
   shared: { type: Boolean, default: false }
 }, { timestamps: true, collection: "admin_saved_views" });
 
-savedViewSchema.index({ owner: 1, page: 1, createdAt: -1 });
+savedViewSchema.index({ owner: 1, page: 1, createdAt: -1, _id: -1 });
 savedViewSchema.index({ owner: 1, page: 1, name: 1 });
-savedViewSchema.index({ shared: 1, page: 1, createdAt: -1 });
+savedViewSchema.index({ shared: 1, page: 1, createdAt: -1, _id: -1 });
 
 export const SavedView = mongoose.model("SavedView", savedViewSchema);

@@ -356,13 +356,13 @@ export default function YouTubeSearchFallback({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="bfs-course-grid mt-4">
                 {builtCourses.map((course, index) => (
                   <article
                     key={course.id}
-                    className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50"
                   >
-                    <div className="relative aspect-video overflow-hidden bg-slate-100">
+                    <div className="bfs-course-card__media relative block shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
                       {course.thumbnail ? (
                         <img src={course.thumbnail} alt="" className="h-full w-full object-cover" />
                       ) : (
@@ -377,13 +377,13 @@ export default function YouTubeSearchFallback({
 
                     <div className="flex flex-1 flex-col p-4">
                       <div className="flex-1">
-                        <p className="line-clamp-2 text-sm font-extrabold leading-5 text-slate-900">
+                        <p className="mt-2 line-clamp-2 min-h-[2.65rem] text-[15px] font-extrabold leading-[1.32] tracking-[-.02em] text-slate-900">
                           {course.title}
                         </p>
-                        <p className="mt-2 truncate text-xs font-semibold text-slate-500">
+                        <p className="mt-2 truncate text-xs leading-5 text-slate-500">
                           {course.channelTitle}
                         </p>
-                        <p className="mt-3 text-[11px] text-slate-500">
+                        <p className="mt-3 flex min-h-[42px] items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
                           {course.itemCount} {course.sourceType === "playlist" ? "videos" : "lesson"}
                         </p>
                       </div>
@@ -393,7 +393,7 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void saveCourse(course)}
                           disabled={savingId === course.id}
-                          className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                          className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-xs font-bold transition ${
                             savedIds.has(course.id)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -411,7 +411,7 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void enrollCourse(course)}
                           disabled={enrollingId === course.id || enrolledIds.has(course.id)}
-                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {enrollingId === course.id ? (
                             <>
@@ -430,7 +430,7 @@ export default function YouTubeSearchFallback({
                         type="button"
                         onClick={() => void openCourse(course)}
                         disabled={openingId === course.id}
-                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-60"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
                       >
                         {openingId === course.id ? (
                           <>
@@ -463,11 +463,11 @@ export default function YouTubeSearchFallback({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="bfs-course-grid mt-4">
                 {courses.slice(0, 3).map((course, index) => (
                   <article
                     key={course.videoId}
-                    className="group flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
+                    className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white text-left transition-colors duration-200 hover:bg-slate-50"
                   >
                     <div className="relative aspect-video overflow-hidden bg-slate-100">
                       {course.thumbnail ? (

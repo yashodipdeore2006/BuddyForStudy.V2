@@ -388,22 +388,13 @@ export async function retryNotificationDelivery(notificationId, channel) {
   const attemptsField = channel === "email" ? "emailAttempts" : "pushAttempts";
   const lastAttemptField = channel === "email" ? "emailLastAttemptAt" : "pushLastAttemptAt";
   const errorField = channel === "email" ? "emailError" : "pushError";
-  const configurableSkipReasons = channel === "email"
-    ? ["SMTP is not configured", "Email delivery is disabled in admin platform settings"]
-    : ["Web Push VAPID keys are not configured", "Push delivery is disabled in admin platform settings", "No active browser push subscriptions"];
   const notification = await Notification.findOneAndUpdate(
-    {
-      _id: notificationId,
-      $or: [
-        { [statusField]: "failed" },
-        { [statusField]: "skipped", [errorField]: { $in: configurableSkipReasons } }
-      ]
-    },
+    { _id: notificationId, [statusField]: "failed" },
     { $set: { [statusField]: "pending", [attemptsField]: 0, [lastAttemptField]: null, [errorField]: "" } },
     { new: true }
   );
   if (!notification) {
-    const error = new Error("Only failed deliveries or deliveries skipped due to provider configuration can be retried.");
+    const error = new Error("Only failed deliveries can be retried.");
     error.status = 409;
     throw error;
   }

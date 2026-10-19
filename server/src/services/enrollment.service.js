@@ -52,9 +52,17 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
     $or: [
       { isPublished: true, $or: [
         { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
-        { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+        {
+          aiReviewStatus: "approved",
+          $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+        }
       ] },
-      { visibility: "private", createdForUser: userId }
+      {
+        visibility: "private",
+        createdForUser: userId,
+        aiReviewStatus: "approved",
+        $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+      }
     ]
   }).select("_id title pricing enrollmentEnabled visibility createdForUser");
   if (!course) {

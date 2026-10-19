@@ -66,7 +66,8 @@ async function findCourseLesson(courseId, lessonId, userId = null) {
   }];
   if (userId) accessBranches.push({ visibility: "private", createdForUser: userId });
   const course = await Course.findOne({ _id: courseId, deletedAt: null, $or: accessBranches });
-  if (!course || (["normal", "ai", "module", "discovery"].includes(course.generation?.mode) &&
+  const isOwnerPrivateDraft = Boolean(userId && course?.visibility === "private" && String(course.createdForUser) === String(userId));
+  if (!course || (!isOwnerPrivateDraft && ["normal", "ai", "module", "discovery"].includes(course.generation?.mode) &&
     (course.aiReviewStatus !== "approved" || !course.aiReviewedBy))) {
     const error = new Error("Course not found or awaiting human content review");
     error.status = 404;

@@ -130,6 +130,44 @@ function generatedSlug(title, mode) {
   return `${base}-${mode}-${randomUUID().slice(0, 8)}`;
 }
 
+async function createPrivateCourseForUser(baseCourse, userId, sourceMeta = {}) {
+  if (!userId) return baseCourse;
+  const baseId = String(baseCourse?._id || "");
+  const existing = await Course.findOne({
+    visibility: "private",
+    createdForUser: userId,
+    "generation.snapshot.baseCourseId": baseId,
+    deletedAt: null
+  }).lean();
+  if (existing) return existing;
+
+  const source = baseCourse?.toObject ? baseCourse.toObject() : { ...(baseCourse || {}) };
+  const { _id, __v, createdAt, updatedAt, ...copy } = source;
+  const priorSnapshot = source.generation?.snapshot;
+  const snapshot = priorSnapshot && typeof priorSnapshot === "object" && !Array.isArray(priorSnapshot)
+    ? priorSnapshot
+    : { sourceSnapshot: priorSnapshot ?? null };
+  copy.slug = generatedSlug(source.title, "learner-" + String(userId).slice(-8));
+  copy.isPublished = false;
+  copy.status = "draft";
+  copy.deletedAt = null;
+  copy.visibility = "private";
+  copy.createdForUser = userId;
+  copy.aiReviewStatus = "pending";
+  copy.aiReviewedBy = null;
+  copy.aiReviewedAt = null;
+  copy.aiReviewNote = "";
+  copy.generation = {
+    ...(source.generation || {}),
+    mode: "ai",
+    sourceCourse: source._id || null,
+    sourceResourceType: null,
+    sourceResourceId: "",
+    snapshot: { ...snapshot, baseCourseId: baseId, privateForUser: String(userId), ...sourceMeta }
+  };
+  return Course.create(copy);
+}
+
 function courseToSearchSnapshot(course, fallbackQuery = "") {
   const snapshot = course?.generation?.snapshot;
   if (snapshot?.modules?.length) return snapshot;

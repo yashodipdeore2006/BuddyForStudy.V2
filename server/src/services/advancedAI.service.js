@@ -226,7 +226,7 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
   })
     .sort({ askedAt: -1 })
     .limit(10)
-    .populate("answerCacheId", "question answer hitCount")
+    .populate("answerCacheId", "question answer hitCount moderationStatus")
     .lean();
 
   return {

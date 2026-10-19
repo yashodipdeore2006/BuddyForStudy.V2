@@ -517,6 +517,8 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
           }).catch(() => {});
           throw error;
         }
+        // Another concurrent request recorded the same question first.
+        await releaseUsage({ userId, feature: "advanced_ai_questions", period: "month", amount: 1 }).catch(() => {});
       }
     }
 
@@ -647,6 +649,7 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
       } catch (error) {
         // Concurrent duplicate submissions count as one question for this user.
         if (error?.code !== 11000) throw error;
+        await releaseUsage({ userId, feature: "advanced_ai_questions", period: "month", amount: 1 }).catch(() => {});
       }
     }
 

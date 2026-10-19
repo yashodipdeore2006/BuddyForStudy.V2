@@ -22,6 +22,8 @@ export default function AdminCoupons() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [bulkPrefix, setBulkPrefix] = useState("BFS");
+  const [bulkCount, setBulkCount] = useState(10);
 
   async function load() {
     setLoading(true);
@@ -75,6 +77,11 @@ export default function AdminCoupons() {
       return;
     }
 
+    const reason = window.prompt("Reason for creating this coupon (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -90,6 +97,7 @@ export default function AdminCoupons() {
           expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
           course: form.course || null,
           isActive: true,
+          reason,
         }),
       });
       setForm(emptyForm);
@@ -101,11 +109,45 @@ export default function AdminCoupons() {
     }
   }
 
+  async function generateBulk() {
+    const reason = window.prompt("Reason for bulk coupon generation (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required.");
+      return;
+    }
+    if (!Number.isInteger(bulkCount) || bulkCount < 1 || bulkCount > 100) {
+      setError("Choose a batch size from 1 to 100.");
+      return;
+    }
+    setSaving(true); setError("");
+    try {
+      await adminFetch("/api/admin/coupons/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          prefix: bulkPrefix, count: bulkCount, type: form.type, value: Number(form.value),
+          maxDiscount: form.maxDiscount === "" ? null : Number(form.maxDiscount),
+          minOrderAmount: Number(form.minOrderAmount || 0),
+          usageLimit: form.usageLimit === "" ? null : Number(form.usageLimit),
+          expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+          course: form.course || null, reason,
+        }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to generate coupon batch.");
+    } finally { setSaving(false); }
+  }
+
   async function toggle(coupon: any) {
+    const reason = window.prompt("Reason for " + (coupon.isActive ? "disabling" : "enabling") + " coupon " + coupon.code + " (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required.");
+      return;
+    }
     try {
       await adminFetch("/api/admin/coupons/" + coupon._id, {
         method: "PUT",
-        body: JSON.stringify({ isActive: !coupon.isActive }),
+        body: JSON.stringify({ isActive: !coupon.isActive, reason }),
       });
       await load();
     } catch (e) {
@@ -178,6 +220,17 @@ export default function AdminCoupons() {
         <button type="button" className="btn-primary mt-4" onClick={() => void create()} disabled={saving || !permissions.includes("coupons.manage")}>
           {saving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create Coupon
         </button>
+      </section>
+
+      <section className="card mt-6 p-5">
+        <h2 className="font-bold">Bulk coupon generation</h2>
+        <p className="mt-1 text-xs text-slate-500">Generate up to 100 unique, random codes using the discount settings above. Every generated coupon is audited with your reason.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_160px_auto]">
+          <label className="text-sm font-medium text-slate-700">Code prefix<input className="input-field mt-1" maxLength={20} value={bulkPrefix} onChange={(e) => setBulkPrefix(e.target.value.toUpperCase())} placeholder="BFS" /></label>
+          <label className="text-sm font-medium text-slate-700">Number of codes<input className="input-field mt-1" type="number" min={1} max={100} value={bulkCount} onChange={(e) => setBulkCount(Number(e.target.value))} /></label>
+          <div className="flex items-end"><button type="button" className="btn-primary w-full" onClick={() => void generateBulk()} disabled={saving || !permissions.includes("coupons.manage")}>{saving ? "Generating…" : "Generate batch"}</button></div>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">Uses the discount type, value, limits, expiry and course scope configured in the creation form above.</p>
       </section>
 
       <section className="card mt-6 overflow-hidden">

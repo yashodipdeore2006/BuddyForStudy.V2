@@ -641,6 +641,12 @@ export default function AdminCommunications() {
                   </label>
                 ))}
               </div>
+              <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                <label className="block text-sm font-semibold text-slate-700">Schedule announcement (optional)
+                  <input className="input-field mt-2" type="datetime-local" step="60" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+                </label>
+                <p className="mt-1 text-xs text-slate-500">Leave empty to queue now. Scheduled time uses Asia/Kolkata (UTC+05:30). You can cancel while the campaign is still scheduled.</p>
+              </div>
             </div>
           )}
 
@@ -649,7 +655,7 @@ export default function AdminCommunications() {
               <Eye className="h-4 w-4" /> {preview ? "Hide preview" : "Preview"}
             </button>
             <button type="button" className="btn-primary" onClick={() => void send()} disabled={sending || !canSend}>
-              <Send className="h-4 w-4" /> {sending ? "Sending..." : "Send now"}
+              <Send className="h-4 w-4" /> {sending ? "Queuing..." : tab === "announcement" ? (scheduledAt ? "Schedule announcement" : "Queue announcement") : "Send now"}
             </button>
           </div>
 

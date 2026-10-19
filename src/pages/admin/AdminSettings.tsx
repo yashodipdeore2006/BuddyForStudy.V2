@@ -31,7 +31,7 @@ export default function AdminSettings() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [activeSection, setActiveSection] = useState<"ai" | "notifications" | "configuration">("ai");
+  const [activeSection, setActiveSection] = useState<"ai" | "notifications" | "configuration">("configuration");
   const [advancedAI, setAdvancedAI] = useState({
     questionsPerHourVideo: 10,
     unknownDurationQuestions: 10,
@@ -236,9 +236,11 @@ export default function AdminSettings() {
           value={activeSection}
           onChange={setActiveSection}
           items={[
-            { value: "ai", label: "AI controls" },
-            { value: "notifications", label: "Notifications" },
-            { value: "configuration", label: `Configuration (${settings.length})` },
+            ...(permissions.includes("settings.manage") ? [
+              { value: "ai" as const, label: "AI controls" },
+              { value: "notifications" as const, label: "Notifications" },
+            ] : []),
+            { value: "configuration" as const, label: `Configuration (${settings.length})` },
           ]}
         />
       </div>

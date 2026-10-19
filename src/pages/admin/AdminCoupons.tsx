@@ -174,8 +174,8 @@ export default function AdminCoupons() {
           value={activeSection}
           onChange={setActiveSection}
           items={[
-            { value: "promotions", label: `Promotions (${coupons.length})` },
-            { value: "create", label: "Create or generate coupons" },
+            { value: "promotions" as const, label: `Promotions (${coupons.length})` },
+            ...(permissions.includes("coupons.manage") ? [{ value: "create" as const, label: "Create or generate coupons" }] : []),
           ]}
         />
       </div>

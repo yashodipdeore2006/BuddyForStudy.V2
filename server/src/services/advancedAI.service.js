@@ -10,6 +10,7 @@ import { AIUsageCounter as UsageCounter } from "../models/AIUsageCounter.js";
 import { getYouTubeVideoResource } from "./youtube.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { getEntitlement, readPlanLimit } from "./subscriptionEntitlement.service.js";
+import { getContentApprovalMode } from "./contentApprovalPolicy.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -61,14 +62,17 @@ async function findCourseLesson(courseId, lessonId, userId = null) {
     isPublished: true,
     $or: [
       { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
-      { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+      {
+        aiReviewStatus: "approved",
+        $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+      }
     ]
   }];
   if (userId) accessBranches.push({ visibility: "private", createdForUser: userId });
   const course = await Course.findOne({ _id: courseId, deletedAt: null, $or: accessBranches });
-  const isOwnerPrivateDraft = Boolean(userId && course?.visibility === "private" && String(course.createdForUser) === String(userId));
-  if (!course || (!isOwnerPrivateDraft && ["normal", "ai", "module", "discovery"].includes(course.generation?.mode) &&
-    (course.aiReviewStatus !== "approved" || !course.aiReviewedBy))) {
+  const generated = ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
+  const isApproved = !generated || (course?.aiReviewStatus === "approved" && (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic"));
+  if (!course || (generated && !isApproved)) {
     const error = new Error("Course not found or awaiting human content review");
     error.status = 404;
     throw error;
@@ -246,12 +250,15 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
       monthlyUsed,
       monthlyRemaining: monthlyLimit === -1 ? -1 : Math.max(0, monthlyLimit - monthlyUsed)
     },
-    recentQuestions: recentAsks.map((item) => ({
-      question: item.answerCacheId?.question || "",
-      answer: item.answerCacheId?.answer || "",
-      askedAt: item.askedAt,
-      cachedHits: item.answerCacheId?.hitCount || 0
-    })).filter((item) => item.question && item.answer)
+    recentQuestions: recentAsks
+      .filter((item) => item.answerCacheId?.moderationStatus === "approved")
+      .map((item) => ({
+        question: item.answerCacheId?.question || "",
+        answer: item.answerCacheId?.answer || "",
+        askedAt: item.askedAt,
+        cachedHits: item.answerCacheId?.hitCount || 0
+      }))
+      .filter((item) => item.question && item.answer)
   };
 }
 
@@ -283,6 +290,7 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   context.lesson.tutorialDurationSeconds = durationSeconds;
   const contextHash = hash(JSON.stringify(context));
 
+  const approvalMode = await getContentApprovalMode("aiInsights");
   const existing = await AILessonInsight.findOne({
     course: course._id,
     lesson: lesson._id,
@@ -293,6 +301,9 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   if (hiddenInsight) throw Object.assign(new Error("This AI lesson insight is hidden by content moderation."), { status: 403 });
 
   if (existing) {
+    if (existing.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: existing.moderationStatus || "pending", fromCache: true, generatedAt: existing.generatedAt, message: "This AI lesson insight is waiting for administrator approval." };
+    }
     return {
       summary: existing.summary,
       keyNotes: existing.keyNotes,
@@ -377,12 +388,18 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
         $setOnInsert: {
           course: course._id,
           lesson: lesson._id,
-          generatedBy: userId
+          generatedBy: userId,
+          moderationStatus: approvalMode === "automatic" ? "approved" : "pending",
+          moderationNote: approvalMode === "automatic" ? "Automatically approved by the platform content policy." : "",
+          isHidden: false
         }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
 
+    if (insight.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: insight.moderationStatus || "pending", fromCache: false, generatedAt: insight.generatedAt, message: "Your AI lesson insight is being held until an administrator approves it." };
+    }
     return {
       summary: insight.summary,
       keyNotes: insight.keyNotes,
@@ -424,6 +441,7 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
   const context = buildLessonContext(course, module, lesson);
   const contextHash = hash(JSON.stringify(context));
   const questionHash = hash(normalizeQuestion(cleanQuestion));
+  const approvalMode = await getContentApprovalMode("aiAnswers");
 
   const cached = await AIQuestionAnswer.findOne({
     course: course._id,
@@ -436,6 +454,9 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
   if (hiddenAnswer) throw Object.assign(new Error("This cached AI answer is hidden by content moderation."), { status: 403 });
 
   if (cached) {
+    if (cached.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: cached.moderationStatus || "pending", fromCache: true, message: "This AI answer is waiting for administrator approval." };
+    }
     const questionLimit = await getQuestionLimit(course, lesson);
     const alreadyAsked = await AIQuestionAsk.exists({
       user: userId,
@@ -586,7 +607,10 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
             model: env.geminiModel,
             firstAskedBy: userId,
             hitCount: 0,
-            lastAskedAt: new Date()
+            lastAskedAt: new Date(),
+            moderationStatus: approvalMode === "automatic" ? "approved" : "pending",
+            moderationNote: approvalMode === "automatic" ? "Automatically approved by the platform content policy." : "",
+            isHidden: false
           }
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -601,6 +625,9 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
       }
     }
 
+    if (saved?.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: saved?.moderationStatus || "pending", fromCache: false, message: "Your AI answer is being held until an administrator approves it.", usage: await getAdvancedAIUsage({ userId, courseId, lessonId }) };
+    }
     return {
       question: saved?.question || cleanQuestion,
       answer: saved?.answer || answer,

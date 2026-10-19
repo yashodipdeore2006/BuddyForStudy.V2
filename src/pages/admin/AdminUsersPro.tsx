@@ -232,6 +232,20 @@ export default function AdminUsersPro() {
     setSelectedIds([]);
   }, [page, debouncedQ, status, role, authProvider, sortBy, sortOrder]);
 
+  useEffect(() => {
+    const urlPage = Number(searchParams.get("page") || 1);
+    const urlLimit = Number(searchParams.get("limit") || 25);
+    setPage(Number.isInteger(urlPage) && urlPage > 0 ? urlPage : 1);
+    setQ(searchParams.get("q") || "");
+    setDebouncedQ(searchParams.get("q") || "");
+    setStatus(searchParams.get("status") || "");
+    setRole(searchParams.get("role") || "");
+    setAuthProvider(searchParams.get("authProvider") || "");
+    setSortBy(searchParams.get("sortBy") || "name");
+    setSortOrder(searchParams.get("sortOrder") === "desc" ? "desc" : "asc");
+    setPageSize([25, 50, 100].includes(urlLimit) ? urlLimit : 25);
+  }, [searchParams]);
+
   async function toggleUser(user: any, confirmed = false, reason = "") {
     if (!confirmed) {
       setPendingUserAction(user);
@@ -320,6 +334,13 @@ export default function AdminUsersPro() {
       setCourseAccessLoading(false);
     }
   }
+
+  useEffect(() => {
+    const detailId = searchParams.get("id");
+    if (detailId && selected?.user?._id !== detailId && !detailLoading) {
+      void openUser(detailId);
+    }
+  }, [searchParams, selected?.user?._id, detailLoading]);
 
   function closeUserDrawer() {
     setSelected(null);

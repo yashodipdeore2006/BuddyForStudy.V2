@@ -2228,11 +2228,11 @@ export async function updatePaymentIssue(req, res, next) {
             status,
             adminNote,
             ...(assignmentProvided ? { assignedTo } : {}),
-            ...(internalNote ? { internalNotes: [...(currentIssue.internalNotes || []), { author: req.user.user?._id || req.user.userId, note: internalNote, reason, createdAt: new Date() }] } : {}),
             resolvedAt: nowResolved ? (currentIssue.resolvedAt || new Date()) : null,
             resolvedBy: nowResolved ? (currentIssue.resolvedBy || req.user.user?._id || req.user.userId) : null,
             ...(nowResolved ? {} : { activePaymentKey: currentIssue.payment })
           },
+          ...(internalNote ? { $push: { internalNotes: { author: req.user.user?._id || req.user.userId, note: internalNote, reason, createdAt: new Date() } } } : {}),
           ...(nowResolved ? { $unset: { activePaymentKey: "" } } : {})
         },
         { new: true, runValidators: true }

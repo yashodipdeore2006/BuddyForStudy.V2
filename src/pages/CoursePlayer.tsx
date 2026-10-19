@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -79,6 +79,7 @@ export default function CoursePlayer() {
   const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
   const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
   const [practiceQuizError, setPracticeQuizError] = useState("");
+  const practiceAutoAttemptRef = useRef("");
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz">("lesson");
 
 
@@ -237,6 +238,19 @@ export default function CoursePlayer() {
       setPracticeQuizLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (lessonTab !== "quiz") {
+      practiceAutoAttemptRef.current = "";
+      return;
+    }
+    if (!courseId || !lessonId || currentLesson?.lesson.type === "quiz" || practiceQuizLoading) return;
+    const attemptKey = courseId + ":" + lessonId;
+    if (practiceAutoAttemptRef.current === attemptKey) return;
+    practiceAutoAttemptRef.current = attemptKey;
+    if (!practiceQuizData) void handleGeneratePracticeQuiz("generate");
+  }, [lessonTab, courseId, lessonId, currentLesson?.lesson.type, practiceQuizLoading, practiceQuizData]);
+
 
   const handlePracticeQuizSubmit = async () => {
     const questions = practiceQuizData?.questions || [];

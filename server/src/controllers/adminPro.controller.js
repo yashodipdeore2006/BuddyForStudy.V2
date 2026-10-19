@@ -1045,7 +1045,7 @@ export async function updateCourse(req, res, next) {
     const action = publishTransition
       ? (after.isPublished ? "course.published" : "course.unpublished")
       : "course.updated";
-    await audit(req, action, "Course", course._id, before, after, req.body.reason);
+    await audit(req, action, "Course", course._id, before, after, reason);
     return success(res, { course }, "Course controls updated");
   } catch (e) { next(e); }
 }
@@ -1309,16 +1309,36 @@ export async function payments(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function subscriptions(req, res, next) {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const status = String(req.query.status || "").trim();
+    const allowed = ["trialing", "active", "past_due", "cancelled", "expired"];
+    const filter = status && allowed.includes(status) ? { status } : {};
+    const items = await UserSubscription.find(filter)
+      .populate("user", "name email")
+      .populate("plan", "name price currency billingInterval features")
+      .sort({ updatedAt: -1 }).limit(limit).lean();
+    return success(res, { subscriptions: items });
+  } catch (e) { next(e); }
+}
+
 export async function refunds(req, res, next) {
   try {
-    const items = await RefundRequest.find().populate("user", "name email").populate("payment").populate("processedBy", "name email").sort({ createdAt: -1 }).limit(200).lean();
-    return success(res, { refunds: items });
+    const items = await RefundRequest.find().populate("user", "name email").populate({ path: "payment", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name price billingInterval" }] }).populate("processedBy", "name email").populate("assignedTo", "name email").sort({ createdAt: -1 }).limit(200).lean();
+    const now = Date.now();
+    return success(res, { refunds: items.map((item) => {
+      const dueAt = item.slaDueAt || new Date(new Date(item.createdAt).getTime() + 24 * 60 * 60 * 1000);
+      return { ...item, sla: { dueAt, breached: dueAt.getTime() < now && ["pending", "approved"].includes(item.status), hoursRemaining: Math.ceil((dueAt.getTime() - now) / 3600000) } };
+    }) });
   } catch (e) { next(e); }
 }
 
 export async function updateRefund(req, res, next) {
   try {
     if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A decision reason of 10–500 characters is required for every finance action.", 400);
     const refund = await RefundRequest.findById(req.params.refundId); if (!refund) return failure(res, "Refund request not found", 404);
     if (!["approved", "rejected", "processed"].includes(req.body.status)) return failure(res, "Invalid refund status", 400);
     const payment = await Payment.findById(refund.payment);
@@ -1340,6 +1360,7 @@ export async function updateRefund(req, res, next) {
       processedAt: refund.processedAt
     };
     refund.adminNote = req.body.adminNote || refund.adminNote;
+    refund.decisionReason = reason;
     refund.processedBy = req.user.user._id;
 
     if (req.body.status === "rejected") {
@@ -1350,6 +1371,7 @@ export async function updateRefund(req, res, next) {
         {
           $set: {
             status: "rejected",
+            decisionReason: reason,
             adminNote: typeof req.body.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : refund.adminNote,
             processedBy: req.user.user._id,
             processedAt: new Date()
@@ -1384,7 +1406,7 @@ export async function updateRefund(req, res, next) {
       // This prevents two concurrent admin requests from issuing duplicate refunds.
       const claimedRefund = await RefundRequest.findOneAndUpdate(
         { _id: refund._id, status: "pending" },
-        { $set: { status: "approved", adminNote: refund.adminNote, processedBy: req.user.user._id } },
+        { $set: { status: "approved", adminNote: refund.adminNote, decisionReason: reason, processedBy: req.user.user._id } },
         { new: true }
       );
       if (!claimedRefund) {
@@ -1479,7 +1501,7 @@ export async function updateRefund(req, res, next) {
       amount: refund.amount,
       hasAdminNote: Boolean(refund.adminNote),
       processedAt: refund.processedAt
-    }, req.body.reason || "Refund status updated");
+    }, reason);
     return success(res, { refund }, "Refund updated");
   } catch (e) { next(e); }
 }
@@ -1489,6 +1511,8 @@ export async function reconcileRefund(req, res, next) {
   let reconciliationRefundId = "";
   try {
     if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reconciliation reason of 10–500 characters is required.", 400);
     const providerRefundId = String(req.body?.providerRefundId || "").trim();
     if (!/^rfnd_[A-Za-z0-9]+$/.test(providerRefundId)) {
       return failure(res, "Enter a valid Razorpay refund ID from the provider dashboard.", 400);
@@ -1533,8 +1557,12 @@ export async function reconcileRefund(req, res, next) {
       const remainingAfterAllRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
       const expectedPaymentStatus = paymentStatusForRemainingBalance(remainingAfterAllRefunds);
       if (payment.status !== expectedPaymentStatus) {
+        const beforePaymentStatus = payment.status;
         payment.status = expectedPaymentStatus;
         await payment.save();
+        await audit(req, "refund.payment_status_reconciled", "Payment", payment._id, { status: beforePaymentStatus }, { status: payment.status, refundId: String(refund._id), providerRefundId }, reason);
+      } else {
+        await audit(req, "refund.reconciliation_verified", "RefundRequest", refund._id, { status: refund.status, providerRefundId: refund.providerRefundId }, { status: refund.status, providerRefundId, providerStatus }, reason);
       }
       return success(res, { refund, payment, providerStatus, paymentStatusRepaired: true }, "Previously processed refund verified; payment status reconciled");
     }
@@ -1562,7 +1590,8 @@ export async function reconcileRefund(req, res, next) {
       return failure(res, "Another administrator is already reconciling this refund. Refresh the request before retrying.", 409);
     }
     refund = claimedRefund;
-    const before = { status: refund.status, providerRefundId: refund.providerRefundId || "" };
+    const before = { status: refund.status, providerRefundId: refund.providerRefundId || "", decisionReason: refund.decisionReason || "" };
+    refund.decisionReason = reason;
     if (providerStatus === "processed") {
       const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
       if (refund.amount > remainingAmount || remainingAmount <= 0) {
@@ -1616,7 +1645,7 @@ export async function reconcileRefund(req, res, next) {
         status: refund.status,
         providerRefundId,
         providerStatus
-      }, "Provider refund verified during reconciliation");
+      }, reason);
       return success(res, { refund, providerStatus }, "Provider refund verified and reconciled");
     }
 
@@ -1638,7 +1667,7 @@ export async function reconcileRefund(req, res, next) {
         status: refund.status,
         providerRefundId,
         providerStatus
-      }, "Provider confirmed refund did not complete");
+      }, reason);
       return success(res, { refund, providerStatus }, "Provider confirmed the refund did not complete; the request is available for retry");
     }
 
@@ -1944,6 +1973,8 @@ export async function coupons(req, res, next) {
 
 export async function createCoupon(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for coupon creation.", 400);
     const couponInput = { ...req.body, type: req.body.type || "percentage" };
     const validation = validateCouponAdminInput(couponInput);
     if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon contains invalid fields", errors: validation.errors });
@@ -1960,6 +1991,8 @@ export async function createCoupon(req, res, next) {
 
 export async function updateCoupon(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for coupon changes.", 400);
     if (!isValidObjectId(req.params.couponId)) return failure(res, "Invalid couponId", 400);
     const coupon = await Coupon.findById(req.params.couponId); if (!coupon) return failure(res, "Coupon not found", 404);
     const validation = validateCouponAdminInput(req.body, {
@@ -2094,6 +2127,13 @@ export async function health(req, res, next) {
 }
 
 
+export async function paymentIssueAssignees(req, res, next) {
+  try {
+    const users = await User.find({ role: "admin", isActive: true }).select("name email adminRole").sort({ name: 1 }).limit(200).lean();
+    return success(res, { assignees: users.map((user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.adminRole || "platform_admin" })) });
+  } catch (e) { next(e); }
+}
+
 export async function paymentIssues(req, res, next) {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
@@ -2103,7 +2143,9 @@ export async function paymentIssues(req, res, next) {
     if (status && allowedStatuses.includes(status)) filter.status = status;
     const issues = await PaymentIssue.find(filter)
       .populate("user", "name email")
-      .populate({ path: "payment", select: "amount currency status provider providerPaymentId createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] })
+      .populate("assignedTo", "name email adminRole")
+      .populate("internalNotes.author", "name email")
+      .populate({ path: "payment", select: "amount currency status provider providerPaymentId providerOrderId createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] })
       .sort({ createdAt: -1 }).limit(limit).lean();
     return success(res, { issues });
   } catch (e) { next(e); }
@@ -2112,16 +2154,25 @@ export async function paymentIssues(req, res, next) {
 export async function updatePaymentIssue(req, res, next) {
   try {
     if (!isValidObjectId(req.params.issueId)) return failure(res, "Invalid issue ID", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for support case changes.", 400);
     const status = String(req.body?.status || "").trim();
     const allowedStatuses = ["open", "in_review", "resolved", "closed"];
     if (!allowedStatuses.includes(status)) return failure(res, "Invalid issue status", 400);
     const adminNote = typeof req.body?.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : "";
+    const internalNote = typeof req.body?.internalNote === "string" ? req.body.internalNote.trim().slice(0, 2000) : "";
+    const assignedTo = req.body?.assignedTo === null || req.body?.assignedTo === "" ? null : req.body?.assignedTo;
+    if (assignedTo && !isValidObjectId(assignedTo)) return failure(res, "Invalid assignee ID", 400);
+    if (assignedTo) {
+      const assignee = await User.findOne({ _id: assignedTo, role: "admin", isActive: true }).select("_id");
+      if (!assignee) return failure(res, "Assignee must be an active administrator.", 400);
+    }
     const currentIssue = await PaymentIssue.findById(req.params.issueId);
     if (!currentIssue) return failure(res, "Payment issue not found", 404);
     if (["resolved", "closed"].includes(currentIssue.status) && status !== currentIssue.status) {
       return failure(res, "Resolved or closed payment issues cannot be reopened. Create a new report if further help is needed.", 409);
     }
-    const before = { status: currentIssue.status, adminNote: currentIssue.adminNote };
+    const before = { status: currentIssue.status, adminNote: currentIssue.adminNote, assignedTo: currentIssue.assignedTo ? String(currentIssue.assignedTo) : null, internalNoteCount: currentIssue.internalNotes?.length || 0 };
     const nowResolved = ["resolved", "closed"].includes(status);
     let issue;
     try {
@@ -2131,6 +2182,8 @@ export async function updatePaymentIssue(req, res, next) {
           $set: {
             status,
             adminNote,
+            assignedTo,
+            ...(internalNote ? { internalNotes: [...(currentIssue.internalNotes || []), { author: req.user.user?._id || req.user.userId, note: internalNote, reason, createdAt: new Date() }] } : {}),
             resolvedAt: nowResolved ? (currentIssue.resolvedAt || new Date()) : null,
             resolvedBy: nowResolved ? (currentIssue.resolvedBy || req.user.user?._id || req.user.userId) : null,
             ...(nowResolved ? {} : { activePaymentKey: currentIssue.payment })
@@ -2146,7 +2199,7 @@ export async function updatePaymentIssue(req, res, next) {
       throw updateError;
     }
     if (!issue) return failure(res, "This payment issue was updated by another administrator. Refresh and try again.", 409);
-    await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote }, "Admin updated payment issue report");
+    await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote, assignedTo: issue.assignedTo ? String(issue.assignedTo) : null, internalNoteCount: issue.internalNotes?.length || 0 }, reason);
     try {
       await createNotificationEvent({
         userId: String(issue.user),

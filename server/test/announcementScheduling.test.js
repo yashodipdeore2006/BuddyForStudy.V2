@@ -54,7 +54,10 @@ test("announcements require a preview token and reason, then queue or schedule i
   assert.match(service, /batchLockToken/);
   assert.match(service, /nextBatchAt/);
   assert.match(service, /const finished = stats\.pending === 0/);
-  assert.match(service, /status: finished \? \(stats\.failed > 0 \? "failed" : "sent"\) : "sending"/);
+  assert.match(service, /function terminalAnnouncementStatus\(stats\)/);
+  assert.match(service, /stats\.email\?\.failed/);
+  assert.match(service, /stats\.push\?\.failed/);
+  assert.match(service, /status: finished \? terminalAnnouncementStatus\(stats\) : "sending"/);
   assert.match(service, /new Date\(now\.getTime\(\) \+ 30 \* 1000\)/);
   assert.match(notificationService, /explicitAnnouncementConsent/);
   assert.match(notificationService, /preferences\.emailAnnouncementsConsentAt/);

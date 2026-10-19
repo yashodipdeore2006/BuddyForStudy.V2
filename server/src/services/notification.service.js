@@ -493,7 +493,14 @@ export async function createNotificationEvent({
     type,
     link: String(link || "").slice(0, 1000),
     showInApp,
-    metadata: metadata && typeof metadata === "object" ? metadata : {},
+    metadata: {
+      ...(metadata && typeof metadata === "object" ? metadata : {}),
+      requestedChannels: [
+        ...(inApp || forceInApp ? ["in_app"] : []),
+        ...(email ? ["email"] : []),
+        ...(push ? ["push"] : [])
+      ]
+    },
     emailStatus: shouldEmail ? "pending" : "skipped",
     emailSubject: String(renderedEmailSubject || "BuddyForStudy update").slice(0, 200),
     emailHtml: String(emailHtmlOverride || renderedEmailHtml || "").slice(0, 20000),

@@ -10,12 +10,15 @@ const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
 const PUBLICATION_APPROVAL_FILTER = {
   $or: [
     { "generation.mode": { $nin: GENERATED_COURSE_MODES } },
-    { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+    {
+      aiReviewStatus: "approved",
+      $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+    }
   ]
 };
-function isHumanReviewedForPublication(course) {
+function isApprovedForPublication(course) {
   return !GENERATED_COURSE_MODES.includes(course?.generation?.mode) ||
-    (course?.aiReviewStatus === "approved" && Boolean(course?.aiReviewedBy));
+    (course?.aiReviewStatus === "approved" && (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic"));
 }
 
 function normalizeSlug(value) {
@@ -233,7 +236,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
 
     const existing = await Course.findOne(matchFilter).lean();
     if (existing) {
-      if (existing.isPublished && isHumanReviewedForPublication(existing)) courses.push(existing);
+      if (existing.isPublished && isApprovedForPublication(existing)) courses.push(existing);
       continue;
     }
 
@@ -523,9 +526,10 @@ export async function getPublished(courseId, userId = null) {
   if (cached) {
     if (cached.deletedAt) return null;
     if (cached.visibility === "private") {
-      return userId && String(cached.createdForUser) === String(userId) ? cached : null;
+      const owner = userId && String(cached.createdForUser) === String(userId);
+      return owner && isApprovedForPublication(cached) && cached.aiReviewStatus === "approved" ? cached : null;
     }
-    if (!cached.isPublished || !isHumanReviewedForPublication(cached)) {
+    if (!cached.isPublished || !isApprovedForPublication(cached)) {
       await cacheDelete(key);
       return null;
     }
@@ -533,7 +537,12 @@ export async function getPublished(courseId, userId = null) {
   }
 
   const accessBranches = [{ isPublished: true, $and: [PUBLICATION_APPROVAL_FILTER] }];
-  if (userId) accessBranches.push({ visibility: "private", createdForUser: userId });
+  if (userId) accessBranches.push({
+    visibility: "private",
+    createdForUser: userId,
+    aiReviewStatus: "approved",
+    $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+  });
   const courseDoc = await Course.findOne({
     _id: courseId,
     deletedAt: null,

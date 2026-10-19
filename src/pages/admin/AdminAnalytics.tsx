@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, IndianRupee, RefreshCcw, TrendingUp, Users } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -16,6 +16,7 @@ export default function AdminAnalytics() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [analyticsView, setAnalyticsView] = useState<"trends" | "performance" | "learning">("trends");
 
   async function load(selectedDays = days) {
     setLoading(true);
@@ -75,7 +76,11 @@ export default function AdminAnalytics() {
             <div className="card p-5"><Activity className="h-5 w-5 text-purple-600" /><p className="mt-3 text-2xl font-bold">{completions.find((item) => item.label === "100%")?.count || 0}</p><p className="text-sm text-slate-500">Fully completed courses</p></div>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="mt-6">
+            <AdminTabs ariaLabel="Analytics work areas" value={analyticsView} onChange={setAnalyticsView} items={[{ value: "trends", label: "Growth and revenue" }, { value: "performance", label: "Course and subscription performance" }, { value: "learning", label: "Learning outcomes" }]} />
+          </div>
+
+          {analyticsView === "trends" && <div className="mt-4 grid gap-6 lg:grid-cols-2">
             <section className="card p-5">
               <div className="flex items-center justify-between"><div><h2 className="font-bold">Daily enrollments</h2><p className="text-xs text-slate-500">New course enrollments.</p></div><ArrowUp className="h-4 w-4 text-green-600" /></div>
               <div className="mt-5 space-y-2">
@@ -105,7 +110,7 @@ export default function AdminAnalytics() {
             </section>
           </div>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
+          {analyticsView === "performance" && <div className="mt-4 grid gap-6 lg:grid-cols-[1.3fr_.7fr]">
             <section className="card overflow-hidden">
               <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Course performance</h2><p className="mt-1 text-xs text-slate-500">Courses ranked by total enrollments.</p></div>
               <div className="divide-y divide-slate-100">
@@ -129,14 +134,14 @@ export default function AdminAnalytics() {
             </section>
           </div>
 
-          <section className="card mt-6 p-5">
+          <section className="card mt-4 p-5">
             <div><h2 className="font-bold">Learning completion</h2><p className="mt-1 text-xs text-slate-500">Progress distribution across saved learner progress records.</p></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-5">
               {completions.map((item: { label: string; count: number }) => (
                 <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center"><p className="text-xs text-slate-500">{item.label}</p><p className="mt-2 text-xl font-bold">{item.count}</p></div>
               ))}
             </div>
-          </section>
+          </section>}
         </>
       )}
     </div>

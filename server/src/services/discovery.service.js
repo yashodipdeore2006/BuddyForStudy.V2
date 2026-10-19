@@ -378,7 +378,7 @@ export async function getOrCreateNormalCourse(query) {
   const normalized = query.trim();
   const topicKeys = buildTopicKeys(normalized);
 
-  const existingNormal = await findRecentGeneratedCourse({ mode: "normal", topicKeys });
+  const existingNormal = await findRecentGeneratedCourse({ mode: "normal", topicKeys, exactQuery: normalized, includeUnpublished: true });
   if (existingNormal) {
     return { course: existingNormal, result: courseToSearchSnapshot(existingNormal, normalized), cached: true };
   }

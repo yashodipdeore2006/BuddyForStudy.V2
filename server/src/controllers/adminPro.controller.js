@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { lookup } from "node:dns/promises";
 import mongoose from "mongoose";
 import { z } from "zod";
 import nodemailer from "nodemailer";
@@ -645,7 +646,8 @@ function collectCourseLinks(course) {
 function isUnsafeLinkHost(hostname) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return true;
-  if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) return true;
+  if (host.startsWith("::ffff:")) return isUnsafeLinkHost(host.slice(7));
+  if (host === "::1" || host === "::" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) return true;
   const parts = host.split(".").map(Number);
   if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
     return parts[0] === 10 || parts[0] === 127 || (parts[0] === 169 && parts[1] === 254) ||
@@ -653,10 +655,19 @@ function isUnsafeLinkHost(hostname) {
   }
   return false;
 }
+async function resolvesToUnsafeLinkHost(hostname) {
+  if (isUnsafeLinkHost(hostname)) return true;
+  try {
+    const addresses = await lookup(hostname, { all: true, verbatim: true });
+    return !addresses.length || addresses.some((entry) => isUnsafeLinkHost(entry.address));
+  } catch {
+    return false;
+  }
+}
 async function checkContentLink(link) {
   let parsed;
   try { parsed = new URL(link.url); } catch { return { ...link, status: "invalid", httpStatus: null }; }
-  if (!["http:", "https:"].includes(parsed.protocol) || isUnsafeLinkHost(parsed.hostname)) return { ...link, status: "skipped_unsafe", httpStatus: null };
+  if (!["http:", "https:"].includes(parsed.protocol) || await resolvesToUnsafeLinkHost(parsed.hostname)) return { ...link, status: "skipped_unsafe", httpStatus: null };
   try {
     const response = await fetch(parsed.toString(), { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(5000), headers: { "user-agent": "BuddyForStudy-LinkHealth/1.0" } });
     return { ...link, status: response.status >= 400 ? "broken" : response.status >= 300 ? "redirect" : "ok", httpStatus: response.status };

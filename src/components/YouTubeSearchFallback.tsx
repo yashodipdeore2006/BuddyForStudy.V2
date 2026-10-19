@@ -340,8 +340,8 @@ export default function YouTubeSearchFallback({
           </h3>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
             {hasLocalResults
-              ? `We also found highly ranked YouTube courses, videos, and playlists for “${query}”. These additional resources stay inside BuddyForStudy.`
-              : `We ranked the best YouTube learning resources for “${query}”. The top three resources are packaged into course-style experiences, and everything opens inside the BuddyForStudy player.`}
+              ? `We combined relevant courses, playlists and individual tutorials for “${query}” into one learning-resource collection.`
+              : `We rank courses, playlists and tutorials for “${query}” together, prioritizing topic relevance and learning depth—not popularity alone.`}
           </p>
 
           {builtCourses.length > 0 && (
@@ -349,7 +349,7 @@ export default function YouTubeSearchFallback({
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-blue-600" />
                 <div>
-                  <h4 className="font-bold text-slate-900">Top 3 courses</h4>
+                  <h4 className="font-bold text-slate-900">Learning resources</h4>
                   <p className="text-xs text-slate-500">
                     Built from the highest-ranked YouTube playlists, with videos used as fallback.
                   </p>
@@ -456,7 +456,7 @@ export default function YouTubeSearchFallback({
               <div className="flex items-center gap-2">
                 <PlayCircle className="h-4 w-4 text-blue-600" />
                 <div>
-                  <h4 className="font-bold text-slate-900">Top-ranked YouTube videos</h4>
+                  <h4 className="font-bold text-slate-900">More learning resources</h4>
                   <p className="text-xs text-slate-500">
                     Ranked YouTube videos shown separately from the course options above.
                   </p>
@@ -576,7 +576,7 @@ export default function YouTubeSearchFallback({
             <div className="flex items-center gap-2">
               <ListVideo className="h-4 w-4 text-blue-600" />
               <div>
-                <h4 className="font-bold text-slate-900">Top YouTube playlists & courses</h4>
+                <h4 className="font-bold text-slate-900">Learning resources</h4>
                 <p className="text-xs text-slate-500">
                   Ranked playlist/course series. They open as a multi-lesson course inside BuddyForStudy.
                 </p>

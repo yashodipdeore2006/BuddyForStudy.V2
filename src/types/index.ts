@@ -112,6 +112,8 @@ export interface Course {
   modules: Module[];
   is_published: boolean;
   enrollment_count?: number;
+  module_count?: number;
+  lesson_count?: number;
   pricing?: { mode: 'free' | 'paid'; price: number; compareAtPrice?: number; currency?: string; saleEnabled?: boolean; salePrice?: number };
   created_by: string | null;
   created_at: string;

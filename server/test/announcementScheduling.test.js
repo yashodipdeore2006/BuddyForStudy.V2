@@ -61,6 +61,7 @@ test("scheduled announcements can be cancelled only before the worker starts and
   assert.match(service, /refreshAnnouncementStats/);
   assert.match(service, /email_pending/);
   assert.match(service, /push_failed/);
+  assert.ok(service.includes("pending: { $sum: { $cond: [any(pendingConditions), 1, 0] } }"), "pending channel attempts must count even if another channel was accepted");
   assert.match(service, /announcement\.status === "cancelled"/);
   assert.match(service, /announcement\.status === "failed" \? unprocessed : 0/);
 });

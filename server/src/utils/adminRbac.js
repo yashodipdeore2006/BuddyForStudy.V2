@@ -11,7 +11,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
       "dashboard.read", "saved_views.manage", "users.read", "users.manage", "users.pii.reveal",
       "courses.read", "courses.manage", "courses.publish", "operations.manage",
       "analytics.read", "plans.read", "billing.read",
-      "communications.send", "communications.manage", "coupons.read",
+      "communications.send", "communications.manage", "notifications.read", "notifications.retry", "coupons.read",
       "settings.read", "audit.read", "operations.read",
     ],
   },
@@ -36,7 +36,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Support Manager",
     description: "Learner account support and payment issue investigations.",
     permissions: [
-      "dashboard.read", "saved_views.manage", "billing.read", "payment_issues.manage",
+      "dashboard.read", "saved_views.manage", "billing.read", "payment_issues.manage", "notifications.read",
       "operations.read",
     ],
   },
@@ -44,7 +44,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Analyst & Auditor",
     description: "Read-only analytics, audit and operational reporting.",
     permissions: [
-      "dashboard.read", "saved_views.manage", "analytics.read", "audit.read", "operations.read",
+      "dashboard.read", "saved_views.manage", "analytics.read", "audit.read", "notifications.read", "operations.read",
       "billing.read",
     ],
   },

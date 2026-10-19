@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import { CourseRevision } from "./CourseRevision.js";
+import { PlatformSetting } from "./PlatformSetting.js";
+import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -93,6 +95,7 @@ const courseSchema = new mongoose.Schema({
   visibility: { type: String, enum: ["public", "private"], default: "public", index: true },
   createdForUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
   aiReviewStatus: { type: String, enum: ["not_required", "pending", "approved", "rejected"], default: "not_required", index: true },
+  aiReviewSource: { type: String, enum: ["manual", "automatic"], default: "manual", index: true },
   aiReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   aiReviewedAt: { type: Date, default: null },
   aiReviewNote: { type: String, default: "", maxlength: 2000 },
@@ -119,14 +122,46 @@ const courseSchema = new mongoose.Schema({
   }
 }, { timestamps: true, collection: "courses" });
 
-courseSchema.pre("validate", function enforceHumanReviewForGeneratedCourses() {
-  if (this.isNew && ["normal", "ai", "module", "discovery"].includes(this.generation?.mode)) {
-    this.isPublished = false;
-    this.status = "draft";
-    this.aiReviewStatus = "pending";
-    this.aiReviewedBy = null;
-    this.aiReviewedAt = null;
+async function getCourseApprovalMode() {
+  const setting = await PlatformSetting.findOne({ key: "content_approval_ai_courses" }).select("value").lean();
+  return setting?.value === "automatic" ? "automatic" : "manual";
+}
+
+function isGeneratedCourse(course) {
+  return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
+}
+
+async function applyAutomaticCourseApproval(course) {
+  course.aiReviewStatus = "approved";
+  course.aiReviewSource = "automatic";
+  course.aiReviewedBy = null;
+  course.aiReviewedAt = new Date();
+  course.aiReviewNote = "Automatically approved by the platform content policy.";
+  const isUserPrivateCourse = course.visibility === "private" && Boolean(course.createdForUser);
+  const readiness = evaluateCourseReadiness(course);
+  if (isUserPrivateCourse || !readiness.ready) {
+    course.isPublished = false;
+    course.status = "draft";
+    return;
   }
+  course.isPublished = true;
+  course.status = "published";
+  course.visibility = "public";
+}
+
+courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
+  if (!this.isNew || !isGeneratedCourse(this)) return;
+  if (await getCourseApprovalMode() === "automatic") {
+    await applyAutomaticCourseApproval(this);
+    return;
+  }
+  this.isPublished = false;
+  this.status = "draft";
+  this.aiReviewStatus = "pending";
+  this.aiReviewSource = "manual";
+  this.aiReviewedBy = null;
+  this.aiReviewedAt = null;
+  this.aiReviewNote = "";
 });
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
 courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
@@ -147,18 +182,29 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation"];
   const systemMetadataRefresh = ["Video duration metadata refresh", "Video resource normalization"].includes(context.summary);
   const contentChanged = !systemMetadataRefresh && modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
-  if (contentChanged && this.isPublished) {
+  if (contentChanged && isGeneratedCourse(this)) {
+    if (await getCourseApprovalMode() === "automatic") {
+      await applyAutomaticCourseApproval(this);
+    } else {
+      if (this.isPublished) {
+        this.isPublished = false;
+        this.status = "draft";
+        if (this.createdForUser) this.visibility = "private";
+      } else {
+        this.status = this.status === "archived" ? "archived" : "draft";
+      }
+      this.aiReviewStatus = "pending";
+      this.aiReviewSource = "manual";
+      this.aiReviewedBy = null;
+      this.aiReviewedAt = null;
+      this.aiReviewNote = "";
+    }
+  } else if (contentChanged && this.isPublished) {
     this.isPublished = false;
     this.status = "draft";
     if (this.createdForUser) this.visibility = "private";
   } else {
     this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
-  }
-  if (["normal", "ai", "module", "discovery"].includes(this.generation?.mode) && contentChanged) {
-    this.aiReviewStatus = "pending";
-    this.aiReviewedBy = null;
-    this.aiReviewedAt = null;
-    this.aiReviewNote = "";
   }
 });
 courseSchema.index({ "pricing.mode": 1, isPublished: 1 });

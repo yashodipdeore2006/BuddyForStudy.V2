@@ -44,9 +44,9 @@ export default function AdvancedAIAssistant({
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [asking, setAsking] = useState(false);
-  const [insight, setInsight] = useState<{ summary: string; keyNotes: string[]; fromCache?: boolean } | null>(null);
+  const [insight, setInsight] = useState<{ summary?: string; keyNotes?: string[]; fromCache?: boolean; pendingReview?: boolean; message?: string } | null>(null);
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<{ question: string; answer: string; fromCache: boolean } | null>(null);
+  const [answer, setAnswer] = useState<{ question: string; answer?: string; fromCache: boolean; pendingReview?: boolean; message?: string } | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -114,14 +114,23 @@ export default function AdvancedAIAssistant({
         body: JSON.stringify({ courseId, lessonId, question: clean }),
         showFeatureUpgrade: true,
       });
-      setAnswer({
-        question: data.question,
-        answer: data.answer,
-        fromCache: Boolean(data.fromCache),
-      });
+      if (data.pendingReview) {
+        setAnswer({
+          question: clean,
+          fromCache: Boolean(data.fromCache),
+          pendingReview: true,
+          message: data.message || "Your AI answer is waiting for administrator approval.",
+        });
+      } else {
+        setAnswer({
+          question: data.question,
+          answer: data.answer,
+          fromCache: Boolean(data.fromCache),
+        });
+      }
       setQuestion("");
       setOpen(true);
-      setUsage(data.usage);
+      if (data.usage) setUsage(data.usage);
     } catch (e) {
       if (!isUpgradeGateError(e)) setError(e instanceof Error ? e.message : "Unable to answer your question");
     } finally {
@@ -159,22 +168,33 @@ export default function AdvancedAIAssistant({
         <div className="space-y-4">
           {insight && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-indigo-600" />
-                <h3 className="font-bold text-slate-900">Lesson summary</h3>
-                {insight.fromCache && <span className="rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">Cached</span>}
-              </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{insight.summary}</p>
-
-              <h4 className="mt-5 font-bold text-slate-900">Key notes</h4>
-              <ul className="mt-2 space-y-2">
-                {insight.keyNotes.map((note, index) => (
-                  <li key={note + "-" + index} className="flex gap-2 text-sm leading-6 text-slate-700">
-                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-green-600" />
-                    <span>{note}</span>
-                  </li>
-                ))}
-              </ul>
+              {insight.pendingReview ? (
+                <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <Brain className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                  <div>
+                    <h3 className="font-bold text-slate-900">Summary awaiting review</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">{insight.message || "This AI lesson insight is waiting for administrator approval."}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-indigo-600" />
+                    <h3 className="font-bold text-slate-900">Lesson summary</h3>
+                    {insight.fromCache && <span className="rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">Cached</span>}
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{insight.summary}</p>
+                  <h4 className="mt-5 font-bold text-slate-900">Key notes</h4>
+                  <ul className="mt-2 space-y-2">
+                    {(insight.keyNotes || []).map((note, index) => (
+                      <li key={note + "-" + index} className="flex gap-2 text-sm leading-6 text-slate-700">
+                        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-green-600" />
+                        <span>{note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
 
@@ -220,7 +240,11 @@ export default function AdvancedAIAssistant({
                 <p className="text-sm font-bold text-slate-900">{answer.question}</p>
                 {answer.fromCache && <span className="ml-auto rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">Cached</span>}
               </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{answer.answer}</p>
+              {answer.pendingReview ? (
+                <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-slate-700">{answer.message || "This AI answer is waiting for administrator approval."}</p>
+              ) : (
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{answer.answer}</p>
+              )}
             </div>
           )}
 

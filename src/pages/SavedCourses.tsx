@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bookmark, BookOpen, Clock, Trash2, ArrowRight } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
@@ -25,7 +25,6 @@ type Saved = {
 export default function SavedCourses() {
   const [savedCourses, setSavedCourses] = useState<Saved[]>([]);
   const [loading, setLoading] = useState(true);
-  const [removing, setRemoving] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -41,15 +40,6 @@ export default function SavedCourses() {
     void load();
   }, []);
 
-  async function remove(courseId: string) {
-    setRemoving(courseId);
-    try {
-      await apiFetch(`/api/saved-courses/${courseId}`, { method: "DELETE" });
-      setSavedCourses((current) => current.filter((item) => item.course._id !== courseId));
-    } finally {
-      setRemoving(null);
-    }
-  }
 
   return (
     <div className="bfs-shell py-8 sm:py-10">
@@ -92,16 +82,11 @@ export default function SavedCourses() {
                 created_by: null,
                 created_at: "",
                 updated_at: ""
-              }} showActions initiallySaved />
-              <button
-                type="button"
-                onClick={() => void remove(saved.course._id)}
-                disabled={removing === saved.course._id}
-                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                {removing === saved.course._id ? "Removing..." : "Remove from saved"}
-              </button>
+              }} showActions initiallySaved onSavedChange={(courseId, isSaved) => {
+                if (!isSaved) {
+                  setSavedCourses((current) => current.filter((item) => item.course._id !== courseId));
+                }
+              }} />
             </div>
           ))}
         </div>

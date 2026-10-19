@@ -9,6 +9,11 @@ import { consumeUsage, releaseUsage } from "../services/aiUsage.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
+function needsAdminApproval(course) {
+  return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode) &&
+    (course?.aiReviewStatus !== "approved" || (!course?.aiReviewedBy && course?.aiReviewSource !== "automatic"));
+}
+
 const resourceSchema = z.object({
   query: z.string().trim().min(2).max(200),
   resourceType: z.enum(["video", "playlist"]),
@@ -71,6 +76,13 @@ export async function enrollCourseSearch(req, res, next) {
     const { q } = searchSchema.parse(req.body);
     reservation = await reserveDiscoveryQuota(req, "ai_curated_courses_per_month", "ai_curated_courses");
     const course = await createCourseFromSearch(q, req.user.userId);
+    if (needsAdminApproval(course)) {
+      return success(res, {
+        course: toPublicCoursePreview(course),
+        enrollment: null,
+        pendingApproval: true
+      }, "Your AI-assembled course has been submitted for administrator review. Access and enrollment will be enabled after approval.", 202);
+    }
     const enrollment = await enroll(req.user.userId, course._id);
     return success(res, { course: toPublicCoursePreview(course), enrollment }, "Course enrolled successfully", 201);
   } catch (e) {
@@ -88,6 +100,13 @@ export async function enrollYouTubeResource(req, res, next) {
     const input = resourceSchema.parse(req.body);
     reservation = await reserveDiscoveryQuota(req, "youtube_discovery_courses_per_month", "youtube_discovery_courses");
     const course = await getOrCreateYouTubeResourceCourse({ ...input, userId: req.user.userId });
+    if (needsAdminApproval(course)) {
+      return success(res, {
+        course: toPublicCoursePreview(course),
+        enrollment: null,
+        pendingApproval: true
+      }, "Your YouTube learning course has been submitted for administrator review. Access and enrollment will be enabled after approval.", 202);
+    }
     let enrollment;
 
     try {

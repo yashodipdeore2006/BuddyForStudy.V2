@@ -585,6 +585,7 @@ export default function AdminUsersPro() {
       <DataTable<any>
         rows={users}
         columns={userColumns}
+        tableProps={{ "aria-label": "Users" }}
         rowKey={(user) => String(user._id)}
         onRowClick={(user) => void openUser(String(user._id))}
         selectedIds={selectedIds}

@@ -197,7 +197,7 @@ export async function testSendMessageTemplate(req, res, next) {
         type: template.channel === "announcement" ? "promotion" : (template.messageType || "system"),
         eventKey: "admin-template-test:" + template._id + ":" + randomUUID(), showInApp: true, link: template.link || "/notifications",
         emailStatus: "skipped", emailError: "Template test was sent in-app only", pushStatus: "skipped", pushError: "Template test was sent in-app only", sentBy: actorId,
-        metadata: { source: "admin-template-test", templateId: String(template._id) }
+        metadata: { source: "admin-template-test", templateId: String(template._id), requestedChannels: ["in_app"] }
       });
     }
     const auditResult = await auditTemplate(req, "message_template.test_send", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: true }, reason);

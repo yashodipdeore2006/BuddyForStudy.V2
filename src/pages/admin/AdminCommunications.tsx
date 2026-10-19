@@ -678,13 +678,13 @@ export default function AdminCommunications() {
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.emailStatus === "sent" ? "bg-green-50 text-green-700" : item.emailStatus === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{item.emailStatus || "unknown"}</span>
                       <p className="mt-1 text-xs text-slate-500">{item.emailAttempts || 0} attempt(s)</p>
                       {item.emailError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.emailError}</p>}
-                      {(item.emailStatus === "failed" || (item.emailStatus === "skipped" && /SMTP is not configured|Email delivery is disabled in admin platform settings/.test(item.emailError || ""))) && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:email`} onClick={() => void retryDelivery(item.id, "email")}>{retryingDelivery === `${item.id}:email` ? "Retrying..." : "Retry email"}</button>}
+                      {item.emailStatus === "failed" && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:email`} onClick={() => void retryDelivery(item.id, "email")}>{retryingDelivery === `${item.id}:email` ? "Retrying..." : "Retry email"}</button>}
                     </td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.pushStatus === "sent" ? "bg-green-50 text-green-700" : item.pushStatus === "failed" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>{item.pushStatus || "unknown"}</span>
                       <p className="mt-1 text-xs text-slate-500">{item.pushAttempts || 0} attempt(s)</p>
                       {item.pushError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.pushError}</p>}
-                      {(item.pushStatus === "failed" || (item.pushStatus === "skipped" && /Web Push VAPID keys are not configured|No active browser push subscriptions|Push delivery is disabled in admin platform settings/.test(item.pushError || ""))) && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:push`} onClick={() => void retryDelivery(item.id, "push")}>{retryingDelivery === `${item.id}:push` ? "Retrying..." : "Retry push"}</button>}
+                      {item.pushStatus === "failed" && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:push`} onClick={() => void retryDelivery(item.id, "push")}>{retryingDelivery === `${item.id}:push` ? "Retrying..." : "Retry push"}</button>}
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-500">{item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</td>
                   </tr>

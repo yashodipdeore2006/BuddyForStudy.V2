@@ -12,7 +12,7 @@ async function ensureEnrolled(userId, courseId) {
 }
 
 export async function listReviews(courseId) {
-  const reviews = await Review.find({ course: courseId })
+  const reviews = await Review.find({ course: courseId, isHidden: { $ne: true }, $or: [{ moderationStatus: "approved" }, { moderationStatus: { $exists: false } }] })
     .populate("user", "name")
     .sort({ createdAt: -1 })
     .lean();

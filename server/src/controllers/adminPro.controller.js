@@ -235,13 +235,6 @@ export async function exportUsers(req, res, next) {
 
 const piiRevealSchema = z.object({ reason: z.string().trim().min(10).max(500) }).strict();
 
-function maskEmail(email) {
-  const value = String(email || "");
-  const separator = value.indexOf("@");
-  if (separator <= 0 || separator === value.length - 1) return value ? value[0] + "***" : "";
-  return value[0] + "***@" + value.slice(separator + 1);
-}
-
 export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);

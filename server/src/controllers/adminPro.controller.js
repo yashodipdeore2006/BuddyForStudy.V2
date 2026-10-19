@@ -487,7 +487,7 @@ export async function courses(req, res, next) {
     };
     const [courses, total] = await Promise.all([
       Course.find(filter)
-        .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+        .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewSource aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
         .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       Course.countDocuments(filter)
     ]);

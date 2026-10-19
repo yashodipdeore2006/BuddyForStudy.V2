@@ -424,8 +424,14 @@ export async function courses(req, res, next) {
   try {
     const q = String(req.query.q || "").trim().slice(0, 100);
     const searchPattern = q ? new RegExp(escapeRegex(q), "i") : null;
-    const filter = searchPattern ? { deletedAt: null, $or: [{ title: searchPattern }, { category: searchPattern }] } : { deletedAt: null };
-    const courses = await Course.find(filter).select("title slug category level isPublished status deletedAt aiReviewStatus generation.mode pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt").sort({ createdAt: -1 }).lean();
+    const includeDeleted = String(req.query.includeDeleted || "") === "true";
+    const filter = {
+      ...(includeDeleted ? {} : { deletedAt: null }),
+      ...(searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {})
+    };
+    const courses = await Course.find(filter)
+      .select("title slug category level isPublished status deletedAt aiReviewStatus aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+      .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).lean();
     return success(res, { courses });
   } catch (e) { next(e); }
 }

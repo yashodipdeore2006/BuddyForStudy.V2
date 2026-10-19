@@ -291,7 +291,7 @@ export function AdminConfirmDialog({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, loading]);
+  }, [open, loading, requiredText, requireReason]);
 
   if (!open) return null;
   return (

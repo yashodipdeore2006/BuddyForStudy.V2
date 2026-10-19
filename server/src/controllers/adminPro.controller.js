@@ -1500,6 +1500,7 @@ export async function updateRefund(req, res, next) {
       status: refund.status,
       amount: refund.amount,
       hasAdminNote: Boolean(refund.adminNote),
+      decisionReason: refund.decisionReason || "",
       processedAt: refund.processedAt
     }, reason);
     return success(res, { refund }, "Refund updated");
@@ -2236,7 +2237,7 @@ export async function updatePaymentIssue(req, res, next) {
     if (!issue) return failure(res, "This payment issue was updated by another administrator. Refresh and try again.", 409);
     await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote, assignedTo: issue.assignedTo ? String(issue.assignedTo) : null, internalNoteCount: issue.internalNotes?.length || 0 }, reason);
     try {
-      await createNotificationEvent({
+      if (status !== before.status || adminNote !== before.adminNote) await createNotificationEvent({
         userId: String(issue.user),
         title: status === "resolved" ? "Payment issue resolved" : "Payment report updated",
         message: adminNote || (status === "resolved" ? "Your payment issue has been marked as resolved." : `Your payment issue status is now ${status.replace(/_/g, " ")}.`),

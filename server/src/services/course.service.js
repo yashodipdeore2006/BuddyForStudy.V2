@@ -577,7 +577,7 @@ export async function getPublished(courseId, userId = null) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);
   if (cached) {
-    if (cached.deletedAt) return null;
+    if (cached.deletedAt || cached.status === "archived") return null;
     if (cached.visibility === "private") {
       const owner = userId && String(cached.createdForUser) === String(userId);
       if (!owner || !isApprovedForPublication(cached) || cached.aiReviewStatus !== "approved") return null;
@@ -589,15 +589,9 @@ export async function getPublished(courseId, userId = null) {
       });
       return enrollment ? cached : null;
     }
-    if (!cached.isPublished) {
-      await cacheDelete(key);
-      return null;
-    }
-    if (isApprovedForPublication(cached) && !hasMultipleTutorialVideos(cached)) return cached;
-
-    // Grandfather existing learners of previously published courses whose
-    // records predate aiReviewSource/aiReviewedBy. Explicit pending/rejected
-    // moderation decisions still block access.
+    // Existing enrolled learners retain access to non-archived courses even
+    // when a course is no longer listed publicly. Explicit moderation holds,
+    // rejections, soft deletion and revoked enrollments still block access.
     if (userId && !["pending", "rejected"].includes(cached.aiReviewStatus)) {
       const enrollment = await Enrollment.exists({
         user: userId,
@@ -607,6 +601,11 @@ export async function getPublished(courseId, userId = null) {
       });
       if (enrollment) return cached;
     }
+    if (!cached.isPublished) {
+      await cacheDelete(key);
+      return null;
+    }
+    if (isApprovedForPublication(cached) && !hasMultipleTutorialVideos(cached)) return cached;
     await cacheDelete(key);
     return null;
   }
@@ -621,6 +620,7 @@ export async function getPublished(courseId, userId = null) {
   let courseDoc = await Course.findOne({
     _id: courseId,
     deletedAt: null,
+    status: { $ne: "archived" },
     $or: accessBranches
   });
 
@@ -635,7 +635,7 @@ export async function getPublished(courseId, userId = null) {
       courseDoc = await Course.findOne({
         _id: courseId,
         deletedAt: null,
-        isPublished: true,
+        status: { $ne: "archived" },
         visibility: { $ne: "private" },
         aiReviewStatus: { $nin: ["pending", "rejected"] }
       });

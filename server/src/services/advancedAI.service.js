@@ -89,7 +89,7 @@ async function findCourseLesson(courseId, lessonId, userId = null) {
       course = await Course.findOne({
         _id: courseId,
         deletedAt: null,
-        isPublished: true,
+        status: { $ne: "archived" },
         visibility: { $ne: "private" },
         aiReviewStatus: { $nin: ["pending", "rejected"] }
       });
@@ -104,7 +104,7 @@ async function findCourseLesson(courseId, lessonId, userId = null) {
   const legacyPublishedEnrollment = Boolean(
     course &&
     existingEnrollment &&
-    course.isPublished &&
+    course.status !== "archived" &&
     course.visibility !== "private" &&
     !["pending", "rejected"].includes(course.aiReviewStatus)
   );

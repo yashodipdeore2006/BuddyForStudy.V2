@@ -157,11 +157,12 @@ test("AI roadmap builds a structured fallback for topics outside the curated kno
   assert.match(ai, /type: "project"/);
 });
 
-test("enrolled learners retain access to published legacy courses while pending or rejected courses remain blocked", async () => {
+test("existing enrolled learners can resume unlisted courses while pending or rejected courses remain blocked", async () => {
   const service = await read("../src/services/course.service.js");
   const entitlement = await read("../src/services/subscriptionEntitlement.service.js");
   const ai = await read("../src/services/advancedAI.service.js");
   assert.match(service, /Grandfather existing learners of previously published courses/);
+  assert.match(service, /Existing enrolled learners retain access to non-archived courses/);
   assert.match(service, /if \(!courseDoc && userId\)/);
   assert.match(service, /status: \{ \$in: \["active", "completed"\] \}/);
   assert.match(service, /!\["pending", "rejected"\]\.includes\(cached\.aiReviewStatus\)/);

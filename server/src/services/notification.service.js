@@ -465,7 +465,8 @@ export async function createNotificationEvent({
   const showInApp = forceInApp || (inApp && transactional) || (inApp && platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
   const smtpConfigured = Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
   const pushConfigured = isWebPushConfigured();
-  const emailPreferenceAllowed = transactional || !keys.email || preferences[keys.email] !== false;
+  const explicitAnnouncementConsent = keys.email !== "emailAnnouncements" || (preferences.emailAnnouncements === true && Boolean(preferences.emailAnnouncementsConsentAt));
+  const emailPreferenceAllowed = transactional || !keys.email || (preferences[keys.email] !== false && explicitAnnouncementConsent);
   const shouldEmail = email && platform.emailEnabled && smtpConfigured && emailPreferenceAllowed;
   const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && pushConfigured;
   const emailSkippedReason = shouldEmail || !email

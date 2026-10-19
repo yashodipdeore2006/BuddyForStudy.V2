@@ -291,6 +291,10 @@ export default function AdminCommunications() {
       setStatus("Preview the recipients and confirm the audience before sending.");
       return;
     }
+    if (audiencePreview.recipientCount < 1) {
+      setStatus("The selected audience has no recipients. Adjust the audience and preview again.");
+      return;
+    }
     if (audiencePreview.truncated) {
       setStatus("This audience exceeds the 5,000-recipient limit. Narrow the filters and preview again.");
       return;

@@ -143,7 +143,8 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   });
   const modifiedPaths = this.modifiedPaths();
   const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation"];
-  const contentChanged = modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
+  const systemMetadataRefresh = ["Video duration metadata refresh", "Video resource normalization"].includes(context.summary);
+  const contentChanged = !systemMetadataRefresh && modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
   if (contentChanged && this.isPublished) {
     this.isPublished = false;
     this.status = "draft";

@@ -276,7 +276,7 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
     throw error;
   }
 
-  const { course, module, lesson } = await findCourseLesson(courseId, lessonId);
+  const { course, module, lesson } = await findCourseLesson(courseId, lessonId, userId);
   const durationSeconds = await refreshVideoDuration(course, lesson);
   const context = buildLessonContext(course, module, lesson);
   context.lesson.tutorialDurationSeconds = durationSeconds;
@@ -419,7 +419,7 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
     throw error;
   }
 
-  const { course, module, lesson } = await findCourseLesson(courseId, lessonId);
+  const { course, module, lesson } = await findCourseLesson(courseId, lessonId, userId);
   const context = buildLessonContext(course, module, lesson);
   const contextHash = hash(JSON.stringify(context));
   const questionHash = hash(normalizeQuestion(cleanQuestion));

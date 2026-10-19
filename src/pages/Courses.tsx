@@ -544,18 +544,12 @@ export default function Courses() {
 
           {!aiRoadmap.course.isPublished && (
             <div role="status" className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:mx-7">
-              <p className="font-bold text-slate-900">
-                {aiRoadmap.course.aiReviewStatus === "approved"
-                  ? "AI content approved — publication is still pending"
-                  : "Course awaiting administrator approval"}
-              </p>
+              <p className="font-bold text-slate-900">Course access is not enabled yet</p>
               <p className="mt-1 text-sm leading-6 text-slate-700">
-                {aiRoadmap.course.aiReviewStatus === "approved"
-                  ? "This course has approval, but it is not yet published. Public courses must pass the course-readiness checks before learners can enroll."
-                  : "You can review this generated roadmap preview, but enrollment and course-player access remain locked until an administrator approves it. After approval, public courses also need to pass readiness checks and be published."}
+                This generated roadmap is a preview only. Enrollment and course-player access unlock when the required approval and publication checks are complete. Public courses must pass readiness checks; approval by itself does not bypass them.
               </p>
               <button type="button" className="btn-secondary mt-3" onClick={() => void checkGeneratedCourseStatus()} disabled={aiEnrolling}>
-                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking status…</> : "Check approval status"}
+                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking status…</> : "Check access status"}
               </button>
             </div>
           )}

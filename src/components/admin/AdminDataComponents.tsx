@@ -13,7 +13,7 @@ const STATUS_MAP: Record<StatusDomain, Record<string, { label: string; tone: "ne
   subscription: { active: { label: "Active", tone: "success" }, trialing: { label: "Trialing", tone: "info" }, past_due: { label: "Past due", tone: "warning" }, cancelled: { label: "Cancelled", tone: "neutral" }, expired: { label: "Expired", tone: "neutral" } },
   refund: { pending: { label: "Pending", tone: "warning" }, approved: { label: "Approved", tone: "info" }, rejected: { label: "Rejected", tone: "danger" }, processed: { label: "Processed", tone: "success" } },
   paymentIssue: { open: { label: "Open", tone: "danger" }, in_review: { label: "In review", tone: "warning" }, resolved: { label: "Resolved", tone: "success" }, closed: { label: "Closed", tone: "neutral" } },
-  notificationDelivery: { sent: { label: "Accepted", tone: "success" }, pending: { label: "Pending", tone: "warning" }, failed: { label: "Failed", tone: "danger" }, skipped: { label: "Skipped", tone: "neutral" } },
+  notificationDelivery: { sent: { label: "Sent", tone: "success" }, pending: { label: "Pending", tone: "warning" }, failed: { label: "Failed", tone: "danger" }, skipped: { label: "Skipped", tone: "neutral" } },
   webhook: { processed: { label: "Processed", tone: "success" }, processing: { label: "Processing", tone: "info" }, failed: { label: "Failed", tone: "danger" } },
   alertSeverity: { info: { label: "Info", tone: "info" }, warning: { label: "Warning", tone: "warning" }, critical: { label: "Critical", tone: "danger" } },
   alertStatus: { open: { label: "Open", tone: "danger" }, acknowledged: { label: "Acknowledged", tone: "warning" }, resolved: { label: "Resolved", tone: "success" } },
@@ -64,7 +64,7 @@ export function DataTable<T>({
           {onSelectionChange && <th scope="col" className="admin-data-table__select"><input type="checkbox" aria-label="Select all rows on this page" checked={allSelected} onChange={(event) => toggleAll(event.target.checked)} /></th>}
           {columns.map((column) => <th scope="col" key={column.key} aria-sort={column.sortable && sortBy === column.key ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} style={{ width: column.width, textAlign: column.align || "left" }}>{column.sortable && onSortChange ? <button type="button" className="admin-data-table__sort" onClick={() => onSortChange(column.key)}>{column.header}<span aria-hidden="true">{sortBy === column.key ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button> : column.header}</th>)}
         </tr></thead>
-        <tbody>{rows.map((row) => <tr key={getKey(row)} className={onRowClick ? "admin-data-table__row--clickable" : undefined} onClick={() => onRowClick?.(row)}>
+        <tbody>{rows.map((row) => <tr key={getKey(row)} className={["admin-data-table__row", onRowClick ? "admin-data-table__row--clickable" : "", selectedIds.includes(getKey(row)) ? "admin-data-table__row--selected" : ""].filter(Boolean).join(" ")} onClick={() => onRowClick?.(row)} onKeyDown={(event) => { if (onRowClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onRowClick(row); } }} tabIndex={onRowClick ? 0 : undefined} aria-selected={selectedIds.includes(getKey(row))}>
           {onSelectionChange && <td className="admin-data-table__select" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={"Select row " + getKey(row)} checked={selectedIds.includes(getKey(row))} onChange={(event) => onSelectionChange(event.target.checked ? [...selectedIds, getKey(row)] : selectedIds.filter((id) => id !== getKey(row)))} /></td>}
           {columns.map((column) => <td key={column.key} style={{ textAlign: column.align || "left" }}>{column.render(row)}</td>)}
         </tr>)}</tbody>
@@ -78,15 +78,15 @@ export function DataTable<T>({
 export type FilterChip = { key: string; label: string; onRemove: () => void };
 export function FilterBar({ children, className = "", searchValue, onSearchChange, searchLabel = "Search", chips = [], onReset, resultCount }: {
   children?: ReactNode; className?: string; searchValue?: string; onSearchChange?: (value: string) => void;
-  searchLabel?: string; chips?: FilterChip[]; onReset?: () => void; resultCount?: number;
+  searchLabel?: string; chips?: FilterChip[]; onReset?: () => void; resultCount?: number; debounceMs?: number;
 }) {
   const [localSearch, setLocalSearch] = useState(searchValue || "");
   useEffect(() => setLocalSearch(searchValue || ""), [searchValue]);
   useEffect(() => {
     if (!onSearchChange) return;
-    const timer = window.setTimeout(() => onSearchChange(localSearch), 300);
+    const timer = window.setTimeout(() => onSearchChange(localSearch), Math.max(0, debounceMs));
     return () => window.clearTimeout(timer);
-  }, [localSearch, onSearchChange]);
+  }, [localSearch, onSearchChange, debounceMs]);
   return <section className={["admin-filter-bar", className].filter(Boolean).join(" ")} aria-label="List filters">
     {onSearchChange && <label className="admin-filter-bar__search"><span className="sr-only">{searchLabel}</span><input type="search" value={localSearch} onChange={(event) => setLocalSearch(event.target.value)} placeholder={searchLabel} aria-label={searchLabel} /><button type="button" aria-label="Clear search" onClick={() => setLocalSearch("")} disabled={!localSearch}>×</button></label>}
     {children}

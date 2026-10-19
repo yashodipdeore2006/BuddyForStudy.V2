@@ -58,23 +58,28 @@ export async function refreshAnnouncementStats(announcement) {
   const failed = Number(row.failed || 0);
   const channelPending = Number(row.pending || 0);
   const processed = Number(row.total || 0);
-  const skipped = Math.max(0, processed - sent - failed - channelPending);
-  const pending = Math.max(channelPending, total - sent - failed - skipped);
   const unprocessed = Math.max(0, total - processed);
+  const cancelled = announcement.status === "cancelled";
+  const abandoned = announcement.status === "failed" ? unprocessed : 0;
+  const skipped = cancelled
+    ? Math.max(0, total - sent - failed - channelPending)
+    : Math.max(0, processed - sent - failed - channelPending);
+  const pending = cancelled || abandoned ? channelPending : Math.max(channelPending, total - sent - failed - skipped);
+  const terminalUnprocessed = cancelled ? unprocessed : abandoned;
   const stats = {
     total, sent, failed, skipped, pending,
     in_app: {
       sent: announcement.channel?.includes("in_app") ? Number(row.in_app_sent || 0) : 0,
-      pending: announcement.channel?.includes("in_app") ? unprocessed : 0, failed: 0,
-      skipped: announcement.channel?.includes("in_app") ? Math.max(0, processed - Number(row.in_app_sent || 0)) : 0
+      pending: announcement.channel?.includes("in_app") && !cancelled && !abandoned ? unprocessed : 0, failed: announcement.channel?.includes("in_app") ? terminalUnprocessed : 0,
+      skipped: announcement.channel?.includes("in_app") ? Math.max(0, processed - Number(row.in_app_sent || 0)) + (cancelled ? unprocessed : 0) : 0
     },
     email: announcement.channel?.includes("email") ? {
-      sent: Number(row.email_sent || 0), pending: Number(row.email_pending || 0) + unprocessed,
-      failed: Number(row.email_failed || 0), skipped: Number(row.email_skipped || 0)
+      sent: Number(row.email_sent || 0), pending: Number(row.email_pending || 0) + (!cancelled && !abandoned ? unprocessed : 0),
+      failed: Number(row.email_failed || 0) + abandoned, skipped: Number(row.email_skipped || 0) + (cancelled ? unprocessed : 0)
     } : { sent: 0, pending: 0, failed: 0, skipped: 0 },
     push: announcement.channel?.includes("push") ? {
-      sent: Number(row.push_sent || 0), pending: Number(row.push_pending || 0) + unprocessed,
-      failed: Number(row.push_failed || 0), skipped: Number(row.push_skipped || 0)
+      sent: Number(row.push_sent || 0), pending: Number(row.push_pending || 0) + (!cancelled && !abandoned ? unprocessed : 0),
+      failed: Number(row.push_failed || 0) + abandoned, skipped: Number(row.push_skipped || 0) + (cancelled ? unprocessed : 0)
     } : { sent: 0, pending: 0, failed: 0, skipped: 0 }
   };
   await Announcement.updateOne({ _id: announcement._id }, { $set: { stats } });

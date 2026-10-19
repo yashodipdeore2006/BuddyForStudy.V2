@@ -27,7 +27,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   duplicate_charge: "Duplicate charge", incorrect_amount: "Incorrect amount",
   refund_help: "Refund assistance", other: "Other",
 };
-const statusTone = (status: Issue["status"]) => status === "resolved" ? "success" : status === "closed" ? "neutral" : status === "in_review" ? "warning" : "info";
+const statusTone = (status: Issue["status"]): "success" | "neutral" | "warning" | "info" => status === "resolved" ? "success" : status === "closed" ? "neutral" : status === "in_review" ? "warning" : "info";
 const money = (amount = 0, currency = "INR") => {
   try { return new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(Number(amount || 0)); }
   catch { return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(Number(amount || 0)); }
@@ -206,9 +206,11 @@ export default function AdminSupport() {
             <tbody className="divide-y divide-slate-100">
               {issues.map((issue) => {
                 const assignedId = assigneeId(issue.assignedTo);
-                const assignedName = typeof issue.assignedTo === "object" && issue.assignedTo?.name
-                  ? issue.assignedTo.name
-                  : assignees.find((person) => person.id === (assignments[issue._id] || assignedId))?.name || "Unassigned";
+                const assignedName = !canManage
+                  ? "Restricted"
+                  : typeof issue.assignedTo === "object" && issue.assignedTo?.name
+                    ? issue.assignedTo.name
+                    : assignees.find((person) => person.id === (assignments[issue._id] || assignedId))?.name || "Unassigned";
                 return <tr key={issue._id} className="align-top hover:bg-slate-50/70">
                   <td className="max-w-[320px] p-4"><p className="font-semibold text-slate-900">{CATEGORY_LABELS[issue.category] || issue.category}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{issue.description}</p><p className="mt-1 font-mono text-[10px] text-slate-400">{issue._id}</p></td>
                   <td className="p-4"><p className="font-medium text-slate-800">{issue.user?.name || "Unknown learner"}</p><p className="mt-1 text-xs text-slate-500">{issue.user?.email || "No email"}</p><p className="mt-1 text-xs text-slate-400">{new Date(issue.createdAt).toLocaleString()}</p></td>

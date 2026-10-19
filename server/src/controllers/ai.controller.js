@@ -5,6 +5,7 @@ import { getEntitlement, canAccessCourse } from "../services/subscriptionEntitle
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 import { createHash } from "node:crypto";
 import { QuizBank } from "../models/QuizBank.js";
+import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
 
 const quizGenerationJobs = new Set();
 
@@ -39,9 +40,20 @@ async function queueNextLessonQuiz(courseId, lessonId) {
       const generated = await generateCourseQuiz({ courseId, lessonId, practiceOnly: true, excludeQuestions: excluded });
       const questions = generated.quiz.questions || [];
       const fingerprint = createHash("sha256").update(questions.map((question) => String(question.question).trim().toLowerCase()).sort().join("|")).digest("hex");
+      const automaticallyApproved = await isAutomaticContentApproval("aiQuizzes");
       await QuizBank.updateOne(
         { course: courseId, lesson: lessonId, fingerprint },
-        { $setOnInsert: { course: courseId, lesson: lessonId, fingerprint, title: generated.quiz.title || "Lesson Practice Quiz", questions, generatedAt: new Date() } },
+        { $setOnInsert: {
+          course: courseId,
+          lesson: lessonId,
+          fingerprint,
+          title: generated.quiz.title || "Lesson Practice Quiz",
+          questions,
+          generatedAt: new Date(),
+          moderationStatus: automaticallyApproved ? "approved" : "pending",
+          moderationNote: automaticallyApproved ? "Automatically approved by the platform content policy." : "",
+          isHidden: false
+        } },
         { upsert: true }
       );
     } catch (error) {
@@ -134,7 +146,8 @@ export async function generatePracticeQuiz(req, res, next) {
     if (!access.allowed) return failure(res, access.message, access.status);
 
     const filter = { course: input.courseId, lesson: input.lessonId, isHidden: { $ne: true } };
-    const bank = await QuizBank.find(filter).sort({ generatedAt: 1 });
+    const allBank = await QuizBank.find(filter).sort({ generatedAt: 1 });
+    const bank = allBank.filter((item) => item.moderationStatus === "approved");
     if (input.mode === "reattempt") {
       const attempted = bank.filter((item) => item.attempts.some((attempt) => String(attempt.user) === String(req.user.userId)));
       const unique = new Map();
@@ -157,6 +170,10 @@ export async function generatePracticeQuiz(req, res, next) {
       }, "Lesson quiz loaded from shared question bank");
     }
 
+    if (allBank.some((item) => item.moderationStatus !== "approved")) {
+      return success(res, { courseId: input.courseId, lessonId: input.lessonId, pendingReview: true }, "AI practice questions are waiting for administrator approval");
+    }
+
     const jobKey = `${input.courseId}:${input.lessonId}`;
     if (quizGenerationJobs.has(jobKey)) {
       return success(res, { courseId: input.courseId, lessonId: input.lessonId, generating: true }, "New lesson questions are being prepared");
@@ -175,6 +192,7 @@ export async function generatePracticeQuiz(req, res, next) {
       .update(questions.map((question) => String(question.question).trim().toLowerCase()).sort().join("|"))
       .digest("hex");
 
+    const automaticallyApproved = await isAutomaticContentApproval("aiQuizzes");
     let saved;
     try {
       saved = await QuizBank.create({
@@ -182,7 +200,10 @@ export async function generatePracticeQuiz(req, res, next) {
         fingerprint,
         title: generated.quiz.title || "Lesson Practice Quiz",
         questions,
-        generatedBy: req.user.userId
+        generatedBy: req.user.userId,
+        moderationStatus: automaticallyApproved ? "approved" : "pending",
+        moderationNote: automaticallyApproved ? "Automatically approved by the platform content policy." : "",
+        moderatedAt: automaticallyApproved ? new Date() : null
       });
     } catch (error) {
       if (error?.code !== 11000) throw error;
@@ -197,6 +218,9 @@ export async function generatePracticeQuiz(req, res, next) {
       }
     }
 
+    if (saved.moderationStatus !== "approved") {
+      return success(res, { courseId: input.courseId, lessonId: input.lessonId, pendingReview: true, reviewStatus: saved.moderationStatus || "pending" }, "AI practice questions are waiting for administrator approval");
+    }
     return success(res, {
       courseId: input.courseId, lessonId: input.lessonId,
       quiz: { scope: "lesson", title: saved.title, questionCount: saved.questions.length, passingScore: 70, questions: saved.questions, quizBankId: String(saved._id) },

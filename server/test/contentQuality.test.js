@@ -81,6 +81,27 @@ test("content quality endpoints include roadmaps, broken links and revision rest
   assert.match(routes, /revisions\/:revisionId\/rollback/);
 });
 
+test("private AI draft courses remain owner-only and never enter the public catalogue before approval", async () => {
+  const model = await read("../src/models/Course.js");
+  const service = await read("../src/services/course.service.js");
+  const discovery = await read("../src/services/discovery.service.js");
+  const entitlement = await read("../src/services/subscriptionEntitlement.service.js");
+  assert.match(model, /visibility: \{ type: String, enum: \["public", "private"\]/);
+  assert.match(discovery, /createPrivateCourseForUser/);
+  assert.match(discovery, /visibility = "private"/);
+  assert.match(discovery, /createdForUser = userId/);
+  assert.match(service, /cached\.visibility === "private"/);
+  assert.match(service, /createdForUser: userId/);
+  assert.match(entitlement, /visibility: "private", createdForUser: userId/);
+});
+
+test("editing a learner review resets its moderation decision", async () => {
+  const service = await read("../src/services/review.service.js");
+  assert.match(service, /moderationStatus: "pending"/);
+  assert.match(service, /moderatedBy: null/);
+  assert.match(service, /isHidden: false/);
+});
+
 test("content quality admin page exposes lifecycle, review, moderation, roadmaps and link checking", async () => {
   const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
   for (const phrase of ["Human approve", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);

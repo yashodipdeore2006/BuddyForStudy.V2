@@ -88,12 +88,15 @@ test("template preview validates placeholders and test send targets only the sig
   assert.match(controller, /User\.findById\(actorId\)/);
   assert.match(controller, /to: actor\.email/);
   assert.match(controller, /destination: "signed-in administrator"/);
+  assert.match(controller, /Template keys are immutable after creation/);
+  assert.match(controller, /getTemplateUsage/);
   assert.match(controller, /hasUnsafeEmailMarkup\(preview\.body\)/);
   assert.match(routes, /router\.post\("\/message-templates\/preview", adminPermissionMiddleware\("communications\.manage"\)/);
   assert.match(routes, /router\.post\("\/message-templates\/:templateId\/test-send", adminPermissionMiddleware\("communications\.manage"\)/);
   assert.match(page, /Placeholder picker/);
   assert.match(page, /Rendered sample preview/);
   assert.match(page, /Send test to me/);
+  assert.match(page, /Used by/);
 });
 
 test("new notification permissions are catalogued and used at route boundaries", async () => {

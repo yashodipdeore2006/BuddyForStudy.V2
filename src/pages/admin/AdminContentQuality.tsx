@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Activity, BookOpen, Check, Clock3, FileClock, Link2, Map, RefreshCcw, RotateCcw, ShieldCheck, Trash2, X, XCircle } from "lucide-react";
+import { Activity, Check, FileClock, Link2, RefreshCcw, RotateCcw, Trash2, X, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 

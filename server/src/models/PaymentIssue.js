@@ -13,6 +13,8 @@ const paymentIssueSchema = new mongoose.Schema({
   description: { type: String, required: true, minlength: 5, maxlength: 2000 },
   status: { type: String, enum: ["open", "in_review", "resolved", "closed"], default: "open", index: true },
   adminNote: { type: String, default: "", maxlength: 2000 },
+  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+  internalNotes: [{ author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, note: { type: String, required: true, maxlength: 2000 }, reason: { type: String, required: true, maxlength: 500 }, createdAt: { type: Date, default: Date.now } }],
   resolvedAt: { type: Date, default: null },
   resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null }
 }, { timestamps: true, collection: "payment_issues" });

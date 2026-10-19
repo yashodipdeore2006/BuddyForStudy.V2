@@ -1252,6 +1252,108 @@ function courseHasTutorialVideos(course) {
   );
 }
 
+function buildTopicFallback(topic, level = "Beginner") {
+  const rawTopic = String(topic || "").trim();
+  const normalized = rawTopic.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const cybersecurityAliases = new Set(["ciber security", "cyber security", "cybersecurity", "cyber sec"]);
+  const canonicalTopic = cybersecurityAliases.has(normalized) ? "Cybersecurity" : rawTopic.replace(/\s+/g, " ");
+  const cyber = /cyber ?security|information security|ethical hacking|network security|soc|penetration testing/i.test(canonicalTopic);
+  const stages = cyber ? [
+    { id: "security-foundations", name: "Security Foundations", topics: ["confidentiality integrity availability", "threats vulnerabilities and risk", "security controls", "security ethics and legal boundaries"], project: "Create a personal security baseline and threat model" },
+    { id: "networking-linux", name: "Networking and Linux Fundamentals", topics: ["TCP IP and common ports", "DNS HTTP HTTPS and TLS", "Linux command line", "processes permissions and logs"], project: "Build a safe home lab and document network traffic" },
+    { id: "defensive-security", name: "Defensive Security and Monitoring", topics: ["logs and event analysis", "SIEM fundamentals", "indicators of compromise", "incident response lifecycle"], project: "Analyze a sample security log and write an incident report" },
+    { id: "web-security", name: "Web and Application Security", topics: ["OWASP Top 10", "authentication and session security", "input validation", "secure configuration and secrets"], project: "Review a deliberately vulnerable training application and document fixes" },
+    { id: "ethical-testing", name: "Ethical Security Testing", topics: ["scoping and authorization", "reconnaissance in a lab", "vulnerability validation", "responsible reporting"], project: "Write a lab-only vulnerability assessment with remediation steps" },
+    { id: "security-capstone", name: "Cybersecurity Capstone", topics: ["risk prioritization", "defense in depth", "monitoring plan", "incident playbook"], project: "Produce a defensive security portfolio with a threat model, lab evidence and response playbook" }
+  ] : [
+    { id: "foundations", name: rawTopic + " Foundations", topics: ["core terminology and concepts in " + canonicalTopic, "how the field is organized", "common use cases and outcomes"], project: "Create a concept map and glossary for " + canonicalTopic },
+    { id: "core-concepts", name: "Core Concepts and Methods", topics: ["essential principles of " + canonicalTopic, "common methods and workflows", "tools and environments used in the field"], project: "Complete a guided beginner exercise in " + canonicalTopic },
+    { id: "practical-workflows", name: "Tools and Practical Workflows", topics: ["set up a learning environment", "follow a repeatable workflow", "validate results and troubleshoot errors"], project: "Document a repeatable workflow for " + canonicalTopic },
+    { id: "applied-practice", name: "Applied Practice and Problem Solving", topics: ["analyze realistic scenarios", "compare approaches and trade-offs", "apply concepts to a practical problem"], project: "Solve a realistic " + canonicalTopic + " problem and explain the decisions" },
+    { id: "portfolio-capstone", name: "Portfolio Capstone", topics: ["define a measurable objective", "plan and implement a solution", "test, document and present the result"], project: "Build and document a portfolio-ready " + canonicalTopic + " capstone" }
+  ];
+  const slug = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const modules = stages.map((stage, index) => {
+    const query = stage.name + " complete course tutorial";
+    const project = stage.project;
+    return {
+      title: stage.name,
+      description: "A structured " + level + "-level stage for " + canonicalTopic + ".",
+      skillIds: [stage.id],
+      order: index + 1,
+      lessons: [
+        {
+          id: stage.id + "-tutorial",
+          title: "Learn " + stage.name,
+          description: "Study the core topics and apply them to " + canonicalTopic + ".",
+          type: "tutorial",
+          order: 1,
+          tutorial: {
+            content: "Core topics: " + stage.topics.join(", ") + ".",
+            searchQuery: query,
+            searchQueries: [query, canonicalTopic + " " + stage.topics.slice(0, 2).join(" ") + " full tutorial"],
+            requiredTopics: stage.topics,
+            durationMinutes: { minMinutes: 30, targetMinutes: 90, maxMinutes: 240 },
+            searchPolicy: { contentType: "complete-course", minDurationMinutes: 20, targetDurationMinutes: 60, maxDurationMinutes: 240, excludeShorts: true, requireEmbeddable: true, preferProjectBased: true, preferredLanguage: "en" }
+          }
+        },
+        {
+          id: stage.id + "-quiz",
+          title: stage.name + " Knowledge Check",
+          description: "Check understanding before moving to the next stage.",
+          type: "quiz",
+          order: 2,
+          quiz: { scope: "lesson", questionCount: 5, passingScore: 70, focusTopics: stage.topics, instructions: "Answer questions about the listed stage topics." }
+        },
+        {
+          id: stage.id + "-project",
+          title: project,
+          description: project,
+          type: "project",
+          order: 3,
+          project: {
+            description: project,
+            objectives: stage.topics.slice(0, 4),
+            requirements: stage.topics.slice(0, 4),
+            instructions: "Work only in authorized practice environments. Record your process, evidence, testing and conclusions.",
+            expectedOutcome: "A documented practical deliverable demonstrating " + stage.name + ".",
+            submissionRequirements: ["Project notes or source files", "README with setup and scope", "Testing evidence", "Lessons learned"]
+          }
+        }
+      ]
+    };
+  });
+  return {
+    query: rawTopic,
+    intent: "topic_fallback",
+    canonicalTopic,
+    careerOutcome: "Build practical, demonstrable skills in " + canonicalTopic + ".",
+    skillGraph: stages.map((stage, index) => ({ id: stage.id, name: stage.name, category: canonicalTopic, importance: "core", prerequisites: index ? [stages[index - 1].id] : [], practiceProject: stage.project })),
+    course: {
+      title: canonicalTopic + " Learning Roadmap",
+      description: "A structured learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
+      category: cyber ? "Cybersecurity" : "AI Course Search",
+      level,
+      duration: (stages.length * 1.5) + "+ weeks",
+      learningOutcomes: [
+        "Explain the essential concepts of " + canonicalTopic + ".",
+        "Apply the concepts through guided practice and realistic scenarios.",
+        "Produce documented projects that demonstrate practical understanding."
+      ],
+      modules
+    },
+    personalization: {
+      goals: [],
+      studyTimeMinutesPerDay: 60,
+      knownSkills: [],
+      skippedSkills: [],
+      rationale: ["The configured AI provider and curated knowledge base could not supply a topic-specific path, so a structured topic fallback was created.", "Verify tutorial availability and complete each practical exercise before advancing."]
+    },
+    sources: [],
+    fallback: true
+  };
+}
+
 export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
@@ -1347,47 +1449,68 @@ export async function generateAIRoadmap(input, options = {}) {
       cached: false
     };
   } catch (error) {
-    if (reservation && userId) {
-      await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+    if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) {
+      if (reservation && userId) {
+        await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+      }
+      throw error;
     }
-    if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) throw error;
-    const fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
-    const fallbackPersonalization = {
-      goals: input.goals || [],
-      studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
-      knownSkills: input.knownSkills || [],
-      skippedSkills: [],
-      rationale: ["AI generation was unavailable, so BuddyForStudy used its validated prerequisite knowledge base."]
-    };
-    const fallbackCourse = await Course.create({
-      ...fallback.course,
-      slug: generatedAiSlug(fallback.course.title),
-      generation: {
-        mode: "ai",
-        query: input.topic,
-        topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
-        snapshot: {
-          intent: "ai_personalized_path_fallback",
-          canonicalTopic: fallback.canonicalTopic,
-          careerOutcome: fallback.careerOutcome,
-          skillGraph: fallback.skillGraph || [],
-          personalization: fallbackPersonalization,
-          sources: fallback.sources || [],
-          normalSearchSnapshot: buildNormalSearchSnapshot(fallback.course, input.topic)
-        }
-      },
-      isPublished: true,
-      pricing: { mode: "free", price: 0, currency: "INR" },
-      enrollmentEnabled: true,
-      certificateEnabled: true
-    });
 
-    return {
-      ...fallback,
-      course: toPublicCourse(fallbackCourse),
-      intent: "ai_personalized_path_fallback",
-      personalization: fallbackPersonalization,
-      cached: false
-    };
+    try {
+      let fallback;
+      try {
+        fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
+      } catch (knowledgeBaseError) {
+        if (knowledgeBaseError?.status !== 404) throw knowledgeBaseError;
+        fallback = buildTopicFallback(input.topic, input.level);
+        fallback.sources = await attachYouTubeResources(fallback.course);
+      }
+
+      const fallbackPersonalization = {
+        goals: input.goals || [],
+        studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
+        knownSkills: input.knownSkills || [],
+        skippedSkills: [],
+        rationale: [
+          "AI generation was unavailable, so BuddyForStudy used a validated topic path when available or a structured topic fallback.",
+          ...(fallback.personalization?.rationale || [])
+        ]
+      };
+      const fallbackCourse = await Course.create({
+        ...fallback.course,
+        slug: generatedAiSlug(fallback.course.title),
+        generation: {
+          mode: "ai",
+          query: input.topic,
+          topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
+          snapshot: {
+            intent: fallback.intent || "ai_personalized_path_fallback",
+            canonicalTopic: fallback.canonicalTopic,
+            careerOutcome: fallback.careerOutcome,
+            skillGraph: fallback.skillGraph || [],
+            personalization: fallbackPersonalization,
+            sources: fallback.sources || [],
+            normalSearchSnapshot: buildNormalSearchSnapshot(fallback.course, input.topic)
+          }
+        },
+        isPublished: true,
+        pricing: { mode: "free", price: 0, currency: "INR" },
+        enrollmentEnabled: true,
+        certificateEnabled: true
+      });
+
+      return {
+        ...fallback,
+        course: toPublicCourse(fallbackCourse),
+        intent: fallback.intent || "ai_personalized_path_fallback",
+        personalization: fallbackPersonalization,
+        cached: false
+      };
+    } catch (fallbackError) {
+      if (reservation && userId) {
+        await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+      }
+      throw fallbackError;
+    }
   }
 }

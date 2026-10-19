@@ -706,8 +706,10 @@ export async function searchStructuredPlaylists(query, maxResults) {
         (Date.now() - new Date(playlist.publishedAt || Date.now()).getTime()) / 86400000
       );
       const recency = Math.max(0, 100 - (ageDays / 3650) * 100);
+      // Rank by topical relevance and learning depth first; avoid popularity-only ranking.
+      const titleRelevance = queryTerms.length ? (titleMatchedTerms / queryTerms.length) * 100 : 50;
       const score = Number(
-        (relevance * 0.60 + depth * 0.25 + recency * 0.15).toFixed(2)
+        (relevance * 0.45 + depth * 0.30 + titleRelevance * 0.20 + recency * 0.05).toFixed(2)
       );
 
       return {
@@ -719,7 +721,7 @@ export async function searchStructuredPlaylists(query, maxResults) {
           titleMatchedTerms
         },
         ranking: {
-          algorithm: "youtube-playlist-fallback-v1",
+          algorithm: "youtube-playlist-quality-relevance-v2",
           relevance: Math.round(relevance),
           contentDepth: Math.round(depth),
           recency: Math.round(recency)

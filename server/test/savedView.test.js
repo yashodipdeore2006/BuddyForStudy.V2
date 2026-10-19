@@ -70,6 +70,35 @@ test("saved views list is scoped to owner and shared views and returns a bounded
 });
 
 
+test("saved view list returns an explicit safe DTO without arbitrary secret fields", async () => {
+  const view = {
+    _id: "507f1f77bcf86cd799439011",
+    owner: admin.userId,
+    page: "users",
+    name: "Unverified",
+    filters: { status: "inactive" },
+    columns: ["access"],
+    sort: { sortBy: "name", sortOrder: "asc" },
+    density: "compact",
+    shared: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    apiKey: "do-not-return",
+    smtpPass: "do-not-return",
+  };
+  const chain = { sort() { return this; }, skip() { return this; }, limit() { return this; }, lean: async () => [view] };
+  const res = responseRecorder();
+  await withMocks([[SavedView, { find: () => chain, countDocuments: async () => 1 }]], async () => {
+    await listSavedViews({ user: admin, query: { pageKey: "users" } }, res, (error) => { throw error; });
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.items.length, 1);
+  assert.equal(res.body.items[0].canManage, true);
+  assert.equal("apiKey" in res.body.items[0], false);
+  assert.equal("smtpPass" in res.body.items[0], false);
+  assert.equal(JSON.stringify(res.body).includes("do-not-return"), false);
+});
+
 test("saved view creation persists the validated view and returns 201", async () => {
   const now = new Date();
   const view = { _id: "507f1f77bcf86cd799439011", owner: admin.userId, page: "users", name: "Active users", filters: { status: "active" }, columns: ["access"], sort: { sortBy: "name", sortOrder: "asc" }, density: "compact", shared: true, createdAt: now, updatedAt: now };

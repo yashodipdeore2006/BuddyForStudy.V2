@@ -530,6 +530,7 @@ export async function getPublished(courseId) {
     const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] });
     if (!courseDoc) return null;
     if (normalizeMultiVideoLessons(courseDoc)) {
+      courseDoc.$locals.revisionContext = { source: "system", summary: "Video resource normalization", reason: "" };
       await courseDoc.save();
       await cacheDelete(key);
     }
@@ -542,6 +543,7 @@ export async function getPublished(courseId) {
   if (!courseDoc) return null;
 
   if (normalizeMultiVideoLessons(courseDoc)) {
+    courseDoc.$locals.revisionContext = { source: "system", summary: "Video resource normalization", reason: "" };
     await courseDoc.save();
   }
 

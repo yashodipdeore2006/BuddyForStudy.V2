@@ -567,11 +567,26 @@ export async function getPublished(courseId, userId = null) {
       });
       return enrollment ? cached : null;
     }
-    if (!cached.isPublished || !isApprovedForPublication(cached)) {
+    if (!cached.isPublished) {
       await cacheDelete(key);
       return null;
     }
-    if (!hasMultipleTutorialVideos(cached)) return cached;
+    if (isApprovedForPublication(cached) && !hasMultipleTutorialVideos(cached)) return cached;
+
+    // Grandfather existing learners of previously published courses whose
+    // records predate aiReviewSource/aiReviewedBy. Explicit pending/rejected
+    // moderation decisions still block access.
+    if (userId && !["pending", "rejected"].includes(cached.aiReviewStatus)) {
+      const enrollment = await Enrollment.exists({
+        user: userId,
+        course: cached._id,
+        status: { $in: ["active", "completed"] },
+        revokedBy: null
+      });
+      if (enrollment) return cached;
+    }
+    await cacheDelete(key);
+    return null;
   }
 
   const accessBranches = [{ isPublished: true, $and: [PUBLICATION_APPROVAL_FILTER] }];
@@ -581,11 +596,29 @@ export async function getPublished(courseId, userId = null) {
     aiReviewStatus: "approved",
     $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
   });
-  const courseDoc = await Course.findOne({
+  let courseDoc = await Course.findOne({
     _id: courseId,
     deletedAt: null,
     $or: accessBranches
   });
+
+  if (!courseDoc && userId) {
+    const existingEnrollment = await Enrollment.exists({
+      user: userId,
+      course: courseId,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (existingEnrollment) {
+      courseDoc = await Course.findOne({
+        _id: courseId,
+        deletedAt: null,
+        isPublished: true,
+        visibility: { $ne: "private" },
+        aiReviewStatus: { $nin: ["pending", "rejected"] }
+      });
+    }
+  }
   if (!courseDoc) return null;
   if (courseDoc.visibility === "private") {
     const enrollment = await Enrollment.exists({

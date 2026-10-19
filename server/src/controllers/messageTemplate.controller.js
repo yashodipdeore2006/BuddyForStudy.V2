@@ -139,7 +139,7 @@ const TEMPLATE_SAMPLE_DEFAULTS = {
 
 function findUnknownTemplatePlaceholders(template) {
   const source = [template?.title, template?.subject, template?.body].filter(Boolean).join("\\n");
-  const keys = [...new Set([...source.matchAll(/\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}/g)].map((match) => match[1]))];
+  const keys = [...new Set([...source.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map((match) => match[1]))];
   return keys.filter((key) => !Object.keys(TEMPLATE_SAMPLE_DEFAULTS).some((name) => name.toLowerCase() === key.toLowerCase()));
 }
 

@@ -23,6 +23,7 @@ function money(value: number) {
 export default function AdminControlCenter() {
   const [data, setData] = useState<any>(null);
   const [health, setHealth] = useState<any>(null);
+  const [operationsHealth, setOperationsHealth] = useState<any>(null);
   const [error, setError] = useState("");
   const [healthError, setHealthError] = useState("");
   const [operationalAlerts, setOperationalAlerts] = useState<any[]>([]);
@@ -36,10 +37,11 @@ export default function AdminControlCenter() {
     setLoading(true);
     setError("");
     try {
-      const [overviewResult, healthResult, alertsResult] = await Promise.allSettled([
+      const [overviewResult, healthResult, alertsResult, operationsHealthResult] = await Promise.allSettled([
         adminFetch("/api/admin/overview"),
         adminFetch("/api/admin/health"),
         adminFetch("/api/admin/operations/alerts?status=open&limit=10"),
+        adminFetch("/api/admin/operations/system-health"),
       ]);
 
       if (overviewResult.status === "rejected") {
@@ -63,6 +65,7 @@ export default function AdminControlCenter() {
       } else {
         setAlertsError("Operational alerts are temporarily unavailable.");
       }
+      if (operationsHealthResult.status === "fulfilled") setOperationsHealth(operationsHealthResult.value);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load admin dashboard");
     } finally {
@@ -139,6 +142,14 @@ export default function AdminControlCenter() {
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
+      <section className={"mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4 " + (operationsHealth?.overallStatus === "healthy" ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50")} aria-live="polite">
+        <div className="flex items-center gap-3">
+          {operationsHealth?.overallStatus === "healthy" ? <CheckCircle2 className="h-5 w-5 text-emerald-700" /> : <AlertTriangle className="h-5 w-5 text-amber-700" />}
+          <div><p className="text-sm font-bold">{operationsHealth?.overallStatus === "healthy" ? "Operations healthy" : "Needs attention"}</p><p className="text-xs text-slate-600">Worker: {operationsHealth?.worker?.status || "unknown"} · failed webhooks: {operationsHealth?.queues?.webhooks?.failed ?? "—"} · failed deliveries: {Number(operationsHealth?.queues?.emailDelivery?.failed || 0) + Number(operationsHealth?.queues?.pushDelivery?.failed || 0)}</p></div>
+        </div>
+        <Link to="/admin/operations" className="btn-secondary">Open system operations <ArrowRight className="h-4 w-4" /></Link>
+      </section>
+
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {visibleCards.map(([Icon, label, value, sub]: any) => (
           <AdminCard className="admin-stat-card" key={label}>
@@ -154,8 +165,8 @@ export default function AdminControlCenter() {
 
       <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5">
-          <div><h2 className="font-bold text-slate-900">Operational alerts</h2><p className="mt-1 text-xs text-slate-500">Open background-worker and platform issues that need acknowledgement.</p></div>
-          <AdminBadge tone={operationalAlerts.length ? "warning" : "success"}>{operationalAlerts.length} open</AdminBadge>
+          <div><h2 className="font-bold text-slate-900">Needs attention</h2><p className="mt-1 text-xs text-slate-500">Open background-worker and platform issues that need acknowledgement.</p></div>
+          <div className="flex items-center gap-3"><AdminBadge tone={operationalAlerts.length ? "warning" : "success"}>{operationalAlerts.length} open</AdminBadge><Link to="/admin/operations" className="text-xs font-bold text-blue-600">View all</Link></div>
         </div>
         {alertsError && <p role="status" aria-live="polite" className="border-b border-slate-100 p-4 text-sm text-amber-700">{alertsError}</p>}
         {operationalAlerts.length ? (

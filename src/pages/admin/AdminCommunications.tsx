@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Eye, Mail, Megaphone, Send } from "lucide-react";
+import { Eye, Send } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { AdminConfirmDialog, AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 type Channel = "in_app" | "email" | "push";
+type CommunicationConfirmation =
+  | { kind: "retry-delivery"; notificationId: string; channel: "email" | "push" }
+  | { kind: "cancel-campaign"; announcementId: string; title: string }
+  | { kind: "test-template"; templateId: string }
+  | { kind: "send"; channel: "notification" | "email" | "announcement"; recipientCount: number; scheduled: boolean };
 type MessageTemplate = { _id: string; name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType?: string; isActive: boolean; usedBy?: Array<{ event: string; source: string }> };
 type TemplateDraft = { name: string; key: string; channel: "notification" | "email" | "announcement"; title: string; subject: string; body: string; link: string; messageType: string; isActive: boolean };
 type TemplatePreview = { channel: string; title: string; subject: string; body: string; placeholders: string[]; unknownPlaceholders: string[] };
@@ -59,27 +64,29 @@ export default function AdminCommunications() {
   const [campaignNotice, setCampaignNotice] = useState("");
   const [campaignReports, setCampaignReports] = useState<Record<string, any>>({});
   const [campaignBusy, setCampaignBusy] = useState("");
+  const [confirmationAction, setConfirmationAction] = useState<CommunicationConfirmation | null>(null);
+  const [confirmationReason, setConfirmationReason] = useState("");
+  const [confirmationText, setConfirmationText] = useState("");
+  const [confirmationError, setConfirmationError] = useState("");
+  const [confirmationBusy, setConfirmationBusy] = useState(false);
 
-  async function retryDelivery(notificationId: string, channel: "email" | "push") {
-    const label = channel === "email" ? "email" : "push notification";
-    if (!window.confirm(`Retry this ${label} delivery now?`)) return;
-    const reason = window.prompt("Reason for retrying this delivery (10–500 characters):") || "";
-    if (reason.trim().length < 10 || reason.trim().length > 500) { setDeliveryError("Retry reason must be between 10 and 500 characters."); return; }
-    setRetryingDelivery(`${notificationId}:${channel}`);
-    setDeliveryError("");
-    setDeliveryNotice("");
-    try {
-      const data = await adminFetch(`/api/admin/notification-deliveries/${notificationId}/retry`, {
-        method: "POST",
-        body: JSON.stringify({ channel, reason: reason.trim() }),
-      });
-      setDeliveryNotice(data.message || `${label} retry finished.`);
-      await loadDeliveryLogs();
-    } catch (error) {
-      setDeliveryError(error instanceof Error ? error.message : `Unable to retry ${label} delivery.`);
-    } finally {
-      setRetryingDelivery("");
-    }
+  function requestConfirmation(action: CommunicationConfirmation) {
+    setConfirmationAction(action);
+    setConfirmationReason("");
+    setConfirmationText("");
+    setConfirmationError("");
+  }
+
+  function closeConfirmation() {
+    if (confirmationBusy) return;
+    setConfirmationAction(null);
+    setConfirmationReason("");
+    setConfirmationText("");
+    setConfirmationError("");
+  }
+
+  function retryDelivery(notificationId: string, channel: "email" | "push") {
+    requestConfirmation({ kind: "retry-delivery", notificationId, channel });
   }
 
   async function loadCampaigns() {
@@ -96,17 +103,10 @@ export default function AdminCommunications() {
     finally { setCampaignBusy(""); }
   }
 
-  async function cancelCampaign(announcementId: string, titleText: string) {
-    if (!window.confirm("Cancel scheduled announcement \"" + titleText + "\" before sending starts?")) return;
-    const reason = window.prompt("Reason for cancelling this announcement (10–500 characters):") || "";
-    if (reason.trim().length < 10 || reason.trim().length > 500) { setCampaignError("Cancellation reason must be between 10 and 500 characters."); return; }
-    setCampaignBusy(announcementId); setCampaignError(""); setCampaignNotice("");
-    try {
-      const data = await adminFetch("/api/admin/announcements/" + announcementId + "/cancel", { method: "POST", body: JSON.stringify({ reason: reason.trim() }) });
-      setCampaignNotice(data.message || "Announcement cancelled."); await loadCampaigns();
-    } catch (error) { setCampaignError(error instanceof Error ? error.message : "Unable to cancel this announcement."); }
-    finally { setCampaignBusy(""); }
+  function cancelCampaign(announcementId: string, titleText: string) {
+    requestConfirmation({ kind: "cancel-campaign", announcementId, title: titleText });
   }
+
   async function loadDeliveryLogs() {
     setLoadingDeliveries(true);
     setDeliveryError("");
@@ -158,17 +158,9 @@ export default function AdminCommunications() {
     finally { setPreviewingTemplate(false); }
   }
 
-  async function testSendTemplate() {
+  function testSendTemplate() {
     if (!editingTemplateId) { setTemplateError("Save the template first, then reopen it to send a test."); return; }
-    const reason = window.prompt("Reason for sending a template test to your own administrator account (10–500 characters):") || "";
-    if (reason.trim().length < 10 || reason.trim().length > 500) { setTemplateError("Test-send reason must be between 10 and 500 characters."); return; }
-    if (!window.confirm("Send a test using this saved template to your own administrator account only?")) return;
-    setTestSendingTemplate(true); setTemplateError(""); setTemplateStatus("");
-    try {
-      const data = await adminFetch("/api/admin/message-templates/" + editingTemplateId + "/test-send", { method: "POST", body: JSON.stringify({ reason: reason.trim() }) });
-      setTemplateStatus(data.message || "Test message sent to your administrator account.");
-    } catch (error) { setTemplateError(error instanceof Error ? error.message : "Unable to send this template test."); }
-    finally { setTestSendingTemplate(false); }
+    requestConfirmation({ kind: "test-template", templateId: editingTemplateId });
   }
   async function saveTemplate() {
     setSavingTemplate(true);
@@ -304,30 +296,31 @@ export default function AdminCommunications() {
       setStatus("Complete the required fields first.");
       return;
     }
+    requestConfirmation({
+      kind: "send",
+      channel: tab,
+      recipientCount: audiencePreview.recipientCount,
+      scheduled: tab === "announcement" && Boolean(scheduledAt),
+    });
+  }
 
-    let announcementReason = "";
-    if (tab === "announcement") {
-      announcementReason = window.prompt("Reason for this announcement (10–500 characters):") || "";
-      if (announcementReason.trim().length < 10 || announcementReason.trim().length > 500) { setStatus("Announcement reason must be between 10 and 500 characters."); return; }
+  async function performSend(channel: "notification" | "email" | "announcement", announcementReason: string): Promise<boolean> {
+    if (!audiencePreview) {
+      setStatus("Preview the recipients and confirm the audience before sending.");
+      setConfirmationError("The audience preview is no longer available. Close this dialog and preview recipients again.");
+      return false;
     }
-    if (audiencePreview.recipientCount > 500) {
-      const expected = "SEND TO " + audiencePreview.recipientCount.toLocaleString("en-US") + " USERS";
-      const typed = window.prompt("This campaign targets more than 500 users. Type exactly:\n" + expected);
-      if (typed !== expected) return;
-    } else if (!window.confirm((tab === "announcement" && scheduledAt ? "Schedule" : "Send") + " this communication to " + audiencePreview.recipientCount.toLocaleString() + " recipient(s)?")) return;
-
     setSending(true);
     setStatus("Sending...");
     try {
       const path =
-        tab === "notification"
+        channel === "notification"
           ? "/api/admin/notifications/send"
-          : tab === "email"
+          : channel === "email"
             ? "/api/admin/emails/send"
             : "/api/admin/announcements/send";
-
       const body =
-        tab === "email"
+        channel === "email"
           ? { ...audiencePayload(), subject, html, previewToken: audiencePreview.previewToken }
           : {
               ...audiencePayload(),
@@ -337,29 +330,133 @@ export default function AdminCommunications() {
               type: "system",
               link: link.trim(),
               channel: channels,
-              ...(tab === "announcement" ? {
+              ...(channel === "announcement" ? {
                 ...(scheduledAt ? { scheduledAt: new Date(scheduledAt + ":00+05:30").toISOString() } : {}),
                 timezone: "Asia/Kolkata",
                 reason: announcementReason.trim(),
               } : {}),
             };
-
       const data = await adminFetch(path, { method: "POST", body: JSON.stringify(body) });
-      const deliverySummary = tab === "email"
+      const deliverySummary = channel === "email"
         ? data.queued !== undefined
           ? `${data.queued} emails queued, ${data.skipped || 0} skipped by preferences or configuration`
           : `${data.sent ?? 0} recipient(s)`
-        : tab === "announcement"
+        : channel === "announcement"
           ? `${data.recipients ?? 0} recipient(s)${data.emailsQueued !== undefined ? `, ${data.emailsQueued} emails queued` : ""}${data.pushQueued !== undefined ? `, ${data.pushQueued} push deliveries queued` : ""}`
           : `${data.sent ?? 0} recipient(s)`;
       setStatus((data.message || "Sent") + " — " + deliverySummary);
-      if (tab === "announcement") { setScheduledAt(""); await loadCampaigns(); }
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Unable to send communication");
+      if (channel === "announcement") { setScheduledAt(""); await loadCampaigns(); }
+      return true;
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unable to send communication";
+      setStatus(messageText);
+      setConfirmationError(messageText);
+      return false;
     } finally {
       setSending(false);
     }
   }
+
+  async function submitConfirmation() {
+    const action = confirmationAction;
+    if (!action) return;
+    const reason = confirmationReason.trim();
+    const requiresReason = action.kind !== "send" || action.channel === "announcement";
+    if (requiresReason && (reason.length < 10 || reason.length > 500)) {
+      setConfirmationError("Enter a reason between 10 and 500 characters.");
+      return;
+    }
+    const requiredText = action.kind === "cancel-campaign"
+      ? "CANCEL ANNOUNCEMENT"
+      : action.kind === "test-template"
+        ? "SEND TEST"
+        : action.kind === "send" && action.recipientCount > 500
+          ? "SEND TO " + action.recipientCount.toLocaleString("en-US") + " USERS"
+          : "";
+    if (requiredText && confirmationText.trim() !== requiredText) {
+      setConfirmationError("Type the exact confirmation phrase to continue.");
+      return;
+    }
+    setConfirmationBusy(true);
+    setConfirmationError("");
+    try {
+      if (action.kind === "retry-delivery") {
+        const label = action.channel === "email" ? "email" : "push notification";
+        setRetryingDelivery(`${action.notificationId}:${action.channel}`);
+        setDeliveryError("");
+        setDeliveryNotice("");
+        const data = await adminFetch(`/api/admin/notification-deliveries/${action.notificationId}/retry`, {
+          method: "POST",
+          body: JSON.stringify({ channel: action.channel, reason }),
+        });
+        setDeliveryNotice(data.message || `${label} retry finished.`);
+        await loadDeliveryLogs();
+      } else if (action.kind === "cancel-campaign") {
+        setCampaignBusy(action.announcementId); setCampaignError(""); setCampaignNotice("");
+        const data = await adminFetch("/api/admin/announcements/" + action.announcementId + "/cancel", {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        });
+        setCampaignNotice(data.message || "Announcement cancelled.");
+        await loadCampaigns();
+      } else if (action.kind === "test-template") {
+        setTestSendingTemplate(true); setTemplateError(""); setTemplateStatus("");
+        const data = await adminFetch("/api/admin/message-templates/" + action.templateId + "/test-send", {
+          method: "POST",
+          body: JSON.stringify({ reason }),
+        });
+        setTemplateStatus(data.message || "Test message sent to your administrator account.");
+      } else {
+        const succeeded = await performSend(action.channel, reason);
+        if (!succeeded) return;
+      }
+      setConfirmationAction(null);
+      setConfirmationReason("");
+      setConfirmationText("");
+      setConfirmationError("");
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Unable to complete the communication action.";
+      setConfirmationError(messageText);
+      if (action.kind === "retry-delivery") setDeliveryError(messageText);
+      else if (action.kind === "cancel-campaign") setCampaignError(messageText);
+      else if (action.kind === "test-template") setTemplateError(messageText);
+    } finally {
+      setConfirmationBusy(false);
+      setRetryingDelivery("");
+      setCampaignBusy("");
+      setTestSendingTemplate(false);
+    }
+  }
+
+  const confirmationRequiredText = confirmationAction?.kind === "cancel-campaign"
+    ? "CANCEL ANNOUNCEMENT"
+    : confirmationAction?.kind === "test-template"
+      ? "SEND TEST"
+      : confirmationAction?.kind === "send" && confirmationAction.recipientCount > 500
+        ? "SEND TO " + confirmationAction.recipientCount.toLocaleString("en-US") + " USERS"
+        : undefined;
+  const confirmationNeedsReason = Boolean(confirmationAction && (
+    confirmationAction.kind !== "send" || confirmationAction.channel === "announcement"
+  ));
+  const confirmationTitle = !confirmationAction ? "Confirm action"
+    : confirmationAction.kind === "retry-delivery" ? `Retry failed ${confirmationAction.channel === "email" ? "email" : "push"} delivery`
+    : confirmationAction.kind === "cancel-campaign" ? "Cancel scheduled announcement"
+    : confirmationAction.kind === "test-template" ? "Send template test"
+    : confirmationAction.scheduled ? "Schedule announcement"
+    : confirmationAction.channel === "email" ? "Send email campaign"
+    : confirmationAction.channel === "announcement" ? "Send announcement"
+    : "Send in-app notification";
+  const confirmationDescription = !confirmationAction ? ""
+    : confirmationAction.kind === "retry-delivery" ? "Only failed deliveries can be retried. A reason will be recorded in the audit log."
+    : confirmationAction.kind === "cancel-campaign" ? `Cancel "${confirmationAction.title}" before the worker starts sending? This action is audited.`
+    : confirmationAction.kind === "test-template" ? "This test message will be sent only to your own administrator account, never to the audience."
+    : `${confirmationAction.scheduled ? "Schedule" : "Send"} this communication to ${confirmationAction.recipientCount.toLocaleString()} recipient(s). Check the previewed audience and consent counts before confirming.`;
+  const confirmationLabel = !confirmationAction ? "Confirm"
+    : confirmationAction.kind === "retry-delivery" ? "Retry delivery"
+    : confirmationAction.kind === "cancel-campaign" ? "Cancel announcement"
+    : confirmationAction.kind === "test-template" ? "Send test"
+    : confirmationAction.scheduled ? "Schedule"
+    : "Send communication";
 
   function renderPreview() {
     if (tab === "email") {
@@ -735,6 +832,23 @@ export default function AdminCommunications() {
             })}</tbody></table></div>
         }
       </section>}
+      <AdminConfirmDialog
+        open={Boolean(confirmationAction)}
+        title={confirmationTitle}
+        description={confirmationDescription}
+        confirmLabel={confirmationLabel}
+        requiredText={confirmationRequiredText}
+        value={confirmationText}
+        onValueChange={setConfirmationText}
+        reason={confirmationReason}
+        onReasonChange={setConfirmationReason}
+        requireReason={confirmationNeedsReason}
+        error={confirmationError}
+        loading={confirmationBusy}
+        danger={confirmationAction?.kind === "cancel-campaign"}
+        onClose={closeConfirmation}
+        onConfirm={() => void submitConfirmation()}
+      />
     </div>
   );
 }

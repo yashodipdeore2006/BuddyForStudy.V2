@@ -6,6 +6,9 @@ import { AdminPageHeader } from "@/components/admin/AdminUI";
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
 }
+function EvidenceRow({ label, value }: { label: string; value: unknown }) {
+  return <div className="grid gap-1 border-b border-slate-100 pb-3 sm:grid-cols-[180px_minmax(0,1fr)]"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="break-words text-sm text-slate-800">{String(value ?? "—")}</p></div>;
+}
 
 export default function AdminBilling() {
   const [refunds, setRefunds] = useState<any[]>([]);
@@ -19,6 +22,7 @@ export default function AdminBilling() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [detailDrawer, setDetailDrawer] = useState<{ type: "payment" | "refund"; item: any } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -46,18 +50,19 @@ export default function AdminBilling() {
   }, []);
 
   async function act(id: string, status: string) {
-    const note = window.prompt("Admin note / reason") || "";
-    if (status === "rejected" && !note.trim()) {
-      setError("Add a reason before rejecting a refund.");
+    const reason = window.prompt("Finance decision reason (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required for every finance decision.");
       return;
     }
+    const note = window.prompt("Optional note for the learner:", reason) || "";
 
     setActionId(id);
     setError("");
     try {
       await adminFetch("/api/admin/refunds/" + id, {
         method: "PUT",
-        body: JSON.stringify({ status, adminNote: note }),
+        body: JSON.stringify({ status, adminNote: note, reason }),
       });
       await load();
     } catch (e) {
@@ -72,13 +77,18 @@ export default function AdminBilling() {
       "Enter the Razorpay refund ID from the provider dashboard. Verify it belongs to this payment before continuing."
     )?.trim();
     if (!providerRefundId) return;
+    const reason = window.prompt("Reason for provider reconciliation (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required for reconciliation.");
+      return;
+    }
 
     setActionId(id);
     setError("");
     try {
       await adminFetch("/api/admin/refunds/" + id + "/reconcile", {
         method: "POST",
-        body: JSON.stringify({ providerRefundId }),
+        body: JSON.stringify({ providerRefundId, reason }),
       });
       await load();
     } catch (e) {
@@ -90,10 +100,15 @@ export default function AdminBilling() {
 
   async function updateIssue(issue: any, status: string) {
     const note = window.prompt("Support update for the user (optional)", issue.adminNote || "") || "";
+    const reason = window.prompt("Reason for this support action (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required for support actions.");
+      return;
+    }
     setActionId(issue._id);
     setError("");
     try {
-      await adminFetch("/api/admin/payment-issues/" + issue._id, { method: "PUT", body: JSON.stringify({ status, adminNote: note }) });
+      await adminFetch("/api/admin/payment-issues/" + issue._id, { method: "PUT", body: JSON.stringify({ status, adminNote: note, reason }) });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update payment issue");
@@ -164,7 +179,7 @@ export default function AdminBilling() {
                   <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{item.user?.name || "Unknown user"}</p><span className="badge bg-slate-100 text-slate-600">{item.status}</span></div>
                   <p className="text-sm text-slate-500">{item.user?.email}</p>
                   <p className="mt-2 text-sm text-slate-700">{item.reason || "No reason provided."}</p>{item.adminNote && <p className="mt-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{item.adminNote}</p>}
-                  <p className="mt-2 text-xs text-slate-400">{money(item.amount)} · {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</p>
+                  <p className="mt-2 text-xs text-slate-400">{money(item.amount)} · {item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</p><p className={"mt-2 text-xs font-semibold " + (item.sla?.breached ? "text-red-700" : "text-slate-500")}>SLA due {item.sla?.dueAt ? new Date(item.sla.dueAt).toLocaleString() : "24h from request"} · {item.sla?.breached ? "BREACHED" : item.sla?.hoursRemaining != null ? item.sla.hoursRemaining + "h remaining" : "tracking"}</p><button type="button" className="mt-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setDetailDrawer({ type: "refund", item })}>Evidence & details</button>
                 </div>
                 {item.status === "pending" && permissions.includes("refunds.manage") && (
                   <div className="flex shrink-0 gap-2">
@@ -224,13 +239,13 @@ export default function AdminBilling() {
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500"><tr><th className="p-4">User</th><th className="p-4">Product</th><th className="p-4">Amount</th><th className="p-4">Provider</th><th className="p-4">Status</th><th className="p-4">Reference</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filteredPayments.map((item) => (
-                <tr key={item._id} className="hover:bg-slate-50/70">
+                <tr key={item._id} className="cursor-pointer hover:bg-slate-50/70" onClick={() => setDetailDrawer({ type: "payment", item })}>
                   <td className="p-4"><p className="font-semibold">{item.user?.name || "Unknown"}</p><p className="text-xs text-slate-500">{item.user?.email}</p></td>
                   <td className="p-4 text-xs text-slate-600">{item.course?.title || item.plan?.name || "—"}</td>
                   <td className="p-4 font-bold">{money(item.amount)}</td>
                   <td className="p-4 capitalize text-slate-600">{item.provider}</td>
                   <td className="p-4"><span className="badge bg-slate-100 text-slate-600">{item.status}</span></td>
-                  <td className="max-w-xs truncate p-4 font-mono text-[11px] text-slate-500">{item.providerPaymentId || item.providerOrderId || "—"}</td>
+                  <td className="max-w-xs truncate p-4 font-mono text-[11px] text-slate-500">{item.providerPaymentId || item.providerOrderId || "—"}<span className="mt-1 block font-sans text-xs font-semibold text-blue-600">Open details</span></td>
                 </tr>
               ))}
             </tbody>
@@ -239,5 +254,40 @@ export default function AdminBilling() {
         </div>
       </section>
     </div>
+      {detailDrawer && (
+        <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailDrawer(null); }}>
+          <aside role="dialog" aria-modal="true" aria-label={detailDrawer.type === "payment" ? "Payment details" : "Refund evidence"} className="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl sm:p-7">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-500">{detailDrawer.type === "payment" ? "Payment ledger" : "Finance decision evidence"}</p><h2 className="mt-1 text-xl font-extrabold text-slate-950">{detailDrawer.type === "payment" ? "Payment details" : "Refund request details"}</h2></div><button type="button" className="btn-secondary" onClick={() => setDetailDrawer(null)}>Close</button></div>
+            {detailDrawer.type === "payment" ? <div className="mt-5 space-y-4">
+              <EvidenceRow label="Payment ID" value={detailDrawer.item._id} />
+              <EvidenceRow label="User" value={detailDrawer.item.user?.name + " · " + (detailDrawer.item.user?.email || "")} />
+              <EvidenceRow label="Product" value={detailDrawer.item.course?.title || detailDrawer.item.plan?.name || "—"} />
+              <EvidenceRow label="Amount" value={money(detailDrawer.item.amount) + " " + (detailDrawer.item.currency || "INR")} />
+              <EvidenceRow label="Status (provider-derived)" value={detailDrawer.item.status} />
+              <EvidenceRow label="Provider" value={detailDrawer.item.provider || "—"} />
+              <EvidenceRow label="Provider payment ID" value={detailDrawer.item.providerPaymentId || "—"} />
+              <EvidenceRow label="Provider order ID" value={detailDrawer.item.providerOrderId || "—"} />
+              <EvidenceRow label="Created" value={detailDrawer.item.createdAt ? new Date(detailDrawer.item.createdAt).toLocaleString() : "—"} />
+              <div className="rounded-xl border border-slate-200 p-4"><h3 className="font-bold">Linked refund requests</h3>{refunds.filter((refund) => String(refund.payment?._id || refund.payment) === String(detailDrawer.item._id)).map((refund) => <div key={refund._id} className="mt-3 border-t border-slate-100 pt-3"><p className="font-semibold">{money(refund.amount)} · {refund.status}</p><p className="mt-1 text-sm text-slate-600">{refund.reason || "No learner reason"}</p><p className="mt-1 text-xs text-slate-500">SLA: {refund.sla?.dueAt ? new Date(refund.sla.dueAt).toLocaleString() : "24h from request"}</p></div>)}{!refunds.some((refund) => String(refund.payment?._id || refund.payment) === String(detailDrawer.item._id)) && <p className="mt-2 text-sm text-slate-500">No refund requests linked to this payment.</p>}</div>
+            </div> : <div className="mt-5 space-y-4">
+              <EvidenceRow label="Refund request ID" value={detailDrawer.item._id} />
+              <EvidenceRow label="Learner" value={detailDrawer.item.user?.name + " · " + (detailDrawer.item.user?.email || "")} />
+              <EvidenceRow label="Requested amount" value={money(detailDrawer.item.amount) + " " + (detailDrawer.item.payment?.currency || "INR")} />
+              <EvidenceRow label="Request status" value={detailDrawer.item.status} />
+              <EvidenceRow label="Learner reason" value={detailDrawer.item.reason || "No reason provided"} />
+              <EvidenceRow label="Decision reason" value={detailDrawer.item.decisionReason || "Not yet decided"} />
+              <EvidenceRow label="SLA deadline" value={detailDrawer.item.sla?.dueAt ? new Date(detailDrawer.item.sla.dueAt).toLocaleString() : "24h from request"} />
+              <EvidenceRow label="Payment status" value={detailDrawer.item.payment?.status || "Unknown"} />
+              <EvidenceRow label="Provider" value={detailDrawer.item.payment?.provider || "—"} />
+              <EvidenceRow label="Provider payment ID" value={detailDrawer.item.payment?.providerPaymentId || "—"} />
+              <EvidenceRow label="Provider order ID" value={detailDrawer.item.payment?.providerOrderId || "—"} />
+              <EvidenceRow label="Provider refund ID" value={detailDrawer.item.providerRefundId || "Not yet recorded"} />
+              <EvidenceRow label="Submitted" value={detailDrawer.item.createdAt ? new Date(detailDrawer.item.createdAt).toLocaleString() : "—"} />
+              <EvidenceRow label="Processed by" value={detailDrawer.item.processedBy?.name || "—"} />
+              {detailDrawer.item.adminNote && <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">Finance note</p><p className="mt-1 whitespace-pre-wrap">{detailDrawer.item.adminNote}</p></div>}
+            </div>}
+          </aside>
+        </div>
+      )}
   );
 }

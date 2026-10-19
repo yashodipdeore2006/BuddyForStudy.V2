@@ -570,6 +570,7 @@ export async function reviewAiCourse(req, res, next) {
     course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
     course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "AI review decision: " + decision };
     await course.save();
+    await cacheDelete(`course:${course._id}`);
 
     let learnerEnrollmentStatus = null;
     if (course.createdForUser && course.visibility === "private") {
@@ -815,6 +816,7 @@ export async function publishCourse(req, res, next) {
     if (!course) return failure(res, "Course not found", 404);
 
     if (course.deletedAt) return failure(res, "Deleted courses must be restored before publishing.", 409);
+    if (course.visibility === "private" && course.createdForUser) return failure(res, "Learner-specific courses remain private. Approval grants access to the owner; create a separate public course to publish it to the catalog.", 409);
     if (isAiGeneratedCourse(course) && (course.aiReviewStatus !== "approved" || (!course.aiReviewedBy && course.aiReviewSource !== "automatic"))) {
       return res.status(409).json({ success: false, message: "Human review is required before publishing an AI-generated course.", reviewRequired: true, aiReviewStatus: course.aiReviewStatus || "pending" });
     }

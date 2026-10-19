@@ -81,6 +81,10 @@ router.get("/audit-logs", adminPermissionMiddleware("audit.read"), controller.au
 router.get("/analytics", adminPermissionMiddleware("analytics.read"), controller.analytics);
 router.get("/health", adminPermissionMiddleware("operations.read"), controller.health);
 router.get("/operations/system-health", adminPermissionMiddleware("operations.read"), adminOperationsController.systemHealth);
+router.get("/operations/webhooks", adminPermissionMiddleware("operations.read"), adminOperationsController.webhookEvents);
+router.get("/operations/outbox", adminPermissionMiddleware("operations.read"), adminOperationsController.auditOutboxItems);
+router.get("/operations/delivery-log", adminPermissionMiddleware("operations.read"), adminOperationsController.deliveryLog);
+router.get("/operations/settings-registry", adminPermissionMiddleware("operations.read"), adminOperationsController.typedSettingsRegistry);
 router.get("/operations/alerts", adminPermissionMiddleware("operations.read"), operationalAlertController.operationalAlerts);
 router.post("/operations/alerts/:alertId/acknowledge", adminPermissionMiddleware("operations.manage"), operationalAlertController.acknowledgeOperationalAlert);
 

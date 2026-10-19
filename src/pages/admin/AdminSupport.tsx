@@ -9,6 +9,8 @@ type Issue = {
   description: string;
   status: "open" | "in_review" | "resolved" | "closed";
   adminNote?: string;
+  assignedTo?: { _id?: string; id?: string; name?: string; email?: string } | string | null;
+  internalNotes?: { _id?: string; note: string; reason: string; createdAt: string; author?: { name?: string; email?: string } }[];
   createdAt: string;
   user?: { name?: string; email?: string };
   payment?: { amount?: number; currency?: string; status?: string; course?: { title?: string }; plan?: { name?: string } };
@@ -29,6 +31,9 @@ export default function AdminSupport() {
   const [filter, setFilter] = useState("open");
   const [query, setQuery] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [internalNotes, setInternalNotes] = useState<Record<string, string>>({});
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [assignees, setAssignees] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -37,16 +42,31 @@ export default function AdminSupport() {
   async function load() {
     setLoading(true); setError("");
     try {
-      const data = await adminFetch("/api/admin/payment-issues?limit=300" + (filter ? "&status=" + filter : ""));
+      const [data, assigneeData] = await Promise.all([
+        adminFetch("/api/admin/payment-issues?limit=300" + (filter ? "&status=" + filter : "")),
+        adminFetch("/api/admin/payment-issues/assignees"),
+      ]);
       setIssues(data.issues || []);
+      setAssignees(assigneeData.assignees || []);
+      setAssignments((current) => {
+        const next = { ...current };
+        for (const issue of data.issues || []) if (next[issue._id] === undefined) next[issue._id] = issue.assignedTo?._id || issue.assignedTo?.id || (typeof issue.assignedTo === "string" ? issue.assignedTo : "");
+        return next;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load support cases.");
     } finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, [filter]);
 
-  async function update(issue: Issue, status: Issue["status"]) {
+  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? (typeof issue.assignedTo === "string" ? issue.assignedTo : issue.assignedTo?._id || issue.assignedTo?.id || "")) {
     const adminNote = (notes[issue._id] ?? issue.adminNote ?? "").trim();
+    const internalNote = (internalNotes[issue._id] || "").trim();
+    const reason = window.prompt("Reason for this support case change (10–500 characters):")?.trim() || "";
+    if (reason.length < 10 || reason.length > 500) {
+      setError("A reason of 10–500 characters is required for support case changes.");
+      return;
+    }
     if (status === "resolved" && !adminNote) {
       setError("Add a resolution note before resolving a support case.");
       return;
@@ -54,9 +74,10 @@ export default function AdminSupport() {
     setSavingId(issue._id); setError(""); setNotice("");
     try {
       await adminFetch("/api/admin/payment-issues/" + issue._id, {
-        method: "PUT", body: JSON.stringify({ status, adminNote }),
+        method: "PUT", body: JSON.stringify({ status, adminNote, assignedTo: assignment || null, internalNote, reason }),
       });
       setNotice("Support case updated.");
+      setInternalNotes((old) => ({ ...old, [issue._id]: "" }));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update support case.");
@@ -97,6 +118,21 @@ export default function AdminSupport() {
             <p className="mt-2 text-xs text-slate-500">Transaction: {issue.payment?.status || "Unknown"} · {money(issue.payment?.amount, issue.payment?.currency || "INR")} · {issue.payment?.course?.title || issue.payment?.plan?.name || "Product not specified"}</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-500"><AlertCircle className="h-4 w-4"/> Support workflow</div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="block text-sm font-medium text-slate-700">Assigned administrator
+            <select value={assignments[issue._id] ?? (typeof issue.assignedTo === "string" ? issue.assignedTo : issue.assignedTo?._id || issue.assignedTo?.id || "")} onChange={(e) => setAssignments((old) => ({ ...old, [issue._id]: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+              <option value="">Unassigned</option>
+              {assignees.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.role}</option>)}
+            </select>
+          </label>
+          <div className="flex items-end"><button type="button" disabled={savingId === issue._id} onClick={() => void update(issue, issue.status)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Save assignment</button></div>
+        </div>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Internal notes</p>
+          {(issue.internalNotes || []).map((note, index) => <div key={note._id || index} className="mt-2 border-b border-slate-200 pb-2 last:border-0"><p className="whitespace-pre-wrap text-sm text-slate-700">{note.note}</p><p className="mt-1 text-xs text-slate-400">{note.author?.name || "Admin"} · {new Date(note.createdAt).toLocaleString()} · reason: {note.reason}</p></div>)}
+          <textarea value={internalNotes[issue._id] || ""} onChange={(e) => setInternalNotes((old) => ({ ...old, [issue._id]: e.target.value }))} rows={2} maxLength={2000} placeholder="Private internal note (not sent to learner)" className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400"/>
+          <button type="button" disabled={savingId === issue._id || !(internalNotes[issue._id] || "").trim()} onClick={() => void update(issue, issue.status)} className="mt-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white">Add internal note</button>
         </div>
         <label className="mt-4 block text-sm font-medium text-slate-700">Support update / resolution message
           <textarea value={notes[issue._id] ?? issue.adminNote ?? ""} onChange={(e) => setNotes((old) => ({ ...old, [issue._id]: e.target.value }))} rows={2} maxLength={2000} placeholder="This note is sent to the learner when the case status changes." className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"/>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarClock, Power, Plus, RefreshCcw, Tag } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 const emptyForm = {
   code: "",
@@ -24,6 +24,7 @@ export default function AdminCoupons() {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [bulkPrefix, setBulkPrefix] = useState("BFS");
   const [bulkCount, setBulkCount] = useState(10);
+  const [activeSection, setActiveSection] = useState<"promotions" | "create">("promotions");
 
   async function load() {
     setLoading(true);
@@ -167,7 +168,19 @@ export default function AdminCoupons() {
       {!permissions.includes("coupons.manage") && <div role="status" className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">View-only access: your role can review coupons but cannot create or change promotions.</div>}
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
-      <section className="card mt-6 p-5">
+      <div className="mt-6">
+        <AdminTabs
+          ariaLabel="Coupon management"
+          value={activeSection}
+          onChange={setActiveSection}
+          items={[
+            { value: "promotions", label: `Promotions (${coupons.length})` },
+            { value: "create", label: "Create or generate coupons" },
+          ]}
+        />
+      </div>
+
+      {activeSection === "create" && <section className="card mt-4 p-5">
         <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-blue-600" /><div><h2 className="font-bold">Create promotion</h2><p className="text-xs text-slate-500">Use caps and expiry dates to prevent accidental open-ended discounts.</p></div></div>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-sm font-medium text-slate-700">
@@ -222,7 +235,7 @@ export default function AdminCoupons() {
         </button>
       </section>
 
-      <section className="card mt-6 p-5">
+      <section className="card mt-4 p-5">
         <h2 className="font-bold">Bulk coupon generation</h2>
         <p className="mt-1 text-xs text-slate-500">Generate up to 100 unique, random codes using the discount settings above. Every generated coupon is audited with your reason.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_160px_auto]">
@@ -231,9 +244,9 @@ export default function AdminCoupons() {
           <div className="flex items-end"><button type="button" className="btn-primary w-full" onClick={() => void generateBulk()} disabled={saving || !permissions.includes("coupons.manage")}>{saving ? "Generating…" : "Generate batch"}</button></div>
         </div>
         <p className="mt-2 text-xs text-slate-500">Uses the discount type, value, limits, expiry and course scope configured in the creation form above.</p>
-      </section>
+      </section>}
 
-      <section className="card mt-6 overflow-hidden">
+      {activeSection === "promotions" && <section className="card mt-4 overflow-hidden">
         <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Active & past promotions</h2><p className="mt-1 text-xs text-slate-500">{coupons.length} coupon records</p></div>
         {loading ? <div role="status" aria-live="polite" aria-label="Loading coupons" className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading coupons</span></div> : (
           <div className="divide-y divide-slate-100">
@@ -253,7 +266,7 @@ export default function AdminCoupons() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

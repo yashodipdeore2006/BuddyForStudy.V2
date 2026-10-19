@@ -47,7 +47,7 @@ type BillingAction =
   | { kind: "issue"; item: PaymentIssue; status: "in_review" | "resolved" | "closed" };
 type DetailSelection = { type: "payment" | "refund" | "issue"; item: any } | null;
 
-function money(value: number, currency = "INR") {
+function money(value: number | undefined, currency = "INR") {
   try { return new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(Number(value || 0)); }
   catch { return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(Number(value || 0)); }
 }

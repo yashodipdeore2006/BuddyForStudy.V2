@@ -15,34 +15,37 @@ type AdminLink = {
   to: string;
   label: string;
   permission: string;
-  group: "Overview" | "Manage" | "Insights" | "Settings";
+  group: "Overview" | "Learning" | "Operations" | "Finance & governance";
   icon: typeof LayoutDashboard;
   description: string;
 };
 type CommandItem = { to: string; label: string; description: string; icon: typeof LayoutDashboard; kind: "Recent" | "Page" | "Action" };
 
 const links: AdminLink[] = [
-  { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Platform overview and operations" },
-  { to: "/admin/users", label: "Users", permission: "users.read", group: "Manage", icon: Users, description: "Accounts, roles and access" },
-  { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Manage", icon: BookOpen, description: "Courses and learning content" },
-  { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Manage", icon: BookOpen, description: "AI review, revisions, moderation and link health" },
-  { to: "/admin/roadmaps", label: "Learning roadmaps", permission: "courses.read", group: "Manage", icon: BookOpen, description: "Learner roadmap activity and completion" },
-  { to: "/admin/support", label: "Support cases", permission: "payment_issues.manage", group: "Manage", icon: Headset, description: "Resolve learner support issues" },
-  { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Manage", icon: ServerCog, description: "Health, queues, webhooks, alerts and delivery logs" },
-  { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Insights", icon: Activity, description: "Platform performance and revenue" },
-  { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Settings", icon: CreditCard, description: "Subscription plans and entitlements" },
-  { to: "/admin/billing", label: "Billing and refunds", permission: "refunds.manage", group: "Settings", icon: CreditCard, description: "Payments, refunds and disputes" },
-  { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Settings", icon: CreditCard, description: "Subscriber status and billing periods" },
-  { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Settings", icon: BrainCircuit, description: "AI content controls" },
-  { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Settings", icon: Megaphone, description: "Announcements and notifications" },
-  { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Settings", icon: MailCheck, description: "Delivery attempts, errors and safe retries" },
-  { to: "/admin/coupons", label: "Coupons", permission: "coupons.read", group: "Settings", icon: Tag, description: "Promotions and coupon rules" },
-  { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Settings", icon: ScrollText, description: "Sensitive actions and accountability" },
-  { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Settings", icon: Settings, description: "Platform configuration" },
-  { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Settings", icon: ShieldCheck, description: "Administrator access and invitations" },
-];
+  { to: "/admin", label: "Dashboard", permission: "dashboard.read", group: "Overview", icon: LayoutDashboard, description: "Platform overview and operational priorities" },
+  { to: "/admin/analytics", label: "Analytics", permission: "analytics.read", group: "Overview", icon: Activity, description: "Learner growth, revenue and learning outcomes" },
 
-const groupOrder: AdminLink["group"][] = ["Overview", "Manage", "Insights", "Settings"];
+  { to: "/admin/users", label: "Users", permission: "users.read", group: "Learning", icon: Users, description: "Accounts, access and learner activity" },
+  { to: "/admin/courses", label: "Courses", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Course catalogue and learning resources" },
+  { to: "/admin/content-quality", label: "Content quality", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Reviews, revisions, moderation and link health" },
+  { to: "/admin/roadmaps", label: "Learning roadmaps", permission: "courses.read", group: "Learning", icon: BookOpen, description: "Generated roadmaps and learner progress" },
+
+  { to: "/admin/support", label: "Support cases", permission: "payment_issues.manage", group: "Operations", icon: Headset, description: "Resolve learner payment and access issues" },
+  { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Operations", icon: ServerCog, description: "Service health, queues, webhooks and alerts" },
+  { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Operations", icon: Megaphone, description: "Announcements, templates and notifications" },
+  { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Operations", icon: MailCheck, description: "Delivery attempts, errors and safe retries" },
+
+  { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Finance & governance", icon: CreditCard, description: "Subscription plans and entitlements" },
+  { to: "/admin/billing", label: "Billing and refunds", permission: "refunds.manage", group: "Finance & governance", icon: CreditCard, description: "Payments, refunds and payment issues" },
+  { to: "/admin/subscriptions", label: "Subscriptions", permission: "billing.read", group: "Finance & governance", icon: CreditCard, description: "Subscriber status and billing periods" },
+  { to: "/admin/coupons", label: "Coupons", permission: "coupons.read", group: "Finance & governance", icon: Tag, description: "Discounts and promotions" },
+  { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Finance & governance", icon: BrainCircuit, description: "AI controls and discovery settings" },
+  { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Finance & governance", icon: ScrollText, description: "Sensitive actions and accountability" },
+  { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Finance & governance", icon: Settings, description: "Platform configuration" },
+  { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Finance & governance", icon: ShieldCheck, description: "Administrator access and invitations" },
+];;
+
+const groupOrder: AdminLink["group"][] = ["Overview", "Learning", "Operations", "Finance & governance"];
 const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system" };
 const quickActions = [
   { to: "/admin/courses", label: "Open course management", description: "Create and update learning content", permission: "courses.read", icon: BookOpen },

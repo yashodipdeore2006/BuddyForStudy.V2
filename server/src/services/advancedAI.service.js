@@ -454,9 +454,6 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
   if (hiddenAnswer) throw Object.assign(new Error("This cached AI answer is hidden by content moderation."), { status: 403 });
 
   if (cached) {
-    if (cached.moderationStatus !== "approved") {
-      return { pendingReview: true, reviewStatus: cached.moderationStatus || "pending", fromCache: true, message: "This AI answer is waiting for administrator approval." };
-    }
     const questionLimit = await getQuestionLimit(course, lesson);
     const alreadyAsked = await AIQuestionAsk.exists({
       user: userId,
@@ -521,6 +518,15 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
       }
     }
 
+    if (cached.moderationStatus !== "approved") {
+      return {
+        pendingReview: true,
+        reviewStatus: cached.moderationStatus || "pending",
+        fromCache: true,
+        message: "This AI answer is waiting for administrator approval.",
+        usage: await getAdvancedAIUsage({ userId, courseId, lessonId })
+      };
+    }
     cached.hitCount += 1;
     cached.lastAskedAt = new Date();
     await cached.save();

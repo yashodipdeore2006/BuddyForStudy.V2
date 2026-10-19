@@ -1611,42 +1611,56 @@ export async function deliveryLog(req, res, next) {
     const status = String(req.query.status || "");
     const channel = String(req.query.channel || "");
     const type = String(req.query.type || "");
-    if (status && ["pending", "sent", "failed", "skipped"].includes(status)) {
-      if (channel === "email") filter.emailStatus = status;
-      else if (channel === "push") filter.pushStatus = status;
-      else if (channel === "in_app") filter.showInApp = status === "sent";
-      else filter.$or = [{ emailStatus: status }, { pushStatus: status }, ...(status === "sent" ? [{ showInApp: true }] : status === "skipped" ? [{ showInApp: false }] : [])];
+    if (channel === "in_app") {
+      if (status === "sent") filter.$or = [{ showInApp: true, "metadata.requestedChannels": "in_app" }, { showInApp: true, "metadata.requestedChannels": { $exists: false } }];
+      else if (status === "skipped") { filter.showInApp = false; filter["metadata.requestedChannels"] = "in_app"; }
+      else if (status && status !== "sent" && status !== "skipped") filter._id = { $exists: false };
+      else filter.$or = [{ "metadata.requestedChannels": "in_app" }, { showInApp: true, "metadata.requestedChannels": { $exists: false } }];
+    } else if (channel === "email" || channel === "push") {
+      const field = channel === "email" ? "emailStatus" : "pushStatus";
+      if (status && ["pending", "sent", "failed", "skipped"].includes(status)) filter[field] = status;
+      else filter[field] = { $in: ["pending", "sent", "failed", "skipped"] };
+      filter.$and = [...(filter.$and || []), { $or: [{ ["metadata.requestedChannels"]: channel }, { "metadata.requestedChannels": { $exists: false } }] }];
+    } else if (status && ["pending", "sent", "failed", "skipped"].includes(status)) {
+      const channelClauses = [];
+      channelClauses.push({ emailStatus: status, $or: [{ "metadata.requestedChannels": "email" }, { "metadata.requestedChannels": { $exists: false } }] });
+      channelClauses.push({ pushStatus: status, $or: [{ "metadata.requestedChannels": "push" }, { "metadata.requestedChannels": { $exists: false } }] });
+      if (status === "sent") channelClauses.push({ showInApp: true });
+      if (status === "skipped") channelClauses.push({ showInApp: false, "metadata.requestedChannels": "in_app" });
+      filter.$or = channelClauses;
     }
-    if (channel === "email" && !filter.emailStatus) filter.emailStatus = { $in: ["pending", "sent", "failed", "skipped"] };
-    if (channel === "push" && !filter.pushStatus) filter.pushStatus = { $in: ["pending", "sent", "failed", "skipped"] };
-    if (channel === "in_app") filter.showInApp = true;
     if (type && ["system", "course", "billing", "promotion", "security", "learning"].includes(type)) filter.type = type;
     const from = req.query.from ? new Date(String(req.query.from)) : null;
     const to = req.query.to ? new Date(String(req.query.to)) : null;
     if (from && Number.isNaN(from.getTime())) return failure(res, "Invalid from date", 400);
     if (to && Number.isNaN(to.getTime())) return failure(res, "Invalid to date", 400);
+    if (from && to && from > to) return failure(res, "from date cannot be later than to date", 400);
     if (from || to) { filter.createdAt = {}; if (from) filter.createdAt.$gte = from; if (to) filter.createdAt.$lte = to; }
     const q = String(req.query.q || "").trim().slice(0, 100);
     if (q) {
       const userIds = await User.find({ $or: [{ email: new RegExp(escapeRegex(q), "i") }, { name: new RegExp(escapeRegex(q), "i") }] }).select("_id").limit(500).lean();
-      const userClause = { user: { $in: userIds.map((item) => item._id) } };
-      const eventClause = { eventKey: new RegExp(escapeRegex(q), "i") };
-      filter.$and = [...(filter.$and || []), { $or: [userClause, eventClause] }];
+      filter.$and = [...(filter.$and || []), { $or: [{ user: { $in: userIds.map((item) => item._id) } }, { eventKey: new RegExp(escapeRegex(q), "i") }] }];
     }
     const [items, total] = await Promise.all([
       Notification.find(filter).populate("user", "name email").sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       Notification.countDocuments(filter)
     ]);
     return success(res, { page, limit, total, pages: Math.ceil(total / limit), sentMeans: "Provider accepted the request; this does not confirm inbox delivery, browser display, or that the learner read it.",
-      deliveries: items.map((item) => ({
-        id: String(item._id), time: item.updatedAt || item.createdAt, recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null,
-        type: item.type, eventKey: item.eventKey || "", title: item.title,
-        channels: { in_app: { status: item.showInApp ? "sent" : "skipped" }, email: { status: item.emailStatus, attempts: item.emailAttempts || 0, lastAttemptAt: item.emailLastAttemptAt, sentAt: item.emailSentAt, error: safeDeliveryError(item.emailError) }, push: { status: item.pushStatus, attempts: item.pushAttempts || 0, lastAttemptAt: item.pushLastAttemptAt, sentAt: item.pushSentAt, error: safeDeliveryError(item.pushError) } }
-      }))
+      deliveries: items.map((item) => {
+        const requested = Array.isArray(item.metadata?.requestedChannels) ? item.metadata.requestedChannels : null;
+        return {
+          id: String(item._id), time: item.updatedAt || item.createdAt, recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null,
+          type: item.type, eventKey: item.eventKey || "", title: item.title,
+          channels: {
+            in_app: { status: requested ? (requested.includes("in_app") ? (item.showInApp ? "sent" : "skipped") : "not_requested") : (item.showInApp ? "sent" : "not_requested") },
+            email: { status: requested && !requested.includes("email") ? "not_requested" : item.emailStatus, attempts: item.emailAttempts || 0, lastAttemptAt: item.emailLastAttemptAt, sentAt: item.emailSentAt, error: safeDeliveryError(item.emailError) },
+            push: { status: requested && !requested.includes("push") ? "not_requested" : item.pushStatus, attempts: item.pushAttempts || 0, lastAttemptAt: item.pushLastAttemptAt, sentAt: item.pushSentAt, error: safeDeliveryError(item.pushError) }
+          }
+        };
+      })
     });
   } catch (error) { next(error); }
 }
-
 export async function retryDeliveryLog(req, res, next) {
   try {
     if (!isValidObjectId(req.params.notificationId)) return failure(res, "Invalid notificationId", 400);

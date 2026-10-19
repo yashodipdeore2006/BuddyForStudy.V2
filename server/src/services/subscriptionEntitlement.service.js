@@ -83,22 +83,29 @@ export function isCourseAccessAllowed({ isPaidCourse, planEntitled, hasIndividua
 }
 
 export async function canAccessCourse(userId, courseId) {
-  const course = await Course.findOne({
-    _id: courseId,
-    deletedAt: null,
-    $or: [
-      { isPublished: true },
-      { visibility: "private", createdForUser: userId }
-    ]
-  }).select("pricing.mode visibility createdForUser isPublished generation.mode aiReviewStatus aiReviewSource aiReviewedBy").lean();
-  if (!course) return false;
-
   const enrollment = await Enrollment.findOne({
     user: userId,
     course: courseId,
     status: { $in: ["active", "completed"] },
     revokedBy: null
   }).select("accessSource").lean();
+
+  const courseFilter = {
+    _id: courseId,
+    deletedAt: null,
+    status: { $ne: "archived" }
+  };
+  if (!enrollment) {
+    courseFilter.$or = [
+      { isPublished: true },
+      { visibility: "private", createdForUser: userId }
+    ];
+  }
+
+  const course = await Course.findOne(courseFilter)
+    .select("pricing.mode visibility createdForUser isPublished generation.mode aiReviewStatus aiReviewSource aiReviewedBy")
+    .lean();
+  if (!course) return false;
 
   const generated = ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
   const explicitlyBlocked = ["pending", "rejected"].includes(course.aiReviewStatus);
@@ -114,19 +121,17 @@ export async function canAccessCourse(userId, courseId) {
     );
   }
 
-  if (!course.isPublished) return false;
-
-  // Keep existing learners working when older published generated courses
-  // predate the review-source metadata. Do not grandfather pending/rejected
-  // content, and do not let an enrollment replace paid-course verification.
-  const legacyEnrolledCourse = Boolean(enrollment) && !explicitlyBlocked;
-  if (generated && !approvedGenerated && !legacyEnrolledCourse) return false;
   if (explicitlyBlocked) return false;
+
+  // A previously granted enrollment remains useful if a public course is
+  // later unlisted. New learners still need publication and approval below.
+  if (generated && !approvedGenerated && !enrollment) return false;
 
   if (course.pricing?.mode === "paid") {
     return await hasPaidCourseAccess(userId, courseId);
   }
   if (enrollment) return true;
+  if (!course.isPublished) return false;
 
   const entitlement = await getEntitlement(userId, "published_courses");
   return Boolean(entitlement.allowed);
@@ -151,9 +156,14 @@ export async function hasPaidCourseAccess(userId, courseId) {
   if (!enrollment) return false;
   // Admin grants are explicit per-user exceptions for either free or paid courses.
   if (enrollment.accessSource === "admin") {
-    return Boolean(await Course.exists({ _id: courseId, isPublished: true }));
+    return Boolean(await Course.exists({ _id: courseId, deletedAt: null, status: { $ne: "archived" } }));
   }
-  const course = await Course.findOne({ _id: courseId, isPublished: true, "pricing.mode": "paid" }).select("_id").lean();
+  const course = await Course.findOne({
+    _id: courseId,
+    deletedAt: null,
+    status: { $ne: "archived" },
+    "pricing.mode": "paid"
+  }).select("_id").lean();
   if (!course) return false;
   const payment = await Payment.exists({
     user: userId,

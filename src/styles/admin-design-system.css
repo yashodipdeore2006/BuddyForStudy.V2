@@ -563,7 +563,10 @@
 .admin-shell .admin-data-table__row--clickable { cursor: pointer; }
 .admin-shell .admin-data-table__row--selected { background: var(--accent-soft); }
 .admin-shell .admin-data-table__row--clickable:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
-.admin-shell .admin-data-table__select { width: 40px; text-align: center !important; }
+.admin-shell .admin-data-table__select { position: sticky; left: 0; z-index: var(--z-sticky); width: 40px; text-align: center !important; background: var(--surface); }
+.admin-shell .admin-data-table__table thead .admin-data-table__select { background: var(--surface-2); }
+.admin-shell .admin-data-table__row--selected .admin-data-table__select { background: var(--accent-soft); }
+.admin-shell .admin-data-table__row:hover .admin-data-table__select { background: var(--surface-2); }
 .admin-shell .admin-data-table__pagination { border-top: 1px solid var(--border); }
 .admin-shell .admin-filter-bar__search { display: flex; align-items: center; gap: var(--s-2); max-width: 360px; }
 .admin-shell .admin-filter-bar__search input { width: 100%; min-width: 0; }

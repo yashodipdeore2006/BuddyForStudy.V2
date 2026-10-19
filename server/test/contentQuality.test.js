@@ -146,6 +146,33 @@ test("private lesson assistance requires an active, non-revoked enrollment", asy
   assert.match(access, /revokedBy: null/);
   assert.match(access, /course\.status === "archived"/);
 });
+test("AI roadmap builds a structured fallback for topics outside the curated knowledge base", async () => {
+  const ai = await read("../src/services/aiRoadmap.service.js");
+  assert.match(ai, /function buildTopicFallback\(topic, level = "Beginner"\)/);
+  assert.match(ai, /"ciber security"/);
+  assert.match(ai, /fallback = buildTopicFallback\(input\.topic, input\.level\)/);
+  assert.match(ai, /fallback\.sources = await attachYouTubeResources\(fallback\.course\)/);
+  assert.match(ai, /type: "tutorial"/);
+  assert.match(ai, /type: "quiz"/);
+  assert.match(ai, /type: "project"/);
+});
+
+test("enrolled learners retain access to published legacy courses while pending or rejected courses remain blocked", async () => {
+  const service = await read("../src/services/course.service.js");
+  const entitlement = await read("../src/services/subscriptionEntitlement.service.js");
+  const ai = await read("../src/services/advancedAI.service.js");
+  assert.match(service, /Grandfather existing learners of previously published courses/);
+  assert.match(service, /if \(!courseDoc && userId\)/);
+  assert.match(service, /status: \{ \$in: \["active", "completed"\] \}/);
+  assert.match(service, /!\["pending", "rejected"\]\.includes\(cached\.aiReviewStatus\)/);
+  assert.match(entitlement, /course\.aiReviewSource === "automatic"/);
+  assert.match(entitlement, /if \(enrollment\) return true/);
+  assert.match(entitlement, /return await hasPaidCourseAccess\(userId, courseId\)/);
+  assert.match(ai, /const legacyPublishedEnrollment = Boolean\(/);
+  assert.match(ai, /revokedBy: null/);
+});
+
+
 test("content quality admin page exposes lifecycle, review, moderation, roadmaps and link checking", async () => {
   const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
   for (const phrase of ["Approve & publish if ready", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);

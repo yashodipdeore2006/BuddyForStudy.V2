@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCcw, ShieldCheck, Users, Save, LockKeyhole, AlertTriangle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 import AdminInvitationManager from "@/pages/admin/AdminInvitationManager";
 
 type AdminRole = { key: string; label: string; description: string; permissions: string[] };
@@ -24,6 +24,7 @@ export default function AdminRoles() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [activeSection, setActiveSection] = useState<"administrators" | "profiles" | "invitations">("administrators");
 
   async function load() {
     setLoading(true);
@@ -90,7 +91,15 @@ export default function AdminRoles() {
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{notice}</div>}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Available administrator role profiles">
+      <div className="mt-6">
+        <AdminTabs ariaLabel="Administrator access areas" value={activeSection} onChange={setActiveSection} items={[
+          { value: "administrators", label: `Administrator directory (${administrators.length})` },
+          { value: "profiles", label: `Role profiles (${roles.length})` },
+          { value: "invitations", label: "Invitations" },
+        ]} />
+      </div>
+
+      {activeSection === "profiles" && <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Available administrator role profiles">
         {roles.map((role) => (
           <article key={role.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-start gap-3">
@@ -109,9 +118,9 @@ export default function AdminRoles() {
             </div>
           </article>
         ))}
-      </section>
+      </section>}
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {activeSection === "administrators" && <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <div className="rounded-xl bg-slate-100 p-2"><Users className="h-5 w-5 text-slate-700" /></div>
           <div>
@@ -156,14 +165,16 @@ export default function AdminRoles() {
             })}
           </div>
         )}
-      </section>
+      </section>}
 
-      <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      {activeSection === "administrators" && <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
         <p>Role changes take effect on the next API request. The last active Super Admin cannot be demoted, and administrators cannot change their own role from this screen.</p>
       </div>
 
-      <AdminInvitationManager />
+      </div>}
+
+      {activeSection === "invitations" && <AdminInvitationManager />}
     </div>
   );
 }

@@ -532,13 +532,12 @@ export async function getPublished(courseId, userId = null) {
     if (!hasMultipleTutorialVideos(cached)) return cached;
   }
 
+  const accessBranches = [{ isPublished: true, $and: [PUBLICATION_APPROVAL_FILTER] }];
+  if (userId) accessBranches.push({ visibility: "private", createdForUser: userId });
   const courseDoc = await Course.findOne({
     _id: courseId,
     deletedAt: null,
-    $or: [
-      { isPublished: true, $and: [PUBLICATION_APPROVAL_FILTER] },
-      { visibility: "private", createdForUser: userId }
-    ]
+    $or: accessBranches
   });
   if (!courseDoc) return null;
 

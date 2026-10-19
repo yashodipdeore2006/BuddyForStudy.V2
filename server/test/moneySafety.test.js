@@ -24,9 +24,13 @@ test("finance decision and reconciliation endpoints require a reason before muta
 
 test("payment status is not copied from arbitrary admin request data", async () => {
   const controller = await read("../src/controllers/adminPro.controller.js");
+  const billing = await read("../src/routes/billing.routes.js");
   assert.doesNotMatch(controller, /payment\.status\s*=\s*req\.body(?:\?\.status|\.status)/);
   assert.doesNotMatch(controller, /Payment\.(?:findOneAndUpdate|findByIdAndUpdate|updateOne|updateMany)\([^;]*req\.body(?:\?\.status|\.status)/s);
   assert.match(controller, /payment\.status\s*=\s*paymentStatusForRemainingBalance\(/);
+  assert.doesNotMatch(billing, /payment\.status\s*=\s*req\.body(?:\?\.status|\.status)/);
+  assert.match(billing, /const status = String\(providerSubscription\?\.status/);
+  assert.match(billing, /if \(status !== "active"\)/);
 });
 
 test("coupon create, update and bulk generation require an audit reason", async () => {

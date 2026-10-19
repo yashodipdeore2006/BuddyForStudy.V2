@@ -131,28 +131,21 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
     }
 
     const batch = recipientIds.slice(start, start + safeBatchSize);
-    const outcomes = await mapLimit(batch, 10, async (userId) => {
-      return createNotificationEvent({
-        userId: String(userId),
-        title: announcement.title,
-        message: announcement.message,
-        type: "promotion",
-        link: announcement.link,
-        eventKey: `announcement:${announcement._id}:${userId}`,
-        inApp: announcement.channel.includes("in_app"),
-        email: announcement.channel.includes("email"),
-        push: announcement.channel.includes("push"),
-        deferDispatch: true,
-        metadata: {
-          source: "admin-announcement",
-          announcementId: String(announcement._id),
-          initiatedBy: String(announcement.createdBy)
-        }
-      });
-    });
-    const failedOutcomes = outcomes.filter((item) => !item);
-    if (failedOutcomes.length) throw new Error("Announcement batch produced an empty notification result");
-
+    let outcomes;
+    try {
+      outcomes = await mapLimit(batch, 10, async (userId) => createNotificationEvent({
+        userId: String(userId), title: announcement.title, message: announcement.message, type: "promotion",
+        link: announcement.link, eventKey: "announcement:" + announcement._id + ":" + userId,
+        inApp: announcement.channel.includes("in_app"), email: announcement.channel.includes("email"),
+        push: announcement.channel.includes("push"), deferDispatch: true,
+        metadata: { source: "admin-announcement", announcementId: String(announcement._id), initiatedBy: String(announcement.createdBy) }
+      }));
+      if (outcomes.some((item) => !item)) throw new Error("Announcement batch produced an empty notification result");
+    } catch (error) {
+      failures += 1;
+      await recoverAnnouncementBatch(announcement._id, lockToken, error, now);
+      continue;
+    }
     const nextIndex = start + batch.length;
     const updated = await Announcement.updateOne(
       { _id: announcement._id, batchLockToken: lockToken, nextRecipientIndex: start },

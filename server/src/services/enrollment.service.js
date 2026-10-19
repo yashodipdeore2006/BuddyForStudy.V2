@@ -46,7 +46,17 @@ async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
 }
 
 export async function enroll(userId, courseId, { isAdmin = false } = {}) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true }).select("_id title pricing enrollmentEnabled");
+  const course = await Course.findOne({
+    _id: courseId,
+    deletedAt: null,
+    $or: [
+      { isPublished: true, $or: [
+        { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+        { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+      ] },
+      { visibility: "private", createdForUser: userId }
+    ]
+  }).select("_id title pricing enrollmentEnabled visibility createdForUser");
   if (!course) {
     const error = new Error("Published course not found");
     error.status = 404;

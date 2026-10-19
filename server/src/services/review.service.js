@@ -1,6 +1,7 @@
 import { Review } from "../models/Review.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
+import { isAutomaticContentApproval } from "./contentApprovalPolicy.service.js";
 
 async function ensureEnrolled(userId, courseId) {
   const enrolled = await Enrollment.exists({ user: userId, course: courseId, status: { $in: ["active", "completed"] } });
@@ -30,13 +31,19 @@ export async function listReviews(courseId) {
 
 export async function upsertReview(userId, courseId, rating, comment) {
   await ensureEnrolled(userId, courseId);
+  const automaticallyApproved = await isAutomaticContentApproval("userReviews");
   const course = await Course.findById(courseId).select("_id");
   if (!course) { const error = new Error("Course not found"); error.status = 404; throw error; }
   return Review.findOneAndUpdate(
     { user: userId, course: courseId },
     { $set: {
-      rating, comment, moderationStatus: "pending", moderationNote: "",
-      moderatedBy: null, moderatedAt: null, isHidden: false
+      rating,
+      comment,
+      moderationStatus: automaticallyApproved ? "approved" : "pending",
+      moderationNote: automaticallyApproved ? "Automatically approved by the platform content policy." : "",
+      moderatedBy: null,
+      moderatedAt: automaticallyApproved ? new Date() : null,
+      isHidden: false
     } },
     { new: true, upsert: true, runValidators: true }
   ).populate("user", "name");

@@ -151,7 +151,8 @@ export async function hasPaidCourseAccess(userId, courseId) {
   const enrollment = await Enrollment.findOne({
     user: userId,
     course: courseId,
-    status: { $in: ["active", "completed"] }
+    status: { $in: ["active", "completed"] },
+    revokedBy: null
   }).select("accessSource").lean();
   if (!enrollment) return false;
   // Admin grants are explicit per-user exceptions for either free or paid courses.

@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { generateCoursePlan as generateKnowledgeBaseCoursePlan } from "./roadmapGenerator.service.js";
 import { attachYouTubeResources } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 import { randomUUID } from "node:crypto";
 import { normalizeMultiVideoLessons } from "./course.service.js";
@@ -1077,9 +1078,38 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     throw error;
   }
 
-  const course = await Course.findOne({ _id: courseId, isPublished: true });
+  const publicCourseAccess = {
+    isPublished: true,
+    deletedAt: null,
+    $and: [{
+      $or: [
+        { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+        {
+          aiReviewStatus: "approved",
+          $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+        }
+      ]
+    }]
+  };
+  const accessBranches = [publicCourseAccess];
+  if (userId && await Enrollment.exists({
+    user: userId,
+    course: courseId,
+    status: { $in: ["active", "completed"] },
+    revokedBy: null
+  })) {
+    accessBranches.push({
+      visibility: "private",
+      createdForUser: userId,
+      deletedAt: null,
+      aiReviewStatus: "approved",
+      $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+    });
+  }
+
+  const course = await Course.findOne({ _id: courseId, $or: accessBranches });
   if (!course) {
-    const error = new Error("Course not found");
+    const error = new Error("Course not found or not approved for this learner");
     error.status = 404;
     throw error;
   }

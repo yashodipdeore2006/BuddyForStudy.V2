@@ -558,7 +558,14 @@ export async function getPublished(courseId, userId = null) {
     if (cached.deletedAt) return null;
     if (cached.visibility === "private") {
       const owner = userId && String(cached.createdForUser) === String(userId);
-      return owner && isApprovedForPublication(cached) && cached.aiReviewStatus === "approved" ? cached : null;
+      if (!owner || !isApprovedForPublication(cached) || cached.aiReviewStatus !== "approved") return null;
+      const enrollment = await Enrollment.exists({
+        user: userId,
+        course: cached._id,
+        status: { $in: ["active", "completed"] },
+        revokedBy: null
+      });
+      return enrollment ? cached : null;
     }
     if (!cached.isPublished || !isApprovedForPublication(cached)) {
       await cacheDelete(key);
@@ -580,6 +587,15 @@ export async function getPublished(courseId, userId = null) {
     $or: accessBranches
   });
   if (!courseDoc) return null;
+  if (courseDoc.visibility === "private") {
+    const enrollment = await Enrollment.exists({
+      user: userId,
+      course: courseDoc._id,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (!enrollment) return null;
+  }
 
   if (courseDoc.visibility !== "private" && normalizeMultiVideoLessons(courseDoc)) {
     courseDoc.$locals.revisionContext = { source: "system", summary: "Video resource normalization", reason: "" };

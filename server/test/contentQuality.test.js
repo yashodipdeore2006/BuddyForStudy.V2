@@ -4,16 +4,19 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("AI-generated and derived courses are forced into drafts pending human review", async () => {
+test("generated courses respect manual or automatic approval while retaining revision history", async () => {
   const model = await read("../src/models/Course.js");
-  assert.match(model, /enforceHumanReviewForGeneratedCourses/);
+  assert.match(model, /content_approval_ai_courses/);
+  assert.match(model, /courseSchema\.pre\("validate", async function enforceCourseApprovalPolicy/);
+  assert.match(model, /if \(await getCourseApprovalMode\(\) === "automatic"\)/);
+  assert.match(model, /await applyAutomaticCourseApproval\(this\)/);
   assert.match(model, /this\.isPublished = false/);
   assert.match(model, /this\.aiReviewStatus = "pending"/);
-  assert.match(model, /\["normal", "ai", "module", "discovery"\]/);
+  assert.match(model, /this\.aiReviewSource = "manual"/);
+  assert.match(model, /evaluateCourseReadiness\(course\)/);
   assert.match(model, /createRevisionBeforeCourseChange/);
   assert.match(model, /CourseRevision\.create/);
 });
-
 test("all course publishing paths require readiness and AI human approval", async () => {
   const controller = await read("../src/controllers/adminPro.controller.js");
   const publish = controller.slice(controller.indexOf("export async function publishCourse"), controller.indexOf("export async function courseDetail"));
@@ -27,7 +30,7 @@ test("course edits unpublish changed content and invalidate AI review approval",
   const model = await read("../src/models/Course.js");
   assert.match(model, /contentChanged && this\.isPublished/);
   assert.match(model, /this\.isPublished = false/);
-  assert.match(model, /\["normal", "ai", "module", "discovery"\]\.includes\(this\.generation\?\.mode\) && contentChanged/);
+  assert.match(model, /if \(contentChanged && isGeneratedCourse\(this\)\)/);
   assert.match(model, /this\.aiReviewedBy = null/);
 });
 
@@ -47,7 +50,7 @@ test("soft-deleted courses are excluded from learner-facing catalogue and detail
   assert.match(service, /accessBranches = \[\{ isPublished: true, \$and: \[PUBLICATION_APPROVAL_FILTER\] \}\]/);
   assert.match(service, /deletedAt: null,/);
   assert.match(service, /PUBLICATION_APPROVAL_FILTER/);
-  assert.match(service, /isHumanReviewedForPublication/);
+  assert.match(service, /isApprovedForPublication/);\n  assert.match(service, /aiReviewSource === "automatic"/);
 });
 
 test("review, quiz, AI insight and Q&A records support moderation and audit", async () => {
@@ -106,9 +109,35 @@ test("editing a learner review resets its moderation decision", async () => {
   assert.match(service, /isHidden: false/);
 });
 
+test("content approval policies are typed, permission-gated and independently configurable", async () => {
+  const registry = await read("../src/utils/typedSettingsRegistry.js");
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const routes = await read("../src/routes/adminPro.routes.js");
+  const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
+
+  for (const key of [
+    "content_approval_ai_courses",
+    "content_approval_user_reviews",
+    "content_approval_ai_quizzes",
+    "content_approval_ai_insights",
+    "content_approval_ai_answers"
+  ]) {
+    assert.ok(registry.includes(key), "missing typed policy setting: " + key);
+  }
+  assert.match(registry, /type: "enum", options: \["manual", "automatic"\]/);
+  assert.match(controller, /export async function contentApprovalPolicies/);
+  assert.match(controller, /export async function updateContentApprovalPolicies/);
+  assert.match(controller, /CONTENT_APPROVAL_MODES\.includes\(mode\)/);
+  assert.match(routes, /router\.get\("\/content-policies", adminPermissionMiddleware\("courses\.read"\)/);
+  assert.match(routes, /router\.put\("\/content-policies", adminPermissionMiddleware\("courses\.manage"\)/);
+  assert.match(page, /content-policies/);
+  assert.match(page, /manual/);
+  assert.match(page, /automatic/);
+});
+
 test("content quality admin page exposes lifecycle, review, moderation, roadmaps and link checking", async () => {
   const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
-  for (const phrase of ["Human approve", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);
+  for (const phrase of ["Approve & publish if ready", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);
 });
 
 test("legacy admin course endpoints cannot publish directly or permanently delete content", async () => {

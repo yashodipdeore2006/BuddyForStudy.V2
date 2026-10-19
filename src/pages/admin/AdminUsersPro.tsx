@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CheckCircle2,
-  ArrowUpDown,
   Eye,
   RefreshCcw,
   Search,
   UserCheck,
   UserX,
   Users,
-  X,
   Plus,
   Minus,
   ShieldCheck,
@@ -17,14 +14,15 @@ import {
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { useAuth } from "@/context/AuthContext";
-import { AdminButton, AdminEmptyState, AdminPageHeader, AdminPagination, AdminTableContainer } from "@/components/admin/AdminUI";
-import { DataTable } from "@/components/admin/DataTable";
+import { AdminBadge, AdminButton, AdminEmptyState, AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
+import { DataTable, type DataTableColumn } from "@/components/admin/DataTable";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { SavedViews, type SavedViewRecord } from "@/components/admin/SavedViews";
 import { DetailDrawer } from "@/components/admin/DetailDrawer";
 import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { MoneyCell } from "@/components/admin/MoneyCell";
+import { PiiCell } from "@/components/admin/PiiCell";
 
 function csvCell(value: unknown) {
   let text = value instanceof Date ? value.toISOString() : String(value ?? "");
@@ -408,6 +406,75 @@ export default function AdminUsersPro() {
     }
   }
 
+  const userColumns: DataTableColumn<any>[] = [
+    {
+      key: "name",
+      header: "User",
+      sortable: true,
+      render: (user) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
+            {user.name?.[0]?.toUpperCase() || "U"}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{user.name || "Unnamed user"}</p>
+            <p className="truncate text-xs text-slate-500"><PiiCell value={user.email} kind="email" masked={false} /></p>
+          </div>
+        </div>
+      ),
+    },
+    ...(visibleColumns.includes("access") ? [{
+      key: "status",
+      header: "Access",
+      sortable: true,
+      render: (user: any) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge domain="user" value={Boolean(user.isActive)} label={user.isActive ? "Active" : "Disabled"} />
+          {user.role === "admin" && <StatusBadge domain="enrollmentSource" value="admin" label="Admin" />}
+        </div>
+      ),
+    } satisfies DataTableColumn<any>] : []),
+    ...(visibleColumns.includes("verification") ? [{
+      key: "verification",
+      header: "Verification",
+      sortable: true,
+      render: (user: any) => <AdminBadge tone={user.emailVerified ? "success" : "warning"}>{user.emailVerified ? "Verified" : "Pending"}</AdminBadge>,
+    } satisfies DataTableColumn<any>] : []),
+    ...(visibleColumns.includes("provider") ? [{
+      key: "authProvider",
+      header: "Provider",
+      sortable: true,
+      render: (user: any) => (
+        <span className="text-xs font-semibold capitalize text-slate-600">
+          {user.authProvider === "local_google" ? "Email + Google" : user.authProvider === "google" ? "Google" : "Email + password"}
+        </span>
+      ),
+    } satisfies DataTableColumn<any>] : []),
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (user) => (
+        <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+          <AdminButton size="sm" variant="secondary" onClick={() => void openUser(user._id)}>
+            <Eye className="h-4 w-4" /> View
+          </AdminButton>
+          <AdminButton
+            size="sm"
+            variant={user.isActive ? "secondary" : "primary"}
+            onClick={() => void toggleUser(user)}
+            disabled={savingId === user._id || user.role === "admin"}
+            loading={savingId === user._id}
+            title={user.role === "admin" ? "Administrator accounts cannot be disabled here" : undefined}
+          >
+            {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+            {user.isActive ? "Disable" : "Enable"}
+          </AdminButton>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl">
       <AdminPageHeader
@@ -438,39 +505,37 @@ export default function AdminUsersPro() {
           onDelete={removeSavedView}
         />
       </div>
-      <FilterBar className="card mt-6 p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div className="relative xl:col-span-2">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <input
-              aria-label="Search users by name or email"
-              type="search"
-              className="input-field pl-10"
-              value={q}
-              maxLength={100}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name or email"
-            />
-          </div>
-          <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="disabled">Disabled</option>
-          </select>
-          <select aria-label="Filter users by role" className="input-field" value={role} onChange={(e) => { setRole(e.target.value); setPage(1); }}>
-            <option value="">All roles</option>
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
-          <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(e) => { setAuthProvider(e.target.value); setPage(1); }}>
-            <option value="">All sign-in methods</option>
-            <option value="local">Email & password</option>
-            <option value="google">Google</option>
-            <option value="local_google">Email + Google</option>
-          </select>
-        </div>
+      <FilterBar
+        className="admin-card mt-6 p-4"
+        searchValue={q}
+        onSearchChange={setQ}
+        searchLabel="Search users by name or email"
+        debounceMs={0}
+        chips={[
+          ...(debouncedQ ? [{ key: "q", label: "Search: " + debouncedQ, onRemove: () => setQ("") }] : []),
+          ...(status ? [{ key: "status", label: "Status: " + status, onRemove: () => { setStatus(""); setPage(1); } }] : []),
+          ...(role ? [{ key: "role", label: "Role: " + role, onRemove: () => { setRole(""); setPage(1); } }] : []),
+          ...(authProvider ? [{ key: "authProvider", label: "Provider: " + authProvider, onRemove: () => { setAuthProvider(""); setPage(1); } }] : []),
+        ]}
+        onReset={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setActiveSavedViewId(null); setPage(1); }}
+        resultCount={pagination.total || 0}
+      >
         <div className="admin-filter-toolbar">
-          {(q || status || role || authProvider) && <button type="button" className="admin-filter-reset" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setPage(1); }}>Reset filters</button>}
+          <label className="admin-page-size">Status
+            <select aria-label="Filter users by account status" className="input-field" value={status} onChange={(event) => { setStatus(event.target.value); setActiveSavedViewId(null); setPage(1); }}>
+              <option value="">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option>
+            </select>
+          </label>
+          <label className="admin-page-size">Role
+            <select aria-label="Filter users by role" className="input-field" value={role} onChange={(event) => { setRole(event.target.value); setActiveSavedViewId(null); setPage(1); }}>
+              <option value="">All roles</option><option value="user">User</option><option value="admin">Admin</option>
+            </select>
+          </label>
+          <label className="admin-page-size">Sign-in method
+            <select aria-label="Filter users by sign-in method" className="input-field" value={authProvider} onChange={(event) => { setAuthProvider(event.target.value); setActiveSavedViewId(null); setPage(1); }}>
+              <option value="">All sign-in methods</option><option value="local">Email &amp; password</option><option value="google">Google</option><option value="local_google">Email + Google</option>
+            </select>
+          </label>
           <span className="admin-filter-toolbar-spacer" />
           <label className="admin-page-size">Density
             <select aria-label="Table density" className="input-field" value={density} onChange={(event) => setDensity(event.target.value as "compact" | "comfortable")}><option value="compact">Compact</option><option value="comfortable">Comfortable</option></select>
@@ -486,18 +551,7 @@ export default function AdminUsersPro() {
             </div>
           </details>
         </div>
-        <div className="admin-filter-summary">
-          <div className="admin-active-filter-chips" aria-label="Active filters">
-            {debouncedQ && <button type="button" className="admin-filter-chip" onClick={() => setQ("")}>Search: {debouncedQ}<X size={13} aria-hidden="true" /></button>}
-            {status && <button type="button" className="admin-filter-chip" onClick={() => setStatus("")}>Status: {status}<X size={13} aria-hidden="true" /></button>}
-            {role && <button type="button" className="admin-filter-chip" onClick={() => setRole("")}>Role: {role}<X size={13} aria-hidden="true" /></button>}
-            {authProvider && <button type="button" className="admin-filter-chip" onClick={() => setAuthProvider("")}>Provider: {authProvider}<X size={13} aria-hidden="true" /></button>}
-          </div>
-          <span>{pagination.total || 0} results</span>
-        </div>
       </FilterBar>
-
-      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
 
       {selectedIds.length > 0 && <div className="admin-bulk-action-bar" role="toolbar" aria-label="Selected user actions">
         <span><strong>{selectedIds.length}</strong> selected on this page</span>
@@ -506,85 +560,39 @@ export default function AdminUsersPro() {
           <AdminButton variant="primary" loading={exporting} onClick={() => void exportSelectedUsers()}>Export selected ({selectedIds.length})</AdminButton>
         </div>
       </div>}
-      <DataTable<any> loading={loading && users.length === 0} refreshing={loading && users.length > 0} density={density} pagination={<AdminPagination
-        page={pagination.page || 1}
-        pages={pagination.pages || 1}
-        total={pagination.total || 0}
-        from={users.length ? ((pagination.page || 1) - 1) * pageSize + 1 : 0}
-        to={Math.min((pagination.page || 1) * pageSize, pagination.total || 0)}
-        limit={pageSize}
-        loading={loading}
-        onPageChange={setPage}
-        onLimitChange={(limit) => { setPageSize(limit); setPage(1); }}
-      />}>
-          <AdminTableContainer>
-            <table className={"w-full text-sm admin-users-table admin-users-table--" + density}>
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th scope="col" className="admin-select-column"><input type="checkbox" aria-label="Select all users on this page" checked={users.length > 0 && users.every((user) => selectedIds.includes(String(user._id)))} onChange={(event) => setSelectedIds((current) => event.target.checked ? Array.from(new Set([...current, ...users.map((user) => String(user._id))])) : current.filter((id) => !users.some((user) => String(user._id) === id)))} /></th>
-                  <th scope="col" aria-sort={sortBy === "name" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("name")}>User <span aria-hidden="true">{sortBy === "name" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>
-                  {visibleColumns.includes("access") && <th scope="col" aria-sort={sortBy === "status" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("status")}>Access <span aria-hidden="true">{sortBy === "status" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
-                  {visibleColumns.includes("verification") && <th scope="col" aria-sort={sortBy === "verification" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("verification")}>Verification <span aria-hidden="true">{sortBy === "verification" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
-                  {visibleColumns.includes("provider") && <th scope="col" aria-sort={sortBy === "authProvider" ? (sortOrder === "asc" ? "ascending" : "descending") : "none"} className="px-5 py-3 text-left"><button type="button" className="admin-sort-button" onClick={() => toggleSort("authProvider")}>Provider <span aria-hidden="true">{sortBy === "authProvider" ? (sortOrder === "asc" ? "↑" : "↓") : <ArrowUpDown size={13} />}</span></button></th>}
-                  <th scope="col" className="px-5 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map((user) => (
-                  <tr key={user._id} className="hover:bg-slate-50/70">
-                    <td className="admin-select-column"><input type="checkbox" aria-label={"Select " + user.name} checked={selectedIds.includes(String(user._id))} onChange={(event) => setSelectedIds((current) => event.target.checked ? Array.from(new Set([...current, String(user._id)])) : current.filter((id) => id !== String(user._id)))} /></td>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-700">
-                          {user.name?.[0]?.toUpperCase() || "U"}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">{user.name}</p>
-                          <p className="truncate text-xs text-slate-500">{user.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    {visibleColumns.includes("access") && <td className="px-5 py-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <StatusBadge domain="user" value={Boolean(user.isActive)} label={user.isActive ? "Active" : "Disabled"} />
-                        {user.role === "admin" && (
-                          <StatusBadge domain="enrollmentSource" value="admin" label="Admin" />
-                        )}
-                      </div>
-                    </td>}
-                    {visibleColumns.includes("verification") && <td className="px-5 py-4">
-                      {user.emailVerified ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700"><CheckCircle2 className="h-3.5 w-3.5" /> Verified</span>
-                      ) : (
-                        <span className="text-xs font-semibold text-amber-700">Pending</span>
-                      )}
-                    </td>}
-                    {visibleColumns.includes("provider") && <td className="px-5 py-4 text-xs font-semibold capitalize text-slate-600">
-                      {user.authProvider === "local_google" ? "Email + Google" : user.authProvider === "google" ? "Google" : "Email + password"}
-                    </td>}
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
-                        <button type="button" className="btn-secondary text-xs" onClick={() => void openUser(user._id)}>
-                          <Eye className="h-4 w-4" /> View
-                        </button>
-                        <button
-                          type="button"
-                          className={user.isActive ? "btn-secondary text-xs" : "btn-primary text-xs"}
-                          onClick={() => void toggleUser(user)}
-                          disabled={savingId === user._id || user.role === "admin"}
-                        >
-                          {savingId === user._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                          {user.isActive ? "Disable" : "Enable"}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!users.length && <tr><td role="status" aria-live="polite" colSpan={3 + visibleColumns.length} className="p-0"><AdminEmptyState title={pagination.total ? "No users match these filters" : "No users yet"} description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."} action={Boolean(debouncedQ || status || role || authProvider) ? <button type="button" className="btn-secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); }}>Clear filters</button> : undefined} icon={<Users size={28} />} /></td></tr>}
-              </tbody>
-            </table>
-          </AdminTableContainer>
-      </DataTable>
+
+      <DataTable<any>
+        rows={users}
+        columns={userColumns}
+        rowKey={(user) => String(user._id)}
+        onRowClick={(user) => void openUser(String(user._id))}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        density={density}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSortChange={toggleSort}
+        loading={loading && users.length === 0}
+        refreshing={loading && users.length > 0}
+        error={error ? <span>{error}</span> : undefined}
+        empty={<AdminEmptyState
+          title={pagination.total ? "No users match these filters" : "No users yet"}
+          description={pagination.total ? "Clear one or more filters and try again." : "User accounts will appear here after people register."}
+          action={Boolean(debouncedQ || status || role || authProvider) ? <AdminButton variant="secondary" onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setActiveSavedViewId(null); setPage(1); }}>Clear filters</AdminButton> : undefined}
+          icon={<Users size={28} />}
+        />}
+        pagination={<AdminPagination
+          page={pagination.page || 1}
+          pages={pagination.pages || 1}
+          total={pagination.total || 0}
+          from={users.length ? ((pagination.page || 1) - 1) * pageSize + 1 : 0}
+          to={Math.min((pagination.page || 1) * pageSize, pagination.total || 0)}
+          limit={pageSize}
+          loading={loading}
+          onPageChange={setPage}
+          onLimitChange={(limit) => { setPageSize(limit); setPage(1); }}
+        />}
+      />
 
       {detailLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">

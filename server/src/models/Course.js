@@ -150,6 +150,7 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
   if (contentChanged && this.isPublished) {
     this.isPublished = false;
     this.status = "draft";
+    if (this.createdForUser) this.visibility = "private";
   } else {
     this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
   }

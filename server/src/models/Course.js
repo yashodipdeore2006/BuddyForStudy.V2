@@ -138,10 +138,11 @@ async function applyAutomaticCourseApproval(course) {
   course.aiReviewedAt = new Date();
   course.aiReviewNote = "Automatically approved by the platform content policy.";
   const isUserPrivateCourse = course.visibility === "private" && Boolean(course.createdForUser);
+  const keepArchived = course.status === "archived";
   const readiness = evaluateCourseReadiness(course);
-  if (isUserPrivateCourse || !readiness.ready) {
+  if (isUserPrivateCourse || keepArchived || !readiness.ready) {
     course.isPublished = false;
-    course.status = "draft";
+    course.status = keepArchived ? "archived" : "draft";
     return;
   }
   course.isPublished = true;

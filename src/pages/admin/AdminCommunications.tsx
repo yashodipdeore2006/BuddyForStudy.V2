@@ -525,9 +525,19 @@ export default function AdminCommunications() {
               </label>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-700 sm:col-span-2"><input type="checkbox" checked={templateDraft.isActive} onChange={(e) => setTemplateDraft({ ...templateDraft, isActive: e.target.checked })} /> Template active</label>
             </div>
-            <button type="button" className="btn-primary mt-4" onClick={() => void saveTemplate()} disabled={savingTemplate}>
-              {savingTemplate ? "Saving template..." : "Save template"}
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" className="btn-secondary" onClick={() => void previewTemplate()} disabled={previewingTemplate || !templateDraft.body.trim()}>{previewingTemplate ? "Rendering preview..." : "Preview template"}</button>
+              <button type="button" className="btn-secondary" onClick={() => void testSendTemplate()} disabled={testSendingTemplate || !editingTemplateId}>{testSendingTemplate ? "Sending test..." : "Send test to me"}</button>
+              <button type="button" className="btn-primary" onClick={() => void saveTemplate()} disabled={savingTemplate}>{savingTemplate ? "Saving template..." : "Save template"}</button>
+            </div>
+            {!editingTemplateId && <p className="mt-2 text-xs text-slate-500">Save the template first to enable a test send. Tests go only to the signed-in administrator.</p>}
+            {templatePreview && <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Rendered sample preview</p>
+              {templatePreview.unknownPlaceholders.length > 0 && <p role="alert" className="mt-2 text-sm text-amber-700">Unsupported placeholders: {templatePreview.unknownPlaceholders.join(", ")}</p>}
+              {templatePreview.channel === "email" && <><p className="mt-2 font-semibold">{templatePreview.subject || "Email subject"}</p><iframe title="Template email preview" sandbox="" srcDoc={templatePreview.body || "<p>No body</p>"} className="mt-3 h-72 w-full rounded-lg border border-slate-200" /></>}
+              {templatePreview.channel !== "email" && <><p className="mt-2 font-semibold">{templatePreview.title}</p><pre className="mt-2 whitespace-pre-wrap font-sans text-sm">{templatePreview.body}</pre></>}
+              <p className="mt-3 text-xs text-slate-500">Placeholders found: {templatePreview.placeholders.length ? templatePreview.placeholders.join(", ") : "none"}</p>
+            </div>}
           </div>
         )}
       </section>

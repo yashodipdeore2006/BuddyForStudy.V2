@@ -85,3 +85,14 @@ test("content quality admin page exposes lifecycle, review, moderation, roadmaps
   const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
   for (const phrase of ["Human approve", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);
 });
+
+test("legacy admin course endpoints cannot publish directly or permanently delete content", async () => {
+  const controller = await read("../src/controllers/course.controller.js");
+  const service = await read("../src/services/course.service.js");
+  assert.match(controller, /Use the readiness-gated publish action to publish a course/);
+  assert.match(controller, /Course moved to trash/);
+  assert.match(service, /Course\.findById\(courseId\)/);
+  assert.match(service, /course\.\$locals\.revisionContext/);
+  assert.doesNotMatch(service, /Course\.findByIdAndDelete\(courseId\)/);
+  assert.doesNotMatch(service, /Course\.findByIdAndUpdate\(courseId, input/);
+});

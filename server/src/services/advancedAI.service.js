@@ -625,6 +625,21 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
       }
     }
 
+    if (saved?._id) {
+      try {
+        await AIQuestionAsk.create({
+          user: userId,
+          course: course._id,
+          lesson: lesson._id,
+          questionHash,
+          answerCacheId: saved._id
+        });
+      } catch (error) {
+        // Concurrent duplicate submissions count as one question for this user.
+        if (error?.code !== 11000) throw error;
+      }
+    }
+
     if (saved?.moderationStatus !== "approved") {
       return { pendingReview: true, reviewStatus: saved?.moderationStatus || "pending", fromCache: false, message: "Your AI answer is being held until an administrator approves it.", usage: await getAdvancedAIUsage({ userId, courseId, lessonId }) };
     }

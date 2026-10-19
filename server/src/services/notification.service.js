@@ -437,7 +437,8 @@ export async function createNotificationEvent({
   inApp = true,
   emailHtmlOverride = "",
   metadata = {},
-  templateKeys = {}
+  templateKeys = {},
+  deferDispatch = false
 }) {
   const [preferences, platform] = await Promise.all([getUserNotificationPreferences(userId), getNotificationPlatformSettings()]);
   const keys = preferenceKeys(type);
@@ -522,7 +523,7 @@ export async function createNotificationEvent({
     notification = await Notification.findOne({ user: userId, eventKey: String(eventKey).slice(0, 200) });
   }
   if (!notification) return null;
-  if (created) {
+  if (created && !deferDispatch) {
     if (payload.emailStatus === "pending") void dispatchEmail(notification._id).catch((error) => console.error("[notifications] email dispatch error", String(error?.message || error).slice(0, 200)));
     if (payload.pushStatus === "pending") void dispatchPush(notification._id).catch((error) => console.error("[notifications] push dispatch error", String(error?.message || error).slice(0, 200)));
   }

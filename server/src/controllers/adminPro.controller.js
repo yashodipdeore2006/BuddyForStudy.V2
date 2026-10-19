@@ -1264,6 +1264,10 @@ export async function updateCourse(req, res, next) {
       duration: item.duration,
       hasThumbnail: Boolean(item.thumbnail),
       learningOutcomeCount: Array.isArray(item.learningOutcomes) ? item.learningOutcomes.length : 0,
+      status: item.status || (item.isPublished ? "published" : "draft"),
+      visibility: item.visibility || "public",
+      aiReviewStatus: item.aiReviewStatus || "not_required",
+      deletedAt: item.deletedAt || null,
       isPublished: item.isPublished,
       pricing: {
         mode: item.pricing?.mode,

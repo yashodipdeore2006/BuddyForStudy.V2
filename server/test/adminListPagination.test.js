@@ -74,3 +74,10 @@ test("announcement campaigns support bounded pagination, status filters and lite
   assert.ok(section.includes(".skip((page - 1) * limit).limit(limit)"));
   assert.ok(section.includes("filter.status"));
 });
+
+test("notification delivery filtering does not count missing provider-error fields as errors", async () => {
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const section = controller.slice(controller.indexOf("export async function notificationDeliveries"), controller.indexOf("export async function deliveryLog"));
+  assert.ok(section.includes('emailError: { $exists: true, $nin: ["", null] }'));
+  assert.ok(section.includes('pushError: { $exists: true, $nin: ["", null] }'));
+});

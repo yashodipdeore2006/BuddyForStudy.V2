@@ -65,6 +65,8 @@ export default function AdminCommunications() {
   const deliveryRequestId = useRef(0);
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [deliveryError, setDeliveryError] = useState("");
+  const [deliveryPermissionsLoaded, setDeliveryPermissionsLoaded] = useState(false);
+  const [canManageDeliveries, setCanManageDeliveries] = useState(false);
   const [deliveryNotice, setDeliveryNotice] = useState("");
   const [retryingDelivery, setRetryingDelivery] = useState("");
   const [editingTemplateId, setEditingTemplateId] = useState("");
@@ -184,6 +186,13 @@ export default function AdminCommunications() {
       setAudienceCourses(Array.isArray(data.courses) ? data.courses : []);
       setAudienceOptionsError("");
     }).catch((error) => setAudienceOptionsError(error instanceof Error ? error.message : "Unable to load plan and course filters."));
+    adminFetch("/api/admin/access").then((data) => {
+      setCanManageDeliveries((data.access?.permissions || []).includes("operations.manage"));
+      setDeliveryPermissionsLoaded(true);
+    }).catch(() => {
+      setCanManageDeliveries(false);
+      setDeliveryPermissionsLoaded(true);
+    });
     void loadDeliveryLogs();
     void loadCampaigns();
   }, []);
@@ -825,6 +834,7 @@ export default function AdminCommunications() {
           </form>
         </div>
         {deliveryError && <p role="alert" className="m-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{deliveryError}</p>}
+        {deliveryPermissionsLoaded && !canManageDeliveries && <p role="status" className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Read-only delivery view. Retrying failed deliveries requires the operations management permission.</p>}
         {deliveryNotice && <p role="status" className="m-5 rounded-xl bg-green-50 p-3 text-sm text-green-700">{deliveryNotice}</p>}
         {loadingDeliveries && !deliveries.length ? (
           <div className="p-8 text-sm text-slate-500">Loading delivery history...</div>
@@ -852,13 +862,13 @@ export default function AdminCommunications() {
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.emailStatus === "sent" ? "bg-green-50 text-green-700" : item.emailStatus === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{item.emailStatus || "unknown"}</span>
                       <p className="mt-1 text-xs text-slate-500">{item.emailAttempts || 0} attempt(s)</p>
                       {item.emailError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.emailError}</p>}
-                      {item.emailStatus === "failed" && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:email`} onClick={() => void retryDelivery(item.id, "email")}>{retryingDelivery === `${item.id}:email` ? "Retrying..." : "Retry email"}</button>}
+                      {item.emailStatus === "failed" && canManageDeliveries && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:email`} onClick={() => void retryDelivery(item.id, "email")}>{retryingDelivery === `${item.id}:email` ? "Retrying..." : "Retry email"}</button>}
                     </td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.pushStatus === "sent" ? "bg-green-50 text-green-700" : item.pushStatus === "failed" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-600"}`}>{item.pushStatus || "unknown"}</span>
                       <p className="mt-1 text-xs text-slate-500">{item.pushAttempts || 0} attempt(s)</p>
                       {item.pushError && <p className="mt-1 max-w-48 text-xs text-red-600">{item.pushError}</p>}
-                      {item.pushStatus === "failed" && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:push`} onClick={() => void retryDelivery(item.id, "push")}>{retryingDelivery === `${item.id}:push` ? "Retrying..." : "Retry push"}</button>}
+                      {item.pushStatus === "failed" && canManageDeliveries && <button type="button" className="btn-secondary mt-2 px-3 py-1.5 text-xs" disabled={retryingDelivery === `${item.id}:push`} onClick={() => void retryDelivery(item.id, "push")}>{retryingDelivery === `${item.id}:push` ? "Retrying..." : "Retry push"}</button>}
                     </td>
                     <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-500">{item.createdAt ? new Date(item.createdAt).toLocaleString() : "—"}</td>
                   </tr>

@@ -1575,8 +1575,8 @@ export async function notificationDeliveries(req, res, next) {
       $or: [
         { emailStatus: { $in: ["pending", "sent", "failed"] } },
         { pushStatus: { $in: ["pending", "sent", "failed"] } },
-        { emailError: { $ne: "" } },
-        { pushError: { $ne: "" } }
+        { emailError: { $exists: true, $nin: ["", null] } },
+        { pushError: { $exists: true, $nin: ["", null] } }
       ]
     };
     const q = String(req.query.q || "").trim().slice(0, 100);

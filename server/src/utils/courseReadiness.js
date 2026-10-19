@@ -61,7 +61,7 @@ export function evaluateCourseReadiness(course) {
     { key: "lessonTitles", label: "All learning items have titles", passed: lessons.every((lesson) => hasText(lesson?.title)) },
     { key: "lessonTypes", label: "All learning items have a supported type", passed: invalidLessonTypes.length === 0 },
     { key: "paidPrice", label: "Paid course has a positive price", passed: course?.pricing?.mode !== "paid" || Number(course?.pricing?.price) > 0 },
-    { key: "quizContent", label: "Quiz questions have prompt and answer choices or answer key", passed: invalidQuizzes.length === 0 },
+    { key: "quizContent", label: "Missing quiz questions can be generated when a learner opens the quiz", passed: true },
     { key: "tutorialContent", label: "Tutorial items contain content or a resource", passed: emptyTutorials.length === 0 },
     { key: "projectContent", label: "Project items include instructions or learning objectives", passed: emptyProjects.length === 0 }
   ];

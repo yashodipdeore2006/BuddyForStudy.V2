@@ -77,6 +77,7 @@ test("scheduled announcements can be cancelled only before the worker starts and
   assert.ok((service.match(/status: finished \? terminalAnnouncementStatus\(stats\) : "sending"/g) || []).length >= 2, "both batch-finalization paths must consider channel failures");
   assert.match(service, /email_pending/);
   assert.match(service, /push_failed/);
+  assert.ok(service.includes("failed: { $sum: { $cond: [any(failedConditions), 1, 0] } }"), "partial channel failures must be reported even when another channel succeeded");
   assert.ok(service.includes("pending: { $sum: { $cond: [any(pendingConditions), 1, 0] } }"), "pending channel attempts must count even if another channel was accepted");
   assert.match(service, /announcement\.status === "cancelled"/);
   assert.match(service, /announcement\.status === "failed" \? unprocessed : 0/);

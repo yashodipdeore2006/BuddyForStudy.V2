@@ -455,8 +455,8 @@ export async function updateContentApprovalPolicies(req, res, next) {
     for (const [id, mode] of entries) {
       const definition = CONTENT_APPROVAL_POLICIES[id];
       const current = await PlatformSetting.findOne({ key: definition.key });
-      if (current?.value === mode) continue;
       const before = current?.value ?? "manual";
+      if (before === mode) continue;
       const setting = await PlatformSetting.findOneAndUpdate(
         { key: definition.key },
         { $set: {

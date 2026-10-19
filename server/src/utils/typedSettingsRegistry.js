@@ -1,4 +1,9 @@
 const definitions = [
+  { key: "content_approval_ai_courses", type: "enum", options: ["manual", "automatic"], description: "Approval and publication policy for AI-generated and AI-assembled courses." },
+  { key: "content_approval_user_reviews", type: "enum", options: ["manual", "automatic"], description: "Moderation policy for new learner reviews." },
+  { key: "content_approval_ai_quizzes", type: "enum", options: ["manual", "automatic"], description: "Moderation policy for AI-generated practice quiz sets." },
+  { key: "content_approval_ai_insights", type: "enum", options: ["manual", "automatic"], description: "Moderation policy for AI-generated lesson insights." },
+  { key: "content_approval_ai_answers", type: "enum", options: ["manual", "automatic"], description: "Moderation policy for cached AI Q&A answers." },
   { key: "advanced_ai_questions_per_hour_video", type: "number", description: "Question budget per video hour.", minimum: 1, maximum: 100 },
   { key: "advanced_ai_questions_unknown_duration", type: "number", description: "Question budget when video duration is unknown.", minimum: 1, maximum: 100 },
   { key: "advanced_ai_max_questions_per_lesson", type: "number", description: "Hard question limit per lesson.", minimum: 1, maximum: 200 },
@@ -24,6 +29,8 @@ export function validateTypedSetting(key, value) {
     if (value < definition.minimum || value > definition.maximum) return { valid: false, message: `Setting ${key} must be between ${definition.minimum} and ${definition.maximum}.` };
   } else if (definition.type === "boolean" && typeof value !== "boolean") {
     return { valid: false, message: `Setting ${key} must be a boolean.` };
+  } else if (definition.type === "enum" && !definition.options.includes(value)) {
+    return { valid: false, message: `Setting ${key} must be one of: ${definition.options.join(", ")}.` };
   }
   return { valid: true };
 }

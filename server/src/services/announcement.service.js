@@ -50,6 +50,12 @@ function statsPipeline(announcement) {
   ];
 }
 
+function terminalAnnouncementStatus(stats) {
+  return stats.failed > 0 || Number(stats.email?.failed || 0) > 0 || Number(stats.push?.failed || 0) > 0
+    ? "failed"
+    : "sent";
+}
+
 export async function refreshAnnouncementStats(announcement) {
   const rows = await Notification.aggregate(statsPipeline(announcement));
   const row = rows[0] || {};
@@ -133,7 +139,7 @@ export async function processScheduledAnnouncements(now = new Date(), maxBatches
       await Announcement.updateOne(
         { _id: announcement._id, batchLockToken: lockToken },
         { $set: {
-          status: finished ? (stats.failed > 0 ? "failed" : "sent") : "sending",
+          status: finished ? terminalAnnouncementStatus(stats) : "sending",
           ...(finished ? { sentAt: now, completedAt: now, nextBatchAt: null } : { nextBatchAt: new Date(now.getTime() + 30 * 1000) }),
           batchLockUntil: null, batchLockToken: "", batchAttempts: 0
         } }

@@ -61,6 +61,11 @@ const emptyForm: PlanForm = {
   },
 };
 
+function promptFinanceReason(action: string) {
+  const reason = window.prompt("Reason for " + action + " (10–500 characters):")?.trim() || "";
+  return reason.length >= 10 && reason.length <= 500 ? reason : null;
+}
+
 export default function AdminPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [availableFeatures, setAvailableFeatures] = useState<FeatureDefinition[]>([]);
@@ -92,6 +97,8 @@ export default function AdminPlans() {
   }, []);
 
   async function create() {
+    const reason = promptFinanceReason("creating this subscription plan");
+    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     if (!form.name.trim() || !form.slug.trim()) {
       setError("Plan name and slug are required.");
       return;
@@ -105,6 +112,7 @@ export default function AdminPlans() {
           ...form,
           features: form.features,
           limits: form.limits,
+          reason,
         }),
       });
       setForm(emptyForm);
@@ -115,11 +123,13 @@ export default function AdminPlans() {
   }
 
   async function toggle(plan: Plan) {
+    const reason = promptFinanceReason((plan.isActive ? "disabling " : "enabling ") + plan.name);
+    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     try {
       setError("");
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
-        body: JSON.stringify({ isActive: !plan.isActive }),
+        body: JSON.stringify({ isActive: !plan.isActive, reason }),
       });
       await load();
     } catch (e) {
@@ -179,6 +189,8 @@ export default function AdminPlans() {
   }
 
   async function savePlanDetails(plan: Plan) {
+    const reason = promptFinanceReason("changing plan details for " + plan.name);
+    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setSavingPlan(plan._id);
     setError("");
     try {
@@ -192,6 +204,7 @@ export default function AdminPlans() {
           sortOrder: Number(plan.sortOrder || 0),
           isPopular: Boolean(plan.isPopular),
           limits: plan.limits || {},
+          reason,
         }),
       });
       setEditingPlan(null);
@@ -204,12 +217,14 @@ export default function AdminPlans() {
   }
 
   async function savePlanLimits(plan: Plan) {
+    const reason = promptFinanceReason("changing limits for " + plan.name);
+    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setSavingPlan(plan._id);
     setError("");
     try {
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
-        body: JSON.stringify({ limits: plan.limits || {} }),
+        body: JSON.stringify({ limits: plan.limits || {}, reason }),
       });
       await load();
     } catch (e) {
@@ -220,13 +235,15 @@ export default function AdminPlans() {
   }
 
   async function saveFeatures(plan: Plan) {
+    const reason = promptFinanceReason("changing features for " + plan.name);
+    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setSavingPlan(plan._id);
     setError("");
 
     try {
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
-        body: JSON.stringify({ features: plan.features || [] }),
+        body: JSON.stringify({ features: plan.features || [], reason }),
       });
       await load();
     } catch (e) {

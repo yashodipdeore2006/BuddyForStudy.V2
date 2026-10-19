@@ -52,6 +52,7 @@ import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
 import { getAdminPermissions, hasAdminPermission } from "../utils/adminRbac.js";
 import { GROSS_COLLECTION_PAYMENT_STATUSES, calculateNetRevenue } from "../services/billingMetrics.service.js";
 import { resolveAdminAudience, validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../services/adminAudience.service.js";
+import { CONTENT_APPROVAL_MODES, CONTENT_APPROVAL_POLICIES, getContentApprovalPolicies } from "../services/contentApprovalPolicy.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
   // Centralize redaction and durable fallback for every admin-pro mutation.
@@ -427,6 +428,50 @@ export async function updateUser(req, res, next) {
     await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive }, reason);
     return success(res, { user: { id: String(user._id), name: user.name, emailMasked: maskEmail(user.email), isActive: user.isActive } }, "User updated");
   } catch (e) { next(e); }
+}
+
+export async function contentApprovalPolicies(req, res, next) {
+  try {
+    return success(res, { policies: await getContentApprovalPolicies() });
+  } catch (error) { next(error); }
+}
+
+export async function updateContentApprovalPolicies(req, res, next) {
+  try {
+    const reason = requireContentReason(req, res, "content approval policy update");
+    if (!reason) return;
+    const input = req.body?.policies;
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return failure(res, "policies must be an object containing approval modes.", 400);
+    }
+    const allowedIds = new Set(Object.keys(CONTENT_APPROVAL_POLICIES));
+    const entries = Object.entries(input);
+    if (!entries.length) return failure(res, "At least one approval policy is required.", 400);
+    for (const [id, mode] of entries) {
+      if (!allowedIds.has(id)) return failure(res, "Unknown content approval policy: " + id, 400);
+      if (!CONTENT_APPROVAL_MODES.includes(mode)) return failure(res, "Approval mode for " + id + " must be manual or automatic.", 400);
+    }
+
+    for (const [id, mode] of entries) {
+      const definition = CONTENT_APPROVAL_POLICIES[id];
+      const current = await PlatformSetting.findOne({ key: definition.key });
+      if (current?.value === mode) continue;
+      const before = current?.value ?? "manual";
+      const setting = await PlatformSetting.findOneAndUpdate(
+        { key: definition.key },
+        { $set: {
+          value: mode,
+          description: definition.description,
+          isPublic: false,
+          updatedBy: req.user?.user?._id || req.user?.userId || null
+        } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      await audit(req, "content_approval_policy.updated", "PlatformSetting", setting._id,
+        { policy: id, mode: before }, { policy: id, mode }, reason);
+    }
+    return success(res, { policies: await getContentApprovalPolicies() }, "Content approval policies saved");
+  } catch (error) { next(error); }
 }
 
 export async function courses(req, res, next) {

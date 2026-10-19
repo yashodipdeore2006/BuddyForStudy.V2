@@ -48,7 +48,7 @@ test("subscription plan create and update require a reason and audit the change"
   const updatePlan = controller.slice(controller.indexOf("export async function updatePlan"), controller.indexOf("export async function payments"));
   assert.match(createPlan, /reason\.length < 10 \|\| reason\.length > 500/);
   assert.match(createPlan, /await audit\(req, "subscription_plan.created"[^]*reason\)/);
-  assert.match(updatePlan, /reason.length < 10 \\|\\| reason.length > 500/);
+  assert.match(updatePlan, /reason\.length < 10 \|\| reason\.length > 500/);
   assert.match(updatePlan, /await audit\(req, "subscription_plan.updated"[^]*reason\)/);
 });
 

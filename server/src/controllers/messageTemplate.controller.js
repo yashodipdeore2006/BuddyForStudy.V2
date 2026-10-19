@@ -177,10 +177,10 @@ export async function testSendMessageTemplate(req, res, next) {
     const actor = await User.findById(actorId).select("name email").lean();
     if (!actor?.email) return failure(res, "The signed-in administrator must have a registered email address for test sends", 400);
     const preview = renderTemplatePreview(template.toObject ? template.toObject() : template, { userName: actor.name || "Administrator" });
-    if (preview.unknownPlaceholders.length) return failure(res, "Template has unsupported placeholders: " + preview.unknownPlaceholders.join(", "), 400);
+    if (preview.unknownPlaceholders.length) { await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, unknownPlaceholders: preview.unknownPlaceholders }, reason); return failure(res, "Template has unsupported placeholders: " + preview.unknownPlaceholders.join(", "), 400); }
     if (template.channel === "email") {
-      if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) return failure(res, "SMTP is not configured for test email", 503);
-      if (hasUnsafeEmailMarkup(preview.body)) return failure(res, "Rendered email contains unsafe HTML markup", 400);
+      if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) { await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, cause: "smtp_not_configured" }, reason); return failure(res, "SMTP is not configured for test email", 503); }
+      if (hasUnsafeEmailMarkup(preview.body)) { await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, cause: "unsafe_markup" }, reason); return failure(res, "Rendered email contains unsafe HTML markup", 400); }
       const transport = nodemailer.createTransport({ host: env.smtpHost, port: env.smtpPort, secure: env.smtpSecure, auth: { user: env.smtpUser, pass: env.smtpPass } });
       try {
         const result = await transport.sendMail({ from: env.mailFrom, to: actor.email, subject: preview.subject || preview.title || "BuddyForStudy template test", text: String(preview.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), html: preview.body });

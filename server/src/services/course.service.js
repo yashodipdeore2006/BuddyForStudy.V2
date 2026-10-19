@@ -517,32 +517,32 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
     pagination: { page, limit, total, pages: Math.ceil(total / limit) }
   };
 }
-export async function getPublished(courseId) {
+export async function getPublished(courseId, userId = null) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);
   if (cached) {
-    if (!isHumanReviewedForPublication(cached) || cached.deletedAt) {
+    if (cached.deletedAt) return null;
+    if (cached.visibility === "private") {
+      return userId && String(cached.createdForUser) === String(userId) ? cached : null;
+    }
+    if (!cached.isPublished || !isHumanReviewedForPublication(cached)) {
       await cacheDelete(key);
       return null;
     }
     if (!hasMultipleTutorialVideos(cached)) return cached;
-
-    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] });
-    if (!courseDoc) return null;
-    if (normalizeMultiVideoLessons(courseDoc)) {
-      courseDoc.$locals.revisionContext = { source: "system", summary: "Video resource normalization", reason: "" };
-      await courseDoc.save();
-      await cacheDelete(key);
-    }
-    const normalized = courseDoc.toObject();
-    void cacheSet(key, normalized, 120);
-    return normalized;
   }
 
-  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] });
+  const courseDoc = await Course.findOne({
+    _id: courseId,
+    deletedAt: null,
+    $or: [
+      { isPublished: true, $and: [PUBLICATION_APPROVAL_FILTER] },
+      { visibility: "private", createdForUser: userId }
+    ]
+  });
   if (!courseDoc) return null;
 
-  if (normalizeMultiVideoLessons(courseDoc)) {
+  if (courseDoc.visibility !== "private" && normalizeMultiVideoLessons(courseDoc)) {
     courseDoc.$locals.revisionContext = { source: "system", summary: "Video resource normalization", reason: "" };
     await courseDoc.save();
   }

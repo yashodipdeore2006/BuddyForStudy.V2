@@ -56,8 +56,16 @@ function lessonDurationSeconds(lesson) {
   return candidates.length ? candidates.reduce((total, value) => total + value, 0) : 0;
 }
 
-async function findCourseLesson(courseId, lessonId) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null });
+async function findCourseLesson(courseId, lessonId, userId = null) {
+  const accessBranches = [{
+    isPublished: true,
+    $or: [
+      { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+      { aiReviewStatus: "approved", aiReviewedBy: { $ne: null } }
+    ]
+  }];
+  if (userId) accessBranches.push({ visibility: "private", createdForUser: userId });
+  const course = await Course.findOne({ _id: courseId, deletedAt: null, $or: accessBranches });
   if (!course || (["normal", "ai", "module", "discovery"].includes(course.generation?.mode) &&
     (course.aiReviewStatus !== "approved" || !course.aiReviewedBy))) {
     const error = new Error("Course not found or awaiting human content review");
@@ -185,7 +193,7 @@ async function getQuestionLimit(course, lesson) {
 
 export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
   const entitlement = await planForUser(userId);
-  const { course, lesson } = await findCourseLesson(courseId, lessonId);
+  const { course, lesson } = await findCourseLesson(courseId, lessonId, userId);
   const questionPolicy = await getQuestionLimit(course, lesson);
 
   const usedOnLesson = await AIQuestionAsk.countDocuments({

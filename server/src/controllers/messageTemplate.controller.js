@@ -137,6 +137,12 @@ const TEMPLATE_SAMPLE_DEFAULTS = {
   periodSummary: "19 Oct – 19 Nov 2026", status: "active", link: "/dashboard"
 };
 
+function findUnknownTemplatePlaceholders(template) {
+  const source = [template?.title, template?.subject, template?.body].filter(Boolean).join("\\n");
+  const keys = [...new Set([...source.matchAll(/\\{\\{\\s*([a-zA-Z0-9_]+)\\s*\\}\\}/g)].map((match) => match[1]))];
+  return keys.filter((key) => !Object.keys(TEMPLATE_SAMPLE_DEFAULTS).some((name) => name.toLowerCase() === key.toLowerCase()));
+}
+
 function escapeTemplateHtml(value) {
   return String(value ?? "").replace(/[&<>"\']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" })[character]);
 }
@@ -230,6 +236,8 @@ export async function createMessageTemplate(req, res, next) {
   try {
     const parsed = templatePayload(req.body);
     if (parsed.error) return failure(res, parsed.error, 400);
+    const unknownPlaceholders = findUnknownTemplatePlaceholders(parsed.value);
+    if (unknownPlaceholders.length) return failure(res, "Unsupported template placeholders: " + unknownPlaceholders.join(", "), 400);
     const template = await MessageTemplate.create({
       ...parsed.value,
       createdBy: req.user?.user?._id || null,
@@ -248,6 +256,8 @@ export async function updateMessageTemplate(req, res, next) {
     if (!isValidObjectId(req.params.templateId)) return failure(res, "Invalid templateId", 400);
     const parsed = templatePayload(req.body);
     if (parsed.error) return failure(res, parsed.error, 400);
+    const unknownPlaceholders = findUnknownTemplatePlaceholders(parsed.value);
+    if (unknownPlaceholders.length) return failure(res, "Unsupported template placeholders: " + unknownPlaceholders.join(", "), 400);
     const template = await MessageTemplate.findById(req.params.templateId);
     if (!template) return failure(res, "Message template not found", 404);
     if (parsed.value.key !== template.key) return failure(res, "Template keys are immutable after creation. Create a new template for a new event key.", 409);

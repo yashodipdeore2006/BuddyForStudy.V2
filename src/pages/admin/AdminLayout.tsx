@@ -43,7 +43,7 @@ const links: AdminLink[] = [
   { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Finance & governance", icon: ScrollText, description: "Sensitive actions and accountability" },
   { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Finance & governance", icon: Settings, description: "Platform configuration" },
   { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Finance & governance", icon: ShieldCheck, description: "Administrator access and invitations" },
-];;
+];
 
 const groupOrder: AdminLink["group"][] = ["Overview", "Learning", "Operations", "Finance & governance"];
 const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system" };

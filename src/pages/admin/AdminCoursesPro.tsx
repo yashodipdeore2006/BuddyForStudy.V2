@@ -551,11 +551,22 @@ export default function AdminCoursesPro() {
   return (
     <div className="mx-auto max-w-7xl">
       <AdminPageHeader
-        title="Course management"
-        description="Publish, price, and manage modules, videos, playlists, and learning resources."
+        title={openCourseId ? (courses.find((item) => item._id === openCourseId)?.title || "Course editor") : "Course management"}
+        description={openCourseId
+          ? "Edit course information and maintain its curriculum in one focused workspace."
+          : "Find a course, review publishing readiness, and open one course at a time to edit its curriculum."}
+        actions={openCourseId ? (
+          <button type="button" className="btn-secondary" onClick={() => setOpenCourseId(null)}>
+            <ChevronRight className="h-4 w-4 rotate-180" /> Back to course catalogue
+          </button>
+        ) : (
+          <button type="button" className="btn-secondary" onClick={() => void load()} disabled={loading}>
+            <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh courses
+          </button>
+        )}
       />
 
-      <div className="card mt-6 p-4">
+      {!openCourseId && <div className="card mt-6 p-4">
         <div className="flex flex-col gap-3 md:flex-row">
           <input
             aria-label="Search courses by title or category"
@@ -574,7 +585,7 @@ export default function AdminCoursesPro() {
             Clear
           </button>
         </div>
-      </div>
+      </div>}
 
       <div className="mt-6 space-y-4">
         {loading ? (
@@ -586,7 +597,7 @@ export default function AdminCoursesPro() {
             No courses found.
           </div>
         ) : (
-          courses.map((course) => {
+          courses.filter((course) => !openCourseId || course._id === openCourseId).map((course) => {
             const open = openCourseId === course._id;
             const detail = courseDetails[course._id];
             const newModuleFormValue = newModuleForm(course._id);

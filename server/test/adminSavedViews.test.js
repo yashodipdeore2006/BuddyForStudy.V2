@@ -151,3 +151,38 @@ test("saved views cannot be updated by another administrator", async () => {
   assert.equal(res.body.success, false);
   assert.equal(saveCalled, false);
 });
+
+
+test("saved-view configuration rejects Mongo operators and dotted keys before database writes", async () => {
+  for (const filters of [{ "$where": "return true" }, { "profile.email": "private@example.com" }]) {
+    const res = responseRecorder();
+    let writeAttempted = false;
+    await withMocks([[SavedView, {
+      findOne: async () => { writeAttempted = true; return null; },
+      countDocuments: async () => { writeAttempted = true; return 0; },
+      create: async () => { writeAttempted = true; return {}; }
+    }]], async () => {
+      await createSavedView({
+        user: { userId: OWNER_ID },
+        body: { page: "users", name: "Unsafe configuration", filters }
+      }, res, (error) => { throw error; });
+    });
+    assert.equal(res.statusCode, 400);
+    assert.equal(writeAttempted, false);
+  }
+
+  const sortRes = responseRecorder();
+  let sortWriteAttempted = false;
+  await withMocks([[SavedView, {
+    findOne: async () => { sortWriteAttempted = true; return null; },
+    countDocuments: async () => { sortWriteAttempted = true; return 0; },
+    create: async () => { sortWriteAttempted = true; return {}; }
+  }]], async () => {
+    await createSavedView({
+      user: { userId: OWNER_ID },
+      body: { page: "users", name: "Unsafe sort", sort: { "$natural": 1 } }
+    }, sortRes, (error) => { throw error; });
+  });
+  assert.equal(sortRes.statusCode, 400);
+  assert.equal(sortWriteAttempted, false);
+});

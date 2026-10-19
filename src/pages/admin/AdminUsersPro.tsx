@@ -439,7 +439,7 @@ export default function AdminUsersPro() {
           </div>
           <div className="min-w-0">
             <p className="truncate font-semibold">{user.name || "Unnamed user"}</p>
-            <p className="admin-user-email truncate"><PiiCell value={user.email} kind="email" masked={false} /></p>
+            <p className="admin-user-email truncate"><PiiCell value={user.email} kind="email" /></p>
           </div>
         </div>
       ),
@@ -623,7 +623,7 @@ export default function AdminUsersPro() {
       )}
 
       {selected && (
-        <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={selected.user?.email} onClose={closeUserDrawer}>
+        <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={<PiiCell value={selected.user?.email} kind="email" />} onClose={closeUserDrawer}>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Role</p><p className="mt-1 font-bold capitalize">{selected.user?.role}</p></div>
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Sign-in</p><p className="mt-1 font-bold">{selected.user?.authProvider}</p></div>

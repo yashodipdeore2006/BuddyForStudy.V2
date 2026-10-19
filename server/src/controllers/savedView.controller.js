@@ -5,6 +5,7 @@ import { failure, success } from "../utils/response.js";
 
 const pageSchema = z.string().trim().min(1).max(80).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/);
 const viewIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/);
+const configKeySchema = z.string().max(80).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, "Configuration keys must be simple identifiers.");
 const scalarSchema = z.union([
   z.string().max(200),
   z.number().finite(),
@@ -12,13 +13,13 @@ const scalarSchema = z.union([
   z.null(),
   z.array(z.string().max(100)).max(50)
 ]);
-const filtersSchema = z.record(z.string().max(80), scalarSchema).refine((value) => Object.keys(value).length <= 30, "A view can contain at most 30 filter fields.");
+const filtersSchema = z.record(configKeySchema, scalarSchema).refine((value) => Object.keys(value).length <= 30, "A view can contain at most 30 filter fields.");
 const viewSchema = z.object({
   page: pageSchema,
   name: z.string().trim().min(1).max(40),
   filters: filtersSchema.default({}),
   columns: z.array(z.string().min(1).max(80)).max(50).default([]),
-  sort: z.record(z.string().max(80), scalarSchema).default({}),
+  sort: z.record(configKeySchema, scalarSchema).default({}),
   density: z.enum(["compact", "comfortable"]).default("comfortable"),
   shared: z.boolean().default(false)
 }).strict();

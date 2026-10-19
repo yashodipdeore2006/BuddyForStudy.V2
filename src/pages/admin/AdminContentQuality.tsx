@@ -5,6 +5,16 @@ import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 
 type Tab = "courses" | "review" | "quiz" | "insight" | "qa" | "roadmaps" | "links";
 type Revision = { _id: string; revisionNumber: number; changedBy?: { name?: string; email?: string }; changeSource: string; reason: string; summary: string; createdAt: string };
+type ApprovalPolicyId = "aiCourses" | "userReviews" | "aiQuizzes" | "aiInsights" | "aiAnswers";
+type ApprovalMode = "manual" | "automatic";
+type ApprovalPolicy = { id: ApprovalPolicyId; key: string; label: string; description: string; mode: ApprovalMode; updatedAt?: string | null };
+const APPROVAL_POLICY_ITEMS: { id: ApprovalPolicyId; label: string; description: string }[] = [
+  { id: "aiCourses", label: "AI-generated and AI-assembled courses", description: "Applies to AI Builder roadmaps, AI course builds, search-assembled courses and learner-specific copies." },
+  { id: "userReviews", label: "Learner reviews", description: "Controls whether new reviews wait for moderation before appearing publicly." },
+  { id: "aiQuizzes", label: "AI-generated quizzes", description: "Controls whether AI practice question sets wait for moderation before they can be reused." },
+  { id: "aiInsights", label: "AI lesson insights", description: "Controls whether generated summaries and key notes are hidden until approved." },
+  { id: "aiAnswers", label: "AI Q&A answers", description: "Controls whether cached AI answers are held for review before being shown or reused." }
+];
 const TABS: { id: Tab; label: string }[] = [
   { id: "courses", label: "Courses & revisions" }, { id: "review", label: "Reviews" },
   { id: "quiz", label: "Quizzes" }, { id: "insight", label: "AI insights" },
@@ -31,6 +41,10 @@ export default function AdminContentQuality() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [approvalPolicies, setApprovalPolicies] = useState<Record<ApprovalPolicyId, ApprovalPolicy>>({} as Record<ApprovalPolicyId, ApprovalPolicy>);
+  const [loadingApprovalPolicies, setLoadingApprovalPolicies] = useState(false);
+  const [savingApprovalPolicies, setSavingApprovalPolicies] = useState(false);
+  const [policyReason, setPolicyReason] = useState("");
 
   const loadCourses = useCallback(async () => {
     setLoading(true); setError("");
@@ -62,6 +76,46 @@ export default function AdminContentQuality() {
     else if (["review", "quiz", "insight", "qa"].includes(tab)) void loadModeration();
     else if (tab === "roadmaps") void loadRoadmaps();
   }, [tab, loadCourses, loadModeration, loadRoadmaps]);
+  const loadApprovalPolicies = useCallback(async () => {
+    setLoadingApprovalPolicies(true);
+    try {
+      const data = await adminFetch("/api/admin/content-policies");
+      if (data.policies) setApprovalPolicies(data.policies as Record<ApprovalPolicyId, ApprovalPolicy>);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load content approval policies.");
+    } finally {
+      setLoadingApprovalPolicies(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadApprovalPolicies(); }, [loadApprovalPolicies]);
+
+  async function saveApprovalPolicies() {
+    if (policyReason.trim().length < 10 || policyReason.trim().length > 500) {
+      setError("A reason of 10–500 characters is required to change content approval policies.");
+      return;
+    }
+    const policies = Object.fromEntries(APPROVAL_POLICY_ITEMS.map((item) => [
+      item.id, approvalPolicies[item.id]?.mode || "manual"
+    ])) as Record<ApprovalPolicyId, ApprovalMode>;
+    setSavingApprovalPolicies(true);
+    setError("");
+    setNotice("");
+    try {
+      const data = await adminFetch("/api/admin/content-policies", {
+        method: "PUT",
+        body: JSON.stringify({ policies, reason: policyReason.trim() })
+      });
+      setApprovalPolicies(data.policies as Record<ApprovalPolicyId, ApprovalPolicy>);
+      setPolicyReason("");
+      setNotice("Content approval policies saved. Policies affect new content and subsequent generation; existing pending content remains pending until moderated.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save content approval policies.");
+    } finally {
+      setSavingApprovalPolicies(false);
+    }
+  }
+
 
   async function publish(course: any) {
     if (aiGenerated(course) && (course.aiReviewStatus !== "approved" || !course.aiReviewedBy)) {
@@ -164,6 +218,54 @@ export default function AdminContentQuality() {
     <AdminPageHeader eyebrow="Learning governance" title="Content quality" description="Manage course lifecycle, AI human review, revisions and rollback, moderation queues, roadmap records, and resource-link health." actions={<button type="button" className="btn-secondary" onClick={() => { if (tab === "courses") void loadCourses(); else if (["review","quiz","insight","qa"].includes(tab)) void loadModeration(); else if (tab === "roadmaps") void loadRoadmaps(); }} disabled={loading}><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")}/> Refresh</button>} />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+    <section className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-bold text-slate-950">Approval policy</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-500">Choose whether each content type requires an administrator’s approval or can be released automatically. Manual is the default for every policy.</p>
+        </div>
+        <button type="button" className="btn-secondary" onClick={() => void loadApprovalPolicies()} disabled={loadingApprovalPolicies}>{loadingApprovalPolicies ? "Loading policies…" : "Refresh policies"}</button>
+      </div>
+      {loadingApprovalPolicies && !Object.keys(approvalPolicies).length ? <Loading/> : <>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {APPROVAL_POLICY_ITEMS.map((item) => {
+            const mode = approvalPolicies[item.id]?.mode || "manual";
+            return <div key={item.id} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-slate-900">{item.label}</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{item.description}</p>
+                </div>
+                <label className="flex shrink-0 items-center gap-2 text-sm">
+                  <span className="sr-only">{item.label} approval mode</span>
+                  <select className="input-field w-auto min-w-36" value={mode} onChange={(event) => setApprovalPolicies((current) => ({
+                    ...current,
+                    [item.id]: { ...(current[item.id] || { id: item.id, key: "", label: item.label, description: item.description }), mode: event.target.value as ApprovalMode }
+                  }))}>
+                    <option value="manual">Manual approval</option>
+                    <option value="automatic">Automatic</option>
+                  </select>
+                </label>
+              </div>
+              <p className={"mt-3 text-xs " + (mode === "automatic" ? "text-emerald-700" : "text-amber-700")}>
+                {mode === "automatic"
+                  ? item.id === "aiCourses" ? "Automatically approves generated courses; public courses publish only when readiness checks pass."
+                    : item.id === "userReviews" ? "New reviews become visible immediately unless hidden by moderation."
+                    : "New generated content is approved for use automatically."
+                  : item.id === "aiCourses" ? "Generated courses wait for administrator review. Publishing remains a separate readiness-gated action."
+                    : "New content remains pending and must be approved before public use or reuse."}
+              </p>
+            </div>;
+          })}
+        </div>
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 text-sm font-medium text-slate-700">Reason for policy change
+            <textarea className="input-field mt-1 min-h-20 w-full" value={policyReason} onChange={(event) => setPolicyReason(event.target.value)} minLength={10} maxLength={500} placeholder="Explain why the approval policy is changing (10–500 characters)."/>
+          </label>
+          <button type="button" className="btn-primary shrink-0" disabled={savingApprovalPolicies || loadingApprovalPolicies || policyReason.trim().length < 10 || policyReason.trim().length > 500} onClick={() => void saveApprovalPolicies()}>{savingApprovalPolicies ? "Saving policies…" : "Save approval policies"}</button>
+        </div>
+      </>}
+    </section>
     <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2">{TABS.map((item) => <button type="button" key={item.id} onClick={() => { setTab(item.id); setError(""); setNotice(""); }} className={"whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold " + (tab === item.id ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100")}>{item.label}</button>)}</div>
 
     {tab === "courses" && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">

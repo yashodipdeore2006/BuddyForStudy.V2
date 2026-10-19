@@ -253,7 +253,6 @@ export default function AdminBilling() {
           {!filteredPayments.length && <p className="p-8 text-center text-sm text-slate-500">No payment records match the filters.</p>}
         </div>
       </section>
-    </div>
       {detailDrawer && (
         <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailDrawer(null); }}>
           <aside role="dialog" aria-modal="true" aria-label={detailDrawer.type === "payment" ? "Payment details" : "Refund evidence"} className="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl sm:p-7">

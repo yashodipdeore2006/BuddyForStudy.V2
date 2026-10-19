@@ -5,6 +5,8 @@ import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { searchYouTubeCourseRecommendations } from "./youtube.service.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
+import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
 const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
 const PUBLICATION_APPROVAL_FILTER = {
@@ -19,6 +21,35 @@ const PUBLICATION_APPROVAL_FILTER = {
 function isApprovedForPublication(course) {
   return !GENERATED_COURSE_MODES.includes(course?.generation?.mode) ||
     (course?.aiReviewStatus === "approved" && (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic"));
+}
+
+async function applyGeneratedCourseApprovalPolicy(course) {
+  const setting = await PlatformSetting.findOne({ key: "content_approval_ai_courses" }).select("value").lean();
+  if (setting?.value !== "automatic") {
+    course.isPublished = false;
+    course.status = "draft";
+    course.aiReviewStatus = "pending";
+    course.aiReviewSource = "manual";
+    course.aiReviewedBy = null;
+    course.aiReviewedAt = null;
+    course.aiReviewNote = "";
+    return course;
+  }
+
+  course.aiReviewStatus = "approved";
+  course.aiReviewSource = "automatic";
+  course.aiReviewedBy = null;
+  course.aiReviewedAt = new Date();
+  course.aiReviewNote = "Automatically approved by the platform content policy.";
+  if (evaluateCourseReadiness(course).ready) {
+    course.isPublished = true;
+    course.status = "published";
+    course.visibility = "public";
+  } else {
+    course.isPublished = false;
+    course.status = "draft";
+  }
+  return course;
 }
 
 function normalizeSlug(value) {
@@ -240,7 +271,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
       continue;
     }
 
-    const payload = standaloneCourseFromModule(parent, module);
+    const payload = await applyGeneratedCourseApprovalPolicy(standaloneCourseFromModule(parent, module));
 
     try {
       const created = await Course.findOneAndUpdate(
@@ -253,11 +284,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
 
-      if (created?.isPublished && !created.deletedAt) courses.push(created);
+      if (created?.isPublished && !created.deletedAt && isApprovedForPublication(created)) courses.push(created);
     } catch (error) {
       if (error?.code === 11000) {
         const duplicate = await Course.findOne(matchFilter).lean();
-        if (duplicate?.isPublished && !duplicate.deletedAt) courses.push(duplicate);
+        if (duplicate?.isPublished && !duplicate.deletedAt && isApprovedForPublication(duplicate)) courses.push(duplicate);
         else throw error;
       } else {
         throw error;

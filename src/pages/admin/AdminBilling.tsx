@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard, IndianRupee, RefreshCcw, Search, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader } from "@/components/admin/AdminUI";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -23,6 +23,7 @@ export default function AdminBilling() {
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [detailDrawer, setDetailDrawer] = useState<{ type: "payment" | "refund"; item: any } | null>(null);
+  const [activeSection, setActiveSection] = useState<"refunds" | "issues" | "payments">("refunds");
 
   async function load() {
     setLoading(true);
@@ -159,7 +160,20 @@ export default function AdminBilling() {
         <div className="card p-5"><XCircle className="h-5 w-5 text-amber-600" /><p className="mt-3 text-2xl font-bold">{refunds.filter((r) => r.status === "pending").length}</p><p className="text-sm text-slate-500">Pending refunds</p></div>
       </div>
 
-      <section className="card mt-6 overflow-hidden">
+      <div className="mt-6">
+        <AdminTabs
+          ariaLabel="Billing work areas"
+          value={activeSection}
+          onChange={setActiveSection}
+          items={[
+            { value: "refunds", label: `Refund queue (${refunds.filter((item) => item.status === "pending").length})` },
+            { value: "issues", label: `Payment issues (${issues.filter((item) => ["open", "in_review"].includes(item.status)).length})` },
+            { value: "payments", label: `Payment ledger (${payments.length})` },
+          ]}
+        />
+      </div>
+
+      {activeSection === "refunds" && <section className="card mt-4 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div><h2 className="font-bold text-slate-900">Refund queue</h2><p className="mt-1 text-xs text-slate-500">Every decision is recorded in the audit log.</p></div>
           <select aria-label="Filter refunds by status" className="input-field w-auto" value={refundFilter} onChange={(e) => setRefundFilter(e.target.value)}>
@@ -203,9 +217,9 @@ export default function AdminBilling() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="card mt-6 overflow-hidden">
+      {activeSection === "issues" && <section className="card mt-4 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-bold text-slate-900">Payment issue reports</h2><p className="mt-1 text-xs text-slate-500">Review failed payments and successful payments where the learner did not receive course or plan benefits.</p></div><select aria-label="Filter payment issues" className="input-field w-auto" value={issueFilter} onChange={(e) => setIssueFilter(e.target.value)}><option value="open">Open</option><option value="in_review">In review</option><option value="resolved">Resolved</option><option value="closed">Closed</option><option value="all">All statuses</option></select></div>
         <div className="divide-y divide-slate-100">
           {issues.filter((issue) => issueFilter === "all" || issue.status === issueFilter).map((issue) => <article key={issue._id} className="flex flex-col gap-4 p-5 lg:flex-row lg:items-start lg:justify-between">
@@ -214,8 +228,8 @@ export default function AdminBilling() {
           </article>)}
           {!issues.some((issue) => issueFilter === "all" || issue.status === issueFilter) && <p className="p-8 text-center text-sm text-slate-500">No payment issues match this filter.</p>}
         </div>
-      </section>
-      <section className="card mt-6 overflow-hidden">
+      </section>}
+      {activeSection === "payments" && <section className="card mt-4 overflow-hidden">
         <div className="border-b border-slate-100 p-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div><h2 className="font-bold text-slate-900">Payment ledger</h2><p className="mt-1 text-xs text-slate-500">Search by user, course, plan or provider reference.</p></div>
@@ -252,7 +266,7 @@ export default function AdminBilling() {
           </table>
           {!filteredPayments.length && <p className="p-8 text-center text-sm text-slate-500">No payment records match the filters.</p>}
         </div>
-      </section>
+      </section>}
       {detailDrawer && (
         <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailDrawer(null); }}>
           <aside role="dialog" aria-modal="true" aria-label={detailDrawer.type === "payment" ? "Payment details" : "Refund evidence"} className="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 shadow-2xl sm:p-7">

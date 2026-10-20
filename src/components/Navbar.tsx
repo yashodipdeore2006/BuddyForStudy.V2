@@ -203,10 +203,10 @@ export default function Navbar() {
 
   const isActive = (to: string) => {
     const pathname = location.pathname;
-    if (to === "/home") return pathname === "/" || pathname === "/home" || pathname === "/dashboard";
-    if (to === "/explore") return pathname === "/explore" || pathname === "/courses" || pathname.startsWith("/courses/");
-    if (to === "/my-learning") return pathname === "/my-learning" || pathname === "/my-courses";
-    if (to === "/saved") return pathname === "/saved" || pathname === "/saved-courses";
+    if (to === routes.home()) return pathname === "/" || pathname === routes.home() || pathname === "/dashboard";
+    if (to === routes.explore()) return pathname === routes.explore() || pathname === "/courses" || pathname.startsWith("/courses/");
+    if (to === routes.myLearning()) return pathname === routes.myLearning() || pathname === "/my-courses";
+    if (to === routes.saved()) return pathname === routes.saved() || pathname === "/saved-courses";
     return pathname === to || pathname.startsWith(to + "/");
   };
 

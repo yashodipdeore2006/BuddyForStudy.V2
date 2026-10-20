@@ -24,13 +24,14 @@ function loadTs(relativePath, requireMap = {}) {
     String,
     Number,
     Math,
+    URL,
   }, { filename: relativePath });
   return module.exports;
 }
 
 const routeModule = loadTs("src/lib/routes.ts");
 const navModule = loadTs("src/lib/courseNav.ts", { "./routes": routeModule });
-const { routes } = routeModule;
+const { routes, resolveNotificationRoute } = routeModule;
 const { getCourseNavTargets } = navModule;
 
 test("route helpers encode ids and reject missing identifiers", () => {
@@ -40,6 +41,19 @@ test("route helpers encode ids and reject missing identifiers", () => {
   assert.equal(routes.learn("abc", "lesson 1"), "/learn/abc/lesson%201");
   assert.throws(() => routes.course("undefined"), /valid course id/i);
   assert.throws(() => routes.learn("", "lesson"), /valid course id/i);
+});
+
+
+test("notification destinations are canonicalized and unknown routes are rejected", () => {
+  assert.equal(resolveNotificationRoute("/dashboard"), routes.home());
+  assert.equal(resolveNotificationRoute("/courses"), routes.explore());
+  assert.equal(resolveNotificationRoute("/courses/course-1"), routes.course("course-1"));
+  assert.equal(resolveNotificationRoute("/learn/course-1/lesson%202"), routes.learn("course-1", "lesson 2"));
+  assert.equal(resolveNotificationRoute("/billing"), routes.billing());
+  assert.equal(resolveNotificationRoute("https://evil.example/phishing"), null);
+  assert.equal(resolveNotificationRoute("//evil.example/phishing"), null);
+  assert.equal(resolveNotificationRoute("/missing-route"), null);
+  assert.equal(resolveNotificationRoute("/courses/"), null);
 });
 
 test("all state combinations preserve navigation invariants", () => {

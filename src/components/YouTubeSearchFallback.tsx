@@ -485,8 +485,8 @@ export default function YouTubeSearchFallback({
                       itemCount: Number(resource.itemCount || lessons.length || 1),
                     };
                     return (
-                      <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50">
-                        <div className="bfs-course-card__media relative block shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
+                      <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
+                        <div className="bfs-course-card__media relative block h-36 shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
                           {resource.thumbnail ? (
                             <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                           ) : (
@@ -498,7 +498,7 @@ export default function YouTubeSearchFallback({
                         </div>
                         <div className="flex flex-1 flex-col p-3">
                           <div className="flex-1">
-                            <p className="line-clamp-2 text-sm font-bold leading-5 text-slate-900">{resource.title}</p>
+                            <p className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-slate-900" title={resource.title}>{resource.title}</p>
                             <p className="mt-1 truncate text-xs text-slate-500">{resource.channelTitle || "YouTube learning resource"}</p>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
                               <span>{resource.sourceType === "video" ? "Video" : resource.sourceType === "series" ? "Series" : "Playlist"}</span>

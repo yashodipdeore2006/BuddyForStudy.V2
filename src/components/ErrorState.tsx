@@ -1,5 +1,6 @@
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { USER_INTENTS } from '@/lib/intents';
 
 interface ErrorStateProps {
   title?: string;
@@ -21,7 +22,7 @@ export default function ErrorState({
       <p>{description}</p>
       {onRetry && (
         <button type="button" onClick={onRetry} className="bfs-error-state__retry">
-          <RefreshCw size={16} aria-hidden="true" /> Retry
+          <RefreshCw size={16} aria-hidden="true" /> {USER_INTENTS.retry.label}
         </button>
       )}
       {action && <div className="bfs-error-state__action">{action}</div>}

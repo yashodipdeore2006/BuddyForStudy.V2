@@ -499,7 +499,7 @@ export default function YouTubeSearchFallback({
                     };
                     return (
                       <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
-                        <div className="bfs-course-card__media relative block h-36 shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
+                        <div role="button" tabIndex={0} aria-label={`Preview ${resource.title}`} onClick={() => void openCourse(course)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openCourse(course); } }} className="bfs-course-card__media relative block h-36 shrink-0 cursor-pointer overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                           {resource.thumbnail ? (
                             <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                           ) : (
@@ -547,10 +547,6 @@ export default function YouTubeSearchFallback({
                               {enrolledIds.has(course.id) ? "Start" : "Enroll free"}
                             </button>
                           </div>
-                          <button type="button" onClick={() => void openCourse(course)} disabled={openingId === course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60">
-                            {openingId === course.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                            {openingId === course.id ? "Opening..." : "Preview"}
-                          </button>
                         </div>
                       </article>
                     );
@@ -574,7 +570,7 @@ export default function YouTubeSearchFallback({
                     key={course.id}
                     className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50"
                   >
-                    <div className="bfs-course-card__media relative block shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
+                    <div role="button" tabIndex={0} aria-label={`Preview ${course.title}`} onClick={() => void openCourse(course)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openCourse(course); } }} className="bfs-course-card__media relative block shrink-0 cursor-pointer overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                       {course.thumbnail ? (
                         <img src={course.thumbnail} alt="" className="h-full w-full object-cover" />
                       ) : (
@@ -653,7 +649,7 @@ export default function YouTubeSearchFallback({
                     key={course.videoId}
                     className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white text-left transition-colors duration-200 hover:bg-slate-50"
                   >
-                    <div className="bfs-course-card__media relative block shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
+                    <div role="button" tabIndex={0} aria-label={`Preview ${course.title}`} onClick={() => openVideo(course)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openVideo(course); } }} className="bfs-course-card__media relative block shrink-0 cursor-pointer overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                       {course.thumbnail ? (
                         <img src={course.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
                       ) : (
@@ -767,7 +763,7 @@ export default function YouTubeSearchFallback({
                       key={playlist.playlistId}
                       className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50"
                     >
-                      <div className="relative aspect-video overflow-hidden bg-slate-100">
+                      <div role="button" tabIndex={0} aria-label={`Preview ${playlist.title}`} onClick={() => { const course = builtCourses.find((item) => item.sourceType === "playlist" && item.sourceId === playlist.playlistId) || { id: `playlist-course-${playlist.playlistId}`, title: playlist.title, description: playlist.description, thumbnail: playlist.thumbnail, channelTitle: playlist.channelTitle, sourceType: "playlist" as const, sourceId: playlist.playlistId, lessons: [], itemCount: playlist.itemCount }; void openCourse(course); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); const course = builtCourses.find((item) => item.sourceType === "playlist" && item.sourceId === playlist.playlistId) || { id: `playlist-course-${playlist.playlistId}`, title: playlist.title, description: playlist.description, thumbnail: playlist.thumbnail, channelTitle: playlist.channelTitle, sourceType: "playlist" as const, sourceId: playlist.playlistId, lessons: [], itemCount: playlist.itemCount }; void openCourse(course); } }} className="relative aspect-video cursor-pointer overflow-hidden bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
                         {playlist.thumbnail ? (
                           <img src={playlist.thumbnail} alt="" className="h-full w-full object-cover" />
                         ) : (
@@ -831,27 +827,10 @@ export default function YouTubeSearchFallback({
                           <button
                             type="button"
                             onClick={() => {
-                              const course = builtCourses.find(
-                                (item) =>
-                                  item.sourceType === "playlist" &&
-                                  item.sourceId === playlist.playlistId
-                              ) || {
-                                id: `playlist-course-${playlist.playlistId}`,
-                                title: playlist.title,
-                                description: playlist.description,
-                                thumbnail: playlist.thumbnail,
-                                channelTitle: playlist.channelTitle,
-                                sourceType: "playlist" as const,
-                                sourceId: playlist.playlistId,
-                                lessons: [],
-                                itemCount: playlist.itemCount,
-                              };
-                              void enrollCourse(course);
+                              const course = builtCourses.find((item) => item.sourceType === "playlist" && item.sourceId === playlist.playlistId) || { id: `playlist-course-${playlist.playlistId}`, title: playlist.title, description: playlist.description, thumbnail: playlist.thumbnail, channelTitle: playlist.channelTitle, sourceType: "playlist" as const, sourceId: playlist.playlistId, lessons: [], itemCount: playlist.itemCount };
+                              handleCourseAction(course);
                             }}
-                            disabled={
-                              enrollingId === `playlist-course-${playlist.playlistId}` ||
-                              enrolledIds.has(`playlist-course-${playlist.playlistId}`)
-                            }
+                            disabled={enrollingId === `playlist-course-${playlist.playlistId}`}
                             className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
                           >
                             {enrollingId === `playlist-course-${playlist.playlistId}` ? (

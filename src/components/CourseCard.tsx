@@ -318,7 +318,7 @@ export default function CourseCard({
           {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
           {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
-        </div>
+        </div>}
         {showProgress && (
           <div className="bfs-course-card__progress">
             <div className="bfs-course-card__progress-label">

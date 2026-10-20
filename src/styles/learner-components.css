@@ -508,15 +508,42 @@
 }
 /* Catalogue cards are content previews, not progress widgets. Keep their height driven
    by the visible content and never let an enrolled-course progress panel stretch them. */
+/* Explore grids use uniform implicit rows; cards fill each grid cell so their
+   widths, cover heights, content rhythm, and footers line up consistently. */
+.bfs-course-results-grid {
+  align-items: stretch;
+  grid-auto-rows: 1fr;
+}
 .bfs-course-card {
   display: flex;
   flex-direction: column;
-  align-self: start;
-  align-content: start;
+  align-self: stretch;
+  align-content: stretch;
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
   min-height: 0;
-  height: auto;
+  height: 100%;
   max-height: none;
+}
+.bfs-course-card__media {
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 16 / 7.6;
+  min-height: 0;
+}
+.bfs-course-card__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.bfs-course-card__action-row {
+  flex: 0 0 auto;
+  margin-top: auto;
+}
+.bfs-course-card__error,
+.bfs-course-card__status {
+  flex: 0 0 auto;
+  margin-inline: 11px;
 }
 .bfs-course-card__media { flex: 0 0 auto; aspect-ratio: 16 / 7.6; min-height: 0; }
 .bfs-course-card__media img { min-height: 0; }
@@ -546,7 +573,10 @@
 .bfs-course-card__media .bfs-course-card__level { padding: 3px 6px; font-size: 10px; }
 .bfs-course-card__media .bfs-course-card__learning-status { font-size: 10px; padding: 3px 6px; }
 @media (max-width: 640px) {
+  .bfs-course-results-grid { grid-auto-rows: 1fr; }
   .bfs-course-card__media { aspect-ratio: 16 / 7.6; }
   .bfs-course-card__body { gap: 4px; padding: 7px 9px 5px; }
   .bfs-course-card__action-row { gap: 6px; padding: 0 9px 9px; }
+  .bfs-course-card__error,
+  .bfs-course-card__status { margin-inline: 9px; }
 }

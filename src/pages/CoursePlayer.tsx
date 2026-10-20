@@ -4,10 +4,62 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github, Clock3, Trash2, Save } from "lucide-react";
 import { classNames } from "@/lib/utils";
 import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
 import { routes } from "@/lib/routes";
+import {
+  courseTimestampNotesKey,
+  createTimestampedCourseNote,
+  formatMediaTimestamp,
+  loadTimestampedCourseNotes,
+  parseMediaTimestamp,
+  saveTimestampedCourseNotes,
+  type TimestampedCourseNote,
+} from "@/lib/courseNotes";
+
+function cleanPlayerLessonTitle(title: string, siblingTitles: string[] = []): string {
+  const parts = String(title || "").split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return String(title || "").trim();
+  const siblings = siblingTitles.map((sibling) => String(sibling || "").split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean));
+  let sharedSegments = 0;
+  while (
+    sharedSegments < parts.length - 1 &&
+    siblings.length > 1 &&
+    siblings.every((segments) => segments[sharedSegments] && segments[sharedSegments].toLowerCase() === parts[sharedSegments].toLowerCase())
+  ) sharedSegments += 1;
+  return sharedSegments > 0 ? (parts.slice(sharedSegments).join(" · ").trim() || parts[parts.length - 1]) : parts.join(" · ");
+}
+
+function parseDurationValue(value: unknown): number {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return 0;
+  const iso = text.match(/^pt(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
+  if (iso) return Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
+  const clock = text.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+  if (clock) return Number(clock[1] || 0) * 3600 + Number(clock[2] || 0) * 60 + Number(clock[3] || 0);
+  const hours = text.match(/(\d+(?:\.\d+)?)\s*h/);
+  const minutes = text.match(/(\d+)\s*m/);
+  const seconds = text.match(/(\d+)\s*s/);
+  return Math.round(Number(hours?.[1] || 0) * 3600 + Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0));
+}
+
+function getPlayerLessonDurationSeconds(lesson: Course["modules"][number]["lessons"][number]): number {
+  if (Number(lesson.durationSeconds) > 0) return Number(lesson.durationSeconds);
+  const videos = [...(lesson.tutorial?.videos || []), ...(lesson.project?.videos || [])];
+  const videoDuration = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || parseDurationValue(video.duration)), 0);
+  return videoDuration || Math.max(0, parseDurationValue((lesson as typeof lesson & { duration?: string }).duration));
+}
+
+function formatPlayerDuration(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.round(safe / 60);
+  if (minutes < 1) return safe > 0 ? "<1 min" : "";
+  if (minutes < 60) return minutes + " min";
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return remaining ? hours + "h " + remaining + "m" : hours + "h";
+}
 
 function mapCourse(raw: any): Course {
   return {
@@ -82,6 +134,14 @@ export default function CoursePlayer() {
   const [practiceQuizError, setPracticeQuizError] = useState("");
   const practiceAutoAttemptRef = useRef("");
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz">("lesson");
+  const [noteTimestamp, setNoteTimestamp] = useState("00:00");
+  const [noteDraft, setNoteDraft] = useState("");
+  const [timestampNotes, setTimestampNotes] = useState<TimestampedCourseNote[]>([]);
+  const [notesStorageReady, setNotesStorageReady] = useState(false);
+  const [loadedNotesKey, setLoadedNotesKey] = useState("");
+  const [noteError, setNoteError] = useState("");
+  const [noteNotice, setNoteNotice] = useState("");
+  const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
 
 
   useEffect(() => {
@@ -113,11 +173,66 @@ export default function CoursePlayer() {
     void load();
   }, [courseId]);
 
+  useEffect(() => {
+    setNotesStorageReady(false);
+    if (!timestampNotesKey) {
+      setTimestampNotes([]);
+      setLoadedNotesKey("");
+      return;
+    }
+    setTimestampNotes(loadTimestampedCourseNotes(timestampNotesKey));
+    setLoadedNotesKey(timestampNotesKey);
+    setNotesStorageReady(true);
+  }, [timestampNotesKey]);
+
+  useEffect(() => {
+    if (!notesStorageReady || !timestampNotesKey || loadedNotesKey !== timestampNotesKey) return;
+    if (!saveTimestampedCourseNotes(timestampNotesKey, timestampNotes)) {
+      setNoteError("Notes could not be saved in this browser. Check available storage and try again.");
+    }
+  }, [loadedNotesKey, notesStorageReady, timestampNotes, timestampNotesKey]);
+
   const allLessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
   const currentLesson = useMemo(
     () => course && lessonId ? findLessonById(course.modules, lessonId) : null,
     [course, lessonId]
   );
+  const siblingLessonTitles = allLessons.map((lesson) => lesson.title);
+  const currentLessonNotes = currentLesson
+    ? timestampNotes.filter((note) => note.lessonId === String(currentLesson.lesson.id)).sort((a, b) => a.timestampSeconds - b.timestampSeconds)
+    : [];
+  const moduleLessonCounts = (module: Course["modules"][number]) => module.lessons.filter((lesson) => isLessonCompleted(progress?.completed_lessons || [], lesson.id)).length;
+
+  const saveLessonNote = () => {
+    if (!currentLesson) return;
+    const content = noteDraft.trim();
+    const seconds = parseMediaTimestamp(noteTimestamp);
+    if (!content) {
+      setNoteError("Write a note before saving.");
+      return;
+    }
+    if (seconds === null) {
+      setNoteError("Enter a timestamp such as 01:25 or 1:02:15.");
+      return;
+    }
+    const note = createTimestampedCourseNote({
+      lessonId: String(currentLesson.lesson.id),
+      lessonTitle: cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles),
+      timestampSeconds: seconds,
+      content,
+    });
+    setTimestampNotes((previous) => [...previous, note].sort((a, b) => a.timestampSeconds - b.timestampSeconds));
+    setNoteDraft("");
+    setNoteError("");
+    setNoteNotice("Timestamped note saved.");
+  };
+
+  const deleteLessonNote = (noteId: string) => {
+    setTimestampNotes((previous) => previous.filter((note) => note.id !== noteId));
+    setNoteNotice("Note removed.");
+    setNoteError("");
+  };
+
 
   useEffect(() => {
     setPracticeQuizData(null);
@@ -736,6 +851,39 @@ export default function CoursePlayer() {
                     )}
                     {lessonTab === "lesson" && (
                       <div className="space-y-4">
+                    <section aria-labelledby="timestamp-notes-title" className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700"><FileText className="h-5 w-5" aria-hidden="true" /></span>
+                        <div className="min-w-0 flex-1">
+                          <h2 id="timestamp-notes-title" className="font-semibold text-slate-950">Timestamped notes</h2>
+                          <p className="mt-1 text-sm leading-6 text-slate-600">Save a thought at the video timestamp so you can return to the exact moment. Notes are stored in this browser for this account and course.</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                        <label className="block text-xs font-semibold text-slate-600">Timestamp
+                          <input value={noteTimestamp} onChange={(event) => setNoteTimestamp(event.target.value)} placeholder="mm:ss" inputMode="numeric" className="input-field mt-1 w-full text-sm" aria-describedby="timestamp-note-help" />
+                          <span id="timestamp-note-help" className="mt-1 block font-normal text-slate-500">mm:ss or hh:mm:ss</span>
+                        </label>
+                        <label className="block text-xs font-semibold text-slate-600">Your note
+                          <textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} maxLength={3000} rows={3} placeholder="Capture a key idea, example, or question…" className="input-field mt-1 w-full resize-y text-sm" />
+                        </label>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-xs text-slate-500" aria-live="polite">{noteNotice || "Current lesson: " + cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}</div>
+                        <button type="button" onClick={saveLessonNote} className="btn-primary inline-flex items-center justify-center gap-2" disabled={!notesStorageReady || !noteDraft.trim()}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
+                      </div>
+                      {noteError && <p className="mt-2 text-sm text-red-700" role="alert">{noteError}</p>}
+                      {currentLessonNotes.length > 0 && <div className="mt-4 space-y-2">
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{currentLessonNotes.length} saved {currentLessonNotes.length === 1 ? "note" : "notes"}</h3>
+                        {currentLessonNotes.map((note) => (
+                          <article key={note.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                            <a href={currentLesson.lesson.tutorial?.videos?.[0]?.videoId ? "https://www.youtube.com/watch?v=" + encodeURIComponent(currentLesson.lesson.tutorial.videos[0].videoId) + "&t=" + note.timestampSeconds + "s" : undefined} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100" aria-label={"Open source video at " + formatMediaTimestamp(note.timestampSeconds)}><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{formatMediaTimestamp(note.timestampSeconds)}</a>
+                            <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{note.content}</p>
+                            <button type="button" onClick={() => deleteLessonNote(note.id)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-700" aria-label="Delete note"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                          </article>
+                        ))}
+                      </div>}
+                    </section>
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}
@@ -1054,6 +1202,9 @@ export default function CoursePlayer() {
                   <p className="mt-1 text-sm font-extrabold leading-5 text-slate-900">
                     {module.title}
                   </p>
+                  <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                    {moduleLessonCounts(module)}/{module.lessons.length} done{module.lessons.some((lesson) => getPlayerLessonDurationSeconds(lesson) > 0) ? " · " + formatPlayerDuration(module.lessons.reduce((sum, lesson) => sum + getPlayerLessonDurationSeconds(lesson), 0)) : ""}
+                  </p>
                 </div>
 
                 {(module.resources || []).length > 0 && (
@@ -1090,6 +1241,8 @@ export default function CoursePlayer() {
                 {module.lessons.map((lesson) => {
                   const done = isLessonCompleted(completedLessons, lesson.id);
                   const active = lesson.id === lessonId;
+                  const durationLabel = formatPlayerDuration(getPlayerLessonDurationSeconds(lesson));
+                  const cleanedTitle = cleanPlayerLessonTitle(lesson.title, allLessons.map((item) => item.title));
 
                   return (
                     <button
@@ -1122,10 +1275,12 @@ export default function CoursePlayer() {
 
                       <span className="min-w-0 flex-1">
                         <span className="block line-clamp-2 text-xs font-semibold leading-5">
-                          {lesson.title}
+                          {cleanedTitle}
+                          <span className="mt-0.5 block text-[10px] font-medium text-slate-400">{done ? "Completed" : active ? "Currently learning" : lesson.type === "quiz" ? "Quiz" : lesson.type === "project" ? "Project" : "Video lesson"}</span>
                         </span>
                       </span>
 
+                      {durationLabel && <span className="shrink-0 self-center text-[10px] font-semibold text-slate-500">{durationLabel}</span>}
                       {active && (
                         <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-600" />
                       )}

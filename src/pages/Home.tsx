@@ -96,10 +96,20 @@ function SkeletonResume() {
 }
 function Cover({ course, className = '' }: { course: Course; className?: string }) {
   const [failed, setFailed] = useState(false);
-  return <div className={className} aria-label={course.title}>
+  const category = (course.category || '').toLowerCase();
+  const palette = /data|analytics|sql|database/.test(category) ? 'data'
+    : /design|ui|ux|art/.test(category) ? 'design'
+      : /business|finance|marketing/.test(category) ? 'business'
+        : /ai|machine|python|program/.test(category) ? 'technology'
+          : 'learning';
+  const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(' ') || 'Keep learning';
+  return <div className={className}>
     {course.thumbnail && !failed
       ? <img src={course.thumbnail} alt="" loading="lazy" onError={() => setFailed(true)} />
-      : <div className="user-home__image-fallback"><BookOpen aria-hidden="true" size={32} /></div>}
+      : <div className={'user-home__image-fallback user-home__image-fallback--' + palette} aria-label={course.title}>
+          <BookOpen className="user-home__fallback-icon" aria-hidden="true" size={40} />
+          <span className="user-home__fallback-title">{coverWords}</span>
+        </div>}
   </div>;
 }
 
@@ -285,7 +295,12 @@ export default function Home() {
             {resumeProgress.remainingDuration && <p className="user-home__meta">About {resumeProgress.remainingDuration} left</p>}
             <Link className="user-home__button" to={resumeUrl}>{USER_INTENTS.continue.label} <ArrowRight size={16} aria-hidden="true" /></Link>
           </div>
-        </article> : <div className="user-home__empty">
+        </article> : resumeEnrollment && sectionErrors.progress.some((item) => item.courseId === resumeEnrollment.course_id) ? <div className="user-home__empty">
+          <div className="user-home__empty-icon"><Clock3 size={24} aria-hidden="true" /></div>
+          <h3>Progress is temporarily unavailable</h3>
+          <p>Your course is still here, but we couldn’t load its latest progress.</p>
+          <button className="user-home__button" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label} <RefreshCw size={16} aria-hidden="true" /></button>
+        </div> : <div className="user-home__empty">
           <div className="user-home__empty-icon"><GraduationCap size={24} aria-hidden="true" /></div>
           <h3>{session ? 'No course in progress yet' : 'Your learning journey starts here'}</h3>
           <p>{session ? 'Explore a course or build a learning path. Your next step will appear here.' : 'Sign in to keep your courses, progress and next lesson together.'}</p>
@@ -335,6 +350,21 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="user-home__section" aria-labelledby="continue-heading">
+        <div className="user-home__heading"><h2 className="user-home__title" id="continue-heading">Continue learning</h2><Link className="user-home__link" to="/my-courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        {sectionErrors.progress.some((item) => item.courseId !== resumeEnrollment?.course_id) && <div className="user-home__alert user-home__alert--error" role="alert"><span>Progress for {sectionErrors.progress.filter((item) => item.courseId !== resumeEnrollment?.course_id).map((item) => item.title).join(", ")} is unavailable.</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>}
+        {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
+          ? <div className="user-home__compact-list">{inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).map((item) => {
+            const progress = data.progress[item.course_id];
+            return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.next_lesson_id ? '/' + encodeURIComponent(progress.next_lesson_id) : '')}>
+              <Cover course={item.course} className="user-home__compact-cover" />
+              <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} {pluralize(progress?.total_lessons ?? 0, 'lesson')} · {progress?.percentage ?? 0}%</p></div>
+              <span className="user-home__link user-home__compact-action">{USER_INTENTS.continue.label} <ArrowRight size={14} aria-hidden="true" /></span>
+            </Link>;
+          })}</div>
+          : <p className="user-home__meta">Your other in-progress courses will appear here.</p>}
+      </section>
+
       <section className="user-home__section" aria-labelledby="badges-heading">
         <div className="user-home__heading"><div><h2 className="user-home__title" id="badges-heading">Badges</h2><p className="user-home__meta">Small milestones that reflect your learning.</p></div><Link className="user-home__link" to="/profile">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
         <div className="user-home__badge-grid">
@@ -354,21 +384,6 @@ export default function Home() {
             </article>;
           })}
         </div>
-      </section>
-
-      <section className="user-home__section" aria-labelledby="continue-heading">
-        <div className="user-home__heading"><h2 className="user-home__title" id="continue-heading">Continue learning</h2><Link className="user-home__link" to="/my-courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
-        {sectionErrors.progress.some((item) => item.courseId !== resumeEnrollment?.course_id) && <div className="user-home__alert user-home__alert--error" role="alert"><span>Progress for {sectionErrors.progress.filter((item) => item.courseId !== resumeEnrollment?.course_id).map((item) => item.title).join(", ")} is unavailable.</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>}
-        {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
-          ? <div className="user-home__compact-list">{inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).map((item) => {
-            const progress = data.progress[item.course_id];
-            return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.next_lesson_id ? '/' + encodeURIComponent(progress.next_lesson_id) : '')}>
-              <Cover course={item.course} className="user-home__compact-cover" />
-              <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} {pluralize(progress?.total_lessons ?? 0, 'lesson')} · {progress?.percentage ?? 0}%</p></div>
-              <span className="user-home__link user-home__compact-action">{USER_INTENTS.continue.label} <ArrowRight size={14} aria-hidden="true" /></span>
-            </Link>;
-          })}</div>
-          : <p className="user-home__meta">Your other in-progress courses will appear here.</p>}
       </section>
 
       <section className="user-home__section" aria-labelledby="picked-heading">

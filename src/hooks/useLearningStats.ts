@@ -4,6 +4,7 @@ export interface LearningProgressSource {
   completed_count: number;
   total_lessons: number;
   completed_today_count: number;
+  completed_lesson_ids?: string[];
 }
 
 export interface LearningStatsSource {
@@ -25,7 +26,10 @@ export function useLearningStats(
   const raw = useMemo(() => (source ?? {}) as LearningStatsSource, [source]);
   const metrics = useMemo(() => {
     const records = Object.values(progress);
-    const completedLessons = records.reduce((sum, item) => sum + item.completed_count, 0);
+    const completedLessonIds = new Set(records.flatMap((item) => item.completed_lesson_ids ?? []));
+    const completedLessons = completedLessonIds.size > 0
+      ? completedLessonIds.size
+      : records.reduce((sum, item) => sum + item.completed_count, 0);
     const totalLessons = records.reduce((sum, item) => sum + item.total_lessons, 0);
     const completedToday = records.reduce((sum, item) => sum + item.completed_today_count, 0);
     const dailyGoalCandidate = Number(raw.dailyGoalLessons);
@@ -67,7 +71,6 @@ export function useLearningStats(
       sevenDayStrip,
       freezeUsedThisWeek,
       freezeAvailable,
-      totalLessonsCompleted: Number(raw.totalLessonsCompleted ?? completedLessons),
       achievements: Array.isArray(raw.achievements) ? raw.achievements as Array<{ key?: string }> : [],
     };
   }, [progress, raw]);

@@ -1,0 +1,16 @@
+[
+  {
+    "topic": "REPLACE_WITH_EXPERT_LABELLED_TOPIC",
+    "relevanceByResourceId": {
+      "REPLACE_WITH_SOURCE_ID_AND_SCORE_3": 3,
+      "REPLACE_WITH_SOURCE_ID_AND_SCORE_2": 2,
+      "REPLACE_WITH_SOURCE_ID_AND_SCORE_1": 1
+    },
+    "hiddenGemResourceIds": [
+      "REPLACE_WITH_EXPERT_CONFIRMED_HIDDEN_GEM_SOURCE_ID"
+    ],
+    "junkResourceIds": [
+      "REPLACE_WITH_EXPERT_CONFIRMED_JUNK_SOURCE_ID"
+    ]
+  }
+]

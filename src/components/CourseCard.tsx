@@ -220,7 +220,7 @@ export default function CourseCard({
       <Link
         to={navTargets.cardHref}
         className="bfs-course-card__stretch-link"
-        aria-label={enrollmentState === "not-enrolled" ? "Open course details for " + course.title : "Continue learning " + course.title}
+        aria-label={"Open course details for " + course.title}
         tabIndex={0}
       >
         <span className="bfs-sr-only">{enrollmentState === "not-enrolled" ? "Open course details for " : "Continue learning "}{course.title}</span>

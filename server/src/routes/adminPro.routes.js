@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware, adminMiddleware, adminPermissionMiddleware } from "../middleware/auth.js";
 import * as controller from "../controllers/adminPro.controller.js";
+import * as journeyController from "../controllers/courseJourneyRoadmap.controller.js";
 import * as messageTemplateController from "../controllers/messageTemplate.controller.js";
 import * as operationalAlertController from "../controllers/operationalAlert.controller.js";
 import * as adminRolesController from "../controllers/adminRoles.controller.js";
@@ -33,6 +34,9 @@ router.put("/users/:userId", adminPermissionMiddleware("users.manage"), controll
 router.get("/content-policies", adminPermissionMiddleware("courses.read"), controller.contentApprovalPolicies);
 router.put("/content-policies", adminPermissionMiddleware("courses.manage"), controller.updateContentApprovalPolicies);
 router.get("/courses", adminPermissionMiddleware("courses.read"), controller.courses);
+router.get("/courses/:courseId/roadmap", adminPermissionMiddleware("courses.read"), journeyController.get);
+router.put("/courses/:courseId/roadmap", adminPermissionMiddleware("courses.manage"), journeyController.updateAdmin);
+router.post("/courses/:courseId/roadmap/regenerate", adminPermissionMiddleware("courses.manage"), journeyController.regenerateAdmin);
 router.get("/courses/:courseId", adminPermissionMiddleware("courses.read"), controller.courseDetail);
 router.get("/courses/:courseId/readiness", adminPermissionMiddleware("courses.read"), controller.courseReadiness);
 router.get("/courses/:courseId/revisions", adminPermissionMiddleware("courses.read"), controller.courseRevisions);

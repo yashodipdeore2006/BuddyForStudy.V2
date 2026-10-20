@@ -7,6 +7,7 @@ import { enroll } from "../services/enrollment.service.js";
 import { getActivePlanForUser, readPlanLimit } from "../services/subscriptionEntitlement.service.js";
 import { consumeUsage, releaseUsage } from "../services/aiUsage.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
+import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
 function pendingCourseAccessState(course) {
@@ -31,6 +32,16 @@ const resourceSchema = z.object({
   resourceId: z.string().trim().min(2).max(200)
 });
 
+const curationFeedbackSchema = z.object({
+  query: z.string().trim().min(2).max(200),
+  event: z.enum(["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report"]),
+  resourceType: z.enum(["video", "playlist", "series"]),
+  resourceId: z.string().trim().min(2).max(200),
+  engineVersion: z.string().trim().min(1).max(100).default("course-curation-decision-engine-v1"),
+  rank: z.number().int().min(1).max(100).optional(),
+  score: z.number().min(0).max(100).optional()
+});
+
 
 async function reserveDiscoveryQuota(req, limitKey, usageFeature) {
   if (req.user?.role === "admin" && req.user?.accessType === "admin") return null;
@@ -50,6 +61,33 @@ async function reserveDiscoveryQuota(req, limitKey, usageFeature) {
     throw error;
   }
   return { userId: req.user.userId, feature: usageFeature };
+}
+
+export async function recordCurationFeedback(req, res, next) {
+  try {
+    const input = curationFeedbackSchema.parse(req.body);
+    const normalizedQuery = input.query
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^a-z0-9+#.]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+    await CourseCurationFeedback.create({
+      user: req.user.userId,
+      query: input.query,
+      normalizedQuery,
+      event: input.event,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      engineVersion: input.engineVersion,
+      rank: input.rank ?? null,
+      score: input.score ?? null
+    });
+    return success(res, { recorded: true }, "Curation feedback recorded", 201);
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Invalid curation feedback", 400, error.flatten().fieldErrors);
+    next(error);
+  }
 }
 
 export async function search(req, res, next) {

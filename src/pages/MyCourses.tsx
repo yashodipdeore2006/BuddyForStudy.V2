@@ -11,6 +11,7 @@ import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { getAllLessonsFlat } from "@/lib/courseUtils";
 import { useCourseState } from "@/lib/useCourseState";
+import { getCourseCardDescription } from "@/lib/courseCardDescription";
 
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
@@ -122,8 +123,7 @@ function CourseLearningCard({
   const price = course.pricing
     ? Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)
     : 0;
-  const description = course.description.trim();
-  const showDescription = description.length > 0 && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following|a buddyforstudy course built from|a comprehensive curriculum designed|a comprehensive path from|a comprehensive deep-dive into)/i.test(description);
+  const description = getCourseCardDescription(course);
   const category = (course.category || "").toLowerCase();
   const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
     : /design|ui|ux|art/.test(category) ? "design"
@@ -206,7 +206,7 @@ function CourseLearningCard({
         </div>
         <h2 className="bfs-course-card__title" title={course.title}>{course.title}</h2>
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
-        {showDescription && <p className="bfs-course-card__outcome" title={description}>{description}</p>}
+        <p className="bfs-course-card__outcome" title={description}>{description}</p>
 
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (
           <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">

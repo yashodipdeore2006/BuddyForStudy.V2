@@ -4,6 +4,7 @@ import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-r
 import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
+import { routes } from "@/lib/routes";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function Register() {
       if (profile.role === 'admin') {
         navigate('/admin', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate(routes.home(), { replace: true });
       }
     }
   }, [session, profile, navigate]);
@@ -47,7 +48,7 @@ export default function Register() {
     try {
       const result = await signUp(name, email, password);
       if ("requiresVerification" in result) {
-        navigate("/verify-email", { state: { email: result.email } });
+        navigate(routes.verifyEmail(), { state: { email: result.email } });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
@@ -63,7 +64,7 @@ export default function Register() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign in
           </Link>
         </>

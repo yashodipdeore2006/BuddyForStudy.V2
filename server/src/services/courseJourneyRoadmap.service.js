@@ -133,10 +133,40 @@ export function calculateJourneyProgress(stages, completedIds = []) {
   return { completedLessonIds: allIds.filter((id) => completed.has(id)), percent: totalLessons ? Math.round(completedCount / totalLessons * 100) : 0, stageProgress, position: Math.min(stages.length, position) };
 }
 
+function fingerprintModules(modules = []) {
+  return JSON.stringify((modules || []).map((module) => ({
+    id: String(module._id || module.id || ""),
+    title: String(module.title || ""),
+    lessons: (module.lessons || []).map((lesson) => ({ id: String(lesson._id || lesson.id || ""), title: String(lesson.title || ""), duration: lessonSeconds(lesson) }))
+  })));
+}
+
+export async function regenerateCourseJourney(courseId, stages = null) {
+  const course = await Course.findById(courseId);
+  if (!course || course.deletedAt) return null;
+  const generated = Array.isArray(stages) ? stages : buildJourneyStages(course.modules || [], []);
+  course.roadmap = {
+    theme: course.roadmap?.theme || "trail",
+    sourceFingerprint: fingerprintModules(course.modules || []),
+    generatedAt: new Date(),
+    stages: generated.map((stage, index) => ({
+      id: String(stage.id || "stage-" + (index + 1)), order: index + 1, title: String(stage.title || "Stage " + (index + 1)).slice(0, 100),
+      hours: Number(stage.hours || 0), lessonIds: (stage.lessonIds || []).map(String), skills: (stage.skills || []).slice(0, 3).map(String),
+      outcome: String(stage.outcome || "").slice(0, 1000), emoji: String(stage.emoji || "")
+    }))
+  };
+  await course.save();
+  return course.roadmap;
+}
+
 export async function getCourseJourney(courseId, userId = null) {
   const course = await Course.findOne({ _id: courseId, isPublished: true, deletedAt: null }).lean();
   if (!course) return null;
-  const cached = course.roadmap?.stages || [];
+  let cached = course.roadmap?.stages || [];
+  if (!cached.length || course.roadmap?.sourceFingerprint !== fingerprintModules(course.modules || [])) {
+    const stored = await regenerateCourseJourney(courseId);
+    cached = stored?.stages || [];
+  }
   const stages = buildJourneyStages(course.modules || [], cached);
   const totalHours = Math.round(stages.reduce((sum, stage) => sum + stage.hours, 0) * 100) / 100;
   let progress = null;

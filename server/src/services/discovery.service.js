@@ -410,7 +410,7 @@ export async function getOrCreateYouTubeResourceCourse({
   resourceId,
   userId = null
 }) {
-  const type = resourceType === "playlist" ? "playlist" : "video";
+  const type = resourceType === "playlist" ? "playlist" : resourceType === "series" ? "series" : "video";
   const id = String(resourceId || "").trim();
   if (!id) {
     const error = new Error("YouTube resourceId is required");
@@ -466,6 +466,43 @@ export async function getOrCreateYouTubeResourceCourse({
       (sum, lesson) => sum + Number(lesson.durationSeconds || 0),
       0
     );
+  } else if (type === "series") {
+    const videoIds = [...new Set(id.split(",").map((value) => value.trim()).filter(Boolean))];
+    if (videoIds.length < 2 || videoIds.length > 12) {
+      const error = new Error("A curated series must contain between 2 and 12 ordered videos.");
+      error.status = 400;
+      throw error;
+    }
+    const videos = await Promise.all(videoIds.map((videoId) => getYouTubeVideoResource(videoId)));
+    if (videos.some((video) => !video.embeddable || video.isShort || video.privacyStatus === "private")) {
+      const error = new Error("This curated series includes a video that is unavailable, short-form, or cannot be embedded.");
+      error.status = 409;
+      throw error;
+    }
+    title = query || videos[0]?.title || "Curated learning series";
+    description = "A multi-part learning series assembled from ordered videos by " + (videos[0]?.channelTitle || "the original creators") + ".";
+    thumbnail = videos[0]?.thumbnail || "";
+    channelTitle = videos[0]?.channelTitle || "";
+    lessons = videos.map((video, index) => ({
+      title: video.title || ("Lesson " + (index + 1)),
+      description: video.description || "",
+      type: "tutorial",
+      order: index + 1,
+      tutorial: {
+        content: video.description || "",
+        resources: video.url ? [video.url] : [],
+        videos: [{
+          videoId: video.videoId,
+          title: video.title || ("Lesson " + (index + 1)),
+          description: video.description || "",
+          channelTitle: video.channelTitle || channelTitle,
+          publishedAt: video.publishedAt || null,
+          url: video.url || "",
+          thumbnail: video.thumbnail || ""
+        }]
+      }
+    }));
+    durationSeconds = videos.reduce((sum, video) => sum + Number(video.durationSeconds || 0), 0);
   } else {
     const video = await getYouTubeVideoResource(id);
     if (!video.embeddable) {

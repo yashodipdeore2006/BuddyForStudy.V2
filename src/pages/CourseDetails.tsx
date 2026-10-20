@@ -26,7 +26,6 @@ import {
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
-import { routes } from '@/lib/routes';
 import { routes } from "@/lib/routes";
 
 function formatCoursePrice(amount: number, currency = 'INR') {
@@ -207,7 +206,7 @@ export default function CourseDetails() {
   };
 
   const handleEnroll = async () => {
-    if (!session) { navigate(routes.login(), { state: { from: { pathname: routes.course(courseId) } } }); return; }
+    if (!session) { navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } }); return; }
     if (!course || !course.is_published) return;
     if (course.pricing?.mode === 'paid') { await handleCheckout(); return; }
     setEnrolling(true); setError(null);

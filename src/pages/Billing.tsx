@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight, MessageSquareWarning } from "lucide-react";
+import { routes } from "@/lib/routes";
 
 type RefundRequest = {
   _id: string;
@@ -150,7 +151,7 @@ export default function Billing() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <PageHeader title="Billing & transactions" subtitle="Manage your subscription, review every payment attempt, and track refund requests." />
-        <Link to="/profile" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"><ArrowUpRight className="h-4 w-4" />Back to profile</Link>
+        <Link to={routes.profile()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"><ArrowUpRight className="h-4 w-4" />Back to profile</Link>
       </div>
 
       {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
@@ -165,7 +166,7 @@ export default function Billing() {
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h2 className="text-lg font-extrabold text-slate-950">Subscription</h2><p className="mt-1 text-sm text-slate-500">Review plan status and renewal settings.</p></div>
-          <Link to="/pricing" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">Compare plans <ArrowUpRight className="h-4 w-4" /></Link>
+          <Link to={routes.pricing()} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">Explore plans <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
         {subscription ? <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div><p className="font-bold text-slate-950">{subscription.plan?.name || "Subscription"}</p><p className="mt-1 text-sm capitalize text-slate-600">{subscription.status} · {subscription.plan?.billingInterval || "recurring"}</p>{subscription.currentPeriodEnd && <p className="mt-1 text-xs text-slate-500">Current period ends {date(subscription.currentPeriodEnd)}</p>}{subscription.cancelAtPeriodEnd && <p className="mt-1 text-xs font-semibold text-amber-700">Auto-renewal is scheduled to stop at period end.</p>}</div>
@@ -177,7 +178,7 @@ export default function Billing() {
             catch (error) { setRefundMessage(error instanceof Error ? error.message : "Unable to cancel subscription"); }
             finally { setCancelling(false); }
           }}>{cancelling ? "Cancelling…" : "Cancel auto-renewal"}</button>}</div>
-        </div> : <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 p-4"><div><p className="font-bold text-slate-900">You are on the Free plan</p><p className="mt-1 text-sm text-slate-500">Compare subscription plans to unlock additional learning features.</p></div><Link to="/pricing" className="btn-primary">Explore plans</Link></div>}
+        </div> : <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 p-4"><div><p className="font-bold text-slate-900">You are on the Free plan</p><p className="mt-1 text-sm text-slate-500">Compare subscription plans to unlock additional learning features.</p></div><Link to={routes.pricing()} className="btn-primary">Explore plans</Link></div>}
       </section>
 
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -243,7 +244,7 @@ export default function Billing() {
               {refundId === payment._id && <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50/60 p-4"><label className="block text-sm font-semibold text-slate-800">Why are you requesting a refund? <span className="font-normal text-slate-500">(optional)</span><textarea className="input-field mt-2 min-h-24 bg-white" placeholder="Tell us a little about the issue…" value={refundReason} onChange={(e) => setRefundReason(e.target.value)} maxLength={1000} /></label><div className="mt-3 flex justify-end gap-2"><button type="button" className="btn-secondary" onClick={() => setRefundId(null)}>Keep payment</button><button type="button" className="btn-primary" disabled={submittingRefund} onClick={() => void submitRefund(payment._id)}>{submittingRefund ? "Submitting…" : "Submit request"}</button></div></div>}
             </article>;
           })}
-        </div> : <div className="p-12 text-center"><ReceiptText className="mx-auto h-9 w-9 text-slate-300" /><p className="mt-3 font-bold text-slate-800">{payments.length ? "No matching transactions" : "No transactions yet"}</p><p className="mt-1 text-sm text-slate-500">{payments.length ? "Try a different search or status filter." : "Your subscription and payment activity will appear here."}</p>{!payments.length && <Link to="/pricing" className="btn-primary mt-4 inline-flex">Explore plans</Link>}</div>}
+        </div> : <div className="p-12 text-center"><ReceiptText className="mx-auto h-9 w-9 text-slate-300" /><p className="mt-3 font-bold text-slate-800">{payments.length ? "No matching transactions" : "No transactions yet"}</p><p className="mt-1 text-sm text-slate-500">{payments.length ? "Try a different search or status filter." : "Your subscription and payment activity will appear here."}</p>{!payments.length && <Link to={routes.pricing()} className="btn-primary mt-4 inline-flex">Explore plans</Link>}</div>}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-xs text-slate-500"><span>Showing {filteredPayments.length} of {payments.length} records</span><span>Payment records are loaded securely for your account.</span></div>
       </section>
     </div>

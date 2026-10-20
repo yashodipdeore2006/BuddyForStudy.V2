@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   Bookmark, CheckCircle2, Clock3, GraduationCap, Info, Map,
   MoreHorizontal, Play, RotateCcw, Search, Trash2, X,
+  Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users,
 } from "lucide-react";
 import type { Course, Enrollment } from "@/types";
 import EmptyState from "@/components/EmptyState";
@@ -16,6 +17,20 @@ type SortMode = "recent" | "progress" | "title";
 type CourseStatus = { progressPct: number; completedLessons: number; totalLessons: number; nextLessonId: string | null; status: LearningTab; loading: boolean };
 
 function mapCourse(raw: any): Course {
+  const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: any) => ({
+    id: String(module?._id ?? module?.id ?? ""),
+    title: String(module?.title ?? ""),
+    description: String(module?.description ?? ""),
+    order: Number(module?.order ?? 0),
+    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson: any) => ({
+      id: String(lesson?._id ?? lesson?.id ?? ""),
+      title: String(lesson?.title ?? ""),
+      description: String(lesson?.description ?? ""),
+      type: lesson?.type === "project" || lesson?.type === "quiz" ? lesson.type : "tutorial",
+      order: Number(lesson?.order ?? 0),
+    })) : [],
+  })) : [];
+
   return {
     id: String(raw?._id ?? raw?.id ?? ""),
     title: String(raw?.title ?? "Untitled course"),
@@ -26,13 +41,21 @@ function mapCourse(raw: any): Course {
     duration: String(raw?.duration ?? ""),
     thumbnail: raw?.thumbnail ?? null,
     learning_outcomes: raw?.learningOutcomes ?? raw?.learning_outcomes ?? [],
-    modules: Array.isArray(raw?.modules) ? raw.modules : [],
+    modules,
     is_published: raw?.isPublished ?? raw?.is_published ?? true,
     pricing: raw?.pricing,
+    cardMetadata: raw?.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
+    generation: raw?.generation && typeof raw.generation === "object" ? {
+      mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode) ? raw.generation.mode : undefined,
+      sourceResourceType: ["video", "playlist", "series"].includes(raw.generation.sourceResourceType) ? raw.generation.sourceResourceType : null,
+      query: String(raw.generation.query ?? ""),
+    } : undefined,
+    enrollment_count: raw?.enrollmentCount ?? raw?.enrollment_count,
+    enrollmentCount: raw?.enrollmentCount ?? raw?.enrollment_count,
     created_by: raw?.createdBy ?? raw?.created_by ?? null,
     created_at: raw?.createdAt ?? raw?.created_at ?? "",
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? "",
-    lesson_count: raw?.lessonCount ?? raw?.lesson_count,
+    lesson_count: raw?.lessonCount ?? raw?.lesson_count ?? modules.reduce((count: number, module: { lessons: unknown[] }) => count + module.lessons.length, 0),
   };
 }
 
@@ -72,24 +95,62 @@ function CourseLearningCard({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const lessons = getAllLessonsFlat(course.modules);
+  const totalLessons = state.totalLessons || lessons.length;
   const hasRoadmap = state.hasRoadmap || lessons.length > 0;
   const status: LearningTab = enrollment.status === "completed" || state.isCompleted
     ? "completed"
     : state.progressPct > 0 ? "in-progress" : "not-started";
   const primaryLabel = status === "completed" ? "Review" : status === "in-progress" ? "Continue" : "Start";
   const PrimaryIcon = status === "completed" ? RotateCcw : Play;
+  const metadata = course.cardMetadata;
+  const videoCount = Number.isFinite(metadata?.videoCount) ? Number(metadata?.videoCount) : 0;
+  const creatorName = typeof metadata?.creatorName === "string" ? metadata.creatorName.trim() : "";
+  const qualityScore = Number.isFinite(metadata?.qualityScore) ? Number(metadata?.qualityScore) : null;
+  const viewCount = Number.isFinite(metadata?.viewCount) ? Number(metadata?.viewCount) : 0;
+  const learnerValue = course.enrollment_count ?? course.enrollmentCount;
+  const enrolledLearners = Number.isFinite(learnerValue) ? Number(learnerValue) : 0;
+  const typeTag = metadata?.typeTag || (course.generation?.mode === "ai"
+    ? "AI roadmap"
+    : course.generation?.sourceResourceType === "video" || videoCount === 1
+      ? "Single video"
+      : course.generation?.sourceResourceType === "playlist" || course.generation?.sourceResourceType === "series" || videoCount > 1
+        ? "Playlist"
+        : "Course");
+  const isFree = course.pricing?.mode !== "paid";
+  const price = course.pricing
+    ? Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)
+    : 0;
+  const description = course.description.trim();
+  const showDescription = Boolean(description) && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following|a buddyforstudy course built from|a comprehensive curriculum designed|a comprehensive path from|a comprehensive deep-dive into)/i.test(description);
+  const category = (course.category || "").toLowerCase();
+  const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
+    : /design|ui|ux|art/.test(category) ? "design"
+      : /business|finance|marketing|entrepreneur/.test(category) ? "business"
+        : /ai|machine|python|program|software|web|code/.test(category) ? "technology"
+          : "learning";
+  const CoverIcon = /data|analytics|sql|database/.test(category) ? Database
+    : /design|ui|ux|art/.test(category) ? Palette
+      : /business|finance|marketing|entrepreneur/.test(category) ? BriefcaseBusiness
+        : /ai|machine|python/.test(category) ? BrainCircuit
+          : /program|software|web|code|javascript|development/.test(category) ? Code2
+            : GraduationCap;
+  const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
+  const generatedCover = course.generation?.mode === "ai";
+  const progress = Math.min(100, Math.max(0, state.progressPct));
+  const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
 
   useEffect(() => {
     onStateChange(course.id, {
       progressPct: state.progressPct,
       completedLessons: state.completedLessons,
-      totalLessons: state.totalLessons || lessons.length,
+      totalLessons,
       nextLessonId: state.nextLessonId,
       status,
       loading: state.loading,
     });
-  }, [course.id, state.progressPct, state.completedLessons, state.totalLessons, state.nextLessonId, state.loading, status, lessons.length, onStateChange]);
+  }, [course.id, state.progressPct, state.completedLessons, totalLessons, state.nextLessonId, state.loading, status, onStateChange]);
 
   const handleSave = async () => {
     if (saving) return;
@@ -109,62 +170,89 @@ function CourseLearningCard({
     }
   };
 
-  const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
-  const progress = Math.min(100, Math.max(0, state.progressPct));
-  const category = /^ai\s+course\s+search$/i.test(course.category) ? "AI and machine learning" : course.category;
+  const formatCompactCount = (value: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  const categoryLabel = /^ai\s+course\s+search$/i.test(course.category) ? "AI and machine learning" : course.category;
 
   return (
-    <article className="bfs-course-card" data-course-status={status}>
-      <div className="bfs-course-card__media">
-        <Link to={learnHref} aria-label={`Open ${course.title}`} className="block h-full w-full">
-          {course.thumbnail
-            ? <img src={course.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" />
-            : <div className="bfs-course-card__fallback bfs-course-card__fallback--learning" aria-hidden="true"><GraduationCap className="bfs-course-card__fallback-icon" size={40} /><span className="bfs-course-card__fallback-title">{course.title.split(/\s+/).slice(0, 2).join(" ")}</span></div>}
-        </Link>
-        <span className={`bfs-course-chip ${status === "completed" ? "bfs-course-chip--completed" : "bfs-course-chip--beginner"}`}>
-          {status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}
-        </span>
+    <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
+      <Link to={learnHref} className="bfs-course-card__stretch-link" aria-label={"Open " + course.title}>
+        <span className="bfs-sr-only">{status === "completed" ? "Review " : status === "in-progress" ? "Continue learning " : "Start learning "}{course.title}</span>
+      </Link>
+
+      <div className={"bfs-course-card__media" + (generatedCover ? " bfs-course-card__media--generated" : "")}>
+        {!generatedCover && course.thumbnail && !thumbnailFailed ? (
+          <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
+        ) : (
+          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}>
+            <CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" />
+            <span className="bfs-course-card__fallback-title">{coverWords}</span>
+          </div>
+        )}
+        {course.level && <span className={"bfs-course-chip bfs-course-card__level" + (course.level === "Beginner" ? " bfs-course-chip--beginner" : course.level === "Intermediate" ? " bfs-course-chip--intermediate" : course.level === "Advanced" ? " bfs-course-chip--advanced" : "")}>{course.level}</span>}
+        <span className="bfs-course-chip bfs-course-card__learning-status" data-status={status}>{status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}</span>
         <button type="button" className="bfs-course-card__save" onClick={() => void handleSave()} disabled={saving} aria-label={saved ? "Remove from saved courses" : "Save course"} aria-pressed={saved} title={saved ? "Saved" : "Save"}>
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
         </button>
       </div>
+
       <div className="bfs-course-card__body">
-        <div className="bfs-course-card__meta">
-          {category && <span>{category}</span>}
-          {course.level && <span>{course.level}</span>}
+        <div className="bfs-course-card__type-meta">
+          <span className="bfs-course-chip">{typeTag}</span>
+          {course.duration && <span>{course.duration}</span>}
+          {videoCount > 0
+            ? <span>{videoCount} {videoCount === 1 ? "video" : "videos"}</span>
+            : totalLessons > 0
+              ? <span>{totalLessons} {totalLessons === 1 ? "lesson" : "lessons"}</span>
+              : null}
         </div>
-        <h2 className="bfs-course-card__title" title={course.title}><Link to={learnHref}>{course.title}</Link></h2>
-        {course.description && <p className="bfs-course-card__outcome">{course.description}</p>}
-        <div className="bfs-course-card__meta" aria-label="Course duration and lesson count">
-          <span><Clock3 size={14} aria-hidden="true" /> {course.duration || "Self-paced"}</span>
-          {state.totalLessons > 0 && <span>{state.totalLessons} {state.totalLessons === 1 ? "lesson" : "lessons"}</span>}
-        </div>
-        <div className="mt-3" aria-label="Course progress">
-          <div className="mb-1 flex items-center justify-between text-sm">
-            <span>{state.completedLessons} of {state.totalLessons || lessons.length} lessons</span>
-            <span>{Math.round(progress)}%</span>
+        <h2 className="bfs-course-card__title" title={course.title}>{course.title}</h2>
+        {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
+        {categoryLabel && !creatorName && <p className="bfs-course-card__creator" title={categoryLabel}>{categoryLabel}</p>}
+        {showDescription && <p className="bfs-course-card__outcome" title={description}>{description}</p>}
+
+        {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (
+          <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
+            {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
+            {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
+            {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
           </div>
-          <div className="bfs-course-card__progress" role="progressbar" aria-label={`${course.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
-            <div className={status === "completed" ? "bfs-course-card__progress-fill bfs-course-card__progress-fill--completed" : "bfs-course-card__progress-fill"} style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-        {state.error && <p className="mt-2 text-sm" role="status">Progress may be out of date. <button type="button" className="underline" onClick={() => window.location.reload()}>Refresh</button></p>}
-        {saveError && <p className="mt-2 text-sm" role="alert">{saveError}</p>}
-        <div className="bfs-course-card__action-row">
-          <Link to={learnHref} className="bfs-course-action" aria-label={`${primaryLabel} ${course.title}`}>
-            <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}
-          </Link>
-          <details className="relative" open={menuOpen} onToggle={(event) => setMenuOpen((event.currentTarget as HTMLDetailsElement).open)}>
-            <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500" aria-label={`Course actions for ${course.title}`} title="Course actions">
-              <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
-            </summary>
-            <div className="absolute bottom-full right-0 z-20 mb-2 min-w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-              {hasRoadmap && <Link onClick={() => setMenuOpen(false)} to={routes.roadmap(course.id)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" aria-hidden="true" />Roadmap</Link>}
-              <Link onClick={() => setMenuOpen(false)} to={routes.course(course.id)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Info className="h-4 w-4" aria-hidden="true" />Course info</Link>
-              <button type="button" onClick={() => { setMenuOpen(false); onUnenroll(enrollment); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" aria-hidden="true" />Unenroll</button>
+        )}
+
+        {totalLessons > 0 && (
+          <div className="bfs-course-card__progress">
+            <div className="bfs-course-card__progress-label">
+              <span>{status === "completed" ? "Completed" : progress > 0 ? "In progress" : "Not started"}</span>
+              <span>{Math.round(progress)}%</span>
             </div>
-          </details>
-        </div>
+            <div className="bfs-course-card__progress-track" role="progressbar" aria-label={course.title + " progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
+              <div className={status === "completed" ? "bfs-course-card__progress-fill bfs-course-card__progress-fill--completed" : "bfs-course-card__progress-fill"} style={{ width: progress + "%" }} />
+            </div>
+            <p className="bfs-course-card__meta">{state.completedLessons} of {totalLessons} lessons</p>
+          </div>
+        )}
+      </div>
+
+      {state.error && <p className="bfs-course-card__error" role="status">Progress may be out of date. <button type="button" className="bfs-course-card__undo" style={{ position: "relative", zIndex: 4, pointerEvents: "auto" }} onClick={() => window.location.reload()}>Refresh</button></p>}
+      {saveError && <p className="bfs-course-card__error" role="alert">{saveError}</p>}
+
+      <div className="bfs-course-card__action-row">
+        <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
+          {isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(price)}
+          {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > price && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
+        </span>
+        <Link to={learnHref} className="bfs-course-action bfs-course-action--outline" aria-label={primaryLabel + " " + course.title}>
+          <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}
+        </Link>
+        <details className="relative" open={menuOpen} onToggle={(event) => setMenuOpen((event.currentTarget as HTMLDetailsElement).open)}>
+          <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500" aria-label={"Course actions for " + course.title} title="Course actions">
+            <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
+          </summary>
+          <div className="absolute bottom-full right-0 z-20 mb-2 min-w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+            {hasRoadmap && <Link onClick={() => setMenuOpen(false)} to={routes.roadmap(course.id)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" aria-hidden="true" />Roadmap</Link>}
+            <Link onClick={() => setMenuOpen(false)} to={routes.course(course.id)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Info className="h-4 w-4" aria-hidden="true" />Course info</Link>
+            <button type="button" onClick={() => { setMenuOpen(false); onUnenroll(enrollment); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" aria-hidden="true" />Unenroll</button>
+          </div>
+        </details>
       </div>
     </article>
   );

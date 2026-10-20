@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LockKeyhole } from "lucide-react";
+import { routes } from "@/lib/routes";
 
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
@@ -42,7 +43,7 @@ export default function AcceptAdminInvitation() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.success === false) throw new Error(data.message || "Unable to accept invitation.");
       setNotice("Your administrator account is active. Redirecting you to the standard sign-in page…");
-      window.setTimeout(() => navigate("/login", { replace: true, state: { email } }), 900);
+      window.setTimeout(() => navigate(routes.login(), { replace: true, state: { email } }), 900);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to accept invitation.");
     } finally {
@@ -75,7 +76,7 @@ export default function AcceptAdminInvitation() {
             <LockKeyhole className="h-4 w-4" /> {loading ? "Activating account…" : "Accept invitation"}
           </button>
         </form>
-        <p className="mt-5 text-center text-sm text-slate-500">Already activated? <Link to="/login" className="font-semibold text-violet-700 hover:text-violet-900">Sign in</Link></p>
+        <p className="mt-5 text-center text-sm text-slate-500">Already activated? <Link to={routes.login()} className="font-semibold text-violet-700 hover:text-violet-900">Sign in</Link></p>
       </section>
     </main>
   );

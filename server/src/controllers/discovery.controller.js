@@ -67,6 +67,9 @@ async function reserveDiscoveryQuota(req, limitKey, usageFeature) {
 export async function recordCurationFeedback(req, res, next) {
   try {
     const input = curationFeedbackSchema.parse(req.body);
+    if (!req.user && input.event !== "preview") {
+      return failure(res, "Sign in to submit feedback about a learning resource.", 401);
+    }
     const normalizedQuery = input.query
       .normalize("NFKC")
       .toLowerCase()
@@ -74,7 +77,7 @@ export async function recordCurationFeedback(req, res, next) {
       .trim()
       .replace(/\s+/g, " ");
     await CourseCurationFeedback.create({
-      user: req.user.userId,
+      user: req.user?.userId || null,
       query: input.query,
       normalizedQuery,
       event: input.event,

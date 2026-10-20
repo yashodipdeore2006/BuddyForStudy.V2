@@ -287,75 +287,52 @@ export default function Courses() {
 
   return (
     <div className="bfs-shell bfs-catalog-shell py-6 sm:py-8">
-      <section className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white px-5 py-7 text-slate-950 sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-        
-        
-
-        <div className="relative grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700">
-              <Sparkles className="h-3.5 w-3.5" />
-              AI-powered learning discovery
+      <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6">
+        <div className="mx-auto max-w-4xl text-center">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+            Find your next course
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Search courses or build a personalized learning path.
+          </p>
+          <form onSubmit={handleSearch} className="mx-auto mt-5 w-full rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-12 w-full rounded-full border-0 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/20"
+                  placeholder="Search courses, skills, or topics..."
+                  aria-label="Search courses"
+                />
+              </div>
+              <button type="submit" className="btn-primary h-12 justify-center sm:min-w-28">
+                <Search className="h-4 w-4" />
+                Search
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAiOpen(true); setAiError(null); }}
+                disabled={aiLoading}
+                className="btn-secondary h-12 justify-center px-5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Building...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 text-violet-600" />
+                    Build with AI
+                  </>
+                )}
+              </button>
             </div>
-            <h1 className="mt-4 max-w-3xl text-3xl font-medium tracking-[-.03em] sm:text-4xl lg:text-5xl">
-              Find the right course. Build the right path.
-            </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-              Explore the catalog, discover learner-favorite courses, or let AI turn a topic into a prerequisite-ordered learning roadmap.
-            </p>
-          </div>
-
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-bold uppercase tracking-[.14em] text-slate-600">Discovery modes</span>
-              <Sparkles className="h-4 w-4 text-slate-700" />
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
-              <div className="rounded-full bg-slate-950 px-3 py-2.5 text-white">Course catalog</div>
-              <div className="rounded-full border border-slate-300 bg-white px-3 py-2.5 text-slate-950">Build with AI</div>
-            </div>
-          </div>
+          </form>
         </div>
-
-        <form onSubmit={handleSearch} className="relative mt-8 rounded-full border border-slate-200 bg-white p-2">
-          <div className="flex flex-col gap-2 lg:flex-row">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 w-full rounded-full border-0 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-                placeholder="Search for MERN, Python, Data Science, Java..."
-                aria-label="Search courses"
-              />
-            </div>
-
-            <button type="submit" className="btn-primary h-12 justify-center lg:min-w-28">
-              <Search className="h-4 w-4" />
-              Search
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setAiOpen(true); setAiError(null); }}
-              disabled={aiLoading}
-              className="btn-secondary h-12 justify-center px-5 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Building...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 text-blue-600" />
-                  Build with AI
-                </>
-              )}
-            </button>
-          </div>
-        </form>
       </section>
 
       <section className="mt-5 rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">

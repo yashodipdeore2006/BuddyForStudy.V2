@@ -401,6 +401,10 @@ function passesHardGates(candidate, profile) {
   if (freshness.stale) return { passed: false, reason: "obsolete_without_update_note" };
   return { passed: true, reason: "" };
 }
+export function evaluateCurationHardGates(candidate, profile) {
+  return passesHardGates(candidate, profile);
+}
+
 function durationFit(candidate, profile) {
   const seconds = Math.max(0, Number(candidate.durationSeconds) || 0);
   const hours = seconds / 3600;
@@ -914,6 +918,10 @@ function setRankingSlots(candidates) {
     }))
   }));
 }
+export function selectCurationResultSlots(candidates) {
+  return setRankingSlots(candidates);
+}
+
 function selectInitialShortlist(videos, playlists, profile) {
   const videoEntries = videos.map((item) => ({ ...item, id: "video:" + item.videoId, sourceType: "video", sourceId: item.videoId, itemCount: 1 }));
   const assembled = assemblePartSeries(videoEntries, profile);

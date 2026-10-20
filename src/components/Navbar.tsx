@@ -52,6 +52,7 @@ export default function Navbar() {
   const [paletteQuery, setPaletteQuery] = useState("");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>(readThemeMode);
+  const [courseDetailIsEnrolled, setCourseDetailIsEnrolled] = useState<boolean | null>(null);
   const isAdmin = profile?.role === "admin";
   const isLearner = Boolean(profile) && !isAdmin;
   const links = isAdmin ? adminLinks : learnerLinks;
@@ -96,6 +97,24 @@ export default function Navbar() {
     setMenuOpen(false);
     closeOverlay();
   }, [location.pathname, closeOverlay]);
+
+  useEffect(() => {
+    const match = location.pathname.match(/^\\/courses\\/([^/]+)\\/?$/);
+    if (!match || !session?.user?.id) {
+      setCourseDetailIsEnrolled(false);
+      return;
+    }
+    let active = true;
+    setCourseDetailIsEnrolled(null);
+    apiFetch('/api/enrollments/course/' + encodeURIComponent(match[1]))
+      .then((data) => {
+        if (!active) return;
+        const status = String(data.enrollment?.status ?? '').toLowerCase();
+        setCourseDetailIsEnrolled(status === 'active' || status === 'completed');
+      })
+      .catch(() => { if (active) setCourseDetailIsEnrolled(false); });
+    return () => { active = false; };
+  }, [location.pathname, session?.user?.id]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -207,8 +226,8 @@ export default function Navbar() {
   const isActive = (to: string) => {
     const pathname = location.pathname;
     if (to === routes.home()) return pathname === "/" || pathname === routes.home() || pathname === "/dashboard";
-    if (to === routes.explore()) return pathname === routes.explore() || pathname === "/courses" || pathname.startsWith("/courses/");
-    if (to === routes.myLearning()) return pathname === routes.myLearning() || pathname === "/my-courses";
+    if (to === routes.explore()) return pathname === routes.explore() || pathname === "/courses" || (pathname.startsWith("/courses/") && courseDetailIsEnrolled !== true);
+    if (to === routes.myLearning()) return pathname === routes.myLearning() || pathname === "/my-courses" || (pathname.startsWith("/courses/") && courseDetailIsEnrolled === true);
     if (to === routes.saved()) return pathname === routes.saved() || pathname === "/saved-courses";
     return pathname === to || pathname.startsWith(to + "/");
   };

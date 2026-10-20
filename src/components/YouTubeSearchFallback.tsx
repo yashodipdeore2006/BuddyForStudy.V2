@@ -551,10 +551,10 @@ export default function YouTubeSearchFallback({
             </div>
           ) : (
             <>
-
-            <div className="mt-7">
-              <div className="bfs-course-grid mt-4">
-                {builtCourses.map((course, index) => (
+              {builtCourses.length > 0 && (
+                <div className="mt-7">
+                  <div className="bfs-course-grid mt-4">
+                    {builtCourses.map((course, index) => (
                   <article
                     key={course.id}
                     className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50"

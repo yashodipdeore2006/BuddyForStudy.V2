@@ -344,6 +344,14 @@ export default function CourseDetails() {
     });
   };
 
+  useEffect(() => {
+    if (!course || !(enrollment?.status === 'active' || enrollment?.status === 'completed')) return;
+    const completed = new Set((progress?.completed_lessons || []).map((item) => String(item.lessonId)));
+    const next = getAllLessonsFlat(course.modules).find((lesson) => !completed.has(String(lesson.id)));
+    const targetIndex = next ? course.modules.findIndex((module) => module.lessons.some((lesson) => String(lesson.id) === String(next.id))) : -1;
+    if (targetIndex >= 0) setExpandedModules(new Set([targetIndex]));
+  }, [course?.id, enrollment?.status, progress?.last_lesson_id, progress?.percentage]);
+
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -410,11 +418,10 @@ export default function CourseDetails() {
     course.certificateEnabled !== false ? { icon: Award, label: 'Certificate of completion' } : null,
     { icon: Smartphone, label: 'Access on desktop and mobile' },
   ].filter((item): item is { icon: LucideIcon; label: string } => Boolean(item));
-  const durationMinutes = parseCourseDurationMinutes(course.duration || '');
-  const estimatedMinutesLeft = durationMinutes === null ? null : Math.ceil(durationMinutes * (100 - Math.min(100, Math.max(0, isCompleted ? 100 : progressPct))) / 100);
-
   // CP-01..CP-11: this route renders sales content before enrollment and a learning dashboard afterward.
   const isCompleted = isEnrolled && (enrollment?.status === 'completed' || progressPct >= 100);
+  const durationMinutes = parseCourseDurationMinutes(course.duration || '');
+  const estimatedMinutesLeft = durationMinutes === null ? null : Math.ceil(durationMinutes * (100 - Math.min(100, Math.max(0, isCompleted ? 100 : progressPct))) / 100);
   const courseView = !isEnrolled ? 'sales' : isCompleted ? 'completion' : 'hub';
   const hubTabs = ['overview', 'curriculum', 'notes', 'about'];
   const requestedTab = searchParams.get('tab') || '';
@@ -426,13 +433,7 @@ export default function CourseDetails() {
     setSearchParams(next, { replace: true });
   };
 
-  useEffect(() => {
-    if (!course || !isEnrolled) return;
-    const completed = new Set((progress?.completed_lessons || []).map((item) => String(item.lessonId)));
-    const next = getAllLessonsFlat(course.modules).find((lesson) => !completed.has(String(lesson.id)));
-    const targetIndex = next ? course.modules.findIndex((module) => module.lessons.some((lesson) => String(lesson.id) === String(next.id))) : -1;
-    if (targetIndex >= 0) setExpandedModules(new Set([targetIndex]));
-  }, [course?.id, enrollment?.status, progress?.last_lesson_id, progress?.percentage]);
+
 
   if (courseView !== 'sales') {
     return (

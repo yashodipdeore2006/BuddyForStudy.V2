@@ -297,6 +297,9 @@ export default function CourseCard({
         >
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
         </button>
+        <button type="button" onClick={() => void handleShare()} className="bfs-course-card__media-share" aria-label={"Share " + course.title} title="Share course">
+          <Share2 size={18} aria-hidden="true" />
+        </button>
       </div>
 
       <div className="bfs-course-card__body">
@@ -335,9 +338,6 @@ export default function CourseCard({
           {isFree ? "Free" : course.pricing ? new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)) : ""}
           {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > Number(course.pricing.salePrice ?? course.pricing.price) && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
         </span>
-        <button type="button" onClick={() => void handleShare()} className="bfs-course-card__share" aria-label={"Share " + course.title} title="Share course" >
-          <Share2 size={16} aria-hidden="true" />
-        </button>
         <CourseActionButton
           state={actionState}
           onClick={() => void handlePrimaryAction()}

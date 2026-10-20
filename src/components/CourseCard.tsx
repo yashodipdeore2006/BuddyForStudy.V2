@@ -296,7 +296,7 @@ export default function CourseCard({
       {actionError && <p className="bfs-course-card__error" role="alert">{actionError}</p>}
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}</div>}
       {undoSaveValue !== null && actionNotice && (
-        <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>Undo</button>
+        <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>
       )}
       <div className="bfs-course-card__action-row">
         <CourseActionButton

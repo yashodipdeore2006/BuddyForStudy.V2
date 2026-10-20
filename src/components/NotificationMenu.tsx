@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, BookOpen, CheckCheck, CreditCard, Info, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { routes } from "@/lib/routes";
 
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
@@ -251,7 +252,7 @@ export default function NotificationMenu() {
 
           <div className="border-t border-slate-100 bg-slate-50/70 p-2">
             <Link
-              to="/notifications"
+              to={routes.notifications()}
               onClick={() => {
                 setOpen(false);
                 setExpandedId(null);

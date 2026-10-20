@@ -5,7 +5,18 @@ import { getCourseJourney, regenerateCourseJourney, buildJourneyStages } from ".
 import { Course } from "../models/Course.js";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
+import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 
+async function recordRoadmapAudit(req, action, courseId, after) {
+  const actor = req.user?.user?._id || req.user?.userId;
+  if (!actor) return;
+  await recordAuditEvent({
+    actor, action, targetType: "course_roadmap", targetId: String(courseId), before: null, after: sanitizeAuditSnapshot(after),
+    reason: action === "course.roadmap.regenerate" ? "AI regenerated course journey stages" : "Admin edited course journey stages",
+    ip: String(req.ip || "").slice(0, 100), userAgent: String(req.get("user-agent") || "").slice(0, 500)
+  });
+}
 export async function get(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
@@ -38,6 +49,7 @@ export async function updateAdmin(req, res, next) {
     const allAssigned = normalized.flatMap((stage) => stage.lessonIds);
     if (new Set(allAssigned).size !== allAssigned.length || validLessonIds.size !== allAssigned.length || [...validLessonIds].some((id) => !allAssigned.includes(id))) return failure(res, "Every course lesson must belong to exactly one roadmap stage.", 400);
     const roadmap = await regenerateCourseJourney(course._id, normalized);
+    await recordRoadmapAudit(req, "course.roadmap.update", course._id, roadmap);
     return success(res, { roadmap }, "Course journey roadmap saved");
   } catch (error) { if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors); next(error); }
 }
@@ -61,6 +73,7 @@ export async function regenerateAdmin(req, res, next) {
     const aiStages = new Map((parsed.stages || []).map((stage) => [String(stage.id), stage]));
     const enriched = baseStages.map((stage) => { const generated = aiStages.get(stage.id) || {}; return { ...stage, title: String(generated.title || stage.title).slice(0, 100), skills: Array.isArray(generated.skills) ? generated.skills.slice(0, 3).map(String) : [], outcome: String(generated.outcome || "").slice(0, 1000), emoji: String(generated.emoji || "") }; });
     const roadmap = await regenerateCourseJourney(course._id, enriched);
+    await recordRoadmapAudit(req, "course.roadmap.regenerate", course._id, roadmap);
     return success(res, { roadmap }, "Course journey regenerated with AI");
   } catch (error) { next(error); }
 }

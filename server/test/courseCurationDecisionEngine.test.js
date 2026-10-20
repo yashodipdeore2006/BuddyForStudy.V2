@@ -160,6 +160,34 @@ test("quick reference permits a short ordinary video; duration alone is not a Sh
   assert.equal(decision.passed, true, decision.reason);
 });
 
+test("explicit-language searches keep relevant videos when YouTube omits audio-language metadata", () => {
+  const profile = classifyCurationIntent("React course in Hindi");
+  const candidate = baseCandidate({
+    title: "React Complete Course in Hindi",
+    description: "React course content, chapters, syllabus, and a practical project.",
+    durationSeconds: 4 * 60 * 60,
+    defaultAudioLanguage: "",
+    queryTermStats: { relevance: 100, titleRelevance: 100 }
+  });
+  const decision = evaluateCurationHardGates(candidate, profile);
+  assert.equal(decision.passed, true, decision.reason);
+});
+
+test("quick-reference title and syntax cues count as structure without requiring timestamps", () => {
+  const profile = classifyCurationIntent("SQL quick reference");
+  const candidate = baseCandidate({
+    title: "SQL Quick Reference",
+    description: "A concise SQL syntax reference with practical command examples.",
+    durationSeconds: 20 * 60,
+    hasChapters: false,
+    chapterCount: 0,
+    hasSyllabus: false,
+    queryTermStats: { relevance: 100, titleRelevance: 100 }
+  });
+  const decision = evaluateCurationHardGates(candidate, profile);
+  assert.equal(decision.passed, true, decision.reason);
+});
+
 test("hard gates reject short-form markers, private videos, wrong runtime and weak playlists", () => {
   const quickProfile = classifyCurationIntent("SQL quick reference");
   assert.equal(

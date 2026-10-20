@@ -85,7 +85,8 @@ function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Number(value) || 0));
 }
 function normalizeText(value) {
-  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").trim().replace(/\s+/g, " ");
+  // Preserve Unicode letters and numbers so non-Latin learner queries remain searchable.
+  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}+#.]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 function tokens(value) {
   return [...new Set(normalizeText(value).split(" ").filter((term) => term.length > 1))];
@@ -174,14 +175,18 @@ async function setCachedValue(key, kind, payload, ttlMs) {
     console.warn("Curation cache persistence unavailable", { kind, message: error?.message || error });
   }
 }
-function languageFromQuery(query) {
+function languageFromQuery(query, requestedLanguage = "") {
+  const codes = {
+    english: "en", en: "en", hindi: "hi", hi: "hi", spanish: "es", es: "es",
+    french: "fr", fr: "fr", german: "de", de: "de", portuguese: "pt", pt: "pt",
+    japanese: "ja", ja: "ja", korean: "ko", ko: "ko", arabic: "ar", ar: "ar",
+    bengali: "bn", bn: "bn", marathi: "mr", mr: "mr", tamil: "ta", ta: "ta",
+    telugu: "te", te: "te"
+  };
+  const requested = normalizeText(requestedLanguage).replace(/\s+/g, "");
+  if (requested && codes[requested]) return { code: codes[requested], explicit: true };
   const match = normalizeText(query).match(/\b(?:in|spoken in|taught in|language)\s+(english|hindi|spanish|french|german|portuguese|japanese|korean|arabic|bengali|marathi|tamil|telugu)\b/);
   if (!match) return { code: "en", explicit: false };
-  const codes = {
-    english: "en", hindi: "hi", spanish: "es", french: "fr", german: "de",
-    portuguese: "pt", japanese: "ja", korean: "ko", arabic: "ar",
-    bengali: "bn", marathi: "mr", tamil: "ta", telugu: "te"
-  };
   return { code: codes[match[1]] || "en", explicit: true };
 }
 function halfLifeForTopic(query) {
@@ -208,7 +213,7 @@ export function classifyCurationIntent(query, options = {}) {
       : "Beginner";
   const level = ({ beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" })[requestedLevel] || inferredLevel;
   const category = String(options.category || "").trim();
-  const language = languageFromQuery(original);
+  const language = languageFromQuery(original, options.language);
   return {
     query: original,
     normalizedQuery: normalized,

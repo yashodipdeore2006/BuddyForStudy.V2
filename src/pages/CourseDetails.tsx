@@ -691,7 +691,7 @@ export default function CourseDetails() {
             </ul>
           </section>
 
-          {/* Reviews & Ratings */}
+          {reviews.length > 0 && (
           <div className="rounded-[24px] border border-slate-200 bg-white p-6">
             <h2 className="text-lg font-medium text-slate-950">Reviews & Ratings</h2>
             <div className="mt-2 flex items-center gap-2">
@@ -721,75 +721,119 @@ export default function CourseDetails() {
               )) : <p className="mt-4 text-sm text-slate-500">No reviews yet. Be the first to review this course.</p>}
             </div>
           </div>
+          )}
 
           {/* Curriculum */}
-          <div className="rounded-[24px] border border-slate-200 bg-white p-6">
-            <h2 className="text-lg font-medium text-slate-950">Course Curriculum</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {course.modules.length} modules • {lessonCount} lessons
-            </p>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Course curriculum</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {course.modules.length > 1 ? course.modules.length + ' modules · ' : ''}{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
+                  {course.duration ? ' · ' + course.duration : ''}
+                </p>
+              </div>
+              {course.modules.length > 0 && <button type="button" onClick={() => setExpandedModules((previous) => previous.size === course.modules.length ? new Set() : new Set(course.modules.map((_, index) => index)))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                {expandedModules.size === course.modules.length ? 'Collapse all' : 'Expand all'}
+              </button>}
+            </div>
 
-            <div className="mt-6 space-y-3">
+            <div className="mt-5 space-y-3">
               {course.modules.map((module, mIdx) => {
                 const isExpanded = expandedModules.has(mIdx);
+                const moduleDone = module.lessons.filter((lesson) => completedLessonIds.has(String(lesson.id))).length;
+                const moduleDuration = module.lessons.reduce((sum, lesson) => sum + getLessonDurationSeconds(lesson), 0);
+                const moduleDurationLabel = moduleDuration > 0 ? formatDurationSeconds(moduleDuration) : course.modules.length === 1 ? course.duration : '';
+                const moduleLessonTitles = module.lessons.map((lesson) => lesson.title);
                 return (
-                  <div
-                    key={module.id}
-                    className="rounded-2xl border border-slate-200 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => toggleModule(mIdx)}
-                      className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-50"
-                    >
-                      <div className="flex items-center gap-3">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-slate-400" />
-                        )}
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {module.title}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {module.lessons.length} lessons
-                          </p>
-                        </div>
-                      </div>
+                  <div key={module.id} className="overflow-hidden rounded-2xl border border-slate-200">
+                    <button type="button" onClick={() => toggleModule(mIdx)} aria-expanded={isExpanded} className={classNames("flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-slate-50", isExpanded ? "bg-slate-50/70" : "bg-white")}>
+                      <span className="flex min-w-0 items-start gap-3">
+                        {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />}
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-slate-900">{module.title}</span>
+                          <span className="mt-1 block text-xs text-slate-500">
+                            {module.lessons.length} {module.lessons.length === 1 ? 'lesson' : 'lessons'}{moduleDurationLabel ? ' · ' + moduleDurationLabel : ''}{isEnrolled ? ' · ' + moduleDone + '/' + module.lessons.length + ' done' : ''}
+                          </span>
+                        </span>
+                      </span>
+                      {isEnrolled && <span className="hidden shrink-0 text-xs font-semibold text-slate-500 sm:block">{module.lessons.length ? Math.round(moduleDone / module.lessons.length * 100) : 0}%</span>}
                     </button>
-
                     {isExpanded && (
-                      <div className="border-t border-slate-200">
+                      <ul className="divide-y divide-slate-100 border-t border-slate-200">
                         {module.lessons.map((lesson) => {
-                          const LessonIcon: LucideIcon =
-                            lesson.type === 'project' ? ListChecks : Play;
+                          const done = completedLessonIds.has(String(lesson.id));
+                          const isNext = Boolean(!isCompleted && nextLesson && String(lesson.id) === String(nextLesson.id));
+                          const LessonIcon: LucideIcon = lesson.type === 'quiz' ? CircleHelp : lesson.type === 'project' ? ListChecks : Play;
+                          const title = cleanLessonTitle(lesson.title, moduleLessonTitles);
+                          const durationSeconds = getLessonDurationSeconds(lesson);
+                          const durationLabel = durationSeconds > 0 ? formatDurationSeconds(durationSeconds) : '';
+                          const lessonStatus = done ? 'Completed' : isNext ? 'Up next' : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'project' ? 'Project' : 'Video lesson';
                           return (
-                            <div
-                              key={lesson.id}
-                              className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50"
-                            >
-                              <LessonIcon className="h-4 w-4 text-slate-400" />
-                              <span className="text-sm text-slate-700 flex-1">
-                                {lesson.title}
-                              </span>
-                              <span className="badge bg-slate-100 text-slate-600">
-                                {lesson.type}
-                              </span>
-                            </div>
+                            <li key={lesson.id}>
+                              {isEnrolled ? (
+                                <Link to={routes.learn(course.id, lesson.id)} className={classNames("flex items-center gap-3 px-4 py-3 text-sm transition", isNext ? "bg-violet-50/70 hover:bg-violet-50" : "hover:bg-slate-50")}>
+                                  {done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : isNext ? <Play className="h-4 w-4 shrink-0 text-violet-600" /> : <LessonIcon className="h-4 w-4 shrink-0 text-slate-400" />}
+                                  <span className="min-w-0 flex-1"><span className="block line-clamp-2 font-medium text-slate-800">{title}</span>{isNext && <span className="mt-0.5 block text-xs font-semibold text-violet-700">Your next lesson</span>}</span>
+                                  <span className="shrink-0 text-xs text-slate-500">{durationLabel || lessonStatus}</span>
+                                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                                </Link>
+                              ) : (
+                                <div className="flex items-center gap-3 px-4 py-3 text-sm">
+                                  <LessonIcon className="h-4 w-4 shrink-0 text-slate-400" />
+                                  <span className="min-w-0 flex-1 font-medium text-slate-800">{title}</span>
+                                  <span className="shrink-0 text-xs text-slate-500">{durationLabel || (lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'project' ? 'Project' : 'Video lesson')}</span>
+                                </div>
+                              )}
+                            </li>
                           );
                         })}
-                      </div>
+                      </ul>
                     )}
                   </div>
                 );
               })}
-              {course.modules.length === 0 && (
-                <p className="text-sm text-slate-500 py-4 text-center">
-                  Curriculum content will be added soon.
-                </p>
-              )}
+              {course.modules.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Curriculum content will be added soon.</p>}
             </div>
           </div>
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><GraduationCap className="h-5 w-5" /></div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Who this course is for</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-600">Learners interested in {displayTopic.toLowerCase()} at the {String(course.level || 'all').toLowerCase()} level.</p>
+              </div>
+            </div>
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <h3 className="font-semibold text-slate-900">Requirements & prerequisites</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">No specific prerequisites have been provided in the course information.</p>
+            </div>
+          </section>
+
+          {creatorName && <section className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">
+            <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Course creator</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-950">{creatorName}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">This course includes resources selected from {creatorName}. BuddyForStudy surfaces the source so learners can understand where the learning material comes from.</p>
+          </section>}
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">
+            <h2 className="text-lg font-semibold text-slate-950">Frequently asked questions</h2>
+            <div className="mt-3 divide-y divide-slate-100">
+              <details className="py-3">
+                <summary className="cursor-pointer font-medium text-slate-900">How long will this course take?</summary>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{course.duration ? 'The listed estimated duration is ' + course.duration + '. You can learn at your own pace.' : 'The course is self-paced; the total duration has not been provided.'}</p>
+              </details>
+              <details className="py-3">
+                <summary className="cursor-pointer font-medium text-slate-900">Can I use this course on mobile?</summary>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Yes. BuddyForStudy is designed to work on desktop and mobile screens.</p>
+              </details>
+              <details className="py-3">
+                <summary className="cursor-pointer font-medium text-slate-900">Does this course include a certificate?</summary>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{course.certificateEnabled === false ? 'A certificate is not currently enabled for this course.' : 'A certificate of completion is available for this course.'}</p>
+              </details>
+            </div>
+          </section>
         </div>
 
         {/* Sidebar */}

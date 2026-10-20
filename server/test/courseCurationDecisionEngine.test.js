@@ -195,7 +195,7 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
 
   assert.ok(controller.includes("export async function recordCurationFeedback"));
   assert.ok(controller.includes("invalidateNormalSearchCurationCache(input.query)"));
-  assert.ok(routes.includes('router.post("/curation-feedback", authMiddleware, recordCurationFeedback)'));
+  assert.ok(routes.includes('router.post("/curation-feedback", curationFeedbackLimiter, optionalAuthMiddleware, recordCurationFeedback)'));
   assert.ok(ui.includes('"thumbs_up"'));
   assert.ok(ui.includes('"thumbs_down"'));
   assert.ok(ui.includes('"outdated"'));

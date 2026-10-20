@@ -103,7 +103,7 @@ function normalizeSearchTokens(value) {
   return String(value || "")
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^a-z0-9+#.]+/g, " ")
+    .replace(/[^\p{L}\p{M}\p{N}+#.]+/gu, " ")
     .split(/\s+/)
     .map((token) => token.trim())
     .filter(Boolean);

@@ -75,7 +75,7 @@ export async function recordCurationFeedback(req, res, next) {
     const normalizedQuery = input.query
       .normalize("NFKC")
       .toLowerCase()
-      .replace(/[^a-z0-9+#.]+/g, " ")
+      .replace(/[^\p{L}\p{M}\p{N}+#.]+/gu, " ")
       .trim()
       .replace(/\s+/g, " ");
     await CourseCurationFeedback.create({

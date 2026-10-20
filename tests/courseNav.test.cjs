@@ -95,5 +95,5 @@ test("card and page source use canonical navigation helpers", () => {
   assert.match(myLearning, /routes\.learn\(course\.id\)/);
   assert.match(myLearning, /hasRoadmap && <Link to=\{roadmapUrl\}/);
   assert.match(roadmap, /Promise\.allSettled/);
-  assert.match(app, /<Route path="\*" element=\{<NotFound \/>\} \/>/);
+  assert.match(app, /<Route path="\\*" element=\\{<NotFound \\/>} \\/>/);
 });

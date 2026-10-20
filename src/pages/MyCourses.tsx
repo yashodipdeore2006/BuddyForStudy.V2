@@ -23,7 +23,7 @@ function mapCourse(raw: any): Course {
     title: String(module?.title ?? ""),
     description: String(module?.description ?? ""),
     order: Number(module?.order ?? 0),
-    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson) => ({
+    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson: any) => ({
       id: String(lesson?._id ?? lesson?.id ?? ""),
       title: String(lesson?.title ?? ""),
       description: String(lesson?.description ?? ""),

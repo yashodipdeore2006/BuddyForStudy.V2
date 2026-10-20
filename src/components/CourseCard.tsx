@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
+import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2, MoreHorizontal } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -353,6 +353,17 @@ export default function CourseCard({
           className="bfs-course-action--outline"
         />
         {actionState === "completed" && <span className="bfs-course-chip bfs-course-chip--completed"><CheckCircle2 size={12} aria-hidden="true" /> Completed</span>}
+        <details className="bfs-course-card__menu">
+          <summary aria-label={"More options for " + course.title} title="More options">
+            <MoreHorizontal size={20} aria-hidden="true" />
+          </summary>
+          <div className="bfs-course-card__menu-panel">
+            <Link to={routes.course(course.id)} className="bfs-course-card__menu-item"><BookOpen size={15} aria-hidden="true" /> Course details</Link>
+            {getAllLessonsFlat(course.modules).length > 0 && <Link to={routes.roadmap(course.id)} className="bfs-course-card__menu-item"><GraduationCap size={15} aria-hidden="true" /> View roadmap</Link>}
+            <button type="button" className="bfs-course-card__menu-item" onClick={() => void handleShare()}><Share2 size={15} aria-hidden="true" /> Share course</button>
+            <button type="button" className="bfs-course-card__menu-item" onClick={() => void handleSave()} disabled={saving}><Bookmark size={15} fill={saved ? "currentColor" : "none"} aria-hidden="true" /> {saved ? "Remove from Saved" : "Save for later"}</button>
+          </div>
+        </details>
       </div>
     </article>
   );

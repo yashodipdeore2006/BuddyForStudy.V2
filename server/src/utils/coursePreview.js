@@ -82,12 +82,17 @@ export function toPublicCoursePreview(course) {
       _id: module._id,
       title: module.title,
       order: module.order,
-      lessons: (module.lessons || []).map((lesson) => ({
-        _id: lesson._id,
-        title: lesson.title,
-        type: lesson.type,
-        order: lesson.order
-      }))
+      lessons: (module.lessons || []).map((lesson) => {
+        const videos = [...(lesson.tutorial?.videos || []), ...(lesson.project?.videos || [])];
+        const durationSeconds = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || 0), 0);
+        return {
+          _id: lesson._id,
+          title: lesson.title,
+          type: lesson.type,
+          order: lesson.order,
+          ...(durationSeconds > 0 ? { durationSeconds } : {})
+        };
+      })
     }))
   };
 }

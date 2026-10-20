@@ -4,6 +4,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
+  Bookmark,
+  BookmarkCheck,
   ChevronLeft,
   ChevronRight,
   ListVideo,
@@ -165,6 +167,7 @@ export default function YouTubeSearchFallback({
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Record<string, string>>({});
   const [curationFeedback, setCurationFeedback] = useState<Record<string, string>>({});
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -307,6 +310,7 @@ export default function YouTubeSearchFallback({
       if (!courseId) throw new Error("The course could not be added to My Learning.");
 
       setEnrolledIds((current) => new Set(current).add(course.id));
+      setEnrolledCourseIds((current) => ({ ...current, [course.id]: String(courseId) }));
       await recordCurationFeedback(course.id, "enroll");
       navigate(`/courses/${courseId}/roadmap`);
     } catch (error) {
@@ -380,6 +384,15 @@ export default function YouTubeSearchFallback({
     } finally {
       setOpeningId(null);
     }
+  };
+
+  const handleCourseAction = (course: BuiltCourse) => {
+    const enrolledCourseId = enrolledCourseIds[course.id];
+    if (enrolledIds.has(course.id) && enrolledCourseId) {
+      navigate(`/courses/${enrolledCourseId}/roadmap`);
+      return;
+    }
+    void enrollCourse(course);
   };
 
   const openVideo = (video: YouTubeCourse) => {
@@ -526,13 +539,12 @@ export default function YouTubeSearchFallback({
                             {curationFeedback[resource.id] && <p role="status" className="mt-1 text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
                           </div>
                           <div className="mt-4 grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">
-                              {savingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
-                              {savedIds.has(course.id) ? "Saved" : "Save"}
+                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-60" aria-label={savedIds.has(course.id) ? "Remove from Saved" : "Save for later"} title={savingId === course.id ? "Updating saved courses" : savedIds.has(course.id) ? "Saved" : "Save"}>
+                              {savingId === course.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : savedIds.has(course.id) ? <BookmarkCheck className="h-4 w-4" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />}
                             </button>
-                            <button type="button" onClick={() => void enrollCourse(course)} disabled={enrollingId === course.id || enrolledIds.has(course.id)} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60">
+                            <button type="button" onClick={() => handleCourseAction(course)} disabled={enrollingId === course.id} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60">
                               {enrollingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                              {enrolledIds.has(course.id) ? "Enrolled" : "Enroll"}
+                              {enrolledIds.has(course.id) ? "Start" : "Enroll free"}
                             </button>
                           </div>
                           <button type="button" onClick={() => void openCourse(course)} disabled={openingId === course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60">
@@ -593,7 +605,7 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void saveCourse(course)}
                           disabled={savingId === course.id}
-                          className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Remove from Saved" : "Save for later"} title={savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(course.id)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -709,7 +721,7 @@ export default function YouTubeSearchFallback({
                             });
                           }}
                           disabled={savingId === `video-course-${course.videoId}`}
-                          className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-3 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Remove from Saved" : "Save for later"} title={savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(`video-course-${course.videoId}`)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"

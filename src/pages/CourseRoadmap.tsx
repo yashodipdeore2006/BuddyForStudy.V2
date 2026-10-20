@@ -89,12 +89,14 @@ export default function CourseRoadmap() {
       return () => { active = false; };
     }
 
+    const validCourseId = courseId;
+
     async function load() {
       setLoading(true);
       setError(null);
       setCourse(null);
       setProgress(null);
-      const courseResult = await Promise.allSettled([apiFetch("/api/courses/" + encodeURIComponent(courseId))]);
+      const courseResult = await Promise.allSettled([apiFetch("/api/courses/" + encodeURIComponent(validCourseId))]);
       if (courseResult[0].status === "rejected" || !courseResult[0].value?.course) {
         if (active) { setError("This course is not available. It may have been removed or unpublished."); setLoading(false); }
         return;

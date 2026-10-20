@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import CourseActionButton from "@/components/CourseActionButton";
+import { USER_INTENTS } from "@/lib/intents";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -537,7 +539,7 @@ export default function YouTubeSearchFallback({
                           </div>
                           <button type="button" onClick={() => void openCourse(course)} disabled={openingId === course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60">
                             {openingId === course.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                            {openingId === course.id ? "Opening..." : "Preview in BuddyForStudy"}
+                            {openingId === course.id ? "Opening..." : "Preview"}
                           </button>
                         </div>
                       </article>
@@ -604,7 +606,7 @@ export default function YouTubeSearchFallback({
                           ) : (
                             <BookOpen className="h-3.5 w-3.5" />
                           )}
-                          {savedIds.has(course.id) ? "Saved" : "Save Course"}
+                          {savedIds.has(course.id) ? "Saved" : "Save"}
                         </button>
 
                         <button
@@ -621,7 +623,7 @@ export default function YouTubeSearchFallback({
                           ) : enrolledIds.has(course.id) ? (
                             "Enrolled"
                           ) : (
-                            "Enroll Now"
+                            "Enroll free"
                           )}
                         </button>
                       </div>
@@ -718,7 +720,7 @@ export default function YouTubeSearchFallback({
                           {savingId === `video-course-${course.videoId}` ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : null}
-                          {savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save Course"}
+                          {savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save"}
                         </button>
 
                         <button
@@ -743,7 +745,7 @@ export default function YouTubeSearchFallback({
                           {enrollingId === `video-course-${course.videoId}` ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : null}
-                          {enrolledIds.has(`video-course-${course.videoId}`) ? "Enrolled" : "Enroll Now"}
+                          {enrolledIds.has(`video-course-${course.videoId}`) ? "Enrolled" : "Enroll free"}
                         </button>
                       </div>
 
@@ -844,7 +846,7 @@ export default function YouTubeSearchFallback({
                             {savingId === `playlist-course-${playlist.playlistId}` ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : null}
-                            {savedIds.has(`playlist-course-${playlist.playlistId}`) ? "Saved" : "Save Course"}
+                            {savedIds.has(`playlist-course-${playlist.playlistId}`) ? "Saved" : "Save"}
                           </button>
 
                           <button
@@ -876,7 +878,7 @@ export default function YouTubeSearchFallback({
                             {enrollingId === `playlist-course-${playlist.playlistId}` ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : null}
-                            {enrolledIds.has(`playlist-course-${playlist.playlistId}`) ? "Enrolled" : "Enroll Now"}
+                            {enrolledIds.has(`playlist-course-${playlist.playlistId}`) ? "Enrolled" : "Enroll free"}
                           </button>
                         </div>
 

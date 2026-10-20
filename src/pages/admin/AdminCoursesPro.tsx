@@ -92,6 +92,9 @@ export default function AdminCoursesPro() {
   const [newModuleForms, setNewModuleForms] = useState<Record<string, ModuleForm>>({});
   const [resourceForms, setResourceForms] = useState<Record<string, ResourceForm>>({});
   const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
+  const [roadmapDrafts, setRoadmapDrafts] = useState<Record<string, any[]>>({});
+  const [roadmapSaving, setRoadmapSaving] = useState<Record<string, boolean>>({});
+  const [roadmapMessages, setRoadmapMessages] = useState<Record<string, string>>({});
   const [learningItemForms, setLearningItemForms] = useState<Record<string, LearningItemForm>>({});
   const [courseQuery, setCourseQuery] = useState("");
   const [readinessResults, setReadinessResults] = useState<Record<string, any>>({});
@@ -168,6 +171,7 @@ export default function AdminCoursesPro() {
     try {
       const data = await adminFetch(`/api/admin/courses/${courseId}`);
       setCourseDetails((current) => ({ ...current, [courseId]: data.course }));
+      setRoadmapDrafts((current) => ({ ...current, [courseId]: Array.isArray(data.course?.roadmap?.stages) ? data.course.roadmap.stages : [] }));
     } finally {
       setDetailLoading((current) => ({ ...current, [courseId]: false }));
     }
@@ -250,6 +254,40 @@ export default function AdminCoursesPro() {
         },
       }));
     }
+  }
+
+  function patchRoadmapStage(courseId: string, stageIndex: number, patch: Record<string, unknown>) {
+    setRoadmapDrafts((current) => ({
+      ...current,
+      [courseId]: (current[courseId] || []).map((stage, index) => index === stageIndex ? { ...stage, ...patch } : stage),
+    }));
+  }
+
+  async function saveRoadmap(courseId: string) {
+    const stages = roadmapDrafts[courseId] || [];
+    setRoadmapSaving((current) => ({ ...current, [courseId]: true }));
+    setRoadmapMessages((current) => ({ ...current, [courseId]: "" }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId + "/roadmap", { method: "PUT", body: JSON.stringify({ stages: stages.map((stage, index) => ({ ...stage, order: index + 1, skills: String(Array.isArray(stage.skills) ? stage.skills.join(", ") : stage.skills || "").split(",").map((item) => item.trim()).filter(Boolean).slice(0, 3) })) }) });
+      setRoadmapDrafts((current) => ({ ...current, [courseId]: data.roadmap?.stages || stages }));
+      setRoadmapMessages((current) => ({ ...current, [courseId]: "Roadmap saved." }));
+      const detail = courseDetails[courseId];
+      if (detail) patchDetail(courseId, { ...detail, roadmap: data.roadmap });
+    } catch (error) { setRoadmapMessages((current) => ({ ...current, [courseId]: error instanceof Error ? error.message : "Unable to save roadmap." })); }
+    finally { setRoadmapSaving((current) => ({ ...current, [courseId]: false })); }
+  }
+
+  async function regenerateRoadmap(courseId: string) {
+    setRoadmapSaving((current) => ({ ...current, [courseId]: true }));
+    setRoadmapMessages((current) => ({ ...current, [courseId]: "" }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId + "/roadmap/regenerate", { method: "POST", body: JSON.stringify({}) });
+      setRoadmapDrafts((current) => ({ ...current, [courseId]: data.roadmap?.stages || [] }));
+      const detail = courseDetails[courseId];
+      if (detail) patchDetail(courseId, { ...detail, roadmap: data.roadmap });
+      setRoadmapMessages((current) => ({ ...current, [courseId]: "Roadmap regenerated with AI. Review it and save any edits." }));
+    } catch (error) { setRoadmapMessages((current) => ({ ...current, [courseId]: error instanceof Error ? error.message : "Unable to regenerate roadmap." })); }
+    finally { setRoadmapSaving((current) => ({ ...current, [courseId]: false })); }
   }
 
   function patchDetail(courseId: string, course: any) {
@@ -741,6 +779,23 @@ export default function AdminCoursesPro() {
                             );
                           })()}
                         </div>
+
+                        <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div><p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700">Journey roadmap</p><h3 className="mt-1 text-lg font-bold text-slate-950">Milestones for learners</h3><p className="mt-1 text-xs text-slate-600">Edit the short journey stages shown on the course detail page. Every lesson must belong to one stage.</p></div>
+                            <button type="button" className="btn-secondary" onClick={() => void regenerateRoadmap(course._id)} disabled={Boolean(roadmapSaving[course._id])}>{roadmapSaving[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}Regenerate with AI</button>
+                          </div>
+                          {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).length === 0 ? <p className="mt-4 rounded-xl bg-white p-4 text-sm text-slate-500">Roadmap stages will be generated when this course has lessons.</p> : <div className="mt-4 space-y-3">
+                            {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).map((stage: any, stageIndex: number) => <div key={stage.id || stageIndex} className="grid gap-3 rounded-xl border border-violet-100 bg-white p-3">
+                              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]"><label className="text-xs font-semibold text-slate-600">Stage {stageIndex + 1} title<input className="input-field mt-1" maxLength={100} value={stage.title || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { title: event.target.value })} /></label><label className="text-xs font-semibold text-slate-600">Emoji<input className="input-field mt-1" maxLength={12} value={stage.emoji || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { emoji: event.target.value })} /></label></div>
+                              <label className="text-xs font-semibold text-slate-600">Skills (comma-separated)<input className="input-field mt-1" value={Array.isArray(stage.skills) ? stage.skills.join(", ") : stage.skills || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { skills: event.target.value })} placeholder="Skill one, Skill two, Skill three" /></label>
+                              <label className="text-xs font-semibold text-slate-600">Outcome<textarea className="input-field mt-1 min-h-20" maxLength={1000} value={stage.outcome || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { outcome: event.target.value })} placeholder="What the learner will be able to build or do" /></label>
+                              <p className="text-xs text-slate-500">{(stage.lessonIds || []).length} assigned lessons · {Number(stage.hours || 0)} h</p>
+                            </div>)}
+                          </div>}
+                          {roadmapMessages[course._id] && <p role="status" className="mt-3 text-sm text-slate-700">{roadmapMessages[course._id]}</p>}
+                          <button type="button" className="btn-primary mt-4" onClick={() => void saveRoadmap(course._id)} disabled={Boolean(roadmapSaving[course._id]) || !(roadmapDrafts[course._id] || detail.roadmap?.stages || []).length}>{roadmapSaving[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save roadmap</button>
+                        </section>
 
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
                           <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Add module</p>

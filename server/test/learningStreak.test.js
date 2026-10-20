@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateStreakTransition, learningWeekKey, previousLearningDateKey } from "../src/utils/learningStreak.js";
+import { updateLongestStreak } from "../src/services/achievement.service.js";
 
 test("previous learning date handles month and year boundaries", () => {
   assert.equal(previousLearningDateKey("2026-01-01"), "2025-12-31");
@@ -47,4 +48,17 @@ test("the weekly freeze refreshes on a new Monday-based week", () => {
     streakFreezeUsedWeek: "2026-10-12",
   });
   assert.deepEqual(result, { currentStreak: 7, freezeUsed: true, streakFreezeUsedWeek: "2026-10-19" });
+});
+
+
+test("longest streak advances when a new streak record is reached", () => {
+  const stats = { currentStreak: 8, longestStreak: 7 };
+  assert.equal(updateLongestStreak(stats), 8);
+  assert.equal(stats.longestStreak, 8);
+});
+
+test("longest streak never decreases when the current streak resets", () => {
+  const stats = { currentStreak: 1, longestStreak: 12 };
+  assert.equal(updateLongestStreak(stats), 12);
+  assert.equal(stats.longestStreak, 12);
 });

@@ -16,6 +16,11 @@ function unlock(stats, achievement) {
   }
 }
 
+export function updateLongestStreak(stats) {
+  stats.longestStreak = Math.max(Number(stats.longestStreak) || 0, Number(stats.currentStreak) || 0);
+  return stats.longestStreak;
+}
+
 export async function recordLearningActivity(userId, { lessonCompleted = false, courseCompleted = false }) {
   const stats = await LearningStats.findOneAndUpdate(
     { user: userId },
@@ -44,6 +49,8 @@ export async function recordLearningActivity(userId, { lessonCompleted = false, 
     activityDates.add(today);
     stats.activityDates = [...activityDates].sort().slice(-90);
   }
+
+  updateLongestStreak(stats);
 
   if (stats.totalLessonsCompleted >= 1) unlock(stats, ACHIEVEMENTS.FIRST_LESSON);
   if (stats.currentStreak >= 3) unlock(stats, ACHIEVEMENTS.THREE_DAY_STREAK);

@@ -839,7 +839,23 @@ export default function CourseDetails() {
 
         {/* Sidebar */}
         <div className="lg:col-span-1">
-          <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-6">
+          <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
+            <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
+              <button type="button" onClick={() => setPreviewOpen(true)} disabled={!previewVideoId} aria-label={previewVideoId ? 'Play course preview' : 'Course video preview is unavailable'} className="group relative block aspect-video w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
+                {course.thumbnail ? <img src={course.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950" />}
+                <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/10" />
+                <span className="absolute inset-0 flex items-center justify-center"><span className={classNames("flex h-14 w-14 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-950 shadow-lg transition", previewVideoId ? "group-hover:scale-105" : "opacity-70")}><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>
+                <span className="absolute bottom-3 left-3 right-3 text-left text-sm font-semibold text-white">{previewVideoId ? 'Preview this course' : 'Video preview unavailable'}</span>
+              </button>
+              <div className="bg-white p-3 text-xs leading-5 text-slate-500">{creatorName ? 'Source creator: ' + creatorName : 'Preview the learning content before enrolling.'}</div>
+            </div>
+            {!isPaidCourse && (
+              <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Course price</p>
+                <p className="mt-1 text-3xl font-bold tracking-tight text-emerald-900">Free</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">Enroll to add this course to your learning library.</p>
+              </div>
+            )}
             {isPaidCourse && !isEnrolled && (
               <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200">
                 <label className={classNames("block cursor-pointer p-4 transition-colors", purchaseChoice === 'subscription' ? "bg-violet-50/70" : "bg-white hover:bg-slate-50")}>
@@ -863,7 +879,8 @@ export default function CourseDetails() {
                       <span className="block text-sm text-slate-600">Buy individual course</span>
                       <span className="mt-0.5 block text-xl font-bold text-slate-950">{formatCoursePrice(salePrice, currency)}</span>
                       {crossedPrice > salePrice && <span className="ml-1 text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>}
-                      <span className="mt-1 block text-xs text-slate-500">One-time payment · keep access to this course</span>
+                      <span className="mt-1 block text-xs text-slate-500">One-time payment · full lifetime access</span>
+                      {discountPercent > 0 && <span className="mt-2 inline-flex w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Save {discountPercent}%</span>}
                     </span>
                   </span>
                 </label>
@@ -903,8 +920,8 @@ export default function CourseDetails() {
                   {enrolling || checkoutLoading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
                   ) : isPaidCourse ? (
-                    purchaseChoice === 'subscription' ? (session ? 'Start subscription' : 'Sign in to subscribe') : (session ? 'Buy individual course · ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')
-                  ) : session ? 'Enroll Now — Free' : 'Sign in to enroll'}
+                    purchaseChoice === 'subscription' ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')
+                  ) : session ? 'Enroll free' : 'Sign in to enroll'}
                 </button>
                 {!session && <p className="mt-3 text-center text-xs text-slate-500">Sign in or create a free account to continue.</p>}
                 {!enrollmentEnabled && <p className="mt-3 text-center text-xs text-amber-700">Enrollment is temporarily closed for this course.</p>}
@@ -921,26 +938,56 @@ export default function CourseDetails() {
                 <span className="text-slate-500">Level</span>
                 <span className="font-medium text-slate-900">{course.level}</span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Category</span>
-                <span className="font-medium text-slate-900">{course.category}</span>
+              <div className="flex items-center justify-between gap-4 text-sm">
+                <span className="text-slate-500">Topic</span>
+                <span className="text-right font-medium text-slate-900">{displayTopic}</span>
               </div>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between gap-4 text-sm">
+                <span className="text-slate-500">Source type</span>
+                <span className="text-right font-medium text-slate-900">{sourceType}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4 text-sm">
                 <span className="text-slate-500">Duration</span>
-                <span className="font-medium text-slate-900">{course.duration || 'Self-paced'}</span>
+                <span className="text-right font-medium text-slate-900">{course.duration || 'Self-paced'}</span>
               </div>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between gap-4 text-sm">
                 <span className="text-slate-500">Lessons</span>
-                <span className="font-medium text-slate-900">{lessonCount}</span>
+                <span className="text-right font-medium text-slate-900">{lessonCount}</span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">Published</span>
-                <span className="font-medium text-slate-900">{formatDate(course.created_at)}</span>
-              </div>
+              {course.updated_at && <div className="flex items-center justify-between gap-4 text-sm">
+                <span className="text-slate-500">Last updated</span>
+                <span className="text-right font-medium text-slate-900">{formatDate(course.updated_at)}</span>
+              </div>}
+              {creatorName && <div className="flex items-start justify-between gap-4 text-sm">
+                <span className="text-slate-500">Creator</span>
+                {previewVideoId ? <a href={'https://www.youtube.com/watch?v=' + encodeURIComponent(previewVideoId)} target="_blank" rel="noreferrer" className="text-right font-semibold text-violet-700 hover:underline">{creatorName}</a> : <span className="text-right font-medium text-slate-900">{creatorName}</span>}
+              </div>}
             </div>
           </div>
         </div>
       </div>
+
+      {previewOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="course-preview-title" className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3 sm:px-5">
+              <div className="min-w-0"><h2 id="course-preview-title" className="truncate font-semibold text-slate-950">Course preview</h2><p className="truncate text-xs text-slate-500">{course.title}</p></div>
+              <button type="button" onClick={() => setPreviewOpen(false)} className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+            </div>
+            {previewVideoId ? (
+              <div className="aspect-video bg-black">
+                <iframe title={'Preview: ' + course.title} src={'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(previewVideoId) + '?autoplay=1&rel=0&playsinline=1'} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+                {course.thumbnail && <img src={course.thumbnail} alt="" className="max-h-56 rounded-xl object-cover" />}
+                <p className="font-semibold text-slate-900">A video preview is not available for this course yet.</p>
+                <p className="text-sm text-slate-500">The course information and curriculum remain available below.</p>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

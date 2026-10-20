@@ -118,6 +118,7 @@ export interface Course {
   enrollmentCount?: number;
   cardMetadata?: {
     creatorName?: string;
+    creatorUrl?: string;
     typeTag?: string;
     videoCount?: number;
     previewVideoId?: string;

@@ -12,6 +12,15 @@ import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
+const AI_GOAL_OPTIONS = [
+  { value: 'Build practical skills', label: 'Build practical skills', description: 'Learn by doing and applying' },
+  { value: 'Career or professional growth', label: 'Career or work growth', description: 'Advance in a role or change direction' },
+  { value: 'Prepare for an exam or certification', label: 'Exam or certification', description: 'Prepare for a structured assessment' },
+  { value: 'Create a project or deliverable', label: 'Create something', description: 'Make a project, portfolio, or tangible result' },
+  { value: 'Master the fundamentals', label: 'Learn the fundamentals', description: 'Build a clear foundation from the start' },
+  { value: 'Explore a personal interest', label: 'Personal interest', description: 'Learn for curiosity or everyday life' },
+] as const;
+
 function mapCourse(raw: any): Course {
   return {
     id: String(raw._id ?? raw.id),
@@ -54,7 +63,10 @@ export default function Courses() {
   const [aiRoadmap, setAiRoadmap] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiGoal, setAiGoal] = useState('Get job-ready');
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
+  const [aiCustomGoal, setAiCustomGoal] = useState('');
+  const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiKnownSkills, setAiKnownSkills] = useState('');
   const [aiUsage, setAiUsage] = useState<any>(null);
@@ -191,10 +203,24 @@ export default function Courses() {
       .catch(() => setAiUsage(null));
   }, [aiOpen, session]);
 
+  useEffect(() => {
+    if (!aiOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !aiLoading) setAiOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [aiOpen, aiLoading]);
+
   const generateAiRoadmap = async () => {
-    const topic = searchQuery.trim();
+    const topic = aiTopic.trim();
     if (!topic) {
-      setAiError('Enter a course or topic first, then choose Build with AI.');
+      setAiError('Add a subject, skill, question, or outcome to build a plan.');
       return;
     }
     if (!session) {
@@ -209,16 +235,17 @@ export default function Courses() {
         method: 'POST',
         body: JSON.stringify({
           topic,
-          level: selectedLevel === 'all' ? 'Beginner' : selectedLevel,
-          goals: [aiGoal],
+          level: aiLevel,
+          goals: [aiGoal, aiCustomGoal.trim()].filter(Boolean),
           studyTimeMinutesPerDay: aiStudyTime,
-          knownSkills: aiKnownSkills.split(',').map((item) => item.trim()).filter(Boolean),
+          knownSkills: aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         }),
         showFeatureUpgrade: true,
       });
       setAiRoadmap(data);
       setExpandedAiModules(new Set([0]));
       setAiEnrollError(null);
+      setAiOpen(false);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
     } finally {
@@ -314,7 +341,11 @@ export default function Courses() {
               </button>
               <button
                 type="button"
-                onClick={() => { setAiOpen(true); setAiError(null); }}
+                onClick={() => {
+                  setAiTopic(searchQuery.trim() || catalogQuery.trim());
+                  setAiOpen(true);
+                  setAiError(null);
+                }}
                 disabled={aiLoading}
                 className="btn-secondary h-11 justify-center rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -386,102 +417,197 @@ export default function Courses() {
       </section>
 
       {aiOpen && (
-        <section className="mt-5 overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-sm">
-          {aiUsage && (
-            <div className="border-b border-blue-100/80 bg-white/70 px-5 py-4 sm:px-7">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">{aiUsage.plan?.name || "Current"} plan AI allowance</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {aiUsage.features?.aiCourseBuilder ? "AI Course Builder available" : "AI Course Builder unavailable"}
-                    {" · "}
-                    {aiUsage.features?.personalizedRoadmaps ? "personalized" : "standard"}
-                    {" · "}
-                    {aiUsage.features?.projectBasedLearning ? "projects included" : "projects excluded"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? "—"}</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">Quizzes/month: {aiUsage.plan?.limits?.ai_quiz_generations_per_month ?? "—"}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="border-b border-blue-100/80 px-5 py-5 sm:px-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">AI Learning Architect</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">Build a roadmap around your goal</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  Tell AI what you want to achieve, how much time you have, and what you already know. Your existing personalization flow stays exactly the same.
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !aiLoading) setAiOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-builder-title"
+            aria-describedby="ai-builder-description"
+            className="flex max-h-[min(92dvh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[.14em] text-violet-700">AI learning planner</p>
+                <h2 id="ai-builder-title" className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+                  Build a plan around your goal
+                </h2>
+                <p id="ai-builder-description" className="mt-1 text-sm leading-5 text-slate-600">
+                  For any subject—from study and work to creative, personal, or technical skills.
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={() => setAiOpen(false)}
-                className="rounded-xl border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-slate-300 hover:text-slate-700"
-                aria-label="Close AI builder"
+                disabled={aiLoading}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                aria-label="Close AI learning planner"
               >
                 <X className="h-4 w-4" />
               </button>
-            </div>
-          </div>
+            </header>
 
-          <div className="grid gap-4 p-5 sm:p-7 md:grid-cols-3">
-            <label className="text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[11px] text-blue-700">1</span> Goal</span>
-              <select value={aiGoal} onChange={(e) => setAiGoal(e.target.value)} className="input-field mt-2 h-11 w-full text-sm">
-                <option>Get job-ready</option>
-                <option>Build real projects</option>
-                <option>Prepare for interviews</option>
-                <option>Learn for exams</option>
-                <option>Master the fundamentals</option>
-              </select>
-            </label>
+            {aiUsage && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-xs sm:px-6">
+                <span className="font-semibold text-slate-700">
+                  {aiUsage.plan?.name || 'Current'} plan
+                  {aiUsage.features?.aiCourseBuilder ? ' · AI builder available' : ' · Check plan access'}
+                </span>
+                <span className="text-slate-500">
+                  Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? '—'}
+                </span>
+              </div>
+            )}
 
-            <label className="text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[11px] text-blue-700">2</span> Study time</span>
-              <select value={aiStudyTime} onChange={(e) => setAiStudyTime(Number(e.target.value))} className="input-field mt-2 h-11 w-full text-sm">
-                <option value={30}>30 minutes/day</option>
-                <option value={60}>1 hour/day</option>
-                <option value={90}>1.5 hours/day</option>
-                <option value={120}>2 hours/day</option>
-                <option value={180}>3 hours/day</option>
-              </select>
-            </label>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+              <div>
+                <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">
+                  What do you want to learn or achieve?
+                </label>
+                <input
+                  id="ai-topic"
+                  autoFocus
+                  maxLength={200}
+                  value={aiTopic}
+                  onChange={(event) => setAiTopic(event.target.value)}
+                  placeholder="e.g. data analytics, conversational Spanish, nutrition, project management…"
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                />
+                <p className="mt-1 text-xs text-slate-500">A subject, skill, question, exam, hobby, or real-world outcome all work.</p>
+              </div>
 
-            <label className="text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[11px] text-blue-700">3</span> Known skills</span>
-              <input value={aiKnownSkills} onChange={(e) => setAiKnownSkills(e.target.value)} className="input-field mt-2 h-11 w-full text-sm" placeholder="HTML, CSS, JavaScript" />
-            </label>
-          </div>
+              <fieldset>
+                <legend className="mb-2 text-sm font-semibold text-slate-800">What is your main goal?</legend>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {AI_GOAL_OPTIONS.map((option) => {
+                    const selected = aiGoal === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setAiGoal(option.value)}
+                        className={`min-h-[76px] rounded-xl border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30 ${
+                          selected
+                            ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
+                        <span className="mt-1 block text-xs leading-4 text-slate-600">{option.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <label htmlFor="ai-custom-goal" className="mt-3 block text-xs font-semibold text-slate-700">
+                  Anything specific you want the plan to help you do? <span className="font-normal text-slate-500">Optional</span>
+                </label>
+                <textarea
+                  id="ai-custom-goal"
+                  rows={2}
+                  maxLength={500}
+                  value={aiCustomGoal}
+                  onChange={(event) => setAiCustomGoal(event.target.value)}
+                  placeholder="Describe your target, deadline, context, or what success looks like…"
+                  className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                />
+              </fieldset>
 
-          <div className="flex flex-col gap-4 border-t border-blue-100/80 bg-white/70 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Current topic</p>
-              <p className="mt-1 truncate text-sm font-bold text-slate-800">{searchQuery.trim() || 'Enter a topic in the search box above'}</p>
-            </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label htmlFor="ai-level" className="block text-sm font-semibold text-slate-800">
+                  Where are you starting from?
+                  <select
+                    id="ai-level"
+                    value={aiLevel}
+                    onChange={(event) => setAiLevel(event.target.value as CourseLevel)}
+                    className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                  >
+                    <option value="Beginner">New to this</option>
+                    <option value="Intermediate">Know the basics</option>
+                    <option value="Advanced">Experienced — go deeper</option>
+                  </select>
+                </label>
+                <label htmlFor="ai-study-time" className="block text-sm font-semibold text-slate-800">
+                  Time you can spend each day
+                  <select
+                    id="ai-study-time"
+                    value={aiStudyTime}
+                    onChange={(event) => setAiStudyTime(Number(event.target.value))}
+                    className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                  >
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={60}>1 hour</option>
+                    <option value={90}>1.5 hours</option>
+                    <option value={120}>2 hours</option>
+                    <option value={180}>3 hours</option>
+                    <option value={240}>4 hours</option>
+                    <option value={360}>6 hours</option>
+                    <option value={480}>8 hours</option>
+                    <option value={720}>12 hours</option>
+                  </select>
+                </label>
+              </div>
 
-            <button type="button" onClick={generateAiRoadmap} disabled={aiLoading} className="btn-primary justify-center">
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Building your path...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Build Personalized Roadmap
-                </>
+              <div>
+                <label htmlFor="ai-prior-knowledge" className="block text-sm font-semibold text-slate-800">
+                  What do you already know or have experience with? <span className="font-normal text-slate-500">Optional</span>
+                </label>
+                <textarea
+                  id="ai-prior-knowledge"
+                  rows={2}
+                  maxLength={1200}
+                  value={aiKnownSkills}
+                  onChange={(event) => setAiKnownSkills(event.target.value)}
+                  placeholder="Subjects, concepts, languages, tools, experience, prerequisites—or leave blank to start from scratch."
+                  className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                />
+              </div>
+
+              {aiError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
+                  {aiError}
+                </div>
               )}
-            </button>
-          </div>
-        </section>
+            </div>
+
+            <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <button
+                type="button"
+                onClick={() => setAiOpen(false)}
+                disabled={aiLoading}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={generateAiRoadmap}
+                disabled={aiLoading || !aiTopic.trim()}
+                className="btn-primary h-11 justify-center rounded-lg px-5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Building your plan…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Build personalized plan
+                  </>
+                )}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
 
-      {aiError && (
+      {aiError && !aiOpen && (
         <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {aiError}
         </div>

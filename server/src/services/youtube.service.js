@@ -144,7 +144,7 @@ function toCandidate(video,channel){
     embeddable:video.status?.embeddable!==false,
     privacyStatus:video.status?.privacyStatus||"unknown",
     regionRestriction:video.contentDetails?.regionRestriction||{},
-    url:\`https://www.youtube.com/watch?v=\${video.id}\`,embedUrl:\`https://www.youtube.com/embed/\${video.id}\`,
+    url: `https://www.youtube.com/watch?v=${video.id}`, embedUrl: `https://www.youtube.com/embed/${video.id}`,
     thumbnail:video.snippet?.thumbnails?.high?.url||video.snippet?.thumbnails?.medium?.url||video.snippet?.thumbnails?.default?.url||"",
     isShort:/(^|[\s#])shorts?([\s#]|$)/i.test(title)||durationSeconds<=180,
     ...structure

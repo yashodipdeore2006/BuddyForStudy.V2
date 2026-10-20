@@ -80,28 +80,19 @@ export function buildJourneyStages(modules = [], cachedStages = []) {
   const withLessons = normalized.filter((module) => module.lessons.length);
   let groups;
   if (withLessons.length > 1) {
-    const targetCount = Math.min(7, Math.max(3, Math.min(5, withLessons.length)));
-    groups = [];
-    let current = [];
-    let remainingLessons = withLessons.reduce((sum, module) => sum + module.lessons.length, 0);
-    for (let i = 0; i < withLessons.length; i += 1) {
-      const module = withLessons[i];
-      const remainingModules = withLessons.length - i;
-      const remainingStages = targetCount - groups.length;
-      if (current.length && groups.length < targetCount - 1 && current.length >= Math.ceil(withLessons.length / targetCount) && remainingModules >= remainingStages) {
-        groups.push(current);
-        current = [];
-      }
-      current.push(module);
-      remainingLessons -= module.lessons.length;
-    }
-    if (current.length) groups.push(current);
-    while (groups.length > 7) groups[groups.length - 2].push(...groups.pop());
-    groups = groups.map((items, index) => {
+    const targetCount = Math.min(7, withLessons.length, Math.max(3, Math.min(5, withLessons.length)));
+    groups = Array.from({ length: targetCount }, (_, index) => {
+      const start = Math.round(index * withLessons.length / targetCount);
+      const end = Math.round((index + 1) * withLessons.length / targetCount);
+      const items = withLessons.slice(start, end);
       const lessons = items.flatMap((module) => module.lessons);
-      return { title: items.length === 1 ? items[0].title : "Stage " + (index + 1), sourceTitle: items.map((module) => module.title).join(" · "), lessonIds: lessons.map((lesson) => lesson.id), seconds: lessons.reduce((sum, lesson) => sum + lesson.seconds, 0) };
-    });
-  } else {
+      return {
+        title: items.length === 1 ? items[0].title : "Stage " + (index + 1),
+        sourceTitle: items.map((module) => module.title).join(" · "),
+        lessonIds: lessons.map((lesson) => lesson.id),
+        seconds: lessons.reduce((sum, lesson) => sum + lesson.seconds, 0)
+      };
+    });  } else {
     const lessons = withLessons[0]?.lessons || [];
     groups = splitLessonsByDuration(lessons, 5);
   }

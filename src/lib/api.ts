@@ -23,7 +23,7 @@ function invalidateRelatedGetCache(path: string) {
     : path.startsWith('/api/enrollments')
       ? ['/api/enrollments']
       : path.startsWith('/api/reviews')
-        ? ['/api/reviews']
+        ? ['/api/reviews', '/api/courses']
         : path.startsWith('/api/courses')
           ? ['/api/courses', '/api/reviews']
           : path.startsWith('/api/billing') || path.startsWith('/api/payments')

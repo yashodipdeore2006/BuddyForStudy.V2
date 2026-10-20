@@ -12,6 +12,7 @@ const engine = await import("../src/services/courseCurationDecisionEngine.servic
 const {
   classifyCurationIntent,
   adjustEngagementWithCurationFeedback,
+  blendMetadataJudgeScores,
   adjustFreshnessWithCurationFeedback,
   evaluateCurationHardGates,
   selectCurationResultSlots
@@ -240,4 +241,26 @@ test("ranking metrics return null rather than misleading perfect scores when no 
   assert.equal(ndcgAtK(ranked, {}, 10), null);
   assert.equal(hiddenGemRecallAtK(ranked, [], 10), null);
   assert.equal(junkRateAtK([], ["result-a"], 10), null);
+});
+
+test("metadata rubric blends with heuristics without overriding them or exceeding half the score", () => {
+  const heuristicOnly = blendMetadataJudgeScores(40, 50, 30, null);
+  assert.deepEqual(heuristicOnly, {
+    coverageScore: 40,
+    instructionScore: 50,
+    handsOnScore: 30,
+    judgeWeight: 0
+  });
+
+  const highJudge = blendMetadataJudgeScores(40, 50, 30, {
+    coverageScore: 100,
+    instructionScore: 100,
+    handsOnScore: 100,
+    confidence: 0.75
+  });
+  assert.ok(highJudge.coverageScore > 40);
+  assert.ok(highJudge.instructionScore > 50);
+  assert.ok(highJudge.handsOnScore > 30);
+  assert.ok(highJudge.judgeWeight <= 0.48);
+  assert.ok(highJudge.coverageScore < 100, "heuristic evidence must retain influence");
 });

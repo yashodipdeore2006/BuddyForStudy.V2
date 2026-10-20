@@ -921,25 +921,25 @@ export default function CoursePlayer() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <h3 className="font-semibold text-slate-900">Your notes <span className="ml-1 text-sm font-normal text-slate-500">({visibleCourseNotes.length})</span></h3>
-                          <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                          <h3 className="mr-auto whitespace-nowrap text-sm font-bold text-slate-900 sm:text-base">Your notes <span className="ml-1 text-xs font-medium text-slate-500">({visibleCourseNotes.length})</span></h3>
+                          <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-0">
                             <label className="sr-only" htmlFor="notes-lecture-filter">Filter notes by lecture</label>
-                            <select id="notes-lecture-filter" value={notesLessonFilter} onChange={(event) => setNotesLessonFilter(event.target.value)} className="input-field min-w-[150px] text-sm">
+                            <select id="notes-lecture-filter" value={notesLessonFilter} onChange={(event) => setNotesLessonFilter(event.target.value)} className="input-field h-9 min-w-0 max-w-full px-2 py-1 text-xs sm:w-56 sm:text-sm">
                               <option value="all">All lectures</option>
                               {allLessons.map((lesson) => <option key={lesson.id} value={String(lesson.id)}>{cleanPlayerLessonTitle(lesson.title, siblingLessonTitles)}</option>)}
                             </select>
                             <label className="sr-only" htmlFor="notes-sort-order">Sort notes</label>
-                            <select id="notes-sort-order" value={notesSortOrder} onChange={(event) => setNotesSortOrder(event.target.value as "recent" | "oldest")} className="input-field min-w-[150px] text-sm">
-                              <option value="recent">Sort by most recent</option>
-                              <option value="oldest">Sort by oldest</option>
+                            <select id="notes-sort-order" value={notesSortOrder} onChange={(event) => setNotesSortOrder(event.target.value as "recent" | "oldest")} className="input-field h-9 min-w-0 max-w-full px-2 py-1 text-xs sm:w-36 sm:text-sm">
+                              <option value="recent">Recent</option>
+                              <option value="oldest">Oldest</option>
                             </select>
                           </div>
                         </div>
                         {visibleCourseNotes.length > 0 ? (
                           <div className="space-y-3">
                             {visibleCourseNotes.map((note) => (
-                              <article key={note.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                              <article key={note.id} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                                 <a href={(() => { const lesson = allLessons.find((item) => String(item.id) === note.lessonId); const videoId = lesson?.tutorial?.videos?.[0]?.videoId; return videoId ? "https://www.youtube.com/watch?v=" + encodeURIComponent(videoId) + "&t=" + note.timestampSeconds + "s" : undefined; })()} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700" aria-label={"Open source video at " + formatMediaTimestamp(note.timestampSeconds)}><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{formatMediaTimestamp(note.timestampSeconds)}</a>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs font-semibold text-slate-500">{note.lessonTitle}</p>
@@ -951,10 +951,10 @@ export default function CoursePlayer() {
                             ))}
                           </div>
                         ) : (
-                          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
-                            <FileText className="mx-auto h-8 w-8 text-slate-300" aria-hidden="true" />
-                            <p className="mt-3 text-sm font-semibold text-slate-700">{timestampNotes.length ? "No notes match this lecture filter." : "No notes yet"}</p>
-                            <p className="mt-1 text-sm text-slate-500">Add a timestamp and note above to save your first learning note.</p>
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-center">
+                            <FileText className="mx-auto h-6 w-6 text-slate-300" aria-hidden="true" />
+                            <p className="mt-2 text-sm font-semibold text-slate-700">{timestampNotes.length ? "No notes match this lecture filter." : "No notes yet"}</p>
+                            <p className="mt-1 text-xs text-slate-500">Add a timestamp and note above to save your first learning note.</p>
                           </div>
                         )}
                       </section>

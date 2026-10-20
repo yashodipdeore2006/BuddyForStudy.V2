@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, BookOpen, CheckCheck, CreditCard, Info, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { routes } from "@/lib/routes";
+import { routes, resolveNotificationRoute } from "@/lib/routes";
 
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
@@ -106,10 +106,11 @@ export default function NotificationMenu() {
   const handleNotificationClick = async (notification: any) => {
     await markRead(notification._id);
 
-    if (notification.link) {
+    const destination = resolveNotificationRoute(notification.link);
+    if (destination) {
       setOpen(false);
       setExpandedId(null);
-      navigate(notification.link);
+      navigate(destination);
       return;
     }
 

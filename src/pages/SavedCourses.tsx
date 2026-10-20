@@ -61,7 +61,7 @@ export default function SavedCourses() {
             icon={<Bookmark className="h-8 w-8" />}
             title="No saved courses"
             description="Use Save Course on a course you want to learn later."
-            action={<Link to={routes.explore()} className="btn-primary">Browse Courses</Link>}
+            action={<Link to={routes.explore()} className="btn-primary">Explore</Link>}
           />
         </div>
       ) : (

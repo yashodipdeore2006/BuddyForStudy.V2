@@ -40,13 +40,19 @@ export function toPublicCoursePreview(course) {
       : sourceResourceType === "playlist" || sourceResourceType === "series" || videoCount > 1
         ? "Playlist"
         : "Course";
+  const allResources = [...selectedResources, ...videosById.values()];
   const firstPreviewVideoId = String(
-    selectedResources.find((resource) => /^[a-zA-Z0-9_-]{11}$/.test(String(resource.videoId || "")))?.videoId ||
-    [...videosById.values()].find((video) => /^[a-zA-Z0-9_-]{11}$/.test(String(video.videoId || "")))?.videoId ||
-    ""
+    allResources.find((resource) => /^[a-zA-Z0-9_-]{11}$/.test(String(resource.videoId || "")))?.videoId || ""
   );
+  const firstCreatorResource = allResources.find((resource) =>
+    String(resource.channelTitle || "").trim() && (String(resource.channelUrl || resource.channel_url || "").trim() || String(resource.channelId || "").trim())
+  );
+  const creatorUrl = firstCreatorResource
+    ? String(firstCreatorResource.channelUrl || firstCreatorResource.channel_url || (firstCreatorResource.channelId ? "https://www.youtube.com/channel/" + encodeURIComponent(String(firstCreatorResource.channelId)) : "")).trim()
+    : "";
   const cardMetadata = {
     ...(channelNames.length === 1 ? { creatorName: channelNames[0] } : channelNames.length > 1 ? { creatorName: "Multiple creators" } : {}),
+    ...(creatorUrl.startsWith("https://www.youtube.com/") ? { creatorUrl } : {}),
     typeTag,
     videoCount,
     ...(firstPreviewVideoId ? { previewVideoId: firstPreviewVideoId } : {}),

@@ -603,6 +603,36 @@
   font-size: 11px;
   line-height: 1.3;
 }
+.bfs-course-card__rating {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  max-width: 100%;
+  color: #a16207;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.bfs-course-card__rating strong { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.bfs-course-card__rating span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.bfs-course-card__share {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.bfs-course-card__share:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.bfs-course-card__share:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .bfs-course-card__social-proof { gap: 5px 8px; font-size: 10px; line-height: 1.25; }
 .bfs-course-card__reason { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; margin: 0; font-size: 10px; line-height: 1.3; }
 .bfs-course-card__action-row { flex: 0 0 auto; align-items: center; margin-top: auto; gap: 7px; padding: 0 11px 10px; min-height: 54px; }

@@ -601,7 +601,7 @@ export default function AdminCommunications() {
       />
 
       <div className="mt-6">
-        <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={setWorkspaceView} items={[
+        <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={(value) => setWorkspaceView(value as "compose" | "templates" | "deliveries" | "campaigns")} items={[
           { value: "compose", label: "Compose" },
           ...(canManageCommunications ? [
             { value: "templates", label: loadingTemplates ? "Templates…" : templatesLoadError ? "Templates" : `Templates (${templates.length})` },

@@ -376,7 +376,7 @@ function languageAllowed(candidate, profile) {
 }
 function passesHardGates(candidate, profile) {
   if (!candidate || !candidate.title) return { passed: false, reason: "missing_metadata" };
-  if (candidate.isShort || Number(candidate.durationSeconds || 0) > 0 && Number(candidate.durationSeconds) <= 180 && candidate.sourceType !== "playlist") return { passed: false, reason: "short_form" };
+  if (candidate.isShort || /\/shorts\//i.test(String(candidate.url || candidate.sourceUrl || ""))) return { passed: false, reason: "short_form" };
   if (candidate.privacyStatus !== "public") return { passed: false, reason: "not_public" };
   if (candidate.embeddable === false) return { passed: false, reason: "not_embeddable" };
   const region = candidate.regionRestriction || {};
@@ -544,7 +544,6 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   const observedCount = Math.max(0, Math.min(totalCount || rawLessons.length, Number(playlistDetail?.observedItemCount || rawLessons.length)));
   const validLessons = rawLessons.filter((item) =>
     item.videoId &&
-    Number(item.durationSeconds || 0) > 60 &&
     item.embeddable !== false &&
     item.privacyStatus === "public" &&
     !item.isShort &&

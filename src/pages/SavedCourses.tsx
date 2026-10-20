@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
 import CourseCard from "@/components/CourseCard";
+import { routes } from "@/lib/routes";
 
 type Saved = {
   _id: string;
@@ -60,7 +61,7 @@ export default function SavedCourses() {
             icon={<Bookmark className="h-8 w-8" />}
             title="No saved courses"
             description="Use Save Course on a course you want to learn later."
-            action={<Link to="/courses" className="btn-primary">Browse Courses</Link>}
+            action={<Link to={routes.explore()} className="btn-primary">Browse Courses</Link>}
           />
         </div>
       ) : (

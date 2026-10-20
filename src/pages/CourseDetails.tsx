@@ -470,11 +470,17 @@ export default function CourseDetails() {
 
   useEffect(() => {
     if (!course || !(enrollment?.status === 'active' || enrollment?.status === 'completed')) return;
+    const lessons = getAllLessonsFlat(course.modules);
     const completed = new Set((progress?.completed_lessons || []).map((item) => String(item.lessonId)));
-    const next = getAllLessonsFlat(course.modules).find((lesson) => !completed.has(String(lesson.id)));
-    const targetIndex = next ? course.modules.findIndex((module) => module.lessons.some((lesson) => String(lesson.id) === String(next.id))) : -1;
+    const next = lessons.find((lesson) => !completed.has(String(lesson.id)));
+    // Keep the next module open during learning; after completion, reopen the
+    // last accessed/completed module so learners can review without hunting.
+    const focusLessonId = next?.id ?? progress?.last_lesson_id ?? progress?.completed_lessons?.[progress.completed_lessons.length - 1]?.lessonId;
+    const targetIndex = focusLessonId
+      ? course.modules.findIndex((module) => module.lessons.some((lesson) => String(lesson.id) === String(focusLessonId)))
+      : 0;
     if (targetIndex >= 0) setExpandedModules(new Set([targetIndex]));
-  }, [course?.id, enrollment?.status, progress?.last_lesson_id, progress?.percentage]);
+  }, [course?.id, enrollment?.status, progress?.last_lesson_id, progress?.percentage, progress?.completed_count]);
 
   if (loading) {
     return (

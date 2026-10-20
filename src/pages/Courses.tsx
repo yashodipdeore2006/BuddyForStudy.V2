@@ -108,26 +108,32 @@ export default function Courses() {
         ) {
           const discovery = searchDiscovery;
           setYoutubeDiscovery(discovery);
-          setYoutubePlaylistsLoading(true);
-          setYoutubePlaylistError("");
+          setYoutubePlaylistError(String(discovery.youtubeError || ""));
 
-          try {
-            const playlistData = await apiFetch(
-              `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`,
-              { showFeatureUpgrade: Boolean(catalogQuery.trim()) }
-            );
-            setYoutubeDiscovery({
-              ...discovery,
-              playlists: playlistData.playlists || [],
-            });
-          } catch (playlistError) {
-            setYoutubePlaylistError(
-              playlistError instanceof Error
-                ? playlistError.message
-                : "Unable to load YouTube playlists"
-            );
-          } finally {
+          if (Array.isArray(discovery.curatedResources)) {
+            // The curation engine returns one ranked video/playlist/series list.
+            // Do not run the legacy playlist fetch and reintroduce duplicate categories.
             setYoutubePlaylistsLoading(false);
+          } else {
+            setYoutubePlaylistsLoading(true);
+            try {
+              const playlistData = await apiFetch(
+                `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`,
+                { showFeatureUpgrade: Boolean(catalogQuery.trim()) }
+              );
+              setYoutubeDiscovery({
+                ...discovery,
+                playlists: playlistData.playlists || [],
+              });
+            } catch (playlistError) {
+              setYoutubePlaylistError(
+                playlistError instanceof Error
+                  ? playlistError.message
+                  : "Unable to load YouTube playlists"
+              );
+            } finally {
+              setYoutubePlaylistsLoading(false);
+            }
           }
         } else {
           setYoutubeDiscovery(null);
@@ -834,6 +840,8 @@ export default function Courses() {
                   query={youtubeDiscovery.query}
                   courses={youtubeDiscovery.courseRecommendations || []}
                   playlists={youtubeDiscovery.playlists || []}
+                  curatedResources={youtubeDiscovery.curatedResources || []}
+                  curationMeta={youtubeDiscovery.curationMeta || null}
                   loadingPlaylists={youtubePlaylistsLoading}
                   error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}
                   hasLocalResults={filteredCourses.length > 0}

@@ -143,3 +143,34 @@ test("public course preview exposes a safe preview video id and lesson durations
   assert.equal(preview.modules[0].lessons[0].durationSeconds, 630);
   assert.equal("tutorial" in preview.modules[0].lessons[0], false);
 });
+
+
+test("public course preview exposes lesson durations without leaking provider payloads", () => {
+  const course = {
+    _id: "duration-course",
+    title: "Duration metadata",
+    modules: [{
+      _id: "duration-module",
+      title: "Videos",
+      order: 1,
+      lessons: [{
+        _id: "duration-lesson",
+        title: "Lesson with durations",
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          content: "private lesson notes",
+          videos: [
+            { videoId: "duration-video-1", durationSeconds: 125, url: "https://youtube.com/watch?v=duration-video-1" },
+            { videoId: "duration-video-2", duration: "00:31", url: "https://youtube.com/watch?v=duration-video-2" }
+          ]
+        }
+      }]
+    }]
+  };
+
+  const preview = toPublicCoursePreview(course);
+  assert.equal(preview.modules[0].lessons[0].durationSeconds, 156);
+  assert.equal("tutorial" in preview.modules[0].lessons[0], false);
+  assert.equal("url" in preview.modules[0].lessons[0], false);
+});

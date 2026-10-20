@@ -15,11 +15,11 @@ type CommandItem = {
 };
 
 const PAGE_COMMANDS: CommandItem[] = [
-  { id: "home", title: "Home", description: "Your learning overview", icon: Home, kind: "route", href: "/home" },
-  { id: "explore", title: "Explore", description: "Find a course or topic", icon: Compass, kind: "route", href: "/explore" },
-  { id: "learning", title: "My learning", description: "Continue enrolled courses", icon: GraduationCap, kind: "route", href: "/my-learning" },
-  { id: "saved", title: "Saved", description: "Courses saved for later", icon: Bookmark, kind: "route", href: "/saved" },
-  { id: "build", title: "Build my path", description: "Create a learning path with AI", icon: Sparkles, kind: "build", href: "/explore?build=1" },
+  { id: "home", title: "Home", description: "Your learning overview", icon: Home, kind: "route", href: routes.home() },
+  { id: "explore", title: "Explore", description: "Find a course or topic", icon: Compass, kind: "route", href: routes.explore() },
+  { id: "learning", title: "My learning", description: "Continue enrolled courses", icon: GraduationCap, kind: "route", href: routes.myLearning() },
+  { id: "saved", title: "Saved", description: "Courses saved for later", icon: Bookmark, kind: "route", href: routes.saved() },
+  { id: "build", title: "Build my path", description: "Create a learning path with AI", icon: Sparkles, kind: "build", href: routes.buildPath() },
 ];
 
 function mapCourse(raw: any): Course {

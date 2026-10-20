@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import CourseActionButton from "@/components/CourseActionButton";
 import {
   BookOpen,
   Bookmark,

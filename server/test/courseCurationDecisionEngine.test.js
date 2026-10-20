@@ -11,7 +11,7 @@ process.env.JWT_SECRET ||= "curation-tests-only-not-a-production-secret";
 const engine = await import("../src/services/courseCurationDecisionEngine.service.js");
 const {
   classifyCurationIntent,
-  adjustEngagementWithCurationFeedback,
+  scoreLearnerCommunityConsensus,
   blendMetadataJudgeScores,
   adjustFreshnessWithCurationFeedback,
   evaluateCurationHardGates,
@@ -109,13 +109,13 @@ test("intent profile defaults to full course and parses crash, reference, level 
   assert.equal(reference.maxVideoSeconds, 60 * 60);
 });
 
-test("metadata feedback adjusts engagement toward learner usefulness without replacing the prior", () => {
-  const noFeedback = adjustEngagementWithCurationFeedback(63, {});
-  assert.equal(noFeedback.score, 63);
+test("learner community consensus uses a Bayesian prior and bounded feedback", () => {
+  const noFeedback = scoreLearnerCommunityConsensus({});
+  assert.equal(noFeedback.score, 50);
   assert.equal(noFeedback.blendWeight, 0);
 
-  const positive = adjustEngagementWithCurationFeedback(50, { thumbsUp: 10 });
-  const negative = adjustEngagementWithCurationFeedback(50, { thumbsDown: 10 });
+  const positive = scoreLearnerCommunityConsensus({ thumbsUp: 10 });
+  const negative = scoreLearnerCommunityConsensus({ thumbsDown: 10 });
   assert.ok(positive.score > 50, "positive feedback should lift engagement quality");
   assert.ok(negative.score < 50, "negative feedback should lower engagement quality");
   assert.ok(positive.blendWeight <= 0.35, "learner feedback influence must remain capped");

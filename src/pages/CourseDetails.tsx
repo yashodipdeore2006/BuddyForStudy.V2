@@ -149,7 +149,7 @@ export default function CourseDetails() {
 
   const handleCheckout = async () => {
     if (!session) {
-      navigate(routes.login(), { state: { from: { pathname: routes.course(courseId) } } });
+      navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } });
       return;
     }
     if (!courseId || !course) return;

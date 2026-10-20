@@ -605,7 +605,7 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void saveCourse(course)}
                           disabled={savingId === course.id}
-                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Remove from Saved" : "Save for later"} title= className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(course.id) ? "Remove from Saved" : "Save for later"} title={savedIds.has(course.id) ? "Saved" : "Save"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(course.id)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"

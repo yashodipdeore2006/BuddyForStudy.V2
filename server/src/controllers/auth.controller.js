@@ -190,3 +190,15 @@ export async function me(req, res) {
     }
   });
 }
+
+export async function updateLearningPace(req, res) {
+  try {
+    const input = z.object({ hoursPerDay: z.number().int().min(1).max(4) }).parse(req.body);
+    const { User } = await import("../models/User.js");
+    const user = await User.findByIdAndUpdate(req.user.user._id, { $set: { learningPaceHoursPerDay: input.hoursPerDay } }, { new: true, runValidators: true }).select("learningPaceHoursPerDay");
+    return success(res, { hoursPerDay: user?.learningPaceHoursPerDay || input.hoursPerDay }, "Learning pace updated");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
+}

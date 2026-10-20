@@ -201,6 +201,9 @@ function CourseLearningCard({
         <button type="button" className="bfs-course-card__save" onClick={() => void handleSave()} disabled={saving} aria-label={saved ? "Remove from saved courses" : "Save course"} aria-pressed={saved} title={saved ? "Saved" : "Save"}>
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
         </button>
+        <button type="button" onClick={() => void handleShare()} className="bfs-course-card__media-share" aria-label={"Share " + course.title} title="Share course">
+          <Share2 size={18} aria-hidden="true" />
+        </button>
       </div>
 
       <div className="bfs-course-card__body">
@@ -244,7 +247,6 @@ function CourseLearningCard({
           {isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(price)}
           {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > price && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
         </span>
-        <button type="button" onClick={() => void handleShare()} className="bfs-course-card__share" aria-label={"Share " + course.title} title="Share course"><Share2 size={16} aria-hidden="true" /></button>
         <Link to={learnHref} className="bfs-course-action bfs-course-action--outline" aria-label={primaryLabel + " " + course.title}>
           <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}
         </Link>

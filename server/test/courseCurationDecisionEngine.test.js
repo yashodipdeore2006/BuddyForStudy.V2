@@ -78,7 +78,8 @@ function slotCandidate(index, overrides = {}) {
     features: {
       coverage: { score: 80, gapModules: [], moduleCount: 10, coverageCount: 8 },
       instruction: { score: 80, handsOnScore: 90 },
-      engagement: { score: 70, likePercentile: 50, viewsPercentile: 0.25, feedbackScore: 50, explicitVotes: 0, thumbsUp: 0 },
+      engagement: { score: 70, likePercentile: 50, viewsPercentile: 0.25 },
+      community: { score: 50, confidence: 0, explicitVotes: 0, thumbsUp: 0, status: "unavailable" },
       authority: { score: 70 },
       freshness: { score: 90 },
       fit: { score: 80 }

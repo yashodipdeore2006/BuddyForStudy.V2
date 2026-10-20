@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Target } from "lucide-react";
+import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";

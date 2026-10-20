@@ -8,8 +8,11 @@ function parseDurationSeconds(value) {
   if (!text) return 0;
   const iso = text.match(/^pt(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
   if (iso) return Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
-  const clock = text.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
-  if (clock) return Number(clock[1] || 0) * 3600 + Number(clock[2] || 0) * 60 + Number(clock[3] || 0);
+  const clock = text.match(/^\d+(?::\d{1,2}){1,2}$/);
+  if (clock) {
+    const parts = text.split(":").map(Number);
+    return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+  }
   const hours = text.match(/(\d+(?:\.\d+)?)\s*h/);
   const minutes = text.match(/(\d+)\s*m/);
   const seconds = text.match(/(\d+)\s*s/);

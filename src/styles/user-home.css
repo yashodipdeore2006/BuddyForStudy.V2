@@ -23,7 +23,7 @@
 .user-home__button:disabled { opacity: .45; cursor: not-allowed; }
 .user-home__button--secondary { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
 .user-home__button--secondary:hover { background: var(--surface-2); }
-.user-home__link { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--accent); text-decoration: none; font-weight: 600; font-size: var(--fs-sm); }
+.user-home__link { display: inline-flex; min-height: var(--control-h-lg); align-items: center; gap: var(--s-1); color: var(--accent); text-decoration: none; font-weight: 600; font-size: var(--fs-sm); }
 .user-home__panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s-5); box-shadow: var(--shadow-sm); }
 .user-home__resume { display: grid; grid-template-columns: minmax(200px, .8fr) minmax(0, 1.2fr); gap: var(--s-5); align-items: stretch; }
 .user-home__cover { position: relative; display: flex; min-height: 200px; align-items: center; justify-content: center; overflow: hidden; border-radius: var(--r-md); background: var(--surface-2); color: var(--accent); }

@@ -8,7 +8,7 @@ import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./youtube.service.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.6";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.7";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -498,8 +498,15 @@ function freshnessScore(candidate, profile) {
   };
 }
 function hasSyllabusEvidence(candidate) {
-  const description = String(candidate.description || "");
-  return Boolean(candidate.hasSyllabus || /\b(what you(?:'|’)ll learn|course content|curriculum|syllabus|topics covered|learning objectives|course outline|contents)\b/i.test(description));
+  const lessonMetadata = (Array.isArray(candidate.items) ? candidate.items : [])
+    .flatMap((item) => [item.title, item.description])
+    .join(" ");
+  const searchableMetadata = [
+    candidate.title,
+    candidate.description,
+    lessonMetadata
+  ].join(" ");
+  return Boolean(candidate.hasSyllabus || /\b(what you(?:'|’)ll learn|course content|curriculum|syllabus|topics covered|learning objectives|course outline|contents|quick reference|syntax reference|command reference|cheat sheet|full course|complete course|crash course|tutorial|step by step|walkthrough|lesson plan)\b/i.test(searchableMetadata));
 }
 function hasStructureEvidence(candidate) {
   if (candidate.sourceType === "playlist" || candidate.sourceType === "series") {
@@ -517,12 +524,12 @@ function languageAllowed(candidate, profile) {
       const matching = declared.filter((language) => language === expected || language.startsWith(expected + "-")).length;
       return matching / declared.length >= 0.8;
     }
-    // Missing language metadata is not proof of a mismatch; only explicit requests
-    // require positive language evidence.
-    return !profile.languageExplicit;
+    // Search API language/region settings are used upstream. When per-video
+    // language metadata is absent, do not falsely reject a relevant resource.
+    return true;
   }
   const actual = String(candidate.defaultAudioLanguage || "").toLowerCase();
-  if (!actual) return !profile.languageExplicit;
+  if (!actual) return true;
   return actual === expected || actual.startsWith(expected + "-");
 }
 function passesHardGates(candidate, profile) {
@@ -1355,7 +1362,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
       {
         $match: {
           normalizedQuery: profile.normalizedQuery,
-          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.5", "course-curation-decision-engine-v1.4", "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
+          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.6", "course-curation-decision-engine-v1.5", "course-curation-decision-engine-v1.4", "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
           resourceId: { $in: resourceIds },
           createdAt: { $gte: cutoff }
         }

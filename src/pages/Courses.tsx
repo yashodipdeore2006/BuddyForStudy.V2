@@ -840,7 +840,7 @@ export default function Courses() {
                   query={youtubeDiscovery.query}
                   courses={youtubeDiscovery.courseRecommendations || []}
                   playlists={youtubeDiscovery.playlists || []}
-                  curatedResources={youtubeDiscovery.curatedResources || []}
+                  curatedResources={Array.isArray(youtubeDiscovery.curatedResources) ? youtubeDiscovery.curatedResources : undefined}
                   curationMeta={youtubeDiscovery.curationMeta || null}
                   loadingPlaylists={youtubePlaylistsLoading}
                   error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}

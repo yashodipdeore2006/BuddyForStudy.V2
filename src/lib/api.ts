@@ -60,6 +60,15 @@ const AUTH_ENTRY_PATHS = [
   "/api/auth/resend-otp",
 ];
 
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 type ApiFetchOptions = RequestInit & { showFeatureUpgrade?: boolean };
 
 export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
@@ -163,7 +172,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
         }));
       }
 
-      throw new Error(safeServerMessage || statusMessages[response.status] || "We couldn't complete that request. Please try again.");
+      throw new ApiError(safeServerMessage || statusMessages[response.status] || "We couldn't complete that request. Please try again.", response.status);
     }
 
     if (isGet) getResponseCache.set(key, { data, expiresAt: Date.now() + GET_CACHE_TTL_MS });

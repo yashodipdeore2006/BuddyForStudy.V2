@@ -171,7 +171,6 @@ function CourseLearningCard({
   };
 
   const formatCompactCount = (value: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
-  const categoryLabel = /^ai\s+course\s+search$/i.test(course.category) ? "AI and machine learning" : course.category;
 
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>

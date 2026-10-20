@@ -15,6 +15,7 @@ import { apiFetch } from '@/lib/api';
 import type { Course, Progress } from '@/types';
 import { countAllLessons, getAllLessonsFlat } from '@/lib/courseUtils';
 import ExpandableText from '@/components/ExpandableText';
+import { routes } from '@/lib/routes';
 
 function mapCourse(raw: any): Course {
   return {
@@ -27,7 +28,7 @@ function mapCourse(raw: any): Course {
     duration: String(raw.duration ?? ''),
     thumbnail: raw.thumbnail ?? null,
     learning_outcomes: raw.learningOutcomes ?? raw.learning_outcomes ?? [],
-    modules: (raw.modules ?? []).map((module: any, moduleIndex: number) => ({
+    modules: ((Array.isArray(raw.modules) && raw.modules.length ? raw.modules : (() => { const sourceLessons = raw.lessons ?? raw.videos ?? raw.playlistItems ?? raw.items ?? []; return sourceLessons.length ? [{ id: 'generated-roadmap', title: 'Learning path', description: 'Generated from available course lessons', lessons: sourceLessons }] : []; })())).map((module: any, moduleIndex: number) => ({
       id: String(module._id ?? module.id ?? moduleIndex),
       title: module.title ?? `Module ${moduleIndex + 1}`,
       description: module.description ?? '',
@@ -81,29 +82,33 @@ export default function CourseRoadmap() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     if (!courseId) {
-      setError('Invalid course');
+      setError("Invalid course");
       setLoading(false);
-      return;
+      return () => { active = false; };
     }
 
     async function load() {
       setLoading(true);
       setError(null);
-      try {
-        const [courseData, progressData] = await Promise.all([
-          apiFetch(`/api/courses/${courseId}`),
-          apiFetch(`/api/progress/${courseId}`),
-        ]);
-        setCourse(mapCourse(courseData.course));
-        setProgress(mapProgress(progressData.progress));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unable to load this course roadmap.');
-      } finally {
-        setLoading(false);
+      setCourse(null);
+      setProgress(null);
+      const courseResult = await Promise.allSettled([apiFetch("/api/courses/" + encodeURIComponent(courseId))]);
+      if (courseResult[0].status === "rejected" || !courseResult[0].value?.course) {
+        if (active) { setError("This course is not available. It may have been removed or unpublished."); setLoading(false); }
+        return;
       }
+      const mappedCourse = mapCourse(courseResult[0].value.course);
+      const progressResult = await Promise.allSettled([apiFetch("/api/progress/" + encodeURIComponent(courseId))]);
+      const progressValue = progressResult[0].status === "fulfilled" ? progressResult[0].value?.progress : null;
+      const mappedProgress = progressValue ? mapProgress(progressValue) : null;
+      if (active) { setCourse(mappedCourse); setProgress(mappedProgress); setLoading(false); }
     }
-    load();
+    void load().catch(() => {
+      if (active) { setError("This course is not available. It may have been removed or unpublished."); setLoading(false); }
+    });
+    return () => { active = false; };
   }, [courseId]);
 
   const completedIds = useMemo(
@@ -134,9 +139,9 @@ export default function CourseRoadmap() {
       <div className="min-h-screen bg-[#f1f4f7] px-4 py-16">
         <div className="mx-auto max-w-2xl rounded-[32px] border border-slate-200 bg-white p-8 text-center">
           <BookOpen className="mx-auto h-12 w-12 text-slate-300" />
-          <h1 className="mt-4 text-2xl font-bold text-slate-900">Roadmap unavailable</h1>
+          <h1 className="mt-4 text-2xl font-bold text-slate-900">This course is not available</h1>
           <p className="mt-2 text-sm text-slate-500">{error ?? 'This course could not be loaded.'}</p>
-          <Link to="/my-courses" className="btn-primary mt-6 inline-flex">
+          <Link to={routes.myLearning()} className="btn-primary mt-6 inline-flex">
             Back to My Learning
           </Link>
         </div>
@@ -154,7 +159,7 @@ export default function CourseRoadmap() {
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
           <Link
-            to="/my-courses"
+            to={routes.myLearning()}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -190,7 +195,7 @@ export default function CourseRoadmap() {
 
             <button
               type="button"
-              onClick={() => nextLesson && navigate(`/learn/${course.id}/${nextLesson.id}`)}
+              onClick={() => nextLesson && navigate(routes.learn(course.id, nextLesson.id))}
               disabled={!nextLesson}
               className="btn-primary shrink-0"
             >
@@ -350,7 +355,7 @@ export default function CourseRoadmap() {
 
                               {unlocked && (
                                 <Link
-                                  to={`/learn/${course.id}/${lesson.id}`}
+                                  to={routes.learn(course.id, lesson.id)}
                                   className={`inline-flex shrink-0 items-center gap-1 text-sm font-semibold ${
                                     isNext ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'
                                   }`}

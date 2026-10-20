@@ -463,7 +463,7 @@ export default function CoursePlayer() {
   const progressPct = progress?.percentage || 0;
 
   return (
-    <div className="min-h-screen bg-[#f1f4f7] text-slate-900">
+    <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[#f1f4f7] text-slate-900">
       <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white">
         <div className="flex h-full items-center gap-3 px-4 sm:gap-4">
           <button
@@ -529,8 +529,8 @@ export default function CoursePlayer() {
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-64px)] lg:grid-cols-[minmax(0,1fr)_340px]">
-        <main className="min-w-0 bg-slate-50">
+      <div className="grid min-h-[calc(100vh-64px)] min-w-0 max-w-full overflow-x-clip lg:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="min-w-0 max-w-full overflow-x-clip bg-slate-50">
           <div className="mx-auto max-w-5xl">
             {currentLesson ? (
               <>

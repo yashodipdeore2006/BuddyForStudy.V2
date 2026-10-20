@@ -506,11 +506,21 @@
   .bfs-course-card__action-row { gap:var(--s-2); }
   .bfs-course-action--outline { padding-inline:var(--s-2); }
 }
-/* Compact catalogue cards: remove progress UI and prevent stretched cards from creating tall empty panels. */
-.bfs-course-card { min-width: 0; align-self: start; height: fit-content; }
-.bfs-course-card__media { aspect-ratio: 16 / 6.8; min-height: 0; }
+/* Catalogue cards are content previews, not progress widgets. Keep their height driven
+   by the visible content and never let an enrolled-course progress panel stretch them. */
+.bfs-course-card {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  align-content: start;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+}
+.bfs-course-card__media { flex: 0 0 auto; aspect-ratio: 16 / 7.6; min-height: 0; }
 .bfs-course-card__media img { min-height: 0; }
-.bfs-course-card__body { min-height: 0; gap: 4px; padding: 8px 11px 6px; }
+.bfs-course-card__body { flex: 0 0 auto; min-height: 0; gap: 4px; padding: 8px 11px 6px; }
 .bfs-course-card__type-meta { gap: 5px; font-size: 10px; line-height: 1.2; }
 .bfs-course-card__type-meta .bfs-course-chip { padding: 2px 6px; font-size: 10px; }
 .bfs-course-card__title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 14px; line-height: 1.3; }
@@ -518,20 +528,25 @@
 .bfs-course-card__outcome { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; margin: 0; font-size: 11px; line-height: 1.3; }
 .bfs-course-card__social-proof { gap: 5px 8px; font-size: 10px; line-height: 1.25; }
 .bfs-course-card__reason { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; margin: 0; font-size: 10px; line-height: 1.3; }
-.bfs-course-card__action-row { align-items: center; margin-top: 0; gap: 7px; padding: 0 11px 10px; }
+.bfs-course-card__action-row { flex: 0 0 auto; align-items: center; margin-top: 0; gap: 7px; padding: 0 11px 10px; }
 .bfs-course-card__price { font-size: 14px; line-height: 1.15; }
 .bfs-course-card__price del { font-size: 10px; }
 .bfs-course-card__save { width: 32px; height: 32px; }
-/* Progress belongs on My Learning / Dashboard, never in catalogue cards. */
+/* Hide all known legacy progress variants inside cards. Progress stays on My Learning. */
 .bfs-course-card__progress,
 .bfs-course-card__progress-section,
 .bfs-course-card__learning-progress,
 .bfs-course-card__progress-bar,
-.bfs-course-card__progress-summary { display: none !important; }
+.bfs-course-card__progress-summary,
+.bfs-course-card__progress-label,
+.bfs-course-card__progress-track,
+.bfs-course-card__progress-fill,
+.bfs-course-card [data-course-progress],
+.bfs-course-card [aria-label*="course progress" i] { display: none !important; }
 .bfs-course-card__media .bfs-course-card__level { padding: 3px 6px; font-size: 10px; }
 .bfs-course-card__media .bfs-course-card__learning-status { font-size: 10px; padding: 3px 6px; }
 @media (max-width: 640px) {
-  .bfs-course-card__media { aspect-ratio: 16 / 7.5; }
+  .bfs-course-card__media { aspect-ratio: 16 / 7.6; }
   .bfs-course-card__body { gap: 4px; padding: 7px 9px 5px; }
   .bfs-course-card__action-row { gap: 6px; padding: 0 9px 9px; }
 }

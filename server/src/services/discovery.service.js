@@ -808,19 +808,30 @@ export async function getPlaylistCourse(playlistId) {
       const video = videoMap.get(videoId);
       if (!video || video.status?.embeddable === false) return null;
       const seconds = parseDuration(video.contentDetails?.duration);
+      const title = video.snippet?.title || item.snippet?.title || "Lesson " + (index + 1);
+      const description = video.snippet?.description || "";
       return {
         id: video.id,
         order: index + 1,
-        title: video.snippet?.title || item.snippet?.title || `Lesson ${index + 1}`,
-        description: video.snippet?.description || "",
+        title,
+        description,
         videoId: video.id,
         channelTitle: video.snippet?.channelTitle || playlist.snippet?.channelTitle || "",
+        channelId: video.snippet?.channelId || playlist.snippet?.channelId || "",
         thumbnail: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.default?.url || "",
         publishedAt: video.snippet?.publishedAt || null,
+        defaultAudioLanguage: video.snippet?.defaultAudioLanguage || video.snippet?.defaultLanguage || "",
         durationSeconds: seconds,
         duration: formatDuration(seconds),
-        url: `https://www.youtube.com/watch?v=${video.id}`,
-        embedUrl: `https://www.youtube.com/embed/${video.id}`
+        viewCount: Number(video.statistics?.viewCount || 0),
+        likeCount: Number(video.statistics?.likeCount || 0),
+        commentCount: Number(video.statistics?.commentCount || 0),
+        privacyStatus: video.status?.privacyStatus || "unknown",
+        embeddable: video.status?.embeddable !== false,
+        regionRestriction: video.contentDetails?.regionRestriction || {},
+        isShort: /(^|[\s#])shorts?([\s#]|$)/i.test(title) && seconds <= 180,
+        url: "https://www.youtube.com/watch?v=" + video.id,
+        embedUrl: "https://www.youtube.com/embed/" + video.id
       };
     })
     .filter(Boolean);
@@ -832,7 +843,10 @@ export async function getPlaylistCourse(playlistId) {
     channelTitle: playlist.snippet?.channelTitle || "",
     channelId: playlist.snippet?.channelId || "",
     thumbnail: playlist.snippet?.thumbnails?.high?.url || playlist.snippet?.thumbnails?.medium?.url || playlist.snippet?.thumbnails?.default?.url || "",
-    itemCount: lessons.length,
+    itemCount: Number(playlist.contentDetails?.itemCount || items.length),
+    totalItemCount: Number(playlist.contentDetails?.itemCount || items.length),
+    observedItemCount: items.length,
+    accessibleLessonCount: lessons.length,
     lessons
   };
 

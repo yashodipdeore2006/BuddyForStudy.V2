@@ -22,7 +22,7 @@ export function useLearningStats(
   progress: Record<string, LearningProgressSource>,
   source: LearningStatsSource | null | undefined,
 ) {
-  const raw = (source ?? {}) as LearningStatsSource;
+  const raw = useMemo(() => (source ?? {}) as LearningStatsSource, [source]);
   const metrics = useMemo(() => {
     const records = Object.values(progress);
     const completedLessons = records.reduce((sum, item) => sum + item.completed_count, 0);

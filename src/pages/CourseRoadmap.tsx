@@ -102,7 +102,7 @@ export default function CourseRoadmap() {
         return;
       }
       const mappedCourse = mapCourse(courseResult[0].value.course);
-      const progressResult = await Promise.allSettled([apiFetch("/api/progress/" + encodeURIComponent(courseId))]);
+      const progressResult = await Promise.allSettled([apiFetch("/api/progress/" + encodeURIComponent(validCourseId))]);
       const progressValue = progressResult[0].status === "fulfilled" ? progressResult[0].value?.progress : null;
       const mappedProgress = progressValue ? mapProgress(progressValue) : null;
       if (active) { setCourse(mappedCourse); setProgress(mappedProgress); setLoading(false); }

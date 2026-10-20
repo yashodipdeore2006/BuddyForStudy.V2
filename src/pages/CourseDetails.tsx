@@ -76,6 +76,7 @@ function cleanLessonTitle(title: string, siblingTitles: string[] = []): string {
 }
 
 function getLessonDurationSeconds(lesson: Course['modules'][number]['lessons'][number]): number {
+  if (Number(lesson.durationSeconds) > 0) return Number(lesson.durationSeconds);
   const tutorialVideos = lesson.tutorial?.videos || [];
   const projectVideos = lesson.project?.videos || [];
   const videos = [...tutorialVideos, ...projectVideos];

@@ -88,12 +88,27 @@ function cleanLessonTitle(title: string, siblingTitles: string[] = []): string {
   return parts.join(' · ');
 }
 
+function parseLessonDuration(value: unknown): number {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (!text) return 0;
+  const iso = text.match(/^pt(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)?$/i);
+  if (iso) return Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
+  const clock = text.match(/^(?:(\\d+):)?(\\d{1,2}):(\\d{2})$/);
+  if (clock) return Number(clock[1] || 0) * 3600 + Number(clock[2] || 0) * 60 + Number(clock[3] || 0);
+  const hours = text.match(/(\\d+(?:\\.\\d+)?)\\s*h/);
+  const minutes = text.match(/(\\d+)\\s*m/);
+  const seconds = text.match(/(\\d+)\\s*s/);
+  return Math.round(Number(hours?.[1] || 0) * 3600 + Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0));
+}
+
 function getLessonDurationSeconds(lesson: Course['modules'][number]['lessons'][number]): number {
   if (Number(lesson.durationSeconds) > 0) return Number(lesson.durationSeconds);
   const tutorialVideos = lesson.tutorial?.videos || [];
   const projectVideos = lesson.project?.videos || [];
   const videos = [...tutorialVideos, ...projectVideos];
-  return videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || 0), 0);
+  const videoDuration = videos.reduce((sum, video) =>
+    sum + Math.max(0, Number(video.durationSeconds) || parseLessonDuration('duration' in video ? video.duration : undefined)), 0);
+  return videoDuration || Math.max(0, parseLessonDuration((lesson as typeof lesson & { duration?: string }).duration));
 }
 
 function formatDurationSeconds(seconds: number): string {

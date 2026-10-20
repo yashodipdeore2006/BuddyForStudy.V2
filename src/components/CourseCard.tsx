@@ -9,6 +9,7 @@ import CourseActionButton from "@/components/CourseActionButton";
 import { getCourseActionState, USER_INTENTS, type CourseActionState } from "@/lib/intents";
 import { routes } from "@/lib/routes";
 import { getCourseNavTargets } from "@/lib/courseNav";
+import { useCourseState } from "@/lib/useCourseState";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -77,6 +78,8 @@ export default function CourseCard({
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
 
+  const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id));
+
   useEffect(() => {
     let active = true;
     setSaved(initiallySaved);
@@ -84,53 +87,27 @@ export default function CourseCard({
       setEnrollmentState(initiallyCompleted ? "completed" : initiallyEnrolled ? "active" : "not-enrolled");
       return () => { active = false; };
     }
-
     apiFetch("/api/saved-courses")
       .then((data) => {
         if (!active) return;
         const ids = new Set<string>((data.savedCourses ?? []).map(normalizeCourseId).filter(Boolean));
         setSaved(ids.has(String(course.id).toLowerCase()));
       })
-      .catch((error) => {
-        if (active) setActionError(error instanceof Error ? "Saved status is temporarily unavailable." : "Saved status could not be loaded.");
+      .catch(() => {
+        if (active) setActionError("Saved status is temporarily unavailable.");
       });
-
-    apiFetch("/api/enrollments")
-      .then(async (data) => {
-        if (!active) return;
-        const enrollment = (data.enrollments ?? []).find((item: any) => normalizeCourseId(item) === String(course.id).toLowerCase());
-        if (!enrollment || !["active", "completed"].includes(String(enrollment.status).toLowerCase())) {
-          setEnrollmentState("not-enrolled");
-          return;
-        }
-
-        const completed = String(enrollment.status).toLowerCase() === "completed";
-        setEnrollmentState(completed ? "completed" : "active");
-        try {
-          const response = await apiFetch("/api/progress/" + course.id);
-          if (!active) return;
-          const raw = response.progress ?? {};
-          const rawCompleted = Array.isArray(raw.completedLessons) ? raw.completedLessons : Array.isArray(raw.completed_lessons) ? raw.completed_lessons : [];
-          const completedIds = new Set(rawCompleted.map((item: any) => String(item.lessonId ?? item.lesson_id ?? "")));
-          const nextLesson = getAllLessonsFlat(course.modules).find((lesson) => !completedIds.has(String(lesson.id)));
-          const completedCount = Number(raw.completedCount ?? raw.completed_count ?? completedIds.size);
-          const totalCount = Number(raw.totalLessons ?? raw.total_lessons ?? lessonCount ?? 0);
-          const percentage = Math.max(0, Math.min(100, Number(raw.percentage ?? (totalCount ? completedCount / totalCount * 100 : 0))));
-          setCompletedLessons(completedCount);
-          setTotalLessons(totalCount);
-          setProgress(percentage);
-          setNextLessonId(nextLesson ? String(nextLesson.id) : null);
-          if (completed || percentage >= 100) setEnrollmentState("completed");
-        } catch (error) {
-          if (active) setActionError(error instanceof Error ? "Course progress is temporarily unavailable." : "Course progress could not be loaded.");
-        }
-      })
-      .catch((error) => {
-        if (active) setActionError(error instanceof Error ? "Enrollment status is temporarily unavailable." : "Enrollment status could not be loaded.");
-      });
-
     return () => { active = false; };
-  }, [course.id, course.modules, initiallyCompleted, initiallyEnrolled, initiallySaved, lessonCount, session?.user?.id]);
+  }, [course.id, initiallyCompleted, initiallyEnrolled, initiallySaved, session?.user?.id]);
+
+  useEffect(() => {
+    if (courseState.loading) return;
+    setEnrollmentState(courseState.isCompleted ? "completed" : courseState.isEnrolled ? "active" : "not-enrolled");
+    setProgress(courseState.progressPct);
+    setCompletedLessons(courseState.completedLessons);
+    setTotalLessons(courseState.totalLessons || lessonCount || 0);
+    setNextLessonId(courseState.nextLessonId);
+    if (courseState.error) setActionError(courseState.error);
+  }, [courseState.loading, courseState.isCompleted, courseState.isEnrolled, courseState.progressPct, courseState.completedLessons, courseState.totalLessons, courseState.nextLessonId, courseState.error, lessonCount]);
 
   const paid = course.pricing?.mode === "paid";
   const actionState: CourseActionState = useMemo(() => getCourseActionState({

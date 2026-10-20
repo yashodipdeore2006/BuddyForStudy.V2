@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, BookOpen, CheckCircle2, Clock3, GraduationCap } from "lucide-react";
+import { Bookmark, BookOpen, CheckCircle2, Clock3 } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -227,6 +227,13 @@ export default function CourseCard({
   };
 
   const displayOutcome = course.description.trim();
+  const coverCategory = (course.category || "").toLowerCase();
+  const coverPalette = /data|analytics|sql|database/.test(coverCategory) ? "data"
+    : /design|ui|ux|art/.test(coverCategory) ? "design"
+      : /business|finance|marketing/.test(coverCategory) ? "business"
+        : /ai|machine|python|program/.test(coverCategory) ? "technology"
+          : "learning";
+  const coverWords = course.title.trim().split(/\\s+/).slice(0, 2).join(" ") || "Keep learning";
   const displayCategory = /^ai\\s+course\\s+search$/i.test(course.category || "")
     ? "AI and machine learning"
     : course.category;
@@ -253,7 +260,7 @@ export default function CourseCard({
         {course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
-          <div className="bfs-course-card__fallback"><GraduationCap size={32} aria-hidden="true" /></div>
+          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><BookOpen className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /><span className="bfs-course-card__fallback-title">{coverWords}</span></div>
         )}
         <span className="bfs-sr-only">{course.level || "All levels"}</span>
         <button

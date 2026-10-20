@@ -222,7 +222,7 @@ export default function YouTubeSearchFallback({
           event,
           resourceType: resource.sourceType,
           resourceId: resource.sourceId,
-          engineVersion: curationMeta?.version || "course-curation-decision-engine-v1",
+          engineVersion: curationMeta?.version || "course-curation-decision-engine-v1.2",
           rank: rankOverride ?? (inferredRank >= 0 ? inferredRank + 1 : undefined),
           score: resource.score,
         }),

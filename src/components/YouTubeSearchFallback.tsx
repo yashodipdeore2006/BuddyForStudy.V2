@@ -208,7 +208,7 @@ export default function YouTubeSearchFallback({
     rankOverride?: number
   ) => {
     const resource = curatedResources?.find((item) => item.id === resourceId);
-    if (!session) {
+    if (!session && event !== "preview") {
       if (event === "thumbs_up" || event === "thumbs_down" || event === "outdated") requireSignIn();
       return false;
     }

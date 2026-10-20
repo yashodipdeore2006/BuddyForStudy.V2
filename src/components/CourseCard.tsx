@@ -129,6 +129,7 @@ export default function CourseCard({
 
   const handleSave = useCallback(async () => {
     if (saving) return;
+    setUndoSavedTo(null);
     if (!session) {
       navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
       return;
@@ -183,6 +184,7 @@ export default function CourseCard({
 
   const handlePrimaryAction = async () => {
     if (actionLoading) return;
+    setUndoSavedTo(null);
     setActionError("");
     setActionNotice("");
     if (!session && enrollmentState === "not-enrolled") {

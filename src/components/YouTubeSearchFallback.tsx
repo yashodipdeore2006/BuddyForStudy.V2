@@ -638,24 +638,6 @@ export default function YouTubeSearchFallback({
                         </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => void openCourse(course)}
-                        disabled={openingId === course.id}
-                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
-                      >
-                        {openingId === course.id ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Opening...
-                          </>
-                        ) : (
-                          <>
-                            <PlayCircle className="h-4 w-4" />
-                            Preview
-                          </>
-                        )}
-                      </button>
                     </div>
                   </article>
                 ))}
@@ -759,14 +741,6 @@ export default function YouTubeSearchFallback({
                         </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => openVideo(course)}
-                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
-                      >
-                        <PlayCircle className="h-4 w-4" />
-                        Preview
-                      </button>
                     </div>
                   </article>
                 ))}
@@ -887,41 +861,6 @@ export default function YouTubeSearchFallback({
                           </button>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const course = builtCourses.find(
-                              (item) =>
-                                item.sourceType === "playlist" &&
-                                item.sourceId === playlist.playlistId
-                            ) || {
-                              id: `playlist-course-${playlist.playlistId}`,
-                              title: playlist.title,
-                              description: playlist.description,
-                              thumbnail: playlist.thumbnail,
-                              channelTitle: playlist.channelTitle,
-                              sourceType: "playlist" as const,
-                              sourceId: playlist.playlistId,
-                              lessons: [],
-                              itemCount: playlist.itemCount,
-                            };
-                            void openCourse(course);
-                          }}
-                          disabled={openingId === `playlist-course-${playlist.playlistId}`}
-                          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
-                        >
-                          {openingId === `playlist-course-${playlist.playlistId}` ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              Opening...
-                            </>
-                          ) : (
-                            <>
-                              <PlayCircle className="h-4 w-4" />
-                              Preview
-                            </>
-                          )}
-                        </button>
                       </div>
                     </article>
                   );

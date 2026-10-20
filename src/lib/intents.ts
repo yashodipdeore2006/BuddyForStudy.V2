@@ -65,3 +65,7 @@ export function getCourseActionState({
   if (progressPercentage > 0) return "in-progress";
   return "not-started";
 }
+
+export function pluralize(count: number, singular: string, plural = singular + "s"): string {
+  return count === 1 ? singular : plural;
+}

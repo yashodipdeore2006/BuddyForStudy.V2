@@ -7,12 +7,21 @@ import PageHeader from '@/components/PageHeader';
 import { GraduationCap, Play, Map, Clock, CheckCircle2, MoreHorizontal, Info } from 'lucide-react';
 import { routes } from '@/lib/routes';
 import { getAllLessonsFlat } from '@/lib/courseUtils';
+import { useCourseState } from '@/lib/useCourseState';
 
 function mapCourse(raw: any): Course {
   return { id: String(raw._id ?? raw.id), title: raw.title, slug: raw.slug, description: raw.description, category: raw.category, level: raw.level, duration: String(raw.duration ?? ''), thumbnail: raw.thumbnail ?? null, learning_outcomes: raw.learningOutcomes ?? [], modules: raw.modules ?? [], is_published: raw.isPublished ?? true, pricing: raw.pricing, created_by: raw.createdBy ?? null, created_at: raw.createdAt ?? '', updated_at: raw.updatedAt ?? '' };
 }
 function mapEnrollment(raw: any): Enrollment {
   return { id: String(raw._id ?? raw.id), user_id: String(raw.user ?? raw.user_id), course_id: String(raw.course?._id ?? raw.course_id), status: raw.status, enrolled_at: raw.enrolledAt ?? raw.enrolled_at, created_at: raw.createdAt ?? '', updated_at: raw.updatedAt ?? '', course: raw.course ? mapCourse(raw.course) : undefined };
+}
+
+function CoursePrimaryAction({ course, completed }: { course: Course; completed: boolean }) {
+  const state = useCourseState(course.id, course, true);
+  const label = completed || state.isCompleted ? "Review" : state.progressPct > 0 ? "Continue" : "Start";
+  return <Link to={routes.learn(course.id, state.nextLessonId)} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#5b3fd9] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#4a2fb8]">
+    <Play className="h-4 w-4" />{label}
+  </Link>;
 }
 
 export default function MyCourses() {
@@ -76,9 +85,7 @@ export default function MyCourses() {
             <p className="mt-2 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-slate-500">{course.description || 'Continue your learning journey with this course.'}</p>
             <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500"><Clock className="h-4 w-4 shrink-0" /><span className="truncate">{course.duration || 'Self-paced'}</span>{isCompleted && <CheckCircle2 className="ml-auto h-4 w-4 shrink-0 text-emerald-600" />}</div>
             <div className="mt-auto flex items-center gap-2 pt-4">
-              <Link to={learnUrl} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full bg-[#5b3fd9] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#4a2fb8]">
-                <Play className="h-4 w-4" />{isCompleted ? 'Review' : 'Continue'}
-              </Link>
+              <CoursePrimaryAction course={course} completed={isCompleted} />
               <details className="relative">
                 <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500" aria-label={`More actions for ${course.title}`} title="More actions">
                   <MoreHorizontal className="h-5 w-5" />

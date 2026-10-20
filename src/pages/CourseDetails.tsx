@@ -16,7 +16,6 @@ import {
   AlertCircle,
   Loader2,
   ListChecks,
-  Map,
   Star,
   ShieldCheck,
   Video,
@@ -30,6 +29,12 @@ import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
+import {
+  courseTimestampNotesKey,
+  formatMediaTimestamp,
+  loadTimestampedCourseNotes,
+  type TimestampedCourseNote,
+} from "@/lib/courseNotes";
 
 function formatCoursePrice(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
@@ -150,11 +155,13 @@ export default function CourseDetails() {
   const [courseNotes, setCourseNotes] = useState('');
   const [notesStorageReady, setNotesStorageReady] = useState(false);
   const [loadedNotesKey, setLoadedNotesKey] = useState('');
+  const [timestampedNotes, setTimestampedNotes] = useState<TimestampedCourseNote[]>([]);
   const [relatedCourses, setRelatedCourses] = useState<RelatedCourseCard[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [showStickyMiniHeader, setShowStickyMiniHeader] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const notesStorageKey = courseId ? 'bfs-course-notes:' + String(session?.user?.id || 'anonymous') + ':' + courseId : '';
+  const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || 'anonymous'), courseId) : '';
 
   useEffect(() => {
     setNotesStorageReady(false);
@@ -174,6 +181,10 @@ export default function CourseDetails() {
     if (!notesStorageReady || !notesStorageKey || loadedNotesKey !== notesStorageKey) return;
     try { window.localStorage.setItem(notesStorageKey, courseNotes); } catch { /* Keep notes usable for the current page if storage is unavailable. */ }
   }, [courseNotes, loadedNotesKey, notesStorageKey, notesStorageReady]);
+
+  useEffect(() => {
+    setTimestampedNotes(timestampNotesKey ? loadTimestampedCourseNotes(timestampNotesKey) : []);
+  }, [timestampNotesKey]);
 
   useEffect(() => {
     if (!course?.id) return;
@@ -344,6 +355,7 @@ export default function CourseDetails() {
             });
             const enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
             setEnrollment(enrollmentData.enrollment);
+            window.dispatchEvent(new CustomEvent("bfs:course-enrollment-updated", { detail: { courseId: String(courseId), status: String(enrollmentData.enrollment?.status || "active") } }));
             setCheckoutNotice('Payment successful. This course is now in your learning library.');
             setError(null);
           } catch (err) {
@@ -371,6 +383,7 @@ export default function CourseDetails() {
     try {
       const data = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
       setEnrollment(data.enrollment);
+      window.dispatchEvent(new CustomEvent("bfs:course-enrollment-updated", { detail: { courseId: String(courseId), status: String(data.enrollment?.status || "active") } }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to enroll. Please try again.');
     } finally { setEnrolling(false); }
@@ -597,7 +610,7 @@ export default function CourseDetails() {
             <button type="button" onClick={handleStartLearning} className="btn-primary max-w-full">
               {isCompleted ? 'Review course' : progressPct > 0 ? 'Continue: ' + cleanLessonTitle(nextLesson?.title || 'learning', flatLessons.map((lesson) => lesson.title)) : 'Start learning'} <ChevronRight className="h-4 w-4 shrink-0" />
             </button>
-            {hasRoadmap && <Link to={routes.roadmap(course.id)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" />Open roadmap</Link>}
+
           </div>
         </section>
 
@@ -637,6 +650,15 @@ export default function CourseDetails() {
               <div className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-900">Recent notes</p>
                 {courseNotes.trim() ? <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-slate-600">{courseNotes.trim()}</p> : <p className="mt-2 text-sm leading-6 text-slate-500">Your course notes will appear here after you save them.</p>}
+                {timestampedNotes.length > 0 && <div className="mt-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest lesson notes</p>
+                  {timestampedNotes.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3).map((note) => (
+                    <Link key={note.id} to={routes.learn(course.id, note.lessonId)} className="block rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50">
+                      <span className="flex items-center justify-between gap-2 text-xs font-semibold text-violet-700"><span className="line-clamp-1">{note.lessonTitle}</span><span>{formatMediaTimestamp(note.timestampSeconds)}</span></span>
+                      <span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-600">{note.content}</span>
+                    </Link>
+                  ))}
+                </div>}
                 <button type="button" onClick={() => setCourseTab('notes')} className="mt-3 text-sm font-semibold text-violet-700 hover:text-violet-900">Open notes</button>
               </div>
               {isEnrolled && progressPct >= 25 && session && !reviews.some((review) => String(review.user?._id ?? review.user?.id ?? '') === String(session.user.id)) && (
@@ -709,7 +731,38 @@ export default function CourseDetails() {
             </div>
           </>}
           {activeTab === 'about' && <div><h2 className="text-xl font-semibold text-slate-950">About this course</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{getCourseCardDescription(course)}</p>{outcomes.length > 0 && <><h3 className="mt-6 font-semibold text-slate-900">Learning outcomes</h3><ul className="mt-3 grid gap-3 sm:grid-cols-2">{outcomes.map((outcome, index) => <li key={index} className="flex gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{outcome}</li>)}</ul></>}{creatorName && <div className="mt-7 rounded-xl bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source creator</p><p className="mt-1 font-semibold text-slate-900">{creatorName}</p></div>}</div>}
-          {activeTab === 'notes' && <div><h2 className="text-xl font-semibold text-slate-950">Your notes</h2><p className="mt-2 text-sm text-slate-600">Notes are saved in this browser for this account and course. Use them to capture key concepts, questions, and items to revisit.</p><textarea value={courseNotes} onChange={(event) => setCourseNotes(event.target.value)} placeholder="Capture key concepts, questions, or things to revisit…" className="input-field mt-4 min-h-48 w-full resize-y text-sm" aria-label="Course notes" /></div>}
+          {activeTab === 'notes' && <div>
+            <h2 className="text-xl font-semibold text-slate-950">Your notes</h2>
+            <p className="mt-2 text-sm text-slate-600">Course notes and timestamped notes are saved in this browser for this account and course.</p>
+            <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="course-wide-notes">Course notes</label>
+            <textarea id="course-wide-notes" value={courseNotes} onChange={(event) => setCourseNotes(event.target.value)} placeholder="Capture key concepts, questions, or items to revisit…" className="input-field mt-2 min-h-36 w-full resize-y text-sm" aria-label="Course notes" />
+            <section className="mt-8" aria-labelledby="timestamped-course-notes-title">
+              <h3 id="timestamped-course-notes-title" className="text-lg font-semibold text-slate-950">Notes by lesson</h3>
+              {timestampedNotes.length === 0 ? <p className="mt-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No timestamped lesson notes yet. Open a lesson and save a note at the relevant timestamp.</p> : (
+                <div className="mt-3 space-y-4">
+                  {Array.from(new Map(timestampedNotes.map((note) => [note.lessonId, note.lessonTitle])).entries()).map(([lessonKey, lessonTitle]) => (
+                    <section key={lessonKey} className="overflow-hidden rounded-xl border border-slate-200">
+                      <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
+                        <h4 className="font-semibold text-slate-900">{lessonTitle}</h4>
+                        <Link to={routes.learn(course.id, lessonKey)} className="shrink-0 text-xs font-semibold text-violet-700 hover:underline">Open lesson</Link>
+                      </div>
+                      <ul className="divide-y divide-slate-100">
+                        {timestampedNotes.filter((note) => note.lessonId === lessonKey).sort((a, b) => a.timestampSeconds - b.timestampSeconds).map((note) => (
+                          <li key={note.id} className="flex items-start gap-3 p-4">
+                            <span className="shrink-0 rounded-lg bg-violet-50 px-2 py-1 text-xs font-bold text-violet-700">{formatMediaTimestamp(note.timestampSeconds)}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{note.content}</p>
+                              <p className="mt-1 text-xs text-slate-400">{formatDate(note.createdAt)}</p>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>}
         </section>
 
         {courseView === 'completion' && <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7">

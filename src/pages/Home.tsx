@@ -108,7 +108,7 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [fatalErrorStatus, setFatalErrorStatus] = useState<number | null>(null);
-  const [sectionErrors, setSectionErrors] = useState<string[]>([]);
+  const [sectionErrors, setSectionErrors] = useState({ enrollments: '', recommendations: '', stats: '', progress: [] as string[], refresh: '' });
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
 
   const loadHome = useCallback(async (isRefresh = false) => {
@@ -125,7 +125,7 @@ export default function Home() {
     setFatalErrorStatus(null);
     setSectionErrors([]);
 
-    const partialErrors: string[] = [];
+    const partialErrors = { enrollments: '', recommendations: '', stats: '', progress: [] as string[], refresh: '' };
     const results = await Promise.allSettled([
       apiFetch('/api/enrollments'),
       apiFetch('/api/courses?limit=24'),
@@ -135,23 +135,23 @@ export default function Home() {
     const courseResult = results[1];
     const statsResult = results[2];
     const rawEnrollments = enrollmentResult.status === 'fulfilled' ? (enrollmentResult.value.enrollments ?? []) : [];
-    if (enrollmentResult.status === 'rejected') partialErrors.push('Your enrolled courses could not be loaded.');
+    if (enrollmentResult.status === 'rejected') partialErrors.enrollments = 'Your enrolled courses could not be loaded.';
     const enrollments = rawEnrollments.map(mapEnrollment)
       .filter((item: EnrollmentRecord | null): item is EnrollmentRecord => Boolean(item))
       .filter((item: EnrollmentRecord) => ['active', 'completed'].includes(item.status));
     const courses = courseResult.status === 'fulfilled'
       ? (courseResult.value.courses ?? []).map(mapCourse).filter((course: Course) => Boolean(course.id))
       : [];
-    if (courseResult.status === 'rejected') partialErrors.push('Recommended courses could not be loaded.');
+    if (courseResult.status === 'rejected') partialErrors.recommendations = 'Recommended courses could not be loaded.';
     const learningStats = statsResult.status === 'fulfilled' ? (statsResult.value.stats ?? null) : null;
-    if (statsResult.status === 'rejected') partialErrors.push('Learning summary is temporarily unavailable.');
+    if (statsResult.status === 'rejected') partialErrors.stats = 'Learning summary is temporarily unavailable.';
 
     const progressEntries = await Promise.all(enrollments.map(async (enrollment: EnrollmentRecord) => {
       try {
         const response = await apiFetch('/api/progress/' + enrollment.course_id);
         return [enrollment.course_id, mapProgress(response.progress, enrollment.course_id, enrollment.course)] as const;
       } catch {
-        partialErrors.push('Progress for ' + enrollment.course.title + ' could not be loaded.');
+        partialErrors.progress.push('Progress for ' + enrollment.course.title + ' could not be loaded.');
         return null;
       }
     }));
@@ -164,11 +164,11 @@ export default function Home() {
       if (!isRefresh) {
         setFatalErrorStatus(status);
         setError(status === 403 ? 'Your account does not have permission to access this learning data.' : status === 404 ? 'Some learning data could not be found. It may have moved or been removed.' : 'We couldn’t load your learning home. Check your connection and try again.');
-      } else partialErrors.push('Refresh failed. The last available data is still shown.');
+      } else partialErrors.refresh = 'Refresh failed. The last available data is still shown.';
     } else {
       setData({ enrollments, progress, courses, learningStats });
     }
-    setSectionErrors([...new Set(partialErrors)]);
+    setSectionErrors(partialErrors);
     setLoading(false);
     setRefreshing(false);
   }, [session]);
@@ -244,13 +244,14 @@ export default function Home() {
         {resumeEnrollment && <Link className="user-home__button" to={resumeUrl}>Continue: {resumeEnrollment.course.title} <ArrowRight size={16} aria-hidden="true" /></Link>}
       </section>
 
-      {sectionErrors.length > 0 && <div className="user-home__alert user-home__alert--error" role="alert">
-        <span>{sectionErrors.join(' ')}</span>
+      {sectionErrors.refresh && <div className="user-home__alert user-home__alert--error" role="alert">
+        <span>{sectionErrors.refresh}</span>
         <button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button>
       </div>}
 
       <section className="user-home__section" aria-labelledby="resume-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="resume-heading">Pick up where you left off</h2></div>
+        {(sectionErrors.enrollments || sectionErrors.progress.length > 0) && <div className="user-home__alert user-home__alert--error" role="alert"><span>{[sectionErrors.enrollments, ...sectionErrors.progress].filter(Boolean).join(" ")}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button></div>}
         {resumeEnrollment && resumeProgress ? <article className="user-home__panel user-home__resume">
           <Cover course={resumeEnrollment.course} className="user-home__cover" />
           <div className="user-home__resume-content">
@@ -280,6 +281,7 @@ export default function Home() {
 
       <section className="user-home__panel" aria-labelledby="stats-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="stats-heading">Your learning at a glance</h2><Link className="user-home__link" to="/profile">{USER_INTENTS.seeAll.label} <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        {sectionErrors.stats && <div className="user-home__alert user-home__alert--error" role="alert"><span>{sectionErrors.stats}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button></div>}
         <div className="user-home__stats">
           <div className="user-home__stat"><div className="user-home__stat-icon"><BookOpen size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{data.enrollments.length}</p><p className="user-home__stat-label">Courses enrolled</p></div></div>
           <div className="user-home__stat"><div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div></div>
@@ -342,6 +344,7 @@ export default function Home() {
 
       <section className="user-home__section" aria-labelledby="continue-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="continue-heading">Continue learning</h2><Link className="user-home__link" to="/my-courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        {sectionErrors.progress.length > 0 && <div className="user-home__alert user-home__alert--error" role="alert"><span>Some course progress is unavailable.</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>}
         {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
           ? <div className="user-home__compact-list">{inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).map((item) => {
             const progress = data.progress[item.course_id];
@@ -356,7 +359,9 @@ export default function Home() {
 
       <section className="user-home__section" aria-labelledby="picked-heading">
         <div className="user-home__heading"><div><h2 className="user-home__title" id="picked-heading">Picked for you</h2><p className="user-home__meta">Courses you haven’t enrolled in yet.</p></div><Link className="user-home__link" to="/courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
-        {recommendations.length > 0
+        {sectionErrors.recommendations
+          ? <div className="user-home__alert user-home__alert--error" role="alert"><span>{sectionErrors.recommendations}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>
+          : recommendations.length > 0
           ? <div className="user-home__course-grid">{recommendations.map((course) => {
             const relatedCategory = resumeEnrollment?.course.category;
             const reason = relatedCategory && course.category?.toLowerCase() === relatedCategory.toLowerCase()
@@ -364,7 +369,7 @@ export default function Home() {
               : course.category ? 'Explore ' + course.category : 'Explore this learning path';
             return <div key={course.id} className="min-w-0"><CourseCard course={course} variant="recommended" reason={reason} /></div>;
           })}</div>
-          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)} aria-label="Retry recommendations">{USER_INTENTS.retry.label}</button>}</div>}
+          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link></div>}
       </section>
     </div>
   </main>;

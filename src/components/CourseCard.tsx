@@ -74,7 +74,6 @@ export default function CourseCard({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
-  const [undoSaveValue, setUndoSaveValue] = useState<boolean | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -151,7 +150,6 @@ export default function CourseCard({
     setSaving(true);
     setActionError("");
     setActionNotice("");
-    setUndoSaveValue(previous);
     try {
       if (next) {
         await apiFetch("/api/saved-courses", { method: "POST", body: JSON.stringify({ courseId: course.id }) });
@@ -162,34 +160,11 @@ export default function CourseCard({
       setActionNotice(next ? "Saved for later." : "Removed from Saved.");
     } catch (error) {
       setSaved(previous);
-      setUndoSaveValue(null);
       setActionError(error instanceof Error ? error.message : "Unable to update your saved courses. Check your connection and retry.");
     } finally {
       setSaving(false);
     }
   }, [course.id, navigate, onSavedChange, saved, saving, session]);
-
-  const handleUndoSave = async () => {
-    if (undoSaveValue === null || saving || !session) return;
-    const target = undoSaveValue;
-    setSaving(true);
-    setActionError("");
-    try {
-      if (target) {
-        await apiFetch("/api/saved-courses", { method: "POST", body: JSON.stringify({ courseId: course.id }) });
-      } else {
-        await apiFetch("/api/saved-courses/" + course.id, { method: "DELETE" });
-      }
-      setSaved(target);
-      setUndoSaveValue(null);
-      setActionNotice(target ? "Course restored to Saved." : "Course removed from Saved.");
-      onSavedChange?.(course.id, target);
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Undo failed. Please retry.");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handlePrimaryAction = async () => {
     if (actionLoading) return;

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   Bookmark, GraduationCap, Info, Map,
   MoreHorizontal, Play, RotateCcw, Search, Trash2, X,
-  Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users,
+  Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users, Star, Share2,
 } from "lucide-react";
 import type { Course, Enrollment } from "@/types";
 import EmptyState from "@/components/EmptyState";
@@ -12,6 +12,7 @@ import { routes } from "@/lib/routes";
 import { getAllLessonsFlat } from "@/lib/courseUtils";
 import { useCourseState } from "@/lib/useCourseState";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
+import { shareCourseLink } from "@/lib/shareCourse";
 
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
@@ -97,6 +98,7 @@ function CourseLearningCard({
   const state = useCourseState(course.id, course, true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [shareNotice, setShareNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const lessons = getAllLessonsFlat(course.modules);
@@ -173,6 +175,12 @@ function CourseLearningCard({
 
   const formatCompactCount = (value: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 
+  const handleShare = async () => {
+    const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });
+    setShareNotice(result === "shared" ? "Course shared." : result === "copied" ? "Course link copied." : "Unable to share this course.");
+    if (result !== "failed") window.setTimeout(() => setShareNotice(""), 2500);
+  };
+
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
       <Link to={learnHref} className="bfs-course-card__stretch-link" aria-label={"Open " + course.title}>
@@ -209,6 +217,13 @@ function CourseLearningCard({
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         <p className="bfs-course-card__outcome" title={description}>{description}</p>
 
+        {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0 && (
+          <div className="bfs-course-card__rating" aria-label={Number(course.ratingAverage).toFixed(1) + " out of 5, " + course.ratingCount + " reviews"}>
+            <Star size={14} fill="currentColor" aria-hidden="true" />
+            <strong>{Number(course.ratingAverage).toFixed(1)}</strong>
+            <span>({formatCompactCount(Number(course.ratingCount))} {Number(course.ratingCount) === 1 ? "rating" : "ratings"})</span>
+          </div>
+        )}
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (
           <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
             {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
@@ -222,12 +237,14 @@ function CourseLearningCard({
 
       {state.error && <p className="bfs-course-card__error" role="status">Progress may be out of date. <button type="button" className="bfs-course-card__undo" style={{ position: "relative", zIndex: 4, pointerEvents: "auto" }} onClick={() => window.location.reload()}>Refresh</button></p>}
       {saveError && <p className="bfs-course-card__error" role="alert">{saveError}</p>}
+      {shareNotice && <p className="bfs-course-card__status" role="status">{shareNotice}</p>}
 
       <div className="bfs-course-card__action-row">
         <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
           {isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(price)}
           {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > price && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
         </span>
+        <button type="button" onClick={() => void handleShare()} className="bfs-course-card__share" aria-label={"Share " + course.title} title="Share course"><Share2 size={16} aria-hidden="true" /></button>
         <Link to={learnHref} className="bfs-course-action bfs-course-action--outline" aria-label={primaryLabel + " " + course.title}>
           <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}
         </Link>

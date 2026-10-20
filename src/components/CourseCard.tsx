@@ -7,6 +7,8 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import CourseActionButton from "@/components/CourseActionButton";
 import { getCourseActionState, USER_INTENTS, type CourseActionState } from "@/lib/intents";
+import { routes } from "@/lib/routes";
+import { getCourseNavTargets } from "@/lib/courseNav";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -141,7 +143,7 @@ export default function CourseCard({
   const handleSave = useCallback(async () => {
     if (saving) return;
     if (!session) {
-      navigate("/login", { state: { from: { pathname: "/courses/" + course.id } } });
+      navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
       return;
     }
     const previous = saved;
@@ -176,7 +178,7 @@ export default function CourseCard({
       return;
     }
     if (actionState === "not-enrolled-paid") {
-      navigate("/courses/" + course.id);
+      navigate(routes.course(course.id));
       return;
     }
     if (actionState === "not-enrolled-free") {
@@ -198,7 +200,7 @@ export default function CourseCard({
       navigate("/courses/" + course.id);
       return;
     }
-    navigate("/learn/" + course.id + (nextLessonId ? "/" + encodeURIComponent(nextLessonId) : ""));
+    navigate(routes.learn(course.id, nextLessonId));
   };
 
   const displayOutcome = course.description.trim();
@@ -220,6 +222,17 @@ export default function CourseCard({
   const compact = variant === "compact";
   const horizontal = variant === "horizontal";
   const showProgress = enrollmentState !== "not-enrolled" || variant === "enrolled";
+  const navTargets = getCourseNavTargets({
+    courseId: String(course.id),
+    isEnrolled: enrollmentState !== "not-enrolled",
+    isCompleted: enrollmentState === "completed",
+    isPaid: paid,
+    progressPct: progress,
+    nextLessonId,
+    hasRoadmap: getAllLessonsFlat(course.modules).length > 0,
+    hasPreview: getAllLessonsFlat(course.modules).some((lesson: any) => lesson.isPreview === true || lesson.is_preview === true),
+    isPublished: course.is_published !== false,
+  });
   const rootClass = [
     "bfs-course-card",
     compact ? "bfs-course-card__compact" : "",
@@ -229,12 +242,12 @@ export default function CourseCard({
   return (
     <article className={rootClass} data-variant={variant}>
       <Link
-        to={"/courses/" + course.id}
+        to={navTargets.cardHref}
         className="bfs-course-card__stretch-link"
-        aria-label={"Open course details for " + course.title}
+        aria-label={enrollmentState === "not-enrolled" ? "Open course details for " + course.title : "Continue learning " + course.title}
         tabIndex={0}
       >
-        <span className="bfs-sr-only">Open course details for {course.title}</span>
+        <span className="bfs-sr-only">{enrollmentState === "not-enrolled" ? "Open course details for " : "Continue learning "}{course.title}</span>
       </Link>
 
       <div className="bfs-course-card__media">
@@ -282,7 +295,7 @@ export default function CourseCard({
       </div>
 
       {actionError && <p className="bfs-course-card__error" role="alert">{actionError}</p>}
-      {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}</div>}
+      {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{enrollmentState !== "not-enrolled" && actionNotice.startsWith("Enrolled in ") && <button type="button" className="ml-2 underline" onClick={() => navigate(routes.learn(course.id))}>Start now</button>}</div>}
       <div className="bfs-course-card__action-row">
         <CourseActionButton
           state={actionState}

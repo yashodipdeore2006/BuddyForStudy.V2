@@ -534,7 +534,7 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
     item.videoId &&
     Number(item.durationSeconds || 0) > 60 &&
     item.embeddable !== false &&
-    item.privacyStatus !== "private" &&
+    item.privacyStatus === "public" &&
     !item.isShort &&
     !/(^|[\s#])shorts?([\s#]|$)/i.test(item.title || "")
   );

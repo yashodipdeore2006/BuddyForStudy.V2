@@ -506,3 +506,23 @@
   .bfs-course-card__action-row { gap:var(--s-2); }
   .bfs-course-action--outline { padding-inline:var(--s-2); }
 }
+/* Compact catalogue cards: remove visual weight from secondary metadata. */
+.bfs-course-card__media { aspect-ratio: 16 / 8.6; min-height: 0; }
+.bfs-course-card__media img { min-height: 0; }
+.bfs-course-card__body { gap: 6px; padding: 10px 12px 8px; }
+.bfs-course-card__type-meta { gap: 6px; font-size: 11px; line-height: 1.25; }
+.bfs-course-card__type-meta .bfs-course-chip { padding: 3px 7px; font-size: 10px; }
+.bfs-course-card__title { -webkit-line-clamp: 2; font-size: 15px; line-height: 1.35; }
+.bfs-course-card__creator { font-size: 11px; line-height: 1.3; }
+.bfs-course-card__outcome { -webkit-line-clamp: 1; font-size: 12px; line-height: 1.4; }
+.bfs-course-card__social-proof { gap: 6px 10px; font-size: 10px; line-height: 1.3; }
+.bfs-course-card__reason { -webkit-line-clamp: 1; margin-bottom: 0; font-size: 11px; line-height: 1.35; }
+.bfs-course-card__action-row { margin-top: 0; gap: 8px; padding: 0 12px 12px; }
+.bfs-course-card__price { font-size: 15px; line-height: 1.2; }
+.bfs-course-card__price del { font-size: 11px; }
+.bfs-course-card__save { width: 34px; height: 34px; }
+.bfs-course-card__media .bfs-course-card__level { padding: 3px 7px; font-size: 10px; }
+@media (max-width: 640px) {
+  .bfs-course-card__body { padding: 9px 10px 7px; }
+  .bfs-course-card__action-row { gap: 7px; padding: 0 10px 10px; }
+}

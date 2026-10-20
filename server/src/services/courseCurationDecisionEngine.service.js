@@ -86,7 +86,7 @@ function clamp(value, min = 0, max = 100) {
 }
 function normalizeText(value) {
   // Preserve Unicode letters and numbers so non-Latin learner queries remain searchable.
-  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}+#.]+/gu, " ").trim().replace(/\s+/g, " ");
+  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{M}\p{N}+#.]+/gu, " ").trim().replace(/\s+/g, " ");
 }
 function tokens(value) {
   return [...new Set(normalizeText(value).split(" ").filter((term) => term.length > 1))];

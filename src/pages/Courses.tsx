@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, type FormEvent } from 'react';
+import { useEffect, useState, useMemo, useRef, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -63,6 +63,9 @@ export default function Courses() {
   const [aiRoadmap, setAiRoadmap] = useState<any>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const aiDialogRef = useRef<HTMLElement | null>(null);
+  const aiLoadingRef = useRef(false);
+  aiLoadingRef.current = aiLoading;
   const [aiTopic, setAiTopic] = useState('');
   const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
   const [aiCustomGoal, setAiCustomGoal] = useState('');
@@ -206,16 +209,40 @@ export default function Courses() {
   useEffect(() => {
     if (!aiOpen) return;
     const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !aiLoading) setAiOpen(false);
+      if (event.key === 'Escape' && !aiLoadingRef.current) {
+        setAiOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const dialog = aiDialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      ));
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [aiOpen, aiLoading]);
+  }, [aiOpen]);
 
   const generateAiRoadmap = async () => {
     const topic = aiTopic.trim();
@@ -424,6 +451,7 @@ export default function Courses() {
           }}
         >
           <section
+            ref={aiDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="ai-builder-title"

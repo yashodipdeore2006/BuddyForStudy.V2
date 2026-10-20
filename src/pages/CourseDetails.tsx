@@ -973,7 +973,7 @@ export default function CourseDetails() {
             </div>
           </section>
 
-          <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7"><div className="mb-4"><h2 className="text-xl font-semibold text-slate-950">Journey roadmap</h2><p className="mt-1 text-sm text-slate-500">Preview the milestones you’ll work through in this course.</p></div><JourneyRoadmap courseId={String(course.id)} enrolled={false} onEnroll={() => void handleEnroll()} onContinue={handleStartLearning} onViewLessons={() => { setCourseTab("curriculum"); }} /></section>
+          <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7"><div className="mb-4"><h2 className="text-xl font-semibold text-slate-950">Journey roadmap</h2><p className="mt-1 text-sm text-slate-500">Preview the milestones you’ll work through in this course.</p></div><JourneyRoadmap courseId={String(course.id)} enrolled={false} onEnroll={() => void handleEnroll()} onContinue={handleStartLearning} onViewLessons={() => { document.getElementById("course-curriculum")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} /></section>
 
           {/* Curriculum */}
           <div className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">

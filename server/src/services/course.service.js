@@ -4,7 +4,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
-import { searchYouTubeCourseRecommendations } from "./youtube.service.js";
+import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
@@ -470,25 +470,26 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       );
     }
 
-    let youtubeCourseRecommendations = [];
+    let curation = { resources: [], meta: { version: "course-curation-decision-engine-v1", resultsShown: 0 } };
     let youtubeError = "";
 
     try {
-      const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
-      const configuredResultCount = Math.max(1, Math.min(50, Number(resultSetting?.value) || 30));
-      youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(
-        normalizedSearch,
-        configuredResultCount
-      );
+      curation = await curateNormalSearch(normalizedSearch);
+      youtubeError = String(curation?.meta?.youtubeError || "");
     } catch (error) {
-      youtubeError =
-        error instanceof Error
-          ? error.message
-          : "YouTube course search is unavailable";
-      console.error("YouTube supplementary search failed", {
+      youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";
+      console.error("Course Curation Decision Engine failed", {
         query: normalizedSearch,
         message: youtubeError
       });
+      curation = {
+        resources: [],
+        meta: {
+          version: "course-curation-decision-engine-v1",
+          resultsShown: 0,
+          error: youtubeError
+        }
+      };
     }
 
     const localTotal = nonModuleDirectCourses.length || localCourses.length;
@@ -505,7 +506,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       discovery: {
         mode: "youtube_supplementary",
         query: normalizedSearch,
-        courseRecommendations: youtubeCourseRecommendations,
+        courseRecommendations: [],
+        curatedResources: curation.resources || [],
+        curationMeta: curation.meta || null,
         youtubeError,
         hasLocalResults
       }

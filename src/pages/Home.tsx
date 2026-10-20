@@ -275,7 +275,7 @@ export default function Home() {
           <div className="user-home__empty-icon"><GraduationCap size={24} aria-hidden="true" /></div>
           <h3>{session ? 'No course in progress yet' : 'Your learning journey starts here'}</h3>
           <p>{session ? 'Explore a course or build a learning path. Your next step will appear here.' : 'Sign in to keep your courses, progress and next lesson together.'}</p>
-          <div className="user-home__actions"><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/register"><Sparkles size={16} aria-hidden="true" /> {USER_INTENTS.buildPath.label}</Link></div>
+          <div className="user-home__actions"><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/explore?build=1"><Sparkles size={16} aria-hidden="true" /> {USER_INTENTS.buildPath.label}</Link></div>
         </div>}
       </section>
 

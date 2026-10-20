@@ -264,7 +264,6 @@ export default function Home() {
             ? 'You’re ' + Math.max(0, resumeProgress.total_lessons - resumeProgress.completed_count) + ' ' + pluralize(Math.max(0, resumeProgress.total_lessons - resumeProgress.completed_count), 'lesson') + ' from finishing ' + resumeEnrollment.course.title + '.'
             : 'Your next step is ready when you are.'}</p>
         </div>
-        {resumeEnrollment && <Link className="user-home__button" to={resumeUrl}>Continue: {resumeEnrollment.course.title} <ArrowRight size={16} aria-hidden="true" /></Link>}
       </section>
 
       {sectionErrors.refresh && <div className="user-home__alert user-home__alert--error" role="alert">

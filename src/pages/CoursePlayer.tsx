@@ -136,7 +136,7 @@ export default function CoursePlayer() {
   const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
   const [practiceQuizError, setPracticeQuizError] = useState("");
   const practiceAutoAttemptRef = useRef("");
-  const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz">("lesson");
+  const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
   const [noteTimestamp, setNoteTimestamp] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [timestampNotes, setTimestampNotes] = useState<TimestampedCourseNote[]>([]);
@@ -765,6 +765,7 @@ export default function CoursePlayer() {
                       { id: "lesson", label: "Lesson" },
                       { id: "progress", label: "Progress" },
                       { id: "quiz", label: "Quiz" },
+                      { id: "notes", label: "Notes" },
                     ] as const).map((tab) => (
                       <button key={tab.id} type="button" role="tab" aria-selected={lessonTab === tab.id} onClick={() => setLessonTab(tab.id)}
                         className={classNames("pb-3 text-sm font-semibold transition", lessonTab === tab.id ? "border-b-2 border-blue-600 font-bold text-blue-600" : "text-slate-400 hover:text-slate-700")}>
@@ -859,41 +860,47 @@ export default function CoursePlayer() {
                         <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progressPct}%` }} /></div>
                       </section>
                     )}
+                    {lessonTab === "notes" && (
+                      <section aria-labelledby="timestamp-notes-title" className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 sm:p-5">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700"><FileText className="h-5 w-5" aria-hidden="true" /></span>
+                          <div className="min-w-0 flex-1">
+                            <h2 id="timestamp-notes-title" className="font-semibold text-slate-950">Timestamped notes</h2>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">Save a thought at the video timestamp so you can return to the exact moment. Notes are stored in this browser for this account and course.</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
+                          <label className="block text-xs font-semibold text-slate-600">Timestamp
+                            <input value={noteTimestamp} onChange={(event) => setNoteTimestamp(event.target.value)} placeholder="mm:ss" inputMode="numeric" className="input-field mt-1 w-full text-sm" aria-describedby="timestamp-note-help" />
+                            <span id="timestamp-note-help" className="mt-1 block font-normal text-slate-500">mm:ss or hh:mm:ss</span>
+                          </label>
+                          <label className="block text-xs font-semibold text-slate-600">Your note
+                            <textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} maxLength={3000} rows={4} placeholder="Capture a key idea, example, or question…" className="input-field mt-1 w-full resize-y text-sm" />
+                          </label>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-xs text-slate-500" aria-live="polite">{noteNotice || "Current lesson: " + cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}</div>
+                          <button type="button" onClick={saveLessonNote} className="btn-primary inline-flex items-center justify-center gap-2" disabled={!notesStorageReady || !noteDraft.trim()}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
+                        </div>
+                        {noteError && <p className="mt-2 text-sm text-red-700" role="alert">{noteError}</p>}
+                        {currentLessonNotes.length > 0 ? (
+                          <div className="mt-5 space-y-2">
+                            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{currentLessonNotes.length} saved {currentLessonNotes.length === 1 ? "note" : "notes"}</h3>
+                            {currentLessonNotes.map((note) => (
+                              <article key={note.id} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                                <a href={currentLesson.lesson.tutorial?.videos?.[0]?.videoId ? "https://www.youtube.com/watch?v=" + encodeURIComponent(currentLesson.lesson.tutorial.videos[0].videoId) + "&t=" + note.timestampSeconds + "s" : undefined} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100" aria-label={"Open source video at " + formatMediaTimestamp(note.timestampSeconds)}><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{formatMediaTimestamp(note.timestampSeconds)}</a>
+                                <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{note.content}</p>
+                                <button type="button" onClick={() => deleteLessonNote(note.id)} className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-700" aria-label="Delete note"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                              </article>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-5 rounded-xl border border-dashed border-blue-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">No notes for this lesson yet. Add a timestamp and capture your first note.</p>
+                        )}
+                      </section>
+                    )}
                     {lessonTab === "lesson" && (
                       <div className="space-y-4">
-                    <section aria-labelledby="timestamp-notes-title" className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 sm:p-5">
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700"><FileText className="h-5 w-5" aria-hidden="true" /></span>
-                        <div className="min-w-0 flex-1">
-                          <h2 id="timestamp-notes-title" className="font-semibold text-slate-950">Timestamped notes</h2>
-                          <p className="mt-1 text-sm leading-6 text-slate-600">Save a thought at the video timestamp so you can return to the exact moment. Notes are stored in this browser for this account and course.</p>
-                        </div>
-                      </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-[140px_minmax(0,1fr)]">
-                        <label className="block text-xs font-semibold text-slate-600">Timestamp
-                          <input value={noteTimestamp} onChange={(event) => setNoteTimestamp(event.target.value)} placeholder="mm:ss" inputMode="numeric" className="input-field mt-1 w-full text-sm" aria-describedby="timestamp-note-help" />
-                          <span id="timestamp-note-help" className="mt-1 block font-normal text-slate-500">mm:ss or hh:mm:ss</span>
-                        </label>
-                        <label className="block text-xs font-semibold text-slate-600">Your note
-                          <textarea value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} maxLength={3000} rows={3} placeholder="Capture a key idea, example, or question…" className="input-field mt-1 w-full resize-y text-sm" />
-                        </label>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                        <div className="text-xs text-slate-500" aria-live="polite">{noteNotice || "Current lesson: " + cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}</div>
-                        <button type="button" onClick={saveLessonNote} className="btn-primary inline-flex items-center justify-center gap-2" disabled={!notesStorageReady || !noteDraft.trim()}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
-                      </div>
-                      {noteError && <p className="mt-2 text-sm text-red-700" role="alert">{noteError}</p>}
-                      {currentLessonNotes.length > 0 && <div className="mt-4 space-y-2">
-                        <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">{currentLessonNotes.length} saved {currentLessonNotes.length === 1 ? "note" : "notes"}</h3>
-                        {currentLessonNotes.map((note) => (
-                          <article key={note.id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3">
-                            <a href={currentLesson.lesson.tutorial?.videos?.[0]?.videoId ? "https://www.youtube.com/watch?v=" + encodeURIComponent(currentLesson.lesson.tutorial.videos[0].videoId) + "&t=" + note.timestampSeconds + "s" : undefined} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100" aria-label={"Open source video at " + formatMediaTimestamp(note.timestampSeconds)}><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{formatMediaTimestamp(note.timestampSeconds)}</a>
-                            <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{note.content}</p>
-                            <button type="button" onClick={() => deleteLessonNote(note.id)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-700" aria-label="Delete note"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
-                          </article>
-                        ))}
-                      </div>}
-                    </section>
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}

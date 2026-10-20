@@ -35,10 +35,10 @@ function normalizeCourseId(value: any): string {
 }
 
 function levelClass(level?: string): string {
-  if (level === "Beginner") return "bfs-course-chip bfs-course-chip--beginner";
-  if (level === "Intermediate") return "bfs-course-chip bfs-course-chip--intermediate";
-  if (level === "Advanced") return "bfs-course-chip bfs-course-chip--advanced";
-  return "bfs-course-chip";
+  if (level === "Beginner") return "bfs-course-chip bfs-course-chip--beginner bfs-course-card__level";
+  if (level === "Intermediate") return "bfs-course-chip bfs-course-chip--intermediate bfs-course-card__level";
+  if (level === "Advanced") return "bfs-course-chip bfs-course-chip--advanced bfs-course-card__level";
+  return "bfs-course-chip bfs-course-card__level";
 }
 
 function courseLessonCount(course: Course): number | null {
@@ -62,6 +62,7 @@ export default function CourseCard({
   const navigate = useNavigate();
   const lessonCount = courseLessonCount(course);
   const [saved, setSaved] = useState(initiallySaved);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enrollmentState, setEnrollmentState] = useState<EnrollmentState>(
     initiallyCompleted ? "completed" : initiallyEnrolled ? "active" : "not-enrolled",
@@ -194,6 +195,7 @@ export default function CourseCard({
     if (actionLoading) return;
     setActionError("");
     setActionNotice("");
+    setUndoSaveValue(null);
     if (!session && enrollmentState === "not-enrolled") {
       navigate("/login", { state: { from: { pathname: "/courses/" + course.id } } });
       return;
@@ -225,6 +227,9 @@ export default function CourseCard({
   };
 
   const displayOutcome = course.description.trim();
+  const displayCategory = /^ai\\s+course\\s+search$/i.test(course.category || "")
+    ? "AI and machine learning"
+    : course.category;
   const compact = variant === "compact";
   const horizontal = variant === "horizontal";
   const rootClass = [
@@ -245,12 +250,8 @@ export default function CourseCard({
       </Link>
 
       <div className="bfs-course-card__media">
-        {course.thumbnail ? (
-          <img src={course.thumbnail} alt="" loading="lazy" onError={(event) => {
-            const image = event.currentTarget;
-            image.style.display = "none";
-            image.parentElement?.classList.add("bfs-course-card__media--image-error");
-          }} />
+        {course.thumbnail && !thumbnailFailed ? (
+          <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
           <div className="bfs-course-card__fallback"><GraduationCap size={32} aria-hidden="true" /></div>
         )}
@@ -272,7 +273,7 @@ export default function CourseCard({
       <div className="bfs-course-card__body">
         {variant === "recommended" && reason && <p className="bfs-course-card__reason">{reason}</p>}
         <div className="bfs-course-card__meta">
-          {course.category && <span>{course.category}</span>}
+          {displayCategory && <span>{displayCategory}</span>}
           {paid && course.pricing && <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price))}</span>}
         </div>
         <h3 className="bfs-course-card__title" title={course.title}>{course.title}</h3>

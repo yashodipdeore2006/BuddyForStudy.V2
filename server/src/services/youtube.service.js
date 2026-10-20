@@ -3,6 +3,22 @@ import { env } from "../config/env.js";
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
 const CHANNEL_CACHE = new Map();
+const SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
+const VIDEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CHANNEL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getExpiringCache(map, key) {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    map.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setExpiringCache(map, key, value, ttlMs) {
+  map.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
 
 function parseIsoDuration(value) {
   const match = String(value || "").match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
@@ -86,30 +102,34 @@ async function youtubeRequest(endpoint,params){
 
 async function searchVideos(query,maxResults=10){
   const key=String(maxResults)+":"+query.trim().toLowerCase();
-  if(SEARCH_CACHE.has(key))return SEARCH_CACHE.get(key);
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:"en",regionCode:"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)});
-  SEARCH_CACHE.set(key,promise);
+  const cached=getExpiringCache(SEARCH_CACHE,key);
+  if(cached)return cached;
+  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:"en",regionCode:"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+    .catch((error)=>{SEARCH_CACHE.delete(key);throw error;});
+  setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);
   return promise;
 }
 async function getVideoDetails(videoIds){
-  const missing=videoIds.filter((id)=>!VIDEO_CACHE.has(id));
+  const uniqueIds=[...new Set(videoIds)];
+  const missing=uniqueIds.filter((id)=>!getExpiringCache(VIDEO_CACHE,id));
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
     const data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")});
-    for(const item of data?.items||[]) VIDEO_CACHE.set(item.id,item);
+    for(const item of data?.items||[]) setExpiringCache(VIDEO_CACHE,item.id,item,VIDEO_CACHE_TTL_MS);
   }
-  return videoIds.map((id)=>VIDEO_CACHE.get(id)).filter(Boolean);
+  return uniqueIds.map((id)=>getExpiringCache(VIDEO_CACHE,id)).filter(Boolean);
 }
 async function getChannelDetails(channelIds){
-  const missing=channelIds.filter((id)=>!CHANNEL_CACHE.has(id));
+  const uniqueIds=[...new Set(channelIds)];
+  const missing=uniqueIds.filter((id)=>!getExpiringCache(CHANNEL_CACHE,id));
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
     const data=await youtubeRequest("channels",{part:"statistics",id:batch.join(",")});
-    for(const item of data?.items||[]) CHANNEL_CACHE.set(item.id,item);
+    for(const item of data?.items||[]) setExpiringCache(CHANNEL_CACHE,item.id,item,CHANNEL_CACHE_TTL_MS);
   }
-  return channelIds.map((id)=>CHANNEL_CACHE.get(id)).filter(Boolean);
+  return uniqueIds.map((id)=>getExpiringCache(CHANNEL_CACHE,id)).filter(Boolean);
 }
 function detectVideoStructure(description = "") {
   const text = String(description || "");

@@ -145,13 +145,18 @@ function CourseLearningCard({
   const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
 
   useEffect(() => {
+    // A tab change remounts its cards. Do not publish the hook's temporary
+    // zero-progress initial state while the real enrollment/progress request
+    // is still loading, or the course can be moved into the wrong tab and
+    // unmount before its authoritative status arrives.
+    if (state.loading) return;
     onStateChange(course.id, {
       progressPct: state.progressPct,
       completedLessons: state.completedLessons,
       totalLessons,
       nextLessonId: state.nextLessonId,
       status,
-      loading: state.loading,
+      loading: false,
     });
   }, [course.id, state.progressPct, state.completedLessons, totalLessons, state.nextLessonId, state.loading, status, onStateChange]);
 

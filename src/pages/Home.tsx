@@ -311,11 +311,6 @@ export default function Home() {
       <section className="user-home__panel" aria-labelledby="stats-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="stats-heading">Your learning at a glance</h2><Link className="user-home__link" to="/profile">{USER_INTENTS.seeAll.label} <ArrowRight size={14} aria-hidden="true" /></Link></div>
         {sectionErrors.stats && <div className="user-home__alert user-home__alert--error" role="alert"><span>{sectionErrors.stats}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button></div>}
-        <div className="user-home__stats">
-          <div className="user-home__stat"><div className="user-home__stat-icon"><BookOpen size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{data.enrollments.length}</p><p className="user-home__stat-label">Courses enrolled</p></div></div>
-          <div className="user-home__stat"><div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div></div>
-          <div className="user-home__stat"><div className="user-home__stat-icon"><TrendingUp size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{overallProgress}%</p><p className="user-home__stat-label">Overall progress</p></div></div>
-        </div>
         <div className="user-home__learning-widgets">
           <article className="user-home__goal-card" aria-labelledby="daily-goal-heading">
             <div className="user-home__goal-ring" role="progressbar" aria-label="Daily learning goal" aria-valuemin={0} aria-valuemax={dailyGoalLessons} aria-valuenow={Math.min(completedToday, dailyGoalLessons)}>
@@ -346,6 +341,14 @@ export default function Home() {
               </div>)}
             </div>
             <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze has been used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze will protect one missed day when you study again.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
+          </article>
+          <article className="user-home__stat user-home__stat--tile">
+            <div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div>
+            <div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div>
+          </article>
+          <article className="user-home__stat user-home__stat--tile">
+            <div className="user-home__stat-icon"><TrendingUp size={22} aria-hidden="true" /></div>
+            <div><p className="user-home__stat-value">{overallProgress}%</p><p className="user-home__stat-label">Overall progress</p></div>
           </article>
         </div>
       </section>

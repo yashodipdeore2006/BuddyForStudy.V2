@@ -163,7 +163,7 @@ export default function Home() {
     progressEntries.forEach((entry) => { if (entry) progress[entry[0]] = entry[1]; });
     const allPrimarySourcesFailed = enrollmentResult.status === 'rejected' && courseResult.status === 'rejected' && statsResult.status === 'rejected';
     if (allPrimarySourcesFailed) {
-      const failedStatuses = results.filter((result) => result.status === 'rejected').map((result: any) => result.reason instanceof ApiError ? result.reason.status : 0);
+      const failedStatuses = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected').map((result) => result.reason instanceof ApiError ? result.reason.status : 0);
       const status = failedStatuses.includes(403) ? 403 : failedStatuses.includes(404) ? 404 : failedStatuses.includes(401) ? 401 : null;
       if (!isRefresh) {
         setFatalErrorStatus(status);

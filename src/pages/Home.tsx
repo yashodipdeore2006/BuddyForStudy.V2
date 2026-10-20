@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, CheckCircle2, Clock3, Flame, GraduationCap, RefreshCw, Sparkles, Target, Trophy, TrendingUp } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, Flame, GraduationCap, RefreshCw, Sparkles, Trophy, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch, ApiError } from '@/lib/api';
 import type { Course } from '@/types';
@@ -229,7 +229,6 @@ export default function Home() {
     longestStreak,
     sevenDayStrip,
     freezeUsedThisWeek,
-    freezeAvailable,
     achievements,
   } = useLearningStats(data.progress, data.learningStats);
   const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
@@ -257,7 +256,7 @@ export default function Home() {
   return <main className="user-home" id="main-content">
     {refreshing && <div className="user-home__refreshing" role="progressbar" aria-label="Refreshing Home" />}
     <div className="user-home__shell user-home__stack">
-      {!online && <div className="user-home__alert user-home__alert--info" role="status"><Clock3 aria-hidden="true" size={18} /><span>You’re offline. Progress will sync when you reconnect.</span></div>}
+      {!online && <div className="user-home__alert user-home__alert--info" role="status"><Clock3 aria-hidden="true" size={18} /><span>You’re offline. Some learning data may be out of date; reconnect to refresh.</span></div>}
       <section className="user-home__greeting" aria-labelledby="home-title">
         <div>
           <h1 className="user-home__page-title" id="home-title">Welcome back, {firstName}</h1>
@@ -340,7 +339,7 @@ export default function Home() {
                 <span className={day.active ? 'user-home__week-dot user-home__week-dot--active' : day.isToday ? 'user-home__week-dot user-home__week-dot--today' : 'user-home__week-dot'} role="img" aria-label={day.dateKey + (day.active ? ', studied' : ', no completed lesson recorded')} />
               </div>)}
             </div>
-            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze has been used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze will protect one missed day when you study again.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
+            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze has been used. Keep going when you can.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
           </article>
           <article className="user-home__stat user-home__stat--tile">
             <div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div>

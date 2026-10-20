@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import type { Course, Enrollment } from "@/types";
 import EmptyState from "@/components/EmptyState";
-import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { getAllLessonsFlat } from "@/lib/courseUtils";
@@ -152,7 +151,7 @@ function CourseLearningCard({
         {state.error && <p className="mt-2 text-sm" role="status">Progress may be out of date. <button type="button" className="underline" onClick={() => window.location.reload()}>Refresh</button></p>}
         {saveError && <p className="mt-2 text-sm" role="alert">{saveError}</p>}
         <div className="bfs-course-card__action-row">
-          <Link to={learnHref} className="bfs-course-action-button" aria-label={`${primaryLabel} ${course.title}`}>
+          <Link to={learnHref} className="bfs-course-action" aria-label={`${primaryLabel} ${course.title}`}>
             <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}
           </Link>
           <details className="relative" open={menuOpen} onToggle={(event) => setMenuOpen((event.currentTarget as HTMLDetailsElement).open)}>
@@ -305,7 +304,10 @@ export default function MyCourses() {
 
   return (
     <main className="bfs-shell py-8 sm:py-10">
-      <PageHeader title="My learning" subtitle={`${enrollments.length} ${enrollments.length === 1 ? "course" : "courses"} · ${totalCompleted} completed`} />
+      <header className="flex flex-col gap-2 border-b border-[var(--border)] pb-6">
+        <h1 className="text-[30px] font-bold leading-tight text-[var(--text)]">My learning</h1>
+        <p className="max-w-2xl text-sm leading-6 text-[var(--muted)]">{enrollments.length} {enrollments.length === 1 ? "course" : "courses"} · {totalCompleted} completed</p>
+      </header>
 
       {activeEnrollment && !loading && (
         <section className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5" aria-label="Continue where you left off">

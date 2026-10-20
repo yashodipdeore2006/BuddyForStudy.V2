@@ -431,74 +431,18 @@ export default function YouTubeSearchFallback({
     <>
       <section className="mt-6">
         <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-5 sm:p-7">
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">
-            Learning discovery
-          </p>
-          <h3 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">
-            {hasLocalResults
-              ? `More learning resources for “${query}”`
-              : "No matching BuddyForStudy course yet"}
+          <h3 className="text-lg font-bold tracking-tight text-slate-900">
+            {hasLocalResults ? `More resources for “${query}”` : "Explore learning resources"}
           </h3>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-            {hasLocalResults
-              ? `We combined relevant courses, playlists and individual tutorials for “${query}” into one learning-resource collection.`
-              : `We rank courses, playlists and tutorials for “${query}” together, prioritizing topic relevance and learning depth—not popularity alone.`}
-          </p>
 
           {curatedResources !== undefined ? (
             <div className="mt-7">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h4 className="font-bold text-slate-900">Recommended learning resources</h4>
-                  <p className="text-xs text-slate-500">One ranked list of relevant courses, playlists and assembled video series.</p>
-                </div>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h4 className="text-sm font-bold text-slate-900">For you</h4>
                 {curationMeta && Number(curationMeta.resultsShown || 0) > 0 && (
-                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
-                    {curationMeta.resultsShown} curated results
-                  </span>
+                  <span className="text-xs text-slate-500">{curationMeta.resultsShown} resources</span>
                 )}
               </div>
-              {Array.isArray(curationMeta?.composedPath) && curationMeta.composedPath.length > 0 && (
-                <section className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <h5 className="text-sm font-extrabold text-slate-900">Best-of-best learning path</h5>
-                      <p className="mt-1 text-xs leading-5 text-slate-600">
-                        A suggested sequence that picks the strongest matching lesson or chapter for each syllabus area.
-                      </p>
-                    </div>
-                    <span className="rounded-full border border-indigo-100 bg-white px-3 py-1 text-[11px] font-bold text-indigo-700">
-                      {curationMeta.composedPath.length} steps
-                    </span>
-                  </div>
-                  <ol className="mt-4 space-y-2.5">
-                    {curationMeta.composedPath.map((step, index) => (
-                      <li key={step.moduleName + "-" + step.videoId + "-" + step.timestampSeconds} className="flex flex-wrap items-center gap-3 rounded-xl border border-white bg-white/90 p-3">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-extrabold text-indigo-800">
-                          {index + 1}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-extrabold text-slate-900">{step.moduleName}</p>
-                          <p className="mt-0.5 truncate text-xs font-semibold text-slate-700">{step.videoTitle}</p>
-                          <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                            {step.channelTitle || step.resourceTitle}
-                            {step.verifiedTimecode ? " · Starts at " + step.timestampLabel : " · Lesson start"}
-                          </p>
-                        </div>
-                        <a href={step.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
-                          Play step <span aria-hidden="true" className="ml-1">↗</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="mt-3 text-[11px] leading-4 text-slate-500">
-                    Based on public descriptions, lesson titles and creator-supplied timestamps. These signals do not replace transcript review or verify what the video actually teaches.
-                    {Number(curationMeta.composedPathSteps || 0) < Number(curationMeta.syllabus?.moduleCount || 0)
-                      ? " Some syllabus areas were left out because available metadata did not provide a strong enough match."
-                      : ""}
-                  </p>
-                </section>
-              )}
               {curatedResources.length ? (
                 <div className="bfs-course-grid mt-4">
                   {curatedResources.map((resource, resultIndex) => {
@@ -563,23 +507,24 @@ export default function YouTubeSearchFallback({
                               <span>{resource.itemCount || 1} {(resource.itemCount || 1) === 1 ? "lesson" : "lessons"}</span>
                               {resource.viewCount > 0 && <><span>·</span><span>{formatCount(resource.viewCount)} views</span></>}
                             </div>
-                            {resource.whyThis?.length > 0 && (
-                              <ul className="mt-3 space-y-1.5 text-xs leading-4 text-slate-600">
-                                {resource.whyThis.slice(0, 3).map((reason, index) => (
-                                  <li key={resource.id + "-why-" + index} className="flex items-start gap-1.5">
-                                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                                    <span>{reason}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            {resource.gaps?.length > 0 && <p className="mt-2 text-[11px] leading-4 text-slate-500">Possible gaps: {resource.gaps.slice(0, 3).join(", ")}</p>}
-                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                              <span className="mr-auto text-[11px] text-slate-500">Was this a useful match?</span>
-                              <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_up", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} aria-label={"Mark " + resource.title + " as a useful match"} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">Helpful</button>
-                              <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_down", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} aria-label={"Mark " + resource.title + " as not relevant"} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60">Not relevant</button>
-                              <button type="button" onClick={() => void recordCurationFeedback(resource.id, "outdated", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} aria-label={"Report " + resource.title + " as outdated"} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60">Outdated</button>
-                            </div>
+                            <details className="mt-2 border-t border-slate-100 pt-2">
+                              <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-indigo-700">Details and feedback</summary>
+                              <div className="mt-2 space-y-2">
+                                {resource.whyThis?.length > 0 && (
+                                  <ul className="space-y-1 text-xs leading-4 text-slate-600">
+                                    {resource.whyThis.slice(0, 2).map((reason, index) => <li key={resource.id + "-why-" + index}>{reason}</li>)}
+                                  </ul>
+                                )}
+                                {resource.gaps?.length > 0 && <p className="text-[11px] leading-4 text-slate-500">May not cover: {resource.gaps.slice(0, 2).join(", ")}</p>}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="mr-auto text-[11px] text-slate-500">Useful?</span>
+                                  <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_up", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-emerald-50 disabled:opacity-60">Helpful</button>
+                                  <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_down", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-red-50 disabled:opacity-60">Not relevant</button>
+                                  <button type="button" onClick={() => void recordCurationFeedback(resource.id, "outdated", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-amber-50 disabled:opacity-60">Outdated</button>
+                                </div>
+                                {curationFeedback[resource.id] && <p role="status" className="text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
+                              </div>
+                            </details>
                             {curationFeedback[resource.id] && <p role="status" className="mt-1 text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
                           </div>
                           <div className="mt-4 grid grid-cols-2 gap-2">

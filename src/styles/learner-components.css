@@ -148,7 +148,7 @@
 .bfs-course-card__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 0; font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: 600; overflow-wrap: anywhere; color: var(--text); }
 .bfs-course-card__outcome { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0; color: var(--text-2); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .bfs-course-chip { display: inline-flex; align-items: center; min-height: 24px; padding: var(--s-1) var(--s-2); border-radius: var(--r-full); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: 600; }
-.bfs-course-chip--beginner { background: var(--success-soft); color: var(--success); }
+.bfs-course-chip--beginner,.bfs-course-chip--completed { background: var(--success-soft); color: var(--success); }
 .bfs-course-chip--intermediate { background: var(--info-soft); color: var(--info); }
 .bfs-course-chip--advanced { background: var(--warning-soft); color: var(--warning); }
 .bfs-course-card__save { position: absolute; top: var(--s-3); right: var(--s-3); z-index: 3; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); cursor: pointer; }
@@ -164,6 +164,7 @@
 .bfs-course-card__progress-label { display:flex; justify-content:space-between; gap:var(--s-2); margin-bottom:var(--s-2); font-size:var(--fs-sm); color:var(--muted); }
 .bfs-course-card__progress-track { width: 100%; height: var(--s-2); overflow: hidden; background: var(--progress-track); border-radius: var(--r-full); }
 .bfs-course-card__progress-fill { height: 100%; background: var(--progress); border-radius: inherit; }
+.bfs-course-card__progress-fill--completed { background: var(--success); }
 .bfs-course-card__compact { display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:var(--s-3); align-items:center; padding:var(--s-3); }
 .bfs-course-card__compact .bfs-course-card__media { width:64px; min-height:64px; aspect-ratio:1; border-radius:var(--r-sm); }
 .bfs-course-card__compact .bfs-course-card__media img { min-height:64px; }

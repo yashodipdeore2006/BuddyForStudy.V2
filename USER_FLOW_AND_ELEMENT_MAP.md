@@ -76,6 +76,7 @@ Use **only canonical routes** in code, links and navigation. Aliases remain as r
 | `/my-learning` | `/my-courses` | learner | Enrolled courses | Learner |
 | `/saved` | `/saved-courses` | learner | Saved courses | Learner |
 | `/playlists/:playlistId` | none | learner | YouTube-playlist course entry | Learner |
+| `/roadmaps/:roadmapId` | none | learner | Saved AI/playlist roadmap detail | Learner |
 | `/profile`, `/settings`, `/notifications`, `/billing` | none | learner | Account | Learner |
 | `/pricing` | none | public | Plans | Guest + learner |
 | `/login`, `/register`, `/verify-email`, `/forgot-password`... | none | public | Auth | Guest |

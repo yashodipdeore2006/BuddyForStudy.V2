@@ -125,7 +125,7 @@ export default function Home() {
     setFatalErrorStatus(null);
     setSectionErrors({ enrollments: '', recommendations: '', stats: '', progress: [], refresh: '' });
 
-    const partialErrors = { enrollments: '', recommendations: '', stats: '', progress: [] as string[], refresh: '' };
+    const partialErrors = { enrollments: '', recommendations: '', stats: '', progress: [] as Array<{ courseId: string; title: string }>, refresh: '' };
     const results = await Promise.allSettled([
       apiFetch('/api/enrollments'),
       apiFetch('/api/courses?limit=24'),

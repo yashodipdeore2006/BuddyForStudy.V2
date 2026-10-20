@@ -8,6 +8,30 @@ import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
+const COURSE_RATING_LOOKUP_STAGE = {
+  $lookup: {
+    from: "course_reviews",
+    let: { courseId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: { $eq: ["$course", "$courseId"] },
+          isHidden: { $ne: true },
+          moderationStatus: "approved"
+        }
+      },
+      { $group: { _id: null, average: { $avg: "$rating" }, count: { $sum: 1 } } },
+      { $project: { _id: 0, average: { $round: ["$average", 1] }, count: 1 } }
+    ],
+    as: "courseRatingStats"
+  }
+};
+const COURSE_RATING_FIELDS_STAGE = {
+  $addFields: {
+    ratingAverage: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.average", 0] }, 0] },
+    ratingCount: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.count", 0] }, 0] }
+  }
+};
 const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
 const PUBLICATION_APPROVAL_FILTER = {
   $or: [
@@ -446,6 +470,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
           { $match: { ...filter, ...directFilter } },
           courseContentCountsStage(),
           { $project: { modules: 0 } },
+          COURSE_RATING_LOOKUP_STAGE,
+          COURSE_RATING_FIELDS_STAGE,
+          { $project: { courseRatingStats: 0 } },
           { $sort: { createdAt: -1 } }
         ])
       : [];
@@ -548,6 +575,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
         },
         courseContentCountsStage(),
         { $project: { modules: 0, enrollmentStats: 0 } },
+        COURSE_RATING_LOOKUP_STAGE,
+        COURSE_RATING_FIELDS_STAGE,
+        { $project: { courseRatingStats: 0 } },
         { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
         { $skip: (page - 1) * limit },
         { $limit: limit }
@@ -566,6 +596,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       { $match: filter },
       courseContentCountsStage(),
       { $project: { modules: 0 } },
+      COURSE_RATING_LOOKUP_STAGE,
+      COURSE_RATING_FIELDS_STAGE,
+      { $project: { courseRatingStats: 0 } },
       { $sort: { createdAt: -1 } },
       { $skip: (page - 1) * limit },
       { $limit: limit }

@@ -96,6 +96,17 @@ function readMemory(key) {
   }
   return entry.payload;
 }
+function trimMemoryCache() {
+  if (memoryCache.size <= 5000) return;
+  for (const [key, entry] of memoryCache) {
+    if (entry.expiresAt <= Date.now()) memoryCache.delete(key);
+  }
+  while (memoryCache.size > 4000) {
+    const oldestKey = memoryCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    memoryCache.delete(oldestKey);
+  }
+}
 async function getCachedValue(key) {
   const local = readMemory(key);
   if (local !== null) return local;
@@ -114,6 +125,7 @@ async function getCachedValue(key) {
 }
 async function setCachedValue(key, kind, payload, ttlMs) {
   const expiresAt = new Date(Date.now() + ttlMs);
+  trimMemoryCache();
   memoryCache.set(key, { payload, expiresAt: expiresAt.getTime() });
   try {
     await cacheSet("bfs:" + key, payload, Math.max(1, Math.floor(ttlMs / 1000)));
@@ -711,7 +723,6 @@ function makeFeatureSet(candidate, candidates, profile, syllabus) {
     freshness.score * SIGNAL_WEIGHTS.freshness +
     fit.score * SIGNAL_WEIGHTS.fit;
   const confidence =
-    coverage.score * 0 + // signal values do not define confidence; evidence availability does.
     SIGNAL_WEIGHTS.coverage * (syllabus.confidence >= 0.8 ? 0.62 : 0.40) +
     SIGNAL_WEIGHTS.instruction * instruction.confidence +
     SIGNAL_WEIGHTS.engagement * engagement.confidence +
@@ -962,18 +973,18 @@ export async function curateNormalSearch(query) {
   const normalizedQuery = String(query || "").trim();
   if (normalizedQuery.length < 2) return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
   const profile = classifyCurationIntent(normalizedQuery);
-  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.mode + "|" + profile.level + "|" + profile.language);
+  let settingCount = 30;
+  try {
+    const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+    settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
+  } catch {}
+  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   const cached = await getCachedValue(resultKey);
   if (cached?.resources) return { ...cached, meta: { ...(cached.meta || {}), cacheHit: true } };
 
   const startedAt = Date.now();
   const syllabus = await getTopicSyllabus(profile);
   const queries = buildCandidateQueries(profile, syllabus);
-  let settingCount = 30;
-  try {
-    const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
-    settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
-  } catch {}
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + queries.join("|") + "|" + settingCount);
   let pool = await getCachedValue(poolKey);
   const poolCacheHit = Boolean(pool);

@@ -312,7 +312,7 @@ export default function YouTubeSearchFallback({
       setEnrolledIds((current) => new Set(current).add(course.id));
       setEnrolledCourseIds((current) => ({ ...current, [course.id]: String(courseId) }));
       await recordCurationFeedback(course.id, "enroll");
-      navigate(`/courses/${courseId}/roadmap`);
+      navigate(`/learn/${courseId}`);
     } catch (error) {
       setViewerError(
         error instanceof Error ? error.message : "Unable to enroll in this course."
@@ -389,7 +389,7 @@ export default function YouTubeSearchFallback({
   const handleCourseAction = (course: BuiltCourse) => {
     const enrolledCourseId = enrolledCourseIds[course.id];
     if (enrolledIds.has(course.id) && enrolledCourseId) {
-      navigate(`/courses/${enrolledCourseId}/roadmap`);
+      navigate(`/learn/${enrolledCourseId}`);
       return;
     }
     void enrollCourse(course);
@@ -708,7 +708,6 @@ export default function YouTubeSearchFallback({
                           {savingId === `video-course-${course.videoId}` ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : null}
-                          {savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save"}
                         </button>
 
                         <button

@@ -68,12 +68,13 @@ export default function CourseCard({
   const { session } = useAuth();
   const navigate = useNavigate();
   const lessonCount = courseLessonCount(course);
-  const cardMetadata = course.card_metadata;
+  const cardMetadata = course.cardMetadata;
   const videoCount = Number.isFinite(cardMetadata?.videoCount) ? Number(cardMetadata.videoCount) : 0;
   const creatorName = typeof cardMetadata?.creatorName === "string" ? cardMetadata.creatorName.trim() : "";
   const qualityScore = Number.isFinite(cardMetadata?.qualityScore) ? Number(cardMetadata.qualityScore) : null;
   const viewCount = Number.isFinite(cardMetadata?.viewCount) ? Number(cardMetadata.viewCount) : 0;
-  const enrolledLearners = Number.isFinite(course.enrollment_count) ? Number(course.enrollment_count) : 0;
+  const learnerCount = course.enrollment_count ?? course.enrollmentCount;
+  const enrolledLearners = Number.isFinite(learnerCount) ? Number(learnerCount) : 0;
   const typeTag = cardMetadata?.typeTag || (videoCount === 1 ? "Single video" : videoCount > 1 ? "Playlist" : course.generation?.mode === "ai" ? "AI roadmap" : "Course");
   const isFree = course.pricing?.mode !== "paid";
   const [saved, setSaved] = useState(initiallySaved);

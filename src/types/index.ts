@@ -112,7 +112,8 @@ export interface Course {
   modules: Module[];
   is_published: boolean;
   enrollment_count?: number;
-  card_metadata?: {
+  enrollmentCount?: number;
+  cardMetadata?: {
     creatorName?: string;
     typeTag?: string;
     videoCount?: number;

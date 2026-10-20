@@ -210,7 +210,6 @@ export default function CourseCard({
         const data = await apiFetch("/api/enrollments/" + course.id, { method: "POST" });
         setEnrollmentState(String(data.enrollment?.status ?? "active").toLowerCase() === "completed" ? "completed" : "active");
         setProgress(0);
-        setCompletedLessons(0);
         setActionNotice("Enrolled in " + course.title + ".");
       } catch (error) {
         setActionError(error instanceof Error ? error.message : "Enrollment failed. Check your connection and retry.");

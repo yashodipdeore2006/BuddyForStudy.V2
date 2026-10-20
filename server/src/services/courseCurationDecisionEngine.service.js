@@ -911,12 +911,65 @@ function dedupeCandidates(candidates) {
   }
   return kept;
 }
-function makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap = new Map()) {
+export function blendMetadataJudgeScores(heuristicCoverage, heuristicInstruction, heuristicHandsOn, judgment) {
+  if (!judgment) {
+    return {
+      coverageScore: clamp(heuristicCoverage),
+      instructionScore: clamp(heuristicInstruction),
+      handsOnScore: clamp(heuristicHandsOn),
+      judgeWeight: 0
+    };
+  }
+  // The judge only sees metadata and outlines, not transcripts; keep its influence below 50%.
+  const confidence = Math.max(0.2, Math.min(0.75, Number(judgment.confidence) || 0.35));
+  const judgeWeight = Math.min(0.48, 0.35 + (confidence - 0.2) * 0.25);
+  const heuristicWeight = 1 - judgeWeight;
+  return {
+    coverageScore: clamp(clamp(heuristicCoverage) * heuristicWeight + clamp(judgment.coverageScore) * judgeWeight),
+    instructionScore: clamp(clamp(heuristicInstruction) * heuristicWeight + clamp(judgment.instructionScore) * judgeWeight),
+    handsOnScore: clamp(clamp(heuristicHandsOn) * heuristicWeight + clamp(judgment.handsOnScore) * judgeWeight),
+    judgeWeight
+  };
+}
+
+function makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap = new Map(), metadataJudgeMap = new Map()) {
   const relevance = queryTermStats(profile.query, candidate);
   candidate.queryTermStats = relevance;
   const feedback = feedbackMap.get(candidate.sourceId) || {};
-  const coverage = syllabusCoverage(candidate, syllabus);
-  const instruction = instructionalFeatures(candidate);
+  const metadataJudgment = metadataJudgeMap.get(candidate.id) || null;
+  let coverage = syllabusCoverage(candidate, syllabus);
+  let instruction = instructionalFeatures(candidate);
+  if (metadataJudgment) {
+    const blended = blendMetadataJudgeScores(
+      coverage.score,
+      instruction.score,
+      instruction.handsOnScore,
+      metadataJudgment
+    );
+    const exactModuleNames = new Map((syllabus.modules || []).map((item) => [normalizeText(item.name), item.name]));
+    const judgeCovered = (metadataJudgment.supportedModuleNames || [])
+      .map((name) => exactModuleNames.get(normalizeText(name)))
+      .filter(Boolean);
+    const coveredModules = [...new Set([...coverage.coveredModules, ...judgeCovered])];
+    const coveredSet = new Set(coveredModules.map(normalizeText));
+    coverage = {
+      ...coverage,
+      score: blended.coverageScore,
+      coveredModules,
+      gapModules: (syllabus.modules || []).map((item) => item.name).filter((name) => !coveredSet.has(normalizeText(name))),
+      coverageCount: coveredModules.length,
+      moduleCount: (syllabus.modules || []).length,
+      metadataJudgeUsed: true,
+      metadataJudgeConfidence: Math.min(0.65, Number(metadataJudgment.confidence) || 0.35)
+    };
+    instruction = {
+      ...instruction,
+      score: blended.instructionScore,
+      handsOnScore: blended.handsOnScore,
+      confidence: Math.max(instruction.confidence, Math.min(0.7, Number(metadataJudgment.confidence) || 0.35)),
+      metadataJudgeUsed: true
+    };
+  }
   const engagement = engagementFeatures(candidates, candidate);
   const authority = authorityFeatures(candidates, candidate);
   const community = communityFeatures(feedback);
@@ -930,8 +983,11 @@ function makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap = 
     community.score * SIGNAL_WEIGHTS.community +
     freshness.score * SIGNAL_WEIGHTS.freshness +
     fit.score * SIGNAL_WEIGHTS.fit;
+  const coverageConfidence = coverage.metadataJudgeUsed
+    ? Math.min(0.65, Number(coverage.metadataJudgeConfidence) || 0.35)
+    : (syllabus.confidence >= 0.8 ? 0.62 : 0.40);
   const confidence =
-    SIGNAL_WEIGHTS.coverage * (syllabus.confidence >= 0.8 ? 0.62 : 0.40) +
+    SIGNAL_WEIGHTS.coverage * coverageConfidence +
     SIGNAL_WEIGHTS.instruction * instruction.confidence +
     SIGNAL_WEIGHTS.engagement * engagement.confidence +
     SIGNAL_WEIGHTS.authority * authority.confidence +
@@ -939,12 +995,13 @@ function makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap = 
     SIGNAL_WEIGHTS.freshness * freshness.confidence +
     SIGNAL_WEIGHTS.fit * fit.confidence;
   const penalty = calculatePenalty(candidate, { coverage, instruction, engagement, authority, freshness, fit });
-  return { coverage, instruction, engagement, authority, community, freshness, fit, feedback, rawQuality, confidence, penalty, relevance };
+  return { coverage, instruction, engagement, authority, community, freshness, fit, feedback, metadataJudgmentUsed: Boolean(metadataJudgment), rawQuality, confidence, penalty, relevance };
 }
 function addExplanations(candidate, features, syllabus) {
   const why = [];
   const coverage = features.coverage;
   if (coverage.moduleCount) why.push("Metadata matches " + coverage.coverageCount + " of " + coverage.moduleCount + " syllabus areas.");
+  if (coverage.metadataJudgeUsed) why.push("A metadata-only rubric compared the description and lesson outline with the syllabus; it did not inspect transcripts or verify video correctness.");
   if (candidate.sourceType === "playlist" || candidate.sourceType === "series") {
     why.push(String(candidate.itemCount || 0) + " ordered lessons · " + (candidate.durationEstimated ? "estimated " : "") + formatDuration(candidate.durationSeconds || 0) + " total.");
   } else {
@@ -1061,7 +1118,8 @@ function setRankingSlots(candidates) {
       fit: Math.round(candidate.features.fit.score),
       learnerFeedback: Math.round(candidate.features.community.score),
       learnerFeedbackVotes: Math.round(candidate.features.community.explicitVotes),
-      community: candidate.features.community.status
+      community: candidate.features.community.status,
+      metadataJudge: candidate.features.metadataJudgmentUsed ? "gemini_metadata_only" : "heuristics_only"
     },
     sourceTypeVersion: ENGINE_VERSION,
     items: (candidate.items || []).slice(0, 12).map((item) => ({
@@ -1160,7 +1218,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
       {
         $match: {
           normalizedQuery: profile.normalizedQuery,
-          engineVersion: ENGINE_VERSION,
+          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.2"] },
           resourceId: { $in: resourceIds },
           createdAt: { $gte: cutoff }
         }
@@ -1215,8 +1273,8 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
   return result;
 }
 
-function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new Map()) {
-  const preliminaryFeatures = candidates.map((candidate) => ({ candidate, features: makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap) }));
+function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new Map(), metadataJudgeMap = new Map()) {
+  const preliminaryFeatures = candidates.map((candidate) => ({ candidate, features: makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap, metadataJudgeMap) }));
   const prior = median(preliminaryFeatures.map((item) => item.features.rawQuality));
   for (const { candidate, features } of preliminaryFeatures) {
     const freshness = features.freshness.score;
@@ -1335,7 +1393,8 @@ export async function curateNormalSearch(query) {
   const gates = hardGateEnriched(enriched, profile);
   const deduplicated = dedupeCandidates(gates.accepted);
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
-  const scored = scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals);
+  const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, profile, syllabus);
+  const scored = scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
   const resources = setRankingSlots(scored);
   const meta = {
     version: ENGINE_VERSION,
@@ -1359,6 +1418,8 @@ export async function curateNormalSearch(query) {
     gateRejected: gates.rejected.length,
     learnerFeedbackCandidates: feedbackSignals.size,
     feedbackLookbackDays: 90,
+    metadataJudgeSource: metadataJudgment.source,
+    metadataJudgedCandidates: metadataJudgment.judgedCount,
     resultsShown: resources.length,
     cacheHit: false,
     poolCacheHit,

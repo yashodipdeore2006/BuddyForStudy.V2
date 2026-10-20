@@ -117,6 +117,18 @@ export default function Navbar() {
   }, [location.pathname, session?.user?.id]);
 
   useEffect(() => {
+    const onEnrollmentUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ courseId?: string; status?: string }>).detail;
+      const match = location.pathname.match(/^\\/courses\\/([^/]+)\\/?$/);
+      if (!match || !detail?.courseId || decodeURIComponent(match[1]) !== String(detail.courseId)) return;
+      const status = String(detail.status || "").toLowerCase();
+      setCourseDetailIsEnrolled(status === "active" || status === "completed");
+    };
+    window.addEventListener("bfs:course-enrollment-updated", onEnrollmentUpdated);
+    return () => window.removeEventListener("bfs:course-enrollment-updated", onEnrollmentUpdated);
+  }, [location.pathname]);
+
+  useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
     };

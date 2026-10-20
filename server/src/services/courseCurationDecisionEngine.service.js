@@ -8,7 +8,7 @@ import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates } from "./youtube.service.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.3";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.4";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -1346,7 +1346,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
       {
         $match: {
           normalizedQuery: profile.normalizedQuery,
-          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.2"] },
+          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
           resourceId: { $in: resourceIds },
           createdAt: { $gte: cutoff }
         }

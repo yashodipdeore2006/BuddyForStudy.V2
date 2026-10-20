@@ -724,7 +724,7 @@ export async function searchStructuredPlaylists(query, maxResults) {
 
   const rawResults = (details.items || [])
     .filter((playlist) =>
-      playlist.status?.privacyStatus !== "private" &&
+      playlist.status?.privacyStatus === "public" &&
       Number(playlist.contentDetails?.itemCount || 0) > 0
     )
     .map((playlist) => ({

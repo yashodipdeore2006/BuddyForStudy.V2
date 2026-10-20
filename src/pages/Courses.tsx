@@ -9,6 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import PageHeader from '@/components/PageHeader';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
+import { routes } from "@/lib/routes";
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -332,12 +333,12 @@ export default function Courses() {
     setAiEnrollError(null);
     try {
       await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
-      navigate(`/learn/${courseId}`);
+      navigate(routes.learn(courseId));
     } catch (err) {
       try {
         const existing = await apiFetch(`/api/enrollments/course/${courseId}`);
         if (existing?.enrollment?.status === 'active' || existing?.enrollment?.status === 'completed') {
-          navigate(`/learn/${courseId}`);
+          navigate(routes.learn(courseId));
           return;
         }
       } catch {
@@ -690,7 +691,7 @@ export default function Courses() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {aiRoadmap.course.isPublished ? (
-                  <button type="button" onClick={() => navigate(`/courses/${String(aiRoadmap.course._id ?? aiRoadmap.course.id)}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
+                  <button type="button" onClick={() => navigate(routes.course(String(aiRoadmap.course._id ?? aiRoadmap.course.id)))} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
                     <ExternalLink className="h-4 w-4" /> Course details
                   </button>
                 ) : (

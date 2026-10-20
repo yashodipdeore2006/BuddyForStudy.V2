@@ -138,14 +138,15 @@
   transition: border-color var(--dur-base) var(--ease), box-shadow var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
 }
 .bfs-course-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.bfs-course-card:focus-within { border-color: var(--accent); }
 .bfs-course-card__stretch-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
 .bfs-course-card__media { position: relative; min-height: 120px; overflow: hidden; background: var(--surface-2); aspect-ratio: 16 / 9; }
 .bfs-course-card__media img { width: 100%; height: 100%; min-height: 120px; object-fit: cover; }
 .bfs-course-card__fallback { display: grid; place-items: center; width: 100%; height: 100%; min-height: 120px; color: var(--accent); background: var(--surface-2); }
 .bfs-course-card__body { position: relative; z-index: 0; display: flex; flex: 1; flex-direction: column; gap: var(--s-2); min-width: 0; padding: var(--s-4); pointer-events: none; }
 .bfs-course-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); color: var(--muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
-.bfs-course-card__title { margin: 0; font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: 600; overflow-wrap: anywhere; color: var(--text); }
-.bfs-course-card__outcome { margin: 0; color: var(--text-2); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.bfs-course-card__title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 0; font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: 600; overflow-wrap: anywhere; color: var(--text); }
+.bfs-course-card__outcome { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0; color: var(--text-2); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .bfs-course-chip { display: inline-flex; align-items: center; min-height: 24px; padding: var(--s-1) var(--s-2); border-radius: var(--r-full); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: 600; }
 .bfs-course-chip--beginner { background: var(--success-soft); color: var(--success); }
 .bfs-course-chip--intermediate { background: var(--info-soft); color: var(--info); }
@@ -158,7 +159,7 @@
 .bfs-course-action:disabled { opacity: .45; cursor: not-allowed; }
 .bfs-course-card__status { position: relative; z-index: 3; padding: 0 var(--s-4) var(--s-3); color: var(--success); font-size: var(--fs-sm); }
 .bfs-course-card__error { position: relative; z-index: 3; padding: 0 var(--s-4) var(--s-3); color: var(--danger); font-size: var(--fs-sm); }
-.bfs-course-card__reason { margin: 0 0 var(--s-2); color: var(--muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.bfs-course-card__reason { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0 0 var(--s-2); color: var(--muted); font-size: var(--fs-sm); line-height: var(--lh-sm); }
 .bfs-course-card__progress { margin-top: auto; padding-top: var(--s-2); }
 .bfs-course-card__progress-label { display:flex; justify-content:space-between; gap:var(--s-2); margin-bottom:var(--s-2); font-size:var(--fs-sm); color:var(--muted); }
 .bfs-course-card__progress-track { width: 100%; height: var(--s-2); overflow: hidden; background: var(--progress-track); border-radius: var(--r-full); }

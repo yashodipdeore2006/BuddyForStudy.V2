@@ -100,8 +100,30 @@ async function youtubeRequest(endpoint,params){
   return data;
 }
 
+const YOUTUBE_LOCALES_BY_LANGUAGE = {
+  en: { relevanceLanguage: "en", regionCode: "IN" },
+  hi: { relevanceLanguage: "hi", regionCode: "IN" },
+  es: { relevanceLanguage: "es", regionCode: "ES" },
+  fr: { relevanceLanguage: "fr", regionCode: "FR" },
+  de: { relevanceLanguage: "de", regionCode: "DE" },
+  pt: { relevanceLanguage: "pt", regionCode: "BR" },
+  ja: { relevanceLanguage: "ja", regionCode: "JP" },
+  ko: { relevanceLanguage: "ko", regionCode: "KR" },
+  ar: { relevanceLanguage: "ar", regionCode: "SA" },
+  bn: { relevanceLanguage: "bn", regionCode: "IN" },
+  mr: { relevanceLanguage: "mr", regionCode: "IN" },
+  ta: { relevanceLanguage: "ta", regionCode: "IN" },
+  te: { relevanceLanguage: "te", regionCode: "IN" }
+};
+
+export function getYouTubeSearchOptions(language = "en", languageExplicit = false) {
+  const code = String(language || "en").trim().toLowerCase();
+  if (!languageExplicit) return { ...YOUTUBE_LOCALES_BY_LANGUAGE.en };
+  return { ...(YOUTUBE_LOCALES_BY_LANGUAGE[code] || { relevanceLanguage: code, regionCode: "IN" }) };
+}
+
 async function searchVideos(query,maxResults=10,searchOptions={}){
-  const key=String(maxResults)+":"+query.trim().toLowerCase();
+  const key=String(maxResults)+":"+query.trim().toLowerCase()+":"+String(searchOptions.relevanceLanguage||"en")+":"+String(searchOptions.regionCode||"IN");
   const cached=getExpiringCache(SEARCH_CACHE,key);
   if(cached)return cached;
   const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})

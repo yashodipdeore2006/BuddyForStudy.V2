@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { evaluateCurationRanking, summarizeCurationEvaluation, ndcgAtK, hiddenGemRecallAtK, junkRateAtK } from "../src/services/courseCurationEvaluation.service.js";
 
 // The curation rules are pure; set required config before loading the service module.
 process.env.NODE_ENV ||= "test";
@@ -202,4 +203,41 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
   assert.ok(ui.includes("/api/discovery/curation-feedback"));
   assert.ok(service.includes("loadLearnerFeedbackSignals"));
   assert.ok(service.includes("scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals)"));
+});
+
+test("golden-set evaluation computes nDCG, hidden-gem recall, junk rate and a summary", () => {
+  const perfect = [
+    { sourceId: "sql-course-a", evidence: { coverage: 90 } },
+    { sourceId: "sql-course-b", evidence: { coverage: 70 } },
+    { sourceId: "sql-course-c", evidence: { coverage: 55 } }
+  ];
+  const judgments = {
+    topic: "SQL",
+    relevanceByResourceId: {
+      "sql-course-a": 3,
+      "sql-course-b": 2,
+      "sql-course-c": 1
+    },
+    hiddenGemResourceIds: ["sql-course-b"],
+    junkResourceIds: ["sql-course-c"]
+  };
+  assert.equal(ndcgAtK(perfect.map((item) => item.sourceId), judgments.relevanceByResourceId, 3), 1);
+  assert.equal(hiddenGemRecallAtK(perfect.map((item) => item.sourceId), judgments.hiddenGemResourceIds, 3), 1);
+  assert.equal(junkRateAtK(perfect.map((item) => item.sourceId), judgments.junkResourceIds, 3), 1 / 3);
+
+  const evaluation = evaluateCurationRanking(perfect, judgments, 3);
+  assert.equal(evaluation.topic, "SQL");
+  assert.equal(evaluation.metrics.topResultReportedCoverage, 0.9);
+  assert.equal(evaluation.metrics.ndcgAtK, 1);
+
+  const summary = summarizeCurationEvaluation([evaluation], { junkRateTarget: 0.05 });
+  assert.equal(summary.evaluatedTopics, 1);
+  assert.equal(summary.junkRateTargetMet, false);
+});
+
+test("ranking metrics return null rather than misleading perfect scores when no labels exist", () => {
+  const ranked = ["result-a", "result-b"];
+  assert.equal(ndcgAtK(ranked, {}, 10), null);
+  assert.equal(hiddenGemRecallAtK(ranked, [], 10), null);
+  assert.equal(junkRateAtK([], ["result-a"], 10), null);
 });

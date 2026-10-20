@@ -12,6 +12,7 @@ import {
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
+import { routes } from "@/lib/routes";
 
 type Plan = {
   _id: string;
@@ -210,7 +211,7 @@ export default function FeatureUpgradeModal() {
   async function subscribe(plan: Plan) {
     if (!session) {
       setRequest(null);
-      navigate("/login", { state: { from: window.location.pathname } });
+      navigate(routes.login(), { state: { from: window.location.pathname } });
       return;
     }
     if (Number(plan.price) <= 0 || plan._id === currentPlanId || checkoutPlanId) return;

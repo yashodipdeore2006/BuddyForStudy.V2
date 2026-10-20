@@ -16,6 +16,12 @@ export function toPublicCoursePreview(course) {
   }
   const snapshotModules = Array.isArray(course.generation?.snapshot?.modules) ? course.generation.snapshot.modules : [];
   const selectedResources = snapshotModules.map((module) => module?.course).filter(Boolean);
+  // Snapshot-selected YouTube resources may exist before their videos are expanded
+  // into lesson payloads. Count these too so playlist cards never report 0 videos.
+  const selectedVideoKeys = new Set(selectedResources
+    .map((resource) => String(resource.videoId || resource.url || resource.title || "").trim())
+    .filter(Boolean));
+  const videoCount = Math.max(videosById.size, selectedVideoKeys.size);
   const channelNames = [...new Set([
     ...[...videosById.values()].map((video) => String(video.channelTitle || "").trim()),
     ...selectedResources.map((video) => String(video.channelTitle || "").trim())
@@ -29,15 +35,15 @@ export function toPublicCoursePreview(course) {
   const sourceResourceType = course.generation?.sourceResourceType || null;
   const typeTag = course.generation?.mode === "ai"
     ? "AI roadmap"
-    : sourceResourceType === "video" || videosById.size === 1
+    : sourceResourceType === "video" || videoCount === 1
       ? "Single video"
-      : sourceResourceType === "playlist" || sourceResourceType === "series" || videosById.size > 1
+      : sourceResourceType === "playlist" || sourceResourceType === "series" || videoCount > 1
         ? "Playlist"
         : "Course";
   const cardMetadata = {
     ...(channelNames.length === 1 ? { creatorName: channelNames[0] } : channelNames.length > 1 ? { creatorName: "Multiple creators" } : {}),
     typeTag,
-    videoCount: videosById.size,
+    videoCount,
     ...(qualityScore !== null ? { qualityScore } : {}),
     ...(viewCount > 0 ? { viewCount } : {}),
     ...(likeCount > 0 ? { likeCount } : {})

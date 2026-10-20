@@ -193,13 +193,13 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
   const ui = await readFile(new URL("../../src/components/YouTubeSearchFallback.tsx", import.meta.url), "utf8");
   const service = await readFile(new URL("../src/services/courseCurationDecisionEngine.service.js", import.meta.url), "utf8");
 
-  assert.match(controller, /export async function recordCurationFeedback/);
-  assert.match(controller, /invalidateNormalSearchCurationCache\\(input\\.query\\)/);
-  assert.match(routes, /router\\.post\\("\\/curation-feedback", authMiddleware, recordCurationFeedback\\)/);
+  assert.ok(controller.includes("export async function recordCurationFeedback"));
+  assert.ok(controller.includes("invalidateNormalSearchCurationCache(input.query)"));
+  assert.ok(routes.includes('router.post("/curation-feedback", authMiddleware, recordCurationFeedback)'));
   assert.ok(ui.includes('"thumbs_up"'));
   assert.ok(ui.includes('"thumbs_down"'));
   assert.ok(ui.includes('"outdated"'));
-  assert.match(ui, /\\/api\\/discovery\\/curation-feedback/);
-  assert.match(service, /loadLearnerFeedbackSignals/);
-  assert.match(service, /scoreFinalCandidates\\(deduplicated, profile, syllabus, feedbackSignals\\)/);
+  assert.ok(ui.includes("/api/discovery/curation-feedback"));
+  assert.ok(service.includes("loadLearnerFeedbackSignals"));
+  assert.ok(service.includes("scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals)"));
 });

@@ -1,179 +1,279 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, GraduationCap, RefreshCw, Sparkles, Target, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { Course } from '@/types';
 import CourseCard from '@/components/CourseCard';
-import { BookOpen, Trophy, ArrowRight, Code2, Layers, Sparkles, BrainCircuit, Target } from 'lucide-react';
-import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
+import { CourseGridSkeleton } from '@/components/Skeleton';
+import '@/styles/user-home.css';
 
-function normalizeCourseId(value: any): string {
-  const candidate = value?.course ?? value?.courseId ?? value?.course_id ?? value;
-  const id = candidate && typeof candidate === 'object'
-    ? candidate._id ?? candidate.id ?? candidate.$oid
-    : candidate;
-  return id == null ? '' : String(id);
+type ProgressRecord = {
+  course_id: string;
+  completed_count: number;
+  total_lessons: number;
+  percentage: number;
+  last_lesson_id?: string | null;
+  last_accessed_at?: string | null;
+  nextLessonTitle?: string;
+  remainingDuration?: string;
+};
+type EnrollmentRecord = { id: string; course_id: string; status: string; course: Course };
+type HomeData = {
+  enrollments: EnrollmentRecord[];
+  progress: Record<string, ProgressRecord>;
+  courses: Course[];
+  learningStats: Record<string, unknown> | null;
+};
+
+function mapCourse(raw: any): Course {
+  return {
+    ...raw,
+    id: String(raw?._id ?? raw?.id ?? ''),
+    title: String(raw?.title ?? 'Untitled course'),
+    description: String(raw?.description ?? ''),
+    category: String(raw?.category ?? ''),
+    level: raw?.level,
+    duration: String(raw?.duration ?? ''),
+    thumbnail: raw?.thumbnail ?? null,
+    learning_outcomes: raw?.learningOutcomes ?? raw?.learning_outcomes ?? [],
+    modules: Array.isArray(raw?.modules) ? raw.modules : [],
+    lesson_count: Number.isFinite(raw?.lessonCount) ? raw.lessonCount : raw?.lesson_count,
+    is_published: raw?.isPublished ?? raw?.is_published ?? true,
+    pricing: raw?.pricing,
+    created_at: raw?.createdAt ?? raw?.created_at ?? '',
+    updated_at: raw?.updatedAt ?? raw?.updated_at ?? '',
+  } as Course;
+}
+function mapProgress(raw: any, courseId: string): ProgressRecord {
+  return {
+    course_id: courseId,
+    completed_count: Number(raw?.completedCount ?? raw?.completed_count ?? 0),
+    total_lessons: Number(raw?.totalLessons ?? raw?.total_lessons ?? 0),
+    percentage: Math.max(0, Math.min(100, Number(raw?.percentage ?? 0))),
+    last_lesson_id: raw?.lastLessonId ?? raw?.last_lesson_id ?? null,
+    last_accessed_at: raw?.lastAccessedAt ?? raw?.last_accessed_at ?? null,
+    ...(typeof raw?.nextLessonTitle === 'string' ? { nextLessonTitle: raw.nextLessonTitle } : {}),
+    ...(typeof raw?.remainingDuration === 'string' ? { remainingDuration: raw.remainingDuration } : {}),
+  };
+}
+function mapEnrollment(raw: any): EnrollmentRecord | null {
+  if (!raw?.course || typeof raw.course !== 'object') return null;
+  const course = mapCourse(raw.course);
+  if (!course.id) return null;
+  return {
+    id: String(raw?._id ?? raw?.id ?? course.id),
+    course_id: String(raw.course?._id ?? raw.course?.id ?? raw.course_id ?? course.id),
+    status: String(raw?.status ?? 'active').toLowerCase(),
+    course,
+  };
+}
+function SkeletonResume() {
+  return <div className="user-home__panel user-home__resume" aria-label="Loading your learning" aria-busy="true">
+    <div className="user-home__skeleton user-home__skeleton--cover" />
+    <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /><div className="user-home__skeleton user-home__skeleton--line" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
+  </div>;
+}
+function Cover({ course, className = '' }: { course: Course; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  return <div className={className} aria-label={course.title}>
+    {course.thumbnail && !failed
+      ? <img src={course.thumbnail} alt="" loading="lazy" onError={() => setFailed(true)} />
+      : <div className="user-home__image-fallback"><BookOpen aria-hidden="true" size={32} /></div>}
+  </div>;
 }
 
 export default function Home() {
-  const [courses,setCourses]=useState<Course[]>([]);
-  const [loading,setLoading]=useState(true);
-  const [savedCourseIds,setSavedCourseIds]=useState<Set<string>>(new Set());
-  const [enrolledCourseIds,setEnrolledCourseIds]=useState<Set<string>>(new Set());
-  const { session } = useAuth();
+  const { session, profile, loading: authLoading } = useAuth();
+  const [data, setData] = useState<HomeData>({ enrollments: [], progress: {}, courses: [], learningStats: null });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [sectionErrors, setSectionErrors] = useState<string[]>([]);
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
 
-  useEffect(()=>{async function fetchCourses(){try{const data=await apiFetch('/api/courses?limit=6');setCourses((data.courses||[]).map((course:any)=>({...course,id:String(course._id||course.id),learning_outcomes:course.learningOutcomes||course.learning_outcomes||[],is_published:course.isPublished??course.is_published??false,created_at:course.createdAt||course.created_at,updated_at:course.updatedAt||course.updated_at,created_by:course.createdBy||course.created_by||null})) as Course[])}catch{setCourses([])}finally{setLoading(false)}}fetchCourses()},[]);
-
-  useEffect(() => {
-    let active = true;
+  const loadHome = useCallback(async (isRefresh = false) => {
     if (!session) {
-      setSavedCourseIds(new Set());
-      setEnrolledCourseIds(new Set());
+      setData({ enrollments: [], progress: {}, courses: [], learningStats: null });
+      setLoading(false);
+      setRefreshing(false);
+      setError('');
       return;
     }
-    // Load saved/enrolled state independently so a failure in one endpoint
-    // does not erase the other state or make saved cards look unsaved.
-    apiFetch('/api/saved-courses')
-      .then((savedData) => {
-        if (!active) return;
-        setSavedCourseIds(new Set((savedData.savedCourses || [])
-          .map((item: any) => normalizeCourseId(item))
-          .filter(Boolean)));
-      })
-      .catch(() => undefined);
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError('');
+    setSectionErrors([]);
 
-    apiFetch('/api/enrollments')
-      .then((enrollmentData) => {
-        if (!active) return;
-        setEnrolledCourseIds(new Set((enrollmentData.enrollments || [])
-          .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
-          .map((item: any) => normalizeCourseId(item))
-          .filter(Boolean)));
-      })
-      .catch(() => undefined);
-    return () => { active = false; };
+    const partialErrors: string[] = [];
+    const results = await Promise.allSettled([
+      apiFetch('/api/enrollments'),
+      apiFetch('/api/courses?limit=24'),
+      apiFetch('/api/achievements/me'),
+    ]);
+    const enrollmentResult = results[0];
+    const courseResult = results[1];
+    const statsResult = results[2];
+    const rawEnrollments = enrollmentResult.status === 'fulfilled' ? (enrollmentResult.value.enrollments ?? []) : [];
+    if (enrollmentResult.status === 'rejected') partialErrors.push('Your enrolled courses could not be loaded.');
+    const enrollments = rawEnrollments.map(mapEnrollment)
+      .filter((item: EnrollmentRecord | null): item is EnrollmentRecord => Boolean(item))
+      .filter((item: EnrollmentRecord) => ['active', 'completed'].includes(item.status));
+    const courses = courseResult.status === 'fulfilled'
+      ? (courseResult.value.courses ?? []).map(mapCourse).filter((course: Course) => Boolean(course.id))
+      : [];
+    if (courseResult.status === 'rejected') partialErrors.push('Recommended courses could not be loaded.');
+    const learningStats = statsResult.status === 'fulfilled' ? (statsResult.value.stats ?? null) : null;
+    if (statsResult.status === 'rejected') partialErrors.push('Learning summary is temporarily unavailable.');
+
+    const progressEntries = await Promise.all(enrollments.filter((item: EnrollmentRecord) => item.status === 'active').map(async (enrollment: EnrollmentRecord) => {
+      try {
+        const response = await apiFetch('/api/progress/' + enrollment.course_id);
+        return [enrollment.course_id, mapProgress(response.progress, enrollment.course_id)] as const;
+      } catch {
+        partialErrors.push('Progress for ' + enrollment.course.title + ' could not be loaded.');
+        return null;
+      }
+    }));
+    const progress: Record<string, ProgressRecord> = {};
+    progressEntries.forEach((entry) => { if (entry) progress[entry[0]] = entry[1]; });
+    const allPrimarySourcesFailed = enrollmentResult.status === 'rejected' && courseResult.status === 'rejected' && statsResult.status === 'rejected';
+    if (allPrimarySourcesFailed && !isRefresh) {
+      setError('We couldn’t load your learning home. Check your connection and try again.');
+    } else {
+      setData({ enrollments, progress, courses, learningStats });
+    }
+    setSectionErrors([...new Set(partialErrors)]);
+    setLoading(false);
+    setRefreshing(false);
   }, [session]);
 
-  return <div className="overflow-hidden">
-    <section className="bfs-hero relative text-slate-950">
-      <div className="bfs-shell grid items-center gap-10 py-14 sm:py-16 lg:grid-cols-[1.02fr_.98fr] lg:gap-12 lg:py-20">
-        <div className="relative z-10">
-          <span className="bfs-tag"><Sparkles className="h-3.5 w-3.5" /> AI-powered learning companion</span>
-          <h1 className="bfs-display mt-6 max-w-2xl">
-            Find your direction.<br />
-            <span className="text-violet-600">Build your future.</span>
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-            Turn your career goal into a structured learning path, discover quality resources, build real projects and see your progress in one place.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link to="/courses" className="btn-primary min-h-12 justify-center">
-              Explore courses <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link to="/register" className="btn-secondary min-h-12 justify-center">
-              <BrainCircuit className="h-4 w-4 text-violet-600" /> Build a path with AI
-            </Link>
-          </div>
-          <Link to="/courses" className="mt-6 flex max-w-xl items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 pl-4 shadow-sm transition hover:border-violet-300 hover:shadow-md" aria-label="Search learning courses">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-700"><BookOpen className="h-4 w-4" /></span>
-            <span className="flex-1 text-left text-sm text-slate-500">What do you want to learn?</span>
-            <span className="inline-flex items-center gap-1 rounded-xl bg-slate-950 px-4 py-2.5 text-xs font-bold text-white">Search <ArrowRight className="h-3.5 w-3.5" /></span>
-          </Link>
-          <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500">
-            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Goal-based paths</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-violet-500" /> AI-assisted discovery</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-indigo-500" /> Visible progress</span>
-          </div>
-        </div>
-        <div className="bfs-hero-art">
-          <div className="bfs-float-chip bfs-float-chip--top"><Sparkles className="h-4 w-4" /> AI learning path</div>
-          <img src="/buddyforstudy-mascot.webp" alt="BuddyForStudy's friendly dinosaur learning mascot, reading a book" className="bfs-hero-mascot" />
-          <div className="bfs-float-chip bfs-float-chip--bottom"><Trophy className="h-4 w-4" /> Every step counts</div>
-          <div className="absolute bottom-5 right-5 z-10 hidden items-center gap-2 rounded-xl border border-violet-100 bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 shadow-sm sm:flex">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Target className="h-4 w-4" /></span>
-            Learn with purpose
-          </div>
-        </div>
-      </div>
-    </section>
+  useEffect(() => { if (!authLoading) void loadHome(); }, [authLoading, loadHome]);
+  useEffect(() => {
+    const updateOnline = () => setOnline(true);
+    const updateOffline = () => setOnline(false);
+    window.addEventListener('online', updateOnline);
+    window.addEventListener('offline', updateOffline);
+    return () => {
+      window.removeEventListener('online', updateOnline);
+      window.removeEventListener('offline', updateOffline);
+    };
+  }, []);
 
-    <section className="border-y border-slate-200 bg-white">
-      <div className="bfs-shell grid grid-cols-2 gap-5 py-6 sm:grid-cols-4 sm:py-8">
-        {[
-          [BrainCircuit, 'Discover', 'Find the next right skill'],
-          [Layers, 'Learn', 'Follow a clear sequence'],
-          [Code2, 'Build', 'Practice with real projects'],
-          [Trophy, 'Grow', 'Track progress over time']
-        ].map(([Icon, title, desc]) => {
-          const I = Icon as any;
-          return <div key={String(title)} className="flex items-start gap-3">
-            <span className="bfs-icon-tile h-10 w-10 shrink-0 rounded-xl"><I className="h-5 w-5" /></span>
-            <div><p className="text-sm font-bold text-slate-900">{String(title)}</p><p className="mt-0.5 text-xs leading-5 text-slate-500">{String(desc)}</p></div>
-          </div>;
-        })}
-      </div>
-    </section>
+  const activeEnrollments = useMemo(() => data.enrollments.filter((item) => item.status === 'active'), [data.enrollments]);
+  const inProgress = useMemo(() => activeEnrollments
+    .filter((item) => (data.progress[item.course_id]?.percentage ?? 0) > 0 && (data.progress[item.course_id]?.percentage ?? 0) < 100)
+    .sort((a, b) => (data.progress[b.course_id]?.last_accessed_at ?? '').localeCompare(data.progress[a.course_id]?.last_accessed_at ?? '')),
+  [activeEnrollments, data.progress]);
+  const resumeEnrollment = inProgress[0] ?? activeEnrollments[0] ?? null;
+  const resumeProgress = resumeEnrollment ? data.progress[resumeEnrollment.course_id] : undefined;
+  const enrolledIds = useMemo(() => new Set(data.enrollments.map((item) => item.course_id)), [data.enrollments]);
+  const recommendations = useMemo(() => data.courses.filter((course) => !enrolledIds.has(course.id)).slice(0, 4), [data.courses, enrolledIds]);
+  const completedLessons = Object.values(data.progress).reduce((sum, item) => sum + item.completed_count, 0);
+  const totalLessons = Object.values(data.progress).reduce((sum, item) => sum + item.total_lessons, 0);
+  const overallProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
+  const resumeUrl = resumeEnrollment
+    ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.last_lesson_id ? '/' + encodeURIComponent(resumeProgress.last_lesson_id) : '')
+    : '/courses';
 
-    <section className="bfs-section">
-      <div className="bfs-shell">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div><p className="bfs-eyebrow">A smarter way to learn</p><h2 className="mt-3 max-w-3xl text-3xl font-bold tracking-tight sm:text-4xl">Everything you need to move forward.</h2><p className="mt-4 max-w-2xl text-base leading-7 text-slate-500">No more collecting random tutorials. Connect your goals, skills, resources and projects in one focused learning experience.</p></div>
-          <Link to="/courses" className="hidden items-center gap-2 text-sm font-bold text-violet-700 sm:inline-flex">Explore the platform <ArrowRight className="h-4 w-4" /></Link>
-        </div>
-        <div className="mt-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { icon: BrainCircuit, title: 'AI learning paths', desc: 'Turn a career goal or any topic into an ordered roadmap built around prerequisites and your level.' },
-            { icon: BookOpen, title: 'Curated courses', desc: 'Explore structured courses and relevant learning resources without losing track of what matters.' },
-            { icon: Code2, title: 'Practical projects', desc: 'Reinforce concepts through hands-on work and build skills you can demonstrate.' },
-            { icon: Trophy, title: 'Progress that shows', desc: 'Keep lessons, milestones and achievements visible so it is easier to maintain momentum.' }
-          ].map(({ icon: Icon, title, desc }) => <article key={title} className="bfs-feature-card bfs-interactive-card">
-            <div className="bfs-icon-tile"><Icon className="h-6 w-6" /></div>
-            <h3 className="mt-5 text-lg font-bold">{title}</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{desc}</p>
-            <div className="mt-5 flex items-center gap-2 text-xs font-bold text-violet-700">Learn at your pace <ArrowRight className="h-3.5 w-3.5" /></div>
-          </article>)}
-        </div>
-      </div>
-    </section>
+  if (authLoading || loading) {
+    return <main className="user-home" id="main-content"><div className="user-home__shell user-home__stack">
+      <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
+      <SkeletonResume />
+      <div className="user-home__stats">{[1, 2, 3].map((item) => <div key={item} className="user-home__panel" aria-hidden="true"><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div>)}</div>
+      <CourseGridSkeleton count={4} />
+    </div></main>;
+  }
+  if (error) {
+    return <main className="user-home" id="main-content"><div className="user-home__shell"><ErrorState title="Your Home didn’t load" description={error} onRetry={() => void loadHome()} /></div></main>;
+  }
 
-    <section className="pb-14 sm:pb-16">
-      <div className="bfs-shell">
-        <div className="bfs-ai-panel relative overflow-hidden p-7 sm:p-10 lg:p-12">
-          <div className="absolute -right-10 -top-24 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
-          <div className="relative grid items-center gap-7 md:grid-cols-[1fr_auto]">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-300/30 bg-white/10 px-3 py-1.5 text-xs font-bold text-violet-200"><Sparkles className="h-3.5 w-3.5" /> Your AI study companion</span>
-              <h2 className="mt-4 text-2xl font-bold leading-tight text-white sm:text-3xl">From “I want to learn” to “I know what to do next.”</h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-indigo-100/85">Get a clearer path, keep your learning organized and build consistent habits around your career goals.</p>
+  return <main className="user-home" id="main-content">
+    {refreshing && <div className="user-home__refreshing" role="progressbar" aria-label="Refreshing Home" />}
+    <div className="user-home__shell user-home__stack">
+      {!online && <div className="user-home__alert user-home__alert--info" role="status"><Clock3 aria-hidden="true" size={18} /><span>You’re offline. Progress will sync when you reconnect.</span></div>}
+      <section className="user-home__greeting" aria-labelledby="home-title">
+        <div>
+          <h1 className="user-home__page-title" id="home-title">Welcome back, {firstName}</h1>
+          <p className="user-home__muted">{resumeEnrollment && resumeProgress && resumeProgress.total_lessons > 0
+            ? 'You’re ' + Math.max(0, resumeProgress.total_lessons - resumeProgress.completed_count) + ' lessons from finishing ' + resumeEnrollment.course.title + '.'
+            : 'Your next step is ready when you are.'}</p>
+        </div>
+        {resumeEnrollment && <Link className="user-home__button" to={resumeUrl}>Continue: {resumeEnrollment.course.title} <ArrowRight size={16} aria-hidden="true" /></Link>}
+      </section>
+
+      {sectionErrors.length > 0 && <div className="user-home__alert user-home__alert--error" role="alert">
+        <span>{sectionErrors.join(' ')}</span>
+        <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>Retry <RefreshCw size={14} aria-hidden="true" /></button>
+      </div>}
+
+      <section className="user-home__section" aria-labelledby="resume-heading">
+        <div className="user-home__heading"><h2 className="user-home__title" id="resume-heading">Pick up where you left off</h2></div>
+        {resumeEnrollment && resumeProgress ? <article className="user-home__panel user-home__resume">
+          <Cover course={resumeEnrollment.course} className="user-home__cover" />
+          <div className="user-home__resume-content">
+            <p className="user-home__meta">{resumeEnrollment.course.category || 'Your course'}</p>
+            <h3 className="user-home__course-title">{resumeEnrollment.course.title}</h3>
+            <p className="user-home__meta">{resumeProgress.nextLessonTitle
+              ? 'Next: ' + resumeProgress.nextLessonTitle
+              : resumeProgress.last_lesson_id
+                ? 'Next: continue from your last lesson'
+                : resumeProgress.completed_count > 0 ? 'Continue from your saved progress' : 'Start with the first lesson'}</p>
+            <div className="user-home__progress">
+              <div className="user-home__progress-label"><span>{resumeProgress.completed_count} of {resumeProgress.total_lessons || '—'} lessons</span><span>{resumeProgress.percentage}%</span></div>
+              <div className="user-home__progress-track" role="progressbar" aria-label={resumeEnrollment.course.title + ' progress'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={resumeProgress.percentage}>
+                <div className="user-home__progress-fill" style={{ width: resumeProgress.percentage + '%' }} />
+              </div>
             </div>
-            <Link to="/register" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-indigo-950 shadow-lg transition hover:bg-violet-50">Start learning free <ArrowRight className="h-4 w-4" /></Link>
+            {resumeProgress.remainingDuration && <p className="user-home__meta">About {resumeProgress.remainingDuration} left</p>}
+            <Link className="user-home__button" to={resumeUrl}>Continue <ArrowRight size={16} aria-hidden="true" /></Link>
           </div>
-        </div>
-      </div>
-    </section>
+        </article> : <div className="user-home__empty">
+          <div className="user-home__empty-icon"><GraduationCap size={24} aria-hidden="true" /></div>
+          <h3>{session ? 'No course in progress yet' : 'Your learning journey starts here'}</h3>
+          <p>{session ? 'Explore a course or build a learning path. Your next step will appear here.' : 'Sign in to keep your courses, progress and next lesson together.'}</p>
+          <div className="flex flex-wrap gap-3"><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/register"><Sparkles size={16} aria-hidden="true" /> Build my path</Link></div>
+        </div>}
+      </section>
 
-    <section className="bfs-section bg-white">
-      <div className="bfs-shell">
-        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div><p className="bfs-eyebrow">Featured learning</p><h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Start with a path that matters.</h2><p className="mt-3 text-slate-500">Explore the courses already available on BuddyForStudy.</p></div>
-          <Link to="/courses" className="inline-flex items-center gap-2 text-sm font-bold text-violet-700">View all courses <ArrowRight className="h-4 w-4" /></Link>
+      <section className="user-home__panel" aria-labelledby="stats-heading">
+        <div className="user-home__heading"><h2 className="user-home__title" id="stats-heading">Your learning at a glance</h2><Link className="user-home__link" to="/profile">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        <div className="user-home__stats">
+          <div className="user-home__stat"><div className="user-home__stat-icon"><BookOpen size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{data.enrollments.length}</p><p className="user-home__stat-label">Courses enrolled</p></div></div>
+          <div className="user-home__stat"><div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div></div>
+          <div className="user-home__stat"><div className="user-home__stat-icon"><TrendingUp size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{overallProgress}%</p><p className="user-home__stat-label">Overall progress</p></div></div>
         </div>
-        <div className="mt-9">{loading ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((n) => <div key={n} className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5"><div className="bfs-skeleton h-36 rounded-xl" /><div className="bfs-skeleton mt-4 h-4 w-2/3 rounded" /><div className="bfs-skeleton mt-3 h-3 w-full rounded" /><div className="bfs-skeleton mt-2 h-3 w-4/5 rounded" /></div>)}</div> : courses.length === 0 ? <EmptyState icon={<BookOpen className="h-8 w-8" />} title="No courses available yet" description="New learning paths are being added regularly." /> : <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{courses.map(course => <CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />)}</div>}</div>
-      </div>
-    </section>
+        {data.learningStats && typeof data.learningStats.currentStreak === 'number' && <p className="user-home__meta mt-4"><Target size={14} className="inline" aria-hidden="true" /> Current streak: {data.learningStats.currentStreak} {data.learningStats.currentStreak === 1 ? 'day' : 'days'}</p>}
+      </section>
 
-    <section className="bfs-section">
-      <div className="bfs-shell">
-        <div className="relative overflow-hidden bfs-cta-panel rounded-[28px] border border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-8 sm:p-12 lg:p-14">
-          <div className="pointer-events-none absolute -right-8 -top-12 opacity-10"><img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" className="h-64 w-64" /></div>
-          <div className="relative max-w-3xl">
-            <p className="bfs-eyebrow">Your next chapter</p>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">You don’t need more tutorials.<br />You need a better path.</h2>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">Choose a goal, build your plan and let BuddyForStudy help you focus on the next meaningful step.</p>
-            <Link to="/register" className="mt-7 inline-flex items-center gap-2 btn-primary">Start learning free <ArrowRight className="h-4 w-4" /></Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>;
+      <section className="user-home__section" aria-labelledby="continue-heading">
+        <div className="user-home__heading"><h2 className="user-home__title" id="continue-heading">Continue learning</h2><Link className="user-home__link" to="/my-courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
+          ? <div className="user-home__compact-list">{inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).map((item) => {
+            const progress = data.progress[item.course_id];
+            return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.last_lesson_id ? '/' + encodeURIComponent(progress.last_lesson_id) : '')}>
+              <Cover course={item.course} className="user-home__compact-cover" />
+              <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} lessons · {progress?.percentage ?? 0}%</p></div>
+              <span className="user-home__link user-home__compact-action">Continue <ArrowRight size={14} aria-hidden="true" /></span>
+            </Link>;
+          })}</div>
+          : <p className="user-home__meta">Your other in-progress courses will appear here.</p>}
+      </section>
+
+      <section className="user-home__section" aria-labelledby="picked-heading">
+        <div className="user-home__heading"><div><h2 className="user-home__title" id="picked-heading">Picked for you</h2><p className="user-home__meta">Courses you haven’t enrolled in yet.</p></div><Link className="user-home__link" to="/courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        {recommendations.length > 0
+          ? <div className="user-home__course-grid">{recommendations.map((course) => {
+            const relatedCategory = resumeEnrollment?.course.category;
+            const reason = relatedCategory && course.category?.toLowerCase() === relatedCategory.toLowerCase()
+              ? 'Because you’re learning ' + relatedCategory
+              : course.category ? 'Explore ' + course.category : 'Explore this learning path';
+            return <div key={course.id} className="min-w-0"><p className="user-home__reason">{reason}</p><CourseCard course={course} /></div>;
+          })}</div>
+          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>Retry recommendations</button>}</div>}
+      </section>
+    </div>
+  </main>;
 }

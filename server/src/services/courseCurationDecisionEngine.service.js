@@ -254,9 +254,9 @@ function buildCandidateQueries(profile, syllabus) {
     topic + " complete course for beginners",
     topic + " course chapters syllabus",
     topic + " course " + year,
-    modules.length ? topic + " " + modules.map((item) => item.name).join(" ") + " tutorial" : topic + " practical course"
+    ...modules.map((item) => topic + " " + item.name + " tutorial")
   ];
-  const aliases = (syllabus.aliases || []).slice(0, 2);
+  const aliases = (syllabus.aliases || []).slice(0, 1);
   if (aliases.length && queries.length < 8) queries.push(aliases[0] + " full course");
   return [...new Set(queries.map((item) => item.trim()).filter(Boolean))].slice(0, 8);
 }
@@ -364,7 +364,8 @@ function languageAllowed(candidate, profile) {
 function passesHardGates(candidate, profile) {
   if (!candidate || !candidate.title) return { passed: false, reason: "missing_metadata" };
   if (candidate.isShort || Number(candidate.durationSeconds || 0) > 0 && Number(candidate.durationSeconds) <= 180 && candidate.sourceType !== "playlist") return { passed: false, reason: "short_form" };
-  if (candidate.privacyStatus && candidate.privacyStatus !== "public" && candidate.privacyStatus !== "unknown") return { passed: false, reason: "not_public" };
+  if (candidate.sourceType !== "playlist" && candidate.privacyStatus !== "public") return { passed: false, reason: "not_public" };
+  if (candidate.sourceType === "playlist" && candidate.privacyStatus !== "public") return { passed: false, reason: "not_public" };
   if (candidate.embeddable === false) return { passed: false, reason: "not_embeddable" };
   const region = candidate.regionRestriction || {};
   if (Array.isArray(region.blocked) && region.blocked.includes("IN")) return { passed: false, reason: "region_blocked" };
@@ -736,7 +737,7 @@ function addExplanations(candidate, features, syllabus) {
   if (features.freshness.score >= 85) why.push("Recent relative to this topic's freshness window.");
   if (candidate.isHiddenGem) why.push("Hidden gem: strong quality evidence with below-median views.");
   if (candidate.sourceType === "series") why.push("Numbered parts from the same creator were assembled into one series.");
-  if (features.community.status === "unavailable") why.push("Independent community consensus and transcript-level quality checks are not yet available; confidence is reduced accordingly.");
+  if (features.community.status === "unavailable" && features.coverage.score < 45) why.push("This is a metadata-level match; transcript and independent community checks are not available.");
   return why.slice(0, 5);
 }
 function setRankingSlots(candidates) {

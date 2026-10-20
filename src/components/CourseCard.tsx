@@ -151,7 +151,7 @@ export default function CourseCard({
     setActionNotice("");
     setUndoSaveValue(null);
     if (!session && enrollmentState === "not-enrolled") {
-      navigate("/login", { state: { from: { pathname: "/courses/" + course.id } } });
+      navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
       return;
     }
     if (actionState === "not-enrolled-paid") {

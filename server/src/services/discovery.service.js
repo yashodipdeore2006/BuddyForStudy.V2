@@ -867,7 +867,7 @@ export async function getPlaylistCourse(playlistId) {
         privacyStatus: video.status?.privacyStatus || "unknown",
         embeddable: video.status?.embeddable !== false,
         regionRestriction: video.contentDetails?.regionRestriction || {},
-        isShort: /(^|[\s#])shorts?([\s#]|$)/i.test(title) && seconds <= 180,
+        isShort: seconds <= 180 && /(?:#shorts?\b|\byoutube shorts?\b|\bshort-form video\b)/i.test(title + " " + description),
         url: "https://www.youtube.com/watch?v=" + video.id,
         embedUrl: "https://www.youtube.com/embed/" + video.id
       };

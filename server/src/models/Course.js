@@ -116,7 +116,7 @@ const courseSchema = new mongoose.Schema({
     topicKeys: { type: [String], default: [] },
     sourceCourse: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
     sourceModuleId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    sourceResourceType: { type: String, enum: ["video", "playlist"], default: null },
+    sourceResourceType: { type: String, enum: ["video", "playlist", "series"], default: null },
     sourceResourceId: { type: String, default: "" },
     snapshot: { type: mongoose.Schema.Types.Mixed, default: null }
   }

@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Mail, RotateCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
+import { routes } from "@/lib/routes";
 
 const RESEND_SECONDS = 60;
 
@@ -33,7 +34,7 @@ export default function VerifyEmail() {
     setLoading(true);
     try {
       await verifyEmail(email, otp);
-      navigate("/dashboard", { replace: true });
+      navigate(routes.home(), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to verify your email.");
     } finally {
@@ -67,7 +68,7 @@ export default function VerifyEmail() {
       footer={
         <>
           Already verified?{" "}
-          <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign in
           </Link>
         </>

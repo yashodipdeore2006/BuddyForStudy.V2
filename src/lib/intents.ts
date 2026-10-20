@@ -7,6 +7,9 @@ import {
   Play,
   Plus,
   RotateCcw,
+  RefreshCw,
+  Undo2,
+  Settings2,
   Search,
   Sparkles,
   type LucideIcon,
@@ -28,6 +31,9 @@ export const USER_INTENTS = {
   buildPath: { label: "Build my path", icon: Sparkles, ariaLabel: "Build a learning path with AI" },
   signOut: { label: "Sign out", icon: LogOut, ariaLabel: "Sign out of BuddyForStudy" },
   search: { label: "Search", icon: Search, ariaLabel: "Search BuddyForStudy" },
+  retry: { label: "Retry", icon: RefreshCw, ariaLabel: "Retry loading this section" },
+  undo: { label: "Undo", icon: Undo2, ariaLabel: "Undo the last change" },
+  editGoal: { label: "Edit goal", icon: Settings2, ariaLabel: "Edit daily learning goal" },
 } as const satisfies Record<string, { label: string; icon: LucideIcon | undefined; ariaLabel: string }>;
 
 export type CourseActionState = "not-enrolled-free" | "not-enrolled-paid" | "not-started" | "in-progress" | "completed";

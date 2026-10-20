@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import CourseActionButton from "@/components/CourseActionButton";
 import {
   BookOpen,
   Bookmark,
@@ -605,7 +606,7 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void saveCourse(course)}
                           disabled={savingId === course.id}
-                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Remove from Saved" : "Save for later"} title={savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Remove from Saved" : "Save for later"} title= className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(course.id)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -616,13 +617,13 @@ export default function YouTubeSearchFallback({
                           ) : (
                             <BookOpen className="h-3.5 w-3.5" />
                           )}
-                          {savedIds.has(course.id) ? "Saved" : "Save"}
+                          
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => void enrollCourse(course)}
-                          disabled={enrollingId === course.id || enrolledIds.has(course.id)}
+                          onClick={() => handleCourseAction(course)}
+                          disabled={enrollingId === course.id}
                           className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {enrollingId === course.id ? (
@@ -631,7 +632,7 @@ export default function YouTubeSearchFallback({
                               Adding...
                             </>
                           ) : enrolledIds.has(course.id) ? (
-                            "Enrolled"
+                            "Start"
                           ) : (
                             "Enroll free"
                           )}
@@ -749,7 +750,7 @@ export default function YouTubeSearchFallback({
                               itemCount: 1,
                             });
                           }}
-                          disabled={enrollingId === `video-course-${course.videoId}` || enrolledIds.has(`video-course-${course.videoId}`)}
+                          disabled={enrollingId === `video-course-${course.videoId}`}
                           className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60"
                         >
                           {enrollingId === `video-course-${course.videoId}` ? (
@@ -856,7 +857,7 @@ export default function YouTubeSearchFallback({
                             {savingId === `playlist-course-${playlist.playlistId}` ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : null}
-                            {savedIds.has(`playlist-course-${playlist.playlistId}`) ? "Saved" : "Save"}
+                            
                           </button>
 
                           <button

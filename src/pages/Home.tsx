@@ -117,6 +117,8 @@ export default function Home() {
       setLoading(false);
       setRefreshing(false);
       setError('');
+      setFatalErrorStatus(null);
+      setSectionErrors({ enrollments: '', recommendations: '', stats: '', progress: [], refresh: '' });
       return;
     }
     if (isRefresh) setRefreshing(true);
@@ -166,7 +168,18 @@ export default function Home() {
         setError(status === 403 ? 'Your account does not have permission to access this learning data.' : status === 404 ? 'Some learning data could not be found. It may have moved or been removed.' : 'We couldn’t load your learning home. Check your connection and try again.');
       } else partialErrors.refresh = 'Refresh failed. The last available data is still shown.';
     } else {
-      setData({ enrollments, progress, courses, learningStats });
+      setData((current) => {
+        const currentCourseIds = new Set(enrollments.map((item) => item.course_id));
+        const preservedProgress = enrollmentResult.status === 'fulfilled'
+          ? Object.fromEntries(Object.entries(current.progress).filter(([courseId]) => currentCourseIds.has(courseId)))
+          : current.progress;
+        return {
+          enrollments: enrollmentResult.status === 'fulfilled' ? enrollments : current.enrollments,
+          progress: { ...preservedProgress, ...progress },
+          courses: courseResult.status === 'fulfilled' ? courses : current.courses,
+          learningStats: statsResult.status === 'fulfilled' ? learningStats : current.learningStats,
+        };
+      });
     }
     setSectionErrors(partialErrors);
     setLoading(false);
@@ -359,8 +372,8 @@ export default function Home() {
 
       <section className="user-home__section" aria-labelledby="picked-heading">
         <div className="user-home__heading"><div><h2 className="user-home__title" id="picked-heading">Picked for you</h2><p className="user-home__meta">Courses you haven’t enrolled in yet.</p></div><Link className="user-home__link" to="/courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
-        {sectionErrors.recommendations
-          ? <div className="user-home__alert user-home__alert--error" role="alert"><span>{sectionErrors.recommendations}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>
+        {(sectionErrors.recommendations || sectionErrors.enrollments)
+          ? <div className="user-home__alert user-home__alert--error" role="alert"><span>{sectionErrors.enrollments ? 'Recommendations are paused until your enrollment list loads.' : sectionErrors.recommendations}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>
           : recommendations.length > 0
           ? <div className="user-home__course-grid">{recommendations.map((course) => {
             const relatedCategory = resumeEnrollment?.course.category;

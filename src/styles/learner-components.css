@@ -291,3 +291,58 @@
   .bfs-slim-footer { margin-bottom:0; padding-bottom:calc(var(--s-4) + 56px + env(safe-area-inset-bottom)); }
   .bfs-marketing-footer__inner { grid-template-columns:1fr; }
 }
+
+
+/* Shared recoverable and permission error state, token-based in light and dark themes. */
+.bfs-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+.bfs-error-state__icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.bfs-error-state h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-lg);
+  font-weight: 600;
+}
+.bfs-error-state p {
+  max-width: var(--reading-max);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+}
+.bfs-error-state__retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  min-height: var(--control-h);
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: 500 var(--fs-md)/var(--lh-md) var(--font);
+  cursor: pointer;
+}
+.bfs-error-state__retry:hover { background: var(--surface-2); }
+.bfs-error-state__retry:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bfs-error-state__action { display: flex; justify-content: center; }

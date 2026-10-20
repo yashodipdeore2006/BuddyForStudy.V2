@@ -23,7 +23,7 @@ const initialState: CourseState = {
   hasPreview: false, isPublished: true, error: null,
 };
 
-export function useCourseState(courseId: string | undefined, course?: Course | null): CourseState {
+export function useCourseState(courseId: string | undefined, course?: Course | null, enabled = true): CourseState {
   const [remote, setRemote] = useState<CourseState>(initialState);
   const lessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
   const lessonKey = lessons.map((lesson) => String(lesson.id)).join("|");
@@ -31,6 +31,10 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
 
   useEffect(() => {
     let current = true;
+    if (!enabled) {
+      setRemote({ ...initialState, loading: false, hasRoadmap, isPublished: course?.is_published !== false, error: null });
+      return () => { current = false; };
+    }
     if (!courseId) {
       setRemote({ ...initialState, loading: false, error: "A course id is required." });
       return () => { current = false; };
@@ -80,7 +84,7 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
     });
 
     return () => { current = false; };
-  }, [courseId, course?.id, course?.is_published, hasRoadmap, lessonKey]);
+  }, [courseId, course?.id, course?.is_published, enabled, hasRoadmap, lessonKey]);
 
   return { ...remote, hasRoadmap: course ? hasRoadmap : remote.hasRoadmap, isPublished: course ? course.is_published !== false : remote.isPublished };
 }

@@ -33,6 +33,7 @@ const routeModule = loadTs("src/lib/routes.ts");
 const navModule = loadTs("src/lib/courseNav.ts", { "./routes": routeModule });
 const { routes, resolveNotificationRoute } = routeModule;
 const { getCourseNavTargets } = navModule;
+const notesModule = loadTs("src/lib/courseNotes.ts");
 
 test("route helpers encode ids and reject missing identifiers", () => {
   assert.equal(routes.course("abc/123"), "/courses/abc%2F123");
@@ -118,4 +119,30 @@ test("card and page source use canonical navigation helpers", () => {
   assert.match(myLearning, /aria-current=\{activeTab === tab \? "page" : undefined\}/);
   assert.match(roadmap, /Promise\.allSettled/);
   assert.match(app, /<Route path="\*" element=\{<NotFound \/>} \/>/);
+});
+
+
+test("timestamped lesson note timestamps parse and format consistently", () => {
+  assert.equal(notesModule.parseMediaTimestamp("00:00"), 0);
+  assert.equal(notesModule.parseMediaTimestamp("12:44"), 764);
+  assert.equal(notesModule.parseMediaTimestamp("1:02:15"), 3735);
+  assert.equal(notesModule.parseMediaTimestamp("95"), 95);
+  assert.equal(notesModule.parseMediaTimestamp("1:75"), null);
+  assert.equal(notesModule.parseMediaTimestamp("bad"), null);
+  assert.equal(notesModule.formatMediaTimestamp(764), "12:44");
+  assert.equal(notesModule.formatMediaTimestamp(3735), "1:02:15");
+});
+
+test("course pages expose timestamped notes, lesson-state labels, and source duration metadata", () => {
+  const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
+  const courseDetails = fs.readFileSync(path.join(root, "src/pages/CourseDetails.tsx"), "utf8");
+  const preview = fs.readFileSync(path.join(root, "server/src/utils/coursePreview.js"), "utf8");
+  const navbar = fs.readFileSync(path.join(root, "src/components/Navbar.tsx"), "utf8");
+  assert.match(player, /Timestamped notes/);
+  assert.match(player, /cleanPlayerLessonTitle\(lesson\.title/);
+  assert.match(player, /Currently learning/);
+  assert.match(courseDetails, /Notes by lesson/);
+  assert.match(courseDetails, /bfs:course-enrollment-updated/);
+  assert.match(preview, /durationSeconds/);
+  assert.match(navbar, /bfs:course-enrollment-updated/);
 });

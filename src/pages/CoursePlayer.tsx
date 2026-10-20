@@ -175,10 +175,11 @@ export default function CoursePlayer() {
       progress?.last_lesson_id ||
       allLessons.find((item) => !isLessonCompleted(progress?.completed_lessons || [], item.id))?.id ||
       allLessons[0].id;
-    navigate(routes.learn(courseId, targetId), { replace: true });
+    if (courseId && targetId) navigate(routes.learn(courseId, targetId), { replace: true });
   }, [course, lessonId, allLessons, progress, navigate, courseId]);
 
   const handleNavigate = (id: string) => {
+    if (!courseId) return;
     navigate(routes.learn(courseId, id));
     setSidebarOpen(false);
   };
@@ -320,7 +321,7 @@ export default function CoursePlayer() {
         <h1 className="mt-4 text-2xl font-bold text-slate-900">
           {error || "Course Not Found"}
         </h1>
-        <Link to={routes.course(courseId)} className="btn-primary mt-6">
+        <Link to={courseId ? routes.course(courseId) : routes.explore()} className="btn-primary mt-6">
           View Course
         </Link>
       </div>
@@ -349,7 +350,7 @@ export default function CoursePlayer() {
           </button>
 
           <Link
-            to={routes.course(courseId)}
+            to={courseId ? routes.course(courseId) : routes.explore()}
             className="hidden items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900 sm:flex"
           >
             <ArrowLeft className="h-4 w-4" />

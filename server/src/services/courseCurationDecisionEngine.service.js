@@ -7,7 +7,7 @@ import { cacheGet, cacheSet } from "../config/cache.js";
 import { searchYouTubeCurationCandidates } from "./youtube.service.js";
 import { searchStructuredPlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.1";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -275,7 +275,7 @@ function buildCandidateQueries(profile, syllabus) {
 function queryTermStats(query, candidate) {
   const queryTerms = tokens(query);
   const title = normalizeText(candidate.title);
-  const body = normalizeText([candidate.description, candidate.channelTitle].join(" "));
+  const body = normalizeText(candidate.description);
   const full = title + " " + body;
   const matchedTitle = queryTerms.filter((term) => title.includes(term)).length;
   const matchedAll = queryTerms.filter((term) => full.includes(term)).length;
@@ -376,8 +376,7 @@ function languageAllowed(candidate, profile) {
 function passesHardGates(candidate, profile) {
   if (!candidate || !candidate.title) return { passed: false, reason: "missing_metadata" };
   if (candidate.isShort || Number(candidate.durationSeconds || 0) > 0 && Number(candidate.durationSeconds) <= 180 && candidate.sourceType !== "playlist") return { passed: false, reason: "short_form" };
-  if (candidate.sourceType !== "playlist" && candidate.privacyStatus !== "public") return { passed: false, reason: "not_public" };
-  if (candidate.sourceType === "playlist" && candidate.privacyStatus !== "public") return { passed: false, reason: "not_public" };
+  if (candidate.privacyStatus !== "public") return { passed: false, reason: "not_public" };
   if (candidate.embeddable === false) return { passed: false, reason: "not_embeddable" };
   const region = candidate.regionRestriction || {};
   if (Array.isArray(region.blocked) && region.blocked.includes("IN")) return { passed: false, reason: "region_blocked" };
@@ -742,7 +741,11 @@ function addExplanations(candidate, features, syllabus) {
   } else {
     why.push(formatDuration(candidate.durationSeconds || 0) + " long-form lesson.");
   }
-  if (candidate.hasChapters && candidate.chapterCount) why.push("Contains " + candidate.chapterCount + " detected chapter/timestamp markers.");
+  if (candidate.hasChapters && candidate.chapterCount) {
+    if (candidate.sourceType === "playlist") why.push("Has " + candidate.chapterCount + " sequentially numbered lessons.");
+    else if (candidate.sourceType === "series") why.push("Has " + candidate.chapterCount + " detected numbered parts or lesson markers.");
+    else why.push("Contains " + candidate.chapterCount + " detected chapter/timestamp markers.");
+  }
   if (candidate.hasHandsOn) why.push("Description or lesson titles indicate practical exercises, projects, or demonstrations.");
   if (features.engagement.likePercentile >= 80) why.push("Engagement quality is in the top 20% of this candidate set after smoothing for low view counts.");
   if (features.freshness.score >= 85) why.push("Recent relative to this topic's freshness window.");

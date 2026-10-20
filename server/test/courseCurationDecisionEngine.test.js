@@ -123,6 +123,14 @@ test("intent profile defaults to full course and parses crash, reference, level 
   const reference = classifyCurationIntent("SQL quick reference");
   assert.equal(reference.mode, "quick_reference");
   assert.equal(reference.maxVideoSeconds, 60 * 60);
+
+  const filtered = classifyCurationIntent("Python", {
+    category: "Data Science & AI",
+    level: "Advanced"
+  });
+  assert.equal(filtered.category, "Data Science & AI");
+  assert.equal(filtered.level, "Advanced");
+  assert.equal(classifyCurationIntent("History of India").halfLifeDays, 3650);
 });
 
 test("learner community consensus uses a Bayesian prior and bounded feedback", () => {
@@ -204,6 +212,25 @@ test("ranking slots return the configured result limit up to the available eligi
   assert.ok(results.some((item) => item.primarySlot === "Best overall"));
 });
 
+test("short-course wording does not trigger the YouTube Shorts gate", () => {
+  const profile = classifyCurationIntent("SQL quick reference");
+  const playlist = baseCandidate({
+    id: "playlist:sql-short-course",
+    sourceType: "playlist",
+    sourceId: "sql-short-course",
+    title: "SQL Short Course Playlist",
+    description: "SQL quick reference examples, query practice, and core concepts.",
+    durationSeconds: 30 * 60,
+    itemCount: 3,
+    hasStructure: true,
+    integrity: 1,
+    isShort: false,
+    queryTermStats: { relevance: 100, titleRelevance: 100 }
+  });
+  const decision = evaluateCurationHardGates(playlist, profile);
+  assert.equal(decision.passed, true, decision.reason);
+});
+
 test("ranking slots cap creators at two results and deduplicate resources", () => {
   const candidates = [
     slotCandidate(1, { channelId: "same-channel", finalScore: 96 }),
@@ -227,7 +254,7 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
   const service = await readFile(new URL("../src/services/courseCurationDecisionEngine.service.js", import.meta.url), "utf8");
 
   assert.ok(controller.includes("export async function recordCurationFeedback"));
-  assert.ok(controller.includes("invalidateNormalSearchCurationCache(input.query)"));
+  assert.ok(controller.includes("invalidateNormalSearchCurationCache(input.query, { category: input.category, level: input.level })"));
   assert.ok(routes.includes('router.post("/curation-feedback", curationFeedbackLimiter, optionalAuthMiddleware, recordCurationFeedback)'));
   assert.ok(ui.includes('"thumbs_up"'));
   assert.ok(ui.includes('"thumbs_down"'));

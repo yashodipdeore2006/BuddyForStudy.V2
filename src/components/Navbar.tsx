@@ -14,17 +14,17 @@ import { routes } from "@/lib/routes";
 type ThemeMode = "light" | "dark" | "system";
 
 const learnerLinks = [
-  { to: "/home", label: "Home", icon: Home },
-  { to: "/explore", label: "Explore", icon: Compass },
-  { to: "/my-learning", label: "My learning", icon: GraduationCap },
-  { to: "/saved", label: "Saved", icon: Bookmark },
+  { to: routes.home(), label: "Home", icon: Home },
+  { to: routes.explore(), label: "Explore", icon: Compass },
+  { to: routes.myLearning(), label: "My learning", icon: GraduationCap },
+  { to: routes.saved(), label: "Saved", icon: Bookmark },
 ];
 
 const adminLinks = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/users", label: "Users", icon: Users },
-  { to: "/admin/courses", label: "Courses", icon: BookOpen },
-  { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+  { to: routes.adminHome(), label: "Dashboard", icon: LayoutDashboard },
+  { to: routes.adminUsers(), label: "Users", icon: Users },
+  { to: routes.adminCourses(), label: "Courses", icon: BookOpen },
+  { to: routes.adminAnalytics(), label: "Analytics", icon: BarChart3 },
 ];
 
 function readThemeMode(): ThemeMode {
@@ -55,7 +55,7 @@ export default function Navbar() {
   const isAdmin = profile?.role === "admin";
   const isLearner = Boolean(profile) && !isAdmin;
   const links = isAdmin ? adminLinks : learnerLinks;
-  const profilePath = isAdmin ? "/admin/settings" : "/profile";
+  const profilePath = isAdmin ? routes.adminSettings() : routes.profile();
   const avatarName = session?.user?.name || profile?.name || "Learner";
   const avatarInitial = avatarName.trim().charAt(0).toUpperCase() || "L";
 

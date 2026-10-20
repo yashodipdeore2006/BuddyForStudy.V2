@@ -40,10 +40,16 @@ export function toPublicCoursePreview(course) {
       : sourceResourceType === "playlist" || sourceResourceType === "series" || videoCount > 1
         ? "Playlist"
         : "Course";
+  const firstPreviewVideoId = String(
+    selectedResources.find((resource) => /^[a-zA-Z0-9_-]{11}$/.test(String(resource.videoId || "")))?.videoId ||
+    [...videosById.values()].find((video) => /^[a-zA-Z0-9_-]{11}$/.test(String(video.videoId || "")))?.videoId ||
+    ""
+  );
   const cardMetadata = {
     ...(channelNames.length === 1 ? { creatorName: channelNames[0] } : channelNames.length > 1 ? { creatorName: "Multiple creators" } : {}),
     typeTag,
     videoCount,
+    ...(firstPreviewVideoId ? { previewVideoId: firstPreviewVideoId } : {}),
     ...(qualityScore !== null ? { qualityScore } : {}),
     ...(viewCount > 0 ? { viewCount } : {}),
     ...(likeCount > 0 ? { likeCount } : {})

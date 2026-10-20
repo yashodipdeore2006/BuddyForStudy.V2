@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity, BarChart3, BookOpen, Bookmark, Compass, GraduationCap, Home,
-  LayoutDashboard, LogOut, Moon, Search, Settings2, Shield, Sun, UserRound, Users
+  LayoutDashboard, LogOut, Moon, Search, Settings2, Sun, UserRound, Users
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import NotificationMenu from "@/components/NotificationMenu";
@@ -70,6 +70,11 @@ export default function Navbar() {
     setMenuOpen(false);
     setShortcutsOpen(false);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("bfs-has-bottom-tabs", isLearner);
+    return () => document.body.classList.remove("bfs-has-bottom-tabs");
+  }, [isLearner]);
 
   useEffect(() => {
     const applyTheme = () => {
@@ -154,7 +159,7 @@ export default function Navbar() {
       }
       if (event.key === "/") {
         event.preventDefault();
-        openPalette("/");
+        openPalette();
         return;
       }
       if (event.key === "?") {

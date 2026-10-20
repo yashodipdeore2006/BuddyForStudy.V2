@@ -327,7 +327,7 @@ export default function Home() {
           {[
             { key: 'first_lesson', title: 'First step', description: 'Complete your first lesson.', current: totalLessonsCompleted, target: 1, icon: BookOpen },
             { key: 'three_day_streak', title: 'On a roll', description: 'Build a 3-day learning streak.', current: streak, target: 3, icon: Flame },
-            { key: 'ten_lessons', title: 'Getting serious', description: 'Complete 10 lessons.', current: Number(learningStats.totalLessonsCompleted ?? completedLessons), target: 10, icon: Trophy },
+            { key: 'ten_lessons', title: 'Getting serious', description: 'Complete 10 lessons.', current: totalLessonsCompleted, target: 10, icon: Trophy },
           ].map((badge) => {
             const unlocked = achievements.some((item) => item.key === badge.key);
             const Icon = badge.icon;

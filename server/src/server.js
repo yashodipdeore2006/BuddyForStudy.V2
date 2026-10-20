@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
 import { connectDatabase } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
+import meRoutes from "./routes/me.routes.js";
 import { googleConfig } from "./controllers/auth.controller.js";
 import courseRoutes from "./routes/course.routes.js";
 import enrollmentRoutes from "./routes/enrollment.routes.js";
@@ -66,6 +67,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/health", healthRoutes);
 app.get("/api/auth/google/config", googleConfig);
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/me", meRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/progress", progressRoutes);

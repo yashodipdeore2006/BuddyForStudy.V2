@@ -34,3 +34,42 @@ test("public course preview exposes catalogue structure but strips protected les
   assert.equal("project" in preview.modules[0].lessons[0], false);
   assert.equal("description" in preview.modules[0].lessons[0], false);
 });
+
+
+test("public course preview exposes safe card metadata without leaking lesson payloads", () => {
+  const course = {
+    _id: "curated-course",
+    title: "Computer Vision",
+    description: "An AI-assembled course",
+    category: "AI Course Search",
+    level: "Beginner",
+    duration: "4h 20m",
+    generation: {
+      mode: "normal",
+      query: "computer vision",
+      snapshot: {
+        modules: [
+          { course: { videoId: "video-1", channelTitle: "Databricks", score: 88, viewCount: 12000, likeCount: 900 } },
+          { course: { videoId: "video-2", channelTitle: "Databricks", score: 92, viewCount: 8000, likeCount: 700 } }
+        ]
+      }
+    },
+    modules: [
+      { title: "Foundations", order: 1, lessons: [
+        { _id: "lesson-1", title: "Video 1", type: "tutorial", order: 1, tutorial: { videos: [{ videoId: "video-1", channelTitle: "Databricks", url: "https://youtube.com/watch?v=video-1" }] } },
+        { _id: "lesson-2", title: "Video 2", type: "tutorial", order: 2, tutorial: { videos: [{ videoId: "video-2", channelTitle: "Databricks", url: "https://youtube.com/watch?v=video-2" }] } }
+      ] }
+    ]
+  };
+  const preview = toPublicCoursePreview(course);
+  assert.deepEqual(preview.cardMetadata, {
+    creatorName: "Databricks",
+    typeTag: "Playlist",
+    videoCount: 2,
+    qualityScore: 90,
+    viewCount: 20000,
+    likeCount: 1600
+  });
+  assert.equal(preview.generation.mode, "normal");
+  assert.equal("tutorial" in preview.modules[0].lessons[0], false);
+});

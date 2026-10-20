@@ -395,3 +395,97 @@
   .bfs-course-card__skeleton-line,
   .bfs-course-card__skeleton-button { animation: none; }
 }
+
+
+/* Course card information hierarchy: consistent media, credible source, curation, and clear price/action. */
+.bfs-course-card__media::after {
+  position: absolute;
+  z-index: 1;
+  inset: 45% 0 0;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .42));
+}
+.bfs-course-card__media > img { display:block; }
+.bfs-course-card__media .bfs-course-card__level {
+  position: absolute;
+  z-index: 2;
+  left: var(--s-3);
+  bottom: var(--s-3);
+  box-shadow: var(--shadow-sm);
+}
+.bfs-course-card__media--generated { background: var(--surface-2); }
+.bfs-course-card__type-meta {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:var(--s-2);
+  color:var(--muted);
+  font-size:var(--fs-sm);
+  line-height:var(--lh-sm);
+}
+.bfs-course-card__type-meta .bfs-course-chip { font-size:var(--fs-xs); }
+.bfs-course-card__creator {
+  margin: calc(var(--s-2) * -1) 0 0;
+  color:var(--text-2);
+  font-size:var(--fs-sm);
+  line-height:var(--lh-sm);
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.bfs-course-card__social-proof {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:var(--s-3);
+  color:var(--muted);
+  font-size:var(--fs-sm);
+  line-height:var(--lh-sm);
+}
+.bfs-course-card__social-proof > span,
+.bfs-course-card__quality {
+  display:inline-flex;
+  align-items:center;
+  gap:var(--s-1);
+}
+.bfs-course-card__quality { color:var(--accent); font-weight:600; }
+.bfs-course-card__reason { display:flex; align-items:flex-start; gap:var(--s-2); }
+.bfs-course-card__reason svg { flex:0 0 auto; margin-top:2px; color:var(--accent); }
+.bfs-course-card__reason strong { font-weight:600; color:var(--text-2); }
+.bfs-course-card__title { -webkit-line-clamp:2; }
+.bfs-course-card__action-row { align-items:center; justify-content:space-between; margin-top:auto; gap:var(--s-3); }
+.bfs-course-card__price {
+  display:flex;
+  min-width:0;
+  flex-direction:column;
+  gap:var(--s-1);
+  color:var(--text);
+  font-size:var(--fs-lg);
+  line-height:var(--lh-lg);
+  font-weight:700;
+}
+.bfs-course-card__price--free { color:var(--success); }
+.bfs-course-card__price del { color:var(--muted); font-size:var(--fs-sm); line-height:var(--lh-sm); font-weight:400; }
+.bfs-course-action--outline {
+  width:auto;
+  min-height:var(--control-h);
+  flex:0 0 auto;
+  padding:var(--s-2) var(--s-3);
+  border-color:var(--border-strong);
+  background:var(--surface);
+  color:var(--text);
+  font-size:var(--fs-sm);
+}
+.bfs-course-action--outline:hover { border-color:var(--accent); background:var(--surface-2); }
+.bfs-course-action--outline:disabled { background:var(--surface); }
+.bfs-course-action--outline span { white-space:nowrap; }
+.bfs-course-card__body { gap:var(--s-3); }
+.bfs-course-card__stretch-link { z-index:1; }
+.bfs-course-card__media { flex:0 0 auto; }
+.bfs-course-card__media::after { z-index:1; }
+.bfs-course-card__save { z-index:3; }
+@media (max-width: 420px) {
+  .bfs-course-card__action-row { gap:var(--s-2); }
+  .bfs-course-action--outline { padding-inline:var(--s-2); }
+}

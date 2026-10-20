@@ -112,6 +112,15 @@ export interface Course {
   modules: Module[];
   is_published: boolean;
   enrollment_count?: number;
+  card_metadata?: {
+    creatorName?: string;
+    typeTag?: string;
+    videoCount?: number;
+    qualityScore?: number;
+    viewCount?: number;
+    likeCount?: number;
+  };
+  generation?: { mode?: 'normal' | 'ai' | 'module' | 'discovery'; sourceResourceType?: 'video' | 'playlist' | 'series' | null; query?: string };
   module_count?: number;
   lesson_count?: number;
   pricing?: { mode: 'free' | 'paid'; price: number; compareAtPrice?: number; currency?: string; saleEnabled?: boolean; salePrice?: number };

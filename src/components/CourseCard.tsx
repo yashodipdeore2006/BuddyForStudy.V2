@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap } from "lucide-react";
+import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -28,6 +28,10 @@ interface CourseCardProps {
 }
 
 type EnrollmentState = "not-enrolled" | "active" | "completed";
+
+function formatCompactCount(value: number): string {
+  return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
 
 function normalizeCourseId(value: any): string {
   const candidate = value?.course ?? value?.courseId ?? value?.course_id ?? value;
@@ -64,6 +68,14 @@ export default function CourseCard({
   const { session } = useAuth();
   const navigate = useNavigate();
   const lessonCount = courseLessonCount(course);
+  const cardMetadata = course.card_metadata;
+  const videoCount = Number.isFinite(cardMetadata?.videoCount) ? Number(cardMetadata.videoCount) : 0;
+  const creatorName = typeof cardMetadata?.creatorName === "string" ? cardMetadata.creatorName.trim() : "";
+  const qualityScore = Number.isFinite(cardMetadata?.qualityScore) ? Number(cardMetadata.qualityScore) : null;
+  const viewCount = Number.isFinite(cardMetadata?.viewCount) ? Number(cardMetadata.viewCount) : 0;
+  const enrolledLearners = Number.isFinite(course.enrollment_count) ? Number(course.enrollment_count) : 0;
+  const typeTag = cardMetadata?.typeTag || (videoCount === 1 ? "Single video" : videoCount > 1 ? "Playlist" : course.generation?.mode === "ai" ? "AI roadmap" : "Course");
+  const isFree = course.pricing?.mode !== "paid";
   const [saved, setSaved] = useState(initiallySaved);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -265,12 +277,13 @@ export default function CourseCard({
         <span className="bfs-sr-only">{enrollmentState === "not-enrolled" ? "Open course details for " : "Continue learning "}{course.title}</span>
       </Link>
 
-      <div className="bfs-course-card__media">
-        {course.thumbnail && !thumbnailFailed ? (
+      <div className={"bfs-course-card__media" + (course.generation?.mode === "ai" ? " bfs-course-card__media--generated" : "")}>
+        {course.generation?.mode !== "ai" && course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
           <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /><span className="bfs-course-card__fallback-title">{coverWords}</span></div>
         )}
+        {course.level && <span className={levelClass(course.level)}>{course.level}</span>}
         <button
           type="button"
           className="bfs-course-card__save"
@@ -285,16 +298,25 @@ export default function CourseCard({
       </div>
 
       <div className="bfs-course-card__body">
-        {variant === "recommended" && reason && <p className="bfs-course-card__reason">{reason}</p>}
-        <div className="bfs-course-card__meta">
-          <span>{[displayCategory, course.level].filter(Boolean).join(" · ") || "All levels"}</span>
-          {paid && course.pricing && <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price))}</span>}
+        <div className="bfs-course-card__type-meta">
+          <span className="bfs-course-chip">{typeTag}</span>
+          <span>{course.duration || "Self-paced"}</span>
+          {videoCount > 0
+            ? <span>{videoCount} {videoCount === 1 ? "video" : "videos"}</span>
+            : lessonCount !== null && lessonCount > 0
+              ? <span>{lessonCount} {lessonCount === 1 ? "lesson" : "lessons"}</span>
+              : null}
         </div>
         <h3 className="bfs-course-card__title" title={course.title}>{course.title}</h3>
-        {displayOutcome && <p className="bfs-course-card__outcome">{displayOutcome}</p>}
-        <div className="bfs-course-card__meta" aria-label="Course duration and lesson count">
-          <span><Clock3 size={14} aria-hidden="true" /> {course.duration || "Self-paced"}</span>
-          <span><BookOpen size={14} aria-hidden="true" /> {lessonCount ?? 0} {(lessonCount ?? 0) === 1 ? "lesson" : "lessons"}</span>
+        {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
+        {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
+          && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
+        {displayOutcome && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following)/i.test(displayOutcome.trim())
+          && <p className="bfs-course-card__outcome" title={displayOutcome}>{displayOutcome}</p>}
+        {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
+          {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
+          {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
+          {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
         </div>
         {showProgress && (
           <div className="bfs-course-card__progress">
@@ -310,6 +332,10 @@ export default function CourseCard({
       {actionError && <div className="bfs-course-card__error" role="alert"><span>{actionError}</span>{courseState.error && <button type="button" className="bfs-course-card__undo" onClick={() => { setActionError(""); setCourseStateRetry((value) => value + 1); }} disabled={courseState.loading}>{USER_INTENTS.retry.label}</button>}</div>}
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
       <div className="bfs-course-card__action-row">
+        <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
+          {isFree ? "Free" : course.pricing ? new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)) : ""}
+          {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > Number(course.pricing.salePrice ?? course.pricing.price) && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
+        </span>
         <CourseActionButton
           state={actionState}
           onClick={() => void handlePrimaryAction()}
@@ -322,6 +348,7 @@ export default function CourseCard({
               : actionState === "not-enrolled-paid"
                 ? "Open course details to review payment options"
                 : undefined}
+          className="bfs-course-action--outline"
         />
         {actionState === "completed" && <span className="bfs-course-chip bfs-course-chip--completed"><CheckCircle2 size={12} aria-hidden="true" /> Completed</span>}
       </div>

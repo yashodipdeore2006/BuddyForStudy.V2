@@ -17,6 +17,7 @@ import {
   Loader2,
   ListChecks,
   Star,
+  Share2,
   ShieldCheck,
   Video,
   Smartphone,
@@ -31,6 +32,7 @@ import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
+import { shareCourseLink } from "@/lib/shareCourse";
 import {
   courseTimestampNotesKey,
   formatMediaTimestamp,
@@ -169,6 +171,7 @@ export default function CourseDetails() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [shareNotice, setShareNotice] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
@@ -525,6 +528,11 @@ export default function CourseDetails() {
   const nextLesson = flatLessons.find((lesson) => !completedLessonIds.has(String(lesson.id))) ?? flatLessons[flatLessons.length - 1];
   const hasRoadmap = flatLessons.length > 0;
   const displayTopic = getDisplayTopic(course);
+  const handleShareCourse = async () => {
+    const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });
+    setShareNotice(result === "shared" ? "Course shared." : result === "copied" ? "Course link copied." : "Unable to share this course.");
+    if (result !== "failed") window.setTimeout(() => setShareNotice(""), 2500);
+  };
   const creatorName = String(course.cardMetadata?.creatorName || '').trim();
   const sourceType = String(course.cardMetadata?.typeTag || (
     course.generation?.mode === 'ai' ? 'AI roadmap' :
@@ -569,11 +577,15 @@ export default function CourseDetails() {
   if (courseView !== 'sales') {
     return (
       <div className="bfs-shell py-8 pb-28 sm:py-10 sm:pb-10">
-        <nav aria-label="Breadcrumb" className="mb-5 flex items-center gap-2 text-sm text-slate-500">
-          <Link to={routes.myLearning()} className="hover:text-violet-700">My learning</Link>
-          <span aria-hidden="true">/</span>
-          <span className="truncate text-slate-800">{course.title}</span>
-        </nav>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm text-slate-500">
+            <Link to={routes.myLearning()} className="hover:text-violet-700">My learning</Link>
+            <span aria-hidden="true">/</span>
+            <span className="truncate text-slate-800">{course.title}</span>
+          </nav>
+          <button type="button" onClick={() => void handleShareCourse()} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-violet-300 hover:text-violet-700" aria-label="Share course"><Share2 className="h-4 w-4" aria-hidden="true" />Share</button>
+        </div>
+        {shareNotice && <p role="status" className="mb-3 text-right text-sm text-emerald-700">{shareNotice}</p>}
 
         {courseView === 'completion' && (
           <section aria-labelledby="completion-title" className="mb-6 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 sm:p-8">
@@ -834,13 +846,17 @@ export default function CourseDetails() {
           </div>
         </div>
       )}
-      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-        <Link to={routes.explore()} className="hover:text-violet-700">Explore</Link>
-        <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>{displayTopic}</span>
-        <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-        <span className="max-w-[60vw] truncate text-slate-700">{course.title}</span>
-      </nav>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="Breadcrumb" className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-500">
+          <Link to={routes.explore()} className="hover:text-violet-700">Explore</Link>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>{displayTopic}</span>
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="max-w-[45vw] truncate text-slate-700">{course.title}</span>
+        </nav>
+        <button type="button" onClick={() => void handleShareCourse()} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-violet-300 hover:text-violet-700" aria-label="Share course"><Share2 className="h-4 w-4" aria-hidden="true" />Share</button>
+      </div>
+      {shareNotice && <p role="status" className="mb-3 text-right text-sm text-emerald-700">{shareNotice}</p>}
 
       {/* Pre-enrollment sales hero */}
       <div ref={heroRef} className="mt-4 overflow-hidden rounded-[28px] border border-slate-800 bg-slate-950 p-6 text-white shadow-sm sm:p-9">
@@ -865,9 +881,10 @@ export default function CourseDetails() {
         </div>
       </div>
 
-      <section aria-label="Course trust and key stats" className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-4">
+      <section aria-label="Course trust and key stats" className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-5">
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Curation score</p><p className="mt-1 text-xl font-bold text-slate-950">{qualityScore !== null ? Math.round(qualityScore) + '/100' : 'Curated content'}</p></div>
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learners enrolled</p><p className="mt-1 text-xl font-bold text-slate-950">{learnerCount > 0 ? new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(learnerCount) : 'Be among the first'}</p></div>
+        {reviewStats.count > 0 && <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learner rating</p><p className="mt-1 flex items-center gap-1 text-xl font-bold text-slate-950"><Star className="h-5 w-5 fill-amber-400 text-amber-400" aria-hidden="true" />{reviewStats.average.toFixed(1)} <span className="text-xs font-medium text-slate-500">({reviewStats.count})</span></p></div>}
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Estimated time</p><p className="mt-1 text-xl font-bold text-slate-950">{course.duration || 'Self-paced'}</p></div>
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learning items</p><p className="mt-1 text-xl font-bold text-slate-950">{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</p></div>
       </section>

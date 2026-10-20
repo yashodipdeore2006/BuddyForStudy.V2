@@ -81,7 +81,7 @@ function App() {
     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
     <Route path="/playlists/:playlistId" element={<ProtectedRoute><PlaylistCourse /></ProtectedRoute>} />
 
-    <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+    <Route path="/admin/login" element={<Navigate to={routes.login()} replace />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />
     <Route path="/admin/analytics" element={<AdminPage><AdminAnalytics /></AdminPage>} />
     <Route path="/admin/users" element={<AdminPage><AdminUsersPro /></AdminPage>} />

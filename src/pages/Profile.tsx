@@ -4,6 +4,7 @@ import PageHeader from "@/components/PageHeader";
 import AccountSettings from "@/pages/Settings";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { routes } from "@/lib/routes";
 import {
   UserRound, Mail, ShieldCheck, CreditCard, ArrowUpRight, Clock3,
   ReceiptText, BookOpen, Settings2, Bell, CheckCircle2, XCircle, AlertCircle, Loader2

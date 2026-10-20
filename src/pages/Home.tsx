@@ -6,6 +6,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import type { Course } from '@/types';
 import { getAllLessonsFlat } from '@/lib/courseUtils';
 import { pluralize, USER_INTENTS } from '@/lib/intents';
+import { useLearningStats } from '@/hooks/useLearningStats';
 import CourseCard from '@/components/CourseCard';
 import ErrorState from '@/components/ErrorState';
 import { CourseGridSkeleton } from '@/components/Skeleton';
@@ -193,33 +194,20 @@ export default function Home() {
   const resumeProgress = resumeEnrollment ? data.progress[resumeEnrollment.course_id] : undefined;
   const enrolledIds = useMemo(() => new Set(data.enrollments.map((item) => item.course_id)), [data.enrollments]);
   const recommendations = useMemo(() => data.courses.filter((course) => !enrolledIds.has(course.id)).slice(0, 4), [data.courses, enrolledIds]);
-  const completedLessons = Object.values(data.progress).reduce((sum, item) => sum + item.completed_count, 0);
-  const totalLessons = Object.values(data.progress).reduce((sum, item) => sum + item.total_lessons, 0);
-  const overallProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
   const learningStats = (data.learningStats ?? {}) as Record<string, any>;
-  const dailyGoalLessons = Number.isInteger(Number(learningStats.dailyGoalLessons)) && Number(learningStats.dailyGoalLessons) >= 1 && Number(learningStats.dailyGoalLessons) <= 20
-    ? Number(learningStats.dailyGoalLessons)
-    : 1;
-  const completedToday = Object.values(data.progress).reduce((sum, item) => sum + item.completed_today_count, 0);
-  const dailyGoalPercent = Math.min(100, Math.round((completedToday / dailyGoalLessons) * 100));
-  const streak = Math.max(0, Number(learningStats.currentStreak ?? 0));
-  const longestStreak = Math.max(streak, Number(learningStats.longestStreak ?? 0));
-  const streakFreezeUsedWeek = String(learningStats.streakFreezeUsedWeek ?? '');
-  const activityDates = new Set(Array.isArray(learningStats.activityDates) ? learningStats.activityDates.map(String) : []);
-  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const sevenDayStrip = Array.from({ length: 7 }, (_unused, index) => {
-    const value = new Date(todayKey + 'T12:00:00Z');
-    value.setUTCDate(value.getUTCDate() - (6 - index));
-    const dateKey = value.toISOString().slice(0, 10);
-    const weekStart = new Date(dateKey + 'T12:00:00Z');
-    weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
-    const weekStartKey = weekStart.toISOString().slice(0, 10);
-    return { dateKey, label: new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(value).slice(0, 1), active: activityDates.has(dateKey), isToday: dateKey === todayKey, weekStartKey };
-  });
-  const currentWeekStart = sevenDayStrip[6]?.weekStartKey ?? todayKey;
-  const freezeUsedThisWeek = streakFreezeUsedWeek === currentWeekStart;
-  const twoDaysAgoKey = new Date(new Date(todayKey + 'T12:00:00Z').getTime() - 2 * 86400000).toISOString().slice(0, 10);
-  const freezeAvailable = !freezeUsedThisWeek && Boolean(learningStats.lastActivityDate) && learningStats.lastActivityDate === twoDaysAgoKey && streak > 0;
+  const {
+    completedLessons,
+    totalLessons,
+    overallProgress,
+    completedToday,
+    dailyGoalLessons,
+    dailyGoalPercent,
+    streak,
+    longestStreak,
+    sevenDayStrip,
+    freezeUsedThisWeek,
+    freezeAvailable,
+  } = useLearningStats(data.progress, data.learningStats);
   const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
   const resumeUrl = resumeEnrollment
     ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.next_lesson_id ? '/' + encodeURIComponent(resumeProgress.next_lesson_id) : '')

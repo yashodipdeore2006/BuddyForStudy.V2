@@ -9,6 +9,7 @@ process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/buddyforstudy_curation_test
 process.env.JWT_SECRET ||= "curation-tests-only-not-a-production-secret";
 
 const engine = await import("../src/services/courseCurationDecisionEngine.service.js");
+const { getYouTubeSearchOptions } = await import("../src/services/youtube.service.js");
 const {
   classifyCurationIntent,
   scoreLearnerCommunityConsensus,
@@ -87,6 +88,21 @@ function slotCandidate(index, overrides = {}) {
     ...overrides
   };
 }
+
+test("YouTube candidate search follows explicit requested-language intent", () => {
+  assert.deepEqual(getYouTubeSearchOptions("hi", true), {
+    relevanceLanguage: "hi",
+    regionCode: "IN"
+  });
+  assert.deepEqual(getYouTubeSearchOptions("es", true), {
+    relevanceLanguage: "es",
+    regionCode: "ES"
+  });
+  assert.deepEqual(getYouTubeSearchOptions("hi", false), {
+    relevanceLanguage: "en",
+    regionCode: "IN"
+  });
+});
 
 test("intent profile defaults to full course and parses crash, reference, level and language hints", () => {
   const normal = classifyCurationIntent("Data Analytics");

@@ -138,7 +138,6 @@ function CourseLearningCard({
             : GraduationCap;
   const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
   const generatedCover = course.generation?.mode === "ai";
-  const progress = Math.min(100, Math.max(0, state.progressPct));
   const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
 
   useEffect(() => {
@@ -216,18 +215,7 @@ function CourseLearningCard({
           </div>
         )}
 
-        {totalLessons > 0 && (
-          <div className="bfs-course-card__progress">
-            <div className="bfs-course-card__progress-label">
-              <span>{status === "completed" ? "Completed" : progress > 0 ? "In progress" : "Not started"}</span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div className="bfs-course-card__progress-track" role="progressbar" aria-label={course.title + " progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
-              <div className={status === "completed" ? "bfs-course-card__progress-fill bfs-course-card__progress-fill--completed" : "bfs-course-card__progress-fill"} style={{ width: progress + "%" }} />
-            </div>
-            <p className="bfs-course-card__meta">{state.completedLessons} of {totalLessons} lessons</p>
-          </div>
-        )}
+
       </div>
 
       {state.error && <p className="bfs-course-card__error" role="status">Progress may be out of date. <button type="button" className="bfs-course-card__undo" style={{ position: "relative", zIndex: 4, pointerEvents: "auto" }} onClick={() => window.location.reload()}>Refresh</button></p>}

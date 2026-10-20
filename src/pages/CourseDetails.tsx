@@ -27,6 +27,7 @@ import {
   Award,
   CircleHelp,
   Users,
+  Sparkles,
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -577,7 +578,7 @@ export default function CourseDetails() {
           {courseView === 'hub' && <p className="text-sm font-semibold text-violet-700">Your course</p>}
           {courseView === 'completion' && <p className="text-sm font-semibold text-emerald-700">Course library</p>}
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{course.title}</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{course.description}</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{getCourseCardDescription(course)}</p>
           <div className="mt-6 grid gap-5 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/80 to-white p-5 sm:p-6 md:grid-cols-[minmax(0,1fr)_220px]">
             <div className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -964,7 +965,7 @@ export default function CourseDetails() {
         <div className="lg:col-span-1">
           <div className="sticky top-20 rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
             <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
-              <button type="button" onClick={() => setPreviewOpen(true)} disabled={!previewVideoId} aria-label={previewVideoId ? 'Play course preview' : 'Course video preview is unavailable'} className="group relative block aspect-video w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
+              <button type="button" onClick={() => setPreviewOpen(true)} aria-label={previewVideoId ? 'Play course preview' : 'View course preview information'} className="group relative block aspect-video w-full overflow-hidden bg-slate-900 text-white disabled:cursor-not-allowed">
                 {course.thumbnail ? <img src={course.thumbnail} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950" />}
                 <span className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/10" />
                 <span className="absolute inset-0 flex items-center justify-center"><span className={classNames("flex h-14 w-14 items-center justify-center rounded-full border border-white/70 bg-white/95 text-slate-950 shadow-lg transition", previewVideoId ? "group-hover:scale-105" : "opacity-70")}><Play className="ml-0.5 h-6 w-6 fill-current" /></span></span>

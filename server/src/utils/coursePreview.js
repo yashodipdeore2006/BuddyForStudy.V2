@@ -3,6 +3,19 @@
  * lesson content, quiz answers, project briefs and provider URLs must only be
  * delivered by the authenticated learning endpoints after access checks.
  */
+function parseDurationSeconds(value) {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return 0;
+  const iso = text.match(/^pt(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)?$/i);
+  if (iso) return Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
+  const clock = text.match(/^(?:(\\d+):)?(\\d{1,2}):(\\d{2})$/);
+  if (clock) return Number(clock[1] || 0) * 3600 + Number(clock[2] || 0) * 60 + Number(clock[3] || 0);
+  const hours = text.match(/(\\d+(?:\\.\\d+)?)\\s*h/);
+  const minutes = text.match(/(\\d+)\\s*m/);
+  const seconds = text.match(/(\\d+)\\s*s/);
+  return Math.round(Number(hours?.[1] || 0) * 3600 + Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0));
+}
+
 export function toPublicCoursePreview(course) {
   const modules = course.modules || [];
   const videosById = new Map();
@@ -90,7 +103,8 @@ export function toPublicCoursePreview(course) {
       order: module.order,
       lessons: (module.lessons || []).map((lesson) => {
         const videos = [...(lesson.tutorial?.videos || []), ...(lesson.project?.videos || [])];
-        const durationSeconds = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || 0), 0);
+        const sourceDuration = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || parseDurationSeconds(video.duration), 0), 0);
+        const durationSeconds = Math.max(0, Number(lesson.durationSeconds) || 0, sourceDuration);
         return {
           _id: lesson._id,
           title: lesson.title,

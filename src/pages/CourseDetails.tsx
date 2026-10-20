@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -22,11 +22,17 @@ import {
   Star,
   ShieldCheck,
   Tag,
+  Video,
+  Smartphone,
+  Award,
+  CircleHelp,
+  Users,
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
+import { getCourseCardDescription } from "@/lib/courseCardDescription";
 
 function formatCoursePrice(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
@@ -37,6 +43,79 @@ const levelColors: Record<string, string> = {
   Intermediate: 'bg-amber-50 text-amber-700',
   Advanced: 'bg-red-50 text-red-700',
 };
+
+function getDisplayTopic(course: Course): string {
+  const sourceCategory = /^(youtube discovery|ai course search|youtube|course search|discovery)$/i.test(String(course.category || '').trim());
+  if (!sourceCategory) return course.category || 'Professional learning';
+  const content = [course.title, course.description, ...(course.modules || []).map((module) => module.title)].join(' ').toLowerCase();
+  const rules: Array<[RegExp, string]> = [
+    [/spom|accounting|accountancy|taxation|audit|commerce/, 'Accounting & commerce'],
+    [/entrepreneur|startup|business|marketing|finance/, 'Business & entrepreneurship'],
+    [/computer vision|deep learning|machine learning|artificial intelligence|\bai\b|neural network/, 'AI & machine learning'],
+    [/javascript|typescript|react|node\.js|python|programming|software|web development|pytorch/, 'Software development'],
+    [/mongodb|database|sql|databricks/, 'Data & databases'],
+    [/data science|pandas|analytics|statistics/, 'Data analytics'],
+    [/design|figma|user experience|\bui\b|\bux\b/, 'Design & UX'],
+    [/cyber|security|network/, 'Cybersecurity & networking'],
+  ];
+  return rules.find(([pattern]) => pattern.test(content))?.[1] || 'Professional learning';
+}
+
+function cleanLessonTitle(title: string, siblingTitles: string[] = []): string {
+  const parts = String(title || '').split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return String(title || '').trim();
+  const siblings = siblingTitles.map((sibling) => String(sibling || '').split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean));
+  let sharedSegments = 0;
+  while (
+    sharedSegments < parts.length - 1 &&
+    siblings.length > 1 &&
+    siblings.every((segments) => segments[sharedSegments] && segments[sharedSegments].toLowerCase() === parts[sharedSegments].toLowerCase())
+  ) sharedSegments += 1;
+  if (sharedSegments > 0) return parts.slice(sharedSegments).join(' · ').trim() || parts[parts.length - 1];
+  return parts.join(' · ');
+}
+
+function getLessonDurationSeconds(lesson: Course['modules'][number]['lessons'][number]): number {
+  const tutorialVideos = lesson.tutorial?.videos || [];
+  const projectVideos = lesson.project?.videos || [];
+  const videos = [...tutorialVideos, ...projectVideos];
+  return videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || 0), 0);
+}
+
+function formatDurationSeconds(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 1) return '<1 min';
+  if (minutes < 60) return minutes + ' min';
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? hours + 'h ' + remainingMinutes + 'm' : hours + 'h';
+}
+
+function parseCourseDurationMinutes(value: string): number | null {
+  const text = String(value || '').toLowerCase();
+  const studyDays = text.match(/(\d+)\s+study\s+days?\s+at\s+(\d+)\s*min(?:ute)?s?\s*\/\s*day/);
+  if (studyDays) return Number(studyDays[1]) * Number(studyDays[2]);
+  const hours = text.match(/(\d+(?:\.\d+)?)\s*h(?:ours?)?/);
+  const minutes = text.match(/(\d+)\s*m(?:in(?:utes?)?)?/);
+  if (!hours && !minutes) return null;
+  return Math.round((hours ? Number(hours[1]) * 60 : 0) + (minutes ? Number(minutes[1]) : 0));
+}
+
+function getCourseOutcomes(course: Course): string[] {
+  const authored = (course.learning_outcomes || [])
+    .map((outcome) => String(outcome || '').trim())
+    .filter((outcome) => outcome.length > 8 && !/^(learn|understand)\s+(this course|the course|the following)$/i.test(outcome));
+  if (authored.length) return authored.slice(0, 6);
+
+  const allTitles = (course.modules || []).flatMap((module) => module.lessons.map((lesson) => lesson.title));
+  const topics = [...new Set((course.modules || []).flatMap((module) =>
+    module.lessons.map((lesson) => cleanLessonTitle(lesson.title, allTitles))
+  ).map((title) => title.replace(/^[\s:|·-]+/, '').trim())
+    .filter((title) => title.length > 3 && !/^(introduction|overview|conclusion|resources|getting started)$/i.test(title)))].slice(0, 6);
+  return topics.map((topic) => /^(chapter|lesson|part)\s+\d+/i.test(topic)
+    ? 'Work through ' + topic + ' and its key concepts.'
+    : 'Build practical understanding of ' + topic + '.');
+}
 
 export default function CourseDetails() {
   const { courseId } = useParams<{ courseId: string }>();
@@ -60,6 +139,18 @@ export default function CourseDetails() {
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [purchaseChoice, setPurchaseChoice] = useState<'subscription' | 'individual'>('subscription');
   const [courseNotes, setCourseNotes] = useState('');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [showStickyMiniHeader, setShowStickyMiniHeader] = useState(false);
+  const heroRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateStickyHeader = () => {
+      setShowStickyMiniHeader(Boolean(heroRef.current && heroRef.current.getBoundingClientRect().bottom < 72));
+    };
+    window.addEventListener('scroll', updateStickyHeader, { passive: true });
+    updateStickyHeader();
+    return () => window.removeEventListener('scroll', updateStickyHeader);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -295,20 +386,53 @@ export default function CourseDetails() {
   const completedLessonIds = new Set((progress?.completed_lessons ?? []).map((item) => String(item.lessonId)));
   const nextLesson = flatLessons.find((lesson) => !completedLessonIds.has(String(lesson.id))) ?? flatLessons[flatLessons.length - 1];
   const hasRoadmap = flatLessons.length > 0;
+  const displayTopic = getDisplayTopic(course);
+  const creatorName = String(course.cardMetadata?.creatorName || '').trim();
+  const sourceType = String(course.cardMetadata?.typeTag || (
+    course.generation?.mode === 'ai' ? 'AI roadmap' :
+      course.generation?.sourceResourceType === 'video' ? 'Single video' :
+        course.generation?.sourceResourceType === 'playlist' || course.generation?.sourceResourceType === 'series' ? 'Playlist' : 'Course'
+  ));
+  const outcomes = getCourseOutcomes(course);
+  const videoCount = Number(course.cardMetadata?.videoCount || 0);
+  const learnerCount = Number(course.enrollment_count ?? course.enrollmentCount ?? 0);
+  const qualityScore = Number.isFinite(course.cardMetadata?.qualityScore) ? Number(course.cardMetadata?.qualityScore) : null;
+  const previewVideoId = String(course.cardMetadata?.previewVideoId || '');
+  const quizCount = flatLessons.filter((lesson) => lesson.type === 'quiz').length;
+  const projectCount = flatLessons.filter((lesson) => lesson.type === 'project').length;
+  const courseIncludes = [
+    course.duration ? { icon: Clock, label: course.duration + ' estimated learning time' } : null,
+    lessonCount ? { icon: Play, label: lessonCount + ' lessons' } : null,
+    videoCount > 0 ? { icon: Video, label: videoCount + ' curated video' + (videoCount === 1 ? '' : 's') } : null,
+    course.generation?.mode === 'ai' ? { icon: Sparkles, label: 'AI-generated learning roadmap' } : null,
+    quizCount > 0 ? { icon: CircleHelp, label: quizCount + ' interactive quiz' + (quizCount === 1 ? '' : 'zes') } : null,
+    projectCount > 0 ? { icon: ListChecks, label: projectCount + ' practical project' + (projectCount === 1 ? '' : 's') } : null,
+    course.certificateEnabled !== false ? { icon: Award, label: 'Certificate of completion' } : null,
+    { icon: Smartphone, label: 'Access on desktop and mobile' },
+  ].filter((item): item is { icon: LucideIcon; label: string } => Boolean(item));
+  const durationMinutes = parseCourseDurationMinutes(course.duration || '');
+  const estimatedMinutesLeft = durationMinutes === null ? null : Math.ceil(durationMinutes * (100 - Math.min(100, Math.max(0, isCompleted ? 100 : progressPct))) / 100);
 
-  // CP-01..CP-11: this route renders one of three views from learner status.
+  // CP-01..CP-11: this route renders sales content before enrollment and a learning dashboard afterward.
   const isCompleted = isEnrolled && (enrollment?.status === 'completed' || progressPct >= 100);
   const courseView = !isEnrolled ? 'sales' : isCompleted ? 'completion' : 'hub';
-  const hubTabs = ['curriculum', ...(hasRoadmap ? ['roadmap'] : []), 'about', 'notes'];
-  const activeTab = hubTabs.includes(searchParams.get('tab') || '')
-    ? (searchParams.get('tab') || 'curriculum')
-    : 'curriculum';
+  const hubTabs = ['overview', 'curriculum', 'notes', 'about'];
+  const requestedTab = searchParams.get('tab') || '';
+  const activeTab = hubTabs.includes(requestedTab) ? requestedTab : 'overview';
   const setCourseTab = (tab: string) => {
     const next = new URLSearchParams(searchParams);
-    if (tab === 'curriculum') next.delete('tab');
+    if (tab === 'overview') next.delete('tab');
     else next.set('tab', tab);
     setSearchParams(next, { replace: true });
   };
+
+  useEffect(() => {
+    if (!course || !isEnrolled) return;
+    const completed = new Set((progress?.completed_lessons || []).map((item) => String(item.lessonId)));
+    const next = getAllLessonsFlat(course.modules).find((lesson) => !completed.has(String(lesson.id)));
+    const targetIndex = next ? course.modules.findIndex((module) => module.lessons.some((lesson) => String(lesson.id) === String(next.id))) : -1;
+    if (targetIndex >= 0) setExpandedModules(new Set([targetIndex]));
+  }, [course?.id, enrollment?.status, progress?.last_lesson_id, progress?.percentage]);
 
   if (courseView !== 'sales') {
     return (

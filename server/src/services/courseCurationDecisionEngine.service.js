@@ -1449,8 +1449,8 @@ function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new M
   return preliminaryFeatures.map((item) => item.candidate).sort((a, b) => b.finalScore - a.finalScore);
 }
 
-export async function invalidateNormalSearchCurationCache(query) {
-  const profile = classifyCurationIntent(query);
+export async function invalidateNormalSearchCurationCache(query, options = {}) {
+  const profile = classifyCurationIntent(query, options);
   let settingCount = 30;
   try {
     const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
@@ -1478,7 +1478,7 @@ export async function curateNormalSearch(query, options = {}) {
     const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
     settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
   } catch {}
-  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
+  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   const cached = await getCachedValue(resultKey);
   if (cached?.resources) return { ...cached, meta: { ...(cached.meta || {}), cacheHit: true } };
 

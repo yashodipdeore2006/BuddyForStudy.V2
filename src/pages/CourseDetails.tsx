@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Loader2,
   ListChecks,
+  Map,
   Star,
   ShieldCheck,
   Tag,

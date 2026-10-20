@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, CourseLevel } from '@/types';
@@ -46,6 +46,7 @@ function mapCourse(raw: any): Course {
 
 export default function Courses() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const [savedCourseIds, setSavedCourseIds] = useState<Set<string>>(new Set());
@@ -199,6 +200,16 @@ export default function Courses() {
     setAiRoadmap(null);
     setAiError(null);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("build") !== "1") return;
+    setAiTopic(searchQuery.trim() || catalogQuery.trim());
+    setAiOpen(true);
+    params.delete("build");
+    const remaining = params.toString();
+    navigate({ pathname: location.pathname, search: remaining ? "?" + remaining : "" }, { replace: true });
+  }, [location.pathname, location.search, navigate, catalogQuery, searchQuery]);
 
   useEffect(() => {
     if (!aiOpen || !session) {

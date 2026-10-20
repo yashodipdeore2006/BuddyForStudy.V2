@@ -1,4 +1,5 @@
 import { LearningStats } from "../models/LearningStats.js";
+import { calculateStreakTransition, learningDateKey } from "../utils/learningStreak.js";
 
 const ACHIEVEMENTS = {
   FIRST_LESSON: { key: "first_lesson", title: "First Step", description: "Complete your first lesson." },
@@ -8,21 +9,6 @@ const ACHIEVEMENTS = {
   TEN_LESSONS: { key: "ten_lessons", title: "Getting Serious", description: "Complete 10 lessons." },
   FIRST_COURSE: { key: "first_course", title: "Course Complete", description: "Complete your first course." }
 };
-
-function dateKey(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(date);
-}
-
-function previousDateKey(key) {
-  const date = new Date(key + "T00:00:00+05:30");
-  date.setDate(date.getDate() - 1);
-  return dateKey(date);
-}
 
 function unlock(stats, achievement) {
   if (!stats.achievements.some((item) => item.key === achievement.key)) {
@@ -37,19 +23,26 @@ export async function recordLearningActivity(userId, { lessonCompleted = false, 
     { new: true, upsert: true }
   );
 
-  const today = dateKey();
+  const today = learningDateKey();
   const isNewDay = stats.lastActivityDate !== today;
 
   if (lessonCompleted) stats.totalLessonsCompleted += 1;
   if (courseCompleted) stats.totalCoursesCompleted += 1;
 
   if (isNewDay) {
+    const transition = calculateStreakTransition({
+      lastActivityDate: stats.lastActivityDate,
+      today,
+      currentStreak: stats.currentStreak,
+      streakFreezeUsedWeek: stats.streakFreezeUsedWeek,
+    });
+    stats.currentStreak = transition.currentStreak;
+    if (transition.freezeUsed) stats.streakFreezeUsedWeek = transition.streakFreezeUsedWeek;
     stats.totalActiveDays += 1;
-    stats.currentStreak = stats.lastActivityDate === previousDateKey(today)
-      ? stats.currentStreak + 1
-      : 1;
-    stats.longestStreak = Math.max(stats.longestStreak, stats.currentStreak);
     stats.lastActivityDate = today;
+    const activityDates = new Set(Array.isArray(stats.activityDates) ? stats.activityDates : []);
+    activityDates.add(today);
+    stats.activityDates = [...activityDates].sort().slice(-90);
   }
 
   if (stats.totalLessonsCompleted >= 1) unlock(stats, ACHIEVEMENTS.FIRST_LESSON);
@@ -64,13 +57,32 @@ export async function recordLearningActivity(userId, { lessonCompleted = false, 
 }
 
 export async function getLearningStats(userId) {
-  return LearningStats.findOne({ user: userId }).lean() || {
+  const stats = await LearningStats.findOne({ user: userId }).lean();
+  return stats || {
     currentStreak: 0,
     longestStreak: 0,
     lastActivityDate: "",
     totalActiveDays: 0,
     totalLessonsCompleted: 0,
     totalCoursesCompleted: 0,
+    dailyGoalLessons: 1,
+    activityDates: [],
+    streakFreezeUsedWeek: "",
     achievements: []
   };
+}
+
+export async function updateLearningPreferences(userId, { dailyGoalLessons }) {
+  if (!Number.isInteger(dailyGoalLessons) || dailyGoalLessons < 1 || dailyGoalLessons > 20) {
+    const error = new Error("Daily goal must be between 1 and 20 lessons.");
+    error.status = 400;
+    throw error;
+  }
+
+  const stats = await LearningStats.findOneAndUpdate(
+    { user: userId },
+    { $setOnInsert: { user: userId }, $set: { dailyGoalLessons } },
+    { new: true, upsert: true, runValidators: true }
+  );
+  return stats.toObject();
 }

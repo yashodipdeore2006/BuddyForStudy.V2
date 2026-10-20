@@ -601,16 +601,18 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void saveCourse(course)}
                           disabled={savingId === course.id}
-                          aria-label={savedIds.has(course.id) ? "Remove from Saved" : "Save for later"} title={savedIds.has(course.id) ? "Saved" : "Save course"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(course.id) ? "Course saved" : "Save course"} title={savedIds.has(course.id) ? "Saved" : "Save course"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(course.id)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
                           }`}
                         >
                           {savingId === course.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          ) : savedIds.has(course.id) ? (
+                            <BookmarkCheck className="h-4 w-4" aria-hidden="true" />
                           ) : (
-                            <BookOpen className="h-3.5 w-3.5" />
+                            <Bookmark className="h-4 w-4" aria-hidden="true" />
                           )}
                           
                         </button>

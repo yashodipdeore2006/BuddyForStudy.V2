@@ -78,6 +78,7 @@ export interface Lesson {
   description: string;
   type: LessonType;
   order: number;
+  durationSeconds?: number;
   tutorial?: TutorialContent;
   project?: ProjectContent;
   quiz?: QuizContent;

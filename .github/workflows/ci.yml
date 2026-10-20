@@ -20,6 +20,8 @@ jobs:
         run: npm run lint
         continue-on-error: true
       - run: npm run typecheck
+      - name: Course navigation unit tests
+        run: npm run test:unit
       - run: npm run build
 
   backend:

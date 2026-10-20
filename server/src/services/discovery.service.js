@@ -795,7 +795,8 @@ export async function searchStructuredPlaylists(query, maxResults) {
 }
 export async function getPlaylistCourse(playlistId) {
   const key = `playlist:${playlistId}`;
-  if (playlistCache.has(key)) return playlistCache.get(key);
+  const cached = getPlaylistCache(key);
+  if (cached !== null) return cached;
 
   const playlistData = await youtubeRequest("playlists", {
     part: "snippet,contentDetails,status",

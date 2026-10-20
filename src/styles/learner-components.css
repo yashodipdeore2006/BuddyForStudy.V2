@@ -428,6 +428,7 @@
 .bfs-course-card__learning-status[data-status="completed"] { background: var(--success-soft); color: var(--success); }
 .bfs-course-card__learning-status[data-status="in-progress"] { background: var(--info-soft); color: var(--info); }
 .bfs-course-card__learning-status[data-status="not-started"] { background: rgba(255,255,255,.94); color: var(--text-2); }
+.bfs-course-card[data-variant="enrolled"] .bfs-course-card__media .bfs-course-card__level { left: auto; right: var(--s-3); }
 .bfs-course-card__media--generated { background: var(--surface-2); }
 .bfs-course-card__type-meta {
   display:flex;

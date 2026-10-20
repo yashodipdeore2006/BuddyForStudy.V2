@@ -212,7 +212,7 @@ export default function Profile() {
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">
           <div className="flex items-center gap-3"><div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><ReceiptText className="h-5 w-5" /></div><div><h2 className="text-lg font-extrabold text-slate-950">Recent transactions</h2><p className="mt-1 text-sm text-slate-500">Your latest subscription and course payment activity.</p></div></div>
-          <Link to={routes.billing()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Full billing history <ArrowUpRight className="h-4 w-4" /></Link>
+          <Link to={routes.billing()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Billing <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
         {billingError && <p role="alert" className="m-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{billingError} You can retry from Billing & Payment History.</p>}
         {billingLoading ? <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading transaction history…</div> : latestPayments.length ? (
@@ -231,7 +231,7 @@ export default function Profile() {
       </section>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Link to={routes.billing()} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><CreditCard className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Subscription & billing</span><span className="mt-1 block text-xs text-slate-500">Manage renewal, payments and refund requests</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
+        <Link to={routes.billing()} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><CreditCard className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Billing</span><span className="mt-1 block text-xs text-slate-500">Manage renewal, payments and refund requests</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
         <Link to={routes.notifications()} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><Bell className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Notification center</span><span className="mt-1 block text-xs text-slate-500">View account and learning updates</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
       </div>
     </div>

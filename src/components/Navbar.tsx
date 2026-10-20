@@ -119,7 +119,7 @@ export default function Navbar() {
   useEffect(() => {
     const onEnrollmentUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ courseId?: string; status?: string }>).detail;
-      const match = location.pathname.match(/^\\/courses\\/([^/]+)\\/?$/);
+    const match = location.pathname.match(/^\/courses\/([^/]+)\/?$/);
       if (!match || !detail?.courseId || decodeURIComponent(match[1]) !== String(detail.courseId)) return;
       const status = String(detail.status || "").toLowerCase();
       setCourseDetailIsEnrolled(status === "active" || status === "completed");

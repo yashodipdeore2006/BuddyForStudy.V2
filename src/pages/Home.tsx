@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, CheckCircle2, Clock3, Flame, GraduationCap, RefreshCw, Sparkles, Trophy, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -123,8 +123,10 @@ export default function Home() {
   const [fatalErrorStatus, setFatalErrorStatus] = useState<number | null>(null);
   const [sectionErrors, setSectionErrors] = useState({ enrollments: '', recommendations: '', stats: '', progress: [] as Array<{ courseId: string; title: string }>, refresh: '' });
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
+  const requestSequence = useRef(0);
 
   const loadHome = useCallback(async (isRefresh = false) => {
+    const requestId = ++requestSequence.current;
     if (!session) {
       setData({ enrollments: [], progress: {}, courses: [], learningStats: null });
       setLoading(false);
@@ -170,6 +172,7 @@ export default function Home() {
         return null;
       }
     }));
+    if (requestId !== requestSequence.current) return;
     const progress: Record<string, ProgressRecord> = {};
     progressEntries.forEach((entry) => { if (entry) progress[entry[0]] = entry[1]; });
     const allPrimarySourcesFailed = enrollmentResult.status === 'rejected' && courseResult.status === 'rejected' && statsResult.status === 'rejected';
@@ -199,7 +202,10 @@ export default function Home() {
     setRefreshing(false);
   }, [session]);
 
-  useEffect(() => { if (!authLoading) void loadHome(); }, [authLoading, loadHome]);
+  useEffect(() => {
+    if (!authLoading) void loadHome();
+    return () => { requestSequence.current += 1; };
+  }, [authLoading, loadHome]);
   useEffect(() => {
     const updateOnline = () => setOnline(true);
     const updateOffline = () => setOnline(false);

@@ -183,7 +183,7 @@ export default function CourseCard({
   }, [course.id, onSavedChange, saved, saving, session, undoSavedTo]);
 
   const handlePrimaryAction = async () => {
-    if (actionLoading) return;
+    if (actionLoading || courseState.loading || courseState.error) return;
     setUndoSavedTo(null);
     setActionError("");
     setActionNotice("");
@@ -313,7 +313,14 @@ export default function CourseCard({
           state={actionState}
           onClick={() => void handlePrimaryAction()}
           loading={actionLoading}
-          disabledReason={actionState === "not-enrolled-paid" ? "Open course details to review payment options" : undefined}
+          disabled={courseState.loading || Boolean(courseState.error)}
+          disabledReason={courseState.loading
+            ? "Checking enrollment and progress"
+            : courseState.error
+              ? "Course status is unavailable. Retry when connected."
+              : actionState === "not-enrolled-paid"
+                ? "Open course details to review payment options"
+                : undefined}
         />
         {actionState === "completed" && <span className="bfs-course-chip bfs-course-chip--completed"><CheckCircle2 size={12} aria-hidden="true" /> Completed</span>}
       </div>

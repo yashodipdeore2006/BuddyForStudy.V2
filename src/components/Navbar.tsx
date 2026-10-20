@@ -152,6 +152,7 @@ export default function Navbar() {
         setMenuOpen(false);
         return;
       }
+      if (paletteOpen || shortcutsOpen) return;
       if (isTypingTarget(event.target)) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -165,6 +166,8 @@ export default function Navbar() {
       }
       if (event.key === "?") {
         event.preventDefault();
+        setMenuOpen(false);
+        setPaletteOpen(false);
         setShortcutsOpen(true);
         return;
       }
@@ -193,7 +196,7 @@ export default function Navbar() {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [navigate, openPalette, session]);
+  }, [navigate, openPalette, session, paletteOpen, shortcutsOpen]);
 
   const handleSignOut = async () => {
     setMenuOpen(false);

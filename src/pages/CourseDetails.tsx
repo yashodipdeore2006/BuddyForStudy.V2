@@ -1091,6 +1091,40 @@ export default function CourseDetails() {
         </div>
       </div>
 
+      {relatedCourses.length > 0 && (
+        <section className="mt-10" aria-labelledby="related-courses-title">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">Keep learning</p>
+              <h2 id="related-courses-title" className="mt-1 text-2xl font-semibold text-slate-950">Related courses</h2>
+              <p className="mt-1 text-sm text-slate-500">More learning paths based on this course’s topic.</p>
+            </div>
+            <Link to={routes.explore()} className="text-sm font-semibold text-violet-700 hover:underline">Browse all courses</Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {relatedCourses.map((item) => (
+              <Link key={item.id} to={routes.course(item.id)} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
+                <div className="aspect-video overflow-hidden bg-gradient-to-br from-violet-700 via-indigo-800 to-slate-950">
+                  {item.thumbnail && <img src={item.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />}
+                </div>
+                <div className="p-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-violet-50 px-2.5 py-1 font-semibold text-violet-700">{item.level}</span>
+                    <span>{item.category}</span>
+                  </div>
+                  <h3 className="mt-2 line-clamp-2 font-semibold text-slate-950">{item.title}</h3>
+                  {item.description && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following|a comprehensive curriculum designed)/i.test(item.description.trim()) && <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{item.description}</p>}
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <span className="font-bold text-slate-950">{item.pricing?.mode === 'paid' ? formatCoursePrice(Number(item.pricing.saleEnabled && item.pricing.salePrice != null ? item.pricing.salePrice : item.pricing.price), item.pricing.currency || 'INR') : 'Free'}</span>
+                    <span className="inline-flex items-center gap-1 text-sm font-semibold text-violet-700">View course <ChevronRight className="h-4 w-4" /></span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {previewOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="course-preview-title" className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">

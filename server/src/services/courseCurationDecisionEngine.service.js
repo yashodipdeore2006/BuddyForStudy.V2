@@ -1104,7 +1104,9 @@ export function buildComposedLearningPath(candidates, syllabus) {
             verifiedTimecode: false
           }];
       for (const unit of units) {
-        const matchText = [unit.titleForMatch, part.title, description.slice(0, 1800)].join(" ");
+        const matchText = chapters.length
+          ? [unit.titleForMatch, part.title].join(" ")
+          : [unit.titleForMatch, part.title, description.slice(0, 1800)].join(" ");
         resources.push({
           candidate,
           videoId,
@@ -1131,7 +1133,6 @@ export function buildComposedLearningPath(candidates, syllabus) {
     const best = matches.find((resource) => !usedUnits.has(resource.videoId + ":" + resource.timestampSeconds));
     if (!best) continue;
     usedUnits.add(best.videoId + ":" + best.timestampSeconds);
-    const separator = best.timestampSeconds > 0 ? "&t=" + best.timestampSeconds + "s" : "";
     const url = "https://www.youtube.com/watch?v=" + best.videoId + (best.timestampSeconds > 0 ? "&t=" + best.timestampSeconds + "s" : "");
     result.push({
       moduleOrder: result.length + 1,

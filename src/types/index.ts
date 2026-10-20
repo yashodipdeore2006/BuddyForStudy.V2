@@ -116,6 +116,8 @@ export interface Course {
   certificateEnabled?: boolean;
   enrollment_count?: number;
   enrollmentCount?: number;
+  ratingAverage?: number;
+  ratingCount?: number;
   cardMetadata?: {
     creatorName?: string;
     creatorUrl?: string;

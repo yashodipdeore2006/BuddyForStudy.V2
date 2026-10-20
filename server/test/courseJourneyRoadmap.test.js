@@ -32,3 +32,11 @@ test("calculates progress from completed lessons and reports zero and full progr
   assert.equal(calculateJourneyProgress(stages, ["a", "b", "c", "d"]).position, 2);
   assert.equal(parseDurationSeconds("PT1H30M"), 5400);
 });
+
+test("uses lesson duration weights for partial stage position", () => {
+  const stages = [{ lessonIds: ["a", "b"] }, { lessonIds: ["c", "d"] }];
+  const result = calculateJourneyProgress(stages, ["a", "b", "c"], { a: 600, b: 600, c: 1800, d: 600 });
+  assert.equal(result.stageProgress[0], 1);
+  assert.equal(result.stageProgress[1], 0.75);
+  assert.equal(result.position, 1.75);
+});

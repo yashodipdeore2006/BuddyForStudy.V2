@@ -609,66 +609,87 @@ export default function CourseDetails() {
 
   return (
     <div className="bfs-shell py-8 sm:py-10">
-      <Link
-        to={routes.explore()}
-        className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Courses
-      </Link>
-
-      {/* Course Header */}
-      <div className="mt-6 overflow-hidden rounded-[32px] border border-slate-200 bg-white p-7 text-slate-950 sm:p-10">
-        <div className="flex flex-wrap gap-2">
-          <span className="badge border border-slate-200 bg-slate-50 text-slate-700">
-            {course.category}
-          </span>
-          <span className={classNames('badge', levelColors[course.level])}>
-            {course.level}
-          </span>
+      {showStickyMiniHeader && (
+        <div className="fixed inset-x-0 top-16 z-40 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">{course.title}</p>
+              <p className="text-xs text-slate-500">{isPaidCourse ? formatCoursePrice(purchaseChoice === 'individual' ? salePrice : Number(subscriptionPlans[0]?.price || 0), currency) : 'Free'}{course.cardMetadata?.qualityScore != null ? ' · ' + Math.round(course.cardMetadata.qualityScore) + '/100 curated' : ''}</p>
+            </div>
+            <button type="button" onClick={isPaidCourse ? (purchaseChoice === 'subscription' ? () => navigate(routes.pricing()) : handleCheckout) : handleEnroll} disabled={enrolling || checkoutLoading || !enrollmentEnabled} className="btn-primary shrink-0 px-4 py-2 text-sm">
+              {enrolling || checkoutLoading ? 'Please wait…' : isPaidCourse ? (purchaseChoice === 'subscription' ? 'Subscribe' : 'Buy for ' + formatCoursePrice(salePrice, currency)) : 'Enroll free'}
+            </button>
+          </div>
         </div>
-        <h1 className="mt-4 text-3xl font-medium tracking-tight sm:text-4xl">{course.title}</h1>
-        <ExpandableText
-          text={course.description}
-          maxLength={220}
-          className="mt-3 max-w-2xl text-slate-600"
-        />
+      )}
+      <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <Link to={routes.explore()} className="hover:text-violet-700">Explore</Link>
+        <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>{displayTopic}</span>
+        <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="max-w-[60vw] truncate text-slate-700">{course.title}</span>
+      </nav>
 
-        <div className="mt-6 flex flex-wrap items-center gap-6 text-sm text-slate-600">
-          <span className="flex items-center gap-1.5">
-            <BookOpen className="h-4 w-4" />
-            {lessonCount} lessons
-          </span>
-          {course.duration && (
-            <span className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4" />
-              {course.duration}
-            </span>
-          )}
-          <span className="flex items-center gap-1.5">
-            <GraduationCap className="h-4 w-4" />
-            {course.modules.length} modules
-          </span>
+      {/* Pre-enrollment sales hero */}
+      <div ref={heroRef} className="mt-4 overflow-hidden rounded-[28px] border border-slate-800 bg-slate-950 p-6 text-white shadow-sm sm:p-9">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">{displayTopic}</span>
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">{course.level}</span>
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">{sourceType}</span>
+          {qualityScore !== null && qualityScore >= 85 && <span className="rounded-full bg-emerald-300/15 px-3 py-1 text-xs font-semibold text-emerald-200">Hidden gem</span>}
+        </div>
+        <h1 className="mt-5 max-w-4xl text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{course.title}</h1>
+        <ExpandableText
+          text={getCourseCardDescription(course)}
+          maxLength={260}
+          className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"
+        />
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-300">
+          {creatorName && <span>Created by <strong className="text-white">{creatorName}</strong></span>}
+          {course.updated_at && <span>Last updated {formatDate(course.updated_at)}</span>}
+          {course.modules.length > 1 && <span>{course.modules.length} modules</span>}
+          <span>{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</span>
+          {course.duration && <span>{course.duration}</span>}
         </div>
       </div>
+
+      <section aria-label="Course trust and key stats" className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-4">
+        <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Curation score</p><p className="mt-1 text-xl font-bold text-slate-950">{qualityScore !== null ? Math.round(qualityScore) + '/100' : 'Curated content'}</p></div>
+        <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learners enrolled</p><p className="mt-1 text-xl font-bold text-slate-950">{learnerCount > 0 ? new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(learnerCount) : 'Be among the first'}</p></div>
+        <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Estimated time</p><p className="mt-1 text-xl font-bold text-slate-950">{course.duration || 'Self-paced'}</p></div>
+        <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learning items</p><p className="mt-1 text-xl font-bold text-slate-950">{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</p></div>
+      </section>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-3">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Learning Outcomes */}
-          {course.learning_outcomes.length > 0 && (
-            <div className="rounded-[24px] border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium text-slate-950">What you'll learn</h2>
+          {/* Learning outcomes: use author-provided outcomes first, then derive concise outcomes from the visible curriculum. */}
+          {outcomes.length > 0 && (
+            <div className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">
+              <h2 className="text-xl font-semibold text-slate-950">What you’ll learn</h2>
+              <p className="mt-1 text-sm text-slate-500">Key skills and topics covered in this course.</p>
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                {course.learning_outcomes.map((outcome, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-slate-600">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+                {outcomes.map((outcome, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 text-sm leading-6 text-slate-700">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
                     <span>{outcome}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
+
+          <section className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">
+            <h2 className="text-xl font-semibold text-slate-950">This course includes</h2>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {courseIncludes.map(({ icon: IncludeIcon, label }) => (
+                <li key={label} className="flex items-start gap-2.5 text-sm text-slate-700">
+                  <IncludeIcon className="mt-0.5 h-4 w-4 shrink-0 text-violet-700" aria-hidden="true" />
+                  <span>{label}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {/* Reviews & Ratings */}
           <div className="rounded-[24px] border border-slate-200 bg-white p-6">

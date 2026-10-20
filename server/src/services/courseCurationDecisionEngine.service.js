@@ -1154,7 +1154,8 @@ export function buildComposedLearningPath(candidates, syllabus) {
   return result;
 }
 
-function setRankingSlots(candidates) {
+function setRankingSlots(candidates, resultLimit = FINAL_RESULT_COUNT) {
+  const limit = Math.max(1, Math.min(50, Math.floor(Number(resultLimit) || FINAL_RESULT_COUNT)));
   const list = [...candidates];
   if (!list.length) return [];
   const byScore = (selector) => list.filter(selector).sort((a, b) => b.finalScore - a.finalScore);
@@ -1194,7 +1195,7 @@ function setRankingSlots(candidates) {
     if (!assigned) continue;
   }
   for (const candidate of [...list].sort((a, b) => b.finalScore - a.finalScore)) {
-    if (selected.length >= FINAL_RESULT_COUNT) break;
+    if (selected.length >= limit) break;
     if (selectedIds.has(candidate.id) || !canUse(candidate)) continue;
     const similar = selected.some((other) => {
       const a = new Set(tokens(candidate.title));
@@ -1209,7 +1210,7 @@ function setRankingSlots(candidates) {
     const channelKey = candidate.channelId || candidate.id;
     channelCounts.set(channelKey, (channelCounts.get(channelKey) || 0) + 1);
   }
-  return selected.slice(0, FINAL_RESULT_COUNT).map((candidate) => ({
+  return selected.slice(0, limit).map((candidate) => ({
     id: candidate.id,
     sourceType: candidate.sourceType,
     sourceId: candidate.sourceId,
@@ -1262,8 +1263,8 @@ function setRankingSlots(candidates) {
     }))
   }));
 }
-export function selectCurationResultSlots(candidates) {
-  return setRankingSlots(candidates);
+export function selectCurationResultSlots(candidates, resultLimit = FINAL_RESULT_COUNT) {
+  return setRankingSlots(candidates, resultLimit);
 }
 
 function selectInitialShortlist(videos, playlists, profile) {
@@ -1456,8 +1457,8 @@ export async function invalidateNormalSearchCurationCache(query) {
 
 /**
  * Normal-search course curation engine. The configured admin count controls the
- * number of candidates fetched per query; the user-facing list is the best ~10
- * defensible, diversified resources as specified in the architecture document.
+ * number of candidates fetched per query and maximum final result count. The user-facing
+ * list is quality-gated and diversified, and may be shorter when too few candidates pass.
  */
 export async function curateNormalSearch(query) {
   const normalizedQuery = String(query || "").trim();
@@ -1522,7 +1523,7 @@ export async function curateNormalSearch(query) {
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
   const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, profile, syllabus);
   const scored = scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
-  const resources = setRankingSlots(scored);
+  const resources = setRankingSlots(scored, settingCount);
   const composedPath = buildComposedLearningPath(scored, syllabus);
   const meta = {
     version: ENGINE_VERSION,
@@ -1550,6 +1551,7 @@ export async function curateNormalSearch(query) {
     metadataJudgedCandidates: metadataJudgment.judgedCount,
     composedPath,
     composedPathSteps: composedPath.length,
+    requestedResultLimit: settingCount,
     resultsShown: resources.length,
     cacheHit: false,
     poolCacheHit,

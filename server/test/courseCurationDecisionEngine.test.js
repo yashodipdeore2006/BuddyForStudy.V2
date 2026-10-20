@@ -1,0 +1,205 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+// The curation rules are pure; set required config before loading the service module.
+process.env.NODE_ENV ||= "test";
+process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/buddyforstudy_curation_tests";
+process.env.JWT_SECRET ||= "curation-tests-only-not-a-production-secret";
+
+const engine = await import("../src/services/courseCurationDecisionEngine.service.js");
+const {
+  classifyCurationIntent,
+  adjustEngagementWithCurationFeedback,
+  adjustFreshnessWithCurationFeedback,
+  evaluateCurationHardGates,
+  selectCurationResultSlots
+} = engine;
+
+function baseCandidate(overrides = {}) {
+  return {
+    id: "video:abc123",
+    sourceType: "video",
+    sourceId: "abc123",
+    title: "SQL Quick Reference With Chapters",
+    description: "SQL query reference, syllabus, chapters, examples and practice.",
+    channelTitle: "Learning Lab",
+    channelId: "channel-a",
+    publishedAt: new Date().toISOString(),
+    durationSeconds: 120,
+    duration: "2m",
+    viewCount: 1000,
+    likeCount: 70,
+    commentCount: 8,
+    subscriberCount: 15000,
+    privacyStatus: "public",
+    embeddable: true,
+    regionRestriction: {},
+    defaultAudioLanguage: "en",
+    hasChapters: true,
+    chapterCount: 5,
+    hasSyllabus: true,
+    hasHandsOn: false,
+    hasResourceLinks: false,
+    isShort: false,
+    queryTermStats: { relevance: 100, titleRelevance: 100 },
+    ...overrides
+  };
+}
+
+function slotCandidate(index, overrides = {}) {
+  return {
+    id: "resource-" + index,
+    sourceType: "video",
+    sourceId: "video-" + index,
+    title: "Learning course " + index,
+    description: "Course description " + index,
+    thumbnail: "",
+    channelTitle: "Creator " + (overrides.channelId || index),
+    channelId: overrides.channelId || "channel-" + index,
+    url: "https://www.youtube.com/watch?v=video-" + index,
+    duration: "8h",
+    durationSeconds: 8 * 3600 + index,
+    durationEstimated: false,
+    itemCount: 1,
+    viewCount: 500 + index,
+    likeCount: 50 + index,
+    commentCount: 10,
+    subscriberCount: 10000,
+    publishedAt: new Date().toISOString(),
+    finalScore: 90 - index,
+    qualityScore: 80 - index,
+    confidence: 0.8,
+    isHiddenGem: Boolean(overrides.isHiddenGem),
+    beginnerFit: 80,
+    slots: [],
+    features: {
+      coverage: { score: 80, gapModules: [], moduleCount: 10, coverageCount: 8 },
+      instruction: { score: 80, handsOnScore: 90 },
+      engagement: { score: 70, likePercentile: 50, viewsPercentile: 0.25, feedbackScore: 50, explicitVotes: 0, thumbsUp: 0 },
+      authority: { score: 70 },
+      freshness: { score: 90 },
+      fit: { score: 80 }
+    },
+    ...overrides
+  };
+}
+
+test("intent profile defaults to full course and parses crash, reference, level and language hints", () => {
+  const normal = classifyCurationIntent("Data Analytics");
+  assert.equal(normal.mode, "full_course");
+  assert.equal(normal.level, "Beginner");
+  assert.equal(normal.language, "en");
+  assert.equal(normal.minVideoSeconds, 3 * 60 * 60);
+  assert.equal(normal.minPlaylistSeconds, 5 * 60 * 60);
+  assert.equal(normal.minPlaylistItems, 8);
+
+  const crash = classifyCurationIntent("React crash course in Hindi for intermediate learners");
+  assert.equal(crash.mode, "crash_course");
+  assert.equal(crash.level, "Intermediate");
+  assert.equal(crash.language, "hi");
+  assert.equal(crash.languageExplicit, true);
+  assert.equal(crash.minVideoSeconds, 60 * 60);
+
+  const reference = classifyCurationIntent("SQL quick reference");
+  assert.equal(reference.mode, "quick_reference");
+  assert.equal(reference.maxVideoSeconds, 60 * 60);
+});
+
+test("metadata feedback adjusts engagement toward learner usefulness without replacing the prior", () => {
+  const noFeedback = adjustEngagementWithCurationFeedback(63, {});
+  assert.equal(noFeedback.score, 63);
+  assert.equal(noFeedback.blendWeight, 0);
+
+  const positive = adjustEngagementWithCurationFeedback(50, { thumbsUp: 10 });
+  const negative = adjustEngagementWithCurationFeedback(50, { thumbsDown: 10 });
+  assert.ok(positive.score > 50, "positive feedback should lift engagement quality");
+  assert.ok(negative.score < 50, "negative feedback should lower engagement quality");
+  assert.ok(positive.blendWeight <= 0.35, "learner feedback influence must remain capped");
+});
+
+test("outdated learner reports reduce freshness only through a bounded penalty", () => {
+  const none = adjustFreshnessWithCurationFeedback(80, {});
+  const one = adjustFreshnessWithCurationFeedback(80, { outdated: 1 });
+  const several = adjustFreshnessWithCurationFeedback(80, { outdated: 100 });
+  assert.equal(none, 80);
+  assert.ok(one < none);
+  assert.ok(several >= 60 && several < one);
+});
+
+test("quick reference permits a short ordinary video; duration alone is not a Shorts gate", () => {
+  const profile = classifyCurationIntent("SQL quick reference");
+  const decision = evaluateCurationHardGates(baseCandidate(), profile);
+  assert.equal(decision.passed, true, decision.reason);
+});
+
+test("hard gates reject short-form markers, private videos, wrong runtime and weak playlists", () => {
+  const quickProfile = classifyCurationIntent("SQL quick reference");
+  assert.equal(
+    evaluateCurationHardGates(baseCandidate({ isShort: true }), quickProfile).reason,
+    "short_form"
+  );
+  assert.equal(
+    evaluateCurationHardGates(baseCandidate({ privacyStatus: "private" }), quickProfile).reason,
+    "not_public"
+  );
+
+  const courseProfile = classifyCurationIntent("Data Analytics");
+  assert.equal(
+    evaluateCurationHardGates(baseCandidate({
+      title: "Data Analytics Full Course",
+      description: "Data Analytics syllabus and modules",
+      durationSeconds: 2 * 60 * 60,
+      hasChapters: true,
+      chapterCount: 12
+    }), courseProfile).reason,
+    "runtime_outside_mode"
+  );
+
+  const playlist = {
+    ...baseCandidate({
+      sourceType: "playlist",
+      title: "Data Analytics Complete Course Playlist",
+      description: "Data Analytics syllabus, Excel, SQL and Python modules",
+      durationSeconds: 6 * 60 * 60,
+      itemCount: 10,
+      items: [],
+      hasStructure: true,
+      integrity: 0.79
+    })
+  };
+  assert.equal(evaluateCurationHardGates(playlist, courseProfile).reason, "playlist_integrity_below_80_percent");
+});
+
+test("ranking slots cap creators at two results and deduplicate resources", () => {
+  const candidates = [
+    slotCandidate(1, { channelId: "same-channel", finalScore: 96 }),
+    slotCandidate(2, { channelId: "same-channel", finalScore: 93, isHiddenGem: true }),
+    slotCandidate(3, { channelId: "same-channel", finalScore: 91 }),
+    slotCandidate(4, { channelId: "another-channel", finalScore: 89 }),
+    slotCandidate(5, { channelId: "third-channel", finalScore: 86 })
+  ];
+  const results = selectCurationResultSlots(candidates);
+  assert.ok(results.length <= 10);
+  assert.equal(new Set(results.map((item) => item.id)).size, results.length);
+  const sameChannel = results.filter((item) => item.channelId === "same-channel");
+  assert.ok(sameChannel.length <= 2);
+  assert.ok(results.some((item) => item.primarySlot === "Best overall"));
+});
+
+test("feedback endpoint, route, and learner controls are connected", async () => {
+  const controller = await readFile(new URL("../src/controllers/discovery.controller.js", import.meta.url), "utf8");
+  const routes = await readFile(new URL("../src/routes/discovery.routes.js", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../../src/components/YouTubeSearchFallback.tsx", import.meta.url), "utf8");
+  const service = await readFile(new URL("../src/services/courseCurationDecisionEngine.service.js", import.meta.url), "utf8");
+
+  assert.match(controller, /export async function recordCurationFeedback/);
+  assert.match(controller, /invalidateNormalSearchCurationCache\\(input\\.query\\)/);
+  assert.match(routes, /router\\.post\\("\\/curation-feedback", authMiddleware, recordCurationFeedback\\)/);
+  assert.match(ui, /"thumbs_up"/);
+  assert.match(ui, /"thumbs_down"/);
+  assert.match(ui, /"outdated"/);
+  assert.match(ui, /\\/api\\/discovery\\/curation-feedback/);
+  assert.match(service, /loadLearnerFeedbackSignals/);
+  assert.match(service, /scoreFinalCandidates\\(deduplicated, profile, syllabus, feedbackSignals\\)/);
+});

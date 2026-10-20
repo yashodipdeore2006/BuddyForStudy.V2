@@ -180,3 +180,39 @@
 @media (prefers-reduced-motion: reduce) {
   .user-home *, .user-home *::before, .user-home *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+.user-home__learning-widgets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s-4); margin-top:var(--s-5); }
+.user-home__goal-card,.user-home__streak-card { display:flex; min-width:0; align-items:center; gap:var(--s-4); border:1px solid var(--border); border-radius:var(--r-lg); padding:var(--s-4); background:var(--surface); }
+.user-home__goal-ring { position:relative; width:64px; height:64px; flex:0 0 auto; }
+.user-home__goal-ring svg { display:block; width:64px; height:64px; transform:rotate(-90deg); }
+.user-home__goal-ring circle { fill:none; stroke-width:6; }
+.user-home__goal-ring-track { stroke:var(--progress-track); }
+.user-home__goal-ring-fill { stroke:var(--progress); stroke-linecap:round; transition:stroke-dashoffset 400ms var(--ease); }
+.user-home__goal-ring > span { position:absolute; inset:0; display:grid; place-items:center; font-size:var(--fs-sm); font-weight:700; font-variant-numeric:tabular-nums; }
+.user-home__goal-copy { min-width:0; }
+.user-home__goal-copy h3,.user-home__streak-top h3 { margin:0; color:var(--text); font-size:var(--fs-lg); line-height:var(--lh-lg); font-weight:600; }
+.user-home__goal-copy p,.user-home__streak-top p { margin:var(--s-1) 0; color:var(--muted); font-size:var(--fs-sm); line-height:var(--lh-sm); }
+.user-home__streak-card { display:block; }
+.user-home__streak-top { display:flex; align-items:center; gap:var(--s-3); }
+.user-home__streak-icon { display:grid; place-items:center; width:40px; height:40px; flex:0 0 auto; border-radius:var(--r-md); background:var(--streak-soft); color:var(--streak); }
+.user-home__week-strip { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:var(--s-2); margin-top:var(--s-3); }
+.user-home__week-day { display:flex; flex-direction:column; align-items:center; gap:var(--s-1); color:var(--muted); font-size:var(--fs-xs); line-height:var(--lh-xs); }
+.user-home__week-dot { width:10px; height:10px; border:1px solid var(--border-strong); border-radius:var(--r-full); background:var(--surface); }
+.user-home__week-dot--active { border-color:var(--success); background:var(--success); }
+.user-home__week-dot--today { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+.user-home__streak-nudge { margin:var(--s-3) 0 0; color:var(--muted); font-size:var(--fs-sm); line-height:var(--lh-sm); }
+.user-home__badge-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--s-4); }
+.user-home__badge-card { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:start; gap:var(--s-3); padding:var(--s-4); border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface); min-width:0; }
+.user-home__badge-card--unlocked { border-color:var(--gold-soft); background:var(--surface); }
+.user-home__badge-icon { display:grid; place-items:center; width:40px; height:40px; border-radius:var(--r-md); color:var(--muted); background:var(--surface-2); }
+.user-home__badge-card--unlocked .user-home__badge-icon { background:var(--gold-soft); color:var(--gold); }
+.user-home__badge-copy { min-width:0; }
+.user-home__badge-copy h3 { margin:0; font-size:var(--fs-md); line-height:var(--lh-md); font-weight:600; color:var(--text); }
+.user-home__badge-copy p { margin:var(--s-1) 0 0; font-size:var(--fs-sm); line-height:var(--lh-sm); color:var(--muted); }
+.user-home__badge-state { grid-column:2; color:var(--muted); font-size:var(--fs-xs); font-weight:600; }
+.user-home__badge-card--unlocked .user-home__badge-state { color:var(--gold); }
+.user-home__badge-progress { grid-column:1/-1; height:var(--s-1); overflow:hidden; border-radius:var(--r-full); background:var(--progress-track); }
+.user-home__badge-progress span { display:block; height:100%; background:var(--progress); border-radius:inherit; }
+@media (max-width:767px) {
+  .user-home__learning-widgets { grid-template-columns:minmax(0,1fr); }
+  .user-home__badge-grid { grid-template-columns:minmax(0,1fr); }
+}

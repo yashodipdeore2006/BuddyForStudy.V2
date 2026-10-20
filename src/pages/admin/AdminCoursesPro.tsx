@@ -285,7 +285,7 @@ export default function AdminCoursesPro() {
       setRoadmapDrafts((current) => ({ ...current, [courseId]: data.roadmap?.stages || [] }));
       const detail = courseDetails[courseId];
       if (detail) patchDetail(courseId, { ...detail, roadmap: data.roadmap });
-      setRoadmapMessages((current) => ({ ...current, [courseId]: "Roadmap regenerated with AI. Review it and save any edits." }));
+      setRoadmapMessages((current) => ({ ...current, [courseId]: "Roadmap regenerated. AI metadata is used when configured; review and save any edits." }));
     } catch (error) { setRoadmapMessages((current) => ({ ...current, [courseId]: error instanceof Error ? error.message : "Unable to regenerate roadmap." })); }
     finally { setRoadmapSaving((current) => ({ ...current, [courseId]: false })); }
   }

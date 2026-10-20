@@ -135,7 +135,7 @@ export default function Home() {
     const learningStats = statsResult.status === 'fulfilled' ? (statsResult.value.stats ?? null) : null;
     if (statsResult.status === 'rejected') partialErrors.push('Learning summary is temporarily unavailable.');
 
-    const progressEntries = await Promise.all(enrollments.filter((item: EnrollmentRecord) => item.status === 'active').map(async (enrollment: EnrollmentRecord) => {
+    const progressEntries = await Promise.all(enrollments.map(async (enrollment: EnrollmentRecord) => {
       try {
         const response = await apiFetch('/api/progress/' + enrollment.course_id);
         return [enrollment.course_id, mapProgress(response.progress, enrollment.course_id, enrollment.course)] as const;
@@ -147,8 +147,9 @@ export default function Home() {
     const progress: Record<string, ProgressRecord> = {};
     progressEntries.forEach((entry) => { if (entry) progress[entry[0]] = entry[1]; });
     const allPrimarySourcesFailed = enrollmentResult.status === 'rejected' && courseResult.status === 'rejected' && statsResult.status === 'rejected';
-    if (allPrimarySourcesFailed && !isRefresh) {
-      setError('We couldn’t load your learning home. Check your connection and try again.');
+    if (allPrimarySourcesFailed) {
+      if (!isRefresh) setError('We couldn’t load your learning home. Check your connection and try again.');
+      else partialErrors.push('Refresh failed. The last available data is still shown.');
     } else {
       setData({ enrollments, progress, courses, learningStats });
     }

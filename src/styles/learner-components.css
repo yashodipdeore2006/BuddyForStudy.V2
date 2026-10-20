@@ -690,3 +690,13 @@
   .bfs-course-card__status { margin-inline: 9px; }
 }
 
+
+.bfs-course-card__rating-link {
+  position: relative;
+  z-index: 3;
+  width: fit-content;
+  text-decoration: none;
+  cursor: pointer;
+}
+.bfs-course-card__rating-link:hover span { color: var(--accent); text-decoration: underline; }
+.bfs-course-card__rating-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }

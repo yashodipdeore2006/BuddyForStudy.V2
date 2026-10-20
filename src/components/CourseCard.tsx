@@ -77,6 +77,16 @@ export default function CourseCard({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
+  const [undoSavedTo, setUndoSavedTo] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (undoSavedTo === null) return;
+    const timeout = window.setTimeout(() => {
+      setUndoSavedTo(null);
+      setActionNotice("");
+    }, 6000);
+    return () => window.clearTimeout(timeout);
+  }, [undoSavedTo]);
 
   const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id));
 
@@ -136,6 +146,7 @@ export default function CourseCard({
         await apiFetch("/api/saved-courses/" + course.id, { method: "DELETE" });
       }
       onSavedChange?.(course.id, next);
+      setUndoSavedTo(previous);
       setActionNotice(next ? "Saved for later." : "Removed from Saved.");
     } catch (error) {
       setSaved(previous);
@@ -144,6 +155,31 @@ export default function CourseCard({
       setSaving(false);
     }
   }, [course.id, navigate, onSavedChange, saved, saving, session]);
+
+  const handleUndoSave = useCallback(async () => {
+    if (undoSavedTo === null || saving || !session) return;
+    const current = saved;
+    const target = undoSavedTo;
+    setSaved(target);
+    setSaving(true);
+    setActionError("");
+    setActionNotice("");
+    try {
+      if (target) {
+        await apiFetch("/api/saved-courses", { method: "POST", body: JSON.stringify({ courseId: course.id }) });
+      } else {
+        await apiFetch("/api/saved-courses/" + course.id, { method: "DELETE" });
+      }
+      onSavedChange?.(course.id, target);
+      setUndoSavedTo(null);
+      setActionNotice(target ? "Course restored to Saved." : "Removed from Saved.");
+    } catch (error) {
+      setSaved(current);
+      setActionError(error instanceof Error ? error.message : "Couldn't undo that change. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }, [course.id, onSavedChange, saved, saving, session, undoSavedTo]);
 
   const handlePrimaryAction = async () => {
     if (actionLoading) return;
@@ -269,7 +305,7 @@ export default function CourseCard({
       </div>
 
       {actionError && <p className="bfs-course-card__error" role="alert">{actionError}</p>}
-      {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}</div>}
+      {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
       <div className="bfs-course-card__action-row">
         <CourseActionButton
           state={actionState}

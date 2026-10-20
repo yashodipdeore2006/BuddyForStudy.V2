@@ -317,11 +317,22 @@ export default function CourseCard({
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
         {displayOutcome && <p className="bfs-course-card__outcome" title={displayOutcome}>{displayOutcome}</p>}
-        {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0 && <div className="bfs-course-card__rating" aria-label={Number(course.ratingAverage).toFixed(1) + " out of 5, " + course.ratingCount + " reviews"}>
-          <Star size={14} fill="currentColor" aria-hidden="true" />
-          <strong>{Number(course.ratingAverage).toFixed(1)}</strong>
-          <span>({new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(Number(course.ratingCount))} {Number(course.ratingCount) === 1 ? "rating" : "ratings"})</span>
-        </div>}
+        <Link
+          to={routes.course(course.id) + "#reviews"}
+          className="bfs-course-card__rating bfs-course-card__rating-link"
+          aria-label={Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0
+            ? "View course reviews: " + Number(course.ratingAverage).toFixed(1) + " out of 5 from " + course.ratingCount + " ratings"
+            : "View course reviews. No ratings yet."}
+          title="View reviews and ratings"
+        >
+          <Star size={14} fill={Number(course.ratingCount) > 0 ? "currentColor" : "none"} aria-hidden="true" />
+          {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0
+            ? <>
+                <strong>{Number(course.ratingAverage).toFixed(1)}</strong>
+                <span>({new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(Number(course.ratingCount))} {Number(course.ratingCount) === 1 ? "rating" : "ratings"}) · View reviews</span>
+              </>
+            : <span>No ratings yet · Be the first to review</span>}
+        </Link>
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
           {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}

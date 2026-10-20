@@ -287,28 +287,28 @@ export default function Courses() {
 
   return (
     <div className="bfs-shell bfs-catalog-shell py-6 sm:py-8">
-      <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-5 sm:px-6 sm:py-6">
-        <div className="mx-auto max-w-4xl text-center">
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-            Find your next course
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Search courses or build a personalized learning path.
-          </p>
-          <form onSubmit={handleSearch} className="mx-auto mt-5 w-full rounded-full border border-slate-200 bg-white p-1.5 shadow-sm">
+      <section aria-labelledby="course-search-heading" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="shrink-0 sm:w-44">
+            <h1 id="course-search-heading" className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+              Find a course
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">Search topics or build with AI</p>
+          </div>
+          <form onSubmit={handleSearch} className="min-w-0 flex-1">
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-12 w-full rounded-full border-0 bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-violet-500/20"
-                  placeholder="Search courses, skills, or topics..."
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/15"
+                  placeholder="Search courses, skills, or topics"
                   aria-label="Search courses"
                 />
               </div>
-              <button type="submit" className="btn-primary h-12 justify-center sm:min-w-28">
+              <button type="submit" className="btn-primary h-11 justify-center rounded-xl px-5 sm:min-w-24">
                 <Search className="h-4 w-4" />
                 Search
               </button>
@@ -316,7 +316,7 @@ export default function Courses() {
                 type="button"
                 onClick={() => { setAiOpen(true); setAiError(null); }}
                 disabled={aiLoading}
-                className="btn-secondary h-12 justify-center px-5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-secondary h-11 justify-center rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {aiLoading ? (
                   <>
@@ -335,9 +335,9 @@ export default function Courses() {
         </div>
       </section>
 
-      <section className="mt-5 rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+      <section aria-label="Course filters" className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
             <Filter className="h-4 w-4 text-slate-400" />
             Refine your results
           </div>

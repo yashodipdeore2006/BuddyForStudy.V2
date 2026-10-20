@@ -99,7 +99,7 @@ export default function Navbar() {
   }, [location.pathname, closeOverlay]);
 
   useEffect(() => {
-    const match = location.pathname.match(/^\\/courses\\/([^/]+)\\/?$/);
+    const match = location.pathname.match(/^\/courses\/([^/]+)\/?$/);
     if (!match || !session?.user?.id) {
       setCourseDetailIsEnrolled(false);
       return;

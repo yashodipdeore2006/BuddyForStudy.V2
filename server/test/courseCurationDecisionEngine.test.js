@@ -196,9 +196,9 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
   assert.match(controller, /export async function recordCurationFeedback/);
   assert.match(controller, /invalidateNormalSearchCurationCache\\(input\\.query\\)/);
   assert.match(routes, /router\\.post\\("\\/curation-feedback", authMiddleware, recordCurationFeedback\\)/);
-  assert.match(ui, /"thumbs_up"/);
-  assert.match(ui, /"thumbs_down"/);
-  assert.match(ui, /"outdated"/);
+  assert.ok(ui.includes('"thumbs_up"'));
+  assert.ok(ui.includes('"thumbs_down"'));
+  assert.ok(ui.includes('"outdated"'));
   assert.match(ui, /\\/api\\/discovery\\/curation-feedback/);
   assert.match(service, /loadLearnerFeedbackSignals/);
   assert.match(service, /scoreFinalCandidates\\(deduplicated, profile, syllabus, feedbackSignals\\)/);

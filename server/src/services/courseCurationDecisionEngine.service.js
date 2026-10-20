@@ -768,21 +768,21 @@ function instructionalFeatures(candidate) {
   const score = clamp(chapterScore * 0.30 + handsOnScore * 0.25 + resourcesScore * 0.20 + syllabusScore * 0.25 - repetitionPenalty);
   return { score, handsOnScore, chapterScore, resourcesScore, confidence: candidate.sourceType === "playlist" ? 0.75 : candidate.hasChapters || candidate.hasSyllabus ? 0.65 : 0.40 };
 }
-export function adjustEngagementWithCurationFeedback(youtubeScore, feedback = {}) {
+export function scoreLearnerCommunityConsensus(feedback = {}) {
   const up = Math.max(0, Number(feedback.thumbsUp || 0));
   const down = Math.max(0, Number(feedback.thumbsDown || 0));
   const outdated = Math.max(0, Number(feedback.outdated || 0));
   const saves = Math.max(0, Number(feedback.saves || 0));
   const enrollments = Math.max(0, Number(feedback.enrollments || 0));
   const explicitVotes = up + down + outdated;
-  // Saves and enrollments are weak intent signals; an explicit relevance vote is stronger.
+  // Saves and enrollments are weak intent signals; explicit relevance votes are stronger.
   const positiveEvidence = up + 0.15 * saves + 0.30 * enrollments;
   const negativeEvidence = down + outdated;
   const posteriorScore = clamp(((positiveEvidence + 2) / (positiveEvidence + negativeEvidence + 4)) * 100);
   const evidenceStrength = explicitVotes + 0.25 * saves + 0.5 * enrollments;
   const feedbackConfidence = evidenceStrength / (evidenceStrength + 8);
   const blendWeight = Math.min(0.35, 0.35 * feedbackConfidence);
-  const baseScore = clamp(youtubeScore);
+  const baseScore = 50;
   return {
     score: clamp(baseScore * (1 - blendWeight) + posteriorScore * blendWeight),
     baseScore,
@@ -830,7 +830,7 @@ function engagementFeatures(candidates, candidate) {
 }
 
 function communityFeatures(feedback = {}) {
-  const adjustment = adjustEngagementWithCurationFeedback(50, feedback);
+  const adjustment = scoreLearnerCommunityConsensus(feedback);
   const evidenceCount = Number(adjustment.explicitVotes || 0);
   const softEvidence = 0.25 * Number(adjustment.saves || 0) + 0.5 * Number(adjustment.enrollments || 0);
   const evidenceStrength = evidenceCount + softEvidence;

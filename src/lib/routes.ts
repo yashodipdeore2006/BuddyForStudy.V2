@@ -19,6 +19,7 @@ export const routes = {
       ? `/learn/${encodeRouteSegment(id, "course id")}/${encodeRouteSegment(lessonId, "lesson id")}`
       : `/learn/${encodeRouteSegment(id, "course id")}`,
   playlist: (id: string) => `/playlists/${encodeRouteSegment(id, "playlist id")}`,
+  savedRoadmap: (id: string) => `/roadmaps/${encodeRouteSegment(id, "roadmap id")}`,
   login: () => "/login",
   register: () => "/register",
   verifyEmail: () => "/verify-email",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, BookOpen, CheckCircle2, Clock3 } from "lucide-react";
+import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -233,12 +233,18 @@ export default function CourseCard({
       : /business|finance|marketing/.test(coverCategory) ? "business"
         : /ai|machine|python|program/.test(coverCategory) ? "technology"
           : "learning";
-  const coverWords = course.title.trim().split(/\\s+/).slice(0, 2).join(" ") || "Keep learning";
-  const displayCategory = /^ai\\s+course\\s+search$/i.test(course.category || "")
+  const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
+  const displayCategory = /^ai\s+course\s+search$/i.test(course.category || "")
     ? "AI and machine learning"
     : course.category;
+  const CoverIcon = /data|analytics|sql|database/.test(coverCategory) ? Database
+    : /design|ui|ux|art/.test(coverCategory) ? Palette
+      : /business|finance|marketing/.test(coverCategory) ? BriefcaseBusiness
+        : /ai|machine|python/.test(coverCategory) ? BrainCircuit
+          : /program|software|web|code/.test(coverCategory) ? Code2 : GraduationCap;
   const compact = variant === "compact";
   const horizontal = variant === "horizontal";
+  const showProgress = enrollmentState !== "not-enrolled" || variant === "enrolled";
   const rootClass = [
     "bfs-course-card",
     compact ? "bfs-course-card__compact" : "",
@@ -260,7 +266,7 @@ export default function CourseCard({
         {course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
-          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><BookOpen className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /><span className="bfs-course-card__fallback-title">{coverWords}</span></div>
+          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /><span className="bfs-course-card__fallback-title">{coverWords}</span></div>
         )}
         <span className="bfs-sr-only">{course.level || "All levels"}</span>
         <button
@@ -285,11 +291,11 @@ export default function CourseCard({
         </div>
         <h3 className="bfs-course-card__title" title={course.title}>{course.title}</h3>
         {displayOutcome && <p className="bfs-course-card__outcome">{displayOutcome}</p>}
-        <div className="bfs-course-card__meta">
-          {lessonCount !== null && <span><BookOpen size={14} aria-hidden="true" /> {lessonCount} {lessonCount === 1 ? "lesson" : "lessons"}</span>}
-          {course.duration && <span><Clock3 size={14} aria-hidden="true" /> {course.duration}</span>}
+        <div className="bfs-course-card__meta" aria-label="Course duration and lesson count">
+          <span><Clock3 size={14} aria-hidden="true" /> {course.duration || "Self-paced"}</span>
+          <span><BookOpen size={14} aria-hidden="true" /> {lessonCount ?? 0} {(lessonCount ?? 0) === 1 ? "lesson" : "lessons"}</span>
         </div>
-        {enrollmentState !== "not-enrolled" && (
+        {showProgress && (
           <div className="bfs-course-card__progress">
             <div className="bfs-course-card__progress-label"><span>{enrollmentState === "completed" ? "Completed" : progress > 0 ? "In progress" : "Not started"}</span><span>{Math.round(progress)}%</span></div>
             <div className="bfs-course-card__progress-track" role="progressbar" aria-label={course.title + " progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
@@ -302,9 +308,6 @@ export default function CourseCard({
 
       {actionError && <p className="bfs-course-card__error" role="alert">{actionError}</p>}
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}</div>}
-      {undoSaveValue !== null && actionNotice && (
-        <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>
-      )}
       <div className="bfs-course-card__action-row">
         <CourseActionButton
           state={actionState}
@@ -317,3 +320,34 @@ export default function CourseCard({
     </article>
   );
 }
+
+
+/**
+ * Loading placeholder for all CourseCard variants.
+ * Usage: {loading ? <CourseCardSkeleton variant="catalog" /> : <CourseCard course={course} />}
+ */
+export function CourseCardSkeleton({ variant = "catalog" }: { variant?: CourseCardVariant }) {
+  return (
+    <article className={"bfs-course-card bfs-course-card--skeleton" + (variant === "horizontal" ? " bfs-course-card__horizontal" : variant === "compact" ? " bfs-course-card__compact" : "")} data-variant={variant} aria-hidden="true">
+      <div className="bfs-course-card__skeleton-cover" />
+      <div className="bfs-course-card__skeleton-body">
+        <span className="bfs-course-card__skeleton-line bfs-course-card__skeleton-line--short" />
+        <span className="bfs-course-card__skeleton-line bfs-course-card__skeleton-line--title" />
+        <span className="bfs-course-card__skeleton-line" />
+        <span className="bfs-course-card__skeleton-line bfs-course-card__skeleton-line--meta" />
+        <span className="bfs-course-card__skeleton-button" />
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Usage example (inside a page wrapped by the app's Router and AuthProvider):
+ * <CourseCard
+ *   course={course}
+ *   variant="recommended"
+ *   reason="Because you're learning JavaScript"
+ *   initiallySaved={savedCourseIds.has(course.id)}
+ *   onSavedChange={(courseId, saved) => updateSavedCourseIds(courseId, saved)}
+ * />
+ */

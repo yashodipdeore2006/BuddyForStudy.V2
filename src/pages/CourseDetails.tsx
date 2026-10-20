@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, Enrollment, Progress } from '@/types';
@@ -41,6 +41,7 @@ const levelColors: Record<string, string> = {
 export default function CourseDetails() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,6 +59,7 @@ export default function CourseDetails() {
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [purchaseChoice, setPurchaseChoice] = useState<'subscription' | 'individual'>('subscription');
+  const [courseNotes, setCourseNotes] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -294,39 +296,145 @@ export default function CourseDetails() {
   const nextLesson = flatLessons.find((lesson) => !completedLessonIds.has(String(lesson.id))) ?? flatLessons[flatLessons.length - 1];
   const hasRoadmap = flatLessons.length > 0;
 
-  if (isEnrolled) {
-    const isCompleted = enrollment?.status === 'completed' || progressPct >= 100;
+  // CP-01..CP-11: this route renders one of three views from learner status.
+  const isCompleted = isEnrolled && (enrollment?.status === 'completed' || progressPct >= 100);
+  const courseView = !isEnrolled ? 'sales' : isCompleted ? 'completion' : 'hub';
+  const hubTabs = ['curriculum', ...(hasRoadmap ? ['roadmap'] : []), 'about', 'notes'];
+  const activeTab = hubTabs.includes(searchParams.get('tab') || '')
+    ? (searchParams.get('tab') || 'curriculum')
+    : 'curriculum';
+  const setCourseTab = (tab: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'curriculum') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next, { replace: true });
+  };
+
+  if (courseView !== 'sales') {
     return (
-      <div className="bfs-shell py-8 sm:py-10">
+      <div className="bfs-shell py-8 pb-28 sm:py-10 sm:pb-10">
         <nav aria-label="Breadcrumb" className="mb-5 flex items-center gap-2 text-sm text-slate-500">
-          <Link to={routes.myLearning()} className="hover:text-violet-700">My learning</Link><span aria-hidden="true">/</span><span className="truncate text-slate-800">{course.title}</span>
+          <Link to={routes.myLearning()} className="hover:text-violet-700">My learning</Link>
+          <span aria-hidden="true">/</span>
+          <span className="truncate text-slate-800">{course.title}</span>
         </nav>
+
+        {courseView === 'completion' && (
+          <section aria-labelledby="completion-title" className="mb-6 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6 sm:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div className="max-w-2xl">
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4" /> Course completed
+                </span>
+                <h1 id="completion-title" className="mt-4 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">You did it!</h1>
+                <p className="mt-2 text-sm leading-6 text-slate-600">You’ve completed {course.title}. Review any lesson, reflect on your progress, or choose what to learn next.</p>
+              </div>
+              <button type="button" onClick={handleStartLearning} className="btn-primary shrink-0">
+                Review course <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-100 bg-white/80 p-4">
+                <p className="text-xs text-slate-500">Progress</p><p className="mt-1 text-2xl font-bold text-slate-950">100%</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-white/80 p-4">
+                <p className="text-xs text-slate-500">Lessons completed</p><p className="mt-1 text-2xl font-bold text-slate-950">{progress?.completed_count ?? completedLessonIds.size} / {progress?.total_lessons ?? flatLessons.length}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-100 bg-white/80 p-4">
+                <p className="text-xs text-slate-500">Course</p><p className="mt-1 line-clamp-1 font-semibold text-slate-950">{course.title}</p>
+              </div>
+            </div>
+            <div className="mt-6 rounded-2xl border border-emerald-100 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-900">Rate this course</p>
+              <p className="mt-1 text-xs text-slate-500">How useful was this learning experience?</p>
+              <div className="mt-3 flex items-center gap-1" role="group" aria-label="Rate this course">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={`Rate ${star} out of 5 stars`} aria-pressed={reviewRating === star} className="rounded-md p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600">
+                    <Star className={`h-7 w-7 ${star <= reviewRating ? 'text-amber-400' : 'text-slate-300'}`} fill={star <= reviewRating ? 'currentColor' : 'none'} />
+                  </button>
+                ))}
+                <span className="ml-2 text-sm text-slate-600">{reviewRating} of 5</span>
+              </div>
+              <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Add a comment (optional)" className="input-field mt-3 min-h-20 w-full text-sm" aria-label="Course feedback comment" />
+              <button type="button" onClick={submitReview} disabled={reviewSaving} className="btn-primary mt-3">
+                {reviewSaving ? 'Saving feedback…' : 'Submit rating'}
+              </button>
+              {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+            </div>
+          </section>
+        )}
+
         <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
-          <p className="text-sm font-semibold text-violet-700">{isCompleted ? 'Course completed' : 'Your course'}</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{course.title}</h1>
+          {courseView === 'hub' && <p className="text-sm font-semibold text-violet-700">Your course</p>}
+          {courseView === 'completion' && <p className="text-sm font-semibold text-emerald-700">Course library</p>}
+          <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{course.title}</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{course.description}</p>
           <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-            <span>{Math.round(progressPct)}% complete</span><span>{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons</span>
+            <span>{Math.round(isCompleted ? 100 : progressPct)}% complete</span>
+            <span>{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons</span>
+            <span>{course.modules.length} modules</span>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPct)}>
-            <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }} />
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={isCompleted ? 100 : Math.round(progressPct)}>
+            <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${Math.max(0, Math.min(100, isCompleted ? 100 : progressPct))}%` }} />
           </div>
-          {nextLesson && <p className="mt-4 text-sm text-slate-600">Next: <span className="font-semibold text-slate-900">{nextLesson.title}</span></p>}
+          {!isCompleted && nextLesson && <p className="mt-4 text-sm text-slate-600">Next: <span className="font-semibold text-slate-900">{nextLesson.title}</span></p>}
           <div className="mt-6 flex flex-wrap gap-3">
-            <button type="button" onClick={handleStartLearning} className="btn-primary">{isCompleted ? 'Review' : progressPct > 0 ? 'Continue' : 'Start'} learning <ChevronRight className="h-4 w-4" /></button>
+            <button type="button" onClick={handleStartLearning} className="btn-primary">
+              {isCompleted ? 'Review' : progressPct > 0 ? 'Continue' : 'Start'} learning <ChevronRight className="h-4 w-4" />
+            </button>
             {hasRoadmap && <Link to={routes.roadmap(course.id)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" />Roadmap</Link>}
           </div>
         </section>
-        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
-          <h2 className="text-xl font-semibold text-slate-950">Curriculum</h2>
-          <div className="mt-5 space-y-4">
-            {course.modules.map((module) => <section key={module.id} className="rounded-xl border border-slate-200 p-4">
-              <h3 className="font-semibold text-slate-900">{module.title}</h3>
-              <ul className="mt-3 space-y-2">{module.lessons.map((lesson) => <li key={lesson.id}><Link to={routes.learn(course.id, lesson.id)} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-50"><span>{lesson.title}</span><ChevronRight className="h-4 w-4 shrink-0" /></Link></li>)}</ul>
-            </section>)}
-            {course.modules.length === 0 && <p className="text-sm text-slate-500">Curriculum content will be added soon.</p>}
+
+        <div className="mt-8 border-b border-slate-200">
+          <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Course sections">
+            {hubTabs.map((tab) => (
+              <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setCourseTab(tab)} className={classNames('shrink-0 border-b-2 px-4 py-3 text-sm font-semibold capitalize transition-colors', activeTab === tab ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-900')}>
+                {tab}
+              </button>
+            ))}
           </div>
+        </div>
+
+        <section role="tabpanel" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
+          {activeTab === 'curriculum' && <>
+            <div className="mb-5"><h2 className="text-xl font-semibold text-slate-950">Curriculum</h2><p className="mt-1 text-sm text-slate-500">{course.modules.length} modules · {lessonCount} lessons</p></div>
+            <div className="space-y-4">
+              {course.modules.map((module, moduleIndex) => <section key={module.id} className="overflow-hidden rounded-2xl border border-slate-200">
+                <button type="button" onClick={() => toggleModule(moduleIndex)} aria-expanded={expandedModules.has(moduleIndex)} className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-50">
+                  <span><span className="block font-semibold text-slate-900">{module.title}</span><span className="mt-1 block text-xs text-slate-500">{module.lessons.length} lessons</span></span>
+                  {expandedModules.has(moduleIndex) ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
+                </button>
+                {expandedModules.has(moduleIndex) && <ul className="divide-y divide-slate-100 border-t border-slate-200">
+                  {module.lessons.map((lesson) => {
+                    const done = completedLessonIds.has(String(lesson.id));
+                    return <li key={lesson.id}><Link to={routes.learn(course.id, lesson.id)} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50">
+                      {done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <Play className="h-4 w-4 shrink-0 text-slate-400" />}
+                      <span className="min-w-0 flex-1 text-slate-800">{lesson.title}</span><span className="text-xs text-slate-500">{done ? 'Completed' : lesson.type}</span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    </Link></li>;
+                  })}
+                </ul>}
+              </section>)}
+              {course.modules.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Curriculum content will be added soon.</p>}
+            </div>
+          </>}
+          {activeTab === 'roadmap' && <div><h2 className="text-xl font-semibold text-slate-950">Learning roadmap</h2><p className="mt-2 text-sm text-slate-600">Follow the course in order and track your progress as you go.</p><Link to={routes.roadmap(course.id)} className="btn-primary mt-5 inline-flex">Open roadmap <ChevronRight className="h-4 w-4" /></Link></div>}
+          {activeTab === 'about' && <div><h2 className="text-xl font-semibold text-slate-950">About this course</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{course.description}</p>{course.learning_outcomes.length > 0 && <><h3 className="mt-6 font-semibold text-slate-900">Learning outcomes</h3><ul className="mt-3 grid gap-3 sm:grid-cols-2">{course.learning_outcomes.map((outcome, index) => <li key={index} className="flex gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{outcome}</li>)}</ul></>}</div>}
+          {activeTab === 'notes' && <div><h2 className="text-xl font-semibold text-slate-950">Your notes</h2><p className="mt-2 text-sm text-slate-600">Keep personal notes for this course. Notes remain in this view while it is open.</p><textarea value={courseNotes} onChange={(event) => setCourseNotes(event.target.value)} placeholder="Capture key concepts, questions, or things to revisit…" className="input-field mt-4 min-h-48 w-full resize-y text-sm" aria-label="Course notes" /></div>}
         </section>
+
+        {courseView === 'completion' && <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7">
+          <h2 className="text-xl font-semibold text-slate-950">Next course for you</h2>
+          <p className="mt-2 text-sm text-slate-600">Ready to keep building your skills? Explore more courses and choose your next learning goal.</p>
+          <Link to={routes.explore()} className="btn-primary mt-4 inline-flex">Explore courses <ChevronRight className="h-4 w-4" /></Link>
+        </section>}
+
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:hidden">
+          <div className="mx-auto flex max-w-5xl items-center gap-3">
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900">{course.title}</p><p className="text-xs text-slate-500">{isCompleted ? 'Completed' : `${Math.round(progressPct)}% complete`}</p></div>
+            <button type="button" onClick={handleStartLearning} className="btn-primary shrink-0">{isCompleted ? 'Review' : progressPct > 0 ? 'Continue' : 'Start'}</button>
+          </div>
+        </div>
       </div>
     );
   }

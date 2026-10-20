@@ -793,6 +793,51 @@ export async function searchStructuredPlaylists(query, maxResults) {
   setPlaylistCache(key, results);
   return results;
 }
+export async function searchChannelCoursePlaylists(channelIds, maxPerChannel = 5) {
+  if (!env.youtubeApiKey) return [];
+  const ids = [...new Set((channelIds || []).map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 6);
+  if (!ids.length) return [];
+  const count = Math.max(1, Math.min(10, Number(maxPerChannel) || 5));
+  const key = "channel-playlists:" + ids.slice().sort().join(",") + ":" + count;
+  const cached = getPlaylistCache(key);
+  if (cached !== null) return cached;
+
+  const groups = await Promise.all(ids.map(async (channelId) => {
+    try {
+      const data = await youtubeRequest("playlists", {
+        part: "snippet,contentDetails,status",
+        channelId,
+        maxResults: count
+      });
+      return (data?.items || [])
+        .filter((playlist) =>
+          playlist.status?.privacyStatus === "public" &&
+          Number(playlist.contentDetails?.itemCount || 0) > 0
+        )
+        .map((playlist) => ({
+          playlistId: playlist.id,
+          title: playlist.snippet?.title || "Untitled course playlist",
+          description: playlist.snippet?.description || "",
+          channelTitle: playlist.snippet?.channelTitle || "",
+          channelId: playlist.snippet?.channelId || channelId,
+          publishedAt: playlist.snippet?.publishedAt || null,
+          itemCount: Number(playlist.contentDetails?.itemCount || 0),
+          thumbnail: playlist.snippet?.thumbnails?.high?.url ||
+            playlist.snippet?.thumbnails?.medium?.url ||
+            playlist.snippet?.thumbnails?.default?.url || "",
+          url: "https://www.youtube.com/playlist?list=" + playlist.id,
+          discoverySource: "creator-channel-playlist"
+        }));
+    } catch (error) {
+      console.warn("YouTube channel playlist expansion failed", { channelId, message: error?.message || error });
+      return [];
+    }
+  }));
+  const result = [...new Map(groups.flat().map((playlist) => [playlist.playlistId, playlist])).values()];
+  setPlaylistCache(key, result);
+  return result;
+}
+
 export async function getPlaylistCourse(playlistId) {
   const key = `playlist:${playlistId}`;
   const cached = getPlaylistCache(key);

@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import CourseActionButton from "@/components/CourseActionButton";
-import { USER_INTENTS } from "@/lib/intents";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -642,7 +640,7 @@ export default function YouTubeSearchFallback({
                         ) : (
                           <>
                             <PlayCircle className="h-4 w-4" />
-                            Preview in BuddyForStudy
+                            Preview
                           </>
                         )}
                       </button>
@@ -755,7 +753,7 @@ export default function YouTubeSearchFallback({
                         className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-100"
                       >
                         <PlayCircle className="h-4 w-4" />
-                        Preview in BuddyForStudy
+                        Preview
                       </button>
                     </div>
                   </article>
@@ -913,7 +911,7 @@ export default function YouTubeSearchFallback({
                           ) : (
                             <>
                               <PlayCircle className="h-4 w-4" />
-                              Preview in BuddyForStudy
+                              Preview
                             </>
                           )}
                         </button>

@@ -5,6 +5,7 @@ export interface LearningProgressSource {
   total_lessons: number;
   completed_today_count: number;
   completed_lesson_ids?: string[];
+  has_detailed_completion_data?: boolean;
 }
 
 export interface LearningStatsSource {
@@ -27,7 +28,8 @@ export function useLearningStats(
   const metrics = useMemo(() => {
     const records = Object.values(progress);
     const completedLessonIds = new Set(records.flatMap((item) => item.completed_lesson_ids ?? []));
-    const completedLessons = completedLessonIds.size > 0
+    const hasDetailedCompletionData = records.length > 0 && records.every((item) => item.has_detailed_completion_data === true);
+    const completedLessons = hasDetailedCompletionData
       ? completedLessonIds.size
       : records.reduce((sum, item) => sum + item.completed_count, 0);
     const totalLessons = records.reduce((sum, item) => sum + item.total_lessons, 0);

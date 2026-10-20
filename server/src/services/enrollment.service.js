@@ -1,5 +1,6 @@
 import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
+import { Review } from "../models/Review.js";
 import { Payment } from "../models/Payment.js";
 import { createNotificationEvent } from "./notification.service.js";
 import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
@@ -128,12 +129,26 @@ export async function getMine(userId) {
     })
     .sort({ enrolledAt: -1 });
 
-  // Return a safe course preview rather than the full populated document. This
-  // keeps private lesson payloads out of the list endpoint while supplying the
-  // metadata used by My Learning course cards.
+  // Keep the enrolled-course response safe, and attach aggregate review stats
+  // so My Learning cards can show genuine ratings without one request per card.
+  const courseIds = enrollments.map((enrollment) => enrollment.course?._id).filter(Boolean);
+  const ratingRows = courseIds.length ? await Review.aggregate([
+    { $match: { course: { $in: courseIds }, isHidden: { $ne: true }, moderationStatus: "approved" } },
+    { $group: { _id: "$course", ratingAverage: { $avg: "$rating" }, ratingCount: { $sum: 1 } } }
+  ]) : [];
+  const ratingsByCourse = new Map(ratingRows.map((row) => [String(row._id), {
+    ratingAverage: Math.round(Number(row.ratingAverage || 0) * 10) / 10,
+    ratingCount: Number(row.ratingCount || 0)
+  }]));
   return enrollments.map((enrollment) => {
     const result = enrollment.toObject();
-    if (result.course) result.course = toPublicCoursePreview(result.course);
+    if (result.course) {
+      const courseId = String(result.course._id || result.course.id);
+      result.course = {
+        ...toPublicCoursePreview(result.course),
+        ...(ratingsByCourse.get(courseId) || { ratingAverage: 0, ratingCount: 0 })
+      };
+    }
     return result;
   });
 }

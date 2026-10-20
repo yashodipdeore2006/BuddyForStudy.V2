@@ -131,6 +131,13 @@ test("intent profile defaults to full course and parses crash, reference, level 
   assert.equal(filtered.category, "Data Science & AI");
   assert.equal(filtered.level, "Advanced");
   assert.equal(classifyCurationIntent("History of India").halfLifeDays, 3650);
+
+  const explicitLanguage = classifyCurationIntent("Data science course", { language: "Hindi" });
+  assert.equal(explicitLanguage.language, "hi");
+  assert.equal(explicitLanguage.languageExplicit, true);
+
+  const nonLatin = classifyCurationIntent("हिंदी में गणित का पूरा कोर्स");
+  assert.match(nonLatin.normalizedQuery, /हिंदी/);
 });
 
 test("learner community consensus uses a Bayesian prior and bounded feedback", () => {

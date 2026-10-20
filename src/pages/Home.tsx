@@ -298,7 +298,7 @@ export default function Home() {
             </div>
             <div className="user-home__goal-copy">
               <h3 id="daily-goal-heading">Daily goal</h3>
-              <p>{completedToday} of {dailyGoalLessons} {dailyGoalLessons === 1 ? 'lesson' : 'lessons'} today</p>
+              <p>{completedToday} of {dailyGoalLessons} {pluralize(dailyGoalLessons, 'lesson')} today</p>
               <Link to="/settings#learning-goals" className="user-home__link">{USER_INTENTS.editGoal.label} <ArrowRight size={14} aria-hidden="true" /></Link>
             </div>
           </article>
@@ -307,16 +307,16 @@ export default function Home() {
               <span className="user-home__streak-icon"><Flame size={20} aria-hidden="true" /></span>
               <div className="min-w-0">
                 <h3 id="streak-heading">{streak}-day streak</h3>
-                <p>Longest: {longestStreak} {longestStreak === 1 ? 'day' : 'days'}</p>
+                <p>Longest: {longestStreak} {pluralize(longestStreak, 'day')}</p>
               </div>
             </div>
-            <div className="user-home__week-strip" aria-label="Learning activity for the last seven days">
+            <div className="user-home__week-strip" role="group" aria-label="Learning activity for the last seven days">
               {sevenDayStrip.map((day) => <div className="user-home__week-day" key={day.dateKey}>
                 <span>{day.label}</span>
-                <span className={day.active ? 'user-home__week-dot user-home__week-dot--active' : day.isToday ? 'user-home__week-dot user-home__week-dot--today' : 'user-home__week-dot'} aria-label={day.dateKey + (day.active ? ', studied' : ', no completed lesson recorded')} />
+                <span className={day.active ? 'user-home__week-dot user-home__week-dot--active' : day.isToday ? 'user-home__week-dot user-home__week-dot--today' : 'user-home__week-dot'} role="img" aria-label={day.dateKey + (day.active ? ', studied' : ', no completed lesson recorded')} />
               </div>)}
             </div>
-            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze is used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze will protect one missed day when you study again.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
+            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze has been used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze will protect one missed day when you study again.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
           </article>
         </div>
       </section>

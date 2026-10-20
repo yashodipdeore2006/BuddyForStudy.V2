@@ -701,7 +701,7 @@ export default function YouTubeSearchFallback({
                             });
                           }}
                           disabled={savingId === `video-course-${course.videoId}`}
-                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Course saved" : "Save course"} title={savedIds.has(`video-course-${course.videoId}`) ? <BookmarkCheck className="h-4 w-4" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Course saved" : "Save course"} title={savedIds.has(`video-course-${course.videoId}`) ? "Remove from saved courses" : "Save course"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(`video-course-${course.videoId}`)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"

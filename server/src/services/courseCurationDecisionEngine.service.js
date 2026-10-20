@@ -8,7 +8,7 @@ import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates } from "./youtube.service.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.2";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.3";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -46,6 +46,39 @@ const syllabusSchema = {
     }
   },
   required: ["topic", "aliases", "modules"]
+};
+
+const metadataJudgeSchema = {
+  type: "object",
+  properties: {
+    evaluations: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          candidateId: { type: "string" },
+          coverageScore: { type: "number" },
+          instructionScore: { type: "number" },
+          handsOnScore: { type: "number" },
+          confidence: { type: "number" },
+          supportedModuleNames: { type: "array", items: { type: "string" } },
+          likelyGapModuleNames: { type: "array", items: { type: "string" } },
+          rationale: { type: "string" }
+        },
+        required: [
+          "candidateId",
+          "coverageScore",
+          "instructionScore",
+          "handsOnScore",
+          "confidence",
+          "supportedModuleNames",
+          "likelyGapModuleNames",
+          "rationale"
+        ]
+      }
+    }
+  },
+  required: ["evaluations"]
 };
 
 function clamp(value, min = 0, max = 100) {
@@ -257,6 +290,114 @@ async function getTopicSyllabus(profile) {
   await setCachedValue(key, "syllabus", syllabus, syllabus.source === "gemini-syllabus" ? SYLLABUS_TTL_MS : 6 * 60 * 60 * 1000);
   return syllabus;
 }
+
+async function evaluateCandidatesWithMetadataRubric(candidates, profile, syllabus) {
+  if (!aiClient || !candidates.length) {
+    return { byCandidateId: new Map(), source: aiClient ? "not-needed" : "not-configured", judgedCount: 0 };
+  }
+
+  const selected = [...candidates]
+    .sort((a, b) => Number(b.preliminaryScore || 0) - Number(a.preliminaryScore || 0))
+    .slice(0, 15);
+  if (!selected.length) return { byCandidateId: new Map(), source: "not-needed", judgedCount: 0 };
+
+  const moduleBrief = (syllabus.modules || []).map((item) => ({
+    name: item.name,
+    weight: item.weight,
+    keyConcepts: (item.keyConcepts || []).slice(0, 8),
+    prerequisites: (item.prerequisites || []).slice(0, 4)
+  }));
+  const candidateBrief = selected.map((candidate) => ({
+    candidateId: String(candidate.id),
+    type: candidate.sourceType,
+    title: String(candidate.title || "").slice(0, 300),
+    description: String(candidate.description || "").slice(0, 1600),
+    totalRuntimeSeconds: Number(candidate.durationSeconds || 0),
+    itemCount: Number(candidate.itemCount || 1),
+    advertisedChapters: Boolean(candidate.hasChapters),
+    advertisedSyllabus: Boolean(candidate.hasSyllabus),
+    handsOnCues: Boolean(candidate.hasHandsOn),
+    resourceLinksDetected: Boolean(candidate.hasResourceLinks),
+    lessons: (candidate.items || []).slice(0, 12).map((item) => ({
+      title: String(item.title || "").slice(0, 220),
+      description: String(item.description || "").slice(0, 240)
+    }))
+  }));
+  const cacheKeyValue = "curation:" + ENGINE_VERSION + ":candidate-evaluation:" +
+    digest(JSON.stringify({
+      query: profile.normalizedQuery,
+      mode: profile.mode,
+      level: profile.level,
+      syllabus: moduleBrief,
+      candidates: candidateBrief
+    }));
+  const cached = await getCachedValue(cacheKeyValue);
+  if (Array.isArray(cached?.evaluations)) {
+    return {
+      byCandidateId: new Map(cached.evaluations.map((item) => [item.candidateId, item])),
+      source: "cached-gemini-metadata-rubric",
+      judgedCount: cached.evaluations.length
+    };
+  }
+
+  try {
+    const response = await aiClient.models.generateContent({
+      model: env.geminiModel,
+      contents: [
+        "You are the Tier C metadata rubric judge in a learning-resource curation system.",
+        "Review the syllabus and candidate metadata below. The system does NOT provide video transcripts, so you must NOT claim to have watched the videos, checked factual correctness, inspected demonstrations, verified prerequisite teaching, or confirmed actual syllabus coverage.",
+        "Only score how strongly the supplied titles, descriptions, playlist lesson titles, timestamps/syllabus cues and resource indicators SUPPORT the advertised syllabus coverage and instructional structure. Penalize vague descriptions, missing lesson ordering, and unsupported promises. When metadata is thin, lower confidence and avoid optimistic scores.",
+        "Scores are 0-100. Confidence must be between 0.2 and 0.75 because the evidence is metadata-only. supportedModuleNames and likelyGapModuleNames must exactly reuse names from the supplied syllabus. Rationale must explicitly describe evidence as metadata/outline evidence, not verified video content.",
+        "This evaluation may refine scoring but must never override the hard gates already passed by each candidate.",
+        "Intent: " + JSON.stringify({ topic: profile.query, mode: profile.mode, level: profile.level }),
+        "Syllabus JSON: " + JSON.stringify(moduleBrief),
+        "Candidate metadata JSON: " + JSON.stringify(candidateBrief)
+      ].join("\n"),
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: metadataJudgeSchema,
+        thinkingConfig: { thinkingLevel: "LOW" },
+        maxOutputTokens: 4500
+      }
+    });
+    const parsed = JSON.parse(response.text || "{}");
+    const allowedIds = new Set(selected.map((candidate) => String(candidate.id)));
+    const allowedModules = new Map((syllabus.modules || []).map((module) => [normalizeText(module.name), module.name]));
+    const evaluations = [...new Map((Array.isArray(parsed.evaluations) ? parsed.evaluations : [])
+      .filter((item) => allowedIds.has(String(item.candidateId || "")))
+      .map((item) => {
+        const supportedModuleNames = [...new Set((Array.isArray(item.supportedModuleNames) ? item.supportedModuleNames : [])
+          .map((name) => allowedModules.get(normalizeText(name)))
+          .filter(Boolean))].slice(0, 15);
+        const likelyGapModuleNames = [...new Set((Array.isArray(item.likelyGapModuleNames) ? item.likelyGapModuleNames : [])
+          .map((name) => allowedModules.get(normalizeText(name)))
+          .filter(Boolean))].slice(0, 15);
+        return [String(item.candidateId), {
+          candidateId: String(item.candidateId),
+          coverageScore: clamp(item.coverageScore),
+          instructionScore: clamp(item.instructionScore),
+          handsOnScore: clamp(item.handsOnScore),
+          confidence: Math.max(0.2, Math.min(0.75, Number(item.confidence) || 0.35)),
+          supportedModuleNames,
+          likelyGapModuleNames,
+          rationale: String(item.rationale || "Metadata-only rubric assessment; video content was not verified.").slice(0, 360)
+        }];
+      })).values()];
+    await setCachedValue(cacheKeyValue, "candidate-evaluation", { evaluations }, RESULT_TTL_MS);
+    return {
+      byCandidateId: new Map(evaluations.map((item) => [item.candidateId, item])),
+      source: evaluations.length ? "gemini-metadata-rubric" : "gemini-empty-evaluation",
+      judgedCount: evaluations.length
+    };
+  } catch (error) {
+    console.warn("Curation metadata rubric evaluation unavailable", {
+      query: profile.normalizedQuery,
+      message: error?.message || error
+    });
+    return { byCandidateId: new Map(), source: "failed-fallback-to-metadata-heuristics", judgedCount: 0 };
+  }
+}
+
 function buildCandidateQueries(profile, syllabus) {
   const topic = profile.query.trim();
   const year = new Date().getFullYear();

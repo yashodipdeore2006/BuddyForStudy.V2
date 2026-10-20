@@ -125,7 +125,7 @@ type Props = {
   courses: YouTubeCourse[];
   playlists: YouTubePlaylist[];
   curatedResources?: CuratedResource[];
-  curationMeta?: { resultsShown?: number; version?: string; composedPath?: ComposedPathStep[]; composedPathSteps?: number; syllabus?: { moduleCount?: number }; [key: string]: any } | null;
+  curationMeta?: { resultsShown?: number; version?: string; intent?: { category?: string; level?: string; [key: string]: unknown }; composedPath?: ComposedPathStep[]; composedPathSteps?: number; syllabus?: { moduleCount?: number }; [key: string]: unknown } | null;
   loadingPlaylists?: boolean;
   error?: string;
   hasLocalResults?: boolean;
@@ -236,10 +236,12 @@ export default function YouTubeSearchFallback({
         method: "POST",
         body: JSON.stringify({
           query,
+          category: curationMeta?.intent?.category,
+          level: curationMeta?.intent?.level,
           event,
           resourceType: resource.sourceType,
           resourceId: resource.sourceId,
-          engineVersion: curationMeta?.version || "course-curation-decision-engine-v1.5",
+          engineVersion: curationMeta?.version || "course-curation-decision-engine-v1.6",
           rank: rankOverride ?? (inferredRank >= 0 ? inferredRank + 1 : undefined),
           score: resource.score,
         }),

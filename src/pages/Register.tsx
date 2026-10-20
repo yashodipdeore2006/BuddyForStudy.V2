@@ -20,7 +20,7 @@ export default function Register() {
   useEffect(() => {
     if (session && profile) {
       if (profile.role === 'admin') {
-        navigate('/admin', { replace: true });
+        navigate(routes.adminHome(), { replace: true });
       } else {
         navigate(routes.home(), { replace: true });
       }

@@ -16,6 +16,7 @@ router.post("/reset-password", controller.resetPassword);
 router.get("/google/config", controller.googleConfig);
 router.post("/google", controller.googleLogin);
 router.put("/profile", authMiddleware, controller.updateProfile);
+router.put("/me/learning-pace", authMiddleware, controller.updateLearningPace);
 router.post("/change-password", authMiddleware, controller.changePassword);
 router.post("/logout", authMiddleware, controller.logout);
 router.get("/me", authMiddleware, controller.me);

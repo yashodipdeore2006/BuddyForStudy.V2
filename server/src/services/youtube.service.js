@@ -100,11 +100,11 @@ async function youtubeRequest(endpoint,params){
   return data;
 }
 
-async function searchVideos(query,maxResults=10){
+async function searchVideos(query,maxResults=10,searchOptions={}){
   const key=String(maxResults)+":"+query.trim().toLowerCase();
   const cached=getExpiringCache(SEARCH_CACHE,key);
   if(cached)return cached;
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:"en",regionCode:"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
     .catch((error)=>{SEARCH_CACHE.delete(key);throw error;});
   setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);
   return promise;
@@ -302,14 +302,14 @@ async function searchRecentCreatorUploads(channelIds, knownVideoIds, maxUploadsP
     .filter((candidate) => candidate && candidate.privacyStatus === "public" && candidate.embeddable);
 }
 
-export async function searchYouTubeCurationCandidates(searchQueries, maxResultsPerQuery = 30) {
+export async function searchYouTubeCurationCandidates(searchQueries, maxResultsPerQuery = 30, searchOptions = {}) {
   if (!env.youtubeApiKey) return [];
   const queries = [...new Set((searchQueries || []).map((query) => String(query || "").trim()).filter(Boolean))].slice(0, 8);
   if (!queries.length) return [];
   const boundedResults = Math.max(5, Math.min(50, Number(maxResultsPerQuery) || 30));
   const batches = await Promise.all(queries.map(async (query) => {
     try {
-      const data = await searchVideos(query, boundedResults);
+      const data = await searchVideos(query, boundedResults, searchOptions);
       return { query, items: data?.items || [] };
     } catch (error) {
       console.error("YouTube curation candidate search failed", { query, message: error?.message || error });

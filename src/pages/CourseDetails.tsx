@@ -91,13 +91,13 @@ function cleanLessonTitle(title: string, siblingTitles: string[] = []): string {
 function parseLessonDuration(value: unknown): number {
   const text = String(value ?? '').trim().toLowerCase();
   if (!text) return 0;
-  const iso = text.match(/^pt(?:(\\d+)h)?(?:(\\d+)m)?(?:(\\d+)s)?$/i);
+  const iso = text.match(/^pt(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
   if (iso) return Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
-  const clock = text.match(/^(?:(\\d+):)?(\\d{1,2}):(\\d{2})$/);
+  const clock = text.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
   if (clock) return Number(clock[1] || 0) * 3600 + Number(clock[2] || 0) * 60 + Number(clock[3] || 0);
-  const hours = text.match(/(\\d+(?:\\.\\d+)?)\\s*h/);
-  const minutes = text.match(/(\\d+)\\s*m/);
-  const seconds = text.match(/(\\d+)\\s*s/);
+  const hours = text.match(/(\d+(?:\.\d+)?)\s*h/);
+  const minutes = text.match(/(\d+)\s*m/);
+  const seconds = text.match(/(\d+)\s*s/);
   return Math.round(Number(hours?.[1] || 0) * 3600 + Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0));
 }
 
@@ -755,7 +755,7 @@ export default function CourseDetails() {
               <h3 id="timestamped-course-notes-title" className="text-lg font-semibold text-slate-950">Notes by lesson</h3>
               {timestampedNotes.length === 0 ? <p className="mt-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No timestamped lesson notes yet. Open a lesson and save a note at the relevant timestamp.</p> : (
                 <div className="mt-3 space-y-4">
-                  {Array.from(new Map(timestampedNotes.map((note) => [note.lessonId, note.lessonTitle])).entries()).map(([lessonKey, lessonTitle]) => (
+                  {Array.from(new Map<string, string>(timestampedNotes.map((note): [string, string] => [note.lessonId, note.lessonTitle])).entries()).map(([lessonKey, lessonTitle]) => (
                     <section key={lessonKey} className="overflow-hidden rounded-xl border border-slate-200">
                       <div className="flex items-center justify-between gap-3 bg-slate-50 px-4 py-3">
                         <h4 className="font-semibold text-slate-900">{lessonTitle}</h4>

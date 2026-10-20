@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
+import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { CourseCurationCache } from "../models/CourseCurationCache.js";
-import { cacheGet, cacheSet } from "../config/cache.js";
+import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates } from "./youtube.service.js";
 import { searchStructuredPlaylists, getPlaylistCourse } from "./discovery.service.js";
 
@@ -623,7 +624,43 @@ function instructionalFeatures(candidate) {
   const score = clamp(chapterScore * 0.30 + handsOnScore * 0.25 + resourcesScore * 0.20 + syllabusScore * 0.25 - repetitionPenalty);
   return { score, handsOnScore, chapterScore, resourcesScore, confidence: candidate.sourceType === "playlist" ? 0.75 : candidate.hasChapters || candidate.hasSyllabus ? 0.65 : 0.40 };
 }
-function engagementFeatures(candidates, candidate) {
+export function adjustEngagementWithCurationFeedback(youtubeScore, feedback = {}) {
+  const up = Math.max(0, Number(feedback.thumbsUp || 0));
+  const down = Math.max(0, Number(feedback.thumbsDown || 0));
+  const outdated = Math.max(0, Number(feedback.outdated || 0));
+  const saves = Math.max(0, Number(feedback.saves || 0));
+  const enrollments = Math.max(0, Number(feedback.enrollments || 0));
+  const explicitVotes = up + down + outdated;
+  // Saves and enrollments are weak intent signals; an explicit relevance vote is stronger.
+  const positiveEvidence = up + 0.15 * saves + 0.30 * enrollments;
+  const negativeEvidence = down + outdated;
+  const posteriorScore = clamp(((positiveEvidence + 2) / (positiveEvidence + negativeEvidence + 4)) * 100);
+  const evidenceStrength = explicitVotes + 0.25 * saves + 0.5 * enrollments;
+  const feedbackConfidence = evidenceStrength / (evidenceStrength + 8);
+  const blendWeight = Math.min(0.35, 0.35 * feedbackConfidence);
+  const baseScore = clamp(youtubeScore);
+  return {
+    score: clamp(baseScore * (1 - blendWeight) + posteriorScore * blendWeight),
+    baseScore,
+    feedbackScore: posteriorScore,
+    feedbackConfidence,
+    blendWeight,
+    explicitVotes,
+    thumbsUp: up,
+    thumbsDown: down,
+    outdated,
+    saves,
+    enrollments
+  };
+}
+
+export function adjustFreshnessWithCurationFeedback(freshnessScoreValue, feedback = {}) {
+  const outdated = Math.max(0, Number(feedback.outdated || 0));
+  const confidence = outdated / (outdated + 4);
+  return clamp(Number(freshnessScoreValue || 0) * (1 - 0.25 * confidence));
+}
+
+function engagementFeatures(candidates, candidate, feedback = {}) {
   const medianLikeRate = median(candidates.map((item) => Number(item.viewCount) > 0 ? Number(item.likeCount || 0) / Number(item.viewCount) : NaN).filter(Number.isFinite));
   const views = Math.max(0, Number(candidate.viewCount) || 0);
   const likes = Math.max(0, Number(candidate.likeCount) || 0);
@@ -637,19 +674,29 @@ function engagementFeatures(candidates, candidate) {
   const commentsRates = candidates.map((item) => Number(item.viewCount) > 0 ? Number(item.commentCount || 0) / Number(item.viewCount) : NaN);
   const likePct = percentile(likeRates, smoothedLikeRate) * 100;
   const commentPct = comments ? percentile(commentsRates.filter(Number.isFinite), views > 0 ? comments / views : 0) * 100 : 50;
-  const score = clamp((likePct * 0.8) + (commentPct * 0.2));
-  return { score, smoothedLikeRate, likePercentile: likePct, commentRatioPercentile: commentPct, viewsPercentile: percentile(candidates.map((item) => logMetric(item.viewCount)), logMetric(views)), confidence: views > 0 ? 0.95 : 0.40 };
+  const youtubeScore = clamp((likePct * 0.8) + (commentPct * 0.2));
+  const adjusted = adjustEngagementWithCurationFeedback(youtubeScore, feedback);
+  return {
+    score: adjusted.score,
+    smoothedLikeRate,
+    likePercentile: likePct,
+    commentRatioPercentile: commentPct,
+    viewsPercentile: percentile(candidates.map((item) => logMetric(item.viewCount)), logMetric(views)),
+    confidence: views > 0 ? 0.95 : 0.40,
+    ...adjusted
+  };
 }
-function freshnessFeatures(candidate, profile) {
+function freshnessFeatures(candidate, profile, feedback = {}) {
   const freshness = freshnessScore(candidate, profile);
   const ageDays = freshness.ageDays === null ? null : freshness.ageDays;
   const text = normalizeText(candidate.title + " " + candidate.description);
   const updateMentions = /\b(updated|revised|latest|version 20\d\d|updated for 20\d\d)\b/.test(text);
   return {
-    score: freshness.score,
+    score: adjustFreshnessWithCurationFeedback(freshness.score, feedback),
     ageDays,
     halfLifeDays: profile.halfLifeDays,
     updatedMention: updateMentions,
+    outdatedFeedbackCount: Math.max(0, Number(feedback.outdated || 0)),
     confidence: freshness.confidence
   };
 }
@@ -703,14 +750,15 @@ function dedupeCandidates(candidates) {
   }
   return kept;
 }
-function makeFeatureSet(candidate, candidates, profile, syllabus) {
+function makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap = new Map()) {
   const relevance = queryTermStats(profile.query, candidate);
   candidate.queryTermStats = relevance;
+  const feedback = feedbackMap.get(candidate.sourceId) || {};
   const coverage = syllabusCoverage(candidate, syllabus);
   const instruction = instructionalFeatures(candidate);
-  const engagement = engagementFeatures(candidates, candidate);
+  const engagement = engagementFeatures(candidates, candidate, feedback);
   const authority = authorityFeatures(candidates, candidate);
-  const freshness = freshnessFeatures(candidate, profile);
+  const freshness = freshnessFeatures(candidate, profile, feedback);
   const fit = fitFeatures(candidate, profile);
   const community = { score: 50, confidence: 0, evidenceCount: 0, status: "unavailable" };
   const rawQuality =
@@ -730,7 +778,7 @@ function makeFeatureSet(candidate, candidates, profile, syllabus) {
     SIGNAL_WEIGHTS.freshness * freshness.confidence +
     SIGNAL_WEIGHTS.fit * fit.confidence;
   const penalty = calculatePenalty(candidate, { coverage, instruction, engagement, authority, freshness, fit });
-  return { coverage, instruction, engagement, authority, community, freshness, fit, rawQuality, confidence, penalty, relevance };
+  return { coverage, instruction, engagement, authority, community, freshness, fit, feedback, rawQuality, confidence, penalty, relevance };
 }
 function addExplanations(candidate, features, syllabus) {
   const why = [];
@@ -748,6 +796,12 @@ function addExplanations(candidate, features, syllabus) {
   }
   if (candidate.hasHandsOn) why.push("Description or lesson titles indicate practical exercises, projects, or demonstrations.");
   if (features.engagement.likePercentile >= 80) why.push("Engagement quality is in the top 20% of this candidate set after smoothing for low view counts.");
+  if (features.engagement.explicitVotes >= 3) {
+    const voteCount = features.engagement.explicitVotes;
+    const positiveCount = features.engagement.thumbsUp;
+    why.push(positiveCount + " of " + voteCount + " learner relevance votes were positive.");
+  }
+  if (features.freshness.outdatedFeedbackCount >= 2) why.push(features.freshness.outdatedFeedbackCount + " learners reported this resource as potentially outdated.");
   if (features.freshness.score >= 85) why.push("Recent relative to this topic's freshness window.");
   if (candidate.isHiddenGem) why.push("Hidden gem: strong quality evidence with below-median views.");
   if (candidate.sourceType === "series") why.push("Numbered parts from the same creator were assembled into one series.");
@@ -843,6 +897,8 @@ function setRankingSlots(candidates) {
       authority: Math.round(candidate.features.authority.score),
       freshness: Math.round(candidate.features.freshness.score),
       fit: Math.round(candidate.features.fit.score),
+      learnerFeedback: Math.round(candidate.features.engagement.feedbackScore),
+      learnerFeedbackVotes: Math.round(candidate.features.engagement.explicitVotes),
       community: "unavailable"
     },
     sourceTypeVersion: ENGINE_VERSION,
@@ -928,8 +984,73 @@ function hardGateEnriched(candidates, profile) {
   }
   return { accepted, rejected };
 }
-function scoreFinalCandidates(candidates, profile, syllabus) {
-  const preliminaryFeatures = candidates.map((candidate) => ({ candidate, features: makeFeatureSet(candidate, candidates, profile, syllabus) }));
+async function loadLearnerFeedbackSignals(profile, candidates) {
+  const resourceIds = [...new Set(candidates.map((candidate) => String(candidate.sourceId || "")).filter(Boolean))];
+  const result = new Map();
+  if (!resourceIds.length || CourseCurationFeedback.db?.readyState !== 1) return result;
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  try {
+    const rows = await CourseCurationFeedback.aggregate([
+      {
+        $match: {
+          normalizedQuery: profile.normalizedQuery,
+          engineVersion: ENGINE_VERSION,
+          resourceId: { $in: resourceIds },
+          createdAt: { $gte: cutoff }
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: {
+            resourceId: "$resourceId",
+            user: "$user",
+            interactionType: {
+              $cond: [
+                { $in: ["$event", ["thumbs_up", "thumbs_down", "outdated"]] },
+                "opinion",
+                "$event"
+              ]
+            }
+          },
+          event: { $first: "$event" }
+        }
+      },
+      {
+        $group: {
+          _id: "$_id.resourceId",
+          users: { $addToSet: "$_id.user" },
+          thumbsUp: { $sum: { $cond: [{ $and: [{ $eq: ["$_id.interactionType", "opinion"] }, { $eq: ["$event", "thumbs_up"] }] }, 1, 0] } },
+          thumbsDown: { $sum: { $cond: [{ $and: [{ $eq: ["$_id.interactionType", "opinion"] }, { $eq: ["$event", "thumbs_down"] }] }, 1, 0] } },
+          outdated: { $sum: { $cond: [{ $and: [{ $eq: ["$_id.interactionType", "opinion"] }, { $eq: ["$event", "outdated"] }] }, 1, 0] } },
+          saves: { $sum: { $cond: [{ $eq: ["$_id.interactionType", "save"] }, 1, 0] } },
+          enrollments: { $sum: { $cond: [{ $eq: ["$_id.interactionType", "enroll"] }, 1, 0] } },
+          previews: { $sum: { $cond: [{ $eq: ["$_id.interactionType", "preview"] }, 1, 0] } }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          resourceId: "$_id",
+          userCount: { $size: "$users" },
+          thumbsUp: 1,
+          thumbsDown: 1,
+          outdated: 1,
+          saves: 1,
+          enrollments: 1,
+          previews: 1
+        }
+      }
+    ]);
+    for (const row of rows) result.set(row.resourceId, row);
+  } catch (error) {
+    console.warn("Curation feedback signals unavailable", { message: error?.message || error });
+  }
+  return result;
+}
+
+function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new Map()) {
+  const preliminaryFeatures = candidates.map((candidate) => ({ candidate, features: makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap) }));
   const prior = median(preliminaryFeatures.map((item) => item.features.rawQuality));
   for (const { candidate, features } of preliminaryFeatures) {
     const freshness = features.freshness.score;
@@ -965,6 +1086,21 @@ function scoreFinalCandidates(candidates, profile, syllabus) {
     };
   }
   return preliminaryFeatures.map((item) => item.candidate).sort((a, b) => b.finalScore - a.finalScore);
+}
+
+export async function invalidateNormalSearchCurationCache(query) {
+  const profile = classifyCurationIntent(query);
+  let settingCount = 30;
+  try {
+    const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+    settingCount = Math.max(5, Math.min(50, Number(setting?.value) || 30));
+  } catch {}
+  const key = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
+  memoryCache.delete(key);
+  try { await cacheDelete("bfs:" + key); } catch {}
+  try {
+    if (CourseCurationFeedback.db?.readyState === 1) await CourseCurationFeedback.db.collection("course_curation_cache").deleteOne({ key });
+  } catch {}
 }
 
 /**
@@ -1010,7 +1146,8 @@ export async function curateNormalSearch(query) {
   const enriched = await enrichPlaylists(initial.shortlist, profile);
   const gates = hardGateEnriched(enriched, profile);
   const deduplicated = dedupeCandidates(gates.accepted);
-  const scored = scoreFinalCandidates(deduplicated, profile, syllabus);
+  const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
+  const scored = scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals);
   const resources = setRankingSlots(scored);
   const meta = {
     version: ENGINE_VERSION,
@@ -1030,6 +1167,8 @@ export async function curateNormalSearch(query) {
     tierBShortlist: initial.shortlist.length,
     tierCEligible: gates.accepted.length,
     gateRejected: gates.rejected.length,
+    learnerFeedbackCandidates: feedbackSignals.size,
+    feedbackLookbackDays: 90,
     resultsShown: resources.length,
     cacheHit: false,
     poolCacheHit,

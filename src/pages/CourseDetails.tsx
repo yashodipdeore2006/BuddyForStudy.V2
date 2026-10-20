@@ -23,6 +23,8 @@ import {
   Award,
   CircleHelp,
   Sparkles,
+  NotebookPen,
+  Flame,
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
@@ -155,6 +157,7 @@ export default function CourseDetails() {
   const [loading, setLoading] = useState(true);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
+  const [learningStats, setLearningStats] = useState<{ currentStreak?: number; longestStreak?: number } | null>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set([0]));
@@ -320,6 +323,15 @@ export default function CourseDetails() {
             } as Progress);
           } catch (learningError) {
             console.warn('Course enrollment/progress unavailable:', learningError);
+          }
+        }
+
+        if (session) {
+          try {
+            const achievementData = await apiFetch('/api/achievements/me');
+            setLearningStats(achievementData.stats ?? null);
+          } catch {
+            setLearningStats(null);
           }
         }
       } catch (err) {
@@ -523,6 +535,7 @@ export default function CourseDetails() {
     videoCount > 0 ? { icon: Video, label: videoCount + ' curated video' + (videoCount === 1 ? '' : 's') } : null,
     course.generation?.mode === 'ai' ? { icon: Sparkles, label: 'AI-generated learning roadmap' } : null,
     quizCount > 0 ? { icon: CircleHelp, label: quizCount + ' interactive quiz' + (quizCount === 1 ? '' : 'zes') } : null,
+    lessonCount > 0 ? { icon: NotebookPen, label: 'Timestamped notes for each lesson' } : null,
     projectCount > 0 ? { icon: ListChecks, label: projectCount + ' practical project' + (projectCount === 1 ? '' : 's') } : null,
     course.certificateEnabled !== false ? { icon: Award, label: 'Certificate eligibility enabled' } : null,
     { icon: Smartphone, label: 'Access on desktop and mobile' },
@@ -690,6 +703,7 @@ export default function CourseDetails() {
               <div className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-900">Learning activity</p>
                 <p className="mt-2 text-sm text-slate-600">{progress?.last_accessed_at ? 'Last accessed ' + formatDate(progress.last_accessed_at) : 'Your first lesson is ready when you are.'}</p>
+                {learningStats && <p className="mt-2 flex items-center gap-2 text-sm font-medium text-amber-700"><Flame className="h-4 w-4" aria-hidden="true" />{Number(learningStats.currentStreak || 0)}-day learning streak{Number(learningStats.longestStreak || 0) > Number(learningStats.currentStreak || 0) ? ' · best ' + Number(learningStats.longestStreak) + ' days' : ''}</p>}
                 {course.modules.length > 1 && <p className="mt-2 text-xs text-slate-500">{course.modules.length} modules in this course</p>}
               </div>
             </aside>

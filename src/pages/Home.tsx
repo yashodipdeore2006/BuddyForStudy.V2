@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, CheckCircle2, Clock3, GraduationCap, RefreshCw, Sparkles, Target, TrendingUp } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Clock3, Flame, GraduationCap, RefreshCw, Sparkles, Target, Trophy, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { Course } from '@/types';
@@ -18,6 +18,7 @@ type ProgressRecord = {
   last_lesson_id?: string | null;
   last_accessed_at?: string | null;
   completed_lesson_ids: string[];
+  completed_today_count: number;
   next_lesson_id?: string;
   nextLessonTitle?: string;
   remainingDuration?: string;
@@ -56,6 +57,12 @@ function mapProgress(raw: any, courseId: string, course?: Course): ProgressRecor
   const nextLesson = course ? getAllLessonsFlat(course.modules).find((lesson) => !completedSet.has(String(lesson.id))) : undefined;
   return {
     course_id: courseId,
+    completed_today_count: completedLessons.filter((item: any) => {
+      if (!item?.completedAt && !item?.completed_at) return false;
+      const timestamp = new Date(item.completedAt ?? item.completed_at);
+      if (Number.isNaN(timestamp.getTime())) return false;
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(timestamp) === new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    }).length,
     completed_count: Number(raw?.completedCount ?? raw?.completed_count ?? 0),
     total_lessons: Number(raw?.totalLessons ?? raw?.total_lessons ?? 0),
     percentage: Math.max(0, Math.min(100, Number(raw?.percentage ?? 0))),
@@ -182,6 +189,31 @@ export default function Home() {
   const completedLessons = Object.values(data.progress).reduce((sum, item) => sum + item.completed_count, 0);
   const totalLessons = Object.values(data.progress).reduce((sum, item) => sum + item.total_lessons, 0);
   const overallProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const learningStats = (data.learningStats ?? {}) as Record<string, any>;
+  const dailyGoalLessons = Number.isInteger(Number(learningStats.dailyGoalLessons)) && Number(learningStats.dailyGoalLessons) >= 1 && Number(learningStats.dailyGoalLessons) <= 20
+    ? Number(learningStats.dailyGoalLessons)
+    : 1;
+  const completedToday = Object.values(data.progress).reduce((sum, item) => sum + item.completed_today_count, 0);
+  const dailyGoalPercent = Math.min(100, Math.round((completedToday / dailyGoalLessons) * 100));
+  const streak = Math.max(0, Number(learningStats.currentStreak ?? 0));
+  const longestStreak = Math.max(streak, Number(learningStats.longestStreak ?? 0));
+  const streakFreezeUsedWeek = String(learningStats.streakFreezeUsedWeek ?? '');
+  const activityDates = new Set(Array.isArray(learningStats.activityDates) ? learningStats.activityDates.map(String) : []);
+  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const sevenDayStrip = Array.from({ length: 7 }, (_unused, offset) => {
+    const value = new Date(todayKey + 'T12:00:00Z');
+    value.setUTCDate(value.getUTCDate() - (6 - offset));
+    const dateKey = value.toISOString().slice(0, 10);
+    const weekStart = new Date(dateKey + 'T12:00:00Z');
+    weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+    const weekStartKey = weekStart.toISOString().slice(0, 10);
+    return { dateKey, label: new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(value).slice(0, 1), active: activityDates.has(dateKey), isToday: dateKey === todayKey, weekStartKey };
+  });
+  const currentWeekStart = sevenDayStrip[6]?.weekStartKey ?? todayKey;
+  const freezeUsedThisWeek = streakFreezeUsedWeek === currentWeekStart;
+  const yesterdayKey = new Date(new Date(todayKey + 'T12:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
+  const twoDaysAgoKey = new Date(new Date(todayKey + 'T12:00:00Z').getTime() - 2 * 86400000).toISOString().slice(0, 10);
+  const freezeAvailable = !freezeUsedThisWeek && Boolean(learningStats.lastActivityDate) && learningStats.lastActivityDate === twoDaysAgoKey && streak > 0;
   const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
   const resumeUrl = resumeEnrollment
     ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.next_lesson_id ? '/' + encodeURIComponent(resumeProgress.next_lesson_id) : '')
@@ -257,6 +289,27 @@ export default function Home() {
         {data.learningStats && typeof data.learningStats.currentStreak === 'number' && <p className="user-home__meta user-home__streak"><Target size={14} className="inline" aria-hidden="true" /> Current streak: {data.learningStats.currentStreak} {data.learningStats.currentStreak === 1 ? 'day' : 'days'}</p>}
       </section>
 
+      <section className="user-home__section" aria-labelledby="badges-heading">
+        <div className="user-home__heading"><div><h2 className="user-home__title" id="badges-heading">Badges</h2><p className="user-home__meta">Small milestones that reflect your learning.</p></div><Link className="user-home__link" to="/profile">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        <div className="user-home__badge-grid">
+          {[
+            { key: 'first_lesson', title: 'First step', description: 'Complete your first lesson.', current: Number(learningStats.totalLessonsCompleted ?? completedLessons), target: 1, icon: BookOpen },
+            { key: 'three_day_streak', title: 'On a roll', description: 'Build a 3-day learning streak.', current: streak, target: 3, icon: Flame },
+            { key: 'ten_lessons', title: 'Getting serious', description: 'Complete 10 lessons.', current: Number(learningStats.totalLessonsCompleted ?? completedLessons), target: 10, icon: Trophy },
+          ].map((badge) => {
+            const unlocked = Array.isArray(learningStats.achievements) && learningStats.achievements.some((item: any) => item.key === badge.key);
+            const Icon = badge.icon;
+            const badgePercent = unlocked ? 100 : Math.min(100, Math.round(badge.current / badge.target * 100));
+            return <article key={badge.key} className={unlocked ? 'user-home__badge-card user-home__badge-card--unlocked' : 'user-home__badge-card'}>
+              <span className="user-home__badge-icon"><Icon size={20} aria-hidden="true" /></span>
+              <div className="user-home__badge-copy"><h3>{badge.title}</h3><p>{badge.description}</p></div>
+              <span className="user-home__badge-state">{unlocked ? 'Earned' : 'In progress'}</span>
+              {!unlocked && <div className="user-home__badge-progress" role="progressbar" aria-label={badge.title + ' progress'} aria-valuemin={0} aria-valuemax={badge.target} aria-valuenow={Math.min(badge.current, badge.target)}><span style={{ width: badgePercent + '%' }} /></div>}
+            </article>;
+          })}
+        </div>
+      </section>
+
       <section className="user-home__section" aria-labelledby="continue-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="continue-heading">Continue learning</h2><Link className="user-home__link" to="/my-courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
         {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
@@ -279,7 +332,7 @@ export default function Home() {
             const reason = relatedCategory && course.category?.toLowerCase() === relatedCategory.toLowerCase()
               ? 'Because you’re learning ' + relatedCategory
               : course.category ? 'Explore ' + course.category : 'Explore this learning path';
-            return <div key={course.id} className="min-w-0"><p className="user-home__reason">{reason}</p><CourseCard course={course} /></div>;
+            return <div key={course.id} className="min-w-0"><CourseCard course={course} variant="recommended" reason={reason} /></div>;
           })}</div>
           : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>Retry recommendations</button>}</div>}
       </section>

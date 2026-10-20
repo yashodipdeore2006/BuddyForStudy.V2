@@ -15,7 +15,7 @@ const COURSE_RATING_LOOKUP_STAGE = {
     pipeline: [
       {
         $match: {
-          $expr: { $eq: ["$course", "$courseId"] },
+          $expr: { $eq: ["$course", "$$courseId"] },
           isHidden: { $ne: true },
           moderationStatus: "approved"
         }

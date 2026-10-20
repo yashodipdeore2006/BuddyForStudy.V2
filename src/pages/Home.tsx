@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, CheckCircle2, Clock3, Flame, GraduationCap, RefreshCw, Sparkles, Target, Trophy, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, ApiError } from '@/lib/api';
 import type { Course } from '@/types';
 import { getAllLessonsFlat } from '@/lib/courseUtils';
+import { USER_INTENTS } from '@/lib/intents';
 import CourseCard from '@/components/CourseCard';
 import ErrorState from '@/components/ErrorState';
 import { CourseGridSkeleton } from '@/components/Skeleton';
@@ -105,6 +106,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [fatalErrorStatus, setFatalErrorStatus] = useState<number | null>(null);
   const [sectionErrors, setSectionErrors] = useState<string[]>([]);
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
 
@@ -119,6 +121,7 @@ export default function Home() {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
+    setFatalErrorStatus(null);
     setSectionErrors([]);
 
     const partialErrors: string[] = [];
@@ -155,8 +158,12 @@ export default function Home() {
     progressEntries.forEach((entry) => { if (entry) progress[entry[0]] = entry[1]; });
     const allPrimarySourcesFailed = enrollmentResult.status === 'rejected' && courseResult.status === 'rejected' && statsResult.status === 'rejected';
     if (allPrimarySourcesFailed) {
-      if (!isRefresh) setError('We couldn’t load your learning home. Check your connection and try again.');
-      else partialErrors.push('Refresh failed. The last available data is still shown.');
+      const failedStatuses = results.filter((result) => result.status === 'rejected').map((result: any) => result.reason instanceof ApiError ? result.reason.status : 0);
+      const status = failedStatuses.includes(403) ? 403 : failedStatuses.includes(404) ? 404 : failedStatuses.includes(401) ? 401 : null;
+      if (!isRefresh) {
+        setFatalErrorStatus(status);
+        setError(status === 403 ? 'Your account does not have permission to access this learning data.' : status === 404 ? 'Some learning data could not be found. It may have moved or been removed.' : 'We couldn’t load your learning home. Check your connection and try again.');
+      } else partialErrors.push('Refresh failed. The last available data is still shown.');
     } else {
       setData({ enrollments, progress, courses, learningStats });
     }
@@ -227,7 +234,12 @@ export default function Home() {
     </div></main>;
   }
   if (error) {
-    return <main className="user-home" id="main-content"><div className="user-home__shell"><ErrorState title="Your Home didn’t load" description={error} onRetry={() => void loadHome()} /></div></main>;
+    const accessError = fatalErrorStatus === 403 || fatalErrorStatus === 404;
+    return <main className="user-home" id="main-content"><div className="user-home__shell">
+      {accessError
+        ? <ErrorState title={fatalErrorStatus === 403 ? 'Learning data unavailable' : 'Learning data not found'} description={error} action={<Link className="user-home__button" to="/home">Go to Home <ArrowRight size={16} aria-hidden="true" /></Link>} />
+        : <ErrorState title="Your Home didn’t load" description={error} onRetry={() => void loadHome()} />}
+    </div></main>;
   }
 
   return <main className="user-home" id="main-content">
@@ -246,7 +258,7 @@ export default function Home() {
 
       {sectionErrors.length > 0 && <div className="user-home__alert user-home__alert--error" role="alert">
         <span>{sectionErrors.join(' ')}</span>
-        <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>Retry <RefreshCw size={14} aria-hidden="true" /></button>
+        <button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button>
       </div>}
 
       <section className="user-home__section" aria-labelledby="resume-heading">
@@ -268,18 +280,18 @@ export default function Home() {
               </div>
             </div>
             {resumeProgress.remainingDuration && <p className="user-home__meta">About {resumeProgress.remainingDuration} left</p>}
-            <Link className="user-home__button" to={resumeUrl}>Continue <ArrowRight size={16} aria-hidden="true" /></Link>
+            <Link className="user-home__button" to={resumeUrl}>{USER_INTENTS.continue.label} <ArrowRight size={16} aria-hidden="true" /></Link>
           </div>
         </article> : <div className="user-home__empty">
           <div className="user-home__empty-icon"><GraduationCap size={24} aria-hidden="true" /></div>
           <h3>{session ? 'No course in progress yet' : 'Your learning journey starts here'}</h3>
           <p>{session ? 'Explore a course or build a learning path. Your next step will appear here.' : 'Sign in to keep your courses, progress and next lesson together.'}</p>
-          <div className="user-home__actions"><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/register"><Sparkles size={16} aria-hidden="true" /> Build my path</Link></div>
+          <div className="user-home__actions"><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/register"><Sparkles size={16} aria-hidden="true" /> {USER_INTENTS.buildPath.label}</Link></div>
         </div>}
       </section>
 
       <section className="user-home__panel" aria-labelledby="stats-heading">
-        <div className="user-home__heading"><h2 className="user-home__title" id="stats-heading">Your learning at a glance</h2><Link className="user-home__link" to="/profile">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
+        <div className="user-home__heading"><h2 className="user-home__title" id="stats-heading">Your learning at a glance</h2><Link className="user-home__link" to="/profile">{USER_INTENTS.seeAll.label} <ArrowRight size={14} aria-hidden="true" /></Link></div>
         <div className="user-home__stats">
           <div className="user-home__stat"><div className="user-home__stat-icon"><BookOpen size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{data.enrollments.length}</p><p className="user-home__stat-label">Courses enrolled</p></div></div>
           <div className="user-home__stat"><div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div></div>
@@ -297,7 +309,7 @@ export default function Home() {
             <div className="user-home__goal-copy">
               <h3 id="daily-goal-heading">Daily goal</h3>
               <p>{completedToday} of {dailyGoalLessons} {dailyGoalLessons === 1 ? 'lesson' : 'lessons'} today</p>
-              <Link to="/settings#learning-goals" className="user-home__link">Edit goal <ArrowRight size={14} aria-hidden="true" /></Link>
+              <Link to="/settings#learning-goals" className="user-home__link">{USER_INTENTS.editGoal.label} <ArrowRight size={14} aria-hidden="true" /></Link>
             </div>
           </article>
           <article className="user-home__streak-card" aria-labelledby="streak-heading">
@@ -348,7 +360,7 @@ export default function Home() {
             return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.next_lesson_id ? '/' + encodeURIComponent(progress.next_lesson_id) : '')}>
               <Cover course={item.course} className="user-home__compact-cover" />
               <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} lessons · {progress?.percentage ?? 0}%</p></div>
-              <span className="user-home__link user-home__compact-action">Continue <ArrowRight size={14} aria-hidden="true" /></span>
+              <span className="user-home__link user-home__compact-action">{USER_INTENTS.continue.label} <ArrowRight size={14} aria-hidden="true" /></span>
             </Link>;
           })}</div>
           : <p className="user-home__meta">Your other in-progress courses will appear here.</p>}
@@ -364,7 +376,7 @@ export default function Home() {
               : course.category ? 'Explore ' + course.category : 'Explore this learning path';
             return <div key={course.id} className="min-w-0"><CourseCard course={course} variant="recommended" reason={reason} /></div>;
           })}</div>
-          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>Retry recommendations</button>}</div>}
+          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label} recommendations</button>}</div>}
       </section>
     </div>
   </main>;

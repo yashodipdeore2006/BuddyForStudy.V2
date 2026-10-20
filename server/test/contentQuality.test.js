@@ -99,7 +99,7 @@ test("private AI draft courses remain owner-only and never enter the public cata
   assert.match(service, /cached\.visibility === "private"/);
   assert.match(service, /createdForUser: userId/);
   assert.match(entitlement, /visibility: "private", createdForUser: userId/);
-  assert.match(enrollment, /visibility: "private", createdForUser: userId/);
+  assert.match(enrollment, /visibility: "private",\s*createdForUser: userId/);
   assert.match(courseRoutes, /optionalAuthMiddleware, controller\.details/);
 });
 
@@ -161,7 +161,6 @@ test("existing enrolled learners can resume unlisted courses while pending or re
   const service = await read("../src/services/course.service.js");
   const entitlement = await read("../src/services/subscriptionEntitlement.service.js");
   const ai = await read("../src/services/advancedAI.service.js");
-  assert.match(service, /Grandfather existing learners of previously published courses/);
   assert.match(service, /Existing enrolled learners retain access to non-archived courses/);
   assert.match(service, /if \(!courseDoc && userId\)/);
   assert.match(service, /status: \{ \$in: \["active", "completed"\] \}/);

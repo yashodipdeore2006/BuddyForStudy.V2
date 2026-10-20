@@ -56,7 +56,7 @@ type BuiltCourse = {
   description: string;
   thumbnail: string;
   channelTitle: string;
-  sourceType: "playlist" | "video";
+  sourceType: "playlist" | "video" | "series";
   sourceId: string;
   lessons: CourseLesson[];
   itemCount: number;
@@ -67,10 +67,48 @@ type Viewer = {
   lessonIndex: number;
 };
 
+type CuratedResource = {
+  id: string;
+  sourceType: "video" | "playlist" | "series";
+  sourceId: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+  channelTitle: string;
+  sourceUrl?: string;
+  duration: string;
+  durationSeconds: number;
+  durationEstimated?: boolean;
+  itemCount: number;
+  viewCount: number;
+  score: number;
+  qualityScore: number;
+  confidence: number;
+  isHiddenGem: boolean;
+  slots: string[];
+  primarySlot: string;
+  whyThis: string[];
+  gaps: string[];
+  evidence: Record<string, number | string>;
+  items: Array<{
+    videoId: string;
+    title: string;
+    description?: string;
+    durationSeconds: number;
+    duration?: string;
+    thumbnail?: string;
+    channelTitle?: string;
+    publishedAt?: string | null;
+    url?: string;
+  }>;
+};
+
 type Props = {
   query: string;
   courses: YouTubeCourse[];
   playlists: YouTubePlaylist[];
+  curatedResources?: CuratedResource[];
+  curationMeta?: { resultsShown?: number; version?: string; [key: string]: any } | null;
   loadingPlaylists?: boolean;
   error?: string;
   hasLocalResults?: boolean;
@@ -98,6 +136,8 @@ export default function YouTubeSearchFallback({
   query,
   courses,
   playlists,
+  curatedResources,
+  curationMeta,
   loadingPlaylists = false,
   error = "",
   hasLocalResults = false,
@@ -227,7 +267,8 @@ export default function YouTubeSearchFallback({
     setOpeningId(course.id);
 
     try {
-      if (course.sourceType === "video") {
+      if (course.sourceType === "video" || course.sourceType === "series") {
+        if (!course.lessons.length) throw new Error("This learning resource has no playable lessons.");
         setViewer({ course, lessonIndex: 0 });
         return;
       }
@@ -310,7 +351,7 @@ export default function YouTubeSearchFallback({
   };
 
   const currentLesson = viewer?.course.lessons[viewer.lessonIndex];
-  const hasAnything = builtCourses.length > 0 || courses.length > 0 || playlists.length > 0;
+  const hasAnything = curatedResources !== undefined ? curatedResources.length > 0 : builtCourses.length > 0 || courses.length > 0 || playlists.length > 0;
 
   if (!hasAnything && !loadingPlaylists && !error) {
     return (
@@ -344,7 +385,125 @@ export default function YouTubeSearchFallback({
               : `We rank courses, playlists and tutorials for “${query}” together, prioritizing topic relevance and learning depth—not popularity alone.`}
           </p>
 
-          {builtCourses.length > 0 && (
+          {curatedResources !== undefined ? (
+            <div className="mt-7">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-bold text-slate-900">Recommended learning resources</h4>
+                  <p className="text-xs text-slate-500">One ranked list of relevant courses, playlists and assembled video series.</p>
+                </div>
+                {Number(curationMeta?.resultsShown || 0) > 0 && (
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
+                    {curationMeta.resultsShown} curated results
+                  </span>
+                )}
+              </div>
+              {curatedResources.length ? (
+                <div className="bfs-course-grid mt-4">
+                  {curatedResources.map((resource) => {
+                    const mappedLessons: CourseLesson[] = (resource.items || [])
+                      .map((item) => {
+                        const videoId = String(item.videoId || "");
+                        if (!videoId) return null;
+                        return {
+                          videoId,
+                          title: item.title || "Untitled lesson",
+                          description: item.description || "",
+                          channelTitle: item.channelTitle || resource.channelTitle || "",
+                          duration: item.duration || formatMinutes(Number(item.durationSeconds || 0)),
+                          durationSeconds: Number(item.durationSeconds || 0),
+                          thumbnail: item.thumbnail || "",
+                          embedUrl: toEmbedUrl(videoId),
+                        };
+                      })
+                      .filter(Boolean) as CourseLesson[];
+                    const lessons: CourseLesson[] = resource.sourceType === "video"
+                      ? [{
+                          videoId: resource.sourceId,
+                          title: resource.title,
+                          description: resource.description || "",
+                          channelTitle: resource.channelTitle || "",
+                          duration: resource.duration || formatMinutes(resource.durationSeconds || 0),
+                          durationSeconds: Number(resource.durationSeconds || 0),
+                          thumbnail: resource.thumbnail || "",
+                          embedUrl: toEmbedUrl(resource.sourceId),
+                        }]
+                      : mappedLessons;
+                    const course: BuiltCourse = {
+                      id: resource.id,
+                      title: resource.title,
+                      description: resource.description || "",
+                      thumbnail: resource.thumbnail || "",
+                      channelTitle: resource.channelTitle || "",
+                      sourceType: resource.sourceType,
+                      sourceId: resource.sourceId,
+                      lessons,
+                      itemCount: Number(resource.itemCount || lessons.length || 1),
+                    };
+                    return (
+                      <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white transition-colors duration-200 hover:bg-slate-50">
+                        <div className="bfs-course-card__media relative block shrink-0 overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600">
+                          {resource.thumbnail ? (
+                            <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
+                          ) : (
+                            <div className="flex h-full items-center justify-center"><PlayCircle className="h-10 w-10 text-white/80" /></div>
+                          )}
+                          <span className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-2.5 py-1 text-[10px] font-bold text-white">{resource.primarySlot || "Recommended"}</span>
+                          {resource.isHiddenGem && <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
+                          <span className="absolute bottom-2 right-2 rounded-md bg-slate-950/85 px-2 py-1 text-[11px] font-bold text-white">{resource.durationEstimated ? "~" : ""}{resource.duration || formatMinutes(resource.durationSeconds || 0)}</span>
+                        </div>
+                        <div className="flex flex-1 flex-col p-4">
+                          <div className="flex-1">
+                            <p className="line-clamp-2 min-h-[2.65rem] text-[15px] font-extrabold leading-[1.32] tracking-[-.02em] text-slate-900">{resource.title}</p>
+                            <p className="mt-2 truncate text-xs leading-5 text-slate-500">{resource.channelTitle || "YouTube learning resource"}</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                              <span>{resource.sourceType === "video" ? "Video course" : resource.sourceType === "series" ? "Assembled series" : "Playlist course"}</span>
+                              <span>·</span>
+                              <span>{resource.itemCount || 1} {(resource.itemCount || 1) === 1 ? "lesson" : "lessons"}</span>
+                              {resource.viewCount > 0 && <><span>·</span><span>{formatCount(resource.viewCount)} views</span></>}
+                            </div>
+                            {resource.whyThis?.length > 0 && (
+                              <ul className="mt-3 space-y-1.5 text-xs leading-4 text-slate-600">
+                                {resource.whyThis.slice(0, 3).map((reason, index) => (
+                                  <li key={resource.id + "-why-" + index} className="flex items-start gap-1.5">
+                                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                    <span>{reason}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {resource.gaps?.length > 0 && <p className="mt-2 text-[11px] leading-4 text-slate-500">Possible gaps: {resource.gaps.slice(0, 3).join(", ")}</p>}
+                          </div>
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">
+                              {savingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
+                              {savedIds.has(course.id) ? "Saved" : "Save"}
+                            </button>
+                            <button type="button" onClick={() => void enrollCourse(course)} disabled={enrollingId === course.id || enrolledIds.has(course.id)} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60">
+                              {enrollingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                              {enrolledIds.has(course.id) ? "Enrolled" : "Enroll"}
+                            </button>
+                          </div>
+                          <button type="button" onClick={() => void openCourse(course)} disabled={openingId === course.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-800 transition hover:bg-slate-50 disabled:opacity-60">
+                            {openingId === course.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                            {openingId === course.id ? "Opening..." : "Preview in BuddyForStudy"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+                  {hasLocalResults
+                    ? "No YouTube resource passed the current relevance, structure, runtime, and availability checks. Your matching BuddyForStudy courses remain available above."
+                    : "No YouTube resource passed the current relevance, structure, runtime, and availability checks. Try a more specific topic or request a crash course."}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+
             <div className="mt-7">
               <div className="bfs-course-grid mt-4">
                 {builtCourses.map((course, index) => (
@@ -717,6 +876,8 @@ export default function YouTubeSearchFallback({
             )}
           </div>
 
+            </>
+          )}
           {error && (
             <p className="mt-5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
               YouTube discovery warning: {error}

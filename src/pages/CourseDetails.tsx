@@ -9,10 +9,8 @@ import {
   BookOpen,
   Clock,
   CheckCircle2,
-  Circle,
   ChevronDown,
   ChevronRight,
-  ArrowLeft,
   GraduationCap,
   Play,
   AlertCircle,
@@ -21,12 +19,10 @@ import {
   Map,
   Star,
   ShieldCheck,
-  Tag,
   Video,
   Smartphone,
   Award,
   CircleHelp,
-  Users,
   Sparkles,
 } from 'lucide-react';
 import { classNames, formatDate } from '@/lib/utils';
@@ -500,7 +496,7 @@ export default function CourseDetails() {
     course.generation?.mode === 'ai' ? { icon: Sparkles, label: 'AI-generated learning roadmap' } : null,
     quizCount > 0 ? { icon: CircleHelp, label: quizCount + ' interactive quiz' + (quizCount === 1 ? '' : 'zes') } : null,
     projectCount > 0 ? { icon: ListChecks, label: projectCount + ' practical project' + (projectCount === 1 ? '' : 's') } : null,
-    course.certificateEnabled !== false ? { icon: Award, label: 'Certificate of completion' } : null,
+    course.certificateEnabled !== false ? { icon: Award, label: 'Certificate eligibility enabled' } : null,
     { icon: Smartphone, label: 'Access on desktop and mobile' },
   ].filter((item): item is { icon: LucideIcon; label: string } => Boolean(item));
   // CP-01..CP-11: this route renders sales content before enrollment and a learning dashboard afterward.
@@ -770,7 +766,7 @@ export default function CourseDetails() {
           className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"
         />
         <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-300">
-          {creatorName && <span>Created by <strong className="text-white">{creatorName}</strong></span>}
+          {creatorName && <span>Created by {previewVideoId ? <a href={'https://www.youtube.com/watch?v=' + encodeURIComponent(previewVideoId)} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">{creatorName}</a> : <strong className="text-white">{creatorName}</strong>}</span>}
           {course.updated_at && <span>Last updated {formatDate(course.updated_at)}</span>}
           {course.modules.length > 1 && <span>{course.modules.length} modules</span>}
           <span>{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</span>
@@ -955,7 +951,7 @@ export default function CourseDetails() {
               </details>
               <details className="py-3">
                 <summary className="cursor-pointer font-medium text-slate-900">Does this course include a certificate?</summary>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{course.certificateEnabled === false ? 'A certificate is not currently enabled for this course.' : 'A certificate of completion is available for this course.'}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{course.certificateEnabled === false ? 'Certificate eligibility is not enabled for this course.' : 'Certificate eligibility is enabled in course settings, but automatic certificate issuance is not yet available in this learning page.'}</p>
               </details>
             </div>
           </section>

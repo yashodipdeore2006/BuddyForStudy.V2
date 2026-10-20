@@ -546,12 +546,63 @@
   margin-inline: 11px;
 }
 .bfs-course-card__media img { width: 100%; height: 100%; min-height: 0; object-fit: cover; }
-.bfs-course-card__body { flex: 1 1 auto; min-height: 0; gap: 4px; padding: 8px 11px 6px; }
-.bfs-course-card__type-meta { gap: 5px; font-size: 10px; line-height: 1.2; }
-.bfs-course-card__type-meta .bfs-course-chip { padding: 2px 6px; font-size: 10px; }
-.bfs-course-card__title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 14px; line-height: 1.3; }
-.bfs-course-card__creator { overflow: hidden; font-size: 10px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
-.bfs-course-card__outcome { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; margin: 0; font-size: 11px; line-height: 1.3; }
+.bfs-course-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 0;
+  gap: 6px;
+  padding: 10px 12px 8px;
+}
+.bfs-course-card__type-meta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 8px;
+  min-height: 22px;
+  font-size: 10px;
+  line-height: 1.25;
+}
+.bfs-course-card__type-meta > span { min-width: 0; }
+.bfs-course-card__type-meta .bfs-course-chip { flex: 0 0 auto; padding: 3px 7px; font-size: 10px; line-height: 1.2; }
+.bfs-course-card__title {
+  display: -webkit-box;
+  flex: 0 0 auto;
+  min-height: 2.6em;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.bfs-course-card__creator {
+  flex: 0 0 auto;
+  min-height: 1.25em;
+  overflow: hidden;
+  margin: -2px 0 0;
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bfs-course-card__outcome {
+  display: -webkit-box;
+  flex: 0 0 auto;
+  min-height: 2.6em;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.3;
+}
 .bfs-course-card__social-proof { gap: 5px 8px; font-size: 10px; line-height: 1.25; }
 .bfs-course-card__reason { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; margin: 0; font-size: 10px; line-height: 1.3; }
 .bfs-course-card__action-row { flex: 0 0 auto; align-items: center; margin-top: auto; gap: 7px; padding: 0 11px 10px; min-height: 54px; }
@@ -570,13 +621,20 @@
 .bfs-course-card__progress-fill,
 .bfs-course-card [data-course-progress],
 .bfs-course-card [aria-label*="course progress" i] { display: none !important; }
-.bfs-course-card__media .bfs-course-card__level { padding: 3px 6px; font-size: 10px; }
-.bfs-course-card__media .bfs-course-card__learning-status { font-size: 10px; padding: 3px 6px; }
+.bfs-course-card__media .bfs-course-card__level { left: 10px; right: auto; bottom: 10px; max-width: calc(100% - 76px); padding: 4px 8px; font-size: 10px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bfs-course-card__media .bfs-course-card__learning-status { left: 10px; right: auto; top: 10px; bottom: auto; max-width: calc(100% - 76px); font-size: 10px; padding: 4px 8px; }
+.bfs-course-card__fallback { min-height: 0; padding: 0; }
+.bfs-course-card__fallback-title { display: none; }
+.bfs-course-card__fallback-icon { z-index: 0; }
+.bfs-course-card__action-row { min-width: 0; gap: 8px; }
+.bfs-course-card__price { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bfs-course-card__action-row .bfs-course-action { width: auto; min-width: 88px; min-height: 36px; padding: 8px 10px; }
 @media (max-width: 640px) {
   .bfs-course-results-grid { grid-auto-rows: 1fr; }
   .bfs-course-card__media { aspect-ratio: 16 / 7.6; }
-  .bfs-course-card__body { gap: 4px; padding: 7px 9px 5px; }
+  .bfs-course-card__body { gap: 5px; padding: 8px 9px 6px; }
   .bfs-course-card__action-row { gap: 6px; padding: 0 9px 9px; }
+  .bfs-course-card__action-row .bfs-course-action { min-width: 78px; padding-inline: 8px; }
   .bfs-course-card__error,
   .bfs-course-card__status { margin-inline: 9px; }
 }

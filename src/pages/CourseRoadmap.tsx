@@ -10,6 +10,8 @@ import {
   Lock,
   Play,
   Trophy,
+  Share2,
+  Printer,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import type { Course, Progress } from '@/types';
@@ -143,9 +145,10 @@ export default function CourseRoadmap() {
           <BookOpen className="mx-auto h-12 w-12 text-slate-300" />
           <h1 className="mt-4 text-2xl font-bold text-slate-900">This course is not available</h1>
           <p className="mt-2 text-sm text-slate-500">{error ?? 'This course could not be loaded.'}</p>
-          <Link to={routes.myLearning()} className="btn-primary mt-6 inline-flex">
-            Back to My Learning
-          </Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link to={routes.myLearning()} className="btn-primary inline-flex">Back to My learning</Link>
+            <Link to={routes.explore()} className="inline-flex items-center rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Explore</Link>
+          </div>
         </div>
       </div>
     );
@@ -160,13 +163,11 @@ export default function CourseRoadmap() {
     <div className="min-h-screen bg-[#f1f4f7]">
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-          <Link
-            to={routes.myLearning()}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            My Learning
-          </Link>
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-slate-500">
+            <Link to={routes.course(course.id)} className="hover:text-slate-900">Course</Link>
+            <span aria-hidden="true">/</span>
+            <span className="font-medium text-slate-800">Roadmap</span>
+          </nav>
 
           <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex items-start gap-4">
@@ -248,12 +249,30 @@ export default function CourseRoadmap() {
         </section>
 
         <section className="mt-10">
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Learning path</p>
-            <h2 className="mt-1 text-2xl font-medium text-slate-950">Course Roadmap</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Follow the modules in order and complete each lesson to move forward.
-            </p>
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Learning path</p>
+              <h2 className="mt-1 text-2xl font-medium text-slate-950">Course Roadmap</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Follow the modules in order and complete each lesson to move forward.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <Printer className="h-4 w-4" /> Print
+              </button>
+              <button type="button" onClick={async () => {
+                const shareData = { title: course.title + ' roadmap', text: 'My learning roadmap for ' + course.title, url: window.location.href };
+                try {
+                  if (navigator.share) await navigator.share(shareData);
+                  else if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(window.location.href);
+                } catch (shareError) {
+                  if (shareError instanceof Error && shareError.name !== 'AbortError') console.warn('Unable to share roadmap:', shareError);
+                }
+              }} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <Share2 className="h-4 w-4" /> Share
+              </button>
+            </div>
           </div>
 
           <div className="relative">

@@ -126,7 +126,7 @@ async function getChannelDetails(channelIds){
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
-    const data=await youtubeRequest("channels",{part:"statistics",id:batch.join(",")});
+    const data=await youtubeRequest("channels",{part:"snippet,statistics,contentDetails",id:batch.join(",")});
     for(const item of data?.items||[]) setExpiringCache(CHANNEL_CACHE,item.id,item,CHANNEL_CACHE_TTL_MS);
   }
   return uniqueIds.map((id)=>getExpiringCache(CHANNEL_CACHE,id)).filter(Boolean);
@@ -258,6 +258,50 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
  * Broad, quota-bounded candidate collection for the normal-search curation engine.
  * Callers cache by normalized topic and intent before invoking fan-out again.
  */
+async function searchRecentCreatorUploads(channelIds, knownVideoIds, maxUploadsPerChannel = 10) {
+  const channels = await getChannelDetails(channelIds);
+  const uploadsLists = channels
+    .map((channel) => ({
+      channelId: channel.id,
+      uploadsPlaylistId: channel.contentDetails?.relatedPlaylists?.uploads
+    }))
+    .filter((channel) => channel.uploadsPlaylistId);
+  if (!uploadsLists.length) return [];
+
+  const pages = await Promise.all(uploadsLists.map(async (channel) => {
+    try {
+      const page = await youtubeRequest("playlistItems", {
+        part: "snippet,contentDetails,status",
+        playlistId: channel.uploadsPlaylistId,
+        maxResults: Math.max(1, Math.min(15, Number(maxUploadsPerChannel) || 10))
+      });
+      return (page?.items || [])
+        .filter((item) => item.status?.privacyStatus !== "private")
+        .map((item) => item.contentDetails?.videoId)
+        .filter(Boolean);
+    } catch (error) {
+      console.warn("YouTube creator upload expansion failed", { channelId: channel.channelId, message: error?.message || error });
+      return [];
+    }
+  }));
+  const known = new Set(knownVideoIds);
+  const newIds = [...new Set(pages.flat())].filter((id) => !known.has(id));
+  if (!newIds.length) return [];
+
+  const videos = await getVideoDetails(newIds);
+  const expandedChannelIds = [...new Set(videos.map((video) => video.snippet?.channelId).filter(Boolean))];
+  const expandedChannels = await getChannelDetails(expandedChannelIds);
+  const expandedChannelMap = new Map(expandedChannels.map((channel) => [channel.id, channel]));
+  return videos
+    .map((video) => ({
+      ...toCandidate(video, expandedChannelMap.get(video.snippet?.channelId)),
+      matchedSearchQueries: ["creator-upload-expansion"],
+      searchMatchCount: 0,
+      expandedFromChannel: true
+    }))
+    .filter((candidate) => candidate && candidate.privacyStatus === "public" && candidate.embeddable);
+}
+
 export async function searchYouTubeCurationCandidates(searchQueries, maxResultsPerQuery = 30) {
   if (!env.youtubeApiKey) return [];
   const queries = [...new Set((searchQueries || []).map((query) => String(query || "").trim()).filter(Boolean))].slice(0, 8);
@@ -293,7 +337,7 @@ export async function searchYouTubeCurationCandidates(searchQueries, maxResultsP
   const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
   const detailMap = new Map(videoDetails.map((video) => [video.id, video]));
 
-  return videoIds.map((videoId) => {
+  const directCandidates = videoIds.map((videoId) => {
     const video = detailMap.get(videoId);
     if (!video) return null;
     return {
@@ -302,6 +346,17 @@ export async function searchYouTubeCurationCandidates(searchQueries, maxResultsP
       searchMatchCount: matchesById.get(videoId).queries.length
     };
   }).filter(Boolean);
+
+  // Expand a small number of relevant creators through their uploads playlists.
+  // These playlistItems/videos calls are substantially cheaper than search.list calls.
+  const expansionChannelIds = [];
+  for (const videoId of videoIds.slice(0, 80)) {
+    const channelId = detailMap.get(videoId)?.snippet?.channelId;
+    if (channelId && !expansionChannelIds.includes(channelId)) expansionChannelIds.push(channelId);
+    if (expansionChannelIds.length >= 6) break;
+  }
+  const expandedCandidates = await searchRecentCreatorUploads(expansionChannelIds, videoIds, 10);
+  return [...directCandidates, ...expandedCandidates];
 }
 
 export async function searchYouTubeCourseRecommendations(query, maxResults = 3) {

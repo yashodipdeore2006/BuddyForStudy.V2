@@ -6,7 +6,7 @@ import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import CourseActionButton from "@/components/CourseActionButton";
-import { getCourseActionState, type CourseActionState } from "@/lib/intents";
+import { getCourseActionState, USER_INTENTS, type CourseActionState } from "@/lib/intents";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -261,9 +261,9 @@ export default function CourseCard({
           className="bfs-course-card__save"
           onClick={() => void handleSave()}
           disabled={saving}
-          aria-label={saved ? "Saved" : "Save"}
+          aria-label={saved ? USER_INTENTS.saved.ariaLabel : USER_INTENTS.save.ariaLabel}
           aria-pressed={saved}
-          title={saving ? "Updating saved courses" : saved ? "Saved — remove from Saved" : "Save for later"}
+          title={saving ? "Updating saved courses" : saved ? USER_INTENTS.saved.label : USER_INTENTS.save.label}
         >
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
         </button>

@@ -149,7 +149,7 @@ export default function CourseDetails() {
 
   const handleCheckout = async () => {
     if (!session) {
-      navigate('/login', { state: { from: { pathname: `/courses/${courseId}` } } });
+      navigate(routes.login(), { state: { from: { pathname: routes.course(courseId) } } });
       return;
     }
     if (!courseId || !course) return;
@@ -334,7 +334,7 @@ export default function CourseDetails() {
   return (
     <div className="bfs-shell py-8 sm:py-10">
       <Link
-        to="/courses"
+        to={routes.explore()}
         className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700"
       >
         <ArrowLeft className="h-4 w-4" />

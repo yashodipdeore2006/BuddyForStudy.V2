@@ -7,6 +7,7 @@ import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLess
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github } from "lucide-react";
 import { classNames } from "@/lib/utils";
 import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
+import { routes } from "@/lib/routes";
 
 function mapCourse(raw: any): Course {
   return {
@@ -174,11 +175,11 @@ export default function CoursePlayer() {
       progress?.last_lesson_id ||
       allLessons.find((item) => !isLessonCompleted(progress?.completed_lessons || [], item.id))?.id ||
       allLessons[0].id;
-    navigate(`/learn/${courseId}/${targetId}`, { replace: true });
+    navigate(routes.learn(courseId, targetId), { replace: true });
   }, [course, lessonId, allLessons, progress, navigate, courseId]);
 
   const handleNavigate = (id: string) => {
-    navigate(`/learn/${courseId}/${id}`);
+    navigate(routes.learn(courseId, id));
     setSidebarOpen(false);
   };
 
@@ -319,7 +320,7 @@ export default function CoursePlayer() {
         <h1 className="mt-4 text-2xl font-bold text-slate-900">
           {error || "Course Not Found"}
         </h1>
-        <Link to={`/courses/${courseId}`} className="btn-primary mt-6">
+        <Link to={routes.course(courseId)} className="btn-primary mt-6">
           View Course
         </Link>
       </div>
@@ -348,7 +349,7 @@ export default function CoursePlayer() {
           </button>
 
           <Link
-            to={`/courses/${courseId}`}
+            to={routes.course(courseId)}
             className="hidden items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900 sm:flex"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -394,7 +395,7 @@ export default function CoursePlayer() {
           )}
 
           <Link
-            to="/dashboard"
+            to={routes.home()}
             className="hidden rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold transition hover:bg-slate-50 sm:block"
           >
             Dashboard

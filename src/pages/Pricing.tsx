@@ -4,6 +4,7 @@ import { ArrowRight, Check, Crown, Loader2, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
+import { routes } from "@/lib/routes";
 
 type Plan = {
   _id: string;
@@ -73,7 +74,7 @@ export default function Pricing() {
     if (!plan || Number(plan.price) === 0) return;
 
     if (!session) {
-      window.location.href = "/login";
+      window.location.href = routes.login();
       return;
     }
 
@@ -265,7 +266,7 @@ export default function Pricing() {
           </div>
 
           <Link
-            to={`/courses/${encodeURIComponent(courseId)}`}
+            to={routes.course(courseId)}
             className="btn-primary mt-4 sm:mt-0"
           >
             View course price and buy

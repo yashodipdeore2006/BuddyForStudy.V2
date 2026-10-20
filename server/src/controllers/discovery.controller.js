@@ -35,10 +35,12 @@ const resourceSchema = z.object({
 
 const curationFeedbackSchema = z.object({
   query: z.string().trim().min(2).max(200),
+  category: z.string().trim().max(100).optional(),
+  level: z.enum(["Beginner", "Intermediate", "Advanced"]).optional(),
   event: z.enum(["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report"]),
   resourceType: z.enum(["video", "playlist", "series"]),
   resourceId: z.string().trim().min(2).max(200),
-  engineVersion: z.string().trim().min(1).max(100).default("course-curation-decision-engine-v1.5"),
+  engineVersion: z.string().trim().min(1).max(100).default("course-curation-decision-engine-v1.6"),
   rank: z.number().int().min(1).max(100).optional(),
   score: z.number().min(0).max(100).optional()
 });
@@ -88,7 +90,7 @@ export async function recordCurationFeedback(req, res, next) {
       score: input.score ?? null
     });
     if (["save", "enroll", "thumbs_up", "thumbs_down", "outdated"].includes(input.event)) {
-      await invalidateNormalSearchCurationCache(input.query);
+      await invalidateNormalSearchCurationCache(input.query, { category: input.category, level: input.level });
     }
     return success(res, { recorded: true }, "Curation feedback recorded", 201);
   } catch (error) {

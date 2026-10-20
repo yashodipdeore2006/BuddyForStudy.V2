@@ -9,6 +9,7 @@ import CourseActionButton from "@/components/CourseActionButton";
 import { getCourseActionState, USER_INTENTS, type CourseActionState } from "@/lib/intents";
 import { routes } from "@/lib/routes";
 import { getCourseNavTargets } from "@/lib/courseNav";
+import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { useCourseState } from "@/lib/useCourseState";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
@@ -231,7 +232,7 @@ export default function CourseCard({
     navigate(routes.learn(course.id, nextLessonId));
   };
 
-  const displayOutcome = course.description.trim();
+  const displayOutcome = getCourseCardDescription(course);
   const coverCategory = (course.category || "").toLowerCase();
   const coverPalette = /data|analytics|sql|database/.test(coverCategory) ? "data"
     : /design|ui|ux|art/.test(coverCategory) ? "design"
@@ -312,8 +313,7 @@ export default function CourseCard({
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
-        {displayOutcome && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following)/i.test(displayOutcome.trim())
-          && <p className="bfs-course-card__outcome" title={displayOutcome}>{displayOutcome}</p>}
+        {displayOutcome && <p className="bfs-course-card__outcome" title={displayOutcome}>{displayOutcome}</p>}
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
           {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}

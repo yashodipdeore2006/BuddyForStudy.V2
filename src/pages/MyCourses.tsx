@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  Bookmark, CheckCircle2, Clock3, GraduationCap, Info, Map,
+  Bookmark, GraduationCap, Info, Map,
   MoreHorizontal, Play, RotateCcw, Search, Trash2, X,
   Database, Palette, BriefcaseBusiness, BrainCircuit, Code2, Sparkles, Eye, Users,
 } from "lucide-react";
@@ -22,7 +22,7 @@ function mapCourse(raw: any): Course {
     title: String(module?.title ?? ""),
     description: String(module?.description ?? ""),
     order: Number(module?.order ?? 0),
-    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson: any) => ({
+    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson) => ({
       id: String(lesson?._id ?? lesson?.id ?? ""),
       title: String(lesson?.title ?? ""),
       description: String(lesson?.description ?? ""),
@@ -106,7 +106,7 @@ function CourseLearningCard({
   const PrimaryIcon = status === "completed" ? RotateCcw : Play;
   const metadata = course.cardMetadata;
   const videoCount = Number.isFinite(metadata?.videoCount) ? Number(metadata?.videoCount) : 0;
-  const creatorName = typeof metadata?.creatorName === "string" ? metadata.creatorName.trim() : "";
+  const creatorName = String(metadata?.creatorName ?? "").trim();
   const qualityScore = Number.isFinite(metadata?.qualityScore) ? Number(metadata?.qualityScore) : null;
   const viewCount = Number.isFinite(metadata?.viewCount) ? Number(metadata?.viewCount) : 0;
   const learnerValue = course.enrollment_count ?? course.enrollmentCount;
@@ -123,7 +123,7 @@ function CourseLearningCard({
     ? Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)
     : 0;
   const description = course.description.trim();
-  const showDescription = Boolean(description) && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following|a buddyforstudy course built from|a comprehensive curriculum designed|a comprehensive path from|a comprehensive deep-dive into)/i.test(description);
+  const showDescription = description.length > 0 && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following|a buddyforstudy course built from|a comprehensive curriculum designed|a comprehensive path from|a comprehensive deep-dive into)/i.test(description);
   const category = (course.category || "").toLowerCase();
   const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
     : /design|ui|ux|art/.test(category) ? "design"

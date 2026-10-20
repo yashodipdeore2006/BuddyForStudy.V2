@@ -207,7 +207,6 @@ function CourseLearningCard({
         </div>
         <h2 className="bfs-course-card__title" title={course.title}>{course.title}</h2>
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
-        {categoryLabel && !creatorName && <p className="bfs-course-card__creator" title={categoryLabel}>{categoryLabel}</p>}
         {showDescription && <p className="bfs-course-card__outcome" title={description}>{description}</p>}
 
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (

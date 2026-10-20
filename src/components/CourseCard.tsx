@@ -59,8 +59,6 @@ export default function CourseCard({
   variant = "catalog",
   reason,
   progressPercentage,
-  completedLessons: initialCompletedLessons,
-  totalLessons: initialTotalLessons,
   initiallySaved = false,
   initiallyEnrolled = false,
   initiallyCompleted = false,
@@ -85,8 +83,6 @@ export default function CourseCard({
     initiallyCompleted ? "completed" : initiallyEnrolled ? "active" : "not-enrolled",
   );
   const [progress, setProgress] = useState(Math.max(0, Math.min(100, progressPercentage ?? 0)));
-  const [completedLessons, setCompletedLessons] = useState(initialCompletedLessons ?? 0);
-  const [totalLessons, setTotalLessons] = useState(initialTotalLessons ?? lessonCount ?? 0);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -128,11 +124,9 @@ export default function CourseCard({
     if (courseState.loading) return;
     setEnrollmentState(courseState.isCompleted ? "completed" : courseState.isEnrolled ? "active" : "not-enrolled");
     setProgress(courseState.progressPct);
-    setCompletedLessons(courseState.completedLessons);
-    setTotalLessons(courseState.totalLessons || lessonCount || 0);
     setNextLessonId(courseState.nextLessonId);
     if (courseState.error) setActionError(courseState.error);
-  }, [courseState.loading, courseState.isCompleted, courseState.isEnrolled, courseState.progressPct, courseState.completedLessons, courseState.totalLessons, courseState.nextLessonId, courseState.error, lessonCount]);
+  }, [courseState.loading, courseState.isCompleted, courseState.isEnrolled, courseState.progressPct, courseState.nextLessonId, courseState.error, lessonCount]);
 
   const paid = course.pricing?.mode === "paid";
   const actionState: CourseActionState = useMemo(() => getCourseActionState({
@@ -250,7 +244,6 @@ export default function CourseCard({
           : /program|software|web|code/.test(coverCategory) ? Code2 : GraduationCap;
   const compact = variant === "compact";
   const horizontal = variant === "horizontal";
-  const showProgress = enrollmentState !== "not-enrolled" || variant === "enrolled";
   const navTargets = getCourseNavTargets({
     courseId: String(course.id),
     isEnrolled: enrollmentState !== "not-enrolled",
@@ -319,42 +312,7 @@ export default function CourseCard({
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
           {enrolledLearners > 0 && <span title="BuddyForStudy learners enrolled"><Users size={14} aria-hidden="true" /> {formatCompactCount(enrolledLearners)} learners</span>}
         </div>}
-        {showProgress && (
-          <div className="bfs-course-card__progress">
-            <div className="bfs-course-card__progress-label">
-              <span>
-                {enrollmentState === "completed"
-                  ? "Completed"
-                  : progress > 0
-                    ? "In progress"
-                    : "Not started"}
-              </span>
-              <span>{Math.round(progress)}%</span>
-            </div>
-            <div
-              className="bfs-course-card__progress-track"
-              role="progressbar"
-              aria-label={course.title + " progress"}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(progress)}
-            >
-              <div
-                className={
-                  enrollmentState === "completed"
-                    ? "bfs-course-card__progress-fill bfs-course-card__progress-fill--completed"
-                    : "bfs-course-card__progress-fill"
-                }
-                style={{ width: Math.round(progress) + "%" }}
-              />
-            </div>
-            {totalLessons > 0 && (
-              <p className="bfs-course-card__meta">
-                {completedLessons} of {totalLessons} lessons
-              </p>
-            )}
-          </div>
-        )}
+
       </div>
 
       {actionError && <div className="bfs-course-card__error" role="alert"><span>{actionError}</span>{courseState.error && <button type="button" className="bfs-course-card__undo" onClick={() => { setActionError(""); setCourseStateRetry((value) => value + 1); }} disabled={courseState.loading}>{USER_INTENTS.retry.label}</button>}</div>}

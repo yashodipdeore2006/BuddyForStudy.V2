@@ -186,7 +186,7 @@ courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
     summary: String(context.summary || "Course content or metadata changed").slice(0, 200)
   });
   const modifiedPaths = this.modifiedPaths();
-  const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation"];
+  const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation", "roadmap"];
   const systemMetadataRefresh = ["Video duration metadata refresh", "Video resource normalization", "On-demand quiz generation"].includes(context.summary);
   const contentChanged = !systemMetadataRefresh && modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
   if (contentChanged && isGeneratedCourse(this)) {

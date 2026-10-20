@@ -234,7 +234,7 @@ export default function Home() {
           <div className="user-home__empty-icon"><GraduationCap size={24} aria-hidden="true" /></div>
           <h3>{session ? 'No course in progress yet' : 'Your learning journey starts here'}</h3>
           <p>{session ? 'Explore a course or build a learning path. Your next step will appear here.' : 'Sign in to keep your courses, progress and next lesson together.'}</p>
-          <div className="flex flex-wrap gap-3"><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/register"><Sparkles size={16} aria-hidden="true" /> Build my path</Link></div>
+          <div className="user-home__actions"><Link className="user-home__button" to="/courses">Explore <ArrowRight size={16} aria-hidden="true" /></Link><Link className="user-home__button user-home__button--secondary" to="/register"><Sparkles size={16} aria-hidden="true" /> Build my path</Link></div>
         </div>}
       </section>
 
@@ -245,7 +245,7 @@ export default function Home() {
           <div className="user-home__stat"><div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div></div>
           <div className="user-home__stat"><div className="user-home__stat-icon"><TrendingUp size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{overallProgress}%</p><p className="user-home__stat-label">Overall progress</p></div></div>
         </div>
-        {data.learningStats && typeof data.learningStats.currentStreak === 'number' && <p className="user-home__meta mt-4"><Target size={14} className="inline" aria-hidden="true" /> Current streak: {data.learningStats.currentStreak} {data.learningStats.currentStreak === 1 ? 'day' : 'days'}</p>}
+        {data.learningStats && typeof data.learningStats.currentStreak === 'number' && <p className="user-home__meta user-home__streak"><Target size={14} className="inline" aria-hidden="true" /> Current streak: {data.learningStats.currentStreak} {data.learningStats.currentStreak === 1 ? 'day' : 'days'}</p>}
       </section>
 
       <section className="user-home__section" aria-labelledby="continue-heading">

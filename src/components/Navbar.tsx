@@ -9,6 +9,7 @@ import NotificationMenu from "@/components/NotificationMenu";
 import CommandPalette from "@/components/CommandPalette";
 import ShortcutsDialog from "@/components/ShortcutsDialog";
 import { apiFetch } from "@/lib/api";
+import { routes } from "@/lib/routes";
 
 type ThemeMode = "light" | "dark" | "system";
 
@@ -106,14 +107,14 @@ export default function Navbar() {
     };
     const continueLastCourse = async () => {
       if (!session) {
-        navigate("/login");
+        navigate(routes.login());
         return;
       }
       try {
         const data = await apiFetch("/api/enrollments");
         const active = (data.enrollments ?? []).filter((item: any) => String(item.status).toLowerCase() === "active" && item.course);
         if (!active.length) {
-          navigate("/home");
+          navigate(routes.home());
           return;
         }
         const candidates = await Promise.all(active.map(async (item: any) => {
@@ -139,10 +140,10 @@ export default function Navbar() {
           }
         }));
         const mostRecent = candidates.filter(Boolean).sort((a: any, b: any) => b.lastAccessedAt.localeCompare(a.lastAccessedAt))[0] as { courseId: string; nextLessonId: string } | undefined;
-        if (mostRecent) navigate("/learn/" + mostRecent.courseId + (mostRecent.nextLessonId ? "/" + encodeURIComponent(mostRecent.nextLessonId) : ""));
-        else navigate("/home");
+        if (mostRecent) navigate(routes.learn(mostRecent.courseId, mostRecent.nextLessonId));
+        else navigate(routes.home());
       } catch {
-        navigate("/home");
+        navigate(routes.home());
       }
     };
 
@@ -197,7 +198,7 @@ export default function Navbar() {
   const handleSignOut = async () => {
     setMenuOpen(false);
     await signOut();
-    navigate("/");
+    navigate(routes.landing());
   };
 
   const isActive = (to: string) => {
@@ -245,7 +246,7 @@ export default function Navbar() {
                   <div className="bfs-avatar-popover" role="menu" aria-label="Account menu">
                     <div className="bfs-avatar-popover__identity"><strong>{avatarName}</strong><span>{session?.user?.email || ""}</span></div>
                     <Link role="menuitem" to={profilePath} onClick={() => setMenuOpen(false)}><UserRound size={17} />{isAdmin ? "Admin settings" : "Profile"}</Link>
-                    {!isAdmin && <Link role="menuitem" to="/settings" onClick={() => setMenuOpen(false)}><Settings2 size={17} />Settings</Link>}
+                    {!isAdmin && <Link role="menuitem" to={routes.settings()} onClick={() => setMenuOpen(false)}><Settings2 size={17} />Settings</Link>}
                     <div className="bfs-avatar-popover__separator" />
                     <div className="bfs-avatar-popover__theme" aria-label="Theme">
                       <span>Theme</span>
@@ -261,9 +262,9 @@ export default function Navbar() {
               </div>
             ) : (
               <div className="bfs-public-actions">
-                <Link to="/explore" className="bfs-public-link">Explore</Link>
-                <Link to="/login" className="bfs-public-link">Sign in</Link>
-                <Link to="/register" className="bfs-user-primary-button">Get started</Link>
+                <Link to={routes.explore()} className="bfs-public-link">Explore</Link>
+                <Link to={routes.login()} className="bfs-public-link">Sign in</Link>
+                <Link to={routes.register()} className="bfs-user-primary-button">Get started</Link>
               </div>
             )}
           </div>

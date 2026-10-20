@@ -1,6 +1,8 @@
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
+import { GoogleGenAI } from "@google/genai";
+import { env } from "../config/env.js";
 
 export function parseDurationSeconds(value) {
   if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
@@ -136,10 +138,29 @@ function fingerprintModules(modules = []) {
   })));
 }
 
+export async function generateJourneyStageMetadata(course, baseStages) {
+  if (!env.geminiApiKey || !baseStages.length) return baseStages;
+  try {
+    const client = new GoogleGenAI({ apiKey: env.geminiApiKey });
+    const lessons = (course.modules || []).flatMap((module) => (module.lessons || []).map((lesson) => ({ id: String(lesson._id || lesson.id), title: lesson.title, module: module.title })));
+    const response = await client.models.generateContent({
+      model: env.geminiModel,
+      contents: "Create concise, domain-neutral learning journey milestone metadata. Keep the provided stage groupings, order, IDs and lessonIds unchanged. Return JSON only. Course: " + course.title + ". Description: " + course.description + ". Learning outcomes: " + JSON.stringify(course.learningOutcomes || []) + ". Stages: " + JSON.stringify(baseStages.map((stage) => ({ id: stage.id, order: stage.order, title: stage.title, lessonIds: stage.lessonIds, lessonTitles: lessons.filter((lesson) => stage.lessonIds.includes(lesson.id)) }))) + ". For every stage return id, title of 2-5 words, exactly 3 short skills, one practical outcome sentence, and one emoji. Do not change lessonIds or stage order.",
+      config: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { stages: { type: "ARRAY", items: { type: "OBJECT", properties: { id: { type: "STRING" }, title: { type: "STRING" }, skills: { type: "ARRAY", items: { type: "STRING" } }, outcome: { type: "STRING" }, emoji: { type: "STRING" } }, required: ["id", "title", "skills", "outcome"] } } }, required: ["stages"] } }
+    });
+    const parsed = JSON.parse(response.text || "{}");
+    const byId = new Map((parsed.stages || []).map((stage) => [String(stage.id), stage]));
+    return baseStages.map((stage) => { const ai = byId.get(stage.id) || {}; return { ...stage, title: String(ai.title || stage.title).slice(0, 100), skills: Array.isArray(ai.skills) ? ai.skills.slice(0, 3).map(String) : [], outcome: String(ai.outcome || "").slice(0, 1000), emoji: String(ai.emoji || "") }; });
+  } catch (error) {
+    console.warn("[course-journey] AI stage metadata unavailable; using curriculum-based fallback.", error instanceof Error ? error.message : "Unknown AI error");
+    return baseStages;
+  }
+}
 export async function regenerateCourseJourney(courseId, stages = null) {
   const course = await Course.findById(courseId);
   if (!course || course.deletedAt) return null;
-  const generated = Array.isArray(stages) ? stages : buildJourneyStages(course.modules || [], []);
+  const baseStages = Array.isArray(stages) ? stages : buildJourneyStages(course.modules || [], []);
+  const generated = Array.isArray(stages) ? stages : await generateJourneyStageMetadata(course, baseStages);
   course.roadmap = {
     theme: course.roadmap?.theme || "trail",
     sourceFingerprint: fingerprintModules(course.modules || []),

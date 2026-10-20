@@ -4,6 +4,7 @@ import { Payment } from "../models/Payment.js";
 import { createNotificationEvent } from "./notification.service.js";
 import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
 import { getEntitlement } from "./subscriptionEntitlement.service.js";
+import { toPublicCoursePreview } from "../utils/coursePreview.js";
 
 async function notifyFreeCourseEnrollment(userId, course, enrollment) {
   if (course.pricing?.mode === "paid") return;
@@ -119,10 +120,22 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
   return enrollment;
 }
 
-export function getMine(userId) {
-  return Enrollment.find({ user: userId })
-    .populate({ path: "course", select: "title slug description category level duration thumbnail isPublished" })
+export async function getMine(userId) {
+  const enrollments = await Enrollment.find({ user: userId })
+    .populate({
+      path: "course",
+      select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled learningOutcomes generation modules createdAt updatedAt"
+    })
     .sort({ enrolledAt: -1 });
+
+  // Return a safe course preview rather than the full populated document. This
+  // keeps private lesson payloads out of the list endpoint while supplying the
+  // metadata used by My Learning course cards.
+  return enrollments.map((enrollment) => {
+    const result = enrollment.toObject();
+    if (result.course) result.course = toPublicCoursePreview(result.course);
+    return result;
+  });
 }
 
 export function getOne(userId, enrollmentId) {

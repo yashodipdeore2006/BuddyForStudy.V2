@@ -25,6 +25,7 @@ import {
 import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
+import { routes } from '@/lib/routes';
 
 function formatCoursePrice(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
@@ -230,13 +231,11 @@ export default function CourseDetails() {
   };
 
   const handleStartLearning = () => {
-    if (!courseId) return;
-    const firstLesson = course ? getAllLessonsFlat(course.modules)[0] : null;
-    if (firstLesson) {
-      navigate(`/courses/${courseId}/roadmap`);
-    } else {
-      navigate(`/courses/${courseId}/roadmap`);
-    }
+    if (!courseId || !course) return;
+    const flatLessons = getAllLessonsFlat(course.modules);
+    const completedIds = new Set((progress?.completed_lessons ?? []).map((item) => String(item.lessonId)));
+    const nextLesson = flatLessons.find((lesson) => !completedIds.has(String(lesson.id)));
+    navigate(routes.learn(courseId, nextLesson?.id ?? null));
   };
 
   const toggleModule = (index: number) => {
@@ -267,7 +266,7 @@ export default function CourseDetails() {
         <p className="mt-2 text-slate-500">
           The course you're looking for doesn't exist or has been removed.
         </p>
-        <Link to="/courses" className="btn-primary mt-6">
+        <Link to={routes.explore()} className="btn-primary mt-6">
           Browse Courses
         </Link>
       </div>
@@ -289,6 +288,47 @@ export default function CourseDetails() {
     ? Math.round(((crossedPrice - salePrice) / crossedPrice) * 100)
     : 0;
   const progressPct = progress?.percentage || 0;
+  const flatLessons = getAllLessonsFlat(course.modules);
+  const completedLessonIds = new Set((progress?.completed_lessons ?? []).map((item) => String(item.lessonId)));
+  const nextLesson = flatLessons.find((lesson) => !completedLessonIds.has(String(lesson.id))) ?? flatLessons[flatLessons.length - 1];
+  const hasRoadmap = flatLessons.length > 0;
+
+  if (isEnrolled) {
+    const isCompleted = enrollment?.status === 'completed' || progressPct >= 100;
+    return (
+      <div className="bfs-shell py-8 sm:py-10">
+        <nav aria-label="Breadcrumb" className="mb-5 flex items-center gap-2 text-sm text-slate-500">
+          <Link to={routes.myLearning()} className="hover:text-violet-700">My learning</Link><span aria-hidden="true">/</span><span className="truncate text-slate-800">{course.title}</span>
+        </nav>
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
+          <p className="text-sm font-semibold text-violet-700">{isCompleted ? 'Course completed' : 'Your course'}</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{course.title}</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{course.description}</p>
+          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-600">
+            <span>{Math.round(progressPct)}% complete</span><span>{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressPct)}>
+            <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }} />
+          </div>
+          {nextLesson && <p className="mt-4 text-sm text-slate-600">Next: <span className="font-semibold text-slate-900">{nextLesson.title}</span></p>}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button type="button" onClick={handleStartLearning} className="btn-primary">{isCompleted ? 'Review' : progressPct > 0 ? 'Continue' : 'Start'} learning <ChevronRight className="h-4 w-4" /></button>
+            {hasRoadmap && <Link to={routes.roadmap(course.id)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" />Roadmap</Link>}
+          </div>
+        </section>
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6">
+          <h2 className="text-xl font-semibold text-slate-950">Curriculum</h2>
+          <div className="mt-5 space-y-4">
+            {course.modules.map((module) => <section key={module.id} className="rounded-xl border border-slate-200 p-4">
+              <h3 className="font-semibold text-slate-900">{module.title}</h3>
+              <ul className="mt-3 space-y-2">{module.lessons.map((lesson) => <li key={lesson.id}><Link to={routes.learn(course.id, lesson.id)} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-50"><span>{lesson.title}</span><ChevronRight className="h-4 w-4 shrink-0" /></Link></li>)}</ul>
+            </section>)}
+            {course.modules.length === 0 && <p className="text-sm text-slate-500">Curriculum content will be added soon.</p>}
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="bfs-shell py-8 sm:py-10">

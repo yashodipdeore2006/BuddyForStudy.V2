@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiFetch, ApiError } from '@/lib/api';
 import type { Course } from '@/types';
 import { getAllLessonsFlat } from '@/lib/courseUtils';
-import { USER_INTENTS } from '@/lib/intents';
+import { pluralize, USER_INTENTS } from '@/lib/intents';
 import CourseCard from '@/components/CourseCard';
 import ErrorState from '@/components/ErrorState';
 import { CourseGridSkeleton } from '@/components/Skeleton';
@@ -250,7 +250,7 @@ export default function Home() {
         <div>
           <h1 className="user-home__page-title" id="home-title">Welcome back, {firstName}</h1>
           <p className="user-home__muted">{resumeEnrollment && resumeProgress && resumeProgress.total_lessons > 0
-            ? 'You’re ' + Math.max(0, resumeProgress.total_lessons - resumeProgress.completed_count) + ' lessons from finishing ' + resumeEnrollment.course.title + '.'
+            ? 'You’re ' + Math.max(0, resumeProgress.total_lessons - resumeProgress.completed_count) + ' ' + pluralize(Math.max(0, resumeProgress.total_lessons - resumeProgress.completed_count), 'lesson') + ' from finishing ' + resumeEnrollment.course.title + '.'
             : 'Your next step is ready when you are.'}</p>
         </div>
         {resumeEnrollment && <Link className="user-home__button" to={resumeUrl}>Continue: {resumeEnrollment.course.title} <ArrowRight size={16} aria-hidden="true" /></Link>}
@@ -274,7 +274,7 @@ export default function Home() {
                 ? 'Next: continue from your last lesson'
                 : resumeProgress.completed_count > 0 ? 'Continue from your saved progress' : 'Start with the first lesson'}</p>
             <div className="user-home__progress">
-              <div className="user-home__progress-label"><span>{resumeProgress.completed_count} of {resumeProgress.total_lessons || '—'} lessons</span><span>{resumeProgress.percentage}%</span></div>
+              <div className="user-home__progress-label"><span>{resumeProgress.completed_count} of {resumeProgress.total_lessons || '—'} {pluralize(resumeProgress.total_lessons || 0, 'lesson')}</span><span>{resumeProgress.percentage}%</span></div>
               <div className="user-home__progress-track" role="progressbar" aria-label={resumeEnrollment.course.title + ' progress'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={resumeProgress.percentage}>
                 <div className="user-home__progress-fill" style={{ width: resumeProgress.percentage + '%' }} />
               </div>
@@ -326,7 +326,7 @@ export default function Home() {
                 <span className={day.active ? 'user-home__week-dot user-home__week-dot--active' : day.isToday ? 'user-home__week-dot user-home__week-dot--today' : 'user-home__week-dot'} aria-label={day.dateKey + (day.active ? ', studied' : ', no completed lesson recorded')} />
               </div>)}
             </div>
-            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze is used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze is available.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
+            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze is used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze will protect one missed day when you study again.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
           </article>
         </div>
       </section>
@@ -359,7 +359,7 @@ export default function Home() {
             const progress = data.progress[item.course_id];
             return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.next_lesson_id ? '/' + encodeURIComponent(progress.next_lesson_id) : '')}>
               <Cover course={item.course} className="user-home__compact-cover" />
-              <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} lessons · {progress?.percentage ?? 0}%</p></div>
+              <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} {pluralize(progress?.total_lessons ?? 0, 'lesson')} · {progress?.percentage ?? 0}%</p></div>
               <span className="user-home__link user-home__compact-action">{USER_INTENTS.continue.label} <ArrowRight size={14} aria-hidden="true" /></span>
             </Link>;
           })}</div>
@@ -376,7 +376,7 @@ export default function Home() {
               : course.category ? 'Explore ' + course.category : 'Explore this learning path';
             return <div key={course.id} className="min-w-0"><CourseCard course={course} variant="recommended" reason={reason} /></div>;
           })}</div>
-          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label} recommendations</button>}</div>}
+          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}aria-label="Retry recommendations">{USER_INTENTS.retry.label}</button>}</div>}
       </section>
     </div>
   </main>;

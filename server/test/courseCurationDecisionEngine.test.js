@@ -204,7 +204,7 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
   assert.ok(ui.includes('"outdated"'));
   assert.ok(ui.includes("/api/discovery/curation-feedback"));
   assert.ok(service.includes("loadLearnerFeedbackSignals"));
-  assert.ok(service.includes("scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals)"));
+  assert.ok(service.includes("scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId)"));
 });
 
 test("golden-set evaluation computes nDCG, hidden-gem recall, junk rate and a summary", () => {

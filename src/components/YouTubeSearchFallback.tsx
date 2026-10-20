@@ -433,7 +433,7 @@ export default function YouTubeSearchFallback({
                   <h4 className="font-bold text-slate-900">Recommended learning resources</h4>
                   <p className="text-xs text-slate-500">One ranked list of relevant courses, playlists and assembled video series.</p>
                 </div>
-                {Number(curationMeta?.resultsShown || 0) > 0 && (
+                {curationMeta && Number(curationMeta.resultsShown || 0) > 0 && (
                   <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600">
                     {curationMeta.resultsShown} curated results
                   </span>

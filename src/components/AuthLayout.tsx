@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Sparkles, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { routes } from "@/lib/routes";
 
 interface AuthLayoutProps {
   title: string;
@@ -15,7 +16,7 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
       <section className="relative hidden overflow-hidden bg-[#1A1B41] text-white lg:flex">
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 18% 22%, rgba(255,255,255,.18), transparent 34%), radial-gradient(circle at 80% 78%, rgba(0,100,224,.28), transparent 38%)' }} />
         <div className="relative flex w-full flex-col justify-between p-12 xl:p-16">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to={routes.landing()} className="flex items-center gap-3">
             <img src="/buddyforstudy-logo-dark.webp" alt="BuddyForStudy — Learn, Plan, Grow" className="h-auto w-44 rounded-xl ring-1 ring-white/10" />
           </Link>
           <div className="max-w-xl">

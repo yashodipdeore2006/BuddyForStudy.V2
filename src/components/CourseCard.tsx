@@ -232,7 +232,6 @@ export default function CourseCard({
         ) : (
           <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /><span className="bfs-course-card__fallback-title">{coverWords}</span></div>
         )}
-        <span className="bfs-sr-only">{course.level || "All levels"}</span>
         <button
           type="button"
           className="bfs-course-card__save"
@@ -244,13 +243,12 @@ export default function CourseCard({
         >
           <Bookmark size={18} fill={saved ? "currentColor" : "none"} aria-hidden="true" />
         </button>
-        <span className={levelClass(course.level)}>{course.level || "All levels"}</span>
       </div>
 
       <div className="bfs-course-card__body">
         {variant === "recommended" && reason && <p className="bfs-course-card__reason">{reason}</p>}
         <div className="bfs-course-card__meta">
-          {displayCategory && <span>{displayCategory}</span>}
+          <span>{[displayCategory, course.level].filter(Boolean).join(" · ") || "All levels"}</span>
           {paid && course.pricing && <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price))}</span>}
         </div>
         <h3 className="bfs-course-card__title" title={course.title}>{course.title}</h3>
@@ -271,7 +269,7 @@ export default function CourseCard({
       </div>
 
       {actionError && <p className="bfs-course-card__error" role="alert">{actionError}</p>}
-      {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{enrollmentState !== "not-enrolled" && actionNotice.startsWith("Enrolled in ") && <button type="button" className="ml-2 underline" onClick={() => navigate(routes.learn(course.id))}>Start now</button>}</div>}
+      {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}</div>}
       <div className="bfs-course-card__action-row">
         <CourseActionButton
           state={actionState}

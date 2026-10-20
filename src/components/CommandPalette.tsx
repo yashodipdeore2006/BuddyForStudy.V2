@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowRight, BookOpen, Compass, GraduationCap, Home, LoaderCircle, Search, Sparkles, Bookmark, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { Course } from "@/types";
+import { routes } from "@/lib/routes";
 
 type CommandItem = {
   id: string;
@@ -111,7 +112,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
     const course = courses[index - commands.length];
     if (!course) return;
     onClose();
-    navigate("/courses/" + course.id);
+    navigate(routes.course(course.id));
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {

@@ -197,7 +197,7 @@ export default function CourseCard({
       return;
     }
     if (actionState === "completed") {
-      navigate("/courses/" + course.id);
+      navigate(routes.learn(course.id));
       return;
     }
     navigate(routes.learn(course.id, nextLessonId));

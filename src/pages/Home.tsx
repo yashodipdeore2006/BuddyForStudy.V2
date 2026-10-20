@@ -200,9 +200,9 @@ export default function Home() {
   const streakFreezeUsedWeek = String(learningStats.streakFreezeUsedWeek ?? '');
   const activityDates = new Set(Array.isArray(learningStats.activityDates) ? learningStats.activityDates.map(String) : []);
   const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const sevenDayStrip = Array.from({ length: 7 }, (_unused, offset) => {
+  const sevenDayStrip = Array.from({ length: 7 }, (_unused, index) => {
     const value = new Date(todayKey + 'T12:00:00Z');
-    value.setUTCDate(value.getUTCDate() - (6 - offset));
+    value.setUTCDate(value.getUTCDate() - (6 - index));
     const dateKey = value.toISOString().slice(0, 10);
     const weekStart = new Date(dateKey + 'T12:00:00Z');
     weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
@@ -211,7 +211,6 @@ export default function Home() {
   });
   const currentWeekStart = sevenDayStrip[6]?.weekStartKey ?? todayKey;
   const freezeUsedThisWeek = streakFreezeUsedWeek === currentWeekStart;
-  const yesterdayKey = new Date(new Date(todayKey + 'T12:00:00Z').getTime() - 86400000).toISOString().slice(0, 10);
   const twoDaysAgoKey = new Date(new Date(todayKey + 'T12:00:00Z').getTime() - 2 * 86400000).toISOString().slice(0, 10);
   const freezeAvailable = !freezeUsedThisWeek && Boolean(learningStats.lastActivityDate) && learningStats.lastActivityDate === twoDaysAgoKey && streak > 0;
   const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
@@ -286,7 +285,38 @@ export default function Home() {
           <div className="user-home__stat"><div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{completedLessons}</p><p className="user-home__stat-label">Lessons done</p></div></div>
           <div className="user-home__stat"><div className="user-home__stat-icon"><TrendingUp size={22} aria-hidden="true" /></div><div><p className="user-home__stat-value">{overallProgress}%</p><p className="user-home__stat-label">Overall progress</p></div></div>
         </div>
-        {data.learningStats && typeof data.learningStats.currentStreak === 'number' && <p className="user-home__meta user-home__streak"><Target size={14} className="inline" aria-hidden="true" /> Current streak: {data.learningStats.currentStreak} {data.learningStats.currentStreak === 1 ? 'day' : 'days'}</p>}
+        <div className="user-home__learning-widgets">
+          <article className="user-home__goal-card" aria-labelledby="daily-goal-heading">
+            <div className="user-home__goal-ring" role="progressbar" aria-label="Daily learning goal" aria-valuemin={0} aria-valuemax={dailyGoalLessons} aria-valuenow={Math.min(completedToday, dailyGoalLessons)}>
+              <svg viewBox="0 0 64 64" aria-hidden="true">
+                <circle className="user-home__goal-ring-track" cx="32" cy="32" r="25" />
+                <circle className="user-home__goal-ring-fill" cx="32" cy="32" r="25" strokeDasharray={String(2 * Math.PI * 25)} strokeDashoffset={String(2 * Math.PI * 25 * (1 - dailyGoalPercent / 100))} />
+              </svg>
+              <span>{dailyGoalPercent}%</span>
+            </div>
+            <div className="user-home__goal-copy">
+              <h3 id="daily-goal-heading">Daily goal</h3>
+              <p>{completedToday} of {dailyGoalLessons} {dailyGoalLessons === 1 ? 'lesson' : 'lessons'} today</p>
+              <Link to="/settings#learning-goals" className="user-home__link">Edit goal <ArrowRight size={14} aria-hidden="true" /></Link>
+            </div>
+          </article>
+          <article className="user-home__streak-card" aria-labelledby="streak-heading">
+            <div className="user-home__streak-top">
+              <span className="user-home__streak-icon"><Flame size={20} aria-hidden="true" /></span>
+              <div className="min-w-0">
+                <h3 id="streak-heading">{streak}-day streak</h3>
+                <p>Longest: {longestStreak} {longestStreak === 1 ? 'day' : 'days'}</p>
+              </div>
+            </div>
+            <div className="user-home__week-strip" aria-label="Learning activity for the last seven days">
+              {sevenDayStrip.map((day) => <div className="user-home__week-day" key={day.dateKey}>
+                <span>{day.label}</span>
+                <span className={day.active ? 'user-home__week-dot user-home__week-dot--active' : day.isToday ? 'user-home__week-dot user-home__week-dot--today' : 'user-home__week-dot'} aria-label={day.dateKey + (day.active ? ', studied' : ', no completed lesson recorded')} />
+              </div>)}
+            </div>
+            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze is used. One missed day is okay; keep going when you can.' : freezeAvailable ? 'You missed a day. Your weekly streak freeze is available.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
+          </article>
+        </div>
       </section>
 
       <section className="user-home__section" aria-labelledby="badges-heading">

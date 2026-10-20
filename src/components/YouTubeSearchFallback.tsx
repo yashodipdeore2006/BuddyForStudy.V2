@@ -539,7 +539,7 @@ export default function YouTubeSearchFallback({
                             {curationFeedback[resource.id] && <p role="status" className="mt-1 text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
                           </div>
                           <div className="mt-4 grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-60" aria-label={savedIds.has(course.id) ? "Remove from Saved" : "Save for later"} title={savingId === course.id ? "Updating saved courses" : savedIds.has(course.id) ? "Saved" : "Save"}>
+                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-60" aria-label={savedIds.has(course.id) ? "Course saved" : "Save course"} title={savingId === course.id ? "Saving course" : savedIds.has(course.id) ? "Saved" : "Save course"}>
                               {savingId === course.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : savedIds.has(course.id) ? <BookmarkCheck className="h-4 w-4" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />}
                             </button>
                             <button type="button" onClick={() => handleCourseAction(course)} disabled={enrollingId === course.id} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60">
@@ -605,7 +605,7 @@ export default function YouTubeSearchFallback({
                           type="button"
                           onClick={() => void saveCourse(course)}
                           disabled={savingId === course.id}
-                          aria-label={savedIds.has(course.id) ? "Remove from Saved" : "Save for later"} title={savedIds.has(course.id) ? "Saved" : "Save"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(course.id) ? "Remove from Saved" : "Save for later"} title={savedIds.has(course.id) ? "Saved" : "Save course"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(course.id)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -721,7 +721,7 @@ export default function YouTubeSearchFallback({
                             });
                           }}
                           disabled={savingId === `video-course-${course.videoId}`}
-                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Remove from Saved" : "Save for later"} title={savedIds.has(`video-course-${course.videoId}`) ? "Saved" : "Save"} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
+                          aria-label={savedIds.has(`video-course-${course.videoId}`) ? "Course saved" : "Save course"} title={savedIds.has(`video-course-${course.videoId}`) ? <BookmarkCheck className="h-4 w-4" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 text-xs font-bold transition ${
                             savedIds.has(`video-course-${course.videoId}`)
                               ? "border-green-200 bg-green-50 text-green-700"
                               : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -755,7 +755,7 @@ export default function YouTubeSearchFallback({
                           {enrollingId === `video-course-${course.videoId}` ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : null}
-                          {enrolledIds.has(`video-course-${course.videoId}`) ? "Enrolled" : "Enroll free"}
+                          {enrolledIds.has(`video-course-${course.videoId}`) ? "Start" : "Enroll free"}
                         </button>
                       </div>
 
@@ -847,16 +847,11 @@ export default function YouTubeSearchFallback({
                               void saveCourse(course);
                             }}
                             disabled={savingId === `playlist-course-${playlist.playlistId}`}
-                            className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
-                              savedIds.has(`playlist-course-${playlist.playlistId}`)
-                                ? "border-green-200 bg-green-50 text-green-700"
-                                : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                            }`}
+                            aria-label={savedIds.has(`playlist-course-${playlist.playlistId}`) ? "Course saved" : "Save course"}
+                            title={savedIds.has(`playlist-course-${playlist.playlistId}`) ? "Saved" : "Save course"}
+                            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border px-2 py-2.5 transition ${savedIds.has(`playlist-course-${playlist.playlistId}`) ? "border-green-200 bg-green-50 text-green-700" : "border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"}`}
                           >
-                            {savingId === `playlist-course-${playlist.playlistId}` ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : null}
-                            
+                            {savingId === `playlist-course-${playlist.playlistId}` ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : savedIds.has(`playlist-course-${playlist.playlistId}`) ? <BookmarkCheck className="h-4 w-4" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />}
                           </button>
 
                           <button
@@ -888,7 +883,7 @@ export default function YouTubeSearchFallback({
                             {enrollingId === `playlist-course-${playlist.playlistId}` ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : null}
-                            {enrolledIds.has(`playlist-course-${playlist.playlistId}`) ? "Enrolled" : "Enroll free"}
+                            {enrolledIds.has(`playlist-course-${playlist.playlistId}`) ? "Start" : "Enroll free"}
                           </button>
                         </div>
 

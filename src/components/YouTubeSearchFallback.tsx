@@ -103,12 +103,29 @@ type CuratedResource = {
   }>;
 };
 
+type ComposedPathStep = {
+  moduleOrder: number;
+  moduleName: string;
+  videoTitle: string;
+  resourceTitle: string;
+  resourceType: "video" | "playlist" | "series";
+  channelTitle: string;
+  videoId: string;
+  timestampSeconds: number;
+  timestampLabel: string;
+  verifiedTimecode: boolean;
+  url: string;
+  embedUrl: string;
+  matchScore: number;
+  overallScore: number;
+};
+
 type Props = {
   query: string;
   courses: YouTubeCourse[];
   playlists: YouTubePlaylist[];
   curatedResources?: CuratedResource[];
-  curationMeta?: { resultsShown?: number; version?: string; [key: string]: any } | null;
+  curationMeta?: { resultsShown?: number; version?: string; composedPath?: ComposedPathStep[]; composedPathSteps?: number; syllabus?: { moduleCount?: number }; [key: string]: any } | null;
   loadingPlaylists?: boolean;
   error?: string;
   hasLocalResults?: boolean;
@@ -439,6 +456,47 @@ export default function YouTubeSearchFallback({
                   </span>
                 )}
               </div>
+              {Array.isArray(curationMeta?.composedPath) && curationMeta.composedPath.length > 0 && (
+                <section className="mt-4 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h5 className="text-sm font-extrabold text-slate-900">Best-of-best learning path</h5>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">
+                        A suggested sequence that picks the strongest matching lesson or chapter for each syllabus area.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-indigo-100 bg-white px-3 py-1 text-[11px] font-bold text-indigo-700">
+                      {curationMeta.composedPath.length} steps
+                    </span>
+                  </div>
+                  <ol className="mt-4 space-y-2.5">
+                    {curationMeta.composedPath.map((step, index) => (
+                      <li key={step.moduleName + "-" + step.videoId + "-" + step.timestampSeconds} className="flex flex-wrap items-center gap-3 rounded-xl border border-white bg-white/90 p-3">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-extrabold text-indigo-800">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-extrabold text-slate-900">{step.moduleName}</p>
+                          <p className="mt-0.5 truncate text-xs font-semibold text-slate-700">{step.videoTitle}</p>
+                          <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                            {step.channelTitle || step.resourceTitle}
+                            {step.verifiedTimecode ? " · Starts at " + step.timestampLabel : " · Lesson start"}
+                          </p>
+                        </div>
+                        <a href={step.url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700">
+                          Play step <span aria-hidden="true" className="ml-1">↗</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="mt-3 text-[11px] leading-4 text-slate-500">
+                    Based on public descriptions, lesson titles and creator-supplied timestamps. These signals do not replace transcript review or verify what the video actually teaches.
+                    {Number(curationMeta.composedPathSteps || 0) < Number(curationMeta.syllabus?.moduleCount || 0)
+                      ? " Some syllabus areas were left out because available metadata did not provide a strong enough match."
+                      : ""}
+                  </p>
+                </section>
+              )}
               {curatedResources.length ? (
                 <div className="bfs-course-grid mt-4">
                   {curatedResources.map((resource, resultIndex) => {

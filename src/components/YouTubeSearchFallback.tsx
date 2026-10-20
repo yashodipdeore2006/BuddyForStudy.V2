@@ -353,7 +353,7 @@ export default function YouTubeSearchFallback({
   const currentLesson = viewer?.course.lessons[viewer.lessonIndex];
   const hasAnything = curatedResources !== undefined ? curatedResources.length > 0 : builtCourses.length > 0 || courses.length > 0 || playlists.length > 0;
 
-  if (!hasAnything && !loadingPlaylists && !error) {
+  if (!hasAnything && curatedResources === undefined && !loadingPlaylists && !error) {
     return (
       <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-6 text-center">
         <BookOpen className="mx-auto h-8 w-8 text-slate-300" />

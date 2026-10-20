@@ -340,7 +340,7 @@ export default function Home() {
                 <span className={day.active ? 'user-home__week-dot user-home__week-dot--active' : day.isToday ? 'user-home__week-dot user-home__week-dot--today' : 'user-home__week-dot'} role="img" aria-label={day.dateKey + (day.active ? ', studied' : ', no completed lesson recorded')} />
               </div>)}
             </div>
-            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze has been used. Keep going when you can.' : freezeAvailable ? 'A streak freeze is available to protect your streak.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
+            <p className="user-home__streak-nudge">{freezeUsedThisWeek ? 'Your weekly streak freeze has been used. Keep going when you can.' : freezeAvailable ? 'Your weekly freeze can preserve your streak when you study again.' : streak > 0 ? 'A small step today keeps your learning moving.' : 'Start a lesson today to begin your streak.'}</p>
           </article>
           <article className="user-home__stat user-home__stat--tile">
             <div className="user-home__stat-icon"><CheckCircle2 size={22} aria-hidden="true" /></div>

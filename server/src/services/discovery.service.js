@@ -579,7 +579,23 @@ export async function createCourseFromSearch(query, userId = null) {
 }
 
 // Legacy playlist discovery remains available for direct playlist browsing.
+// Refresh YouTube metadata periodically rather than caching it indefinitely.
 const playlistCache = new Map();
+const PLAYLIST_SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
+const PLAYLIST_DETAIL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getPlaylistCache(key) {
+  const entry = playlistCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    playlistCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setPlaylistCache(key, value, ttlMs = PLAYLIST_SEARCH_CACHE_TTL_MS) {
+  playlistCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
 
 async function youtubeRequest(endpoint, params) {
   if (!env.youtubeApiKey) {
@@ -627,7 +643,8 @@ export async function searchStructuredPlaylists(query, maxResults) {
   const requestedCount = Math.max(1, Math.min(Number(maxResults ?? setting?.value) || 30, 30));
   const normalizedQuery = String(query || "").trim();
   const key = `search:${normalizedQuery.toLowerCase()}:${requestedCount}`;
-  if (playlistCache.has(key)) return playlistCache.get(key);
+  const cached = getPlaylistCache(key);
+  if (cached !== null) return cached;
 
   const searchItems = [];
   let pageToken = "";
@@ -651,7 +668,7 @@ export async function searchStructuredPlaylists(query, maxResults) {
 
   const ids = searchItems.map((item) => item.id?.playlistId).filter(Boolean);
   if (!ids.length) {
-    playlistCache.set(key, []);
+    setPlaylistCache(key, []);
     return [];
   }
 
@@ -736,7 +753,7 @@ export async function searchStructuredPlaylists(query, maxResults) {
     .sort((a, b) => b.score - a.score)
     .slice(0, requestedCount);
 
-  playlistCache.set(key, results);
+  setPlaylistCache(key, results);
   return results;
 }
 export async function getPlaylistCourse(playlistId) {
@@ -766,7 +783,7 @@ export async function getPlaylistCourse(playlistId) {
     const page = await youtubeRequest("playlistItems", params);
     items.push(...(page.items || []));
     pageToken = page.nextPageToken || "";
-  } while (pageToken && items.length < 100);
+  } while (pageToken && items.length < 300);
 
   const videoIds = items
     .filter((item) => item.status?.privacyStatus !== "private")
@@ -778,7 +795,7 @@ export async function getPlaylistCourse(playlistId) {
     const chunk = videoIds.slice(i, i + 50);
     if (!chunk.length) continue;
     const data = await youtubeRequest("videos", {
-      part: "snippet,contentDetails,status",
+      part: "snippet,contentDetails,status,statistics",
       id: chunk.join(",")
     });
     videos.push(...(data.items || []));
@@ -819,6 +836,6 @@ export async function getPlaylistCourse(playlistId) {
     lessons
   };
 
-  playlistCache.set(key, result);
+  setPlaylistCache(key, result, PLAYLIST_DETAIL_CACHE_TTL_MS);
   return result;
 }

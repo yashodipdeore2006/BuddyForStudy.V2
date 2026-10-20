@@ -20,6 +20,7 @@ type ProgressRecord = {
   last_lesson_id?: string | null;
   last_accessed_at?: string | null;
   completed_lesson_ids: string[];
+  has_detailed_completion_data: boolean;
   completed_today_count: number;
   next_lesson_id?: string;
   nextLessonTitle?: string;
@@ -71,6 +72,7 @@ function mapProgress(raw: any, courseId: string, course?: Course): ProgressRecor
     last_lesson_id: raw?.lastLessonId ?? raw?.last_lesson_id ?? null,
     last_accessed_at: raw?.lastAccessedAt ?? raw?.last_accessed_at ?? null,
     completed_lesson_ids: completedLessonIds,
+    has_detailed_completion_data: Array.isArray(raw?.completedLessons) || Array.isArray(raw?.completed_lessons),
     ...(nextLesson ? { next_lesson_id: nextLesson.id, nextLessonTitle: nextLesson.title } : typeof raw?.nextLessonTitle === 'string' ? { nextLessonTitle: raw.nextLessonTitle } : {}),
     ...(typeof raw?.remainingDuration === 'string' ? { remainingDuration: raw.remainingDuration } : {}),
   };

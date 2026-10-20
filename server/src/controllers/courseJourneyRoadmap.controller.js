@@ -3,6 +3,8 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { getCourseJourney, regenerateCourseJourney, buildJourneyStages } from "../services/courseJourneyRoadmap.service.js";
 import { Course } from "../models/Course.js";
+import { GoogleGenAI } from "@google/genai";
+import { env } from "../config/env.js";
 
 export async function get(req, res, next) {
   try {
@@ -45,8 +47,20 @@ export async function regenerateAdmin(req, res, next) {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await Course.findById(req.params.courseId).lean();
     if (!course || course.deletedAt) return failure(res, "Course not found", 404);
-    const stages = buildJourneyStages(course.modules || [], []);
-    const roadmap = await regenerateCourseJourney(course._id, stages);
-    return success(res, { roadmap }, "Course journey regenerated from current curriculum");
+    const baseStages = buildJourneyStages(course.modules || [], []);
+    if (!baseStages.length) return failure(res, "Add lessons before generating a journey roadmap.", 400);
+    if (!env.geminiApiKey) return failure(res, "AI roadmap generation is unavailable because GEMINI_API_KEY is not configured.", 503);
+    const client = new GoogleGenAI({ apiKey: env.geminiApiKey });
+    const lessonTitles = (course.modules || []).flatMap((module) => (module.lessons || []).map((lesson) => ({ id: String(lesson._id || lesson.id), title: lesson.title, module: module.title })));
+    const response = await client.models.generateContent({
+      model: env.geminiModel,
+      contents: "Create concise, domain-neutral learning journey milestone metadata for this course. Keep the provided lesson grouping and lesson IDs unchanged. Return JSON only. Course: " + course.title + ". Description: " + course.description + ". Learning outcomes: " + JSON.stringify(course.learningOutcomes || []) + ". Stages: " + JSON.stringify(baseStages.map((stage) => ({ id: stage.id, order: stage.order, title: stage.title, lessonIds: stage.lessonIds, lessonTitles: lessonTitles.filter((lesson) => stage.lessonIds.includes(lesson.id)) }))) + ". For every stage return id, title (2-5 words), skills (exactly 3 short strings), outcome (one practical sentence), emoji (one emoji). Do not change lessonIds or stage order.",
+      config: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { stages: { type: "ARRAY", items: { type: "OBJECT", properties: { id: { type: "STRING" }, title: { type: "STRING" }, skills: { type: "ARRAY", items: { type: "STRING" } }, outcome: { type: "STRING" }, emoji: { type: "STRING" } }, required: ["id", "title", "skills", "outcome"] } } }, required: ["stages"] } }
+    });
+    const parsed = JSON.parse(response.text || "{}");
+    const aiStages = new Map((parsed.stages || []).map((stage) => [String(stage.id), stage]));
+    const enriched = baseStages.map((stage) => { const generated = aiStages.get(stage.id) || {}; return { ...stage, title: String(generated.title || stage.title).slice(0, 100), skills: Array.isArray(generated.skills) ? generated.skills.slice(0, 3).map(String) : [], outcome: String(generated.outcome || "").slice(0, 1000), emoji: String(generated.emoji || "") }; });
+    const roadmap = await regenerateCourseJourney(course._id, enriched);
+    return success(res, { roadmap }, "Course journey regenerated with AI");
   } catch (error) { next(error); }
 }

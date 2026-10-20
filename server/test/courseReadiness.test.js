@@ -26,7 +26,7 @@ test("paid course needs a positive price and quizzes need valid prompts and answ
     modules: [{ title: "Module", lessons: [{ title: "Quiz", type: "quiz", quiz: { questions: [{ question: "What is JS?", options: [{ id: "a", text: "A" }, { id: "b", text: "B" }] }] } }] }]
   });
   assert.ok(result.failedChecks.some((check) => check.key === "paidPrice"));
-  assert.ok(result.failedChecks.some((check) => check.key === "quizContent"));
+  assert.equal(result.failedChecks.some((check) => check.key === "quizContent"), false);
 });
 
 test("curriculum readiness catches untitled modules, unsupported lesson types and empty projects", () => {

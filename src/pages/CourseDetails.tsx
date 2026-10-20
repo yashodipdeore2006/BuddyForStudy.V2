@@ -38,6 +38,17 @@ function formatCoursePrice(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
 }
 
+type RelatedCourseCard = {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  duration: string;
+  thumbnail: string | null;
+  pricing?: Course['pricing'];
+  level: string;
+};
+
 const levelColors: Record<string, string> = {
   Beginner: 'bg-green-50 text-green-700',
   Intermediate: 'bg-amber-50 text-amber-700',
@@ -140,9 +151,65 @@ export default function CourseDetails() {
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [purchaseChoice, setPurchaseChoice] = useState<'subscription' | 'individual'>('subscription');
   const [courseNotes, setCourseNotes] = useState('');
+  const [notesStorageReady, setNotesStorageReady] = useState(false);
+  const [loadedNotesKey, setLoadedNotesKey] = useState('');
+  const [relatedCourses, setRelatedCourses] = useState<RelatedCourseCard[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [showStickyMiniHeader, setShowStickyMiniHeader] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  const notesStorageKey = courseId ? 'bfs-course-notes:' + String(session?.user?.id || 'anonymous') + ':' + courseId : '';
+
+  useEffect(() => {
+    setNotesStorageReady(false);
+    if (!notesStorageKey) {
+      setCourseNotes('');
+      setLoadedNotesKey('');
+      return;
+    }
+    let saved = '';
+    try { saved = window.localStorage.getItem(notesStorageKey) || ''; } catch { /* Storage may be unavailable in private browsing. */ }
+    setCourseNotes(saved);
+    setLoadedNotesKey(notesStorageKey);
+    setNotesStorageReady(true);
+  }, [notesStorageKey]);
+
+  useEffect(() => {
+    if (!notesStorageReady || !notesStorageKey || loadedNotesKey !== notesStorageKey) return;
+    try { window.localStorage.setItem(notesStorageKey, courseNotes); } catch { /* Keep notes usable for the current page if storage is unavailable. */ }
+  }, [courseNotes, loadedNotesKey, notesStorageKey, notesStorageReady]);
+
+  useEffect(() => {
+    if (!course?.id) return;
+    let active = true;
+    apiFetch('/api/courses?page=1&limit=30')
+      .then((data) => {
+        if (!active) return;
+        const topicTokens = getDisplayTopic(course).toLowerCase().match(/[a-z]+/g)?.filter((token) => token.length > 3) || [];
+        const rows: RelatedCourseCard[] = (data.courses || data.items || []).map((raw: any) => ({
+          id: String(raw?._id ?? raw?.id ?? ''),
+          title: String(raw?.title ?? ''),
+          category: String(raw?.category ?? ''),
+          description: String(raw?.description ?? ''),
+          duration: String(raw?.duration ?? ''),
+          thumbnail: raw?.thumbnail || null,
+          pricing: raw?.pricing,
+          level: String(raw?.level ?? 'Beginner'),
+        })).filter((item: RelatedCourseCard) => item.id && item.id !== String(course.id) && item.title);
+        const ranked = rows.map((item) => {
+          const haystack = (item.title + ' ' + item.description + ' ' + item.category).toLowerCase();
+          const score = topicTokens.reduce((total, token) => total + (haystack.includes(token) ? 1 : 0), 0);
+          const sameCategory = course.category && !/^(youtube discovery|ai course search|youtube|course search|discovery)$/i.test(course.category)
+            && item.category.toLowerCase() === course.category.toLowerCase();
+          return { item, score: score + (sameCategory ? 2 : 0) };
+        }).filter((entry) => entry.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3)
+          .map((entry) => entry.item);
+        setRelatedCourses(ranked);
+      })
+      .catch(() => { if (active) setRelatedCourses([]); });
+    return () => { active = false; };
+  }, [course?.id]);
 
   useEffect(() => {
     const updateStickyHeader = () => {

@@ -4,7 +4,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ListVideo,
@@ -497,15 +496,14 @@ export default function YouTubeSearchFallback({
                           {resource.isHiddenGem && <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
                           <span className="absolute bottom-2 right-2 rounded-md bg-slate-950/85 px-2 py-1 text-[11px] font-bold text-white">{resource.durationEstimated ? "~" : ""}{resource.duration || formatMinutes(resource.durationSeconds || 0)}</span>
                         </div>
-                        <div className="flex flex-1 flex-col p-4">
+                        <div className="flex flex-1 flex-col p-3">
                           <div className="flex-1">
-                            <p className="line-clamp-2 min-h-[2.65rem] text-[15px] font-extrabold leading-[1.32] tracking-[-.02em] text-slate-900">{resource.title}</p>
-                            <p className="mt-2 truncate text-xs leading-5 text-slate-500">{resource.channelTitle || "YouTube learning resource"}</p>
-                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
-                              <span>{resource.sourceType === "video" ? "Video course" : resource.sourceType === "series" ? "Assembled series" : "Playlist course"}</span>
+                            <p className="line-clamp-2 text-sm font-bold leading-5 text-slate-900">{resource.title}</p>
+                            <p className="mt-1 truncate text-xs text-slate-500">{resource.channelTitle || "YouTube learning resource"}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                              <span>{resource.sourceType === "video" ? "Video" : resource.sourceType === "series" ? "Series" : "Playlist"}</span>
                               <span>·</span>
                               <span>{resource.itemCount || 1} {(resource.itemCount || 1) === 1 ? "lesson" : "lessons"}</span>
-                              {resource.viewCount > 0 && <><span>·</span><span>{formatCount(resource.viewCount)} views</span></>}
                             </div>
                             <details className="mt-2 border-t border-slate-100 pt-2">
                               <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-indigo-700">Details and feedback</summary>

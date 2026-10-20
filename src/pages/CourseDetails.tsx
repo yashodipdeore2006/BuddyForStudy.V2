@@ -224,7 +224,7 @@ export default function CourseDetails() {
     let active = true;
     apiFetch('/api/billing/plans')
       .then((data) => {
-        if (active) setSubscriptionPlans([...(data.plans || [])].sort((a, b) => Number(b.price || 0) - Number(a.price || 0)));
+        if (active) setSubscriptionPlans([...(data.plans || [])].sort((a, b) => Number(a.price || 0) - Number(b.price || 0)));
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -377,6 +377,22 @@ export default function CourseDetails() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to enroll. Please try again.');
     } finally { setEnrolling(false); }
+  };
+
+  const handleSelectedPurchase = () => {
+    if (isPaidCourse && purchaseChoice === 'subscription') {
+      if (!session) {
+        navigate(routes.login(), { state: { from: { pathname: routes.pricing() } } });
+        return;
+      }
+      navigate(routes.pricing());
+      return;
+    }
+    if (isPaidCourse) {
+      void handleCheckout();
+      return;
+    }
+    void handleEnroll();
   };
 
 
@@ -571,7 +587,7 @@ export default function CourseDetails() {
               <div className="mt-3 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={isCompleted ? 100 : Math.round(progressPct)}>
                 <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${Math.max(0, Math.min(100, isCompleted ? 100 : progressPct))}%` }} />
               </div>
-              <p className="mt-3 text-sm font-medium text-slate-800">{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons completed{estimatedMinutesLeft !== null && !isCompleted ? ` · about ${formatDurationSeconds(estimatedMinutesLeft * 60)} left` : ''}</p>
+              {flatLessons.length > 0 ? <p className="mt-3 text-sm font-medium text-slate-800">{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons completed{estimatedMinutesLeft !== null && !isCompleted ? ` · about ${formatDurationSeconds(estimatedMinutesLeft * 60)} left` : ''}</p> : <p className="mt-3 text-sm text-slate-600">Progress tracking begins when lessons are available.</p>}
               {progress?.last_accessed_at && <p className="mt-1 text-xs text-slate-500">Last accessed {formatDate(progress.last_accessed_at)}</p>}
             </div>
             <div className="flex flex-col justify-center rounded-xl border border-white bg-white/90 p-4">
@@ -684,8 +700,8 @@ export default function CourseDetails() {
               <p className="truncate text-sm font-semibold text-slate-900">{course.title}</p>
               <p className="text-xs text-slate-500">{isPaidCourse ? formatCoursePrice(purchaseChoice === 'individual' ? salePrice : Number(subscriptionPlans[0]?.price || 0), currency) : 'Free'}{course.cardMetadata?.qualityScore != null ? ' · ' + Math.round(course.cardMetadata.qualityScore) + '/100 curated' : ''}</p>
             </div>
-            <button type="button" onClick={isPaidCourse ? (purchaseChoice === 'subscription' ? () => navigate(routes.pricing()) : handleCheckout) : handleEnroll} disabled={enrolling || checkoutLoading || !enrollmentEnabled} className="btn-primary shrink-0 px-4 py-2 text-sm">
-              {enrolling || checkoutLoading ? 'Please wait…' : isPaidCourse ? (purchaseChoice === 'subscription' ? 'Subscribe' : 'Buy for ' + formatCoursePrice(salePrice, currency)) : 'Enroll free'}
+            <button type="button" onClick={handleSelectedPurchase} disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled} className="btn-primary shrink-0 px-4 py-2 text-sm">
+              {enrolling || checkoutLoading ? 'Please wait…' : isPaidCourse ? (purchaseChoice === 'subscription' ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')) : (session ? 'Enroll free' : 'Sign in to enroll')}
             </button>
           </div>
         </div>
@@ -980,7 +996,7 @@ export default function CourseDetails() {
             ) : (
               <div>
                 <button
-                  onClick={isPaidCourse ? (purchaseChoice === 'subscription' ? () => navigate(routes.pricing()) : handleCheckout) : handleEnroll}
+                  onClick={handleSelectedPurchase}
                   disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled}
                   className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse && purchaseChoice === 'individual' ? "btn-buy" : "btn-primary")}
                 >

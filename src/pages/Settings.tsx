@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Target } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -71,6 +73,7 @@ function PreferenceToggle({
 
 export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const { profile, session } = useAuth();
+  const location = useLocation();
   const canChangePassword = profile?.auth_provider === "local" || profile?.auth_provider === "local_google";
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -87,14 +90,84 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [notifError, setNotifError] = useState("");
   const [pushAvailable, setPushAvailable] = useState(false);
   const [savingPush, setSavingPush] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try { return localStorage.getItem("bfs-theme") === "dark" ? "dark" : "light"; } catch { return "light"; }
+  const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
+    try { const stored = localStorage.getItem("bfs-theme"); return stored === "dark" || stored === "system" ? stored : "light"; } catch { return "light"; }
   });
+  const [dailyGoalLessons, setDailyGoalLessons] = useState(1);
+  const [savedDailyGoalLessons, setSavedDailyGoalLessons] = useState(1);
+  const [loadingLearningGoal, setLoadingLearningGoal] = useState(true);
+  const [savingLearningGoal, setSavingLearningGoal] = useState(false);
+  const [learningGoalError, setLearningGoalError] = useState("");
+  const [learningGoalSuccess, setLearningGoalSuccess] = useState(false);
+  const learningGoalDirty = dailyGoalLessons !== savedDailyGoalLessons;
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    if (theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches)) {
+      document.documentElement.dataset.theme = "dark";
+      document.documentElement.style.colorScheme = "dark";
+    } else {
+      delete document.documentElement.dataset.theme;
+      document.documentElement.style.colorScheme = "light";
+    }
     try { localStorage.setItem("bfs-theme", theme); } catch { /* Theme still applies for this session. */ }
   }, [theme]);
+
+  useEffect(() => {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const onSystemThemeChange = () => {
+      if (theme !== "system") return;
+      if (media.matches) document.documentElement.dataset.theme = "dark";
+      else delete document.documentElement.dataset.theme;
+      document.documentElement.style.colorScheme = media.matches ? "dark" : "light";
+    };
+    media.addEventListener?.("change", onSystemThemeChange);
+    return () => media.removeEventListener?.("change", onSystemThemeChange);
+  }, [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch("/api/achievements/me")
+      .then((data) => {
+        if (cancelled) return;
+        const goal = Number(data.stats?.dailyGoalLessons ?? 1);
+        const validGoal = Number.isInteger(goal) && goal >= 1 && goal <= 20 ? goal : 1;
+        setDailyGoalLessons(validGoal);
+        setSavedDailyGoalLessons(validGoal);
+      })
+      .catch((error) => { if (!cancelled) setLearningGoalError(error instanceof Error ? error.message : "Unable to load your learning goal."); })
+      .finally(() => { if (!cancelled) setLoadingLearningGoal(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!learningGoalDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [learningGoalDirty]);
+
+  useEffect(() => {
+    if (!location.hash) return;
+    const timer = window.setTimeout(() => document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "start", behavior: "smooth" }), 0);
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
+
+  const saveLearningGoal = async () => {
+    if (!learningGoalDirty || savingLearningGoal) return;
+    setSavingLearningGoal(true);
+    setLearningGoalError("");
+    setLearningGoalSuccess(false);
+    try {
+      const data = await apiFetch("/api/achievements/preferences", { method: "PUT", body: JSON.stringify({ dailyGoalLessons }) });
+      const savedGoal = Number(data.stats?.dailyGoalLessons ?? dailyGoalLessons);
+      setDailyGoalLessons(savedGoal);
+      setSavedDailyGoalLessons(savedGoal);
+      setLearningGoalSuccess(true);
+    } catch (error) {
+      setLearningGoalError(error instanceof Error ? error.message : "Unable to save your learning goal. Please retry.");
+    } finally { setSavingLearningGoal(false); }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -224,12 +297,44 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><UserRound className="h-4 w-4" />Account</a>
         <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
         <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
+        <a href="#learning-goals" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Target className="h-4 w-4" />Learning goals</a>
         <a href="#notifications" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Bell className="h-4 w-4" />Notifications</a>
         <a href="/billing" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
       </nav>}
       <section id="account" className={embedded ? "grid gap-4" : "mt-6 grid gap-4"}>
         {!embedded && <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Account overview</h2><p className="mt-1 text-sm text-slate-500">Your sign-in identity and learner profile.</p></div></div><div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div><div className="flex items-center justify-between gap-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div></div><a href="/profile" className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">Edit profile <ArrowUpRight className="h-4 w-4" /></a></div>}
-        <div id="appearance" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><Sun className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Appearance</h2><p className="mt-1 text-sm text-slate-500">Choose the interface theme for this browser.</p></div></div><div className="mt-5 grid grid-cols-2 gap-3"><button type="button" aria-pressed={theme === "light"} onClick={() => setTheme("light")} className={theme === "light" ? "rounded-xl border border-blue-500 bg-blue-50 p-4 text-left ring-2 ring-blue-500/10" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}><Sun className="h-5 w-5 text-amber-500" /><span className="mt-3 block text-sm font-bold text-slate-900">Light</span><span className="mt-1 block text-xs text-slate-500">Bright and clear</span></button><button type="button" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")} className={theme === "dark" ? "rounded-xl border border-blue-500 bg-blue-50 p-4 text-left ring-2 ring-blue-500/10" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}><Moon className="h-5 w-5 text-indigo-500" /><span className="mt-3 block text-sm font-bold text-slate-900">Dark</span><span className="mt-1 block text-xs text-slate-500">Reduced brightness</span></button></div><p className="mt-3 text-xs leading-5 text-slate-500">Theme is saved in this browser and can be changed from the top navigation.</p></div>
+        <div id="appearance" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><Sun className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Appearance</h2><p className="mt-1 text-sm text-slate-500">Choose how the interface looks on this browser.</p></div></div><div className="mt-5 grid grid-cols-3 gap-3">{(["light", "dark", "system"] as const).map((mode) => <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => setTheme(mode)} className={theme === mode ? "rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-left text-[var(--text)]" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}>{mode === "light" ? <Sun className="h-5 w-5" /> : mode === "dark" ? <Moon className="h-5 w-5" /> : <Activity className="h-5 w-5" />}<span className="mt-3 block text-sm font-bold">{mode === "system" ? "System" : mode[0].toUpperCase() + mode.slice(1)}</span></button>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">Theme preference is saved in this browser.</p></div>
+      </section>
+
+      <section id="learning-goals" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" aria-labelledby="learning-goal-title">
+        <div className="flex items-start gap-3">
+          <div className="rounded-xl bg-[var(--accent-soft)] p-2.5 text-[var(--accent)]"><Target className="h-5 w-5" aria-hidden="true" /></div>
+          <div className="min-w-0 flex-1">
+            <h2 id="learning-goal-title" className="font-extrabold text-slate-950">Daily learning goal</h2>
+            <p className="mt-1 text-sm text-slate-500">Choose how many lessons you want to complete each day. Your goal is saved to your account.</p>
+          </div>
+        </div>
+        {learningGoalError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{learningGoalError}</p>}
+        {learningGoalSuccess && <p role="status" className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">Daily learning goal saved.</p>}
+        {loadingLearningGoal ? <p role="status" className="mt-4 text-sm text-slate-500">Loading your learning goal…</p> : (
+          <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+            <label className="block text-sm font-semibold text-slate-700" htmlFor="daily-goal-lessons">Lessons per day
+              <select id="daily-goal-lessons" className="input-field mt-1" value={dailyGoalLessons} onChange={(event) => { setDailyGoalLessons(Number(event.target.value)); setLearningGoalSuccess(false); }}>
+                {Array.from({ length: 20 }, (_item, index) => index + 1).map((count) => <option key={count} value={count}>{count} {count === 1 ? "lesson" : "lessons"}</option>)}
+              </select>
+            </label>
+            <p className="text-sm text-slate-500">Current goal: <strong>{dailyGoalLessons} {dailyGoalLessons === 1 ? "lesson" : "lessons"}</strong> each day</p>
+          </div>
+        )}
+        {learningGoalDirty && !loadingLearningGoal && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+            <p className="text-sm text-[var(--text-2)]">You have unsaved changes to your daily goal.</p>
+            <div className="flex gap-2">
+              <button type="button" className="btn-secondary" disabled={savingLearningGoal} onClick={() => { setDailyGoalLessons(savedDailyGoalLessons); setLearningGoalError(""); setLearningGoalSuccess(false); }}>Cancel</button>
+              <button type="button" className="btn-primary" disabled={savingLearningGoal} onClick={() => void saveLearningGoal()}>{savingLearningGoal ? "Saving…" : "Save goal"}</button>
+            </div>
+          </div>
+        )}
       </section>
 
       {canChangePassword ? (

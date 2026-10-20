@@ -115,7 +115,7 @@ export default function Profile() {
         <a href="#security" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Security</a>
         <a href="#appearance" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Appearance</a>
         <a href="#notifications" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Notifications</a>
-        <Link to="/billing" className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Billing</Link>
+        <Link to={routes.billing()} className="shrink-0 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Billing</Link>
       </nav>
 
       <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -197,7 +197,7 @@ export default function Profile() {
             <Link to="#notifications" className="flex items-center gap-3 py-4 group">
               <Bell className="h-5 w-5 text-slate-400" /><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-800">Notifications</span><span className="mt-1 block text-xs text-slate-500">Email, in-app, push and study reminders</span></span><ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-blue-600" />
             </Link>
-            <Link to="/my-courses" className="flex items-center gap-3 py-4 group">
+            <Link to={routes.myLearning()} className="flex items-center gap-3 py-4 group">
               <BookOpen className="h-5 w-5 text-slate-400" /><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-800">My learning</span><span className="mt-1 block text-xs text-slate-500">Continue your enrolled courses</span></span><ArrowUpRight className="h-4 w-4 text-slate-400 transition group-hover:text-blue-600" />
             </Link>
           </div>
@@ -212,7 +212,7 @@ export default function Profile() {
       <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5 sm:p-6">
           <div className="flex items-center gap-3"><div className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><ReceiptText className="h-5 w-5" /></div><div><h2 className="text-lg font-extrabold text-slate-950">Recent transactions</h2><p className="mt-1 text-sm text-slate-500">Your latest subscription and course payment activity.</p></div></div>
-          <Link to="/billing" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Full billing history <ArrowUpRight className="h-4 w-4" /></Link>
+          <Link to={routes.billing()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Full billing history <ArrowUpRight className="h-4 w-4" /></Link>
         </div>
         {billingError && <p role="alert" className="m-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{billingError} You can retry from Billing & Payment History.</p>}
         {billingLoading ? <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading transaction history…</div> : latestPayments.length ? (
@@ -227,12 +227,12 @@ export default function Profile() {
               </div>;
             })}
           </div>
-        ) : <div className="p-8 text-center"><ReceiptText className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-3 text-sm font-semibold text-slate-700">No transactions yet</p><p className="mt-1 text-xs text-slate-500">Your purchases and subscription payments will appear here.</p><Link to="/pricing" className="btn-primary mt-4 inline-flex">Explore plans</Link></div>}
+        ) : <div className="p-8 text-center"><ReceiptText className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-3 text-sm font-semibold text-slate-700">No transactions yet</p><p className="mt-1 text-xs text-slate-500">Your purchases and subscription payments will appear here.</p><Link to={routes.pricing()} className="btn-primary mt-4 inline-flex">Explore plans</Link></div>}
       </section>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <Link to="/billing" className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><CreditCard className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Subscription & billing</span><span className="mt-1 block text-xs text-slate-500">Manage renewal, payments and refund requests</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
-        <Link to="/notifications" className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><Bell className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Notification center</span><span className="mt-1 block text-xs text-slate-500">View account and learning updates</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
+        <Link to={routes.billing()} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><CreditCard className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Subscription & billing</span><span className="mt-1 block text-xs text-slate-500">Manage renewal, payments and refund requests</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
+        <Link to={routes.notifications()} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/40"><Bell className="h-5 w-5 text-blue-600" /><span className="flex-1"><span className="block text-sm font-bold text-slate-900">Notification center</span><span className="mt-1 block text-xs text-slate-500">View account and learning updates</span></span><ArrowUpRight className="h-4 w-4 text-slate-400" /></Link>
       </div>
     </div>
   );

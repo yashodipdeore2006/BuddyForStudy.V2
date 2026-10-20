@@ -920,37 +920,41 @@ export default function CourseDetails() {
             </ul>
           </section>
 
-          {reviews.length > 0 && (
-          <div className="rounded-[24px] border border-slate-200 bg-white p-6">
-            <h2 className="text-lg font-medium text-slate-950">Reviews & Ratings</h2>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-2xl font-bold text-slate-900">{reviewStats.average || '—'}</span>
-              <div className="flex text-amber-400">{[1,2,3,4,5].map((star) => <Star key={star} className="h-4 w-4" fill={star <= Math.round(reviewStats.average) ? "currentColor" : "none"} />)}</div>
-              <span className="text-sm text-slate-500">({reviewStats.count} reviews)</span>
+          <section id="reviews" className="scroll-mt-24 rounded-[24px] border border-slate-200 bg-white p-6" aria-labelledby="reviews-heading">
+            <h2 id="reviews-heading" className="text-lg font-semibold text-slate-950">Reviews & Ratings</h2>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-2xl font-bold text-slate-900">{reviewStats.count > 0 ? reviewStats.average.toFixed(1) : '—'}</span>
+              <div className="flex text-amber-400" aria-label={reviewStats.count > 0 ? reviewStats.average.toFixed(1) + ' out of 5 stars' : 'No ratings yet'}>
+                {[1,2,3,4,5].map((star) => <Star key={star} className="h-4 w-4" fill={reviewStats.count > 0 && star <= Math.round(reviewStats.average) ? "currentColor" : "none"} />)}
+              </div>
+              <span className="text-sm text-slate-500">({reviewStats.count} {reviewStats.count === 1 ? 'review' : 'reviews'})</span>
             </div>
-            {isEnrolled && (
+            {isEnrolled ? (
               <div className="mt-5 rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-800">Rate this course</p>
-                <div className="mt-2 flex gap-1">{[1,2,3,4,5].map((star) => (
-                  <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={`Rate ${star} stars`}>
-                    <Star className={`h-6 w-6 ${star <= reviewRating ? 'text-amber-400' : 'text-slate-300'}`} fill={star <= reviewRating ? "currentColor" : "none"} />
-                  </button>
-                ))}</div>
-                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-20 w-full text-sm outline-none focus:border-blue-500" />
+                <div className="mt-2 flex gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">
+                  {[1,2,3,4,5].map((star) => (
+                    <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={"Rate " + star + " out of 5 stars"} aria-pressed={reviewRating === star}>
+                      <Star className={classNames('h-6 w-6', star <= reviewRating ? 'text-amber-400' : 'text-slate-300')} fill={star <= reviewRating ? "currentColor" : "none"} />
+                    </button>
+                  ))}
+                </div>
+                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-20 w-full text-sm outline-none focus:border-blue-500" aria-label="Review comment (optional)" />
                 <button type="button" onClick={submitReview} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? 'Saving...' : 'Submit Review'}</button>
               </div>
+            ) : (
+              <p className="mt-5 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">You can read all reviews without enrolling. Enroll in this course to submit your own rating and review.</p>
             )}
             <div className="mt-6 space-y-4">
               {reviews.length ? reviews.map((review) => (
                 <div key={review._id} className="border-t border-slate-100 pt-4">
-                  <div className="flex items-center gap-2"><span className="font-semibold text-slate-800">{review.user?.name || 'Learner'}</span><div className="flex text-amber-400">{[1,2,3,4,5].map((star) => <Star key={star} className="h-3.5 w-3.5" fill={star <= review.rating ? "currentColor" : "none"} />)}</div></div>
+                  <div className="flex items-center gap-2"><span className="font-semibold text-slate-800">{review.user?.name || 'Learner'}</span><div className="flex text-amber-400" aria-label={review.rating + ' out of 5 stars'}>{[1,2,3,4,5].map((star) => <Star key={star} className="h-3.5 w-3.5" fill={star <= review.rating ? "currentColor" : "none"} />)}</div></div>
                   {review.comment && <p className="mt-2 text-sm text-slate-600">{review.comment}</p>}
                   <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
                 </div>
               )) : <p className="mt-4 text-sm text-slate-500">No reviews yet. Be the first to review this course.</p>}
             </div>
-          </div>
-          )}
+          </section>
 
           {/* Curriculum */}
           <div className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">

@@ -18,7 +18,7 @@ export interface TutorialContent {
   content: string;
   videoUrl?: string;
   resourceUrl?: string;
-  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; relevanceScore?: number }>;
+  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; durationSeconds?: number; duration?: string; relevanceScore?: number }>;
   resources?: Array<{ title?: string; url?: string; type?: string }>;
 }
 
@@ -111,12 +111,15 @@ export interface Course {
   learning_outcomes: string[];
   modules: Module[];
   is_published: boolean;
+  enrollmentEnabled?: boolean;
+  certificateEnabled?: boolean;
   enrollment_count?: number;
   enrollmentCount?: number;
   cardMetadata?: {
     creatorName?: string;
     typeTag?: string;
     videoCount?: number;
+    previewVideoId?: string;
     qualityScore?: number;
     viewCount?: number;
     likeCount?: number;

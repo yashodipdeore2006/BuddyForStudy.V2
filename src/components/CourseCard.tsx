@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye } from "lucide-react";
+import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -10,6 +10,7 @@ import { getCourseActionState, USER_INTENTS, type CourseActionState } from "@/li
 import { routes } from "@/lib/routes";
 import { getCourseNavTargets } from "@/lib/courseNav";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
+import { shareCourseLink } from "@/lib/shareCourse";
 import { useCourseState } from "@/lib/useCourseState";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
@@ -87,6 +88,7 @@ export default function CourseCard({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
+  const [shareNotice, setShareNotice] = useState("");
   const [undoSavedTo, setUndoSavedTo] = useState<boolean | null>(null);
   const [courseStateRetry, setCourseStateRetry] = useState(0);
 
@@ -165,6 +167,12 @@ export default function CourseCard({
       setSaving(false);
     }
   }, [course.id, navigate, onSavedChange, saved, saving, session]);
+
+  const handleShare = useCallback(async () => {
+    const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });
+    setShareNotice(result === "shared" ? "Course shared." : result === "copied" ? "Course link copied." : "Unable to share this course.");
+    if (result !== "failed") window.setTimeout(() => setShareNotice(""), 2500);
+  }, [course.id, course.title]);
 
   const handleUndoSave = useCallback(async () => {
     if (undoSavedTo === null || saving || !session) return;
@@ -306,6 +314,11 @@ export default function CourseCard({
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}
         {displayOutcome && <p className="bfs-course-card__outcome" title={displayOutcome}>{displayOutcome}</p>}
+        {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0 && <div className="bfs-course-card__rating" aria-label={Number(course.ratingAverage).toFixed(1) + " out of 5, " + course.ratingCount + " reviews"}>
+          <Star size={14} fill="currentColor" aria-hidden="true" />
+          <strong>{Number(course.ratingAverage).toFixed(1)}</strong>
+          <span>({new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(Number(course.ratingCount))} {Number(course.ratingCount) === 1 ? "rating" : "ratings"})</span>
+        </div>}
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">
           {qualityScore !== null && <span className="bfs-course-card__quality" title="BuddyForStudy curation score"><Sparkles size={14} aria-hidden="true" /> {Math.round(qualityScore)}/100 quality</span>}
           {viewCount > 0 && <span title="Combined views for selected YouTube videos"><Eye size={14} aria-hidden="true" /> {formatCompactCount(viewCount)} views</span>}
@@ -316,11 +329,15 @@ export default function CourseCard({
 
       {actionError && <div className="bfs-course-card__error" role="alert"><span>{actionError}</span>{courseState.error && <button type="button" className="bfs-course-card__undo" onClick={() => { setActionError(""); setCourseStateRetry((value) => value + 1); }} disabled={courseState.loading}>{USER_INTENTS.retry.label}</button>}</div>}
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
+      {shareNotice && <div className="bfs-course-card__status" role="status">{shareNotice}</div>}
       <div className="bfs-course-card__action-row">
         <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
           {isFree ? "Free" : course.pricing ? new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)) : ""}
           {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > Number(course.pricing.salePrice ?? course.pricing.price) && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
         </span>
+        <button type="button" onClick={() => void handleShare()} className="bfs-course-card__share" aria-label={"Share " + course.title} title="Share course" >
+          <Share2 size={16} aria-hidden="true" />
+        </button>
         <CourseActionButton
           state={actionState}
           onClick={() => void handlePrimaryAction()}

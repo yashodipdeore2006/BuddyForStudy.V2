@@ -107,6 +107,8 @@ test("card and page source use canonical navigation helpers", () => {
   const app = fs.readFileSync(path.join(root, "src/App.tsx"), "utf8");
   assert.match(card, /to=\{navTargets\.cardHref\}/);
   assert.match(card, /getCourseNavTargets\(/);
+  assert.doesNotMatch(card, /bfs-course-card__progress/);
+  assert.doesNotMatch(myLearning, /bfs-course-card__progress/);
   assert.match(myLearning, /routes\.learn\(activeEnrollment\.course\.id, courseStates\[activeEnrollment\.course\.id\]\?\.nextLessonId\)/);
   assert.match(myLearning, /routes\.roadmap\(course\.id\)/);
   assert.match(myLearning, /routes\.course\(course\.id\)/);

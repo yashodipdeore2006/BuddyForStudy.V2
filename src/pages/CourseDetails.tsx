@@ -494,34 +494,77 @@ export default function CourseDetails() {
           {courseView === 'completion' && <p className="text-sm font-semibold text-emerald-700">Course library</p>}
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{course.title}</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{course.description}</p>
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-slate-600">
-            <span>{Math.round(isCompleted ? 100 : progressPct)}% complete</span>
-            <span>{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons</span>
-            <span>{course.modules.length} modules</span>
+          <div className="mt-6 grid gap-5 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/80 to-white p-5 sm:p-6 md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <p className="text-sm font-semibold text-slate-700">Your learning progress</p>
+                <p className="text-3xl font-bold tracking-tight text-violet-800">{Math.round(isCompleted ? 100 : progressPct)}<span className="ml-1 text-base font-semibold">%</span></p>
+              </div>
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-violet-100" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={isCompleted ? 100 : Math.round(progressPct)}>
+                <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${Math.max(0, Math.min(100, isCompleted ? 100 : progressPct))}%` }} />
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-800">{progress?.completed_count ?? completedLessonIds.size} of {progress?.total_lessons ?? flatLessons.length} lessons completed{estimatedMinutesLeft !== null && !isCompleted ? ` · about ${formatDurationSeconds(estimatedMinutesLeft * 60)} left` : ''}</p>
+              {progress?.last_accessed_at && <p className="mt-1 text-xs text-slate-500">Last accessed {formatDate(progress.last_accessed_at)}</p>}
+            </div>
+            <div className="flex flex-col justify-center rounded-xl border border-white bg-white/90 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next lesson</p>
+              <p className="mt-1 line-clamp-2 font-semibold text-slate-900">{isCompleted ? 'Course completed' : nextLesson ? cleanLessonTitle(nextLesson.title, flatLessons.map((lesson) => lesson.title)) : 'Curriculum coming soon'}</p>
+              {nextLesson && getLessonDurationSeconds(nextLesson) > 0 && <p className="mt-1 text-xs text-slate-500">{formatDurationSeconds(getLessonDurationSeconds(nextLesson))}</p>}
+            </div>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={isCompleted ? 100 : Math.round(progressPct)}>
-            <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: `${Math.max(0, Math.min(100, isCompleted ? 100 : progressPct))}%` }} />
-          </div>
-          {!isCompleted && nextLesson && <p className="mt-4 text-sm text-slate-600">Next: <span className="font-semibold text-slate-900">{nextLesson.title}</span></p>}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button type="button" onClick={handleStartLearning} className="btn-primary">
-              {isCompleted ? 'Review' : progressPct > 0 ? 'Continue' : 'Start'} learning <ChevronRight className="h-4 w-4" />
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button type="button" onClick={handleStartLearning} className="btn-primary max-w-full">
+              {isCompleted ? 'Review course' : progressPct > 0 ? 'Continue: ' + cleanLessonTitle(nextLesson?.title || 'learning', flatLessons.map((lesson) => lesson.title)) : 'Start learning'} <ChevronRight className="h-4 w-4 shrink-0" />
             </button>
-            {hasRoadmap && <Link to={routes.roadmap(course.id)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" />Roadmap</Link>}
+            {hasRoadmap && <Link to={routes.roadmap(course.id)} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" />Open roadmap</Link>}
           </div>
         </section>
 
         <div className="mt-8 border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Course sections">
             {hubTabs.map((tab) => (
-              <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setCourseTab(tab)} className={classNames('shrink-0 border-b-2 px-4 py-3 text-sm font-semibold capitalize transition-colors', activeTab === tab ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-900')}>
-                {tab}
+              <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setCourseTab(tab)} className={classNames('shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors', activeTab === tab ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-900')}>
+                {{ overview: 'Overview', curriculum: 'Curriculum', notes: 'Notes', about: 'About' }[tab]}
               </button>
             ))}
           </div>
         </div>
 
         <section role="tabpanel" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
+          {activeTab === 'overview' && <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Your next lessons</h2>
+              <p className="mt-1 text-sm text-slate-500">Pick up where you left off, or preview what comes next.</p>
+              <div className="mt-4 space-y-2">
+                {flatLessons.filter((lesson) => !completedLessonIds.has(String(lesson.id))).slice(0, 3).map((lesson, index) => {
+                  const isNext = String(lesson.id) === String(nextLesson?.id);
+                  const LessonIcon: LucideIcon = lesson.type === 'quiz' ? CircleHelp : lesson.type === 'project' ? ListChecks : Play;
+                  const title = cleanLessonTitle(lesson.title, flatLessons.map((item) => item.title));
+                  const duration = getLessonDurationSeconds(lesson);
+                  return <Link key={lesson.id} to={routes.learn(course.id, lesson.id)} className={classNames('flex items-center gap-3 rounded-xl border p-3 transition', isNext ? 'border-violet-200 bg-violet-50/70' : 'border-slate-200 hover:bg-slate-50')}>
+                    <span className={classNames('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', isNext ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600')}><LessonIcon className="h-4 w-4" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-slate-500">{isNext ? 'Up next' : 'Coming up'}</span><span className="mt-0.5 block line-clamp-2 text-sm font-semibold text-slate-900">{title}</span></span>
+                    {duration > 0 && <span className="shrink-0 text-xs text-slate-500">{formatDurationSeconds(duration)}</span>}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                  </Link>;
+                })}
+                {flatLessons.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">The instructor has not added lessons yet.</p>}
+                {isCompleted && <p className="rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800">You’ve completed this course. Use Curriculum to revisit any lesson.</p>}
+              </div>
+            </div>
+            <aside className="space-y-3">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Recent notes</p>
+                {courseNotes.trim() ? <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-slate-600">{courseNotes.trim()}</p> : <p className="mt-2 text-sm leading-6 text-slate-500">Your course notes will appear here after you save them.</p>}
+                <button type="button" onClick={() => setCourseTab('notes')} className="mt-3 text-sm font-semibold text-violet-700 hover:text-violet-900">Open notes</button>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Learning activity</p>
+                <p className="mt-2 text-sm text-slate-600">{progress?.last_accessed_at ? 'Last accessed ' + formatDate(progress.last_accessed_at) : 'Your first lesson is ready when you are.'}</p>
+                {course.modules.length > 1 && <p className="mt-2 text-xs text-slate-500">{course.modules.length} modules in this course</p>}
+              </div>
+            </aside>
+          </div>}
           {activeTab === 'curriculum' && <>
             <div className="mb-5"><h2 className="text-xl font-semibold text-slate-950">Curriculum</h2><p className="mt-1 text-sm text-slate-500">{course.modules.length} modules · {lessonCount} lessons</p></div>
             <div className="space-y-4">

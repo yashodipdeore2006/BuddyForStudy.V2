@@ -376,7 +376,7 @@ export default function Home() {
               : course.category ? 'Explore ' + course.category : 'Explore this learning path';
             return <div key={course.id} className="min-w-0"><CourseCard course={course} variant="recommended" reason={reason} /></div>;
           })}</div>
-          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)}aria-label="Retry recommendations">{USER_INTENTS.retry.label}</button>}</div>}
+          : <div className="user-home__empty"><div className="user-home__empty-icon"><BookOpen size={24} aria-hidden="true" /></div><h3>{data.courses.length ? 'You’re enrolled in all courses shown' : 'No courses available right now'}</h3><p>{data.courses.length ? 'Explore the full catalog to find another topic.' : 'Try again shortly or visit Explore to check the catalog.'}</p><Link className="user-home__button" to="/courses">{USER_INTENTS.explore.label} <ArrowRight size={16} aria-hidden="true" /></Link>{sectionErrors.length > 0 && <button className="user-home__link" type="button" onClick={() => void loadHome(true)} aria-label="Retry recommendations">{USER_INTENTS.retry.label}</button>}</div>}
       </section>
     </div>
   </main>;

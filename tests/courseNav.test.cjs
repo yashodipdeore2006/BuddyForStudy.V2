@@ -106,7 +106,7 @@ test("card and page source use canonical navigation helpers", () => {
   const app = fs.readFileSync(path.join(root, "src/App.tsx"), "utf8");
   assert.match(card, /to=\{navTargets\.cardHref\}/);
   assert.match(card, /getCourseNavTargets\(/);
-  assert.match(myLearning, /routes\.learn\(course\.id, state\.nextLessonId\)/);
+  assert.match(myLearning, /routes\.learn\(activeEnrollment\.course\.id, courseStates\[activeEnrollment\.course\.id\]\?\.nextLessonId\)/);
   assert.match(myLearning, /routes\.roadmap\(course\.id\)/);
   assert.match(myLearning, /routes\.course\(course\.id\)/);
   assert.match(myLearning, /"not-started"/);
@@ -114,6 +114,8 @@ test("card and page source use canonical navigation helpers", () => {
   assert.match(myLearning, /Recently active/);
   assert.match(myLearning, /api\/enrollments\//);
   assert.match(myLearning, /role="dialog"/);
+  assert.match(myLearning, /Undo/);
+  assert.match(myLearning, /aria-current=\{activeTab === tab \? "page" : undefined\}/);
   assert.match(roadmap, /Promise\.allSettled/);
   assert.match(app, /<Route path="\*" element=\{<NotFound \/>} \/>/);
 });

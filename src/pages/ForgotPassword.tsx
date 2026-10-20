@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, KeyRound, Mail, RotateCw } from "lucide-reac
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
+import { routes } from "@/lib/routes";
 
 const RESEND_SECONDS = 60;
 
@@ -73,7 +74,7 @@ export default function ForgotPassword() {
     setLoading(true);
     try {
       await resetPassword(email, otp, newPassword);
-      navigate("/dashboard", { replace: true });
+      navigate(routes.home(), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to reset the password.");
     } finally {
@@ -88,7 +89,7 @@ export default function ForgotPassword() {
       footer={
         <>
           Remembered your password?{" "}
-          <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
             Back to sign in
           </Link>
         </>

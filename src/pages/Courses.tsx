@@ -65,7 +65,6 @@ export default function Courses() {
   const [aiOpen, setAiOpen] = useState(false);
   const aiDialogRef = useRef<HTMLElement | null>(null);
   const aiLoadingRef = useRef(false);
-  aiLoadingRef.current = aiLoading;
   const [aiTopic, setAiTopic] = useState('');
   const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
   const [aiCustomGoal, setAiCustomGoal] = useState('');
@@ -256,6 +255,7 @@ export default function Courses() {
     }
 
     setAiLoading(true);
+    aiLoadingRef.current = true;
     setAiError(null);
     try {
       const data = await apiFetch('/api/ai/roadmap', {
@@ -276,6 +276,7 @@ export default function Courses() {
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
     } finally {
+      aiLoadingRef.current = false;
       setAiLoading(false);
     }
   };
@@ -503,6 +504,12 @@ export default function Courses() {
                   value={aiTopic}
                   onChange={(event) => setAiTopic(event.target.value)}
                   placeholder="e.g. data analytics, conversational Spanish, nutrition, project management…"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void generateAiRoadmap();
+                    }
+                  }}
                   className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
                 />
                 <p className="mt-1 text-xs text-slate-500">A subject, skill, question, exam, hobby, or real-world outcome all work.</p>

@@ -85,7 +85,7 @@ test("all state combinations preserve navigation invariants", () => {
                 assert.equal(result.primary.label, "Start");
               }
               const links = result.overflow.filter((item) => item.kind === "link");
-              assert.equal(links.some((item) => item.label === "Roadmap"), hasRoadmap);
+              assert.equal(links.some((item) => item.label === "Roadmap"), isEnrolled && hasRoadmap);
               for (const item of [result.primary, ...result.overflow]) {
                 if (item.href) assert.doesNotMatch(item.href, /undefined|null|\/\//);
               }

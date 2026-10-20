@@ -474,7 +474,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
     let youtubeError = "";
 
     try {
-      curation = await curateNormalSearch(normalizedSearch);
+      curation = await curateNormalSearch(normalizedSearch, { category, level });
       youtubeError = String(curation?.meta?.youtubeError || "");
     } catch (error) {
       youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";

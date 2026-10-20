@@ -47,7 +47,7 @@ function parseDurationValue(value: unknown): number {
 function getPlayerLessonDurationSeconds(lesson: Course["modules"][number]["lessons"][number]): number {
   if (Number(lesson.durationSeconds) > 0) return Number(lesson.durationSeconds);
   const videos = [...(lesson.tutorial?.videos || []), ...(lesson.project?.videos || [])];
-  const videoDuration = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || parseDurationValue(video.duration)), 0);
+  const videoDuration = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || parseDurationValue("duration" in video ? video.duration : undefined)), 0);
   return videoDuration || Math.max(0, parseDurationValue((lesson as typeof lesson & { duration?: string }).duration));
 }
 

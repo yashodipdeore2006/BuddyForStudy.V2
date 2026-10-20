@@ -23,7 +23,7 @@ const initialState: CourseState = {
   hasPreview: false, isPublished: true, error: null,
 };
 
-export function useCourseState(courseId: string | undefined, course?: Course | null, enabled = true): CourseState {
+export function useCourseState(courseId: string | undefined, course?: Course | null, enabled = true, refreshKey = 0): CourseState {
   const [remote, setRemote] = useState<CourseState>(initialState);
   const lessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
   const lessonKey = lessons.map((lesson) => String(lesson.id)).join("|");
@@ -84,7 +84,7 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
     });
 
     return () => { current = false; };
-  }, [courseId, course?.id, course?.is_published, enabled, hasRoadmap, lessonKey]);
+  }, [courseId, course?.id, course?.is_published, enabled, hasRoadmap, lessonKey, refreshKey]);
 
   return { ...remote, hasRoadmap: course ? hasRoadmap : remote.hasRoadmap, isPublished: course ? course.is_published !== false : remote.isPublished };
 }

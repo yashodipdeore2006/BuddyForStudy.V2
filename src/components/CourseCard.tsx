@@ -78,6 +78,7 @@ export default function CourseCard({
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [undoSavedTo, setUndoSavedTo] = useState<boolean | null>(null);
+  const [courseStateRetry, setCourseStateRetry] = useState(0);
 
   useEffect(() => {
     if (undoSavedTo === null) return;
@@ -88,7 +89,7 @@ export default function CourseCard({
     return () => window.clearTimeout(timeout);
   }, [undoSavedTo]);
 
-  const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id));
+  const courseState = useCourseState(String(course.id), course, Boolean(session?.user?.id), courseStateRetry);
 
   useEffect(() => {
     let active = true;
@@ -306,7 +307,7 @@ export default function CourseCard({
         )}
       </div>
 
-      {actionError && <p className="bfs-course-card__error" role="alert">{actionError}</p>}
+      {actionError && <div className="bfs-course-card__error" role="alert"><span>{actionError}</span>{courseState.error && <button type="button" className="bfs-course-card__undo" onClick={() => { setActionError(""); setCourseStateRetry((value) => value + 1); }} disabled={courseState.loading}>{USER_INTENTS.retry.label}</button>}</div>}
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
       <div className="bfs-course-card__action-row">
         <CourseActionButton

@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen, Compass, GraduationCap, Home, LoaderCircle, Searc
 import { apiFetch } from "@/lib/api";
 import type { Course } from "@/types";
 import { routes } from "@/lib/routes";
+import { USER_INTENTS } from "@/lib/intents";
 
 type CommandItem = {
   id: string;
@@ -47,6 +48,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +95,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, query]);
+  }, [open, query, retryKey]);
 
   const commands = useMemo(() => query.trim() ? [] : PAGE_COMMANDS, [query]);
   const itemCount = commands.length + courses.length;
@@ -188,7 +190,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
             </button>;
           })}
           {loading && <p className="bfs-command-message" role="status"><LoaderCircle className="bfs-spin" size={16} /> Searching courses…</p>}
-          {error && <p className="bfs-command-message bfs-command-message--error" role="alert">{error}</p>}
+          {error && <div className="bfs-command-message bfs-command-message--error" role="alert"><span>{error}</span><button type="button" className="bfs-command-retry" onClick={() => setRetryKey((value) => value + 1)}>{USER_INTENTS.retry.label}</button></div>}
           {!loading && query.trim() && !error && !courses.length && <p className="bfs-command-message">No courses found. Try another search.</p>}
         </div>
         <footer className="bfs-command-footer"><span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span><span><kbd>Enter</kbd> to open</span><span><kbd>Ctrl</kbd> <kbd>K</kbd> to search</span></footer>

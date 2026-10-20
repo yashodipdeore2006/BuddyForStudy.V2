@@ -663,7 +663,7 @@ export function adjustFreshnessWithCurationFeedback(freshnessScoreValue, feedbac
   return clamp(Number(freshnessScoreValue || 0) * (1 - 0.25 * confidence));
 }
 
-function engagementFeatures(candidates, candidate, feedback = {}) {
+function engagementFeatures(candidates, candidate) {
   const medianLikeRate = median(candidates.map((item) => Number(item.viewCount) > 0 ? Number(item.likeCount || 0) / Number(item.viewCount) : NaN).filter(Number.isFinite));
   const views = Math.max(0, Number(candidate.viewCount) || 0);
   const likes = Math.max(0, Number(candidate.likeCount) || 0);
@@ -677,16 +677,33 @@ function engagementFeatures(candidates, candidate, feedback = {}) {
   const commentsRates = candidates.map((item) => Number(item.viewCount) > 0 ? Number(item.commentCount || 0) / Number(item.viewCount) : NaN);
   const likePct = percentile(likeRates, smoothedLikeRate) * 100;
   const commentPct = comments ? percentile(commentsRates.filter(Number.isFinite), views > 0 ? comments / views : 0) * 100 : 50;
-  const youtubeScore = clamp((likePct * 0.8) + (commentPct * 0.2));
-  const adjusted = adjustEngagementWithCurationFeedback(youtubeScore, feedback);
+  const score = clamp((likePct * 0.8) + (commentPct * 0.2));
   return {
-    score: adjusted.score,
+    score,
     smoothedLikeRate,
     likePercentile: likePct,
     commentRatioPercentile: commentPct,
     viewsPercentile: percentile(candidates.map((item) => logMetric(item.viewCount)), logMetric(views)),
-    confidence: views > 0 ? 0.95 : 0.40,
-    ...adjusted
+    confidence: views > 0 ? 0.95 : 0.40
+  };
+}
+
+function communityFeatures(feedback = {}) {
+  const adjustment = adjustEngagementWithCurationFeedback(50, feedback);
+  const evidenceCount = Number(adjustment.explicitVotes || 0);
+  const softEvidence = 0.25 * Number(adjustment.saves || 0) + 0.5 * Number(adjustment.enrollments || 0);
+  const evidenceStrength = evidenceCount + softEvidence;
+  return {
+    score: evidenceStrength > 0 ? adjustment.score : 50,
+    confidence: evidenceStrength / (evidenceStrength + 8),
+    evidenceCount,
+    explicitVotes: evidenceCount,
+    thumbsUp: Number(adjustment.thumbsUp || 0),
+    thumbsDown: Number(adjustment.thumbsDown || 0),
+    outdated: Number(adjustment.outdated || 0),
+    saves: Number(adjustment.saves || 0),
+    enrollments: Number(adjustment.enrollments || 0),
+    status: evidenceStrength > 0 ? "learner-feedback-only" : "unavailable"
   };
 }
 function freshnessFeatures(candidate, profile, feedback = {}) {
@@ -759,11 +776,11 @@ function makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap = 
   const feedback = feedbackMap.get(candidate.sourceId) || {};
   const coverage = syllabusCoverage(candidate, syllabus);
   const instruction = instructionalFeatures(candidate);
-  const engagement = engagementFeatures(candidates, candidate, feedback);
+  const engagement = engagementFeatures(candidates, candidate);
   const authority = authorityFeatures(candidates, candidate);
+  const community = communityFeatures(feedback);
   const freshness = freshnessFeatures(candidate, profile, feedback);
   const fit = fitFeatures(candidate, profile);
-  const community = { score: 50, confidence: 0, evidenceCount: 0, status: "unavailable" };
   const rawQuality =
     coverage.score * SIGNAL_WEIGHTS.coverage +
     instruction.score * SIGNAL_WEIGHTS.instruction +
@@ -799,15 +816,16 @@ function addExplanations(candidate, features, syllabus) {
   }
   if (candidate.hasHandsOn) why.push("Description or lesson titles indicate practical exercises, projects, or demonstrations.");
   if (features.engagement.likePercentile >= 80) why.push("Engagement quality is in the top 20% of this candidate set after smoothing for low view counts.");
-  if (features.engagement.explicitVotes >= 3) {
-    const voteCount = features.engagement.explicitVotes;
-    const positiveCount = features.engagement.thumbsUp;
+  if (features.community.explicitVotes >= 3) {
+    const voteCount = features.community.explicitVotes;
+    const positiveCount = features.community.thumbsUp;
     why.push(positiveCount + " of " + voteCount + " learner relevance votes were positive.");
   }
   if (features.freshness.outdatedFeedbackCount >= 2) why.push(features.freshness.outdatedFeedbackCount + " learners reported this resource as potentially outdated.");
   if (features.freshness.score >= 85) why.push("Recent relative to this topic's freshness window.");
   if (candidate.isHiddenGem) why.push("Hidden gem: strong quality evidence with below-median views.");
   if (candidate.sourceType === "series") why.push("Numbered parts from the same creator were assembled into one series.");
+  if (features.community.status === "learner-feedback-only") why.push("Community consensus currently reflects BuddyForStudy learner feedback only; external forum recommendations are not connected.");
   if (features.community.status === "unavailable" && features.coverage.score < 45) why.push("This is a metadata-level match; transcript and independent community checks are not available.");
   return why.slice(0, 5);
 }
@@ -900,9 +918,9 @@ function setRankingSlots(candidates) {
       authority: Math.round(candidate.features.authority.score),
       freshness: Math.round(candidate.features.freshness.score),
       fit: Math.round(candidate.features.fit.score),
-      learnerFeedback: Math.round(candidate.features.engagement.feedbackScore),
-      learnerFeedbackVotes: Math.round(candidate.features.engagement.explicitVotes),
-      community: "unavailable"
+      learnerFeedback: Math.round(candidate.features.community.score),
+      learnerFeedbackVotes: Math.round(candidate.features.community.explicitVotes),
+      community: candidate.features.community.status
     },
     sourceTypeVersion: ENGINE_VERSION,
     items: (candidate.items || []).slice(0, 12).map((item) => ({

@@ -6,7 +6,8 @@ import { evaluateCurationRanking, summarizeCurationEvaluation } from "../service
 
 const fixturePath = process.argv[2] || new URL("../../data/course-curation-golden-set.json", import.meta.url).pathname;
 const k = Math.max(1, Math.min(10, Number(process.env.CURATION_EVAL_K) || 10));
-const junkRateTarget = Math.max(0, Math.min(1, Number(process.env.CURATION_EVAL_MAX_JUNK_RATE) || 0.05));
+const junkRateTargetInput = process.env.CURATION_EVAL_MAX_JUNK_RATE;
+const junkRateTarget = junkRateTargetInput === undefined ? 0.05 : Math.max(0, Math.min(1, Number(junkRateTargetInput) || 0));
 
 async function main() {
   let cases;

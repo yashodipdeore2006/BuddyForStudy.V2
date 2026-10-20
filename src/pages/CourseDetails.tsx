@@ -27,6 +27,7 @@ import { classNames, formatDate } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import ExpandableText from '@/components/ExpandableText';
 import { routes } from '@/lib/routes';
+import { routes } from "@/lib/routes";
 
 function formatCoursePrice(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
@@ -554,7 +555,7 @@ export default function CourseDetails() {
             ) : (
               <div>
                 <button
-                  onClick={isPaidCourse ? (purchaseChoice === 'subscription' ? () => navigate('/pricing') : handleCheckout) : handleEnroll}
+                  onClick={isPaidCourse ? (purchaseChoice === 'subscription' ? () => navigate(routes.pricing()) : handleCheckout) : handleEnroll}
                   disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled}
                   className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse && purchaseChoice === 'individual' ? "btn-buy" : "btn-primary")}
                 >

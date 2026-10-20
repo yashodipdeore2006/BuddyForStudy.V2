@@ -82,13 +82,19 @@ const moduleSchema = new mongoose.Schema({
   lessons: { type: [lessonSchema], default: [] }
 });
 
+const journeyStageSchema = new mongoose.Schema({
+  id: { type: String, required: true }, order: { type: Number, required: true }, title: { type: String, required: true, trim: true, maxlength: 100 },
+  hours: { type: Number, default: 0, min: 0 }, lessonIds: { type: [String], default: [] }, skills: { type: [String], default: [] }, outcome: { type: String, default: "", maxlength: 1000 }, emoji: { type: String, default: "" }
+}, { _id: false });
+const courseRoadmapSchema = new mongoose.Schema({ theme: { type: String, default: "trail", trim: true }, sourceFingerprint: { type: String, default: "" }, generatedAt: { type: Date, default: null }, stages: { type: [journeyStageSchema], default: [] } }, { _id: false });
+
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
   description: { type: String, required: true, trim: true }, category: { type: String, required: true, trim: true },
   level: { type: String, enum: ["Beginner", "Intermediate", "Advanced"], required: true },
   duration: { type: String, required: true, trim: true }, thumbnail: { type: String, default: "" },
-  learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] },
+  learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] }, roadmap: { type: courseRoadmapSchema, default: () => ({ theme: "trail", stages: [] }) },
   isPublished: { type: Boolean, default: false, required: true },
   status: { type: String, enum: ["draft", "published", "archived"], default: "draft", index: true },
   deletedAt: { type: Date, default: null, index: true },

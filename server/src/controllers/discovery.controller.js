@@ -38,7 +38,7 @@ const curationFeedbackSchema = z.object({
   event: z.enum(["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report"]),
   resourceType: z.enum(["video", "playlist", "series"]),
   resourceId: z.string().trim().min(2).max(200),
-  engineVersion: z.string().trim().min(1).max(100).default("course-curation-decision-engine-v1.3"),
+  engineVersion: z.string().trim().min(1).max(100).default("course-curation-decision-engine-v1.4"),
   rank: z.number().int().min(1).max(100).optional(),
   score: z.number().min(0).max(100).optional()
 });

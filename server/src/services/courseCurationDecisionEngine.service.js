@@ -338,7 +338,7 @@ function hasSyllabusEvidence(candidate) {
   return Boolean(candidate.hasSyllabus || /\b(what you(?:'|’)ll learn|course content|curriculum|syllabus|topics covered|learning objectives|course outline|contents)\b/i.test(description));
 }
 function hasStructureEvidence(candidate) {
-  if (candidate.sourceType === "playlist") {
+  if (candidate.sourceType === "playlist" || candidate.sourceType === "series") {
     const items = Array.isArray(candidate.items) ? candidate.items : [];
     const numbered = items.filter((item) => /\b(?:part|episode|lesson|lecture|chapter)\s*#?\s*\d+\b|\[\s*\d+\s*\/\s*\d+\s*\]/i.test(item.title || "")).length;
     return numbered >= 3 || hasSyllabusEvidence(candidate) || candidate.hasChapters;
@@ -353,6 +353,9 @@ function languageAllowed(candidate, profile) {
       const matching = declared.filter((language) => language === expected || language.startsWith(expected + "-")).length;
       return matching / declared.length >= 0.8;
     }
+    // Missing language metadata is not proof of a mismatch; only explicit requests
+    // require positive language evidence.
+    return !profile.languageExplicit;
   }
   const actual = String(candidate.defaultAudioLanguage || "").toLowerCase();
   if (!actual) return !profile.languageExplicit;
@@ -524,19 +527,21 @@ function playlistCandidate(playlist, profile) {
 }
 function computePlaylistStats(candidate, playlistDetail, originalCount) {
   const rawLessons = Array.isArray(playlistDetail?.lessons) ? playlistDetail.lessons : [];
-  const observedCount = Math.min(Math.max(0, Number(originalCount) || rawLessons.length), 100);
+  const totalCount = Math.max(0, Number(playlistDetail?.totalItemCount || originalCount || rawLessons.length));
+  const observedCount = Math.max(0, Math.min(totalCount || rawLessons.length, Number(playlistDetail?.observedItemCount || rawLessons.length)));
   const validLessons = rawLessons.filter((item) =>
     item.videoId &&
-    Number(item.durationSeconds || 0) > 180 &&
+    Number(item.durationSeconds || 0) > 60 &&
     item.embeddable !== false &&
     item.privacyStatus !== "private" &&
+    !item.isShort &&
     !/(^|[\s#])shorts?([\s#]|$)/i.test(item.title || "")
   );
   const integrity = observedCount ? validLessons.length / observedCount : 0;
   const observedRuntime = validLessons.reduce((sum, item) => sum + Number(item.durationSeconds || 0), 0);
   const averageRuntime = validLessons.length ? observedRuntime / validLessons.length : 0;
-  const runtimeEstimated = Number(originalCount || 0) > observedCount && averageRuntime > 0;
-  const runtimeSeconds = runtimeEstimated ? averageRuntime * Number(originalCount) : observedRuntime;
+  const runtimeEstimated = totalCount > observedCount && averageRuntime > 0;
+  const runtimeSeconds = runtimeEstimated ? averageRuntime * totalCount : observedRuntime;
   const orderedTitles = validLessons.map((item) => String(item.title || ""));
   const numberedCount = orderedTitles.filter((title) => /\b(?:part|episode|lesson|lecture|chapter)\s*#?\s*\d+\b|\[\s*\d+\s*\/\s*\d+\s*\]/i.test(title)).length;
   const lessonText = validLessons.map((item) => item.title + " " + (item.description || "")).join(" ");
@@ -545,11 +550,11 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   candidate.description = playlistDetail?.description || candidate.description;
   candidate.thumbnail = playlistDetail?.thumbnail || candidate.thumbnail;
   candidate.channelTitle = playlistDetail?.channelTitle || candidate.channelTitle;
-  candidate.itemCount = Number(originalCount || playlistDetail?.itemCount || validLessons.length);
+  candidate.itemCount = Number(totalCount || playlistDetail?.itemCount || validLessons.length);
   candidate.items = validLessons;
   candidate.observedItemCount = observedCount;
   candidate.integrity = integrity;
-  candidate.integrityEstimated = Number(originalCount || 0) > observedCount;
+  candidate.integrityEstimated = totalCount > observedCount;
   candidate.durationSeconds = runtimeSeconds;
   candidate.duration = formatDuration(runtimeSeconds);
   candidate.durationEstimated = runtimeEstimated;
@@ -560,11 +565,11 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   candidate.hasResourceLinks = validLessons.some((item) => /https?:\/\//i.test(item.description || ""));
   candidate.embeddable = integrity >= 0.8;
   candidate.privacyStatus = "public";
-  candidate.defaultAudioLanguage = "";
   const languages = validLessons.map((item) => String(item.defaultAudioLanguage || "").toLowerCase()).filter(Boolean);
   candidate.languageEvidenceCount = languages.length;
   candidate.languageMatches = languages.filter((language) => language === "en" || language.startsWith("en-")).length;
-  candidate.defaultAudioLanguage = languages.length ? "en" : "";
+  // Never label a playlist English merely because language metadata exists.
+  candidate.defaultAudioLanguage = "";
   candidate.publishedAt = medianDate(validLessons.map((item) => item.publishedAt)) || candidate.publishedAt;
   candidate.viewCount = Math.round(validLessons.reduce((sum, item) => sum + Number(item.viewCount || 0), 0) / Math.max(1, validLessons.length));
   candidate.likeCount = Math.round(validLessons.reduce((sum, item) => sum + Number(item.likeCount || 0), 0) / Math.max(1, validLessons.length));
@@ -870,7 +875,7 @@ function selectInitialShortlist(videos, playlists, profile) {
     prefilteredPlaylistCount: playlistPool.length
   };
 }
-async function enrichPlaylists(candidates) {
+async function enrichPlaylists(candidates, profile) {
   const playlists = candidates.filter((candidate) => candidate.sourceType === "playlist");
   const detailMap = new Map();
   const batchSize = 4;
@@ -893,12 +898,9 @@ async function enrichPlaylists(candidates) {
     if (!result?.detail) return { ...candidate, integrity: 0, hasStructure: false, durationSeconds: 0 };
     const enriched = computePlaylistStats(candidate, result.detail, result.originalCount);
     enriched.hasStructure = hasStructureEvidence(enriched);
-    enriched.queryTermStats = queryTermStats(candidate.title + " " + profileQueryFromCandidate(enriched), enriched);
+    enriched.queryTermStats = queryTermStats(profile.query, enriched);
     return enriched;
   });
-}
-function profileQueryFromCandidate(candidate) {
-  return candidate.curationQuery || candidate.title;
 }
 function hardGateEnriched(candidates, profile) {
   const accepted = [];
@@ -990,7 +992,7 @@ export async function curateNormalSearch(query) {
   }
 
   const initial = selectInitialShortlist(pool.videos || [], pool.playlists || [], profile);
-  const enriched = await enrichPlaylists(initial.shortlist);
+  const enriched = await enrichPlaylists(initial.shortlist, profile);
   const gates = hardGateEnriched(enriched, profile);
   const deduplicated = dedupeCandidates(gates.accepted);
   const scored = scoreFinalCandidates(deduplicated, profile, syllabus);

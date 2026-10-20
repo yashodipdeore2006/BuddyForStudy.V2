@@ -675,11 +675,11 @@ function formatDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
-export async function searchStructuredPlaylists(query, maxResults) {
+export async function searchStructuredPlaylists(query, maxResults, searchOptions = {}) {
   const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
   const requestedCount = Math.max(1, Math.min(Number(maxResults ?? setting?.value) || 30, 30));
   const normalizedQuery = String(query || "").trim();
-  const key = `search:${normalizedQuery.toLowerCase()}:${requestedCount}`;
+  const key = `search:${normalizedQuery.toLowerCase()}:${requestedCount}:${String(searchOptions.relevanceLanguage || "en")}:${String(searchOptions.regionCode || "IN")}`;
   const cached = getPlaylistCache(key);
   if (cached !== null) return cached;
 
@@ -694,8 +694,8 @@ export async function searchStructuredPlaylists(query, maxResults) {
       q: normalizedQuery,
       maxResults: pageSize,
       ...(pageToken ? { pageToken } : {}),
-      relevanceLanguage: "en",
-      regionCode: "IN",
+      relevanceLanguage: searchOptions.relevanceLanguage || "en",
+      regionCode: searchOptions.regionCode || "IN",
       safeSearch: "moderate"
     });
     searchItems.push(...(data.items || []));

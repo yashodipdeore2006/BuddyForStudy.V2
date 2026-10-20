@@ -321,11 +321,38 @@ export default function CourseCard({
         </div>
         {showProgress && (
           <div className="bfs-course-card__progress">
-            <div className="bfs-course-card__progress-label"><span>{enrollmentState === "completed" ? "Completed" : progress > 0 ? "In progress" : "Not started"}</span><span>{Math.round(progress)}%</span></div>
-            <div className="bfs-course-card__progress-track" role="progressbar" aria-label={course.title + " progress"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
-              <div className={enrollmentState === "completed" ? "bfs-course-card__progress-fill bfs-course-card__progress-fill--completed" : "bfs-course-card__progress-fill"} style={{ width: Math.round(progress) + "%" }} />
+            <div className="bfs-course-card__progress-label">
+              <span>
+                {enrollmentState === "completed"
+                  ? "Completed"
+                  : progress > 0
+                    ? "In progress"
+                    : "Not started"}
+              </span>
+              <span>{Math.round(progress)}%</span>
             </div>
-            {totalLessons > 0 && <p className="bfs-course-card__meta">{completedLessons} of {totalLessons} lessons</p>}
+            <div
+              className="bfs-course-card__progress-track"
+              role="progressbar"
+              aria-label={course.title + " progress"}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress)}
+            >
+              <div
+                className={
+                  enrollmentState === "completed"
+                    ? "bfs-course-card__progress-fill bfs-course-card__progress-fill--completed"
+                    : "bfs-course-card__progress-fill"
+                }
+                style={{ width: Math.round(progress) + "%" }}
+              />
+            </div>
+            {totalLessons > 0 && (
+              <p className="bfs-course-card__meta">
+                {completedLessons} of {totalLessons} lessons
+              </p>
+            )}
           </div>
         )}
       </div>

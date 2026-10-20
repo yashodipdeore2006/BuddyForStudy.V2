@@ -5,7 +5,7 @@ import { env } from "../config/env.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { CourseCurationCache } from "../models/CourseCurationCache.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
-import { searchYouTubeCurationCandidates } from "./youtube.service.js";
+import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./youtube.service.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
 const ENGINE_VERSION = "course-curation-decision-engine-v1.4";
@@ -417,7 +417,12 @@ function buildCandidateQueries(profile, syllabus) {
 function queryTermStats(query, candidate) {
   const queryTerms = tokens(query);
   const title = normalizeText(candidate.title);
-  const body = normalizeText(candidate.description);
+  const supportingMetadata = [
+    candidate.description,
+    ...(Array.isArray(candidate.tags) ? candidate.tags : []),
+    ...(Array.isArray(candidate.items) ? candidate.items.flatMap((item) => [item.title, item.description]) : [])
+  ].join(" ");
+  const body = normalizeText(supportingMetadata);
   const full = title + " " + body;
   const matchedTitle = queryTerms.filter((term) => title.includes(term)).length;
   const matchedAll = queryTerms.filter((term) => full.includes(term)).length;
@@ -446,7 +451,7 @@ function isNegativeIntent(candidate, profile) {
 function candidateText(candidate) {
   const items = Array.isArray(candidate.items) ? candidate.items : [];
   const lessonText = items.map((item) => [item.title, item.description].join(" ")).join(" ");
-  return normalizeText([candidate.title, candidate.description, lessonText, candidate.channelTitle].join(" "));
+  return normalizeText([candidate.title, candidate.description, ...(candidate.tags || []), lessonText, candidate.channelTitle].join(" "));
 }
 function syllabusCoverage(candidate, syllabus) {
   const text = candidateText(candidate);
@@ -1481,8 +1486,9 @@ export async function curateNormalSearch(query) {
   const poolCacheHit = Boolean(pool);
   let youtubeError = "";
   if (!pool) {
+    const searchOptions = getYouTubeSearchOptions(profile.language, profile.languageExplicit);
     const [videoResult, playlistResult] = await Promise.allSettled([
-      searchYouTubeCurationCandidates(queries, settingCount),
+      searchYouTubeCurationCandidates(queries, settingCount, searchOptions),
       searchStructuredPlaylists(profile.query, Math.min(30, settingCount))
     ]);
     const videos = videoResult.status === "fulfilled" ? videoResult.value : [];

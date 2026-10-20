@@ -149,7 +149,6 @@ export default function CourseCard({
     if (actionLoading) return;
     setActionError("");
     setActionNotice("");
-    setUndoSaveValue(null);
     if (!session && enrollmentState === "not-enrolled") {
       navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
       return;

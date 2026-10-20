@@ -1,6 +1,7 @@
 import { z } from "zod";
 import * as courseService from "../services/course.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
@@ -40,7 +41,20 @@ export async function list(req, res, next) {
       level: req.query.level,
       sort: req.query.sort === "popular" ? "popular" : "recent"
     });
-    return success(res, { ...result, courses: (result.courses || []).map(toPublicCoursePreview) });
+    const courses = result.courses || [];
+    const courseIds = courses.map((course) => course?._id).filter(Boolean);
+    const enrollmentCounts = courseIds.length ? await Enrollment.aggregate([
+      { $match: { course: { $in: courseIds }, status: { $in: ["active", "completed"] } } },
+      { $group: { _id: "$course", count: { $sum: 1 } } }
+    ]) : [];
+    const countsByCourseId = new Map(enrollmentCounts.map((entry) => [String(entry._id), Number(entry.count) || 0]));
+    return success(res, {
+      ...result,
+      courses: courses.map((course) => toPublicCoursePreview({
+        ...course,
+        enrollmentCount: course.enrollmentCount ?? countsByCourseId.get(String(course._id)) ?? 0
+      }))
+    });
   } catch (e) { next(e); }
 }
 
@@ -55,7 +69,15 @@ export async function details(req, res, next) {
     const course = await courseService.getPublished(req.params.courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
 
-    const preview = toPublicCoursePreview(course);
+    const [enrollmentCount] = await Enrollment.aggregate([
+      { $match: { course: course._id, status: { $in: ["active", "completed"] } } },
+      { $count: "count" }
+    ]);
+    const source = typeof course.toObject === "function" ? course.toObject() : course;
+    const preview = toPublicCoursePreview({
+      ...source,
+      enrollmentCount: source.enrollmentCount ?? enrollmentCount?.count ?? 0
+    });
     return success(res, { course: preview });
   } catch (e) { next(e); }
 }

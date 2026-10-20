@@ -240,7 +240,7 @@ export default function Home() {
     return <main className="user-home" id="main-content"><div className="user-home__shell user-home__stack">
       <div><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div>
       <SkeletonResume />
-      <div className="user-home__stats">{[1, 2, 3].map((item) => <div key={item} className="user-home__panel" aria-hidden="true"><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div>)}</div>
+      <div className="user-home__learning-widgets" aria-hidden="true">{[1, 2, 3, 4].map((item) => <div key={item} className="user-home__goal-card"><div className="user-home__skeleton" style={{ width: 56, height: 56, flex: "0 0 auto", borderRadius: "var(--r-full)" }} /><div style={{ minWidth: 0, flex: 1 }}><div className="user-home__skeleton user-home__skeleton--title" /><div className="user-home__skeleton user-home__skeleton--line" /></div></div>)}</div>
       <CourseGridSkeleton count={4} />
     </div></main>;
   }

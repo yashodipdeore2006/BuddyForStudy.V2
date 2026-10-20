@@ -7,6 +7,7 @@ const encodeRouteSegment = (value: string, label: string): string => {
 };
 
 export const routes = {
+  landing: () => "/",
   home: () => "/home",
   explore: () => "/explore",
   myLearning: () => "/my-learning",
@@ -17,7 +18,15 @@ export const routes = {
     lessonId
       ? `/learn/${encodeRouteSegment(id, "course id")}/${encodeRouteSegment(lessonId, "lesson id")}`
       : `/learn/${encodeRouteSegment(id, "course id")}`,
+  playlist: (id: string) => `/playlists/${encodeRouteSegment(id, "playlist id")}`,
   login: () => "/login",
+  register: () => "/register",
+  verifyEmail: () => "/verify-email",
+  verifyLogin: () => "/verify-login",
+  forgotPassword: () => "/forgot-password",
+  pricing: () => "/pricing",
+  billing: () => "/billing",
+  notifications: () => "/notifications",
   profile: () => "/profile",
   settings: () => "/settings",
 } as const;

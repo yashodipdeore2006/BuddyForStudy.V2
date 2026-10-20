@@ -53,6 +53,8 @@ function mapCourse(raw: any): Course {
     } : undefined,
     enrollment_count: raw?.enrollmentCount ?? raw?.enrollment_count,
     enrollmentCount: raw?.enrollmentCount ?? raw?.enrollment_count,
+    ratingAverage: Number(raw?.ratingAverage ?? raw?.rating_average ?? 0),
+    ratingCount: Number(raw?.ratingCount ?? raw?.rating_count ?? 0),
     created_by: raw?.createdBy ?? raw?.created_by ?? null,
     created_at: raw?.createdAt ?? raw?.created_at ?? "",
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? "",

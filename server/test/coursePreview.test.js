@@ -73,3 +73,31 @@ test("public course preview exposes safe card metadata without leaking lesson pa
   assert.equal(preview.generation.mode, "normal");
   assert.equal("tutorial" in preview.modules[0].lessons[0], false);
 });
+
+
+test("public course preview counts snapshot-selected videos when generated courses have no lesson payloads", () => {
+  const course = {
+    _id: "snapshot-only-course",
+    title: "Entrepreneurship Playlist",
+    category: "Business",
+    duration: "9h 28m",
+    generation: {
+      mode: "normal",
+      sourceResourceType: "playlist",
+      snapshot: {
+        modules: [
+          { course: { videoId: "playlist-video-1", title: "Introduction", channelTitle: "Startup School", score: 85, viewCount: 1200 } },
+          { course: { videoId: "playlist-video-2", title: "Market research", channelTitle: "Startup School", score: 90, viewCount: 2400 } }
+        ]
+      }
+    },
+    modules: []
+  };
+
+  const preview = toPublicCoursePreview(course);
+  assert.equal(preview.cardMetadata.typeTag, "Playlist");
+  assert.equal(preview.cardMetadata.videoCount, 2);
+  assert.equal(preview.cardMetadata.creatorName, "Startup School");
+  assert.equal(preview.cardMetadata.qualityScore, 88);
+  assert.equal(preview.cardMetadata.viewCount, 3600);
+});

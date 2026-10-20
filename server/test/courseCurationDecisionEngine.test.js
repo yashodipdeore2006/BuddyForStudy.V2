@@ -174,6 +174,20 @@ test("hard gates reject short-form markers, private videos, wrong runtime and we
   assert.equal(evaluateCurationHardGates(playlist, courseProfile).reason, "playlist_integrity_below_80_percent");
 });
 
+test("ranking slots return the configured result limit up to the available eligible candidates", () => {
+  const candidates = Array.from({ length: 36 }, (_, index) =>
+    slotCandidate(index + 1, {
+      channelId: "creator-" + (index + 1),
+      finalScore: 99 - index,
+      isHiddenGem: index === 8
+    })
+  );
+  const results = selectCurationResultSlots(candidates, 30);
+  assert.equal(results.length, 30);
+  assert.equal(new Set(results.map((item) => item.id)).size, 30);
+  assert.ok(results.some((item) => item.primarySlot === "Best overall"));
+});
+
 test("ranking slots cap creators at two results and deduplicate resources", () => {
   const candidates = [
     slotCandidate(1, { channelId: "same-channel", finalScore: 96 }),

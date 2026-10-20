@@ -642,6 +642,17 @@ export default function CourseDetails() {
                 {courseNotes.trim() ? <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-slate-600">{courseNotes.trim()}</p> : <p className="mt-2 text-sm leading-6 text-slate-500">Your course notes will appear here after you save them.</p>}
                 <button type="button" onClick={() => setCourseTab('notes')} className="mt-3 text-sm font-semibold text-violet-700 hover:text-violet-900">Open notes</button>
               </div>
+              {isEnrolled && progressPct >= 25 && session && !reviews.some((review) => String(review.user?._id ?? review.user?.id ?? '') === String(session.user.id)) && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                  <p className="text-sm font-semibold text-slate-900">How’s the course going?</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">You’ve made progress. Share a rating to help other learners decide.</p>
+                  <div className="mt-2 flex gap-1" role="group" aria-label="Rate this course">
+                    {[1, 2, 3, 4, 5].map((star) => <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={'Rate ' + star + ' of 5 stars'} aria-pressed={reviewRating === star} className="rounded p-0.5"><Star className={classNames('h-5 w-5', star <= reviewRating ? 'text-amber-500' : 'text-slate-300')} fill={star <= reviewRating ? 'currentColor' : 'none'} /></button>)}
+                  </div>
+                  <textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={1000} placeholder="Optional feedback" aria-label="Course feedback" className="input-field mt-3 min-h-16 w-full text-sm" />
+                  <button type="button" onClick={submitReview} disabled={reviewSaving} className="mt-3 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">{reviewSaving ? 'Saving…' : 'Rate this course'}</button>
+                </div>
+              )}
               <div className="rounded-2xl border border-slate-200 p-4">
                 <p className="text-sm font-semibold text-slate-900">Learning activity</p>
                 <p className="mt-2 text-sm text-slate-600">{progress?.last_accessed_at ? 'Last accessed ' + formatDate(progress.last_accessed_at) : 'Your first lesson is ready when you are.'}</p>
@@ -650,29 +661,58 @@ export default function CourseDetails() {
             </aside>
           </div>}
           {activeTab === 'curriculum' && <>
-            <div className="mb-5"><h2 className="text-xl font-semibold text-slate-950">Curriculum</h2><p className="mt-1 text-sm text-slate-500">{course.modules.length} modules · {lessonCount} lessons</p></div>
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">Curriculum</h2>
+                <p className="mt-1 text-sm text-slate-500">{course.modules.length > 1 ? course.modules.length + ' modules · ' : ''}{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</p>
+              </div>
+              {course.modules.length > 0 && <button type="button" onClick={() => setExpandedModules((previous) => previous.size === course.modules.length ? new Set() : new Set(course.modules.map((_, index) => index)))} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                {expandedModules.size === course.modules.length ? 'Collapse all' : 'Expand all'}
+              </button>}
+            </div>
             <div className="space-y-4">
-              {course.modules.map((module, moduleIndex) => <section key={module.id} className="overflow-hidden rounded-2xl border border-slate-200">
-                <button type="button" onClick={() => toggleModule(moduleIndex)} aria-expanded={expandedModules.has(moduleIndex)} className="flex w-full items-center justify-between p-4 text-left hover:bg-slate-50">
-                  <span><span className="block font-semibold text-slate-900">{module.title}</span><span className="mt-1 block text-xs text-slate-500">{module.lessons.length} lessons</span></span>
-                  {expandedModules.has(moduleIndex) ? <ChevronDown className="h-4 w-4 text-slate-500" /> : <ChevronRight className="h-4 w-4 text-slate-500" />}
-                </button>
-                {expandedModules.has(moduleIndex) && <ul className="divide-y divide-slate-100 border-t border-slate-200">
-                  {module.lessons.map((lesson) => {
-                    const done = completedLessonIds.has(String(lesson.id));
-                    return <li key={lesson.id}><Link to={routes.learn(course.id, lesson.id)} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50">
-                      {done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <Play className="h-4 w-4 shrink-0 text-slate-400" />}
-                      <span className="min-w-0 flex-1 text-slate-800">{lesson.title}</span><span className="text-xs text-slate-500">{done ? 'Completed' : lesson.type}</span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                    </Link></li>;
-                  })}
-                </ul>}
-              </section>)}
+              {course.modules.map((module, moduleIndex) => {
+                const moduleDone = module.lessons.filter((lesson) => completedLessonIds.has(String(lesson.id))).length;
+                const isExpanded = expandedModules.has(moduleIndex);
+                const moduleDuration = module.lessons.reduce((sum, lesson) => sum + getLessonDurationSeconds(lesson), 0);
+                const moduleDurationLabel = moduleDuration > 0 ? formatDurationSeconds(moduleDuration) : course.modules.length === 1 ? course.duration : '';
+                const titles = module.lessons.map((lesson) => lesson.title);
+                return <section key={module.id} className="overflow-hidden rounded-2xl border border-slate-200">
+                  <button type="button" onClick={() => toggleModule(moduleIndex)} aria-expanded={isExpanded} className={classNames('flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-slate-50', isExpanded ? 'bg-violet-50/40' : 'bg-white')}>
+                    <span className="flex min-w-0 items-start gap-3">
+                      {isExpanded ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />}
+                      <span className="min-w-0">
+                        <span className="block font-semibold text-slate-900">{module.title}</span>
+                        <span className="mt-1 block text-xs text-slate-500">{module.lessons.length} {module.lessons.length === 1 ? 'lesson' : 'lessons'}{moduleDurationLabel ? ' · ' + moduleDurationLabel : ''} · {moduleDone}/{module.lessons.length} done</span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-slate-500">{module.lessons.length ? Math.round(moduleDone / module.lessons.length * 100) : 0}%</span>
+                  </button>
+                  {isExpanded && <ul className="divide-y divide-slate-100 border-t border-slate-200">
+                    {module.lessons.map((lesson) => {
+                      const done = completedLessonIds.has(String(lesson.id));
+                      const isNext = !isCompleted && String(nextLesson?.id) === String(lesson.id);
+                      const LessonIcon: LucideIcon = lesson.type === 'quiz' ? CircleHelp : lesson.type === 'project' ? ListChecks : Play;
+                      const title = cleanLessonTitle(lesson.title, titles);
+                      const duration = getLessonDurationSeconds(lesson);
+                      const statusText = done ? 'Completed' : isNext ? 'Up next' : lesson.type === 'quiz' ? 'Quiz' : lesson.type === 'project' ? 'Project' : 'Video lesson';
+                      return <li key={lesson.id}>
+                        <Link to={routes.learn(course.id, lesson.id)} className={classNames('flex items-center gap-3 px-4 py-3 text-sm transition', isNext ? 'bg-violet-50/70 hover:bg-violet-50' : 'hover:bg-slate-50')}>
+                          {done ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : isNext ? <Play className="h-4 w-4 shrink-0 text-violet-600" /> : <LessonIcon className="h-4 w-4 shrink-0 text-slate-400" />}
+                          <span className="min-w-0 flex-1"><span className="block line-clamp-2 font-medium text-slate-800">{title}</span>{isNext && <span className="mt-0.5 block text-xs font-semibold text-violet-700">Your next lesson</span>}</span>
+                          <span className="shrink-0 text-xs text-slate-500">{duration > 0 ? formatDurationSeconds(duration) : statusText}</span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                        </Link>
+                      </li>;
+                    })}
+                  </ul>}
+                </section>;
+              })}
               {course.modules.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Curriculum content will be added soon.</p>}
             </div>
           </>}
-          {activeTab === 'roadmap' && <div><h2 className="text-xl font-semibold text-slate-950">Learning roadmap</h2><p className="mt-2 text-sm text-slate-600">Follow the course in order and track your progress as you go.</p><Link to={routes.roadmap(course.id)} className="btn-primary mt-5 inline-flex">Open roadmap <ChevronRight className="h-4 w-4" /></Link></div>}
-          {activeTab === 'about' && <div><h2 className="text-xl font-semibold text-slate-950">About this course</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{course.description}</p>{course.learning_outcomes.length > 0 && <><h3 className="mt-6 font-semibold text-slate-900">Learning outcomes</h3><ul className="mt-3 grid gap-3 sm:grid-cols-2">{course.learning_outcomes.map((outcome, index) => <li key={index} className="flex gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{outcome}</li>)}</ul></>}</div>}
-          {activeTab === 'notes' && <div><h2 className="text-xl font-semibold text-slate-950">Your notes</h2><p className="mt-2 text-sm text-slate-600">Keep personal notes for this course. Notes remain in this view while it is open.</p><textarea value={courseNotes} onChange={(event) => setCourseNotes(event.target.value)} placeholder="Capture key concepts, questions, or things to revisit…" className="input-field mt-4 min-h-48 w-full resize-y text-sm" aria-label="Course notes" /></div>}
+          {activeTab === 'about' && <div><h2 className="text-xl font-semibold text-slate-950">About this course</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{getCourseCardDescription(course)}</p>{outcomes.length > 0 && <><h3 className="mt-6 font-semibold text-slate-900">Learning outcomes</h3><ul className="mt-3 grid gap-3 sm:grid-cols-2">{outcomes.map((outcome, index) => <li key={index} className="flex gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{outcome}</li>)}</ul></>}{creatorName && <div className="mt-7 rounded-xl bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source creator</p><p className="mt-1 font-semibold text-slate-900">{creatorName}</p></div>}</div>}
+          {activeTab === 'notes' && <div><h2 className="text-xl font-semibold text-slate-950">Your notes</h2><p className="mt-2 text-sm text-slate-600">Notes are saved in this browser for this account and course. Use them to capture key concepts, questions, and items to revisit.</p><textarea value={courseNotes} onChange={(event) => setCourseNotes(event.target.value)} placeholder="Capture key concepts, questions, or things to revisit…" className="input-field mt-4 min-h-48 w-full resize-y text-sm" aria-label="Course notes" /></div>}
         </section>
 
         {courseView === 'completion' && <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7">

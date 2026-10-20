@@ -134,7 +134,7 @@ export default function CoursePlayer() {
   const [practiceQuizError, setPracticeQuizError] = useState("");
   const practiceAutoAttemptRef = useRef("");
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz">("lesson");
-  const [noteTimestamp, setNoteTimestamp] = useState("00:00");
+  const [noteTimestamp, setNoteTimestamp] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
   const [timestampNotes, setTimestampNotes] = useState<TimestampedCourseNote[]>([]);
   const [notesStorageReady, setNotesStorageReady] = useState(false);
@@ -233,6 +233,13 @@ export default function CoursePlayer() {
     setNoteError("");
   };
 
+
+  useEffect(() => {
+    setNoteTimestamp("");
+    setNoteDraft("");
+    setNoteError("");
+    setNoteNotice("");
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     setPracticeQuizData(null);
@@ -533,7 +540,7 @@ export default function CoursePlayer() {
                             {currentLesson.lesson.quiz?.scope === "module" ? "Module assessment" : "Lesson quiz"}
                           </p>
                           <h1 className="mt-1 text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
-                            {currentLesson.lesson.title}
+                            {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                           </h1>
                           <p className="mt-2 text-sm leading-6 text-slate-500">
                             {currentLesson.lesson.description}
@@ -724,7 +731,7 @@ export default function CoursePlayer() {
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-slate-400">{currentLesson.module.title}</p>
                       <h1 className="mt-1 max-w-4xl text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
-                        {currentLesson.lesson.title}
+                        {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                       </h1>
                       {currentLesson.lesson.tutorial?.videos?.[0]?.channelTitle && (
                         <p className="mt-2 text-sm text-slate-500">
@@ -746,7 +753,7 @@ export default function CoursePlayer() {
                       ) : (
                         <Play className="h-3.5 w-3.5" />
                       )}
-                      {currentLesson.lesson.type}
+                      {currentLesson.lesson.type === "tutorial" ? "Video lesson" : currentLesson.lesson.type === "quiz" ? "Quiz" : "Project"}
                     </span>
                   </div>
 
@@ -961,7 +968,7 @@ export default function CoursePlayer() {
                             Project brief
                           </p>
                           <h2 className="mt-1 text-xl font-extrabold text-slate-950">
-                            {currentLesson.lesson.title}
+                            {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                           </h2>
                           <p className="mt-3 text-sm leading-7 text-slate-700">
                             {currentLesson.lesson.project?.description}

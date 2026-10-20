@@ -275,7 +275,7 @@ export default function CourseCard({
         {course.generation?.mode !== "ai" && course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
-          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /><span className="bfs-course-card__fallback-title">{coverWords}</span></div>
+          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /></div>
         )}
         {course.level && <span className={levelClass(course.level)}>{course.level}</span>}
         <button

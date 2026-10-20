@@ -108,7 +108,7 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [fatalErrorStatus, setFatalErrorStatus] = useState<number | null>(null);
-  const [sectionErrors, setSectionErrors] = useState({ enrollments: '', recommendations: '', stats: '', progress: [] as string[], refresh: '' });
+  const [sectionErrors, setSectionErrors] = useState({ enrollments: '', recommendations: '', stats: '', progress: [] as Array<{ courseId: string; title: string }>, refresh: '' });
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine);
 
   const loadHome = useCallback(async (isRefresh = false) => {
@@ -123,7 +123,7 @@ export default function Home() {
     else setLoading(true);
     setError('');
     setFatalErrorStatus(null);
-    setSectionErrors([]);
+    setSectionErrors({ enrollments: '', recommendations: '', stats: '', progress: [], refresh: '' });
 
     const partialErrors = { enrollments: '', recommendations: '', stats: '', progress: [] as string[], refresh: '' };
     const results = await Promise.allSettled([
@@ -151,7 +151,7 @@ export default function Home() {
         const response = await apiFetch('/api/progress/' + enrollment.course_id);
         return [enrollment.course_id, mapProgress(response.progress, enrollment.course_id, enrollment.course)] as const;
       } catch {
-        partialErrors.progress.push('Progress for ' + enrollment.course.title + ' could not be loaded.');
+        partialErrors.progress.push({ courseId: enrollment.course_id, title: enrollment.course.title });
         return null;
       }
     }));
@@ -251,7 +251,7 @@ export default function Home() {
 
       <section className="user-home__section" aria-labelledby="resume-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="resume-heading">Pick up where you left off</h2></div>
-        {(sectionErrors.enrollments || sectionErrors.progress.length > 0) && <div className="user-home__alert user-home__alert--error" role="alert"><span>{[sectionErrors.enrollments, ...sectionErrors.progress].filter(Boolean).join(" ")}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button></div>}
+        {(sectionErrors.enrollments || (resumeEnrollment && sectionErrors.progress.some((item) => item.courseId === resumeEnrollment.course_id))) && <div className="user-home__alert user-home__alert--error" role="alert"><span>{[sectionErrors.enrollments, ...sectionErrors.progress.filter((item) => item.courseId === resumeEnrollment?.course_id).map((item) => 'Progress for ' + item.title + ' could not be loaded.')].filter(Boolean).join(" ")}</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}><RefreshCw size={14} aria-hidden="true" /> {USER_INTENTS.retry.label}</button></div>}
         {resumeEnrollment && resumeProgress ? <article className="user-home__panel user-home__resume">
           <Cover course={resumeEnrollment.course} className="user-home__cover" />
           <div className="user-home__resume-content">
@@ -344,7 +344,7 @@ export default function Home() {
 
       <section className="user-home__section" aria-labelledby="continue-heading">
         <div className="user-home__heading"><h2 className="user-home__title" id="continue-heading">Continue learning</h2><Link className="user-home__link" to="/my-courses">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
-        {sectionErrors.progress.length > 0 && <div className="user-home__alert user-home__alert--error" role="alert"><span>Some course progress is unavailable.</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>}
+        {sectionErrors.progress.some((item) => item.courseId !== resumeEnrollment?.course_id) && <div className="user-home__alert user-home__alert--error" role="alert"><span>Progress for {sectionErrors.progress.filter((item) => item.courseId !== resumeEnrollment?.course_id).map((item) => item.title).join(", ")} is unavailable.</span><button className="user-home__link" type="button" onClick={() => void loadHome(true)}>{USER_INTENTS.retry.label}</button></div>}
         {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
           ? <div className="user-home__compact-list">{inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).map((item) => {
             const progress = data.progress[item.course_id];

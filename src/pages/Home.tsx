@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen, CheckCircle2, Clock3, GraduationCap, RefreshCw, S
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { Course } from '@/types';
+import { getAllLessonsFlat } from '@/lib/courseUtils';
 import CourseCard from '@/components/CourseCard';
 import ErrorState from '@/components/ErrorState';
 import { CourseGridSkeleton } from '@/components/Skeleton';
@@ -16,6 +17,8 @@ type ProgressRecord = {
   percentage: number;
   last_lesson_id?: string | null;
   last_accessed_at?: string | null;
+  completed_lesson_ids: string[];
+  next_lesson_id?: string;
   nextLessonTitle?: string;
   remainingDuration?: string;
 };
@@ -46,7 +49,11 @@ function mapCourse(raw: any): Course {
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? '',
   } as Course;
 }
-function mapProgress(raw: any, courseId: string): ProgressRecord {
+function mapProgress(raw: any, courseId: string, course?: Course): ProgressRecord {
+  const completedLessons = Array.isArray(raw?.completedLessons) ? raw.completedLessons : Array.isArray(raw?.completed_lessons) ? raw.completed_lessons : [];
+  const completedLessonIds = completedLessons.map((item: any) => String(item?.lessonId ?? item?.lesson_id ?? '')).filter(Boolean);
+  const completedSet = new Set(completedLessonIds);
+  const nextLesson = course ? getAllLessonsFlat(course.modules).find((lesson) => !completedSet.has(String(lesson.id))) : undefined;
   return {
     course_id: courseId,
     completed_count: Number(raw?.completedCount ?? raw?.completed_count ?? 0),
@@ -54,7 +61,8 @@ function mapProgress(raw: any, courseId: string): ProgressRecord {
     percentage: Math.max(0, Math.min(100, Number(raw?.percentage ?? 0))),
     last_lesson_id: raw?.lastLessonId ?? raw?.last_lesson_id ?? null,
     last_accessed_at: raw?.lastAccessedAt ?? raw?.last_accessed_at ?? null,
-    ...(typeof raw?.nextLessonTitle === 'string' ? { nextLessonTitle: raw.nextLessonTitle } : {}),
+    completed_lesson_ids: completedLessonIds,
+    ...(nextLesson ? { next_lesson_id: nextLesson.id, nextLessonTitle: nextLesson.title } : typeof raw?.nextLessonTitle === 'string' ? { nextLessonTitle: raw.nextLessonTitle } : {}),
     ...(typeof raw?.remainingDuration === 'string' ? { remainingDuration: raw.remainingDuration } : {}),
   };
 }
@@ -130,7 +138,7 @@ export default function Home() {
     const progressEntries = await Promise.all(enrollments.filter((item: EnrollmentRecord) => item.status === 'active').map(async (enrollment: EnrollmentRecord) => {
       try {
         const response = await apiFetch('/api/progress/' + enrollment.course_id);
-        return [enrollment.course_id, mapProgress(response.progress, enrollment.course_id)] as const;
+        return [enrollment.course_id, mapProgress(response.progress, enrollment.course_id, enrollment.course)] as const;
       } catch {
         partialErrors.push('Progress for ' + enrollment.course.title + ' could not be loaded.');
         return null;
@@ -175,7 +183,7 @@ export default function Home() {
   const overallProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
   const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
   const resumeUrl = resumeEnrollment
-    ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.last_lesson_id ? '/' + encodeURIComponent(resumeProgress.last_lesson_id) : '')
+    ? '/learn/' + resumeEnrollment.course_id + (resumeProgress?.next_lesson_id ? '/' + encodeURIComponent(resumeProgress.next_lesson_id) : '')
     : '/courses';
 
   if (authLoading || loading) {
@@ -253,7 +261,7 @@ export default function Home() {
         {inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).length > 0
           ? <div className="user-home__compact-list">{inProgress.filter((item) => item.course_id !== resumeEnrollment?.course_id).slice(0, 2).map((item) => {
             const progress = data.progress[item.course_id];
-            return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.last_lesson_id ? '/' + encodeURIComponent(progress.last_lesson_id) : '')}>
+            return <Link className="user-home__compact" key={item.id} to={'/learn/' + item.course_id + (progress?.next_lesson_id ? '/' + encodeURIComponent(progress.next_lesson_id) : '')}>
               <Cover course={item.course} className="user-home__compact-cover" />
               <div><h3 className="user-home__compact-title">{item.course.title}</h3><p className="user-home__meta">{progress?.completed_count ?? 0} of {progress?.total_lessons || '—'} lessons · {progress?.percentage ?? 0}%</p></div>
               <span className="user-home__link user-home__compact-action">Continue <ArrowRight size={14} aria-hidden="true" /></span>

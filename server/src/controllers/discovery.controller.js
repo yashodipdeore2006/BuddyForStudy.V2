@@ -8,6 +8,7 @@ import { getActivePlanForUser, readPlanLimit } from "../services/subscriptionEnt
 import { consumeUsage, releaseUsage } from "../services/aiUsage.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
+import { invalidateNormalSearchCurationCache } from "../services/courseCurationDecisionEngine.service.js";
 
 const searchSchema = z.object({ q: z.string().trim().min(2).max(200) });
 function pendingCourseAccessState(course) {
@@ -83,6 +84,9 @@ export async function recordCurationFeedback(req, res, next) {
       rank: input.rank ?? null,
       score: input.score ?? null
     });
+    if (["save", "enroll", "thumbs_up", "thumbs_down", "outdated"].includes(input.event)) {
+      await invalidateNormalSearchCurationCache(input.query);
+    }
     return success(res, { recorded: true }, "Curation feedback recorded", 201);
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Invalid curation feedback", 400, error.flatten().fieldErrors);

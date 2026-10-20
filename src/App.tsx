@@ -13,7 +13,6 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import Courses from '@/pages/Courses';
 import CourseDetails from '@/pages/CourseDetails';
 import CourseRoadmap from '@/pages/CourseRoadmap';
-import Dashboard from '@/pages/Dashboard';
 import MyCourses from '@/pages/MyCourses';
 import SavedCourses from '@/pages/SavedCourses';
 import CoursePlayer from '@/pages/CoursePlayer';

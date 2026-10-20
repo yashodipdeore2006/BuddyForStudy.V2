@@ -194,10 +194,8 @@ export default function Home() {
   const resumeProgress = resumeEnrollment ? data.progress[resumeEnrollment.course_id] : undefined;
   const enrolledIds = useMemo(() => new Set(data.enrollments.map((item) => item.course_id)), [data.enrollments]);
   const recommendations = useMemo(() => data.courses.filter((course) => !enrolledIds.has(course.id)).slice(0, 4), [data.courses, enrolledIds]);
-  const learningStats = (data.learningStats ?? {}) as Record<string, any>;
   const {
     completedLessons,
-    totalLessons,
     overallProgress,
     completedToday,
     dailyGoalLessons,
@@ -207,6 +205,8 @@ export default function Home() {
     sevenDayStrip,
     freezeUsedThisWeek,
     freezeAvailable,
+    totalLessonsCompleted,
+    achievements,
   } = useLearningStats(data.progress, data.learningStats);
   const firstName = (profile?.name ?? session?.user?.name ?? 'learner').trim().split(/\s+/)[0] || 'learner';
   const resumeUrl = resumeEnrollment
@@ -323,11 +323,11 @@ export default function Home() {
         <div className="user-home__heading"><div><h2 className="user-home__title" id="badges-heading">Badges</h2><p className="user-home__meta">Small milestones that reflect your learning.</p></div><Link className="user-home__link" to="/profile">See all <ArrowRight size={14} aria-hidden="true" /></Link></div>
         <div className="user-home__badge-grid">
           {[
-            { key: 'first_lesson', title: 'First step', description: 'Complete your first lesson.', current: Number(learningStats.totalLessonsCompleted ?? completedLessons), target: 1, icon: BookOpen },
+            { key: 'first_lesson', title: 'First step', description: 'Complete your first lesson.', current: totalLessonsCompleted, target: 1, icon: BookOpen },
             { key: 'three_day_streak', title: 'On a roll', description: 'Build a 3-day learning streak.', current: streak, target: 3, icon: Flame },
             { key: 'ten_lessons', title: 'Getting serious', description: 'Complete 10 lessons.', current: Number(learningStats.totalLessonsCompleted ?? completedLessons), target: 10, icon: Trophy },
           ].map((badge) => {
-            const unlocked = Array.isArray(learningStats.achievements) && learningStats.achievements.some((item: any) => item.key === badge.key);
+            const unlocked = achievements.some((item) => item.key === badge.key);
             const Icon = badge.icon;
             const badgePercent = unlocked ? 100 : Math.min(100, Math.round(badge.current / badge.target * 100));
             return <article key={badge.key} className={unlocked ? 'user-home__badge-card user-home__badge-card--unlocked' : 'user-home__badge-card'}>

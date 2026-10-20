@@ -8,7 +8,7 @@ import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./youtube.service.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.4";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.5";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -1351,7 +1351,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
       {
         $match: {
           normalizedQuery: profile.normalizedQuery,
-          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
+          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.4", "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
           resourceId: { $in: resourceIds },
           createdAt: { $gte: cutoff }
         }
@@ -1489,7 +1489,7 @@ export async function curateNormalSearch(query) {
     const searchOptions = getYouTubeSearchOptions(profile.language, profile.languageExplicit);
     const [videoResult, playlistResult] = await Promise.allSettled([
       searchYouTubeCurationCandidates(queries, settingCount, searchOptions),
-      searchStructuredPlaylists(profile.query, Math.min(30, settingCount))
+      searchStructuredPlaylists(profile.query, Math.min(30, settingCount), searchOptions)
     ]);
     const videos = videoResult.status === "fulfilled" ? videoResult.value : [];
     let playlists = playlistResult.status === "fulfilled" ? playlistResult.value : [];

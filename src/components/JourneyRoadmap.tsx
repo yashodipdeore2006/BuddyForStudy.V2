@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { BookOpen, CheckCircle2, Clock3, Flag, Loader2, LockKeyhole, MapPin, Sparkles, X } from "lucide-react";
+import { BookOpen, Clock3, X } from "lucide-react";
 
 export type JourneyStage = { id: string; order: number; title: string; hours: number; lessonIds: string[]; skills: string[]; outcome: string; emoji?: string };
 type JourneyProgress = { completedLessonIds: string[]; percent: number; stageProgress: number[]; position: number; lastActivityAt: string | null; paceHoursPerDay: number };
@@ -26,6 +26,7 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
   const pathRef = useRef<SVGPathElement | null>(null);
   const markerRef = useRef<SVGGElement | null>(null);
   const frameRef = useRef<number | null>(null);
+  const displayDistanceRef = useRef(0);
   const introRef = useRef(false);
   const previousPositionRef = useRef(0);
   const points = useMemo<Point[]>(() => Array.from({ length: (data?.stages.length || 0) + 1 }, (_, i) => ({ x: i === 0 ? 180 : i % 2 ? 290 : 70, y: i === 0 ? 40 : 40 + i * 210 - 10 })), [data?.stages.length]);
@@ -41,7 +42,7 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
   useEffect(() => { const query = window.matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setMotionEnabled(!query.matches); sync(); query.addEventListener("change", sync); return () => query.removeEventListener("change", sync); }, []);
   useEffect(() => { const road = pathRef.current; if (!road || !data?.stages.length) { setLengths([]); setRoadLength(0); return; } const total = road.getTotalLength(); const found = [0]; for (let i = 1; i < points.length; i += 1) { let low = 0; let high = total; for (let step = 0; step < 40; step += 1) { const mid = (low + high) / 2; if (road.getPointAtLength(mid).y < points[i].y) low = mid; else high = mid; } found.push((low + high) / 2); } setRoadLength(total); setLengths(found); }, [data?.stages.length, pathD, points]);
   const distanceFor = (position: number) => { if (!lengths.length) return 0; const last = lengths.length - 1; if (position >= last) return lengths[last]; const k = Math.max(0, Math.floor(position)); const w = position - k; return lengths[k] + (lengths[k + 1] - lengths[k]) * w; };
-  useEffect(() => { if (!lengths.length || !roadLength) return; const target = distanceFor(targetPosition); const oldPosition = previousPositionRef.current; const oldDistance = distanceFor(oldPosition); if (!motionEnabled) { setDisplayDistance(target); previousPositionRef.current = targetPosition; introRef.current = true; return; } if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); const first = !introRef.current; introRef.current = true; const from = first ? 0 : displayDistance || oldDistance; const delta = target - from; const duration = Math.min(1600, Math.max(500, Math.abs(delta) * 1.3)); const started = performance.now(); const animate = (now: number) => { const p = Math.min(1, (now - started) / duration); const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; setDisplayDistance(from + delta * eased); if (p < 1) frameRef.current = requestAnimationFrame(animate); else { frameRef.current = null; previousPositionRef.current = targetPosition; markerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); } }; frameRef.current = requestAnimationFrame(animate); return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); }; }, [lengths, targetPosition, motionEnabled, roadLength]);
+  useEffect(() => { if (!lengths.length || !roadLength) return; const target = distanceFor(targetPosition); const oldPosition = previousPositionRef.current; const oldDistance = distanceFor(oldPosition); if (!motionEnabled) { displayDistanceRef.current = target; setDisplayDistance(target); previousPositionRef.current = targetPosition; introRef.current = true; return; } if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); const first = !introRef.current; introRef.current = true; const from = first ? 0 : displayDistanceRef.current || oldDistance; const delta = target - from; const duration = Math.min(1600, Math.max(500, Math.abs(delta) * 1.3)); const started = performance.now(); const animate = (now: number) => { const p = Math.min(1, (now - started) / duration); const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; displayDistanceRef.current = from + delta * eased; setDisplayDistance(from + delta * eased); if (p < 1) frameRef.current = requestAnimationFrame(animate); else { frameRef.current = null; previousPositionRef.current = targetPosition; markerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); } }; frameRef.current = requestAnimationFrame(animate); return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); }; }, [lengths, targetPosition, motionEnabled, roadLength]);
   useEffect(() => { if (!data?.progress || !lengths.length || !motionEnabled) return; const done = data.progress.stageProgress.map((value, index) => value >= 1 ? index : -1).filter((index) => index >= 0); setCelebrate((previous) => [...new Set([...previous, ...done])]); }, [data?.progress?.percent, lengths.length, motionEnabled]);
   useEffect(() => { if (selected === null) return; const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setSelected(null); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [selected]);
   async function changePace(value: number) { setPace(value); try { await apiFetch("/api/me/learning-pace", { method: "PUT", body: JSON.stringify({ hoursPerDay: value }) }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save your learning pace."); } }
@@ -51,7 +52,7 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
   if (!data || !data.stages.length) return <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Roadmap not available yet.</div>;
   const activeStageIndex = Math.min(data.stages.length - 1, Math.floor(targetPosition));
   const activeStage = data.stages[activeStageIndex];
-  const nextStage = data.stages.find((stage) => !(data.progress?.stageProgress[stage.order - 1] >= 1));
+  const nextStage = data.stages.find((stage) => !(Number(data.progress?.stageProgress[stage.order - 1] || 0) >= 1));
   const svgPoint = pathRef.current?.getPointAtLength(Math.max(0, Math.min(roadLength, displayDistance))) || points[0];
   const decorations = scenery[data.theme as keyof typeof scenery] || scenery.trail;
   return <div className="mx-auto w-full max-w-[460px] pb-24 text-slate-900 dark:text-slate-100">

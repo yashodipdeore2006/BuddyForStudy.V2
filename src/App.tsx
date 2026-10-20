@@ -20,6 +20,7 @@ import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import Notifications from '@/pages/Notifications';
 import PlaylistCourse from '@/pages/PlaylistCourse';
+import SavedRoadmap from '@/pages/SavedRoadmap';
 import Pricing from '@/pages/Pricing';
 import Billing from '@/pages/Billing';
 import AdminLayout, { AdminGuard } from '@/pages/admin/AdminLayout';
@@ -80,6 +81,7 @@ function App() {
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
     <Route path="/playlists/:playlistId" element={<ProtectedRoute><PlaylistCourse /></ProtectedRoute>} />
+    <Route path="/roadmaps/:roadmapId" element={<ProtectedRoute><SavedRoadmap /></ProtectedRoute>} />
 
     <Route path="/admin/login" element={<Navigate to={routes.login()} replace />} />
     <Route path="/admin" element={<AdminPage><AdminControlCenter /></AdminPage>} />

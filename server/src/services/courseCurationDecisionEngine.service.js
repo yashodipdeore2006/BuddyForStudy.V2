@@ -6,9 +6,9 @@ import { PlatformSetting } from "../models/PlatformSetting.js";
 import { CourseCurationCache } from "../models/CourseCurationCache.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates } from "./youtube.service.js";
-import { searchStructuredPlaylists, getPlaylistCourse } from "./discovery.service.js";
+import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.1";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.2";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -1141,10 +1141,32 @@ export async function curateNormalSearch(query) {
       searchStructuredPlaylists(profile.query, Math.min(30, settingCount))
     ]);
     const videos = videoResult.status === "fulfilled" ? videoResult.value : [];
-    const playlists = playlistResult.status === "fulfilled" ? playlistResult.value : [];
+    let playlists = playlistResult.status === "fulfilled" ? playlistResult.value : [];
     if (videoResult.status === "rejected") youtubeError = videoResult.reason?.message || "YouTube video candidate search failed";
     if (playlistResult.status === "rejected") youtubeError = youtubeError ? youtubeError + "; " + (playlistResult.reason?.message || "Playlist search failed") : (playlistResult.reason?.message || "Playlist search failed");
-    pool = { videos, playlists, queries, cachedAt: new Date().toISOString() };
+
+    const topChannelIds = [...new Set(
+      videos.slice(0, 80).map((candidate) => String(candidate.channelId || "")).filter(Boolean)
+    )].slice(0, 6);
+    let channelPlaylists = [];
+    try {
+      channelPlaylists = await searchChannelCoursePlaylists(topChannelIds, 5);
+    } catch (error) {
+      console.warn("Curation channel playlist expansion unavailable", { query: profile.normalizedQuery, message: error?.message || error });
+    }
+    const playlistsById = new Map();
+    for (const playlist of [...playlists, ...channelPlaylists]) {
+      if (playlist?.playlistId) playlistsById.set(playlist.playlistId, playlist);
+    }
+    playlists = [...playlistsById.values()];
+    pool = {
+      videos,
+      playlists,
+      channelPlaylistsFetched: channelPlaylists.length,
+      expandedChannelCount: topChannelIds.length,
+      queries,
+      cachedAt: new Date().toISOString()
+    };
     const ttl = videos.length || playlists.length ? 24 * 60 * 60 * 1000 : EMPTY_RESULT_TTL_MS;
     await setCachedValue(poolKey, "candidate-search", pool, ttl);
   }
@@ -1170,6 +1192,8 @@ export async function curateNormalSearch(query) {
     poolCandidates: initial.rawVideoCount + initial.rawPlaylistCount,
     videosFetched: initial.rawVideoCount,
     playlistsFetched: initial.rawPlaylistCount,
+    channelPlaylistsFetched: Number(pool.channelPlaylistsFetched || 0),
+    expandedChannelCount: Number(pool.expandedChannelCount || 0),
     tierAAfterGates: initial.prefilteredVideoCount + initial.prefilteredPlaylistCount,
     tierBShortlist: initial.shortlist.length,
     tierCEligible: gates.accepted.length,

@@ -4,6 +4,7 @@ import { Bell, BookOpen, TrendingUp, Award, Info, CreditCard, CheckCheck, Loader
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
+import { routes } from "@/lib/routes";
 
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
@@ -112,7 +113,7 @@ export default function Notifications() {
               title="No notifications yet"
               description="You'll see updates about your courses, projects, and platform announcements here."
               action={
-                <Link to="/courses" className="btn-primary">
+                <Link to={routes.explore()} className="btn-primary">
                   Browse Courses
                 </Link>
               }

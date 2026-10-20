@@ -120,14 +120,18 @@ export function buildJourneyStages(modules = [], cachedStages = []) {
   });
 }
 
-export function calculateJourneyProgress(stages, completedIds = []) {
+export function calculateJourneyProgress(stages, completedIds = [], durationsById = {}) {
   const completed = new Set(completedIds.map(String));
   const allIds = stages.flatMap((stage) => stage.lessonIds.map(String));
   const totalLessons = allIds.length;
   const completedCount = allIds.filter((id) => completed.has(id)).length;
   const stageProgress = stages.map((stage) => {
     const ids = stage.lessonIds.map(String);
-    return ids.length ? ids.filter((id) => completed.has(id)).length / ids.length : 0;
+    const weights = ids.map((id) => Math.max(0, Number(durationsById[id] || 0)));
+    const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+    if (!ids.length) return 0;
+    if (totalWeight > 0) return ids.reduce((sum, id, index) => sum + (completed.has(id) ? weights[index] : 0), 0) / totalWeight;
+    return ids.filter((id) => completed.has(id)).length / ids.length;
   });
   const position = stageProgress.reduce((sum, value) => sum + value, 0);
   return { completedLessonIds: allIds.filter((id) => completed.has(id)), percent: totalLessons ? Math.round(completedCount / totalLessons * 100) : 0, stageProgress, position: Math.min(stages.length, position) };
@@ -168,14 +172,19 @@ export async function getCourseJourney(courseId, userId = null) {
     cached = stored?.stages || [];
   }
   const stages = buildJourneyStages(course.modules || [], cached);
-  const totalHours = Math.round(stages.reduce((sum, stage) => sum + stage.hours, 0) * 100) / 100;
+  const lessonDurationById = Object.fromEntries((course.modules || []).flatMap((module) => (module.lessons || []).map((lesson) => [String(lesson._id || lesson.id), lessonSeconds(lesson)])));
+  const rawHours = stages.reduce((sum, stage) => sum + stage.hours, 0);
+  const courseDurationSeconds = parseDurationSeconds(course.duration);
+  const estimatedHours = rawHours > 0 ? rawHours : courseDurationSeconds / 3600;
+  const totalHours = Math.round(estimatedHours * 100) / 100;
+  if (rawHours <= 0 && totalHours > 0 && stages.length) stages.forEach((stage) => { stage.hours = Math.round(totalHours / stages.length * 100) / 100; });
   let progress = null;
   if (userId) {
     const enrollment = await Enrollment.findOne({ user: userId, course: courseId, status: { $in: ["active", "completed"] }, revokedBy: null }).lean();
     if (enrollment) {
       const savedProgress = await Progress.findOne({ user: userId, course: courseId }).lean();
       const completedIds = (savedProgress?.completedLessons || []).map((entry) => String(entry.lessonId));
-      const calculated = calculateJourneyProgress(stages, completedIds);
+      const calculated = calculateJourneyProgress(stages, completedIds, lessonDurationById);
       const user = await import("../models/User.js").then(({ User }) => User.findById(userId).select("learningPaceHoursPerDay").lean());
       progress = {
         ...calculated,

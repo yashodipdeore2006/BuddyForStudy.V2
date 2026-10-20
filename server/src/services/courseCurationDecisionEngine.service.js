@@ -1027,6 +1027,132 @@ function addExplanations(candidate, features, syllabus) {
   if (features.community.status === "unavailable" && features.coverage.score < 45) why.push("This is a metadata-level match; transcript and independent community checks are not available.");
   return why.slice(0, 5);
 }
+export function extractCurationChapters(description = "") {
+  const text = String(description || "");
+  const chapterRegex = /^\s*(?:[-*•]\s*)?((?:\d{1,2}:)?[0-5]?\d:[0-5]\d)\s+(.+?)\s*$/gm;
+  const chapters = [];
+  for (const match of text.matchAll(chapterRegex)) {
+    const timestamp = match[1];
+    const title = String(match[2] || "").trim();
+    const pieces = timestamp.split(":").map(Number);
+    let seconds = 0;
+    if (pieces.length === 3) seconds = pieces[0] * 3600 + pieces[1] * 60 + pieces[2];
+    else if (pieces.length === 2) seconds = pieces[0] * 60 + pieces[1];
+    if (!title || !Number.isFinite(seconds) || chapters.some((item) => item.timestampSeconds === seconds)) continue;
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainder = seconds % 60;
+    const timestampLabel = hours
+      ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0")
+      : minutes + ":" + String(remainder).padStart(2, "0");
+    chapters.push({ timestampSeconds: seconds, timestampLabel, title });
+  }
+  return chapters.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+}
+
+function moduleTextMatchScore(module, text) {
+  const source = normalizeText(text);
+  const concepts = [module.name, ...(module.keyConcepts || [])].map(normalizeText).filter(Boolean);
+  if (!concepts.length || !source) return 0;
+  let best = 0;
+  for (const concept of concepts) {
+    if (source.includes(concept)) {
+      best = 100;
+      break;
+    }
+    const words = tokens(concept);
+    if (!words.length) continue;
+    const score = words.filter((word) => source.includes(word)).length / words.length * 100;
+    best = Math.max(best, score);
+  }
+  return best;
+}
+
+/**
+ * Build a best-of-best route from available course metadata, lesson titles and
+ * creator-supplied timestamps. This is not transcript-derived coverage and does
+ * not assert that a chapter's actual video content was independently verified.
+ */
+export function buildComposedLearningPath(candidates, syllabus) {
+  const modules = Array.isArray(syllabus?.modules) ? syllabus.modules : [];
+  if (!modules.length || !Array.isArray(candidates) || !candidates.length) return [];
+  const resources = [];
+
+  for (const candidate of candidates) {
+    const parts = Array.isArray(candidate.items) && candidate.items.length
+      ? candidate.items
+      : [{
+          videoId: candidate.videoId || (candidate.sourceType === "video" ? candidate.sourceId : ""),
+          title: candidate.title,
+          description: candidate.description || "",
+          channelTitle: candidate.channelTitle || "",
+          url: candidate.url || "",
+          thumbnail: candidate.thumbnail || ""
+        }];
+    for (const part of parts) {
+      const videoId = String(part.videoId || part.id || "");
+      if (!videoId) continue;
+      const description = String(part.description || candidate.description || "");
+      const chapters = extractCurationChapters(description);
+      const units = chapters.length
+        ? chapters.map((chapter) => ({ ...chapter, titleForMatch: chapter.title, verifiedTimecode: true }))
+        : [{
+            timestampSeconds: 0,
+            timestampLabel: "Start",
+            title: String(part.title || candidate.title || "Learning lesson"),
+            titleForMatch: String(part.title || candidate.title || "Learning lesson"),
+            verifiedTimecode: false
+          }];
+      for (const unit of units) {
+        const matchText = [unit.titleForMatch, part.title, description.slice(0, 1800)].join(" ");
+        resources.push({
+          candidate,
+          videoId,
+          videoTitle: String(unit.titleForMatch || part.title || candidate.title || "Learning lesson"),
+          channelTitle: String(part.channelTitle || candidate.channelTitle || ""),
+          moduleMatchText: normalizeText(matchText),
+          timestampSeconds: Number(unit.timestampSeconds || 0),
+          timestampLabel: String(unit.timestampLabel || "Start"),
+          verifiedTimecode: Boolean(unit.verifiedTimecode)
+        });
+      }
+    }
+  }
+
+  const result = [];
+  const usedUnits = new Set();
+  for (const module of modules) {
+    const matches = resources.map((resource) => {
+      const matchScore = moduleTextMatchScore(module, resource.moduleMatchText);
+      const overallScore = matchScore * 0.65 + clamp(resource.candidate.finalScore || resource.candidate.preliminaryScore || 50) * 0.35;
+      return { ...resource, matchScore, overallScore };
+    }).filter((resource) => resource.matchScore >= 45)
+      .sort((a, b) => b.overallScore - a.overallScore);
+    const best = matches.find((resource) => !usedUnits.has(resource.videoId + ":" + resource.timestampSeconds));
+    if (!best) continue;
+    usedUnits.add(best.videoId + ":" + best.timestampSeconds);
+    const separator = best.timestampSeconds > 0 ? "&t=" + best.timestampSeconds + "s" : "";
+    const url = "https://www.youtube.com/watch?v=" + best.videoId + (best.timestampSeconds > 0 ? "&t=" + best.timestampSeconds + "s" : "");
+    result.push({
+      moduleOrder: result.length + 1,
+      moduleName: module.name,
+      videoTitle: best.videoTitle,
+      resourceTitle: String(best.candidate.title || best.videoTitle),
+      resourceType: best.candidate.sourceType || "video",
+      channelTitle: best.channelTitle,
+      videoId: best.videoId,
+      timestampSeconds: best.timestampSeconds,
+      timestampLabel: best.timestampLabel,
+      verifiedTimecode: best.verifiedTimecode,
+      url,
+      embedUrl: "https://www.youtube-nocookie.com/embed/" + best.videoId + "?start=" + best.timestampSeconds + "&rel=0&playsinline=1",
+      matchScore: Math.round(best.matchScore),
+      overallScore: Math.round(best.overallScore)
+    });
+  }
+  return result;
+}
+
 function setRankingSlots(candidates) {
   const list = [...candidates];
   if (!list.length) return [];
@@ -1396,6 +1522,7 @@ export async function curateNormalSearch(query) {
   const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, profile, syllabus);
   const scored = scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
   const resources = setRankingSlots(scored);
+  const composedPath = buildComposedLearningPath(scored, syllabus);
   const meta = {
     version: ENGINE_VERSION,
     intent: {
@@ -1420,6 +1547,8 @@ export async function curateNormalSearch(query) {
     feedbackLookbackDays: 90,
     metadataJudgeSource: metadataJudgment.source,
     metadataJudgedCandidates: metadataJudgment.judgedCount,
+    composedPath,
+    composedPathSteps: composedPath.length,
     resultsShown: resources.length,
     cacheHit: false,
     poolCacheHit,

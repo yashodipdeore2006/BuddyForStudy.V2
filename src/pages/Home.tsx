@@ -181,7 +181,7 @@ export default function Home() {
       } else partialErrors.refresh = 'Refresh failed. The last available data is still shown.';
     } else {
       setData((current) => {
-        const currentCourseIds = new Set(enrollments.map((item) => item.course_id));
+        const currentCourseIds = new Set(enrollments.map((item: EnrollmentRecord) => item.course_id));
         const preservedProgress = enrollmentResult.status === 'fulfilled'
           ? Object.fromEntries(Object.entries(current.progress).filter(([courseId]) => currentCourseIds.has(courseId)))
           : current.progress;

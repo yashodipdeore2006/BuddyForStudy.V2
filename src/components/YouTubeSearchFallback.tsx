@@ -149,6 +149,7 @@ export default function YouTubeSearchFallback({
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const [curationFeedback, setCurationFeedback] = useState<Record<string, string>>({});
   const { session } = useAuth();
   const navigate = useNavigate();
 
@@ -201,6 +202,41 @@ export default function YouTubeSearchFallback({
     });
   };
 
+  const recordCurationFeedback = async (
+    resourceId: string,
+    event: "preview" | "save" | "enroll" | "thumbs_up" | "thumbs_down" | "outdated" | "report",
+    rankOverride?: number
+  ) => {
+    const resource = curatedResources?.find((item) => item.id === resourceId);
+    if (!session) {
+      if (event === "thumbs_up" || event === "thumbs_down" || event === "outdated") requireSignIn();
+      return false;
+    }
+    if (!resource) return false;
+    const inferredRank = curatedResources?.findIndex((item) => item.id === resource.id) ?? -1;
+    try {
+      await apiFetch("/api/discovery/curation-feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          query,
+          event,
+          resourceType: resource.sourceType,
+          resourceId: resource.sourceId,
+          engineVersion: curationMeta?.version || "course-curation-decision-engine-v1",
+          rank: rankOverride ?? (inferredRank >= 0 ? inferredRank + 1 : undefined),
+          score: resource.score,
+        }),
+      });
+      if (["thumbs_up", "thumbs_down", "outdated"].includes(event)) {
+        setCurationFeedback((current) => ({ ...current, [resource.id]: event }));
+      }
+      return true;
+    } catch {
+      // Telemetry must never block saving, enrolling or previewing a resource.
+      return false;
+    }
+  };
+
   const saveCourse = async (course: BuiltCourse) => {
     if (!session) {
       requireSignIn();
@@ -220,6 +256,7 @@ export default function YouTubeSearchFallback({
         }),
       });
       setSavedIds((current) => new Set(current).add(course.id));
+      await recordCurationFeedback(course.id, "save");
     } catch (error) {
       setViewerError(
         error instanceof Error ? error.message : "Unable to save this course."
@@ -252,6 +289,7 @@ export default function YouTubeSearchFallback({
       if (!courseId) throw new Error("The course could not be added to My Learning.");
 
       setEnrolledIds((current) => new Set(current).add(course.id));
+      await recordCurationFeedback(course.id, "enroll");
       navigate(`/courses/${courseId}/roadmap`);
     } catch (error) {
       setViewerError(
@@ -263,6 +301,9 @@ export default function YouTubeSearchFallback({
   };
 
   const openCourse = async (course: BuiltCourse) => {
+    if (curatedResources?.some((item) => item.id === course.id)) {
+      void recordCurationFeedback(course.id, "preview");
+    }
     setViewerError("");
     setOpeningId(course.id);
 
@@ -400,7 +441,7 @@ export default function YouTubeSearchFallback({
               </div>
               {curatedResources.length ? (
                 <div className="bfs-course-grid mt-4">
-                  {curatedResources.map((resource) => {
+                  {curatedResources.map((resource, resultIndex) => {
                     const mappedLessons: CourseLesson[] = (resource.items || [])
                       .map((item) => {
                         const videoId = String(item.videoId || "");
@@ -473,6 +514,13 @@ export default function YouTubeSearchFallback({
                               </ul>
                             )}
                             {resource.gaps?.length > 0 && <p className="mt-2 text-[11px] leading-4 text-slate-500">Possible gaps: {resource.gaps.slice(0, 3).join(", ")}</p>}
+                            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                              <span className="mr-auto text-[11px] text-slate-500">Was this a useful match?</span>
+                              <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_up", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} aria-label={"Mark " + resource.title + " as a useful match"} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60">Helpful</button>
+                              <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_down", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} aria-label={"Mark " + resource.title + " as not relevant"} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700 disabled:opacity-60">Not relevant</button>
+                              <button type="button" onClick={() => void recordCurationFeedback(resource.id, "outdated", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} aria-label={"Report " + resource.title + " as outdated"} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-60">Outdated</button>
+                            </div>
+                            {curationFeedback[resource.id] && <p role="status" className="mt-1 text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
                           </div>
                           <div className="mt-4 grid grid-cols-2 gap-2">
                             <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60">

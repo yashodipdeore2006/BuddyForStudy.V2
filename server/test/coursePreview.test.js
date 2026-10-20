@@ -101,3 +101,45 @@ test("public course preview counts snapshot-selected videos when generated cours
   assert.equal(preview.cardMetadata.qualityScore, 88);
   assert.equal(preview.cardMetadata.viewCount, 3600);
 });
+
+
+test("public course preview exposes a safe preview video id and lesson durations", () => {
+  const course = {
+    _id: "preview-course",
+    title: "React Fundamentals",
+    category: "Software Development",
+    generation: {
+      mode: "normal",
+      sourceResourceType: "playlist",
+      snapshot: {
+        modules: [
+          { course: { videoId: "dQw4w9WgXcQ", title: "Introduction", channelTitle: "Example Creator", score: 91, viewCount: 500 } }
+        ]
+      }
+    },
+    modules: [{
+      _id: "module",
+      title: "React Basics",
+      order: 1,
+      lessons: [{
+        _id: "lesson",
+        title: "Introduction",
+        type: "tutorial",
+        order: 1,
+        tutorial: {
+          videos: [{
+            videoId: "dQw4w9WgXcQ",
+            title: "Introduction",
+            channelTitle: "Example Creator",
+            durationSeconds: 630,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          }]
+        }
+      }]
+    }]
+  };
+  const preview = toPublicCoursePreview(course);
+  assert.equal(preview.cardMetadata.previewVideoId, "dQw4w9WgXcQ");
+  assert.equal(preview.modules[0].lessons[0].durationSeconds, 630);
+  assert.equal("tutorial" in preview.modules[0].lessons[0], false);
+});

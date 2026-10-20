@@ -106,7 +106,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
     if (index < commands.length) {
       const command = commands[index];
       onClose();
-      navigate(command.href || "/home");
+      navigate(command.href || routes.home());
       return;
     }
     const course = courses[index - commands.length];

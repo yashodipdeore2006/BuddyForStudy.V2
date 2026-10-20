@@ -43,6 +43,8 @@ import AdminAIContent from '@/pages/admin/AdminAIContent';
 import AdminSupport from '@/pages/admin/AdminSupport';
 import AdminOperations from '@/pages/admin/AdminOperations';
 import AcceptAdminInvitation from '@/pages/AcceptAdminInvitation';
+import { Link } from 'react-router-dom';
+import { routes } from '@/lib/routes';
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -55,14 +57,23 @@ function AdminPage({ children }: { children: React.ReactNode }) {
   return <AdminGuard><AdminLayout>{children}</AdminLayout></AdminGuard>;
 }
 
+function NotFound() {
+  return <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-6 py-16 text-center">
+    <p className="text-sm font-semibold text-violet-700">404</p>
+    <h1 className="mt-2 text-3xl font-bold text-slate-950">Page not found</h1>
+    <p className="mt-3 text-sm text-slate-600">The page may have moved or the address may be incorrect.</p>
+    <Link to={routes.home()} className="btn-primary mt-6">Go to Home</Link>
+  </div>;
+}
+
 function App() {
   return <AuthProvider><BrowserRouter useTransitions={false}><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/home" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
     <Route path="/accept-admin-invitation" element={<AcceptAdminInvitation />} /><Route path="/verify-email" element={<VerifyEmail />} /><Route path="/verify-login" element={<VerifyLogin />} /><Route path="/forgot-password" element={<ForgotPassword />} />
-    <Route path="/courses" element={<Courses />} /><Route path="/explore" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
-    <Route path="/dashboard" element={<Navigate to="/home" replace />} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
-    <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} /><Route path="/my-learning" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
-    <Route path="/saved-courses" element={<ProtectedRoute><SavedCourses /></ProtectedRoute>} /><Route path="/saved" element={<ProtectedRoute><SavedCourses /></ProtectedRoute>} />
+    <Route path="/courses" element={<Navigate to={routes.explore()} replace />} /><Route path="/explore" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<ProtectedRoute><CourseRoadmap /></ProtectedRoute>} />
+    <Route path="/dashboard" element={<Navigate to={routes.home()} replace />} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+    <Route path="/my-courses" element={<Navigate to={routes.myLearning()} replace />} /><Route path="/my-learning" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
+    <Route path="/saved-courses" element={<Navigate to={routes.saved()} replace />} /><Route path="/saved" element={<ProtectedRoute><SavedCourses /></ProtectedRoute>} />
     <Route path="/learn/:courseId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
     <Route path="/learn/:courseId/:lessonId" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -90,7 +101,7 @@ function App() {
     <Route path="/admin/ai-content" element={<AdminPage><AdminAIContent /></AdminPage>} />
     <Route path="/admin/support" element={<AdminPage><AdminSupport /></AdminPage>} />
     <Route path="/admin/operations" element={<AdminPage><AdminOperations /></AdminPage>} />
-    <Route path="*" element={<Home />} />
+    <Route path="*" element={<NotFound />} />
   </Routes></Layout></BrowserRouter></AuthProvider>;
 }
 export default App;

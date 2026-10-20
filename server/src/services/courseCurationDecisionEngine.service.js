@@ -8,7 +8,7 @@ import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./youtube.service.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.5";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.6";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -189,10 +189,10 @@ function halfLifeForTopic(query) {
   if (/\b(ai|artificial intelligence|llm|generative ai|machine learning|deep learning|react|nextjs|next js|nestjs|node js|framework|library)\b/.test(q)) return 450;
   if (/\b(cloud|aws|azure|gcp|kubernetes|docker|devops|cybersecurity|cyber security)\b/.test(q)) return 730;
   if (/\b(python|javascript|java|typescript|programming|coding|web development|mobile development)\b/.test(q)) return 1095;
-  if (/\b(sql|statistics|math|mathematics|algebra|calculus|physics|chemistry|history|literature)\b/.test(q)) return 1825;
-  return 1825;
+  if (/\b(sql|statistics|math|mathematics|algebra|calculus|physics|chemistry|history|literature|language|grammar|philosophy|art|music|photography|painting|cooking|writing)\b/.test(q)) return 3650;
+  return 3650;
 }
-export function classifyCurationIntent(query) {
+export function classifyCurationIntent(query, options = {}) {
   const original = String(query || "").trim();
   const normalized = normalizeText(original);
   const mode = /\b(cheat sheet|quick reference|syntax reference|command reference|quick answer|definition of|meaning of)\b/.test(normalized)
@@ -200,17 +200,21 @@ export function classifyCurationIntent(query) {
     : /\b(crash course|crash-course|short course|fast overview|quick overview|concept explainer)\b/.test(normalized)
       ? "crash_course"
       : "full_course";
-  const level = /\b(advanced|expert|deep dive|mastery)\b/.test(normalized)
+  const requestedLevel = String(options.level || "").trim().toLowerCase();
+  const inferredLevel = /\b(advanced|expert|deep dive|mastery)\b/.test(normalized)
     ? "Advanced"
     : /\b(intermediate|some experience|beyond basics)\b/.test(normalized)
       ? "Intermediate"
       : "Beginner";
+  const level = ({ beginner: "Beginner", intermediate: "Intermediate", advanced: "Advanced" })[requestedLevel] || inferredLevel;
+  const category = String(options.category || "").trim();
   const language = languageFromQuery(original);
   return {
     query: original,
     normalizedQuery: normalized,
     mode,
     level,
+    category,
     language: language.code,
     languageExplicit: language.explicit,
     halfLifeDays: halfLifeForTopic(normalized),
@@ -399,7 +403,8 @@ async function evaluateCandidatesWithMetadataRubric(candidates, profile, syllabu
 }
 
 function buildCandidateQueries(profile, syllabus) {
-  const topic = profile.query.trim();
+  const baseTopic = profile.query.trim();
+  const topic = [profile.category, baseTopic].filter(Boolean).join(" ");
   const year = new Date().getFullYear();
   const modules = [...(syllabus.modules || [])].sort((a, b) => b.weight - a.weight).slice(0, 2);
   const queries = [
@@ -696,8 +701,7 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
     item.videoId &&
     item.embeddable !== false &&
     item.privacyStatus === "public" &&
-    !item.isShort &&
-    !/(^|[\s#])shorts?([\s#]|$)/i.test(item.title || "")
+    !item.isShort
   );
   const integrity = observedCount ? validLessons.length / observedCount : 0;
   const observedRuntime = validLessons.reduce((sum, item) => sum + Number(item.durationSeconds || 0), 0);
@@ -1351,7 +1355,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
       {
         $match: {
           normalizedQuery: profile.normalizedQuery,
-          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.4", "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
+          engineVersion: { $in: [ENGINE_VERSION, "course-curation-decision-engine-v1.5", "course-curation-decision-engine-v1.4", "course-curation-decision-engine-v1.3", "course-curation-decision-engine-v1.2"] },
           resourceId: { $in: resourceIds },
           createdAt: { $gte: cutoff }
         }
@@ -1452,7 +1456,7 @@ export async function invalidateNormalSearchCurationCache(query) {
     const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
     settingCount = Math.max(5, Math.min(50, Number(setting?.value) || 30));
   } catch {}
-  const key = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
+  const key = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   memoryCache.delete(key);
   try { await cacheDelete("bfs:" + key); } catch {}
   try {
@@ -1465,10 +1469,10 @@ export async function invalidateNormalSearchCurationCache(query) {
  * number of candidates fetched per query and maximum final result count. The user-facing
  * list is quality-gated and diversified, and may be shorter when too few candidates pass.
  */
-export async function curateNormalSearch(query) {
+export async function curateNormalSearch(query, options = {}) {
   const normalizedQuery = String(query || "").trim();
   if (normalizedQuery.length < 2) return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
-  const profile = classifyCurationIntent(normalizedQuery);
+  const profile = classifyCurationIntent(normalizedQuery, options);
   let settingCount = 30;
   try {
     const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
@@ -1536,6 +1540,7 @@ export async function curateNormalSearch(query) {
     intent: {
       mode: profile.mode,
       level: profile.level,
+      category: profile.category,
       language: profile.language,
       languageExplicit: profile.languageExplicit,
       halfLifeDays: profile.halfLifeDays

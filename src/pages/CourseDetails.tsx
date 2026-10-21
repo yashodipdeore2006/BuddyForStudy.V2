@@ -949,7 +949,7 @@ export default function CourseDetails() {
           <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">{sourceType}</span>
           {qualityScore !== null && qualityScore >= 85 && <span className="rounded-full bg-emerald-300/15 px-3 py-1 text-xs font-semibold text-emerald-200">Hidden gem</span>}
         </div>
-        <h1 className="mt-5 max-w-4xl text-3xl font-bold leading-tight tracking-tight sm:text-4xl">{course.title}</h1>
+        <h1 className="mt-5 max-w-4xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl">{course.title}</h1>
         <ExpandableText
           text={getCourseCardDescription(course)}
           maxLength={260}
@@ -967,7 +967,7 @@ export default function CourseDetails() {
       <section aria-label="Course trust and key stats" className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-5">
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Curation score</p><p className="mt-1 text-xl font-bold text-slate-950">{qualityScore !== null ? Math.round(qualityScore) + '/100' : 'Curated content'}</p></div>
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learners enrolled</p><p className="mt-1 text-xl font-bold text-slate-950">{learnerCount > 0 ? new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(learnerCount) : 'Be among the first'}</p></div>
-        {reviewStats.count > 0 && <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learner rating</p><p className="mt-1 flex items-center gap-1 text-xl font-bold text-slate-950"><Star className="h-5 w-5 fill-amber-400 text-amber-400" aria-hidden="true" />{reviewStats.average.toFixed(1)} <span className="text-xs font-medium text-slate-500">({reviewStats.count})</span></p></div>}
+        <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learner rating</p><p className="mt-1 flex items-center gap-1 text-xl font-bold text-slate-950"><Star className="h-5 w-5 fill-amber-400 text-amber-400" aria-hidden="true" />{reviewStats.count > 0 ? reviewStats.average.toFixed(1) : '0.0'} <span className="text-xs font-medium text-slate-500">({reviewStats.count} {reviewStats.count === 1 ? 'rating' : 'ratings'})</span></p></div>
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Estimated time</p><p className="mt-1 text-xl font-bold text-slate-950">{course.duration || 'Self-paced'}</p></div>
         <div className="bg-white p-4 sm:p-5"><p className="text-xs font-medium text-slate-500">Learning items</p><p className="mt-1 text-xl font-bold text-slate-950">{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</p></div>
       </section>

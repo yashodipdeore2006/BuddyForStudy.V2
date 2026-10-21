@@ -640,3 +640,17 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `c2ef057`.
 
 **Verification still required:** CI typecheck/build, browser keyboard-only walkthrough, screen-reader announcement, and focus restoration when the trigger remains mounted versus when the triggering row is removed.
+
+
+## Remediation 6 — Saved-view deletion confirmation
+
+**Status:** Source change committed; CI verification pending.
+
+- Saved-view deletion now opens the shared typed-confirmation dialog instead of deleting immediately from the small remove icon.
+- Requires typing the exact saved-view name before deletion; no justification reason is required for this low-risk personal configuration action.
+- Explicitly explains that only the saved filter/column configuration is removed, not the underlying records.
+- The delete button is disabled while the delete request is pending, and the dialog cannot be dismissed while that request is active.
+- File: `src/components/admin/SavedViews.tsx`.
+- Commit: `3fe5d4e`.
+
+**Verification still required:** CI typecheck/build, and a browser check of delete success/failure handling in every consuming page. The component expects the parent callback to surface errors; if a caller swallows an error and resolves normally, the dialog cannot infer the failure.

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { MailPlus, RefreshCcw, ShieldCheck, XCircle, Clock3 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 type Role = { key: string; label: string; description: string };
 type Invitation = {
@@ -25,6 +26,10 @@ export default function AdminInvitationManager() {
   const [revokingId, setRevokingId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [revokeTarget, setRevokeTarget] = useState<Invitation | null>(null);
+  const [revokeConfirmText, setRevokeConfirmText] = useState("");
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revokeDialogError, setRevokeDialogError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -67,20 +72,36 @@ export default function AdminInvitationManager() {
     }
   }
 
-  async function revokeInvitation(invitation: Invitation) {
-    if (!window.confirm("Revoke the pending invitation for " + invitation.email + "?")) return;
+  function openRevokeDialog(invitation: Invitation) {
+    setRevokeTarget(invitation);
+    setRevokeConfirmText("");
+    setRevokeReason("");
+    setRevokeDialogError("");
+  }
+
+  async function revokeInvitation() {
+    if (!revokeTarget || revokingId) return;
+    const invitation = revokeTarget;
+    if (revokeReason.trim().length < 10 || revokeReason.trim().length > 500) {
+      setRevokeDialogError("Enter a reason between 10 and 500 characters.");
+      return;
+    }
     setRevokingId(invitation._id);
+    setRevokeDialogError("");
     setError("");
     setNotice("");
     try {
       await adminFetch("/api/admin/invitations/" + invitation._id, {
         method: "DELETE",
-        body: JSON.stringify({ reason: "Revoked from administrator access console." })
+        body: JSON.stringify({ reason: revokeReason.trim() })
       });
       setNotice("Invitation revoked for " + invitation.email + ".");
+      setRevokeTarget(null);
+      setRevokeConfirmText("");
+      setRevokeReason("");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to revoke invitation.");
+      setRevokeDialogError(requestError instanceof Error ? requestError.message : "Unable to revoke invitation.");
     } finally {
       setRevokingId("");
     }
@@ -145,7 +166,7 @@ export default function AdminInvitationManager() {
                     <span className="text-slate-500"><Clock3 className="mr-1 inline h-3 w-3" />Expires {new Date(invitation.expiresAt).toLocaleString()}</span>
                   </div>
                 </div>
-                <button type="button" onClick={() => void revokeInvitation(invitation)} disabled={revokingId === invitation._id} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
+                <button type="button" onClick={() => openRevokeDialog(invitation)} disabled={revokingId === invitation._id} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">
                   <XCircle className="h-4 w-4" /> {revokingId === invitation._id ? "Revoking…" : "Revoke"}
                 </button>
               </article>;
@@ -153,6 +174,24 @@ export default function AdminInvitationManager() {
           </div>
         )}
       </div>
+      <TypedConfirmDialog
+        open={Boolean(revokeTarget)}
+        title="Revoke administrator invitation"
+        description={revokeTarget ? <>Revoke the pending invitation for <strong>{revokeTarget.email}</strong>?</> : undefined}
+        consequence="The invitation link will no longer grant access. This does not remove access from an administrator who has already accepted the invitation."
+        confirmLabel="Revoke invitation"
+        requiredText={revokeTarget?.email}
+        value={revokeConfirmText}
+        onValueChange={setRevokeConfirmText}
+        reason={revokeReason}
+        onReasonChange={setRevokeReason}
+        onConfirm={() => void revokeInvitation()}
+        onClose={() => { if (!revokingId) { setRevokeTarget(null); setRevokeDialogError(""); } }}
+        loading={Boolean(revokingId)}
+        danger
+        reasonRequired
+      />
+      {revokeDialogError && revokeTarget && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{revokeDialogError}</div>}
     </section>
   );
 }

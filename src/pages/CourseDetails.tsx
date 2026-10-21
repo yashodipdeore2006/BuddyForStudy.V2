@@ -651,6 +651,7 @@ export default function CourseDetails() {
           {courseView === 'completion' && <p className="text-sm font-semibold text-emerald-700">Course library</p>}
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{course.title}</h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">{getCourseCardDescription(course)}</p>
+          <button type="button" onClick={() => setCourseTab('reviews')} className="mt-4 inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-amber-300 hover:bg-amber-50/70"><span className="inline-flex items-center gap-1.5 font-bold text-slate-900"><Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />{reviewStats.count ? reviewStats.average.toFixed(1) : 'New course'}</span><span className="text-sm text-slate-600">{reviewStats.count ? reviewStats.count + (reviewStats.count === 1 ? ' review' : ' reviews') : 'Be the first to review'}</span><span className="text-sm font-semibold text-violet-700">Read reviews <ChevronRight className="inline h-4 w-4" aria-hidden="true" /></span></button>
           <div className="mt-6 grid gap-5 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/80 to-white p-5 sm:p-6 md:grid-cols-[minmax(0,1fr)_220px]">
             <div className="min-w-0">
               <div className="flex flex-wrap items-baseline justify-between gap-3">

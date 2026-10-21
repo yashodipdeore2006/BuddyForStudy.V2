@@ -177,6 +177,12 @@ export default function CourseDetails() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
   const myReview = session ? reviews.find((review) => String(review.user?._id ?? review.user?.id ?? '') === String(session.user.id)) : undefined;
+
+  useEffect(() => {
+    if (!myReview) return;
+    setReviewRating(myReview.rating);
+    setReviewComment(myReview.comment || '');
+  }, [myReview?._id, myReview?.rating, myReview?.comment]);
   const [shareNotice, setShareNotice] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
@@ -796,6 +802,44 @@ export default function CourseDetails() {
               {course.modules.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Curriculum content will be added soon.</p>}
             </div>
           </>}
+          {activeTab === 'reviews' && <section aria-labelledby="learner-reviews-title" className="space-y-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div><p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700">Learner feedback</p><h2 id="learner-reviews-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Ratings & Reviews</h2><p className="mt-1 text-sm text-slate-500">Reviews from learners of this course.</p></div>
+              <button type="button" disabled={reviewsLoading} onClick={async () => { setReviewsLoading(true); setReviewsError(''); try { const data = await apiFetch('/api/reviews/courses/' + courseId); setReviews(Array.isArray(data.reviews) ? data.reviews : []); setReviewStats(data.stats || { count: 0, average: 0, distribution: {} }); } catch { setReviewsError('Unable to refresh reviews right now.'); } finally { setReviewsLoading(false); } }} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-violet-300 hover:text-violet-700 disabled:opacity-50">{reviewsLoading ? 'Refreshing…' : 'Refresh reviews'}</button>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                <p className="text-sm font-semibold text-slate-600">Course rating</p>
+                <div className="mt-2 flex items-end gap-2"><span className="text-5xl font-extrabold tracking-tight text-slate-950">{reviewStats.count ? reviewStats.average.toFixed(1) : '—'}</span><span className="pb-1 text-sm text-slate-500">out of 5</span></div>
+                <div className="mt-2 flex items-center gap-1 text-amber-400" aria-label={reviewStats.count ? reviewStats.average.toFixed(1) + ' out of 5 stars' : 'No ratings yet'}>{[1, 2, 3, 4, 5].map((star) => <Star key={star} className="h-5 w-5" fill={reviewStats.count > 0 && star <= Math.round(reviewStats.average) ? 'currentColor' : 'none'} />)}</div>
+                <p className="mt-2 text-xs text-slate-500">Based on {reviewStats.count} {reviewStats.count === 1 ? 'review' : 'reviews'}</p>
+                <div className="mt-5 space-y-2">
+                  {[5, 4, 3, 2, 1].map((star) => { const count = Number(reviewStats.distribution?.[String(star)] || 0); const percent = reviewStats.count ? count / reviewStats.count * 100 : 0; return <div key={star} className="flex items-center gap-2 text-xs"><span className="w-3 text-slate-600">{star}</span><Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true" /><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: percent + '%' }} /></div><span className="w-5 text-right text-slate-500">{count}</span></div>; })}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">{myReview ? 'Your review' : 'Share your experience'}</h3><p className="mt-1 text-sm text-slate-500">{myReview ? 'Update your existing rating or comment below.' : 'Your feedback helps other learners choose the right course.'}</p></div><span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">{isCompleted ? 'Course completed' : 'Enrolled learner'}</span></div>
+                <div className="mt-4 flex items-center gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">
+                  {[1, 2, 3, 4, 5].map((star) => <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={'Rate ' + star + ' out of 5 stars'} aria-pressed={reviewRating === star} className="rounded-lg p-1 transition hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600"><Star className={classNames('h-7 w-7', star <= reviewRating ? 'text-amber-400' : 'text-slate-300')} fill={star <= reviewRating ? 'currentColor' : 'none'} /></button>)}
+                  <span className="ml-2 text-sm font-semibold text-slate-700">{reviewRating}/5</span>
+                </div>
+                <label htmlFor="course-review-comment" className="mt-4 block text-sm font-semibold text-slate-700">Your comment <span className="font-normal text-slate-400">(optional)</span></label>
+                <textarea id="course-review-comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={1000} placeholder="What did you learn? What worked well?" className="input-field mt-2 min-h-28 w-full resize-y text-sm" />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><span className="text-xs text-slate-400">{reviewComment.length}/1000 characters</span><button type="button" onClick={() => void submitReview()} disabled={reviewSaving} className="btn-primary">{reviewSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving review…</> : myReview ? 'Update review' : 'Submit review'}</button></div>
+                {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+                <p className="mt-3 text-xs leading-5 text-slate-500">Your submission updates your existing review instead of creating a duplicate.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3"><div><h3 className="text-lg font-bold text-slate-950">Learner reviews</h3><p className="mt-1 text-sm text-slate-500">{reviewStats.count} published {reviewStats.count === 1 ? 'review' : 'reviews'}</p></div></div>
+            {reviewsError && <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{reviewsError}</p>}
+            {reviewsLoading ? <div className="space-y-3" role="status" aria-label="Loading course reviews">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-2xl bg-slate-100" />)}</div> : reviews.length ? <div className="space-y-3">
+              {reviews.map((review) => <article key={review._id} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-700">{(review.user?.name || 'Learner').trim().charAt(0).toUpperCase()}</span><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{review.user?.name || 'Learner'}</p><p className="mt-0.5 text-xs text-slate-500">{review.createdAt ? formatDate(review.createdAt) : 'Review'}</p></div></div><div className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-sm font-bold text-amber-700" aria-label={review.rating + ' out of 5 stars'}><Star className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />{review.rating}.0</div></div>
+                <div className="mt-3">{review.comment?.trim() ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{review.comment}</p> : <p className="text-sm italic text-slate-500">Rated this course without leaving a comment.</p>}</div>
+                {session && String(review.user?._id ?? review.user?.id ?? '') === String(session.user.id) && <p className="mt-3 text-xs font-semibold text-violet-700">Your review</p>}
+              </article>)}
+            </div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-5 py-12 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-amber-500 shadow-sm"><Star className="h-6 w-6" /></div><h4 className="mt-4 font-bold text-slate-900">No published reviews yet</h4><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">Be the first to share your experience with this course.</p></div>}
+          </section>}
           {activeTab === 'about' && <div><h2 className="text-xl font-semibold text-slate-950">About this course</h2><p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-600">{getCourseCardDescription(course)}</p>{outcomes.length > 0 && <><h3 className="mt-6 font-semibold text-slate-900">Learning outcomes</h3><ul className="mt-3 grid gap-3 sm:grid-cols-2">{outcomes.map((outcome, index) => <li key={index} className="flex gap-2 text-sm text-slate-600"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{outcome}</li>)}</ul></>}{creatorName && <div className="mt-7 rounded-xl bg-slate-50 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source creator</p><p className="mt-1 font-semibold text-slate-900">{creatorName}</p></div>}</div>}
           {activeTab === 'notes' && <div>
             <h2 className="text-xl font-semibold text-slate-950">Your notes</h2>

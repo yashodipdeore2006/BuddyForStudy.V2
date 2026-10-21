@@ -14,24 +14,61 @@ export function TypedConfirmDialog({ open, title, description, consequence, conf
   useEffect(() => { loadingRef.current = loading; }, [loading]);
   useEffect(() => {
     if (!open) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]') || []);
-    focusable()[0]?.focus();
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex="0"]'
+    ) || []).filter((element) => element.getAttribute("aria-hidden") !== "true" && element.offsetParent !== null);
+    const first = focusable()[0];
+    (first || dialogRef.current)?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loadingRef.current) { event.stopPropagation(); onCloseRef.current(); return; }
+      if (event.key === "Escape") {
+        if (!loadingRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
+          onCloseRef.current();
+        }
+        return;
+      }
       if (event.key !== "Tab") return;
-      const elements = focusable(); if (!elements.length) return;
-      if (event.shiftKey && document.activeElement === elements[0]) { event.preventDefault(); elements[elements.length - 1].focus(); }
-      else if (!event.shiftKey && document.activeElement === elements[elements.length - 1]) { event.preventDefault(); elements[0].focus(); }
+      const elements = focusable();
+      if (!elements.length) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const active = document.activeElement;
+      const firstElement = elements[0];
+      const lastElement = elements[elements.length - 1];
+      if (!dialogRef.current?.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? lastElement : firstElement).focus();
+      } else if (event.shiftKey && (active === firstElement || active === dialogRef.current)) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && active === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => { window.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+    const onFocusIn = (event: FocusEvent) => {
+      if (dialogRef.current && !dialogRef.current.contains(event.target as Node)) {
+        (focusable()[0] || dialogRef.current).focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("focusin", onFocusIn);
+      if (previous?.isConnected && !previous.hasAttribute("disabled")) previous.focus();
+    };
   }, [open]);
   if (!open) return null;
   const typedMatches = !requiredText || value === requiredText;
   const reasonValid = !reasonRequired || Boolean(reason?.trim() && reason.trim().length >= 10 && reason.trim().length <= 500);
   return <div className="admin-typed-confirm-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading && !danger) onClose(); }}>
-    <div ref={dialogRef} className="admin-typed-confirm" role="alertdialog" aria-modal="true" aria-labelledby="admin-typed-confirm-title" aria-describedby="admin-typed-confirm-description" tabIndex={-1}>
+    <div ref={dialogRef} className="admin-typed-confirm" role="alertdialog" aria-modal="true" aria-labelledby="admin-typed-confirm-title" aria-describedby={description ? "admin-typed-confirm-description" : undefined} tabIndex={-1}>
       <div className="admin-typed-confirm__icon"><AlertTriangle aria-hidden="true" /></div>
       <h2 id="admin-typed-confirm-title">{title}</h2>
       {description && <div id="admin-typed-confirm-description" className="admin-typed-confirm__description">{description}</div>}

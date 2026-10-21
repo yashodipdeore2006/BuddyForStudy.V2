@@ -37,8 +37,8 @@ function mapCourse(raw: any): Course {
     is_published: raw.isPublished ?? true,
     enrollment_count: raw.enrollmentCount ?? raw.enrollment_count,
     enrollmentCount: raw.enrollmentCount ?? raw.enrollment_count,
-    ratingAverage: Number(raw.ratingAverage ?? raw.rating_average ?? 0),
-    ratingCount: Number(raw.ratingCount ?? raw.rating_count ?? 0),
+    ratingAverage: Number(raw.ratingAverage ?? raw.rating_average ?? raw.reviewStats?.average ?? raw.stats?.average ?? 0),
+    ratingCount: Number(raw.ratingCount ?? raw.rating_count ?? raw.reviewStats?.count ?? raw.stats?.count ?? 0),
     cardMetadata: raw.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
     generation: raw.generation && typeof raw.generation === "object" ? {
       mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode) ? raw.generation.mode : undefined,

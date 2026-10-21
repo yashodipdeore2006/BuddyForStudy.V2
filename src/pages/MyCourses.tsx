@@ -189,14 +189,16 @@ function CourseLearningCard({
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
       <div className={"bfs-course-card__media" + (generatedCover ? " bfs-course-card__media--generated" : "")}>
-        {!generatedCover && course.thumbnail && !thumbnailFailed ? (
-          <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
-        ) : (
-          <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}>
-            <CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" />
-            <span className="bfs-course-card__fallback-title">{coverWords}</span>
-          </div>
-        )}
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course information for " + course.title}>
+          {!generatedCover && course.thumbnail && !thumbnailFailed ? (
+            <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
+          ) : (
+            <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}>
+              <CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" />
+              <span className="bfs-course-card__fallback-title">{coverWords}</span>
+            </div>
+          )}
+        </Link>
         {course.level && <span className={"bfs-course-chip bfs-course-card__level" + (course.level === "Beginner" ? " bfs-course-chip--beginner" : course.level === "Intermediate" ? " bfs-course-chip--intermediate" : course.level === "Advanced" ? " bfs-course-chip--advanced" : "")}>{course.level}</span>}
         <span className="bfs-course-chip bfs-course-card__learning-status" data-status={status}>{status === "completed" ? "Completed" : status === "in-progress" ? "In progress" : "Not started"}</span>
         <button type="button" className="bfs-course-card__save" onClick={() => void handleSave()} disabled={saving} aria-label={saved ? "Remove from saved courses" : "Save course"} aria-pressed={saved} title={saved ? "Saved" : "Save"}>

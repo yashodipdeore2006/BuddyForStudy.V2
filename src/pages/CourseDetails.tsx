@@ -986,39 +986,22 @@ export default function CourseDetails() {
             </ul>
           </section>
 
-          <section id="reviews" className="scroll-mt-24 rounded-[24px] border border-slate-200 bg-white p-6" aria-labelledby="reviews-heading">
-            <h2 id="reviews-heading" className="text-lg font-semibold text-slate-950">Reviews & Ratings</h2>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-2xl font-bold text-slate-900">{reviewStats.count > 0 ? reviewStats.average.toFixed(1) : '—'}</span>
-              <div className="flex text-amber-400" aria-label={reviewStats.count > 0 ? reviewStats.average.toFixed(1) + ' out of 5 stars' : 'No ratings yet'}>
-                {[1,2,3,4,5].map((star) => <Star key={star} className="h-4 w-4" fill={reviewStats.count > 0 && star <= Math.round(reviewStats.average) ? "currentColor" : "none"} />)}
-              </div>
-              <span className="text-sm text-slate-500">({reviewStats.count} {reviewStats.count === 1 ? 'review' : 'reviews'})</span>
+          <section id="reviews" className="scroll-mt-24 rounded-[24px] border border-slate-200 bg-white p-6 sm:p-8" aria-labelledby="reviews-heading">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div><p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700">Learner feedback</p><h2 id="reviews-heading" className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Ratings & Reviews</h2><p className="mt-1 text-sm text-slate-500">Read feedback from learners who have taken this course.</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3"><div className="flex items-center gap-2"><Star className="h-5 w-5 fill-amber-400 text-amber-400" aria-hidden="true"/><span className="text-2xl font-extrabold text-slate-950">{reviewStats.count > 0 ? reviewStats.average.toFixed(1) : "—"}</span><span className="text-sm text-slate-500">/ 5</span></div><p className="mt-1 text-xs text-slate-500">{reviewStats.count} published {reviewStats.count === 1 ? "review" : "reviews"}</p></div>
             </div>
-            {isEnrolled ? (
-              <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-                <p className="text-sm font-semibold text-slate-800">Rate this course</p>
-                <div className="mt-2 flex gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">
-                  {[1,2,3,4,5].map((star) => (
-                    <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={"Rate " + star + " out of 5 stars"} aria-pressed={reviewRating === star}>
-                      <Star className={classNames('h-6 w-6', star <= reviewRating ? 'text-amber-400' : 'text-slate-300')} fill={star <= reviewRating ? "currentColor" : "none"} />
-                    </button>
-                  ))}
-                </div>
-                <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-20 w-full text-sm outline-none focus:border-blue-500" aria-label="Review comment (optional)" />
-                <button type="button" onClick={submitReview} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? 'Saving...' : 'Submit Review'}</button>
+            <div className="mt-6 grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+              <aside className="h-fit rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                <p className="text-sm font-semibold text-slate-700">Rating breakdown</p>
+                <div className="mt-4 space-y-3">{[5,4,3,2,1].map((star) => { const count = Number(reviewStats.distribution?.[String(star)] || 0); const percent = reviewStats.count ? count / reviewStats.count * 100 : 0; return <div key={star} className="flex items-center gap-2 text-xs"><span className="w-3 text-slate-600">{star}</span><Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true"/><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-amber-400 transition-all" style={{width: percent + "%"}}/></div><span className="w-5 text-right text-slate-500">{count}</span></div>; })}</div>
+                {isEnrolled ? <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-sm font-semibold text-slate-900">{myReview ? "Update your review" : "Rate this course"}</p><div className="mt-2 flex gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">{[1,2,3,4,5].map((star) => <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={"Rate " + star + " out of 5 stars"} aria-pressed={reviewRating === star} className="rounded p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600"><Star className={classNames("h-6 w-6", star <= reviewRating ? "text-amber-400" : "text-slate-300")} fill={star <= reviewRating ? "currentColor" : "none"}/></button>)}</div><textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-24 w-full resize-y text-sm" aria-label="Review comment (optional)"/><button type="button" onClick={() => void submitReview()} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? "Saving review…" : myReview ? "Update review" : "Submit review"}</button>{error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}</div> : <p className="mt-5 border-t border-slate-200 pt-4 text-sm leading-6 text-slate-600">You can read all reviews without enrolling. <button type="button" onClick={() => void handleEnroll()} className="font-semibold text-violet-700 hover:text-violet-900">Enroll to review</button></p>}
+              </aside>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-slate-950">Learner reviews</h3>
+                {reviewsError && <p role="alert" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{reviewsError}</p>}
+                {reviewsLoading ? <div className="mt-4 space-y-3" role="status" aria-label="Loading course reviews">{[1,2,3].map((item) => <div key={item} className="h-24 animate-pulse rounded-2xl bg-slate-100"/> )}</div> : reviews.length ? <div className="mt-3 space-y-3">{reviews.map((review) => <article key={review._id} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-700">{(review.user?.name || "Learner").trim().charAt(0).toUpperCase()}</span><div><p className="font-semibold text-slate-900">{review.user?.name || "Learner"}</p><p className="mt-0.5 text-xs text-slate-500">{review.createdAt ? formatDate(review.createdAt) : "Course review"}</p></div></div><span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-sm font-bold text-amber-700"><Star className="h-4 w-4 fill-amber-400 text-amber-400"/>{review.rating}.0</span></div>{review.comment?.trim() ? <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{review.comment}</p> : <p className="mt-3 text-sm italic text-slate-500">Rated this course without a written comment.</p>}</article>)}</div> : <div className="mt-4 rounded-2xl border border-dashed border-slate-300 px-5 py-10 text-center"><Star className="mx-auto h-8 w-8 text-amber-400"/><h4 className="mt-3 font-semibold text-slate-900">No published reviews yet</h4><p className="mt-1 text-sm text-slate-500">Be the first learner to share your experience.</p></div>}
               </div>
-            ) : (
-              <p className="mt-5 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">You can read all reviews without enrolling. Enroll in this course to submit your own rating and review.</p>
-            )}
-            <div className="mt-6 space-y-4">
-              {reviews.length ? reviews.map((review) => (
-                <div key={review._id} className="border-t border-slate-100 pt-4">
-                  <div className="flex items-center gap-2"><span className="font-semibold text-slate-800">{review.user?.name || 'Learner'}</span><div className="flex text-amber-400" aria-label={review.rating + ' out of 5 stars'}>{[1,2,3,4,5].map((star) => <Star key={star} className="h-3.5 w-3.5" fill={star <= review.rating ? "currentColor" : "none"} />)}</div></div>
-                  {review.comment && <p className="mt-2 text-sm text-slate-600">{review.comment}</p>}
-                  <p className="mt-1 text-xs text-slate-400">{review.createdAt ? formatDate(review.createdAt) : 'Review'}</p>
-                </div>
-              )) : <p className="mt-4 text-sm text-slate-500">No reviews yet. Be the first to review this course.</p>}
             </div>
           </section>
 

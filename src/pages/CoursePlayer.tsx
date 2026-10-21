@@ -752,12 +752,21 @@ export default function CoursePlayer() {
                                   setQuizPassed(false);
                                   setQuizAnswers({});
                                 }}
-                                className="btn-primary justify-center"
+                                className="btn-secondary justify-center"
                               >
                                 Try Again
                               </button>
+                              <button type="button" onClick={() => void handleGenerateLessonQuiz("reattempt")} disabled={quizActionLoading} className="btn-secondary justify-center">
+                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Reattempt
+                              </button>
+                              <button type="button" onClick={() => void handleGenerateLessonQuiz("generate")} disabled={quizActionLoading} className="btn-primary justify-center">
+                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                {quizActionLoading ? "Generating..." : "Generate More Quiz"}
+                              </button>
                             )}
                           </div>
+                          {quizActionError && <p role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{quizActionError}</p>}
                         </div>
                       ) : (
                         <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">

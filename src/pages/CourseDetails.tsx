@@ -952,7 +952,10 @@ export default function CourseDetails() {
         <h1 className="mt-5 max-w-4xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl">{course.title}</h1>
         <ExpandableText
           text={getCourseCardDescription(course)}
-          maxLength={260}
+          maxLength={180}
+          lines={2}
+          presentation="popup"
+          popupTitle={course.title + " — Description"}
           className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"
         />
         <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-300">

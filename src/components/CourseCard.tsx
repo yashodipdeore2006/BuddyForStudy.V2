@@ -280,11 +280,13 @@ export default function CourseCard({
       </Link>
 
       <div className={"bfs-course-card__media" + (course.generation?.mode === "ai" ? " bfs-course-card__media--generated" : "")}>
+        <Link to={routes.course(course.id)} className="bfs-course-card__media-link" aria-label={"View course details for " + course.title} tabIndex={-1}>
         {course.generation?.mode !== "ai" && course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
         ) : (
           <div className={"bfs-course-card__fallback bfs-course-card__fallback--" + coverPalette} aria-label={course.title}><CoverIcon className="bfs-course-card__fallback-icon" size={40} aria-hidden="true" /></div>
         )}
+        </Link>
         {course.level && <span className={levelClass(course.level)}>{course.level}</span>}
         <button
           type="button"
@@ -312,7 +314,7 @@ export default function CourseCard({
               ? <span>{lessonCount} {lessonCount === 1 ? "lesson" : "lessons"}</span>
               : null}
         </div>
-        <h3 className="bfs-course-card__title" title={course.title}>{course.title}</h3>
+        <h3 className="bfs-course-card__title" title={course.title}><Link to={routes.course(course.id)} className="bfs-course-card__detail-link">{course.title}</Link></h3>
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
         {variant === "recommended" && reason && !/explore youtube discovery|youtube discovery|ai-selected|ordered after prerequisites/i.test(reason)
           && <p className="bfs-course-card__reason" title={reason}><Sparkles size={14} aria-hidden="true" /><span><strong>Why picked:</strong> {reason}{course.level ? " · " + course.level + "-friendly" : ""}</span></p>}

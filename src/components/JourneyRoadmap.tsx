@@ -90,6 +90,22 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
       <Stat label="Finish by" value={isEnrolled ? finishDate.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—"} />
     </div>
     {isEnrolled && <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm ring-1 ring-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:ring-white/5"><label htmlFor="journey-pace" className="text-sm font-medium">Daily learning pace</label><select id="journey-pace" value={pace} onChange={(event) => void changePace(Number(event.target.value))} className="input-field w-32 text-sm">{[1, 2, 3, 4].map((hours) => <option key={hours} value={hours}>{hours} h/day</option>)}</select></div>}
+    <nav aria-label="Quest stages" className="mb-4 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/85">
+      <ol className="flex min-w-max items-center gap-2 xl:min-w-0 xl:justify-center">
+        {data.stages.map((stage, index) => {
+          const stageProgress = data.progress?.stageProgress[index] || 0;
+          const cleared = isEnrolled && stageProgress >= 1;
+          const current = index === activeStageIndex;
+          return <li key={stage.id} className="flex items-center gap-2">
+            <button type="button" onClick={() => setSelected(index)} aria-current={current ? "step" : undefined} className={"group flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 " + (current ? "border-violet-400 bg-violet-50 text-violet-950 dark:bg-violet-950/60 dark:text-violet-100" : cleared ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100" : "border-slate-200 bg-white/70 text-slate-600 hover:border-violet-300 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300")}>
+              <span className={"flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold " + (cleared ? "bg-emerald-600 text-white" : current ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200")}>{cleared ? "✓" : stage.order}</span>
+              <span><span className="block max-w-[150px] truncate text-xs font-semibold">{stage.title}</span><span className="mt-0.5 block text-[10px] opacity-70">{cleared ? "Gate cleared" : current ? "Current stage" : stage.hours + " hours"}</span></span>
+            </button>
+            {index < data.stages.length - 1 && <span aria-hidden="true" className="h-px w-3 shrink-0 bg-slate-300 dark:bg-slate-600" />}
+          </li>;
+        })}
+      </ol>
+    </nav>
     <div className="quest-roadmap__world relative min-h-[70vh] overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[radial-gradient(ellipse_at_50%_0%,#dbeafe_0%,#eef2ff_34%,#f8fafc_72%)] p-3 shadow-[0_24px_80px_-36px_rgba(15,23,42,.35)] ring-1 ring-white dark:border-slate-700 dark:bg-[radial-gradient(ellipse_at_50%_0%,#172554_0%,#111827_45%,#020617_100%)] dark:ring-white/5 sm:p-5 xl:p-8">
       <svg viewBox={"0 0 360 " + height} width="100%" height="auto" role="img" aria-label={"Journey roadmap for " + data.title + ", " + data.stages.length + " stages"} className="quest-roadmap__map mx-auto block h-auto w-full max-w-[900px] overflow-visible drop-shadow-[0_18px_30px_rgba(15,23,42,.12)]">
         <defs><clipPath id="journey-map-clip"><rect x="4" y="4" width="352" height={height - 8} rx="24" /></clipPath><linearGradient id="journey-trail-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs>

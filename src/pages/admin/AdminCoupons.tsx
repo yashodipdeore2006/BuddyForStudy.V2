@@ -110,20 +110,17 @@ export default function AdminCoupons() {
         }),
       });
       setForm(emptyForm);
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to create coupon");
+      setActionError(e instanceof Error ? e.message : "Unable to create coupon");
     } finally {
       setSaving(false);
     }
   }
 
-  async function generateBulk() {
-    const reason = window.prompt("Reason for bulk coupon generation (10–500 characters):")?.trim() || "";
-    if (reason.length < 10 || reason.length > 500) {
-      setError("A reason of 10–500 characters is required.");
-      return;
-    }
+  async function generateBulk(reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "bulk" }); return; }
     if (!Number.isInteger(bulkCount) || bulkCount < 1 || bulkCount > 100) {
       setError("Choose a batch size from 1 to 100.");
       return;
@@ -141,26 +138,24 @@ export default function AdminCoupons() {
           course: form.course || null, reason,
         }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to generate coupon batch.");
+      setActionError(e instanceof Error ? e.message : "Unable to generate coupon batch.");
     } finally { setSaving(false); }
   }
 
-  async function toggle(coupon: any) {
-    const reason = window.prompt("Reason for " + (coupon.isActive ? "disabling" : "enabling") + " coupon " + coupon.code + " (10–500 characters):")?.trim() || "";
-    if (reason.length < 10 || reason.length > 500) {
-      setError("A reason of 10–500 characters is required.");
-      return;
-    }
+  async function toggle(coupon: any, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "toggle", coupon }); return; }
     try {
       await adminFetch("/api/admin/coupons/" + coupon._id, {
         method: "PUT",
         body: JSON.stringify({ isActive: !coupon.isActive, reason }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to update coupon");
+      setActionError(e instanceof Error ? e.message : "Unable to update coupon");
     }
   }
 

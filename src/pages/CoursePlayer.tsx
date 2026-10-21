@@ -721,58 +721,54 @@ export default function CoursePlayer() {
                               )}
                             </div>
 
-                            {!quizSubmitted ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleQuizSubmit()}
-                                disabled={
-                                  quizLoading ||
-                                  Object.keys(quizAnswers).length !== quizData.questions.length ||
-                                  completing
-                                }
-                                className="btn-primary justify-center"
-                              >
-                                Submit Quiz
-                              </button>
-                            ) : quizPassed ? (
-                              <button
-                                type="button"
-                                onClick={() => navigation.next && handleNavigate(navigation.next.id)}
-                                className="btn-primary justify-center"
-                                disabled={completing}
-                              >
-                                {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
-                              </button>
-                              <button type="button" onClick={() => void handleGenerateLessonQuiz("reattempt")} disabled={quizActionLoading} className="btn-secondary justify-center">
-                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                Reattempt
-                              </button>
-                              <button type="button" onClick={() => void handleGenerateLessonQuiz("generate")} disabled={quizActionLoading} className="btn-primary justify-center">
-                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
-                                {quizActionLoading ? "Generating..." : "Generate More Quiz"}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setQuizSubmitted(false);
-                                  setQuizScore(null);
-                                  setQuizPassed(false);
-                                  setQuizAnswers({});
-                                }}
-                                className="btn-secondary justify-center"
-                              >
-                                Try Again
-                              </button>
-                              <button type="button" onClick={() => void handleGenerateLessonQuiz("reattempt")} disabled={quizActionLoading} className="btn-secondary justify-center">
-                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                Reattempt
-                              </button>
-                              <button type="button" onClick={() => void handleGenerateLessonQuiz("generate")} disabled={quizActionLoading} className="btn-primary justify-center">
-                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
-                                {quizActionLoading ? "Generating..." : "Generate More Quiz"}
-                              </button>
-                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {!quizSubmitted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleQuizSubmit()}
+                                  disabled={quizLoading || Object.keys(quizAnswers).length !== quizData.questions.length || completing}
+                                  className="btn-primary justify-center"
+                                >
+                                  Submit Quiz
+                                </button>
+                              ) : (
+                                <>
+                                  {quizPassed && (
+                                    <button
+                                      type="button"
+                                      onClick={() => navigation.next && handleNavigate(navigation.next.id)}
+                                      className="btn-primary justify-center"
+                                      disabled={completing}
+                                    >
+                                      {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
+                                    </button>
+                                  )}
+                                  {!quizPassed && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setQuizSubmitted(false);
+                                        setQuizScore(null);
+                                        setQuizPassed(false);
+                                        setQuizAnswers({});
+                                      }}
+                                      className="btn-secondary justify-center"
+                                      disabled={quizActionLoading}
+                                    >
+                                      Try Again
+                                    </button>
+                                  )}
+                                  <button type="button" onClick={() => void handleGenerateLessonQuiz("reattempt")} disabled={quizActionLoading} className="btn-secondary justify-center">
+                                    {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                    Reattempt
+                                  </button>
+                                  <button type="button" onClick={() => void handleGenerateLessonQuiz("generate")} disabled={quizActionLoading} className="btn-primary justify-center">
+                                    {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                    {quizActionLoading ? "Generating..." : "Generate More Quiz"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                           {quizActionError && <p role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{quizActionError}</p>}
                         </div>

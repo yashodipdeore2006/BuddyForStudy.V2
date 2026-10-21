@@ -178,7 +178,7 @@ export default function AdminInvitationManager() {
         open={Boolean(revokeTarget)}
         title="Revoke administrator invitation"
         description={revokeTarget ? <>Revoke the pending invitation for <strong>{revokeTarget.email}</strong>?</> : undefined}
-        consequence="The invitation link will no longer grant access. This does not remove access from an administrator who has already accepted the invitation."
+        consequence={<>The invitation link will no longer grant access. This does not remove access from an administrator who has already accepted the invitation.{revokeDialogError && <span role="alert" className="mt-2 block text-sm text-red-700">{revokeDialogError}</span>}</>}
         confirmLabel="Revoke invitation"
         requiredText={revokeTarget?.email}
         value={revokeConfirmText}
@@ -191,7 +191,6 @@ export default function AdminInvitationManager() {
         danger
         reasonRequired
       />
-      {revokeDialogError && revokeTarget && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{revokeDialogError}</div>}
     </section>
   );
 }

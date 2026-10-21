@@ -601,7 +601,7 @@ Severity definitions:
 
 ## Remediation 4 — Platform setting deletion
 
-**Status:** Implemented in frontend and backend source; CI/runtime verification pending.
+**Status:** Implemented in frontend and backend source; CI passed at commit `117be12`. Browser/runtime verification remains pending.
 
 - Replaced the native browser confirmation with the shared `TypedConfirmDialog`.
 - The dialog requires the operator to type the exact setting key and provide a 10–500 character reason.
@@ -611,8 +611,18 @@ Severity definitions:
 - Files changed: `src/pages/admin/AdminSettings.tsx`, `server/src/controllers/adminPro.controller.js`.
 - Commits: `1410b66`, `117be12`.
 
-**Verification still required:** CI typecheck/build, backend tests, authorized/unauthorized delete behavior, missing/invalid reason rejection, and audit-event verification.
+**CI verification:** The workflow at commit `117be12` passed backend tests and syntax checks, frontend typecheck, course navigation unit tests, and production build. **Runtime verification still required:** authorized/unauthorized delete behavior, missing/invalid reason rejection, audit-event verification, and browser keyboard/focus behavior.
 
 ### CI regression correction
 
-The CI run after the first subscription-plan dialog commit exposed stale handler signatures in `AdminPlans.tsx`. Commit `c639aa9` updates all five handlers to accept a supplied reason and open the dialog when invoked without one. The workflow for this correction and subsequent settings changes is still running; do not treat it as passed until the typecheck, unit tests, build, and backend job finish.
+The CI run after the first subscription-plan dialog commit exposed stale handler signatures in `AdminPlans.tsx`. Commit `c639aa9` updates all five handlers to accept a supplied reason and open the dialog when invoked without one. The latest workflow for subsequent settings changes completed successfully at `117be12`; backend tests/syntax, frontend typecheck, course navigation unit tests, and production build all passed. Lint remains advisory because of existing repository-wide lint debt.
+
+
+## CI verification update — 2026-10-21
+
+- **Workflow:** [BuddyForStudy CI run 39633338255](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/39633338255)
+- **Commit:** `117be12c6b248dc0a7de363eb24ea15ebba60966` on `test`
+- **Backend:** passed `npm test` and server JavaScript syntax checks.
+- **Frontend:** passed `npm run typecheck`, course navigation unit tests, and `npm run build`.
+- **Lint:** advisory step completed; it is not a clean-lint guarantee because legacy lint issues remain.
+- **Limitations:** CI does not prove visual appearance, browser focus restoration, responsive layouts, permission behavior against live data, or audit-event contents. Those remain manual/runtime verification items.

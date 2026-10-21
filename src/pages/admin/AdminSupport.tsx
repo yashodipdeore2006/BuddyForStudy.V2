@@ -104,14 +104,14 @@ export default function AdminSupport() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? assigneeId(issue.assignedTo), confirmed = false) {
+  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? assigneeId(issue.assignedTo), confirmed = false, reasonOverride?: string) {
     if (!canManage) {
       setError("Case-management permission could not be verified. Refresh the page or ask a platform administrator to review your access.");
       return;
     }
     const adminNote = (notes[issue._id] ?? issue.adminNote ?? "").trim();
     const internalNote = (internalNotes[issue._id] || "").trim();
-    const reason = (reasons[issue._id] || "").trim();
+    const reason = (reasonOverride ?? reasons[issue._id] ?? "").trim();
     if (reason.length < 10 || reason.length > 500) {
       setError("Enter a reason between 10 and 500 characters before saving this case.");
       return;
@@ -332,9 +332,8 @@ export default function AdminSupport() {
       onConfirm={() => {
         if (!pendingFinalization) return;
         const { issue, status, assignment } = pendingFinalization;
-        setReasons((current) => ({ ...current, [issue._id]: confirmReason.trim() }));
         setPendingFinalization(null);
-        void update(issue, status, assignment, true);
+        void update(issue, status, assignment, true, confirmReason.trim());
       }}
     />}
   </div>;

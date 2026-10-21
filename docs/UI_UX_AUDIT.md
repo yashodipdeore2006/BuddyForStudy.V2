@@ -680,3 +680,16 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `d2b58b1`.
 
 **Verification still required:** CI typecheck/build and browser verification on the enrolled course route.
+
+
+## Course player — dedicated quiz lesson experience
+
+**Status:** Implemented in source; CI verification pending.
+
+- Hid the generic Lesson / Progress / Quiz / Notes tab section for quiz-type lessons because the quiz already has a dedicated assessment surface. Tutorial and project lessons retain the existing tabs.
+- Added **Reattempt** and **Generate More Quiz** actions after quiz submission, whether the learner passes or fails. Failed attempts retain **Try Again** for clearing answers and reviewing the same question set.
+- Reattempt and generation use the existing `/api/ai/practice-quiz` workflow; bank-backed quiz attempts are submitted through `/api/ai/practice-quiz/submit` so the question bank can track them.
+- Files: `src/pages/CoursePlayer.tsx`.
+- Commits: `499d790`, `dd1764f`, `d6c3139`, `078aafc`.
+
+**Verification still required:** CI typecheck/build, plus browser testing for passed/failed attempts, empty quiz banks, moderation-pending responses, and retry behavior.

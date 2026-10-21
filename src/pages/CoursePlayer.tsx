@@ -817,6 +817,7 @@ export default function CoursePlayer() {
                           No video is available for this lesson.
                         </div>
                       )}
+                    <div aria-hidden="true" className="h-3 w-full bg-[#1c1d1f]" />
                   </div>
                 )}
 

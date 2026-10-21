@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock, Power, Plus, RefreshCcw, Tag } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 const emptyForm = {
   code: "",
@@ -25,6 +26,10 @@ export default function AdminCoupons() {
   const [bulkPrefix, setBulkPrefix] = useState("BFS");
   const [bulkCount, setBulkCount] = useState(10);
   const [activeSection, setActiveSection] = useState<"promotions" | "create">("promotions");
+  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "bulk" | "toggle"; coupon?: any } | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [actionError, setActionError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -47,7 +52,14 @@ export default function AdminCoupons() {
 
   useEffect(() => { void load(); }, []);
 
-  async function create() {
+  function openConfirmation(action: { kind: "create" | "bulk" | "toggle"; coupon?: any }) {
+    if (!permissions.includes("coupons.manage")) { setError("You do not have permission to manage coupons."); return; }
+    if (action.kind === "bulk" && (!Number.isInteger(bulkCount) || bulkCount < 1 || bulkCount > 100)) { setError("Choose a batch size from 1 to 100."); return; }
+    setError(""); setActionError(""); setConfirmText(""); setActionReason(""); setConfirmAction(action);
+  }
+
+  async function create(reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "create" }); return; }
     const code = String(form.code || "").trim().toUpperCase();
     const value = Number(form.value);
     const maxDiscount = form.maxDiscount === "" ? null : Number(form.maxDiscount);
@@ -78,11 +90,7 @@ export default function AdminCoupons() {
       return;
     }
 
-    const reason = window.prompt("Reason for creating this coupon (10–500 characters):")?.trim() || "";
-    if (reason.length < 10 || reason.length > 500) {
-      setError("A reason of 10–500 characters is required.");
-      return;
-    }
+
     setSaving(true);
     setError("");
     try {
@@ -167,6 +175,26 @@ export default function AdminCoupons() {
 
       {!permissions.includes("coupons.manage") && <div role="status" className="mb-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">View-only access: your role can review coupons but cannot create or change promotions.</div>}
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+
+      {confirmAction && <TypedConfirmDialog
+        open
+        title={confirmAction.kind === "create" ? "Create coupon" : confirmAction.kind === "bulk" ? "Generate coupon batch" : (confirmAction.coupon?.isActive ? "Disable coupon" : "Enable coupon")}
+        description={confirmAction.kind === "create" ? "Create a new discount that learners may use at checkout." : confirmAction.kind === "bulk" ? "Generate a batch of unique coupon codes using the current discount settings." : `Change the availability of coupon ${confirmAction.coupon?.code}.`}
+        consequence={actionError ? <span role="alert">{actionError}</span> : confirmAction.kind === "bulk" ? `This will create ${bulkCount} coupon records.` : confirmAction.kind === "toggle" ? "This changes whether the coupon can be redeemed." : "The coupon will be created as active."}
+        confirmLabel={confirmAction.kind === "create" ? "Create coupon" : confirmAction.kind === "bulk" ? "Generate batch" : (confirmAction.coupon?.isActive ? "Disable coupon" : "Enable coupon")}
+        requiredText={confirmAction.kind === "create" ? "CREATE COUPON" : confirmAction.kind === "bulk" ? `GENERATE ${bulkCount} COUPONS` : String(confirmAction.coupon?.code || "")}
+        value={confirmText} onValueChange={setConfirmText}
+        reason={actionReason} onReasonChange={setActionReason}
+        loading={saving}
+        onClose={() => { if (!saving) { setConfirmAction(null); setActionError(""); } }}
+        onConfirm={() => {
+          const reason = actionReason.trim();
+          if (!confirmAction || reason.length < 10 || reason.length > 500) return;
+          if (confirmAction.kind === "create") void create(reason);
+          else if (confirmAction.kind === "bulk") void generateBulk(reason);
+          else if (confirmAction.coupon) void toggle(confirmAction.coupon, reason);
+        }}
+      />}
 
       <div className="mt-6">
         <AdminTabs

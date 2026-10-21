@@ -50,6 +50,10 @@ function mapCourse(raw: any): Course {
     lesson_count: Number.isFinite(raw?.lessonCount) ? raw.lessonCount : raw?.lesson_count,
     is_published: raw?.isPublished ?? raw?.is_published ?? true,
     pricing: raw?.pricing,
+    // The course details endpoint exposes review aggregates; normalize both API naming conventions
+    // here as well so shared CourseCards render the same rating on Home and Explore.
+    ratingAverage: Number(raw?.ratingAverage ?? raw?.rating_average ?? raw?.reviewStats?.average ?? raw?.stats?.average ?? 0),
+    ratingCount: Number(raw?.ratingCount ?? raw?.rating_count ?? raw?.reviewStats?.count ?? raw?.stats?.count ?? 0),
     created_at: raw?.createdAt ?? raw?.created_at ?? '',
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? '',
   } as Course;

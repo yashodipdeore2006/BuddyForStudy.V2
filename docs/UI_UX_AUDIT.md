@@ -565,3 +565,35 @@ Severity definitions:
 ### Task status update
 - **Completed:** First remediation for a sensitive admin action; audit now records the implementation and outstanding verification.
 - **Remaining:** Standardize coupon and plan reason prompts, settings/support confirmation patterns, then run typecheck/build and browser regression checks. Continue only after reviewing each action's required permission, reason, confirmation, and audit behavior.
+
+
+## Remediation 2 — Coupon and subscription plan confirmations
+
+**Status:** Implemented in source; runtime verification pending.
+
+- Coupon creation, bulk generation, and enable/disable actions now use `TypedConfirmDialog` instead of native browser prompts.
+- Subscription plan creation, activation changes, plan details, limits, and features now use `TypedConfirmDialog`.
+- Each action requires a 10–500 character reason and typed confirmation. Existing API payloads continue to include the reason, and existing management-permission gates remain in place.
+- Files changed: `src/pages/admin/AdminCoupons.tsx`, `src/pages/admin/AdminPlans.tsx`.
+- Commits: `afcd3da`, `8bc7de9`, `1210187`.
+
+**Verification still required:** Typecheck/build, API failure-state behavior, dialog keyboard/focus behavior, and end-to-end audit-log verification.
+
+## Remediation 3 — Terminal support case transitions
+
+**Status:** Implemented in source; runtime verification pending.
+
+- Replaced the native browser confirmation for resolving or closing a payment/access support case with `TypedConfirmDialog`.
+- The dialog states that terminal states cannot be reopened, requires the operator to type the case ID, and collects a 10–500 character reason.
+- The confirmed reason is passed directly into the existing update operation to avoid relying on asynchronous React state updates.
+- Existing case-management permission checks, resolution-note validation, and API payload are retained.
+- File changed: `src/pages/admin/AdminSupport.tsx`.
+- Commits: `a77089b`, `a74666f`.
+
+**Verification still required:** Typecheck/build, permission-denied behavior, resolve/close success and failure paths, and server-side audit-log verification.
+
+## Updated remediation status
+
+- **Completed in source:** administrator invitation revocation, coupon actions, subscription plan actions, and terminal support case transitions use the shared typed confirmation pattern.
+- **Not yet remediated:** settings deletion confirmation. The frontend DELETE request currently has no reason payload; the backend contract must be confirmed before changing it to avoid breaking the endpoint or implying an audit trail that is not implemented.
+- **Not verified:** TypeScript typecheck, production build, automated test suite, browser keyboard/focus behavior, responsive layout, and end-to-end server audit records.

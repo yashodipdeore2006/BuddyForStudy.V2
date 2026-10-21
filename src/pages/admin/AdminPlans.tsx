@@ -97,9 +97,13 @@ export default function AdminPlans() {
     void load();
   }, []);
 
-  async function create() {
-    const reason = promptFinanceReason("creating this subscription plan");
-    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
+  function openConfirmation(action: { kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan }) {
+    if (!permissions.includes("plans.manage")) { setError("You do not have permission to manage subscription plans."); return; }
+    setError(""); setActionError(""); setConfirmText(""); setActionReason(""); setConfirmAction(action);
+  }
+
+  async function create(reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "create" }); return; }
     if (!form.name.trim() || !form.slug.trim()) {
       setError("Plan name and slug are required.");
       return;
@@ -117,24 +121,25 @@ export default function AdminPlans() {
         }),
       });
       setForm(emptyForm);
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to create plan");
+      setActionError(e instanceof Error ? e.message : "Unable to create plan");
     }
   }
 
-  async function toggle(plan: Plan) {
-    const reason = promptFinanceReason((plan.isActive ? "disabling " : "enabling ") + plan.name);
-    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
+  async function toggle(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "toggle", plan }); return; }
     try {
       setError("");
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
         body: JSON.stringify({ isActive: !plan.isActive, reason }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to update plan");
+      setActionError(e instanceof Error ? e.message : "Unable to update plan");
     }
   }
 
@@ -189,9 +194,8 @@ export default function AdminPlans() {
     return Number.isFinite(value) ? value : fallback;
   }
 
-  async function savePlanDetails(plan: Plan) {
-    const reason = promptFinanceReason("changing plan details for " + plan.name);
-    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
+  async function savePlanDetails(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "details", plan }); return; }
     setSavingPlan(plan._id);
     setError("");
     try {
@@ -209,17 +213,17 @@ export default function AdminPlans() {
         }),
       });
       setEditingPlan(null);
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save plan");
+      setActionError(e instanceof Error ? e.message : "Unable to save plan");
     } finally {
       setSavingPlan(null);
     }
   }
 
-  async function savePlanLimits(plan: Plan) {
-    const reason = promptFinanceReason("changing limits for " + plan.name);
-    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
+  async function savePlanLimits(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "limits", plan }); return; }
     setSavingPlan(plan._id);
     setError("");
     try {
@@ -227,17 +231,17 @@ export default function AdminPlans() {
         method: "PUT",
         body: JSON.stringify({ limits: plan.limits || {}, reason }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save plan limits");
+      setActionError(e instanceof Error ? e.message : "Unable to save plan limits");
     } finally {
       setSavingPlan(null);
     }
   }
 
-  async function saveFeatures(plan: Plan) {
-    const reason = promptFinanceReason("changing features for " + plan.name);
-    if (!reason) { setError("A reason of 10–500 characters is required."); return; }
+  async function saveFeatures(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "features", plan }); return; }
     setSavingPlan(plan._id);
     setError("");
 
@@ -246,9 +250,10 @@ export default function AdminPlans() {
         method: "PUT",
         body: JSON.stringify({ features: plan.features || [], reason }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save plan features");
+      setActionError(e instanceof Error ? e.message : "Unable to save plan features");
     } finally {
       setSavingPlan(null);
     }

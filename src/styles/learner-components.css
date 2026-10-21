@@ -142,6 +142,10 @@
 .bfs-course-card:focus-within { border-color: var(--accent); }
 .bfs-course-card__stretch-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
 .bfs-course-card__media { position: relative; min-height: 120px; overflow: hidden; background: var(--surface-2); aspect-ratio: 16 / 9; }
+.bfs-course-card__media-link { position: relative; z-index: 2; display: block; width: 100%; height: 100%; cursor: pointer; pointer-events: auto; }
+.bfs-course-card__detail-link, .bfs-course-card__rating-link { position: relative; z-index: 2; cursor: pointer; pointer-events: auto; }
+.bfs-course-card__detail-link:hover { text-decoration: underline; text-decoration-color: var(--accent); }
+.bfs-course-card__media-link img, .bfs-course-card__media-link .bfs-course-card__fallback { cursor: pointer; }
 .bfs-course-card__media img { width: 100%; height: 100%; min-height: 120px; object-fit: cover; }
 .bfs-course-card__fallback { position:relative; isolation:isolate; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-end; gap:var(--s-2); width:100%; height:100%; min-height:120px; overflow:hidden; padding:var(--s-4); color:var(--accent-text); background:linear-gradient(135deg,var(--accent),var(--info)); }
 .bfs-course-card__fallback::after { position:absolute; z-index:-1; inset:35% 0 0; content:""; background:linear-gradient(180deg,transparent,rgba(0,0,0,.55)); }

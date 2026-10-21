@@ -130,6 +130,8 @@ export default function CoursePlayer() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [quizPassed, setQuizPassed] = useState(false);
+  const [quizActionLoading, setQuizActionLoading] = useState(false);
+  const [quizActionError, setQuizActionError] = useState("");
   const [practiceQuizData, setPracticeQuizData] = useState<any>(null);
   const [practiceQuizAnswers, setPracticeQuizAnswers] = useState<Record<string, string>>({});
   const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
@@ -429,6 +431,41 @@ export default function CoursePlayer() {
     ? Math.round((practiceQuizData.questions.filter((question: any) => practiceQuizAnswers[question.id] === question.correctOptionId).length / practiceQuizData.questions.length) * 100)
     : 0;
 
+  const handleGenerateLessonQuiz = async (mode: "generate" | "reattempt") => {
+    if (!courseId || !lessonId || quizActionLoading) return;
+    setQuizActionLoading(true);
+    setQuizActionError("");
+    try {
+      let data = await apiFetch("/api/ai/practice-quiz", {
+        method: "POST",
+        body: JSON.stringify({ courseId, lessonId, mode }),
+      });
+      if (data.generating) {
+        for (let attempt = 0; attempt < 20 && data.generating; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          data = await apiFetch("/api/ai/practice-quiz", {
+            method: "POST",
+            body: JSON.stringify({ courseId, lessonId, mode: "generate" }),
+          });
+          if (data.pendingReview) break;
+        }
+      }
+      if (data.pendingReview) throw new Error(data.message || "New quiz questions are waiting for review.");
+      if (!data.quiz?.questions?.length) throw new Error(data.message || "No quiz questions are available for this action yet.");
+      setQuizData(data.quiz);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizScore(null);
+      setQuizPassed(false);
+      setQuizError("");
+      setQuizActionError("");
+    } catch (err) {
+      setQuizActionError(err instanceof Error ? err.message : "Unable to load another quiz.");
+    } finally {
+      setQuizActionLoading(false);
+    }
+  };
+
   const handleQuizSubmit = async () => {
     if (!courseId || !lessonId || !quizData?.questions?.length) return;
 
@@ -442,6 +479,24 @@ export default function CoursePlayer() {
 
     const passed = score >= Number(quizData.passingScore || currentLesson?.lesson.quiz?.passingScore || 70);
     setQuizPassed(passed);
+
+    if (quizData.quizBankId || quizData.quizBankIds?.length) {
+      try {
+        await apiFetch("/api/ai/practice-quiz/submit", {
+          method: "POST",
+          body: JSON.stringify({
+            courseId,
+            lessonId,
+            quizBankId: quizData.quizBankId,
+            quizBankIds: quizData.quizBankIds || [],
+            score,
+            answers: quizAnswers,
+          }),
+        });
+      } catch (err) {
+        setQuizActionError(err instanceof Error ? err.message : "Quiz score could not be saved.");
+      }
+    }
 
     if (!passed || currentCompleted) return;
 

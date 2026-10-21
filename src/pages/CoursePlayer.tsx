@@ -613,7 +613,7 @@ export default function CoursePlayer() {
             {currentLesson ? (
               <>
                 {currentLesson.lesson.type === "quiz" && (
-                  <section className="border-b border-slate-200 bg-white px-5 py-7 sm:px-8 lg:px-10">
+                  <section className={`border-b border-slate-200 bg-white px-5 py-7 sm:px-8 lg:px-10 ${currentLesson.lesson.type === "quiz" ? "hidden" : ""}`}>
                     <div className="mx-auto max-w-4xl">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>

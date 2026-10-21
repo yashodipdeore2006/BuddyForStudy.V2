@@ -44,6 +44,9 @@ function formatCoursePrice(amount: number, currency = 'INR') {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
 }
 
+type CourseReview = { _id: string; rating: number; comment?: string; createdAt?: string; moderationStatus?: string; user?: { _id?: string; id?: string; name?: string } | null; };
+type CourseReviewStats = { count: number; average: number; distribution?: Record<string, number>; };
+
 type RelatedCourseCard = {
   id: string;
   title: string;
@@ -166,11 +169,14 @@ export default function CourseDetails() {
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set([0]));
-  const [reviews, setReviews] = useState<any[]>([]);
-  const [reviewStats, setReviewStats] = useState({ count: 0, average: 0 });
+  const [reviews, setReviews] = useState<CourseReview[]>([]);
+  const [reviewStats, setReviewStats] = useState<CourseReviewStats>({ count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsError, setReviewsError] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
+  const myReview = session ? reviews.find((review) => String(review.user?._id ?? review.user?.id ?? '') === String(session.user.id)) : undefined;
   const [shareNotice, setShareNotice] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
@@ -294,12 +300,17 @@ export default function CourseDetails() {
 
         // Reviews are secondary content. A review API failure must not make
         // an otherwise valid course appear to be stuck loading.
+        setReviewsLoading(true);
+        setReviewsError('');
         try {
           const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
-          setReviews(reviewData.reviews || []);
-          setReviewStats(reviewData.stats || { count: 0, average: 0 });
+          setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
+          setReviewStats(reviewData.stats || { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
         } catch (reviewError) {
           console.warn('Course reviews unavailable:', reviewError);
+          setReviewsError('Ratings and reviews are temporarily unavailable. Please try again.');
+        } finally {
+          setReviewsLoading(false);
         }
 
         if (session) {
@@ -444,9 +455,12 @@ export default function CourseDetails() {
     setReviewSaving(true); setError(null);
     try {
       const data = await apiFetch(`/api/reviews/courses/${courseId}`, { method: 'POST', body: JSON.stringify({ rating: reviewRating, comment: reviewComment }) });
-      setReviews((current) => [data.review, ...current.filter((item) => item.user?._id !== session.user.id)]);
+      const savedReview = data.review as CourseReview;
+      setReviews((current) => [savedReview, ...current.filter((item) => String(item.user?._id ?? item.user?.id ?? '') !== String(session.user.id))]);
       const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
-      setReviewStats(reviewData.stats || { count: 0, average: 0 });
+      setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
+      setReviewStats(reviewData.stats || { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
+      setReviewsError('');
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save review'); }
     finally { setReviewSaving(false); }
   };
@@ -562,7 +576,7 @@ export default function CourseDetails() {
   const durationMinutes = parseCourseDurationMinutes(course.duration || '');
   const estimatedMinutesLeft = durationMinutes === null ? null : Math.ceil(durationMinutes * (100 - Math.min(100, Math.max(0, isCompleted ? 100 : progressPct))) / 100);
   const courseView = !isEnrolled ? 'sales' : isCompleted ? 'completion' : 'hub';
-  const hubTabs = ['overview', 'curriculum', 'notes', 'about'];
+  const hubTabs = ['overview', 'curriculum', 'reviews', 'notes', 'about'];
   const requestedTab = searchParams.get('tab') || '';
   const activeTab = hubTabs.includes(requestedTab) ? requestedTab : 'overview';
   const setCourseTab = (tab: string) => {
@@ -668,7 +682,7 @@ export default function CourseDetails() {
           <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Course sections">
             {hubTabs.map((tab) => (
               <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setCourseTab(tab)} className={classNames('shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors', activeTab === tab ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-900')}>
-                {{ overview: 'Overview', curriculum: 'Curriculum', notes: 'Notes', about: 'About' }[tab]}
+                {{ overview: 'Overview', curriculum: 'Curriculum', reviews: 'Ratings & Reviews', notes: 'Notes', about: 'About' }[tab]}
               </button>
             ))}
           </div>

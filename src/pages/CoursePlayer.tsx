@@ -888,7 +888,7 @@ export default function CoursePlayer() {
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div>
                             <h2 id="timestamp-notes-title" className="text-xl font-bold tracking-tight text-slate-950">Notes</h2>
-                            <p className="mt-1 text-sm text-slate-500">Capture ideas while learning and jump back to the exact moment in a lecture.</p>
+                            <p className="mt-1 text-sm text-slate-500">Timestamped notes help you capture ideas while learning and jump back to the exact moment in a lecture.</p>
                           </div>
                           <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{timestampNotes.length} {timestampNotes.length === 1 ? "note" : "notes"}</span>
                         </div>

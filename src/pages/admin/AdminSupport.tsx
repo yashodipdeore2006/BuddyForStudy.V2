@@ -3,6 +3,7 @@ import { AlertCircle, ClipboardList, RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminBadge, AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
 import { DetailDrawer } from "@/components/admin/DetailDrawer";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 type Issue = {
   _id: string;
@@ -54,6 +55,9 @@ export default function AdminSupport() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<Issue | null>(null);
+  const [pendingFinalization, setPendingFinalization] = useState<{ issue: Issue; status: "resolved" | "closed"; assignment: string } | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [confirmReason, setConfirmReason] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +104,7 @@ export default function AdminSupport() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? assigneeId(issue.assignedTo)) {
+  async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? assigneeId(issue.assignedTo), confirmed = false) {
     if (!canManage) {
       setError("Case-management permission could not be verified. Refresh the page or ask a platform administrator to review your access.");
       return;
@@ -116,11 +120,12 @@ export default function AdminSupport() {
       setError("Add a learner-facing resolution note before resolving this case.");
       return;
     }
-    if (status !== issue.status && (status === "resolved" || status === "closed")) {
-      const confirmed = window.confirm(status === "resolved"
-        ? "Resolve this case? This is a final state and the case cannot be reopened."
-        : "Close this case? This is a final state and the case cannot be reopened.");
-      if (!confirmed) return;
+    if (!confirmed && status !== issue.status && (status === "resolved" || status === "closed")) {
+      setPendingFinalization({ issue, status, assignment });
+      setConfirmText("");
+      setConfirmReason("");
+      setError("");
+      return;
     }
 
     setSavingId(issue._id);
@@ -311,5 +316,26 @@ export default function AdminSupport() {
         </section>}
       </div>}
     </DetailDrawer>
+    {pendingFinalization && <TypedConfirmDialog
+      open
+      title={pendingFinalization.status === "resolved" ? "Resolve support case" : "Close support case"}
+      description={pendingFinalization.status === "resolved" ? "This marks the payment/access case as resolved." : "This closes the payment/access case."}
+      consequence="This is a terminal state and the case cannot be reopened. Confirm that the learner-facing notes and internal case history are accurate before continuing."
+      confirmLabel={pendingFinalization.status === "resolved" ? "Resolve case" : "Close case"}
+      requiredText={pendingFinalization.issue._id}
+      value={confirmText}
+      onValueChange={setConfirmText}
+      reason={confirmReason}
+      onReasonChange={setConfirmReason}
+      loading={savingId === pendingFinalization.issue._id}
+      onClose={() => { if (savingId !== pendingFinalization.issue._id) setPendingFinalization(null); }}
+      onConfirm={() => {
+        if (!pendingFinalization) return;
+        const { issue, status, assignment } = pendingFinalization;
+        setReasons((current) => ({ ...current, [issue._id]: confirmReason.trim() }));
+        setPendingFinalization(null);
+        void update(issue, status, assignment, true);
+      }}
+    />}
   </div>;
 }

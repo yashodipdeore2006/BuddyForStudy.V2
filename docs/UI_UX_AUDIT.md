@@ -246,3 +246,82 @@ Severity definitions:
 - **Completed:** Inspected source for Home, Explore, Course Details, My Learning, Saved Courses, Course Player, Navbar, and shared CourseCard. Added findings UIX-006 through UIX-012, clearly marking verification targets as unconfirmed.
 - **Remaining:** Browser screenshots and interaction tests; inspect auth, profile/settings/billing, all admin routes, shared admin components, responsive breakpoints, accessibility, and loading/empty/error states.
 - **Next:** Continue the source pass through authentication/account pages and then admin workflows; avoid code changes until a defect is confirmed or an unambiguous source defect is found.
+
+
+## Task 3 — Authentication and account source audit
+
+**Status:** Source pass completed for Login, Register, Forgot Password, Verify Email, Verify Login, Accept Admin Invitation, Profile, Settings, Notifications, Billing, and Pricing. Browser/keyboard validation remains outstanding.
+
+### UIX-013 — Authentication form focus styling needs consistency verification
+- **Severity:** P1 if focus is not visible; currently a verification target
+- **Components:** `src/pages/Login.tsx`, `Register.tsx`, `ForgotPassword.tsx`, `VerifyEmail.tsx`, `VerifyLogin.tsx`, `AcceptAdminInvitation.tsx`
+- **Evidence:** These pages use a mixture of shared form classes and page-specific utility classes. The invitation form uses `outline-none` with custom border/ring styling; other forms rely on shared `input-field` and button classes.
+- **Expected:** Every input, password toggle, resend action, and submit button has a clear keyboard focus indicator with consistent contrast.
+- **Status:** Verify in browser using keyboard-only navigation before changing styles.
+
+### UIX-014 — Auth error and success announcements need consistent placement and persistence checks
+- **Severity:** P1 if users miss or cannot recover from errors; verification target
+- **Components:** Login, Register, ForgotPassword, VerifyEmail, VerifyLogin, AcceptAdminInvitation
+- **Evidence:** Pages implement error/message state, but use a mix of conditional error blocks and shared classes. ForgotPassword contains more than one conditional error rendering location in the component.
+- **Expected:** A single clear message per current failure, associated with the relevant form, announced accessibly, retained until corrected/dismissed, and not duplicated.
+- **Status:** Inspect runtime paths for invalid OTP, expired link, failed resend, network error, and successful submission.
+
+### UIX-015 — Password visibility controls need accessible state verification
+- **Severity:** P1 (form accessibility; verification target)
+- **Components:** Login, Register
+- **Evidence:** Both forms expose a password visibility toggle with an accessible label.
+- **Expected:** Toggle label communicates the action/state (show or hide password), keyboard activation works, and toggling does not unexpectedly lose focus or clear the value.
+- **Status:** Browser/keyboard verification pending.
+
+### UIX-016 — Email/OTP resend states need usability checks
+- **Severity:** P1 (account recovery; verification target)
+- **Components:** VerifyEmail, VerifyLogin
+- **Evidence:** Resend controls are disabled during a resend, during countdown, and in some cases when email is missing; OTP submit controls are disabled until six digits are entered.
+- **Expected:** The countdown is understandable, resend success/failure is announced, users can correct an email when necessary, and disabled states explain why an action is unavailable.
+- **Status:** Runtime verification pending.
+
+### UIX-017 — Account/profile tabs may need explicit scroll affordance on small screens
+- **Severity:** P2 (responsive usability; verification target)
+- **Route:** `/profile`
+- **Component:** `src/pages/Profile.tsx`
+- **Evidence:** Profile sections are rendered in a horizontally scrollable navigation row.
+- **Expected:** On narrow screens, all sections remain discoverable and keyboard reachable; selected section is visible and has an accessible active state.
+- **Status:** Verify at 360px and 390px widths.
+
+### UIX-018 — Settings contain independent loading/error states that need recovery-path checks
+- **Severity:** P2 (settings reliability; verification target)
+- **Route:** `/settings`
+- **Component:** `src/pages/Settings.tsx`
+- **Evidence:** Notification preferences and learning goals maintain separate loading and error states.
+- **Expected:** One failed section should not make unrelated settings appear broken; each error should explain the affected setting and provide a retry path where safe.
+- **Status:** Simulate partial API failures and inspect the resulting page.
+
+### UIX-019 — Notifications error state needs an explicit retry affordance check
+- **Severity:** P1 if retry is absent; source inspection follow-up required
+- **Route:** `/notifications`
+- **Component:** `src/pages/Notifications.tsx`
+- **Evidence:** The page has a loading state and an error message branch.
+- **Expected:** If the list fails to load, users should see a clear retry action and keep unrelated notification actions disabled until data is available.
+- **Status:** Inspect full error branch and verify in browser before treating as a confirmed defect.
+
+### UIX-020 — Billing combines several actions and messages; action-specific feedback needs verification
+- **Severity:** P1 (financial workflow clarity; verification target)
+- **Route:** `/billing`
+- **Component:** `src/pages/Billing.tsx`
+- **Evidence:** Refund requests and payment issue reporting write to a shared `refundMessage` state.
+- **Concern:** A shared message can be ambiguous if multiple actions are present or a result appears far from the action that triggered it.
+- **Expected:** Each action should have nearby, clearly labelled pending/success/error feedback and avoid replacing a result from a different action.
+- **Status:** Inspect full action layout and test each action separately; no behavior change made yet.
+
+### UIX-021 — Pricing payment confirmation has multiple intermediate states to distinguish
+- **Severity:** P1 (purchase confidence; verification target)
+- **Route:** `/pricing`
+- **Component:** `src/pages/Pricing.tsx`
+- **Evidence:** Source distinguishes payment success, subscription activation confirmation, and a state where activation is still being confirmed.
+- **Expected:** Clearly distinguish payment accepted from subscription active; avoid implying activation is complete before it is confirmed, and provide a safe refresh/recovery action.
+- **Status:** Verify all payment outcomes and timeout/reload paths.
+
+### Task 3 progress
+- **Completed:** Inspected source for all six authentication/invitation pages and Profile, Settings, Notifications, Billing, and Pricing. Added UIX-013 through UIX-021, marking unverified behavior as verification targets.
+- **Remaining:** Browser/keyboard testing for authentication, OTP/resend, responsive profile navigation, settings partial failures, notifications retry, billing action feedback, and pricing payment states. Continue with admin workflows next.
+- **Next:** Audit admin page composition and shared table/filter/drawer/dialog behavior, then append concrete findings to this document.

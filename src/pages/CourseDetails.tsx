@@ -275,6 +275,27 @@ export default function CourseDetails() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    setReviews([]);
+    setReviewStats({ count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
+    setReviewsLoading(true);
+    setReviewsError('');
+    apiFetch(`/api/reviews/courses/${courseId}`)
+      .then((reviewData) => {
+        if (!active) return;
+        setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
+        setReviewStats(reviewData.stats || { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
+      })
+      .catch((reviewError) => {
+        if (!active) return;
+        console.warn('Course reviews unavailable:', reviewError);
+        setReviewsError('Ratings and reviews are temporarily unavailable. Please try again.');
+      })
+      .finally(() => { if (active) setReviewsLoading(false); });
+    return () => { active = false; };
+  }, [courseId]);
+
+  useEffect(() => {
     async function fetchCourse() {
       if (!courseId) {
         setError('Invalid course');
@@ -303,21 +324,6 @@ export default function CourseDetails() {
             })),
           })),
         } as Course);
-
-        // Reviews are secondary content. A review API failure must not make
-        // an otherwise valid course appear to be stuck loading.
-        setReviewsLoading(true);
-        setReviewsError('');
-        try {
-          const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
-          setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
-          setReviewStats(reviewData.stats || { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
-        } catch (reviewError) {
-          console.warn('Course reviews unavailable:', reviewError);
-          setReviewsError('Ratings and reviews are temporarily unavailable. Please try again.');
-        } finally {
-          setReviewsLoading(false);
-        }
 
         if (session) {
           try {

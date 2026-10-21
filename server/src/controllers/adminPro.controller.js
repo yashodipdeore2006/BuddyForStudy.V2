@@ -2618,6 +2618,8 @@ export async function settings(req, res, next) {
 
 export async function deleteSetting(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required to delete a platform setting.", 400);
     if (!isValidObjectId(req.params.settingId)) return failure(res, "Invalid settingId", 400);
     const setting = await PlatformSetting.findById(req.params.settingId);
     if (!setting) return failure(res, "Setting not found", 404);
@@ -2628,7 +2630,7 @@ export async function deleteSetting(req, res, next) {
       isPublic: setting.isPublic
     };
     await setting.deleteOne();
-    await audit(req, "setting.deleted", "PlatformSetting", setting._id, metadata, null, req.body?.reason || "");
+    await audit(req, "setting.deleted", "PlatformSetting", setting._id, metadata, null, reason);
     return success(res, { deleted: true, key: setting.key }, "Setting deleted");
   } catch (e) { next(e); }
 }

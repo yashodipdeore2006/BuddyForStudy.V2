@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 type FeatureDefinition = {
   key: string;
@@ -61,11 +62,6 @@ const emptyForm: PlanForm = {
   },
 };
 
-function promptFinanceReason(action: string) {
-  const reason = window.prompt("Reason for " + action + " (10–500 characters):")?.trim() || "";
-  return reason.length >= 10 && reason.length <= 500 ? reason : null;
-}
-
 export default function AdminPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [availableFeatures, setAvailableFeatures] = useState<FeatureDefinition[]>([]);
@@ -76,6 +72,10 @@ export default function AdminPlans() {
   const [error, setError] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [activeSection, setActiveSection] = useState<"plans" | "create">("plans");
+  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan } | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [actionError, setActionError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -263,6 +263,27 @@ export default function AdminPlans() {
         actions={<button type="button" className="btn-primary" onClick={() => setActiveSection("create")} disabled={!permissions.includes("plans.manage")}><Plus className="h-4 w-4" /> Create plan</button>}
       />
 
+      {confirmAction && <TypedConfirmDialog
+        open
+        title={confirmAction.kind === "create" ? "Create subscription plan" : confirmAction.kind === "toggle" ? (confirmAction.plan?.isActive ? "Disable subscription plan" : "Enable subscription plan") : confirmAction.kind === "details" ? "Save plan details" : confirmAction.kind === "limits" ? "Save plan limits" : "Save plan features"}
+        description={confirmAction.kind === "create" ? "Create a new subscription offering with the current price, features and limits." : `Confirm changes to ${confirmAction.plan?.name || "this subscription plan"}.`}
+        consequence={actionError || (confirmAction.kind === "toggle" ? "Changing plan availability may affect whether learners can subscribe to this plan." : confirmAction.kind === "details" ? "This updates plan pricing and public-facing details." : confirmAction.kind === "limits" ? "This changes usage limits for subscribers." : confirmAction.kind === "features" ? "This changes which features subscribers can access." : "The new plan will be created with the values currently entered.")}
+        confirmLabel={confirmAction.kind === "create" ? "Create plan" : confirmAction.kind === "toggle" ? "Confirm availability change" : "Save changes"}
+        requiredText={confirmAction.kind === "create" ? "CREATE PLAN" : String(confirmAction.plan?.name || "")}
+        value={confirmText} onValueChange={setConfirmText}
+        reason={actionReason} onReasonChange={setActionReason}
+        loading={Boolean(savingPlan)}
+        onClose={() => { if (!savingPlan) { setConfirmAction(null); setActionError(""); } }}
+        onConfirm={() => {
+          const reason = actionReason.trim();
+          if (!confirmAction || reason.length < 10 || reason.length > 500) return;
+          if (confirmAction.kind === "create") void create(reason);
+          else if (confirmAction.plan && confirmAction.kind === "toggle") void toggle(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "details") void savePlanDetails(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "limits") void savePlanLimits(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "features") void saveFeatures(confirmAction.plan, reason);
+        }}
+      />}
       {error && (
         <div role="alert" className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}

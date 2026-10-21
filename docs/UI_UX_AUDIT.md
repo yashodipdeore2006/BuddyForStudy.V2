@@ -597,3 +597,22 @@ Severity definitions:
 - **Completed in source:** administrator invitation revocation, coupon actions, subscription plan actions, and terminal support case transitions use the shared typed confirmation pattern.
 - **Not yet remediated:** settings deletion confirmation. The frontend DELETE request currently has no reason payload; the backend contract must be confirmed before changing it to avoid breaking the endpoint or implying an audit trail that is not implemented.
 - **Not verified:** TypeScript typecheck, production build, automated test suite, browser keyboard/focus behavior, responsive layout, and end-to-end server audit records.
+
+
+## Remediation 4 — Platform setting deletion
+
+**Status:** Implemented in frontend and backend source; CI/runtime verification pending.
+
+- Replaced the native browser confirmation with the shared `TypedConfirmDialog`.
+- The dialog requires the operator to type the exact setting key and provide a 10–500 character reason.
+- The frontend sends the reason in the existing DELETE request body.
+- The backend now validates the reason before deletion and writes the validated reason into the existing `setting.deleted` audit event.
+- Existing `settings.manage` route authorization and frontend permission gating remain in place.
+- Files changed: `src/pages/admin/AdminSettings.tsx`, `server/src/controllers/adminPro.controller.js`.
+- Commits: `1410b66`, `117be12`.
+
+**Verification still required:** CI typecheck/build, backend tests, authorized/unauthorized delete behavior, missing/invalid reason rejection, and audit-event verification.
+
+### CI regression correction
+
+The CI run after the first subscription-plan dialog commit exposed stale handler signatures in `AdminPlans.tsx`. Commit `c639aa9` updates all five handlers to accept a supplied reason and open the dialog when invoked without one. The workflow for this correction and subsequent settings changes is still running; do not treat it as passed until the typecheck, unit tests, build, and backend job finish.

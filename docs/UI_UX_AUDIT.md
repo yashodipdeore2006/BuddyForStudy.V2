@@ -654,3 +654,17 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `3fe5d4e`.
 
 **Verification still required:** CI typecheck/build, and a browser check of delete success/failure handling in every consuming page. The component expects the parent callback to surface errors; if a caller swallows an error and resolves normally, the dialog cannot infer the failure.
+
+
+## Course detail — compact description with scrollable read-more dialog
+
+**Status:** Implemented in source; CI verification pending.
+
+- The course detail hero keeps long descriptions clamped to two lines rather than expanding the entire page inline.
+- The **Read more** action opens a compact, centered dialog with a bounded maximum height and an independently scrollable description area.
+- Added close-button and Escape dismissal, backdrop dismissal, keyboard focus containment, and focus restoration.
+- Reused the shared `ExpandableText` component with an opt-in `presentation="popup"` mode so other existing uses retain their inline behavior.
+- Files: `src/components/ExpandableText.tsx`, `src/pages/CourseDetails.tsx`.
+- Commits: `a383647`, `4d7a2f3`.
+
+**Verification still required:** CI typecheck/build and browser checks for small screens, long text, keyboard navigation, and screen-reader labeling.

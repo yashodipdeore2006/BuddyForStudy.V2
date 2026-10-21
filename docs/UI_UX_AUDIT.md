@@ -181,3 +181,68 @@ Severity definitions:
 - **Completed:** Extracted route inventory; inspected core learner pages, shared course cards, learner styles, and representative admin components; recorded five initial findings and created a prioritized audit backlog.
 - **Not completed:** No full browser walkthrough, responsive screenshot sweep, automated typecheck/build, or exhaustive review of every page's runtime state has been performed.
 - **Next:** Work through learner visual audit, starting with shared components and course discovery/details/learning flows. Verify each suspected issue before changing code.
+
+
+## Task 2 — Learner visual/source review (first pass)
+
+**Status:** Partial — source inspection completed for Home, Explore, Course Details, My Learning, Saved Courses, Course Player, Navbar, and shared CourseCard. No browser runtime verification yet.
+
+### Additional findings / verification targets
+
+### UIX-006 — Course-card thumbnail link is removed from keyboard tab order in shared card
+- **Severity:** P1 (keyboard accessibility; verify intended interaction model)
+- **Component:** `src/components/CourseCard.tsx`
+- **Evidence:** The thumbnail link is rendered with `tabIndex={-1}` while the title, outcome, rating, and card-level link are separate links.
+- **Concern:** If the thumbnail is presented as an independent link, keyboard users cannot focus it directly. If the card-level stretch link is the intended keyboard target, verify that it provides a clear accessible name and that controls within the card remain independently reachable.
+- **Status:** Needs interaction test; do not change until the card link model is confirmed.
+
+### UIX-007 — My Learning cards hide pointer events on the card body and selectively restore them
+- **Severity:** P1 (interaction fragility)
+- **Component:** `src/pages/MyCourses.tsx`, `src/styles/learner-components.css`
+- **Evidence:** The shared body styling uses `pointer-events: none`; links then explicitly restore `pointer-events: auto`. A similar card has a separate full-card link pattern.
+- **Concern:** This is easy to regress when a new interactive element is added and can make hover/click behavior differ between cards.
+- **Expected:** Prefer normal pointer events on the body and explicit, well-layered links/buttons; avoid broad pointer-event suppression unless required by a tested overlay pattern.
+- **Status:** Candidate for a focused refactor after browser reproduction.
+
+### UIX-008 — Course detail page uses different zero-review copy in hero and statistics
+- **Severity:** P2 (consistency)
+- **Component:** `src/pages/CourseDetails.tsx`
+- **Evidence:** The statistics card now says `0.0 (0 ratings)`, while the hero review summary says `New course` and `Be the first to review` when count is zero.
+- **Expected:** Make the two areas complementary and unambiguous: numeric state in statistics; invitation copy in the review summary is acceptable if it clearly states no reviews exist.
+- **Status:** Confirmed source inconsistency; content decision/fix pending.
+
+### UIX-009 — Explore filters and search need a combined-state usability check
+- **Severity:** P2 (discovery usability; verification required)
+- **Route:** `/explore`
+- **Component:** `src/pages/Courses.tsx`
+- **Evidence:** Search, level, category filters, and clear-filter behavior are separate controls.
+- **Verification:** Test combined filters, clear-all behavior, zero-result states, result-count updates, keyboard focus after clearing, and whether active filters are visible without reopening controls.
+- **Status:** Audit target only; no confirmed defect yet.
+
+### UIX-010 — Course player and detail page require narrow-screen interaction verification
+- **Severity:** P1 (responsive task completion; verification required)
+- **Routes:** `/courses/:courseId`, `/learn/:courseId/:lessonId`
+- **Components:** `src/pages/CourseDetails.tsx`, `src/pages/CoursePlayer.tsx`
+- **Evidence:** Both pages use multi-column layouts, horizontally scrollable tabs, and long content areas. The player deliberately clips horizontal overflow.
+- **Verification:** At 360px and 390px widths, check video/quiz content, lesson sidebar access, tabs, sticky controls, long lesson titles, and whether clipped content remains reachable.
+- **Status:** Audit target only; no confirmed defect yet.
+
+### UIX-011 — Home has multiple recoverable loading/error states that need consistent presentation
+- **Severity:** P2 (resilience; verification required)
+- **Route:** `/` and `/home`
+- **Component:** `src/pages/Home.tsx`
+- **Evidence:** Home has a page-level error state, section-level alerts, retry controls, and a refresh progress indicator.
+- **Verification:** Simulate a failed Home request and partial failures in enrollment/progress/stats. Ensure alerts do not duplicate, retry actions identify the affected section, and stale data remains understandable.
+- **Status:** Audit target only; no confirmed defect yet.
+
+### UIX-012 — Navbar desktop and bottom navigation need parity checks
+- **Severity:** P2 (navigation consistency; verification required)
+- **Component:** `src/components/Navbar.tsx`
+- **Evidence:** The component renders a primary navigation and a separate bottom-tab navigation for learners.
+- **Verification:** Compare active route indication, labels, access to saved/profile/settings, viewport breakpoint transitions, and keyboard access. Confirm there is no missing route or duplicate focusable navigation at breakpoints.
+- **Status:** Audit target only; no confirmed defect yet.
+
+### Task 2 progress
+- **Completed:** Inspected source for Home, Explore, Course Details, My Learning, Saved Courses, Course Player, Navbar, and shared CourseCard. Added findings UIX-006 through UIX-012, clearly marking verification targets as unconfirmed.
+- **Remaining:** Browser screenshots and interaction tests; inspect auth, profile/settings/billing, all admin routes, shared admin components, responsive breakpoints, accessibility, and loading/empty/error states.
+- **Next:** Continue the source pass through authentication/account pages and then admin workflows; avoid code changes until a defect is confirmed or an unambiguous source defect is found.

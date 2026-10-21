@@ -693,3 +693,15 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commits: `499d790`, `dd1764f`, `d6c3139`, `078aafc`.
 
 **Verification still required:** CI typecheck/build, plus browser testing for passed/failed attempts, empty quiz banks, moderation-pending responses, and retry behavior.
+
+
+## Course player — video-to-navigation separation
+
+**Status:** Implemented in source; CI verification pending.
+
+- Added a 12px dark charcoal separator directly below tutorial video content and before the lesson information/navigation area, matching the visual gap in the supplied Udemy reference.
+- The separator is decorative and hidden from assistive technology. It only appears for tutorial/video lessons, not quiz or project lessons.
+- File: `src/pages/CoursePlayer.tsx`.
+- Commit: `8e8bc4e`.
+
+**Verification still required:** CI typecheck/build and browser review at desktop and mobile widths.

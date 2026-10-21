@@ -188,10 +188,6 @@ function CourseLearningCard({
 
   return (
     <article className="bfs-course-card" data-variant="enrolled" data-course-status={status}>
-      <Link to={learnHref} className="bfs-course-card__stretch-link" aria-label={"Open " + course.title}>
-        <span className="bfs-sr-only">{status === "completed" ? "Review " : status === "in-progress" ? "Continue learning " : "Start learning "}{course.title}</span>
-      </Link>
-
       <div className={"bfs-course-card__media" + (generatedCover ? " bfs-course-card__media--generated" : "")}>
         {!generatedCover && course.thumbnail && !thumbnailFailed ? (
           <img src={course.thumbnail} alt="" loading="lazy" onError={() => setThumbnailFailed(true)} />
@@ -221,16 +217,18 @@ function CourseLearningCard({
               ? <span>{totalLessons} {totalLessons === 1 ? "lesson" : "lessons"}</span>
               : null}
         </div>
-        <h2 className="bfs-course-card__title" title={course.title}>{course.title}</h2>
+        <h2 className="bfs-course-card__title" title={course.title}>
+          <Link to={routes.course(course.id)} className="bfs-course-card__detail-link">{course.title}</Link>
+        </h2>
         {creatorName && <p className="bfs-course-card__creator" title={creatorName}>{creatorName}</p>}
-        <p className="bfs-course-card__outcome" title={description}>{description}</p>
+        <Link to={routes.course(course.id)} className="bfs-course-card__outcome bfs-course-card__detail-link" title={description} aria-label={"View course information for " + course.title}>{description}</Link>
 
         {Number(course.ratingCount) > 0 && Number(course.ratingAverage) > 0 && (
-          <div className="bfs-course-card__rating" aria-label={Number(course.ratingAverage).toFixed(1) + " out of 5, " + course.ratingCount + " reviews"}>
+          <Link to={routes.course(course.id) + "?tab=reviews#reviews"} className="bfs-course-card__rating bfs-course-card__rating-link" aria-label={"View ratings and reviews for " + course.title}>
             <Star size={14} fill="currentColor" aria-hidden="true" />
             <strong>{Number(course.ratingAverage).toFixed(1)}</strong>
             <span>({formatCompactCount(Number(course.ratingCount))} {Number(course.ratingCount) === 1 ? "rating" : "ratings"})</span>
-          </div>
+          </Link>
         )}
         {(qualityScore !== null || viewCount > 0 || enrolledLearners > 0) && (
           <div className="bfs-course-card__social-proof" aria-label="Course quality and learner activity">

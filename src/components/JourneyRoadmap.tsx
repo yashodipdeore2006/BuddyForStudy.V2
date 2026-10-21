@@ -82,16 +82,16 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
   const nextStage = data.stages.find((stage) => !(Number(data.progress?.stageProgress[stage.order - 1] || 0) >= 1));
   const svgPoint = pathRef.current?.getPointAtLength(Math.max(0, Math.min(roadLength, displayDistance))) || points[0];
   const decorations = scenery[data.theme as keyof typeof scenery] || scenery.trail;
-  return <div className="mx-auto w-full max-w-6xl pb-32 text-slate-900 dark:text-slate-100">
-    <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+  return <div className="quest-roadmap mx-auto w-full max-w-[1920px] pb-10 text-slate-900 dark:text-slate-100">
+    <div className="quest-roadmap__stats mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
       <Stat label="Rank" value={isEnrolled ? rankNames[rankIndex] : "Preview"} />
       <Stat label="XP earned" value={isEnrolled ? String(xp) : "—"} />
       <Stat label="Time left" value={isEnrolled ? hoursLeft.toFixed(1) + " h" : "—"} />
       <Stat label="Finish by" value={isEnrolled ? finishDate.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—"} />
     </div>
     {isEnrolled && <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm ring-1 ring-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:ring-white/5"><label htmlFor="journey-pace" className="text-sm font-medium">Daily learning pace</label><select id="journey-pace" value={pace} onChange={(event) => void changePace(Number(event.target.value))} className="input-field w-32 text-sm">{[1, 2, 3, 4].map((hours) => <option key={hours} value={hours}>{hours} h/day</option>)}</select></div>}
-    <div className="relative overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[#f5f7f5] p-2 shadow-[0_24px_80px_-36px_rgba(15,23,42,.35)] ring-1 ring-white dark:border-slate-700 dark:bg-slate-950 dark:ring-white/5 sm:p-4">
-      <svg viewBox={"0 0 360 " + height} width="100%" height="auto" role="img" aria-label={"Journey roadmap for " + data.title + ", " + data.stages.length + " stages"} className="mx-auto block h-auto w-full max-w-[620px] overflow-visible">
+    <div className="quest-roadmap__world relative min-h-[70vh] overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[radial-gradient(ellipse_at_50%_0%,#dbeafe_0%,#eef2ff_34%,#f8fafc_72%)] p-3 shadow-[0_24px_80px_-36px_rgba(15,23,42,.35)] ring-1 ring-white dark:border-slate-700 dark:bg-[radial-gradient(ellipse_at_50%_0%,#172554_0%,#111827_45%,#020617_100%)] dark:ring-white/5 sm:p-5 xl:p-8">
+      <svg viewBox={"0 0 360 " + height} width="100%" height="auto" role="img" aria-label={"Journey roadmap for " + data.title + ", " + data.stages.length + " stages"} className="quest-roadmap__map mx-auto block h-auto w-full max-w-[900px] overflow-visible drop-shadow-[0_18px_30px_rgba(15,23,42,.12)]">
         <defs><clipPath id="journey-map-clip"><rect x="4" y="4" width="352" height={height - 8} rx="24" /></clipPath><linearGradient id="journey-trail-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" /><stop offset="100%" stopColor="#7c3aed" /></linearGradient></defs>
         <g clipPath="url(#journey-map-clip)">
           {data.stages.map((stage, index) => <rect key={stage.id} x="4" y={index * 210 + 40} width="352" height="210" fill={["#e6eee7", "#e1e9e2", "#e9ebdf", "#e8e5df", "#e3eaf0"][Math.round(index / Math.max(1, data.stages.length - 1) * 4)]} opacity={0.82} />)}

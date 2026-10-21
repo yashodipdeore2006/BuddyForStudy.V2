@@ -33,7 +33,6 @@ import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
-import JourneyRoadmap from "@/components/JourneyRoadmap";
 import {
   courseTimestampNotesKey,
   formatMediaTimestamp,
@@ -563,7 +562,7 @@ export default function CourseDetails() {
   const durationMinutes = parseCourseDurationMinutes(course.duration || '');
   const estimatedMinutesLeft = durationMinutes === null ? null : Math.ceil(durationMinutes * (100 - Math.min(100, Math.max(0, isCompleted ? 100 : progressPct))) / 100);
   const courseView = !isEnrolled ? 'sales' : isCompleted ? 'completion' : 'hub';
-  const hubTabs = ['overview', 'roadmap', 'curriculum', 'notes', 'about'];
+  const hubTabs = ['overview', 'curriculum', 'notes', 'about'];
   const requestedTab = searchParams.get('tab') || '';
   const activeTab = hubTabs.includes(requestedTab) ? requestedTab : 'overview';
   const setCourseTab = (tab: string) => {
@@ -668,7 +667,7 @@ export default function CourseDetails() {
           <div className="flex gap-1 overflow-x-auto" role="tablist" aria-label="Course sections">
             {hubTabs.map((tab) => (
               <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setCourseTab(tab)} className={classNames('shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors', activeTab === tab ? 'border-violet-600 text-violet-700' : 'border-transparent text-slate-500 hover:text-slate-900')}>
-                {{ overview: 'Overview', roadmap: 'Journey Roadmap', curriculum: 'Curriculum', notes: 'Notes', about: 'About' }[tab]}
+                {{ overview: 'Overview', curriculum: 'Curriculum', notes: 'Notes', about: 'About' }[tab]}
               </button>
             ))}
           </div>
@@ -730,22 +729,6 @@ export default function CourseDetails() {
               </div>
             </aside>
           </div>}
-          {activeTab === 'roadmap' && <JourneyRoadmap
-            courseId={String(course.id)}
-            enrolled={isEnrolled}
-            nextLessonTitle={nextLesson ? cleanLessonTitle(nextLesson.title, flatLessons.map((lesson) => lesson.title)) : undefined}
-            completed={isCompleted}
-            onEnroll={() => void handleEnroll()}
-            onContinue={handleStartLearning}
-            onViewLessons={(lessonIds) => {
-              const targetIds = new Set(lessonIds.map(String));
-              const moduleIndexes = course.modules.map((module, index) => ({ index, contains: module.lessons.some((lesson) => targetIds.has(String(lesson.id))) })).filter((item) => item.contains).map((item) => item.index);
-              setExpandedModules((current) => new Set([...current, ...moduleIndexes]));
-              setCourseTab('curriculum');
-              window.setTimeout(() => { const target = moduleIndexes[0]; if (target !== undefined) document.getElementById('curriculum-module-' + target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
-            }}
-          />}
-
           {activeTab === 'curriculum' && <>
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -972,8 +955,6 @@ export default function CourseDetails() {
               )) : <p className="mt-4 text-sm text-slate-500">No reviews yet. Be the first to review this course.</p>}
             </div>
           </section>
-
-          <section className="mb-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7"><div className="mb-4"><h2 className="text-xl font-semibold text-slate-950">Journey roadmap</h2><p className="mt-1 text-sm text-slate-500">Preview the milestones you’ll work through in this course.</p></div><JourneyRoadmap courseId={String(course.id)} enrolled={false} onEnroll={() => void handleEnroll()} onContinue={handleStartLearning} onViewLessons={() => { document.getElementById("course-curriculum")?.scrollIntoView({ behavior: "smooth", block: "start" }); }} /></section>
 
           {/* Curriculum */}
           <div className="rounded-[24px] border border-slate-200 bg-white p-6 sm:p-7">

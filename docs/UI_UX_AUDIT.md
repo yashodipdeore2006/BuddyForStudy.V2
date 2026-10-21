@@ -409,3 +409,84 @@ Severity definitions:
 - **Completed:** Inspected the admin shell and representative control center, users, courses, content quality, deliveries, communications, billing, subscriptions, design system, settings, audit, roles, support, and operations pages. Added UIX-022 through UIX-031.
 - **Remaining:** Browser and role-based verification; compare destructive-action patterns to the master spec; audit the remaining admin pages (analytics, coupons, plans, roadmaps, AI content, invitations, and course builder); complete responsive/accessibility and loading/empty/error-state passes.
 - **Next:** Continue the admin audit for the remaining pages, then consolidate the cross-platform findings into a severity-ranked remediation plan.
+
+
+## Task 5 — Remaining admin pages and remediation-plan consolidation
+
+**Status:** Source pass completed for Analytics, Coupons, Plans, Roadmaps, AI Content settings, and Admin Invitation Manager. `AdminCourses.tsx`, `AdminUsers.tsx`, and `AdminDashboard.tsx` are short compatibility wrappers; the primary production pages are the `*Pro`/control-center pages already reviewed. `CourseBuilder.tsx` is a short wrapper, so the actual builder implementation should be traced through its import before a full workflow audit can be claimed.
+
+### UIX-032 — Coupon management uses native browser prompts for required reasons
+- **Severity:** P1 for consistency and accessibility of promotion-changing actions
+- **Route:** `/admin/coupons`
+- **Component:** `src/pages/admin/AdminCoupons.tsx`
+- **Evidence:** Creating a coupon, bulk-generating coupons, and enabling/disabling a coupon each call `window.prompt` to collect a reason.
+- **Expected:** Use the shared reason/confirmation dialog pattern so the action context, reason constraints, validation, keyboard focus, and error state remain visible. Preserve server-side reason validation.
+- **Status:** Source-confirmed pattern inconsistency; implementation deferred.
+
+### UIX-033 — Plan lifecycle actions also use native prompts
+- **Severity:** P1 for plan/pricing changes
+- **Route:** `/admin/plans`
+- **Component:** `src/pages/admin/AdminPlans.tsx`
+- **Evidence:** A shared helper calls `window.prompt` to request a reason for plan actions.
+- **Expected:** Use a consistent in-context confirmation dialog for pricing/availability-affecting changes, with explicit action name, reason validation, and pending/error states.
+- **Status:** Source-confirmed pattern inconsistency; cross-check each action against the master spec before remediation.
+
+### UIX-034 — Admin invitation revocation uses native confirmation
+- **Severity:** P2 (access-management workflow consistency)
+- **Route:** Admin invitation manager
+- **Component:** `src/pages/admin/AdminInvitationManager.tsx`
+- **Evidence:** Revoking a pending invitation uses `window.confirm`.
+- **Expected:** Confirm the target email and consequence in the shared dialog, maintain focus correctly on cancel/close, and display the result in the page context.
+- **Status:** Source-confirmed pattern inconsistency; implementation deferred.
+
+### UIX-035 — Analytics needs explicit stale-data and partial-failure treatment
+- **Severity:** P2 (decision-support clarity; verification target)
+- **Route:** `/admin/analytics`
+- **Component:** `src/pages/admin/AdminAnalytics.tsx`
+- **Evidence:** The page has a reporting-period selector, refresh action, loading state, and error alert.
+- **Expected:** Make the selected reporting window clear, distinguish no activity from unavailable data, and show whether existing metrics are stale while a refresh fails.
+- **Status:** Verify full render branches and simulate API failure before confirming a defect.
+
+### UIX-036 — AI settings numeric controls need validation and unsaved-change review
+- **Severity:** P1 if invalid values can be submitted; otherwise P2
+- **Route:** Admin AI content settings
+- **Component:** `src/pages/admin/AdminAIContent.tsx`
+- **Evidence:** Numeric controls have min/max constraints and temporarily represent an empty input as `Number.NaN`; each setting has its own save state.
+- **Expected:** Empty, non-finite, and out-of-range values must be rejected with a visible field-level explanation; users should understand which values are unsaved and whether saving one setting affects other drafts.
+- **Status:** Source-based verification target; test empty input, bounds, and save failure.
+
+### UIX-037 — Plan and coupon forms need consistent inline validation and draft-loss protection
+- **Severity:** P2 (form reliability; verification target)
+- **Components:** `AdminPlans.tsx`, `AdminCoupons.tsx`
+- **Evidence:** Both pages use sizeable editable forms and reset form state after successful operations.
+- **Expected:** Required fields, invalid combinations, date/quantity boundaries, and permission restrictions should be explained inline; leaving a form with unsaved edits should not silently discard work.
+- **Status:** Inspect all form branches and verify before classifying as confirmed.
+
+### UIX-038 — Read-only roadmap records expose dense identifiers and data requiring responsive review
+- **Severity:** P2 (responsive and scanability; verification target)
+- **Route:** `/admin/roadmaps`
+- **Component:** `src/pages/admin/AdminRoadmaps.tsx`
+- **Evidence:** The table shows learner information, roadmap status/progress, timestamps, and a raw record ID; it has a status filter and pagination.
+- **Expected:** Long IDs should not dominate the row, table columns should remain usable on mobile, and empty/filter/loading/error states should be distinct.
+- **Status:** Verify at narrow widths and with long values.
+
+### UIX-039 — Course builder implementation requires import tracing before it can be audited
+- **Severity:** Audit gap, not a confirmed UX defect
+- **Component:** `src/pages/admin/CourseBuilder.tsx`
+- **Evidence:** The file is a short wrapper rather than the builder UI itself.
+- **Expected:** Trace the wrapper's import and audit the actual editor, validation, preview, save/publish, and recovery flows instead of assuming this file represents the complete feature.
+- **Status:** Open audit gap.
+
+## Consolidated remediation order (source audit only)
+
+1. **P1 — Consistent high-impact action dialogs:** Replace native `window.prompt`/`window.confirm` patterns in coupons, plans, settings, support, and invitation revocation with the shared confirmation/reason components where required by the admin spec. Preserve reasons, permission checks, and server-side validation.
+2. **P1 — Transactional and delivery workflow feedback:** Verify communications campaigns, billing/refunds, delivery retries, and pricing activation states for explicit pending/success/failure outcomes, duplicate-submit prevention, and recoverable errors.
+3. **P1 — Accessibility and permission parity:** Keyboard-test admin navigation/command palette, dialogs, tabs, tables, and all role-dependent actions; verify direct URL access is correctly authorized by the server.
+4. **P1/P2 — Table state reliability:** Test filters, URL synchronization, pagination resets, sort, saved views, empty results, and partial API failures across users/courses/billing/audit/roadmaps.
+5. **P2 — Responsive and data-density pass:** Test 360px/390px widths, long identifiers/error strings, horizontally scrolling tables/tabs, and sticky or fixed navigation behavior.
+6. **P2 — Loading/empty/error state consistency:** Distinguish no records, permission denied, stale data, API unavailable, and retrying states across every admin route.
+7. **Audit completion:** Trace the real course builder implementation; inspect remaining pages not yet deeply reviewed and perform browser verification.
+
+### Task 5 progress
+- **Completed:** Reviewed the remaining key admin pages for analytics, coupons, plans, roadmaps, AI settings, and invitations; recorded UIX-032 through UIX-039; added a prioritized remediation order.
+- **Remaining:** Trace the actual course-builder implementation; audit remaining admin surfaces in depth; verify all findings in a browser with multiple roles and responsive viewports; inspect shared component implementations against the design/master specs; then start fixes in priority order.

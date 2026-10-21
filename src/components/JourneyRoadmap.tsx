@@ -13,8 +13,8 @@ const rankNames = ["Explorer", "Apprentice", "Builder", "Specialist", "Expert", 
 
 export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEnroll, onContinue, nextLessonTitle, completed = false }: Props) {
   const { session } = useAuth();
-  const isEnrolled = enrolled ?? Boolean(data?.progress);
   const [data, setData] = useState<JourneyData | null>(null);
+  const isEnrolled = enrolled ?? Boolean(data?.progress);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pace, setPace] = useState(1);

@@ -546,3 +546,22 @@ Severity definitions:
 - **Completed:** Inspected shared DataTable, DetailDrawer, FilterBar, SavedViews, StatusBadge, TypedConfirmDialog, MoneyCell, PiiCell, AdminUI, and export barrel. Traced CourseBuilder to AdminCoursesPro and recorded UIX-040 through UIX-045.
 - **Remaining:** Verify all shared component callers; test modal focus restoration, PII reveal permissions/audit, saved-view deletion, debounce races, and table selection/sort states. Browser-based responsive and keyboard verification remains outstanding.
 - **Next:** Begin remediation from the highest-confidence source-confirmed inconsistencies, starting with native prompts in high-impact admin actions, after confirming the exact master-spec requirements and shared dialog API.
+
+
+## Remediation 1 — Administrator invitation revocation
+
+**Status:** Implemented in source; runtime verification pending.
+
+- Replaced the native `window.confirm` with the shared `TypedConfirmDialog`.
+- The dialog identifies the invitation email, requires the operator to type that email, and collects a 10–500 character reason.
+- The entered reason is sent in the existing DELETE request rather than using a hard-coded reason.
+- Shows server errors within the dialog and prevents closing while the request is in progress.
+- Clarifies that revoking a pending invite does not remove access from an administrator who has already accepted it.
+- Files changed: `src/pages/admin/AdminInvitationManager.tsx`.
+- Commits: `54913a0`, `ea03fa2`.
+
+**Verification still required:** Typecheck/build, browser keyboard/focus testing, permission checks, server-side reason validation, and successful/failing revoke paths. No runtime tests were run from this remote source-edit workflow.
+
+### Task status update
+- **Completed:** First remediation for a sensitive admin action; audit now records the implementation and outstanding verification.
+- **Remaining:** Standardize coupon and plan reason prompts, settings/support confirmation patterns, then run typecheck/build and browser regression checks. Continue only after reviewing each action's required permission, reason, confirmation, and audit behavior.

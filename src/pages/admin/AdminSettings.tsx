@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCcw, Save, Settings2, Trash2 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 function formatValue(value: any) {
   return typeof value === "string" ? value : JSON.stringify(value ?? "");
@@ -53,6 +54,10 @@ export default function AdminSettings() {
   });
   const [savingNotificationConfig, setSavingNotificationConfig] = useState(false);
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -159,14 +164,28 @@ export default function AdminSettings() {
     }
   }
 
-  async function removeSetting(setting: any) {
-    const confirmed = window.confirm(`Delete the "${setting.key}" setting? This action cannot be undone.`);
-    if (!confirmed) return;
+  async function removeSetting(setting: any, reason?: string) {
+    if (!permissions.includes("settings.manage")) {
+      setError("You do not have permission to delete platform settings.");
+      return;
+    }
+    if (reason === undefined) {
+      setDeleteError("");
+      setDeleteConfirmText("");
+      setDeleteReason("");
+      setPendingDelete(setting);
+      return;
+    }
+    if (reason.trim().length < 10 || reason.trim().length > 500) {
+      setDeleteError("A reason of 10–500 characters is required.");
+      return;
+    }
     setDeletingId(setting._id);
     setError("");
     setStatus("");
     try {
-      await adminFetch(`/api/admin/settings/${setting._id}`, { method: "DELETE" });
+      await adminFetch(`/api/admin/settings/${setting._id}`, { method: "DELETE", body: JSON.stringify({ reason: reason.trim() }) });
+      setPendingDelete(null);
       if (key === setting.key) {
         setKey("");
         setValue("");
@@ -177,7 +196,7 @@ export default function AdminSettings() {
       setStatus(`Setting "${setting.key}" deleted.`);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to delete setting");
+      setDeleteError(e instanceof Error ? e.message : "Unable to delete setting");
     } finally {
       setDeletingId(null);
     }
@@ -227,6 +246,21 @@ export default function AdminSettings() {
         actions={<button type="button" aria-label="Refresh platform settings" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
       />
 
+      {pendingDelete && <TypedConfirmDialog
+        open
+        title="Delete platform setting"
+        description={`You are about to permanently delete the "${pendingDelete.key}" configuration setting.`}
+        consequence={deleteError || "This may change platform behavior. Delete only if the setting is no longer required; the action cannot be undone."}
+        requiredText={String(pendingDelete.key || "")}
+        confirmLabel="Delete setting"
+        value={deleteConfirmText}
+        onValueChange={setDeleteConfirmText}
+        reason={deleteReason}
+        onReasonChange={setDeleteReason}
+        loading={deletingId === pendingDelete._id}
+        onClose={() => { if (deletingId !== pendingDelete._id) setPendingDelete(null); }}
+        onConfirm={() => { if (pendingDelete) void removeSetting(pendingDelete, deleteReason.trim()); }}
+      />}
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
       {!permissions.includes("settings.manage") && <div role="status" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">View-only access: your administrator role can inspect platform setting metadata but cannot change operational controls.</div>}
 

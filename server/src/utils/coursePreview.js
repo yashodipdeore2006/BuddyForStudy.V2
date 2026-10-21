@@ -93,6 +93,9 @@ export function toPublicCoursePreview(course) {
     featured: course.featured,
     cardMetadata,
     ...(course.enrollmentCount !== undefined ? { enrollmentCount: course.enrollmentCount } : {}),
+    // Keep published review aggregates in the public course-card projection.
+    ...(course.ratingAverage !== undefined ? { ratingAverage: Number(course.ratingAverage) || 0 } : {}),
+    ...(course.ratingCount !== undefined ? { ratingCount: Number(course.ratingCount) || 0 } : {}),
     createdAt: course.createdAt,
     updatedAt: course.updatedAt,
     generation: course.generation ? {

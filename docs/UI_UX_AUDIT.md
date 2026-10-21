@@ -325,3 +325,87 @@ Severity definitions:
 - **Completed:** Inspected source for all six authentication/invitation pages and Profile, Settings, Notifications, Billing, and Pricing. Added UIX-013 through UIX-021, marking unverified behavior as verification targets.
 - **Remaining:** Browser/keyboard testing for authentication, OTP/resend, responsive profile navigation, settings partial failures, notifications retry, billing action feedback, and pricing payment states. Continue with admin workflows next.
 - **Next:** Audit admin page composition and shared table/filter/drawer/dialog behavior, then append concrete findings to this document.
+
+
+## Task 4 — Admin experience source audit
+
+**Status:** Source review completed across the admin shell and representative high-impact workflows. This is not a browser/permission regression test; items below are findings or explicit verification targets, not claims that runtime behavior is broken.
+
+### UIX-022 — Admin shell navigation and command palette need keyboard/permission parity testing
+- **Severity:** P1 if inaccessible or inconsistent
+- **Component:** `src/pages/admin/AdminLayout.tsx`
+- **Evidence:** Navigation and quick actions are filtered by permissions, and a search/command flow can focus a page search input.
+- **Expected:** Sidebar, mobile navigation, command results, keyboard shortcuts, active route state, and permission-hidden routes should behave consistently. No command result should expose an action the current role cannot use.
+- **Verification:** Test keyboard-only navigation, narrow screens, direct URL access, and at least read-only and elevated roles.
+
+### UIX-023 — Admin users and courses are high-density workflows requiring filter/pagination state verification
+- **Severity:** P1 (operational efficiency; verification target)
+- **Components:** `AdminUsersPro.tsx`, `AdminCoursesPro.tsx`
+- **Evidence:** Users supports query/status/role/auth-provider/sort and pagination state; courses has load and readiness-check error states.
+- **Expected:** Filter changes reset pagination where appropriate, URL query state remains in sync, clearing filters restores the full result set, and row actions remain understandable on narrow screens.
+- **Verification:** Combine filters, sort, page size, refresh, browser back/forward, empty results, and API failures.
+
+### UIX-024 — Destructive/lifecycle actions need consistent reason and confirmation UX
+- **Severity:** P1 (high-impact admin actions)
+- **Components:** `AdminContentQuality.tsx`, `AdminSettings.tsx`, `AdminSupport.tsx`, plus user/course management pages
+- **Evidence:** Content lifecycle uses a reason prompt; settings deletion uses native `window.confirm`; support status changes also use native confirmation.
+- **Concern:** Native prompts differ from the documented typed-confirmation/dialog design and can interrupt workflow context. This is a consistency finding, not a claim that safeguards are absent.
+- **Expected:** Destructive actions should consistently explain impact, require the required reason/typed confirmation per policy, prevent duplicate submissions, and report success/failure near the originating action.
+- **Verification:** Compare against the admin master spec and shared `TypedConfirmDialog`; identify any actions bypassing the standard pattern.
+
+### UIX-025 — Delivery retry workflow has multiple confirmation/error states that need end-to-end validation
+- **Severity:** P1 (notification delivery operations)
+- **Component:** `src/pages/admin/AdminDeliveries.tsx`
+- **Evidence:** Retry flow tracks a selected target, channel, confirmation value, reason, dialog error, and in-flight retry state.
+- **Expected:** Dialog is keyboard accessible, identifies the exact recipient/event and channel without exposing unnecessary PII, blocks duplicate retries, preserves context after recoverable failure, and gives a clear result.
+- **Verification:** Test email/push separately, invalid confirmation, empty reason, server failure, success, and reopening/cancelling the dialog.
+
+### UIX-026 — Communications is a complex multi-step campaign workflow and needs a full state-matrix review
+- **Severity:** P1 (potentially broad user impact)
+- **Component:** `src/pages/admin/AdminCommunications.tsx`
+- **Evidence:** Source contains audience modes, audience filters, template loading, delivery loading, campaign loading, confirmation reasons/text/errors, and retry states.
+- **Expected:** Each step should show progress, audience preview/count and consent context before sending, make irreversible actions explicit, and preserve draft state after a recoverable error.
+- **Verification:** Test each audience mode, empty audience, invalid template, preview/test-send, batch send, partial delivery, cancel, and retry flows.
+
+### UIX-027 — Billing page has concurrent data sections and finance-sensitive controls
+- **Severity:** P1 (financial workflow)
+- **Component:** `src/pages/admin/AdminBilling.tsx`
+- **Evidence:** Refunds, payment issues, and payment data maintain separate loading/filter/pagination state; the page includes permission warning and status feedback.
+- **Expected:** A failed section should not falsely imply all billing data failed; filters and pagination should be independent; each financial action should show its reason, confirmation, pending state, and final result.
+- **Verification:** Force each data source to fail independently, change filters rapidly, and test action permissions and duplicate-submit prevention.
+
+### UIX-028 — Admin settings deletion still uses browser-native confirmation
+- **Severity:** P2 (interaction consistency; potentially P1 for destructive-action policy compliance)
+- **Route:** `/admin/settings`
+- **Component:** `src/pages/admin/AdminSettings.tsx`
+- **Evidence:** `deleteSetting` invokes `window.confirm` before deleting a setting.
+- **Expected:** Confirm whether the design/master spec requires the shared typed confirmation dialog for settings deletion. If so, replace the native prompt and keep the setting key and consequences visible in the dialog.
+- **Status:** Source-confirmed inconsistency candidate; policy/spec cross-check and implementation intentionally deferred.
+
+### UIX-029 — Admin support uses browser-native confirmation for status transitions
+- **Severity:** P2 (workflow consistency)
+- **Route:** `/admin/support`
+- **Component:** `src/pages/admin/AdminSupport.tsx`
+- **Evidence:** Support status changes call `window.confirm`.
+- **Expected:** Verify whether this transition is classified as high-impact in the admin spec. If it is, use the shared confirmation pattern and keep the selected case context visible.
+- **Status:** Source-confirmed inconsistency candidate; policy/spec cross-check and implementation deferred.
+
+### UIX-030 — Admin operations tabs and dense event lists need responsive and empty/error-state checks
+- **Severity:** P2 (operational usability; verification target)
+- **Route:** `/admin/operations`
+- **Component:** `src/pages/admin/AdminOperations.tsx`
+- **Evidence:** Operations uses horizontally scrollable tabs and dense event/delivery/alert rows, with explicit empty-state messages.
+- **Expected:** Tab focus and selected state remain clear on small screens; long IDs/errors wrap without pushing controls off-screen; loading, empty, stale, and partial-failure states are distinguishable.
+- **Verification:** Check 360px viewport, long error strings, no-data responses, and partial API failures.
+
+### UIX-031 — Cross-page shared admin components need conformance testing
+- **Severity:** P1 (systemic if inconsistent)
+- **Components:** `DataTable`, `FilterBar`, `SavedViews`, `DetailDrawer`, `TypedConfirmDialog`, `StatusBadge`, `MoneyCell`, `PiiCell`, and `AdminDesignSystem.tsx`
+- **Evidence:** The design-system page documents sample feedback states, tabs, search, and saved views; multiple admin pages implement their own tables, filters, and confirmation patterns.
+- **Expected:** Shared components should be the default for equivalent patterns, with consistent density, sorting, pagination, focus management, status semantics, PII masking, and empty/error states.
+- **Verification:** Compare real pages against the gallery and admin spec. Avoid refactoring until behavioral parity and documented exceptions are identified.
+
+### Task 4 progress
+- **Completed:** Inspected the admin shell and representative control center, users, courses, content quality, deliveries, communications, billing, subscriptions, design system, settings, audit, roles, support, and operations pages. Added UIX-022 through UIX-031.
+- **Remaining:** Browser and role-based verification; compare destructive-action patterns to the master spec; audit the remaining admin pages (analytics, coupons, plans, roadmaps, AI content, invitations, and course builder); complete responsive/accessibility and loading/empty/error-state passes.
+- **Next:** Continue the admin audit for the remaining pages, then consolidate the cross-platform findings into a severity-ranked remediation plan.

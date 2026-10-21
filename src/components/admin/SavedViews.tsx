@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { X } from "lucide-react";
 import { AdminButton } from "./AdminUI";
+import { TypedConfirmDialog } from "./TypedConfirmDialog";
 import type { Density } from "./DataTable";
 
 export type SavedViewRecord = { id: string; owner?: string; canManage?: boolean; page: string; name: string; filters: Record<string, unknown>; columns: string[]; sort: Record<string, unknown>; density: Density; shared: boolean; createdAt?: string; updatedAt?: string };
@@ -11,6 +12,9 @@ export function SavedViews({ page, views, activeId, currentView, onApply, onCrea
   loading?: boolean; error?: string; className?: string;
 }) {
   const [open, setOpen] = useState(false); const [name, setName] = useState(""); const [shared, setShared] = useState(false); const [saving, setSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SavedViewRecord | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleting, setDeleting] = useState(false);
   async function save(event: FormEvent) {
     event.preventDefault(); if (!name.trim() || saving) return; setSaving(true);
     try { await onCreate({ page, name: name.trim(), filters: currentView.filters, columns: currentView.columns, sort: currentView.sort, density: currentView.density, shared }); setName(""); setShared(false); setOpen(false); } catch { /* Parent exposes the server error inline. */ } finally { setSaving(false); }
@@ -18,7 +22,7 @@ export function SavedViews({ page, views, activeId, currentView, onApply, onCrea
   return <div className={["admin-saved-views", className].filter(Boolean).join(" ")} aria-label="Saved views">
     {views.map((view) => <span className="admin-saved-view-item" key={view.id}>
       <button type="button" className="admin-saved-view" aria-pressed={activeId === view.id} onClick={() => onApply(view)}>{view.name}{view.shared ? " · Team" : ""}</button>
-      {view.canManage !== false && <button type="button" className="admin-saved-view-remove" aria-label={"Delete saved view " + view.name} title={"Delete saved view " + view.name} onClick={() => void onDelete(view)}><X size={12} /></button>}
+      {view.canManage !== false && <button type="button" className="admin-saved-view-remove" aria-label={"Delete saved view " + view.name} title={"Delete saved view " + view.name} onClick={() => { setPendingDelete(view); setDeleteConfirmation(""); }}><X size={12} /></button>}
     </span>)}
     <button type="button" className="admin-saved-view admin-saved-view--action" onClick={() => setOpen((value) => !value)}>+ Save current view</button>
     {loading && <span className="admin-saved-views__meta">Loading saved views…</span>}
@@ -30,6 +34,29 @@ export function SavedViews({ page, views, activeId, currentView, onApply, onCrea
       <AdminButton type="submit" variant="primary" loading={saving}>Save view</AdminButton>
       <AdminButton type="button" variant="secondary" onClick={() => { setOpen(false); setName(""); }}>Cancel</AdminButton>
     </form>}
+    <TypedConfirmDialog
+      open={Boolean(pendingDelete)}
+      title="Delete saved view?"
+      description={pendingDelete ? <>You are about to delete <strong>{pendingDelete.name}</strong>. This removes the saved filter and column configuration; it does not delete any underlying records.</> : undefined}
+      consequence="This action cannot be undone."
+      confirmLabel="Delete saved view"
+      requiredText={pendingDelete?.name}
+      value={deleteConfirmation}
+      onValueChange={setDeleteConfirmation}
+      reasonRequired={false}
+      loading={deleting}
+      onClose={() => { if (!deleting) { setPendingDelete(null); setDeleteConfirmation(""); } }}
+      onConfirm={() => {
+        if (!pendingDelete || deleteConfirmation !== pendingDelete.name || deleting) return;
+        setDeleting(true);
+        Promise.resolve(onDelete(pendingDelete)).then(() => {
+          setPendingDelete(null);
+          setDeleteConfirmation("");
+        }).catch(() => {
+          // The parent owns and displays the server error.
+        }).finally(() => setDeleting(false));
+      }}
+    />
   </div>;
 }
 

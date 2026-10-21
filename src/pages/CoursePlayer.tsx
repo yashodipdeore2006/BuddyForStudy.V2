@@ -743,6 +743,14 @@ export default function CoursePlayer() {
                               >
                                 {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
                               </button>
+                              <button type="button" onClick={() => void handleGenerateLessonQuiz("reattempt")} disabled={quizActionLoading} className="btn-secondary justify-center">
+                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                Reattempt
+                              </button>
+                              <button type="button" onClick={() => void handleGenerateLessonQuiz("generate")} disabled={quizActionLoading} className="btn-primary justify-center">
+                                {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                {quizActionLoading ? "Generating..." : "Generate More Quiz"}
+                              </button>
                             ) : (
                               <button
                                 type="button"

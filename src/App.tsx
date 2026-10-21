@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
@@ -12,6 +12,7 @@ import VerifyLogin from '@/pages/VerifyLogin';
 import ForgotPassword from '@/pages/ForgotPassword';
 import Courses from '@/pages/Courses';
 import CourseDetails from '@/pages/CourseDetails';
+import CourseRoadmap from '@/pages/CourseRoadmap';
 import MyCourses from '@/pages/MyCourses';
 import SavedCourses from '@/pages/SavedCourses';
 import CoursePlayer from '@/pages/CoursePlayer';
@@ -46,10 +47,6 @@ import AcceptAdminInvitation from '@/pages/AcceptAdminInvitation';
 import { Link } from 'react-router-dom';
 import { routes } from '@/lib/routes';
 
-function CourseRoadmapRedirect() {
-  const { courseId } = useParams<{ courseId: string }>();
-  return <Navigate to={courseId ? routes.course(courseId) + '?tab=roadmap' : routes.explore()} replace />;
-}
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
@@ -75,7 +72,7 @@ function App() {
   return <AuthProvider><BrowserRouter useTransitions={false}><Layout><Routes>
     <Route path="/" element={<Home />} /><Route path="/home" element={<Home />} /><Route path="/login" element={<Login />} /><Route path="/register" element={<Register />} />
     <Route path="/accept-admin-invitation" element={<AcceptAdminInvitation />} /><Route path="/verify-email" element={<VerifyEmail />} /><Route path="/verify-login" element={<VerifyLogin />} /><Route path="/forgot-password" element={<ForgotPassword />} />
-    <Route path="/courses" element={<Navigate to={routes.explore()} replace />} /><Route path="/explore" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<CourseRoadmapRedirect />} />
+    <Route path="/courses" element={<Navigate to={routes.explore()} replace />} /><Route path="/explore" element={<Courses />} /><Route path="/pricing" element={<Pricing />} /><Route path="/courses/:courseId" element={<CourseDetails />} /><Route path="/courses/:courseId/roadmap" element={<CourseRoadmap />} />
     <Route path="/dashboard" element={<Navigate to={routes.home()} replace />} /><Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
     <Route path="/my-courses" element={<Navigate to={routes.myLearning()} replace />} /><Route path="/my-learning" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
     <Route path="/saved-courses" element={<Navigate to={routes.saved()} replace />} /><Route path="/saved" element={<ProtectedRoute><SavedCourses /></ProtectedRoute>} />

@@ -490,3 +490,59 @@ Severity definitions:
 ### Task 5 progress
 - **Completed:** Reviewed the remaining key admin pages for analytics, coupons, plans, roadmaps, AI settings, and invitations; recorded UIX-032 through UIX-039; added a prioritized remediation order.
 - **Remaining:** Trace the actual course-builder implementation; audit remaining admin surfaces in depth; verify all findings in a browser with multiple roles and responsive viewports; inspect shared component implementations against the design/master specs; then start fixes in priority order.
+
+
+## Task 6 — Shared admin components and audit-gap closure
+
+**Status:** Reviewed the shared admin component implementations and traced the course-builder wrapper. Source inspection only; focus behavior and visual states still need browser testing.
+
+### Course-builder audit gap resolved
+- `src/pages/admin/CourseBuilder.tsx` re-exports `AdminCoursesPro`; it is not a separate editor implementation.
+- The course-builder route therefore maps to the existing `AdminCoursesPro.tsx` audit. The prior gap is closed at the route/source level, although course creation/editing/publish flows still require browser testing.
+
+### UIX-040 — Typed confirmation and detail drawer need focus-restoration verification
+- **Severity:** P1 for keyboard accessibility if focus is not restored
+- **Components:** `TypedConfirmDialog.tsx`, `DetailDrawer.tsx`
+- **Evidence:** Both components set focus when opened, handle Escape, and implement keyboard focus cycling.
+- **Expected:** On close, focus should return to the element that opened the dialog/drawer; background content should not be operable while a modal is open; dialog semantics and accessible naming should be explicit.
+- **Status:** Source review confirms focus-on-open and Escape handling; focus restoration/background inertness need a focused source and browser check.
+
+### UIX-041 — Saved Views delete action has no visible confirmation in the component
+- **Severity:** P2 (data-loss prevention; caller-dependent)
+- **Component:** `src/components/admin/SavedViews.tsx`
+- **Evidence:** A delete-view button calls `onDelete(view)` directly. The component itself does not present confirmation.
+- **Expected:** Verify whether callers confirm before deletion and whether saved-view deletion is reversible. If not, add a consistent confirmation for destructive deletion and communicate shared/team scope.
+- **Status:** Caller-dependent; inspect every usage before classifying as a defect.
+
+### UIX-042 — PII reveal control needs permission, reason, and masking-state verification
+- **Severity:** P1 (privacy-sensitive admin workflow)
+- **Component:** `src/components/admin/PiiCell.tsx`
+- **Evidence:** Reveal UI asks for a reason, tracks a busy/error state, supports masking again, and delegates reveal to `onReveal`.
+- **Expected:** Reveal is available only with authorization, requires a meaningful reason, logs the action server-side, does not persist revealed values beyond the necessary context, and returns to masked state on navigation/close as specified by policy.
+- **Status:** Source confirms local UX controls; caller/server authorization and audit behavior require verification.
+
+### UIX-043 — DataTable needs integrated sort, selection, and refresh-state testing
+- **Severity:** P1 if table actions are inconsistent; verification target
+- **Component:** `src/components/admin/DataTable.tsx`
+- **Evidence:** The shared table provides loading skeletons, an alert region, a refresh progress indicator, and select-all for the current page.
+- **Expected:** Sorting controls must expose state to assistive technology; select-all must clearly mean current page; selection must reconcile when page/filter data changes; refresh should preserve existing rows where appropriate.
+- **Status:** Source-level structure inspected; verify all consumers and keyboard/screen-reader behavior.
+
+### UIX-044 — FilterBar debounce and clear behavior need state synchronization tests
+- **Severity:** P2 (filter reliability; verification target)
+- **Component:** `src/components/admin/FilterBar.tsx`
+- **Evidence:** The component maintains local search state, debounces changes, exposes a clear button, active chips, and reset affordance.
+- **Expected:** Clearing search must promptly update the parent query, not leave a pending debounced value to restore stale text; reset/chip removal must synchronize with URL and pagination where used.
+- **Status:** Test rapid typing, clear-before-debounce, parent value changes, and back/forward navigation.
+
+### UIX-045 — StatusBadge and MoneyCell need domain/format edge-case coverage
+- **Severity:** P2 (data interpretation; verification target)
+- **Components:** `StatusBadge.tsx`, `MoneyCell.tsx`
+- **Evidence:** StatusBadge maps statuses by domain; MoneyCell formats currency and falls back when values are invalid.
+- **Expected:** Unknown statuses should remain understandable without misleading color; all currency codes used by billing data should format safely; negative/refund values and missing amounts should have consistent labels.
+- **Status:** Add unit/component coverage for unknown statuses, missing values, INR/USD, refunds, and unusual provider statuses.
+
+### Task 6 progress
+- **Completed:** Inspected shared DataTable, DetailDrawer, FilterBar, SavedViews, StatusBadge, TypedConfirmDialog, MoneyCell, PiiCell, AdminUI, and export barrel. Traced CourseBuilder to AdminCoursesPro and recorded UIX-040 through UIX-045.
+- **Remaining:** Verify all shared component callers; test modal focus restoration, PII reveal permissions/audit, saved-view deletion, debounce races, and table selection/sort states. Browser-based responsive and keyboard verification remains outstanding.
+- **Next:** Begin remediation from the highest-confidence source-confirmed inconsistencies, starting with native prompts in high-impact admin actions, after confirming the exact master-spec requirements and shared dialog API.

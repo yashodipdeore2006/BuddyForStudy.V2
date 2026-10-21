@@ -626,3 +626,17 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - **Frontend:** passed `npm run typecheck`, course navigation unit tests, and `npm run build`.
 - **Lint:** advisory step completed; it is not a clean-lint guarantee because legacy lint issues remain.
 - **Limitations:** CI does not prove visual appearance, browser focus restoration, responsive layouts, permission behavior against live data, or audit-event contents. Those remain manual/runtime verification items.
+
+
+## Remediation 5 — Shared typed-confirm dialog focus containment
+
+**Status:** Source change committed; CI verification pending.
+
+- Hardened the shared `TypedConfirmDialog` keyboard trap so Tab/Shift+Tab stay inside the dialog even if focus is unexpectedly outside it.
+- Added a focus-in guard to return stray focus to the dialog, while preserving Escape-to-close only when no action is loading.
+- Added select controls to the focusable selector and avoid attempting to restore focus to a disconnected or disabled trigger after close.
+- Made `aria-describedby` conditional so the dialog does not reference a missing description element when no description is supplied.
+- File: `src/components/admin/TypedConfirmDialog.tsx`.
+- Commit: `c2ef057`.
+
+**Verification still required:** CI typecheck/build, browser keyboard-only walkthrough, screen-reader announcement, and focus restoration when the trigger remains mounted versus when the triggering row is removed.

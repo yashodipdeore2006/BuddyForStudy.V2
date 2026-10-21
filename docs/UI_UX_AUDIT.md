@@ -668,3 +668,15 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commits: `a383647`, `4d7a2f3`.
 
 **Verification still required:** CI typecheck/build and browser checks for small screens, long text, keyboard navigation, and screen-reader labeling.
+
+
+## Enrolled course hub — compact description
+
+**Status:** Implemented in source; CI verification pending.
+
+- Applied the same two-line clamp and scrollable **Read more** dialog to the enrolled/My Learning course hub hero shown when `courseView === 'hub'`.
+- Uses the existing `ExpandableText` popup mode, so the full description remains accessible without increasing the page's vertical length.
+- File: `src/pages/CourseDetails.tsx`.
+- Commit: `d2b58b1`.
+
+**Verification still required:** CI typecheck/build and browser verification on the enrolled course route.

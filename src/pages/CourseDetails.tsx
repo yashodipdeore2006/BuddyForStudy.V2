@@ -176,6 +176,7 @@ export default function CourseDetails() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewNotice, setReviewNotice] = useState('');
   const myReview = session ? reviews.find((review) => String(review.user?._id ?? review.user?.id ?? '') === String(session.user.id)) : undefined;
 
   useEffect(() => {
@@ -463,18 +464,33 @@ export default function CourseDetails() {
 
 
   const submitReview = async () => {
-    if (!courseId || !session) return;
-    setReviewSaving(true); setError(null);
+    if (!courseId || !session || reviewSaving) return;
+    setReviewSaving(true);
+    setError(null);
+    setReviewNotice('');
     try {
-      const data = await apiFetch(`/api/reviews/courses/${courseId}`, { method: 'POST', body: JSON.stringify({ rating: reviewRating, comment: reviewComment }) });
+      const data = await apiFetch(`/api/reviews/courses/${courseId}`, {
+        method: 'POST',
+        body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
+      });
       const savedReview = data.review as CourseReview;
-      setReviews((current) => [savedReview, ...current.filter((item) => String(item.user?._id ?? item.user?.id ?? '') !== String(session.user.id))]);
-      const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
-      setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
-      setReviewStats(reviewData.stats || { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
-      setReviewsError('');
-    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save review'); }
-    finally { setReviewSaving(false); }
+      setReviewNotice(savedReview?.moderationStatus === 'pending'
+        ? 'Your review was submitted and will appear after moderation.'
+        : 'Your review has been saved.');
+
+      try {
+        const reviewData = await apiFetch(`/api/reviews/courses/${courseId}`);
+        setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
+        setReviewStats(reviewData.stats || { count: 0, average: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
+        setReviewsError('');
+      } catch {
+        setReviewsError('Your review was saved, but the published reviews could not be refreshed. Please retry.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to save review');
+    } finally {
+      setReviewSaving(false);
+    }
   };
 
   const handleStartLearning = () => {
@@ -701,7 +717,7 @@ export default function CourseDetails() {
           </div>
         </div>
 
-        <section role="tabpanel" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
+        <section id={activeTab === 'reviews' ? 'reviews' : undefined} role="tabpanel" className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
           {activeTab === 'overview' && <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
             <div>
               <h2 className="text-xl font-semibold text-slate-950">Your next lessons</h2>
@@ -833,6 +849,7 @@ export default function CourseDetails() {
                 <textarea id="course-review-comment" value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={1000} placeholder="What did you learn? What worked well?" className="input-field mt-2 min-h-28 w-full resize-y text-sm" />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><span className="text-xs text-slate-400">{reviewComment.length}/1000 characters</span><button type="button" onClick={() => void submitReview()} disabled={reviewSaving} className="btn-primary">{reviewSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving review…</> : myReview ? 'Update review' : 'Submit review'}</button></div>
                 {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
+                {reviewNotice && <p role="status" className="mt-3 text-sm text-emerald-700">{reviewNotice}</p>}
                 <p className="mt-3 text-xs leading-5 text-slate-500">Your submission updates your existing review instead of creating a duplicate.</p>
               </div>
             </div>
@@ -996,7 +1013,7 @@ export default function CourseDetails() {
               <aside className="h-fit rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
                 <p className="text-sm font-semibold text-slate-700">Rating breakdown</p>
                 <div className="mt-4 space-y-3">{[5,4,3,2,1].map((star) => { const count = Number(reviewStats.distribution?.[String(star)] || 0); const percent = reviewStats.count ? count / reviewStats.count * 100 : 0; return <div key={star} className="flex items-center gap-2 text-xs"><span className="w-3 text-slate-600">{star}</span><Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden="true"/><div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-amber-400 transition-all" style={{width: percent + "%"}}/></div><span className="w-5 text-right text-slate-500">{count}</span></div>; })}</div>
-                {isEnrolled ? <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-sm font-semibold text-slate-900">{myReview ? "Update your review" : "Rate this course"}</p><div className="mt-2 flex gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">{[1,2,3,4,5].map((star) => <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={"Rate " + star + " out of 5 stars"} aria-pressed={reviewRating === star} className="rounded p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600"><Star className={classNames("h-6 w-6", star <= reviewRating ? "text-amber-400" : "text-slate-300")} fill={star <= reviewRating ? "currentColor" : "none"}/></button>)}</div><textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-24 w-full resize-y text-sm" aria-label="Review comment (optional)"/><button type="button" onClick={() => void submitReview()} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? "Saving review…" : myReview ? "Update review" : "Submit review"}</button>{error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}</div> : <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-sm leading-6 text-slate-600">You can read all reviews without enrolling.</p><button type="button" onClick={() => void handleEnroll()} className="mt-2 font-semibold text-violet-700 hover:text-violet-900">Enroll to review <ChevronRight className="inline h-4 w-4" aria-hidden="true" /></button></div>}
+                {isEnrolled ? <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-sm font-semibold text-slate-900">{myReview ? "Update your review" : "Rate this course"}</p><div className="mt-2 flex gap-1" role="group" aria-label="Choose a rating from 1 to 5 stars">{[1,2,3,4,5].map((star) => <button key={star} type="button" onClick={() => setReviewRating(star)} aria-label={"Rate " + star + " out of 5 stars"} aria-pressed={reviewRating === star} className="rounded p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-600"><Star className={classNames("h-6 w-6", star <= reviewRating ? "text-amber-400" : "text-slate-300")} fill={star <= reviewRating ? "currentColor" : "none"}/></button>)}</div><textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} maxLength={1000} placeholder="Share your experience (optional)" className="input-field mt-3 min-h-24 w-full resize-y text-sm" aria-label="Review comment (optional)"/><button type="button" onClick={() => void submitReview()} disabled={reviewSaving} className="btn-primary mt-3 w-full">{reviewSaving ? "Saving review…" : myReview ? "Update review" : "Submit review"}</button>{error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}{reviewNotice && <p role="status" className="mt-2 text-sm text-emerald-700">{reviewNotice}</p>}</div> : <div className="mt-5 border-t border-slate-200 pt-4"><p className="text-sm leading-6 text-slate-600">You can read all reviews without enrolling.</p><button type="button" onClick={() => void handleEnroll()} className="mt-2 font-semibold text-violet-700 hover:text-violet-900">Enroll to review <ChevronRight className="inline h-4 w-4" aria-hidden="true" /></button></div>}
               </aside>
               <div className="min-w-0">
                 <h3 className="text-lg font-bold text-slate-950">Learner reviews</h3>

@@ -1010,7 +1010,7 @@ export default function CourseDetails() {
                 <div key={review._id} className="border-t border-slate-100 pt-4">
                   <div className="flex items-center gap-2"><span className="font-semibold text-slate-800">{review.user?.name || 'Learner'}</span><div className="flex text-amber-400" aria-label={review.rating + ' out of 5 stars'}>{[1,2,3,4,5].map((star) => <Star key={star} className="h-3.5 w-3.5" fill={star <= review.rating ? "currentColor" : "none"} />)}</div></div>
                   {review.comment && <p className="mt-2 text-sm text-slate-600">{review.comment}</p>}
-                  <p className="mt-1 text-xs text-slate-400">{formatDate(review.createdAt)}</p>
+                  <p className="mt-1 text-xs text-slate-400">{review.createdAt ? formatDate(review.createdAt) : 'Review'}</p>
                 </div>
               )) : <p className="mt-4 text-sm text-slate-500">No reviews yet. Be the first to review this course.</p>}
             </div>

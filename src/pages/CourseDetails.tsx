@@ -656,6 +656,7 @@ export default function CourseDetails() {
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-3">
+            <button type="button" onClick={() => navigate(routes.roadmap(String(course.id)))} className="btn-secondary max-w-full">Journey Roadmap</button>
             <button type="button" onClick={handleStartLearning} className="btn-primary max-w-full">
               {isCompleted ? 'Review course' : progressPct > 0 ? 'Continue: ' + cleanLessonTitle(nextLesson?.title || 'learning', flatLessons.map((lesson) => lesson.title)) : 'Start learning'} <ChevronRight className="h-4 w-4 shrink-0" />
             </button>

@@ -36,12 +36,12 @@ export default function AdminAudit() {
   const [savedViewsError, setSavedViewsError] = useState("");
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
 
-  const load = useCallback(async (filters: { q: string; action: string; targetType: string; page?: number; limit?: number } = { q, action, targetType, page, limit }) => {
+  const load = useCallback(async (filters: { q: string; action: string; targetType: string; page?: number; limit?: number }) => {
     setLoading(true);
     setError("");
     try {
-      const selectedPage = filters.page ?? page;
-      const selectedLimit = filters.limit ?? limit;
+      const selectedPage = filters.page ?? 1;
+      const selectedLimit = filters.limit ?? 25;
       const params = new URLSearchParams({ page: String(selectedPage), limit: String(selectedLimit) });
       if (filters.q.trim()) params.set("q", filters.q.trim());
       if (filters.action) params.set("action", filters.action);
@@ -55,7 +55,7 @@ export default function AdminAudit() {
     } finally {
       setLoading(false);
     }
-  }, [q, action, targetType, page, limit]);
+  }, []);
 
   const refreshSavedViews = useCallback(async () => {
     setSavedViewsLoading(true);
@@ -108,7 +108,7 @@ export default function AdminAudit() {
     void load({ ...next, page: 1, limit });
   }
 
-  useEffect(() => { void load(); void refreshSavedViews(); }, [load, refreshSavedViews]);
+  useEffect(() => { void load({ q: "", action: "", targetType: "", page: 1, limit: 25 }); void refreshSavedViews(); }, [load, refreshSavedViews]);
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -116,7 +116,7 @@ export default function AdminAudit() {
         eyebrow="Security and accountability"
         title="Audit log"
         description="Inspect sensitive admin actions with searchable before/after context and reasons."
-        actions={<button type="button" aria-label="Refresh audit events" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
+        actions={<button type="button" aria-label="Refresh audit events" className="btn-secondary" onClick={() => void load({ q, action, targetType, page, limit })} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
       />
 
       {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}

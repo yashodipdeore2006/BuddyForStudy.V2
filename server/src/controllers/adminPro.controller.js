@@ -1425,6 +1425,8 @@ export async function updateCourseTutorial(req, res, next) {
 
 export async function updateCourse(req, res, next) {
   try {
+    const requestedReason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    const reason = (requestedReason || "Admin course content change").slice(0, 500);
     const validation = validateCourseAdminPatch(req.body);
     if (!validation.valid) {
       return res.status(400).json({ success: false, message: "Course update contains invalid fields", errors: validation.errors });
@@ -1490,7 +1492,7 @@ export async function updateCourse(req, res, next) {
       if (typeof p.saleEnabled === "boolean") course.pricing.saleEnabled = p.saleEnabled;
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
-    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     // Course catalogue caches must not retain stale publish state or metadata.
     await cacheDelete(`course:${course._id}`);

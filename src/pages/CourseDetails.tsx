@@ -729,7 +729,7 @@ export default function CourseDetails() {
               <h2 className="text-xl font-semibold text-slate-950">Your next lessons</h2>
               <p className="mt-1 text-sm text-slate-500">Pick up where you left off, or preview what comes next.</p>
               <div className="mt-4 space-y-2">
-                {flatLessons.filter((lesson) => !completedLessonIds.has(String(lesson.id))).slice(0, 3).map((lesson, index) => {
+                {flatLessons.filter((lesson) => !completedLessonIds.has(String(lesson.id))).slice(0, 3).map((lesson) => {
                   const isNext = String(lesson.id) === String(nextLesson?.id);
                   const LessonIcon: LucideIcon = lesson.type === 'quiz' ? CircleHelp : lesson.type === 'project' ? ListChecks : Play;
                   const title = cleanLessonTitle(lesson.title, flatLessons.map((item) => item.title));

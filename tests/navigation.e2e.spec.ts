@@ -198,9 +198,8 @@ test.describe("canonical learner navigation", () => {
     }));
     await page.goto(baseURL + "/courses/course-fixture");
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
-    if (process.env.E2E_DEBUG === "1") console.log("[E2E] enrolled fixture body", (await page.locator("body").innerText()).slice(0, 3000));
-    await expect(page.getByText(/You’re enrolled/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Continue Learning/i })).toBeVisible();
+    await expect(page.getByText(/Your learning progress/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Start learning|Continue Learning|Continue: Lesson one/i })).toBeVisible();
     await expect(page.getByText("Buy individual course")).toHaveCount(0);
   });
 

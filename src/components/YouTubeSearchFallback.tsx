@@ -161,7 +161,7 @@ export default function YouTubeSearchFallback({
   hasLocalResults = false,
 }: Props) {
   const [viewer, setViewer] = useState<Viewer | null>(null);
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [, setOpeningId] = useState<string | null>(null);
   const [viewerError, setViewerError] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
@@ -753,12 +753,6 @@ export default function YouTubeSearchFallback({
             ) : playlists.length > 0 ? (
               <div className="bfs-course-grid mt-4">
                 {playlists.slice(0, 30).map((playlist, index) => {
-                  const built = builtCourses.find(
-                    (course) =>
-                      course.sourceType === "playlist" &&
-                      course.sourceId === playlist.playlistId
-                  );
-
                   return (
                     <article
                       key={playlist.playlistId}

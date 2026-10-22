@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCcw, CalendarClock, CreditCard } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminBadge, AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
@@ -6,8 +6,21 @@ import { AdminBadge, AdminPageHeader, AdminPagination } from "@/components/admin
 const money = (value: number, currency = "INR") => new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(Number(value || 0));
 const date = (value?: string | null) => value ? new Date(value).toLocaleString() : "—";
 
+type SubscriptionRow = {
+  _id: string;
+  status?: string;
+  user?: { name?: string; email?: string };
+  plan?: { name?: string; price?: number; currency?: string; billingInterval?: string };
+  currentPeriodStart?: string | null;
+  currentPeriodEnd?: string | null;
+  provider?: string;
+  providerSubscriptionId?: string;
+  cancelAtPeriodEnd?: boolean;
+  cancelledAt?: string | null;
+};
+
 export default function AdminSubscriptions() {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<SubscriptionRow[]>([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15,7 +28,7 @@ export default function AdminSubscriptions() {
   const [limit, setLimit] = useState(25);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
@@ -26,8 +39,8 @@ export default function AdminSubscriptions() {
       setPages(Math.max(1, Number(data.pages || 1)));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load subscriptions."); }
     finally { setLoading(false); }
-  }
-  useEffect(() => { void load(); }, [status, page, limit]);
+  }, [status, page, limit]);
+  useEffect(() => { void load(); }, [load]);
   const active = items.filter((item) => item.status === "active").length;
   const pastDue = items.filter((item) => item.status === "past_due").length;
   return <div className="mx-auto max-w-7xl">

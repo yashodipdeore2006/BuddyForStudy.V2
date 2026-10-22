@@ -106,6 +106,11 @@ test.describe("administrator route and permission UX", () => {
     await expect(navigation.getByRole("link", { name: "Users" })).toHaveCount(0);
     await expect(navigation.getByRole("link", { name: "Administrator roles" })).toHaveCount(0);
 
+    await page.getByRole("button", { name: /Audit Analyst/ }).click();
+    const adminMenu = page.getByRole("menu", { name: "Administrator menu" });
+    await expect(adminMenu.getByRole("menuitem", { name: /Sign out/ })).toBeVisible();
+    await expect(adminMenu.getByRole("menuitem", { name: "Platform settings" })).toHaveCount(0);
+
     await page.goto(baseURL + "/admin/users");
     await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
     await expect(page.getByText(/does not have permission to access this section/i)).toBeVisible();

@@ -196,9 +196,10 @@ export default function Courses() {
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          lastResponse = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
-          batch = lastResponse.courses || lastResponse.items || [];
-          if (lastResponse.discovery) searchDiscovery = lastResponse.discovery;
+          const response: NonNullable<typeof lastResponse> = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
+          lastResponse = response;
+          batch = response.courses || response.items || [];
+          if (response.discovery) searchDiscovery = response.discovery;
           allRows.push(...batch);
           page += 1;
         } while (batch.length === 50 && page <= 200);

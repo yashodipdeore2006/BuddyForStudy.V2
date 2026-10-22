@@ -28,6 +28,28 @@ type ProgressRecord = {
   remainingDuration?: string;
 };
 type EnrollmentRecord = { id: string; course_id: string; status: string; course: Course };
+type RawHomeCourse = {
+  _id?: string; id?: string; title?: string; description?: string; category?: string;
+  level?: Course["level"]; duration?: string | number; thumbnail?: string | null;
+  learningOutcomes?: string[]; learning_outcomes?: string[]; modules?: Course["modules"];
+  lessonCount?: number; lesson_count?: number; isPublished?: boolean; is_published?: boolean;
+  pricing?: Course["pricing"]; ratingAverage?: number; rating_average?: number;
+  ratingCount?: number; rating_count?: number;
+  reviewStats?: { average?: number; count?: number }; stats?: { average?: number; count?: number };
+  createdAt?: string; created_at?: string; updatedAt?: string; updated_at?: string;
+};
+type RawCompletedLesson = { lessonId?: string; lesson_id?: string; completedAt?: string; completed_at?: string };
+type RawHomeProgress = {
+  completedLessons?: RawCompletedLesson[]; completed_lessons?: RawCompletedLesson[];
+  completedCount?: number; completed_count?: number; totalLessons?: number; total_lessons?: number;
+  percentage?: number; lastLessonId?: string | null; last_lesson_id?: string | null;
+  lastAccessedAt?: string | null; last_accessed_at?: string | null; nextLessonTitle?: string;
+  remainingDuration?: string;
+};
+type RawHomeEnrollment = {
+  _id?: string; id?: string; course?: RawHomeCourse | string | null;
+  course_id?: string; status?: string;
+};
 type HomeData = {
   enrollments: EnrollmentRecord[];
   progress: Record<string, ProgressRecord>;
@@ -35,7 +57,7 @@ type HomeData = {
   learningStats: Record<string, unknown> | null;
 };
 
-function mapCourse(raw: any): Course {
+function mapCourse(raw: RawHomeCourse): Course {
   return {
     ...raw,
     id: String(raw?._id ?? raw?.id ?? ''),
@@ -58,14 +80,14 @@ function mapCourse(raw: any): Course {
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? '',
   } as Course;
 }
-function mapProgress(raw: any, courseId: string, course?: Course): ProgressRecord {
+function mapProgress(raw: RawHomeProgress, courseId: string, course?: Course): ProgressRecord {
   const completedLessons = Array.isArray(raw?.completedLessons) ? raw.completedLessons : Array.isArray(raw?.completed_lessons) ? raw.completed_lessons : [];
-  const completedLessonIds = completedLessons.map((item: any) => String(item?.lessonId ?? item?.lesson_id ?? '')).filter(Boolean);
+  const completedLessonIds = completedLessons.map((item: RawCompletedLesson) => String(item?.lessonId ?? item?.lesson_id ?? '')).filter(Boolean);
   const completedSet = new Set(completedLessonIds);
   const nextLesson = course ? getAllLessonsFlat(course.modules).find((lesson) => !completedSet.has(String(lesson.id))) : undefined;
   return {
     course_id: courseId,
-    completed_today_count: completedLessons.filter((item: any) => {
+    completed_today_count: completedLessons.filter((item: RawCompletedLesson) => {
       if (!item?.completedAt && !item?.completed_at) return false;
       const timestamp = new Date(item.completedAt ?? item.completed_at);
       if (Number.isNaN(timestamp.getTime())) return false;
@@ -82,7 +104,7 @@ function mapProgress(raw: any, courseId: string, course?: Course): ProgressRecor
     ...(typeof raw?.remainingDuration === 'string' ? { remainingDuration: raw.remainingDuration } : {}),
   };
 }
-function mapEnrollment(raw: any): EnrollmentRecord | null {
+function mapEnrollment(raw: RawHomeEnrollment): EnrollmentRecord | null {
   if (!raw?.course || typeof raw.course !== 'object') return null;
   const course = mapCourse(raw.course);
   if (!course.id) return null;

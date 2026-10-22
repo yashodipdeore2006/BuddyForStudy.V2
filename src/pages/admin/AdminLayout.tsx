@@ -336,7 +336,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         return (
           <div className="admin-nav-group" key={group}>
             <p className="admin-nav-heading">{group}</p>
-            {groupLinks.map(({ to, label, icon: Icon, description }) => (
+            {groupLinks.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}

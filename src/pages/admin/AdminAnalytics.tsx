@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+
+// API records vary by admin endpoint; this alias keeps the response boundary explicit.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdminAnalyticsRecord = Record<string, any>;
 import { Activity, ArrowDown, ArrowUp, IndianRupee, RefreshCcw, TrendingUp, Users } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
@@ -7,13 +11,13 @@ function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
 }
 
-function maxOf(items: any[], key: string) {
+function maxOf(items: AdminAnalyticsRecord[], key: string) {
   return Math.max(1, ...items.map((item) => Number(item[key] || 0)));
 }
 
 export default function AdminAnalytics() {
   const [days, setDays] = useState(30);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AdminAnalyticsRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [analyticsView, setAnalyticsView] = useState<"trends" | "performance" | "learning">("trends");
@@ -37,7 +41,7 @@ export default function AdminAnalytics() {
   const revenueMax = useMemo(() => maxOf(data?.revenueDaily || [], "amount"), [data]);
 
   const completions: Array<{ label: string; count: number }> = (data?.completionBreakdown || [])
-    .map((item: any) => ({
+    .map((item: AdminAnalyticsRecord) => ({
       label:
         item._id === 0 ? "0–24%" :
         item._id === 25 ? "25–49%" :
@@ -84,7 +88,7 @@ export default function AdminAnalytics() {
             <section className="card p-5">
               <div className="flex items-center justify-between"><div><h2 className="font-bold">Daily enrollments</h2><p className="text-xs text-slate-500">New course enrollments.</p></div><ArrowUp className="h-4 w-4 text-green-600" /></div>
               <div className="mt-5 space-y-2">
-                {(data?.enrollmentsDaily || []).map((item: any) => (
+                {(data?.enrollmentsDaily || []).map((item: AdminAnalyticsRecord) => (
                   <div key={item._id} className="grid grid-cols-[90px_1fr_50px] items-center gap-2 text-xs">
                     <span className="text-slate-400">{item._id}</span>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: (Number(item.count || 0) / enrollmentMax) * 100 + "%" }} /></div>
@@ -98,7 +102,7 @@ export default function AdminAnalytics() {
             <section className="card p-5">
               <div className="flex items-center justify-between"><div><h2 className="font-bold">Daily net cashflow</h2><p className="text-xs text-slate-500">Payments collected minus refunds processed each day.</p></div><ArrowDown className="h-4 w-4 text-blue-600" /></div>
               <div className="mt-5 space-y-2">
-                {(data?.revenueDaily || []).map((item: any) => (
+                {(data?.revenueDaily || []).map((item: AdminAnalyticsRecord) => (
                   <div key={item._id} className="grid grid-cols-[90px_1fr_80px] items-center gap-2 text-xs">
                     <span className="text-slate-400">{item._id}</span>
                     <div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: (Math.max(0, Number(item.amount || 0)) / revenueMax) * 100 + "%" }} /></div>
@@ -114,7 +118,7 @@ export default function AdminAnalytics() {
             <section className="card overflow-hidden">
               <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Course performance</h2><p className="mt-1 text-xs text-slate-500">Courses ranked by total enrollments.</p></div>
               <div className="divide-y divide-slate-100">
-                {(data?.coursePerformance || []).map((item: any, index: number) => (
+                {(data?.coursePerformance || []).map((item: AdminAnalyticsRecord, index: number) => (
                   <div key={item._id || index} className="flex items-center gap-3 p-4">
                     <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">#{index + 1}</span>
                     <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.title || "Untitled course"}</p><p className="text-xs text-slate-500">{item.published ? "Published" : "Unpublished"} · {item.pricingMode || "free"}</p></div>
@@ -127,7 +131,7 @@ export default function AdminAnalytics() {
             <section className="card overflow-hidden">
               <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Subscription health</h2><p className="mt-1 text-xs text-slate-500">Current subscription statuses.</p></div>
               <div className="divide-y divide-slate-100">
-                {(data?.subscriptionBreakdown || []).map((item: any) => (
+                {(data?.subscriptionBreakdown || []).map((item: AdminAnalyticsRecord) => (
                   <div key={item._id} className="flex items-center justify-between p-4"><span className="capitalize text-sm font-semibold text-slate-700">{item._id}</span><span className="text-sm font-bold">{item.count}</span></div>
                 ))}
               </div>

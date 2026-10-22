@@ -88,8 +88,9 @@ function mapProgress(raw: RawHomeProgress, courseId: string, course?: Course): P
   return {
     course_id: courseId,
     completed_today_count: completedLessons.filter((item: RawCompletedLesson) => {
-      if (!item?.completedAt && !item?.completed_at) return false;
-      const timestamp = new Date(item.completedAt ?? item.completed_at);
+      const completedAt = item.completedAt ?? item.completed_at;
+      if (!completedAt) return false;
+      const timestamp = new Date(completedAt);
       if (Number.isNaN(timestamp.getTime())) return false;
       return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(timestamp) === new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     }).length,

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 
 type JsonDiffProps = { before: unknown; after: unknown; maxRows?: number };
-type Entry = { path: string; before: unknown; after: unknown; kind: "changed" | "added" | "removed" };
 
 function flatten(value: unknown, prefix = "", result: Map<string, unknown> = new Map()) {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {

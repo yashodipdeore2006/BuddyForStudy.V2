@@ -201,3 +201,24 @@ test("administrator role changes reject reasons longer than 500 characters", asy
   assert.equal(res.result.statusCode, 400);
   assert.match(res.result.body.message, /reason between 10 and 500/i);
 });
+
+
+test("AI/content setting updates reject missing, short and oversized reasons before database access", async () => {
+  await withMocks([
+    [PlatformSetting, {
+      findOne: async () => { throw new Error("settings lookup must not run for invalid reason"); },
+      findOneAndUpdate: async () => { throw new Error("settings write must not run for invalid reason"); },
+    }],
+  ], async () => {
+    for (const reason of [undefined, "", "too short", "x".repeat(501)]) {
+      const res = makeResponse();
+      await updateAIContentSetting({
+        params: { key: "advanced_ai_qa_enabled" },
+        body: { value: true, ...(reason === undefined ? {} : { reason }) },
+        user: { userId: "507f191e810c19729de860ea" },
+      }, res, (error) => assert.fail("Invalid reason must fail before database access: " + error));
+      assert.equal(res.result.statusCode, 400);
+      assert.match(res.result.body.message, /reason between 10 and 500 characters/i);
+    }
+  });
+});

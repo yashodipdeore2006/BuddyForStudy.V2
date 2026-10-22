@@ -65,7 +65,7 @@ export function validatePricingOperation(input = {}) {
   }
   const operation = { type, saleHandling: input.saleHandling || "preserve" };
   if (!["preserve", "clear", "adjust"].includes(operation.saleHandling)) throw new Error("Invalid sale-price handling.");
-  if (["fixed", "percent_increase", "percent_decrease", "amount_increase", "amount_decrease"].includes(type)) {
+  if (["fixed", "percent_increase", "percent_decrease", "amount_increase", "amount_decrease", "set_paid"].includes(type)) {
     const amount = Number(input.amount);
     if (!Number.isFinite(amount) || amount < 0 || amount > PRICE_LIMIT) throw new Error("Amount must be between 0 and " + PRICE_LIMIT + ".");
     if (["percent_increase", "percent_decrease"].includes(type) && amount > 100) throw new Error("Percentage adjustments must be between 0 and 100.");

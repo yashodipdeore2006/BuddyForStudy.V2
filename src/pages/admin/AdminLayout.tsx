@@ -417,7 +417,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </div>}
             </div>
             <AdminIconButton label="Keyboard shortcuts and help" onClick={() => setHelpOpen(true)}><CircleHelp size={17} /></AdminIconButton>
-            <Link to="/admin/audit" className="admin-icon-button" aria-label="Review audit activity" title="Review audit activity"><Bell size={17} /></Link>
+            {permissions.includes("audit.read") && <Link to="/admin/audit" className="admin-icon-button" aria-label="Review audit activity" title="Review audit activity"><Bell size={17} /></Link>}
             <AdminIconButton label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>
               {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
             </AdminIconButton>
@@ -430,7 +430,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               {userMenuOpen && <div className="admin-popover" role="menu" aria-label="Administrator menu">
                 <div className="admin-popover-profile"><strong>{session?.user.name || "Administrator"}</strong><span>{session?.user.email || ""}</span><span>{access?.roleLabel || "Administrator"}</span></div>
                 <div className="admin-popover-divider" />
-                <Link to="/admin/settings" role="menuitem" className="admin-popover-item" onClick={() => setUserMenuOpen(false)}><Settings size={16} />Platform settings</Link>
+                {permissions.includes("settings.read") && <Link to="/admin/settings" role="menuitem" className="admin-popover-item" onClick={() => setUserMenuOpen(false)}><Settings size={16} />Platform settings</Link>}
                 <button type="button" role="menuitem" className="admin-popover-item admin-popover-item--danger" onClick={() => void handleSignOut()}><LogOut size={16} />Sign out</button>
               </div>}
             </div>

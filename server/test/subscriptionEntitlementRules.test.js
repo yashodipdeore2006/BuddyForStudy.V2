@@ -24,8 +24,8 @@ test("malformed subscription period end fails closed", () => {
   assert.equal(isSubscriptionPeriodCurrent({ currentPeriodEnd: "not-a-date" }, Date.now()), false);
 });
 
-test("individual paid-course access cannot be granted by a subscription entitlement alone", () => {
-  assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: true, hasIndividualAccess: false }), false);
+test("an all-published-courses subscription entitlement grants paid-course access while active", () => {
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: true, hasIndividualAccess: false }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: false, hasIndividualAccess: true }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: true, hasIndividualAccess: false }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: false }), false);

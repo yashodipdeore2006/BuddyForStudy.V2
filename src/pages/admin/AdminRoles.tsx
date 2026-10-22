@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCcw, ShieldCheck, Users, Save, LockKeyhole, AlertTriangle } from "lucide-react";
+import { RefreshCcw, Users, Save, LockKeyhole, AlertTriangle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 import AdminInvitationManager from "@/pages/admin/AdminInvitationManager";

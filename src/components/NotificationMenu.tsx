@@ -33,6 +33,7 @@ type NotificationItem = {
   body?: string;
   type?: string;
   read?: boolean;
+  readAt?: string | null;
   isRead?: boolean;
   createdAt?: string;
   created_at?: string;
@@ -219,7 +220,7 @@ export default function NotificationMenu() {
               </div>
             ) : (
               notifications.map((notification) => {
-                const Icon = iconByType[notification.type] || Info;
+                const Icon = notification.type ? iconByType[notification.type] || Info : Info;
                 const unread = !notification.readAt;
                 const expanded = expandedId === notification._id;
 
@@ -245,7 +246,7 @@ export default function NotificationMenu() {
                           {notification.title}
                         </p>
                         <span className="flex-shrink-0 text-[10px] font-medium text-slate-400">
-                          {formatRelativeTime(notification.createdAt)}
+                          {formatRelativeTime(notification.createdAt ?? notification.created_at ?? "")}
                         </span>
                       </div>
                       <p className={`mt-0.5 text-[11px] leading-5 text-slate-500 ${

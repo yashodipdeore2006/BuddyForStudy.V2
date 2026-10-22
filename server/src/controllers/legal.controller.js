@@ -20,7 +20,11 @@ export function cleanInput(body = {}) {
   if (!categories.has(category)) throw new Error("Choose a supported document category.");
   if (summary.length > 500) throw new Error("Summary must be 500 characters or fewer.");
   if (!content || content.length > 50000) throw new Error("Document content is required and must be at most 50,000 characters.");
-  if (documentUrl) {\n    let parsedUrl;\n    try { parsedUrl = new URL(documentUrl); } catch { throw new Error("Document URL must be a valid HTTPS URL."); }\n    if (documentUrl.length > 2048 || parsedUrl.protocol !== "https:" || !parsedUrl.hostname || parsedUrl.username || parsedUrl.password) throw new Error("Document URL must be a valid HTTPS URL without embedded credentials.");\n  }
+  if (documentUrl) {
+    let parsedUrl;
+    try { parsedUrl = new URL(documentUrl); } catch { throw new Error("Document URL must be a valid HTTPS URL."); }
+    if (documentUrl.length > 2048 || parsedUrl.protocol !== "https:" || !parsedUrl.hostname || parsedUrl.username || parsedUrl.password) throw new Error("Document URL must be a valid HTTPS URL without embedded credentials.");
+  }
   if (effectiveAt && Number.isNaN(effectiveAt.getTime())) throw new Error("Effective date is invalid.");
   if (revisionNote.length > 500) throw new Error("Revision note must be 500 characters or fewer.");
   return { title, slug, category, summary, body: content, documentUrl, effectiveAt, revisionNote };

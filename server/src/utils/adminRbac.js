@@ -28,7 +28,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     description: "Plans, coupons, payment reporting and refund decisions.",
     permissions: [
       "dashboard.read", "saved_views.manage", "plans.read", "plans.manage", "billing.read",
-      "refunds.manage", "coupons.read", "coupons.manage", "analytics.read",
+      "refunds.manage", "coupons.read", "coupons.manage", "pricing.manage", "analytics.read",
       "operations.read",
     ],
   },

@@ -6,8 +6,21 @@ import { DetailDrawer } from "@/components/admin/DetailDrawer";
 import { SavedViews, type SavedViewRecord } from "@/components/admin/SavedViews";
 import JsonDiff from "@/components/admin/JsonDiff";
 
+type AuditLog = {
+  _id: string;
+  createdAt?: string;
+  actor?: { email?: string; name?: string } | null;
+  action?: string;
+  targetType?: string;
+  targetId?: string;
+  reason?: string;
+  before?: unknown;
+  after?: unknown;
+};
+type SavedViewPayload = Parameters<NonNullable<React.ComponentProps<typeof SavedViews>["onCreate"]>>[0];
+
 export default function AdminAudit() {
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [q, setQ] = useState("");
   const [action, setAction] = useState("");
   const [targetType, setTargetType] = useState("");
@@ -17,7 +30,7 @@ export default function AdminAudit() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<any>(null);
+  const [selected, setSelected] = useState<AuditLog | null>(null);
   const [savedViews, setSavedViews] = useState<SavedViewRecord[]>([]);
   const [savedViewsLoading, setSavedViewsLoading] = useState(false);
   const [savedViewsError, setSavedViewsError] = useState("");
@@ -57,7 +70,7 @@ export default function AdminAudit() {
     }
   }
 
-  async function createSavedView(payload: any) {
+  async function createSavedView(payload: SavedViewPayload) {
     setSavedViewsError("");
     try {
       await adminFetch("/api/admin/saved-views", { method: "POST", body: JSON.stringify(payload) });

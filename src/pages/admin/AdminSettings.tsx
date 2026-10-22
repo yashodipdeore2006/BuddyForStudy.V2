@@ -41,6 +41,7 @@ export default function AdminSettings() {
     qaEnabled: true,
   });
   const [savingAdvancedAI, setSavingAdvancedAI] = useState(false);
+  const [advancedAIReason, setAdvancedAIReason] = useState("");
   const [notificationConfig, setNotificationConfig] = useState({
     emailEnabled: true,
     inAppEnabled: true,
@@ -53,6 +54,7 @@ export default function AdminSettings() {
     pushRetryAttempts: 3,
   });
   const [savingNotificationConfig, setSavingNotificationConfig] = useState(false);
+  const [notificationReason, setNotificationReason] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
   const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -95,6 +97,10 @@ export default function AdminSettings() {
   useEffect(() => { void load(); }, []);
 
   async function saveAdvancedAI() {
+    if (advancedAIReason.trim().length < 10 || advancedAIReason.trim().length > 500) {
+      setError("Enter an AI settings change reason between 10 and 500 characters.");
+      return;
+    }
     setSavingAdvancedAI(true);
     setError("");
     setStatus("");
@@ -114,11 +120,12 @@ export default function AdminSettings() {
             value: settingValue,
             description: "Advanced AI assistant platform control",
             isPublic: false,
-            reason: "Admin updated Advanced AI configuration",
+            reason: advancedAIReason.trim(),
           }),
         })
       ));
       setStatus("Advanced AI configuration saved.");
+      setAdvancedAIReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save Advanced AI configuration");
@@ -128,6 +135,10 @@ export default function AdminSettings() {
   }
 
   async function saveNotificationConfig() {
+    if (notificationReason.trim().length < 10 || notificationReason.trim().length > 500) {
+      setError("Enter a notification settings change reason between 10 and 500 characters.");
+      return;
+    }
     setSavingNotificationConfig(true);
     setError("");
     setStatus("");
@@ -151,11 +162,12 @@ export default function AdminSettings() {
             value: settingValue,
             description,
             isPublic: false,
-            reason: "Admin updated notification delivery controls"
+            reason: notificationReason.trim()
           })
         })
       ));
       setStatus("Notification delivery settings saved.");
+      setNotificationReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save notification settings");
@@ -207,6 +219,8 @@ export default function AdminSettings() {
     setDescription(setting.description || "");
     setIsPublic(Boolean(setting.isPublic));
     setStatus("");
+    setError("");
+    setReason("");
   }
 
   async function save() {
@@ -233,6 +247,7 @@ export default function AdminSettings() {
         }),
       });
       setStatus("Setting saved.");
+      setReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save setting");
@@ -311,7 +326,8 @@ export default function AdminSettings() {
           Example: with <strong>10 questions/hour</strong> and a <strong>2-hour video</strong>, a learner can ask up to <strong>20 unique questions</strong> for that lesson (subject to the hard maximum and their plan's monthly Advanced AI limit).
         </div>
 
-        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI}>
+        <label className="mt-4 block text-xs font-semibold text-slate-600">Change reason (required)<input className="input-field mt-2" value={advancedAIReason} onChange={(e) => setAdvancedAIReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="advanced-ai-reason-help" placeholder="Why are these AI controls changing?" /><span id="advanced-ai-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {advancedAIReason.trim().length}/500</span></label>
+        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI || advancedAIReason.trim().length < 10 || advancedAIReason.trim().length > 500}>
           <Save className="h-4 w-4" /> {savingAdvancedAI ? "Saving..." : "Save Advanced AI settings"}
         </button>}
       </section>
@@ -337,7 +353,8 @@ export default function AdminSettings() {
           <label className="block text-xs font-semibold text-slate-500">Email retry attempts<input className="input-field mt-2" type="number" min="1" max="10" value={notificationConfig.emailRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailRetryAttempts: Number(e.target.value) })} /></label>
           <label className="block text-xs font-semibold text-slate-500">Push retry attempts<input className="input-field mt-2" type="number" min="1" max="6" value={notificationConfig.pushRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushRetryAttempts: Number(e.target.value) })} /></label>
         </div>
-        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig}>
+        <label className="mt-4 block text-xs font-semibold text-slate-600">Change reason (required)<input className="input-field mt-2" value={notificationReason} onChange={(e) => setNotificationReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="notification-settings-reason-help" placeholder="Why are notification controls changing?" /><span id="notification-settings-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {notificationReason.trim().length}/500</span></label>
+        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig || notificationReason.trim().length < 10 || notificationReason.trim().length > 500}>
           <Save className="h-4 w-4" /> {savingNotificationConfig ? "Saving..." : "Save notification controls"}
         </button>}
       </section>
@@ -354,7 +371,7 @@ export default function AdminSettings() {
           <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Change reason (required)</span><input className="input-field mt-2" value={reason} onChange={(e) => setReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="admin-setting-reason-help" placeholder="Why is this setting changing?" /><span id="admin-setting-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {reason.trim().length}/500</span></label>
           <div className="mt-5 flex gap-2">
             <button type="button" className="btn-primary" onClick={() => void save()} disabled={savingKey !== null || reason.trim().length < 10 || reason.trim().length > 500}><Save className="h-4 w-4" /> {savingKey ? "Saving..." : "Save setting"}</button>
-            <button type="button" className="btn-secondary" onClick={() => { setKey(""); setValue(""); setDescription(""); setIsPublic(false); setStatus(""); }}>Clear</button>
+            <button type="button" className="btn-secondary" onClick={() => { setKey(""); setValue(""); setDescription(""); setIsPublic(false); setReason(""); setError(""); setStatus(""); }}>Clear</button>
           </div>
           {status && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
         </section>

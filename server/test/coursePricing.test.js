@@ -62,3 +62,9 @@ test("pricing preview model keeps per-course before/after snapshots and expirati
   assert.match(source, /before: \{ type: mongoose.Schema.Types.Mixed, required: true \}/);
   assert.match(source, /after: \{ type: mongoose.Schema.Types.Mixed, default: null \}/);
 });
+
+test("converting a free course to paid requires and uses a positive configured amount", () => {
+  const operation = validatePricingOperation({ type: "set_paid", amount: 299 });
+  assert.equal(calculateNextPricing({ mode: "free", price: 0 }, operation).price, 299);
+  assert.throws(() => validatePricingOperation({ type: "set_paid" }), /Amount must be between/);
+});

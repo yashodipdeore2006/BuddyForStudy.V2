@@ -85,6 +85,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/achievements", achievementRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/saved-courses", savedCourseRoutes);
+app.use("/api/legal", legalRoutes);
 app.use("/api/payments", paymentLimiter, paymentRoutes);
 app.use("/api/webhooks", webhookLimiter, webhookRoutes);
 

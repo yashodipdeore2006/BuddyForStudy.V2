@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, ExternalLink, FileText, Github, Link as LinkIcon, Loader2, Plus, RefreshCcw, Save, Trash2, Video } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
@@ -167,7 +167,7 @@ export default function AdminCoursesPro() {
   const canManageCourses = permissions.includes("courses.manage");
   const canPublishCourses = permissions.includes("courses.publish");
 
-  async function load(query = courseQuery, selectedPage = page, selectedLimit = limit) {
+  const load = useCallback(async (query = courseQuery, selectedPage = page, selectedLimit = limit) => {
     setLoading(true);
     setLoadError("");
     try {
@@ -184,9 +184,11 @@ export default function AdminCoursesPro() {
     }
   }
 
+  }, [courseQuery, page, limit]);
+
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     let cancelled = false;

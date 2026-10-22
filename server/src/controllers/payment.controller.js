@@ -123,7 +123,12 @@ export async function createSubscriptionOrder(req, res, next) {
 
     const existingSubscription = await UserSubscription.findOne({
       user: req.user.userId,
-      status: { $in: ["trialing", "active", "past_due"] }
+      status: { $in: ["trialing", "active", "past_due"] },
+      $or: [
+        { currentPeriodEnd: null },
+        { currentPeriodEnd: { $exists: false } },
+        { currentPeriodEnd: { $gt: new Date() } }
+      ]
     });
     if (existingSubscription) return failure(res, "An active subscription already exists", 409);
 

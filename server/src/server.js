@@ -29,6 +29,7 @@ import healthRoutes from "./routes/health.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import savedCourseRoutes from "./routes/savedCourse.routes.js";
 import legalRoutes from "./routes/legal.routes.js";
+import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
@@ -73,6 +74,7 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/admin", adminProRoutes);
+app.use("/api/admin/pricing", adminPricingRoutes);
 app.use("/api/admin/saved-views", savedViewRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/courses", curriculumRoutes);

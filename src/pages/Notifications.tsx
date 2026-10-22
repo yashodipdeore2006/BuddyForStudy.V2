@@ -6,6 +6,16 @@ import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
+type NotificationRecord = {
+  _id: string;
+  type?: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  readAt?: string | null;
+  link?: string | null;
+};
+
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
   billing: CreditCard,
@@ -24,7 +34,7 @@ function formatTime(value: string) {
 }
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);

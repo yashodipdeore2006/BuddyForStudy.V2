@@ -98,11 +98,15 @@ export async function create(req, res, next) {
 export async function update(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (Object.hasOwn(req.body || {}, "pricing") && (reason.length < 10 || reason.length > 500)) {
+      return failure(res, "A reason between 10 and 500 characters is required to change course pricing.", 400);
+    }
     const input = courseSchema.partial().parse(req.body);
     if (req.body?.isPublished === true) return failure(res, "Use the readiness-gated publish action to publish a course.", 400);
     const course = await courseService.updateCourse(req.params.courseId, input, {
       actor: req.user?.user?._id || req.user?.userId || null,
-      reason: String(req.body?.reason || "Admin course update")
+      reason: reason || "Admin course update"
     });
     if (!course) return failure(res, "Course not found", 404);
     return success(res, { course }, "Course updated successfully");
@@ -115,9 +119,13 @@ export async function update(req, res, next) {
 export async function remove(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to delete a course.", 400);
+    }
     const course = await courseService.deleteCourse(req.params.courseId, {
       actor: req.user?.user?._id || req.user?.userId || null,
-      reason: String(req.body?.reason || "Admin course soft delete")
+      reason
     });
     if (!course) return failure(res, "Course not found", 404);
     return success(res, { course }, "Course moved to trash. It can be restored from content quality.");

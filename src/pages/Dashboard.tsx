@@ -9,7 +9,26 @@ import PageHeader from '@/components/PageHeader';
 import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play } from 'lucide-react';
 
 import { routes } from "@/lib/routes";
-function mapCourse(raw: any): Course {
+type RawDashboardCourse = Partial<Course> & {
+  _id?: string; id?: string; learningOutcomes?: string[]; learning_outcomes?: string[];
+  isPublished?: boolean; is_published?: boolean; createdBy?: string | null; createdAt?: string;
+  updatedAt?: string; modules?: Course["modules"];
+};
+type RawDashboardEnrollment = {
+  _id?: string; id?: string; user?: string; user_id?: string; course_id?: string;
+  course?: RawDashboardCourse | null; status?: Enrollment["status"];
+  enrolledAt?: string; enrolled_at?: string; createdAt?: string; updatedAt?: string;
+};
+type RawDashboardCompletedLesson = { lessonId?: string; lesson_id?: string; type?: Progress["completed_lessons"][number]["type"]; completedAt?: string; completed_at?: string };
+type RawDashboardProgress = {
+  _id?: string; id?: string; user?: string; user_id?: string; course?: string; course_id?: string;
+  completedLessons?: RawDashboardCompletedLesson[]; completed_lessons?: RawDashboardCompletedLesson[];
+  completedCount?: number; completed_count?: number; totalLessons?: number; total_lessons?: number;
+  percentage?: number; lastLessonId?: string | null; last_lesson_id?: string | null;
+  lastAccessedAt?: string | null; last_accessed_at?: string | null; createdAt?: string; updatedAt?: string;
+};
+type DashboardApiStats = Record<string, unknown>;
+function mapCourse(raw: RawDashboardCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
     title: raw.title,
@@ -29,7 +48,7 @@ function mapCourse(raw: any): Course {
   };
 }
 
-function mapEnrollment(raw: any): Enrollment {
+function mapEnrollment(raw: RawDashboardEnrollment): Enrollment {
   return {
     id: String(raw._id ?? raw.id),
     user_id: String(raw.user ?? raw.user_id),
@@ -42,12 +61,12 @@ function mapEnrollment(raw: any): Enrollment {
   };
 }
 
-function mapProgress(raw: any): Progress {
+function mapProgress(raw: RawDashboardProgress): Progress {
   return {
     id: String(raw._id ?? raw.id),
     user_id: String(raw.user ?? raw.user_id),
     course_id: String(raw.course ?? raw.course_id),
-    completed_lessons: (raw.completedLessons ?? raw.completed_lessons ?? []).map((item: any) => ({
+    completed_lessons: (raw.completedLessons ?? raw.completed_lessons ?? []).map((item: RawDashboardCompletedLesson) => ({
       lessonId: String(item.lessonId ?? item.lesson_id),
       type: item.type,
       completedAt: item.completedAt ?? item.completed_at,
@@ -68,7 +87,7 @@ export default function Dashboard() {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
   const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [learningStats, setLearningStats] = useState<any>(null);
+  const [learningStats, setLearningStats] = useState<DashboardApiStats | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -81,7 +100,7 @@ export default function Dashboard() {
         ]);
 
         const active = (enrollmentData.enrollments ?? [])
-          .filter((item: any) => item.status === 'active')
+          .filter((item: RawDashboardEnrollment) => item.status === 'active')
           .map(mapEnrollment)
           .filter((item: Enrollment) => item.course) as (Enrollment & { course: Course })[];
 

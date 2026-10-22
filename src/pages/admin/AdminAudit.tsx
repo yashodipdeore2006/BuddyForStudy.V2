@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { ChevronDown, RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
@@ -36,7 +36,7 @@ export default function AdminAudit() {
   const [savedViewsError, setSavedViewsError] = useState("");
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
 
-  async function load(filters: { q: string; action: string; targetType: string; page?: number; limit?: number } = { q, action, targetType, page, limit }) {
+  const load = useCallback(async (filters: { q: string; action: string; targetType: string; page?: number; limit?: number } = { q, action, targetType, page, limit }) => {
     setLoading(true);
     setError("");
     try {
@@ -55,9 +55,9 @@ export default function AdminAudit() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [q, action, targetType, page, limit]);
 
-  async function refreshSavedViews() {
+  const refreshSavedViews = useCallback(async () => {
     setSavedViewsLoading(true);
     setSavedViewsError("");
     try {
@@ -68,7 +68,7 @@ export default function AdminAudit() {
     } finally {
       setSavedViewsLoading(false);
     }
-  }
+  }, []);
 
   async function createSavedView(payload: SavedViewPayload) {
     setSavedViewsError("");
@@ -108,7 +108,7 @@ export default function AdminAudit() {
     void load({ ...next, page: 1, limit });
   }
 
-  useEffect(() => { void load(); void refreshSavedViews(); }, []);
+  useEffect(() => { void load(); void refreshSavedViews(); }, [load, refreshSavedViews]);
 
   return (
     <div className="mx-auto max-w-7xl">

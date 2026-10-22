@@ -170,6 +170,10 @@ export async function revokeInvitation(req, res, next) {
   try {
     const { invitationId } = req.params;
     if (!isValidObjectId(invitationId)) return failure(res, "Invalid invitation ID.", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to revoke an administrator invitation.", 400);
+    }
     const revokedAt = new Date();
     // Make revocation mutually exclusive with acceptance: both operations
     // must atomically transition only a still-pending invitation.
@@ -184,7 +188,7 @@ export async function revokeInvitation(req, res, next) {
       action: "admin.invitation.revoked",
       targetType: "admin_invitation",
       targetId: invitation._id.toString(),
-      reason: String(req.body?.reason || "Administrator invitation revoked.").trim().slice(0, 500),
+      reason,
       before: { email: invitation.email, adminRole: invitation.adminRole },
       after: { revokedAt: invitation.revokedAt },
       ip: String(req.ip || "").slice(0, 100),

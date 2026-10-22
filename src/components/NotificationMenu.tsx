@@ -26,11 +26,26 @@ function formatRelativeTime(value: string) {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+type NotificationItem = {
+  _id: string;
+  title?: string;
+  message?: string;
+  body?: string;
+  type?: string;
+  read?: boolean;
+  isRead?: boolean;
+  createdAt?: string;
+  created_at?: string;
+  actionUrl?: string;
+  link?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export default function NotificationMenu() {
   const navigate = useNavigate();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
@@ -103,7 +118,7 @@ export default function NotificationMenu() {
     }
   };
 
-  const handleNotificationClick = async (notification: any) => {
+  const handleNotificationClick = async (notification: NotificationItem) => {
     await markRead(notification._id);
 
     const destination = resolveNotificationRoute(notification.link);

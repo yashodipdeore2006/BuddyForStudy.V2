@@ -24,6 +24,43 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 import { MoneyCell } from "@/components/admin/MoneyCell";
 import { PiiCell } from "@/components/admin/PiiCell";
 
+type AdminUserRow = {
+  _id: string;
+  name?: string;
+  email?: string;
+  emailMasked?: string;
+  role?: string;
+  isActive?: boolean;
+  emailVerified?: boolean;
+  authProvider?: string;
+  createdAt?: string;
+  created_at?: string;
+  [key: string]: unknown;
+};
+type AdminEnrollment = { _id: string; status?: string; course?: { title?: string } };
+type AdminPayment = { _id: string; amount?: number; currency?: string; provider?: string; status?: string };
+type AdminSubscription = { status?: string; plan?: { name?: string } };
+type AdminUserDetail = {
+  user: AdminUserRow;
+  subscription?: AdminSubscription | null;
+  enrollments?: AdminEnrollment[];
+  payments?: AdminPayment[];
+};
+type AdminCourseAccess = {
+  _id: string;
+  title: string;
+  category?: string;
+  slug?: string;
+  pricing?: { mode?: string };
+  enrollment?: { status?: string; accessSource?: string } | null;
+  hasVerifiedPayment?: boolean;
+};
+type AdminFeatureOverride = {
+  key: string;
+  label: string;
+  override?: { allowed: boolean; expiresAt?: string | null } | null;
+};
+
 function csvCell(value: unknown) {
   let text = value instanceof Date ? value.toISOString() : String(value ?? "");
   if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
@@ -36,14 +73,14 @@ export default function AdminUsersPro() {
   const [searchParams, setSearchParams] = useSearchParams();
   const usersRequestId = useRef(0);
   const detailRequestId = useRef(0);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportReason, setExportReason] = useState("");
   const [exportConfirmationValue, setExportConfirmationValue] = useState("");
   const [exportError, setExportError] = useState("");
-  const [pagination, setPagination] = useState<any>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
+  const [pagination, setPagination] = useState<{ page: number; pages: number; total: number }>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
   const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [debouncedQ, setDebouncedQ] = useState(searchParams.get("q") || "");
@@ -69,20 +106,20 @@ export default function AdminUsersPro() {
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<any>(null);
+  const [selected, setSelected] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [pendingUserAction, setPendingUserAction] = useState<any>(null);
+  const [pendingUserAction, setPendingUserAction] = useState<AdminUserRow | null>(null);
   const [adminActionReason, setAdminActionReason] = useState("");
   const [userConfirmationValue, setUserConfirmationValue] = useState("");
-  const [courseAccess, setCourseAccess] = useState<any[]>([]);
+  const [courseAccess, setCourseAccess] = useState<AdminCourseAccess[]>([]);
   const [courseAccessLoading, setCourseAccessLoading] = useState(false);
   const [courseActionId, setCourseActionId] = useState<string | null>(null);
   const [courseSearch, setCourseSearch] = useState("");
   const [courseReason, setCourseReason] = useState("");
-  const [pendingCourseAction, setPendingCourseAction] = useState<any>(null);
+  const [pendingCourseAction, setPendingCourseAction] = useState<AdminCourseAccess | null>(null);
   const [confirmationValue, setConfirmationValue] = useState("");
-  const [featureOverrides, setFeatureOverrides] = useState<any[]>([]);
+  const [featureOverrides, setFeatureOverrides] = useState<AdminFeatureOverride[]>([]);
   const [featureChoices, setFeatureChoices] = useState<Record<string, string>>({});
   const [featureOverrideReason, setFeatureOverrideReason] = useState("");
   const [featureOverrideExpiresAt, setFeatureOverrideExpiresAt] = useState("");
@@ -283,7 +320,7 @@ export default function AdminUsersPro() {
     setPageSize([25, 50, 100].includes(urlLimit) ? urlLimit : 25);
   }, [searchParams]);
 
-  async function toggleUser(user: any, confirmed = false, reason = "") {
+  async function toggleUser(user: AdminUserRow, confirmed = false, reason = "") {
     if (!canManageUsers) {
       setError("You do not have permission to change user accounts.");
       return;
@@ -352,7 +389,7 @@ export default function AdminUsersPro() {
       });
       const fields = ["name", "email", "role", "isActive", "emailVerified", "authProvider", "createdAt"] as const;
       const headings = ["Name", "Email", "Role", "Active", "Email verified", "Authentication provider", "Created at"];
-      const rows = [headings, ...((result.users || []) as any[]).map((user) => fields.map((field) => user[field]))];
+      const rows = [headings, ...((result.users || []) as AdminUserRow[]).map((user) => fields.map((field) => user[field]))];
       const csv = rows.map((row) => row.map((value) => csvCell(value)).join(",")).join("\r\n");
       const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -429,7 +466,7 @@ export default function AdminUsersPro() {
     setSearchParams(nextParams, { replace: true });
   }
 
-  async function saveFeatureOverride(feature: any) {
+  async function saveFeatureOverride(feature: AdminFeatureOverride) {
     if (!canManageUsers) {
       setError("You do not have permission to change feature access.");
       return;
@@ -474,7 +511,7 @@ export default function AdminUsersPro() {
     }
   }
 
-  async function changeCourseAccess(course: any, confirmed = false) {
+  async function changeCourseAccess(course: AdminCourseAccess, confirmed = false) {
     if (!canManageUsers) {
       setError("You do not have permission to change individual course access.");
       return;
@@ -515,7 +552,7 @@ export default function AdminUsersPro() {
     }
   }
 
-  const userColumns: DataTableColumn<any>[] = [
+  const userColumns: DataTableColumn<AdminUserRow>[] = [
     {
       key: "name",
       header: "User",
@@ -536,13 +573,13 @@ export default function AdminUsersPro() {
       key: "status",
       header: "Access",
       sortable: true,
-      render: (user: any) => (
+      render: (user: AdminUserRow) => (
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge domain="user" value={Boolean(user.isActive)} />
           {user.role === "admin" && <StatusBadge domain="enrollmentSource" value="admin" label="Admin" />}
         </div>
       ),
-    } satisfies DataTableColumn<any>] : []),
+    } satisfies DataTableColumn<AdminUserRow>] : []),
     ...(visibleColumns.includes("verification") ? [{
       key: "verification",
       header: "Verification",
@@ -671,7 +708,7 @@ export default function AdminUsersPro() {
         </div>
       </div>}
 
-      <DataTable<any>
+      <DataTable<AdminUserRow>
         rows={users}
         columns={userColumns}
         tableProps={{ "aria-label": "Users" }}
@@ -749,7 +786,7 @@ export default function AdminUsersPro() {
               <p className="mt-1 text-xs text-slate-500">Leave blank for no expiry. Expired overrides automatically stop applying.</p>
               </>}
               <div className="mt-3 space-y-2">
-                {featureOverrides.map((feature: any) => {
+                {featureOverrides.map((feature: AdminFeatureOverride) => {
                   const choice = featureChoices[feature.key] ?? (feature.override ? (feature.override.allowed ? "allow" : "deny") : "plan");
                   return <div key={feature.key} className="rounded-xl border border-slate-200 p-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -780,7 +817,7 @@ export default function AdminUsersPro() {
                 <span className="text-xs font-semibold text-slate-400">{selected.enrollments?.length || 0}</span>
               </div>
               <div className="mt-2 space-y-2">
-                {(selected.enrollments || []).slice(0, 10).map((enrollment: any) => (
+                {(selected.enrollments || []).slice(0, 10).map((enrollment: AdminEnrollment) => (
                   <div key={enrollment._id} className="rounded-xl border border-slate-200 p-3">
                     <p className="text-sm font-semibold">{enrollment.course?.title || "Course"}</p>
                     <p className="mt-1 text-xs text-slate-500"><StatusBadge domain="enrollment" value={enrollment.status} /></p>
@@ -830,7 +867,7 @@ export default function AdminUsersPro() {
             <section className="mt-6">
               <h3 className="font-bold text-slate-900">Recent payments</h3>
               <div className="mt-2 space-y-2">
-                {(selected.payments || []).slice(0, 8).map((payment: any) => (
+                {(selected.payments || []).slice(0, 8).map((payment: AdminPayment) => (
                   <div key={payment._id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
                     <div><p className="text-sm font-semibold"><MoneyCell amount={payment.amount} currency={payment.currency || "INR"} /></p><p className="text-xs text-slate-500">{payment.provider}</p></div>
                     <StatusBadge domain="payment" value={payment.status} />

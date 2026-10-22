@@ -30,6 +30,8 @@ export default function AdminLegalDocuments() {
   const [preview, setPreview] = useState(false);
   const [history, setHistory] = useState<Version[] | null>(null);
   const [historyTitle, setHistoryTitle] = useState("");
+  const selected = documents.find((doc) => doc._id === selectedId);
+  const draftDirty = Boolean(selected && (draft.title !== selected.title || draft.slug !== selected.slug || draft.category !== selected.category || draft.summary !== (selected.summary || "") || draft.body !== (selected.body || "") || draft.documentUrl !== (selected.documentUrl || "") || draft.effectiveAt !== (selected.effectiveAt ? String(selected.effectiveAt).slice(0, 10) : "")));
 
   const load = useCallback(async (preferredId?: string | null) => {
     setLoading(true); setError("");
@@ -82,6 +84,7 @@ export default function AdminLegalDocuments() {
   }
 
   async function publishDocument() {
+    if (draftDirty) { setError("Save your draft changes before publishing."); return; }
     if (!selectedId) { setError("Save this document as a draft before publishing."); return; }
     if (reason.trim().length < 10) { setError("Enter a publish reason of at least 10 characters."); return; }
     setPublishing(true); setError(""); setNotice("");
@@ -113,7 +116,6 @@ export default function AdminLegalDocuments() {
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load version history."); }
   }
 
-  const selected = documents.find((doc) => doc._id === selectedId);
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <AdminPageHeader eyebrow="Platform governance" title="Legal & policies" description="Maintain published policies, keep a version history, and preview changes before they go live." actions={<><AdminButton icon={<RefreshCw size={16}/>} onClick={() => void load(selectedId)}>Refresh</AdminButton><AdminButton variant="primary" icon={<Plus size={16}/>} onClick={newDocument}>New document</AdminButton></>} />
@@ -160,7 +162,7 @@ export default function AdminLegalDocuments() {
             <label className="block text-sm font-medium text-slate-700">Revision reason <span className="font-normal text-slate-500">(required, 10–500 characters)</span><textarea required minLength={10} maxLength={500} rows={2} value={draft.revisionNote} onChange={(e) => setField("revisionNote", e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="Explain what changed and why."/></label>
             <div className="flex flex-wrap justify-between gap-3 border-t border-slate-200 pt-4"><AdminButton type="submit" variant="primary" loading={saving} icon={<Save size={16}/>}>Save draft</AdminButton><span className="text-xs text-slate-500">Saving never changes the live published version.</span></div>
           </form>}
-          {selectedId && !preview && <div className="mt-5 rounded-xl border border-violet-200 bg-violet-50/60 p-4"><h3 className="font-semibold text-slate-900">Publish this version</h3><p className="mt-1 text-sm text-slate-600">Save draft changes first. Publishing creates a new immutable version and makes it live immediately.</p><label className="mt-3 block text-sm font-medium text-slate-700">Publish reason<textarea value={reason} onChange={(e) => setReason(e.target.value)} minLength={10} maxLength={500} rows={2} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" placeholder="Why should this version become effective?"/></label><AdminButton variant="primary" loading={publishing} icon={<Send size={15}/>} className="mt-3" onClick={() => void publishDocument()}>Publish new version</AdminButton></div>}
+          {selectedId && !preview && <div className="mt-5 rounded-xl border border-violet-200 bg-violet-50/60 p-4"><h3 className="font-semibold text-slate-900">Publish this version</h3><p className="mt-1 text-sm text-slate-600">Save draft changes first. Publishing creates a new immutable version and makes it live immediately.</p><label className="mt-3 block text-sm font-medium text-slate-700">Publish reason<textarea value={reason} onChange={(e) => setReason(e.target.value)} minLength={10} maxLength={500} rows={2} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5" placeholder="Why should this version become effective?"/></label><AdminButton variant="primary" loading={publishing} disabled={draftDirty} icon={<Send size={15}/>} className="mt-3" onClick={() => void publishDocument()}>Publish new version</AdminButton>{draftDirty && <p className="mt-2 text-xs text-amber-800">Save your unsaved changes before publishing.</p>}</div>}
           {history && <div className="mt-5 rounded-xl border border-slate-200 p-4"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold text-slate-900">Version history · {historyTitle}</h3><button type="button" className="text-sm text-violet-700" onClick={() => setHistory(null)}>Close</button></div>{history.length ? <ol className="mt-3 space-y-3">{history.map((version) => <li key={version.version} className="rounded-lg bg-slate-50 p-3"><div className="flex flex-wrap items-center gap-2"><strong>Version {version.version}</strong>{version.isCurrent && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">Current</span>}</div><p className="mt-1 text-sm text-slate-700">{version.title}</p><p className="mt-1 text-xs text-slate-500">{version.publishedAt ? new Date(version.publishedAt).toLocaleString() : "—"} · {version.revisionNote}</p></li>)}</ol> : <p className="mt-3 text-sm text-slate-500">No published versions yet.</p>}</div>}
         </AdminCard>
       </div>

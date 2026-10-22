@@ -568,7 +568,6 @@ export default function CourseDetails() {
   const flatLessons = getAllLessonsFlat(course.modules);
   const completedLessonIds = new Set((progress?.completed_lessons ?? []).map((item) => String(item.lessonId)));
   const nextLesson = flatLessons.find((lesson) => !completedLessonIds.has(String(lesson.id))) ?? flatLessons[flatLessons.length - 1];
-  const hasRoadmap = flatLessons.length > 0;
   const displayTopic = getDisplayTopic(course);
   const handleShareCourse = async () => {
     const result = await shareCourseLink({ courseId: String(course.id), title: course.title, text: "Explore " + course.title + " on BuddyForStudy" });

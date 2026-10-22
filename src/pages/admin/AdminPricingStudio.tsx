@@ -25,6 +25,7 @@ export default function AdminPricingStudio() {
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [summary, setSummary] = useState({ total: 0, paid: 0, free: 0 });
+  const [matchedTotal, setMatchedTotal] = useState(0);
   const [filters, setFilters] = useState({ q: "", category: "", level: "", mode: "", status: "all", minPrice: "", maxPrice: "" });
   const [operationType, setOperationType] = useState("fixed");
   const [amount, setAmount] = useState("499");
@@ -65,7 +66,7 @@ export default function AdminPricingStudio() {
         adminFetch("/api/admin/pricing/rules"),
         adminFetch("/api/admin/pricing/history?limit=8")
       ]);
-      setCourses(catalogue.courses || []); setCategories(catalogue.categories || []);
+      setCourses(catalogue.courses || []); setMatchedTotal(Number(catalogue.total || 0)); setCategories(catalogue.categories || []);
       setSummary(catalogue.summary || { total: 0, paid: 0, free: 0 });
       setRules(ruleData.rules || []); setHistory(historyData.batches || []);
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load pricing data."); }
@@ -165,7 +166,7 @@ export default function AdminPricingStudio() {
       </div>
       <p className="mt-3 text-xs text-slate-500">The preview targets every course matching these filters, up to 500 courses per batch.</p>
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Course</th><th className="px-4 py-3">Category / level</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Base price</th></tr></thead><tbody className="divide-y divide-slate-100">{loading ? <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500"><RefreshCw className="mr-2 inline animate-spin" size={16} />Loading catalogue…</td></tr> : courses.map(course => <tr key={course._id}><td className="px-4 py-3 font-semibold text-slate-900">{course.title}</td><td className="px-4 py-3 text-slate-600">{course.category} · {course.level}</td><td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{course.status || (course.isPublished ? "published" : "draft")}</span></td><td className="px-4 py-3 text-right font-semibold">{money(course.pricing?.price, course.pricing?.currency)}</td></tr>)}</tbody></table></div>
-      {!loading && <p className="mt-3 text-xs text-slate-500">Showing {courses.length} of {summary.total} catalogue courses overall; {filters.category || filters.level || filters.mode || filters.minPrice || filters.maxPrice || filters.q ? "filtered result count is reflected in the catalogue table." : "add filters to narrow a batch."}</p>}
+      {!loading && <p className="mt-3 text-xs text-slate-500">Showing {courses.length} of {matchedTotal} matching courses in this filter view. The preview targets all matches (maximum 500 per batch).</p>}
     </section>
 
     <section className="grid gap-5 lg:grid-cols-2">

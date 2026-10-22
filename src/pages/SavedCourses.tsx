@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bookmark } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import type { CourseLevel } from "@/types";
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
 import CourseCard from "@/components/CourseCard";
@@ -74,7 +75,7 @@ export default function SavedCourses() {
                 slug: saved.course.slug,
                 description: saved.course.description,
                 category: saved.course.category,
-                level: saved.course.level as any,
+                level: saved.course.level as CourseLevel,
                 duration: saved.course.duration,
                 thumbnail: saved.course.thumbnail || null,
                 learning_outcomes: [],

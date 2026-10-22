@@ -55,8 +55,8 @@ export default function AdminRoles() {
     const adminRole = selectedRoles[admin._id] || admin.adminRole;
     if (adminRole === admin.adminRole) return;
     const reason = (reasonById[admin._id] || "").trim();
-    if (!reason) {
-      setError("Add a reason before changing an administrator role.");
+    if (reason.length < 10 || reason.length > 500) {
+      setError("Enter a reason between 10 and 500 characters before changing an administrator role.");
       return;
     }
     setSavingId(admin._id);
@@ -155,9 +155,10 @@ export default function AdminRoles() {
                   </label>
                   <label className="block text-sm font-medium text-slate-700">
                     Change reason
-                    <input value={reasonById[admin._id] || ""} onChange={(event) => setReasonById((current) => ({ ...current, [admin._id]: event.target.value }))} maxLength={500} placeholder="Why is this access changing?" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+                    <input value={reasonById[admin._id] || ""} onChange={(event) => setReasonById((current) => ({ ...current, [admin._id]: event.target.value }))} minLength={10} maxLength={500} aria-describedby={`admin-role-reason-help-${admin._id}`} placeholder="Why is this access changing?" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+                    <span id={`admin-role-reason-help-${admin._id}`} className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {(reasonById[admin._id] || "").trim().length}/500</span>
                   </label>
-                  <button type="button" onClick={() => void saveRole(admin)} disabled={!changed || !reasonById[admin._id]?.trim() || savingId === admin._id} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40">
+                  <button type="button" onClick={() => void saveRole(admin)} disabled={!changed || (reasonById[admin._id] || "").trim().length < 10 || (reasonById[admin._id] || "").trim().length > 500 || savingId === admin._id} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40">
                     <Save className="h-4 w-4" /> {savingId === admin._id ? "Saving…" : "Save role"}
                   </button>
                 </article>

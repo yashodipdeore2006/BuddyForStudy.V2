@@ -622,7 +622,7 @@ export default function AdminUsersPro() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="admin-users-page mx-auto max-w-7xl">
       <AdminPageHeader
         eyebrow="Identity and access"
         title="Users"
@@ -634,7 +634,12 @@ export default function AdminUsersPro() {
       />
       {!permissionsLoading && !canManageUsers && <div role="status" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Read-only user access. Account status, feature overrides and individual course-access changes are hidden because your role does not have user-management permission.</div>}
 
-      <div className="admin-saved-views" aria-label="Quick and saved user views">
+      <section className="admin-users-view-switcher" aria-label="Quick and saved user views">
+        <div className="admin-users-view-switcher__heading">
+          <span>Quick views</span>
+          <span>Jump to a common account group or restore a saved view.</span>
+        </div>
+        <div className="admin-saved-views" aria-label="Quick and saved user views">
         <button type="button" className="admin-saved-view" aria-pressed={!status && !role && !authProvider && !debouncedQ} onClick={() => { setQ(""); setDebouncedQ(""); setStatus(""); setRole(""); setAuthProvider(""); setActiveSavedViewId(null); setPage(1); }}>All users</button>
         <button type="button" className="admin-saved-view" aria-pressed={status === "active" && !role && !authProvider} onClick={() => { setStatus("active"); setRole(""); setAuthProvider(""); setActiveSavedViewId(null); setPage(1); }}>Active</button>
         <button type="button" className="admin-saved-view" aria-pressed={status === "disabled" && !role && !authProvider} onClick={() => { setStatus("disabled"); setRole(""); setAuthProvider(""); setActiveSavedViewId(null); setPage(1); }}>Disabled</button>
@@ -651,9 +656,10 @@ export default function AdminUsersPro() {
           onCreate={createSavedView}
           onDelete={removeSavedView}
         />}
-      </div>
+        </div>
+      </section>
       <FilterBar
-        className="admin-card mt-6 p-4"
+        className="admin-card admin-users-filters mt-4 p-4"
         searchValue={q}
         onSearchChange={setQ}
         searchLabel="Search users by name or email"
@@ -709,6 +715,7 @@ export default function AdminUsersPro() {
       </div>}
 
       <DataTable<AdminUserRow>
+        className="admin-users-table"
         rows={users}
         columns={userColumns}
         tableProps={{ "aria-label": "Users" }}

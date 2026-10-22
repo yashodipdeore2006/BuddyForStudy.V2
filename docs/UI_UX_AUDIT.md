@@ -807,7 +807,7 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 ### Remaining verification and release gates
 
 - CI for the new regression tests is pending at the time of this note; do not mark those tests as passed until the run completes.
-- Browser-level admin journeys are not executed by the current CI workflow. `tests/navigation.e2e.spec.ts` uses Playwright but is not invoked by the configured workflow or root package scripts.
+- The CI workflow now installs Playwright temporarily and runs `tests/navigation.e2e.spec.ts` against the production build. This is a learner navigation smoke suite, not yet a full admin role-by-role browser suite; verify the new CI run before treating it as stable.
 - Frontend lint remains advisory; a successful CI run does not mean lint is clean.
 - Every admin page still needs role-by-role browser verification for visible controls, disabled/denied actions, loading/empty/error states, focus behavior, narrow viewport behavior, and independent API failures.
 - Production integrations require environment-specific verification (OAuth, SMTP, YouTube/AI provider, Razorpay webhooks, Redis/worker, web push, deployed CORS and callback URLs). CI's local MongoDB test service does not validate live credentials or external provider behavior.
@@ -816,7 +816,14 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 ### Next audit sequence
 
 1. Wait for the new backend regression tests and full CI run to pass.
-2. Turn on a CI Playwright job with a deterministic preview server and fixtures.
+2. Expand the newly enabled Playwright CI job with role-aware admin fixtures and representative admin pages/actions.
 3. Add a role matrix for each admin route/action: expected allow, expected deny, mutation reason/confirmation, and audit event.
 4. Run smoke tests for the learner journey (register/login, discovery, course details/reviews, enrollment, player/tutorial/quiz, progress, saved courses, notifications, billing).
 5. Verify deployment configuration and external integrations in a staging environment without exposing secrets.
+
+
+### CI improvement during audit
+
+- Enabled the existing Playwright navigation smoke suite after the production build. CI installs `@playwright/test` temporarily and Chromium in the runner, starts the Vite production preview, waits for readiness, then runs `tests/navigation.e2e.spec.ts`.
+- Workflow change commit: `0273140`.
+- Status: the new workflow run must complete successfully before this is considered verified.

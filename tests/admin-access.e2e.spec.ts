@@ -73,18 +73,16 @@ test.describe("administrator route and permission UX", () => {
 
   test("ordinary user accounts cannot enter the administrator workspace", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("bfs_token", "e2e-user-token"));
-    await page.route("**/api/auth/me", (route) => json(route, {
-      user: {
+    await page.route("**/api/**", async (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      if (pathname === "/api/auth/me") return json(route, { user: {
         id: "learner-1",
         name: "Learner",
         email: "learner@example.test",
         role: "user",
         authProvider: "local",
         isActive: true,
-      },
-    }));
-    await page.route("**/api/**", async (route) => {
-      const pathname = new URL(route.request().url()).pathname;
+      } });
       if (pathname === "/api/notifications/preferences") return json(route, { preferences: { pushEnabled: false } });
       return json(route, {});
     });

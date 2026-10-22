@@ -52,6 +52,10 @@ export async function getAIContentSettings(_req, res, next) {
 
 export async function updateAIContentSetting(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required for AI/content setting changes.", 400);
+    }
     const key = String(req.params.key || "");
     const config = AI_SETTING_DEFAULTS[key];
     if (!config) return failure(res, "Unsupported AI/content setting.", 400);
@@ -87,7 +91,7 @@ export async function updateAIContentSetting(req, res, next) {
       action: "ai_content.setting.updated",
       targetType: "PlatformSetting",
       targetId: String(setting._id),
-      reason: String(req.body?.reason || "AI & Learning Content Manager updated a setting").trim().slice(0, 500),
+      reason,
       before: { key, value: before },
       after: { key, value: normalized },
       ip: String(req.ip || "").slice(0, 100),

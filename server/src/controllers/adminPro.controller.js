@@ -2640,6 +2640,8 @@ export async function deleteSetting(req, res, next) {
 }
 export async function upsertSetting(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to change platform settings.", 400);
     if (!req.body.key) return failure(res, "key is required", 400);
     const typedValidation = validateTypedSetting(req.body.key, req.body.value);
     if (!typedValidation.valid) return failure(res, typedValidation.message, 400);
@@ -2653,7 +2655,7 @@ export async function upsertSetting(req, res, next) {
       valueChanged: true,
       valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
       isPublic: setting.isPublic
-    }, req.body.reason);
+    }, reason);
     return success(res, { setting }, "Setting updated");
   } catch (e) { next(e); }
 }

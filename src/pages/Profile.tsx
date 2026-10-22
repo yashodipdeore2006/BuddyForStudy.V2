@@ -10,6 +10,8 @@ import {
   ReceiptText, BookOpen, Settings2, Bell, CheckCircle2, XCircle, AlertCircle, Loader2
 } from "lucide-react";
 
+type EnrollmentSummary = { _id?: string; id?: string; status?: string; course?: { _id?: string; title?: string } | string | null; course_id?: string; createdAt?: string };
+type SubscriptionSummary = { status?: string; plan?: { name?: string; billingInterval?: string } | null };
 type Payment = {
   _id: string;
   amount: number;
@@ -53,8 +55,8 @@ export default function Profile() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [enrollments, setEnrollments] = useState<any[]>([]);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [enrollments, setEnrollments] = useState<EnrollmentSummary[]>([]);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingError, setBillingError] = useState("");
 

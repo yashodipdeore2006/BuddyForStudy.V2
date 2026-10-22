@@ -18,7 +18,16 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
 }
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-function profileFromUser(u:any):Profile {
+type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: 'user' | 'admin';
+  authProvider: 'local' | 'google' | 'local_google';
+  isActive: boolean;
+  profileImage?: string;
+};
+function profileFromUser(u: AuthUser):Profile {
   return {id:u.id,name:u.name,role:u.role,auth_provider:u.authProvider,is_active:u.isActive,created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
 }
 
@@ -27,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile,setProfile]=useState<Profile|null>(null);
   const [loading,setLoading]=useState(true);
 
-  const applyUser = (u:any) => {
+  const applyUser = (u: AuthUser) => {
     const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,authProvider:u.authProvider,profileImage:u.profileImage}};
     setSession(s);
     setProfile(profileFromUser(u));
@@ -40,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data=await apiFetch('/api/auth/me');
       applyUser(data.user);
     } catch {
-      try { await logoutBrowserPush(); } catch {}
+      try { await logoutBrowserPush(); } catch { /* Push cleanup is best-effort when the session is invalid. */ }
       clearAuth(); setSession(null); setProfile(null);
     } finally { setLoading(false); }
   };
@@ -130,8 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut=async()=>{
-    try { await logoutBrowserPush(); } catch {}
-    try{if(getToken()) await apiFetch('/api/auth/logout',{method:'POST'});}catch{}
+    try { await logoutBrowserPush(); } catch { /* Push cleanup must not prevent sign-out. */ }
+    try { if (getToken()) await apiFetch('/api/auth/logout', { method: 'POST' }); } catch { /* Clear local credentials even when the server is unavailable. */ }
     clearAuth();
     setSession(null);setProfile(null);
   };

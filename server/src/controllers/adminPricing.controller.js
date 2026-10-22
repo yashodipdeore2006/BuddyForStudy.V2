@@ -45,7 +45,7 @@ async function audit(req, action, targetId, before, after, reason = "") {
 }
 function buildProfile(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A pricing profile is required.");
-  const allowed = ["levels", "categories"];
+  const allowed = ["levels", "categories", "depthAdjustmentPerModule", "projectAdjustment"];
   for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported profile field: " + key);
   const normalizeBand = (band) => {
     if (!band || typeof band !== "object") throw new Error("Each price band needs minimum and maximum values.");
@@ -54,7 +54,9 @@ function buildProfile(input = {}) {
     if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min || max > 1_000_000) throw new Error("Each price band must have valid prices between 0 and 1,000,000.");
     return { min: Math.round(min), max: Math.round(max) };
   };
-  const profile = { levels: {}, categories: [] };
+  const profile = { levels: {}, categories: [], depthAdjustmentPerModule: Number(input.depthAdjustmentPerModule ?? 2), projectAdjustment: Number(input.projectAdjustment ?? 5) };
+  if (!Number.isFinite(profile.depthAdjustmentPerModule) || profile.depthAdjustmentPerModule < 0 || profile.depthAdjustmentPerModule > 25) throw new Error("Module-depth adjustment must be between 0 and 25 percent per module.");
+  if (!Number.isFinite(profile.projectAdjustment) || profile.projectAdjustment < 0 || profile.projectAdjustment > 50) throw new Error("Project adjustment must be between 0 and 50 percent per project.");
   for (const level of ["Beginner", "Intermediate", "Advanced"]) {
     if (input.levels?.[level] !== undefined) profile.levels[level] = normalizeBand(input.levels[level]);
   }
@@ -105,7 +107,7 @@ export async function preview(req, res, next) {
     if (!actor) return failure(res, "Administrator identity is missing.", 401);
     const filters = parsePricingFilters(req.body?.filters || {});
     const filter = buildCoursePricingFilter(filters);
-    const courses = await Course.find(filter).select("title category level status isPublished pricing updatedAt").sort({ category: 1, title: 1 }).limit(MAX_PREVIEW_COURSES + 1).lean();
+    const courses = await Course.find(filter).select("title category level status isPublished pricing modules updatedAt").sort({ category: 1, title: 1 }).limit(MAX_PREVIEW_COURSES + 1).lean();
     if (courses.length > MAX_PREVIEW_COURSES) return failure(res, "This operation matches more than 500 courses. Narrow the filters and preview again.", 400);
     const kind = req.body?.kind === "recommend" ? "recommend" : "bulk";
     let operation;

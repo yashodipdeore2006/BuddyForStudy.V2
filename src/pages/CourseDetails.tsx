@@ -333,14 +333,17 @@ export default function CourseDetails() {
             setPlanCourseAccess(hasPlanAccess);
 
             let enrollmentData: { enrollment?: Enrollment } | null = null;
-            try {
-              enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`);
-            } catch {
-              // A learner with an eligible all-courses plan can be enrolled
-              // without paying for the course individually.
-              if (hasPlanAccess) {
+            if (hasPlanAccess) {
+              // The enrollment endpoint also repairs legacy active enrollments
+              // by marking them as subscription-backed instead of requiring a purchase.
+              try {
                 enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+              } catch (subscriptionEnrollmentError) {
+                console.warn('Plan-backed course enrollment unavailable:', subscriptionEnrollmentError);
+                try { enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`); } catch { /* Keep the course preview usable. */ }
               }
+            } else {
+              try { enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`); } catch { /* A missing enrollment is expected for new learners. */ }
             }
             if (enrollmentData?.enrollment) setEnrollment(enrollmentData.enrollment);
 

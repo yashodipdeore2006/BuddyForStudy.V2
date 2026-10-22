@@ -731,3 +731,17 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commits: `c17547d`, `1b9174d`.
 
 **Verification still required:** CI typecheck/build and visual check at 1366×768 and smaller laptop/mobile heights.
+
+
+## Authentication promo panel — contrast and interaction polish
+
+**Status:** Implemented in source; CI verification pending.
+
+- Fixed the low-contrast headline/body text by explicitly setting high-contrast white and slate text on the dark promotional panel, avoiding inherited/global heading colors.
+- Added subtle radial accent lighting and decorative rings, with reduced-motion-aware transitions.
+- Converted the three benefit statements into lightweight hover-responsive feature rows with clearer icon contrast, border/background feedback, and visible focus treatment.
+- Improved keyboard focus styling and hover feedback for the brand link.
+- File: `src/components/AuthLayout.tsx`.
+- Commit: `f1b9ecb`.
+
+**Verification still required:** CI typecheck/build and visual contrast verification at desktop breakpoints. Interaction is intentionally lightweight and does not make informational benefit rows behave like navigation links.

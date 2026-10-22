@@ -131,10 +131,20 @@ export function recommendBandPrice(course, profile) {
     return { eligible: false, reason: "The configured price band is invalid." };
   }
   const current = Number(course.pricing?.price) || 0;
-  const recommended = Math.round(Math.min(max, Math.max(min, current > 0 ? current : (min + max) / 2)));
+  const modules = Array.isArray(course.modules) ? course.modules : [];
+  const lessons = modules.flatMap((module) => Array.isArray(module.lessons) ? module.lessons : []);
+  const projectCount = lessons.filter((lesson) => lesson?.type === "project").length;
+  const depthAdjustment = modules.length * profile.depthAdjustmentPerModule;
+  const projectAdjustment = projectCount * profile.projectAdjustment;
+  const baseline = current > 0 ? current : (min + max) / 2;
+  const adjusted = Math.round(baseline * (1 + (depthAdjustment + projectAdjustment) / 100));
+  const recommended = Math.round(Math.min(max, Math.max(min, adjusted)));
+  const bandSource = categoryBand?.levels?.[level] ? "category " + course.category + " / " + level : level + " level";
+  const adjustmentSummary = depthAdjustment + projectAdjustment > 0 ? " adjusted +" + Math.round((depthAdjustment + projectAdjustment) * 10) / 10 + "% for " + modules.length + " module(s) and " + projectCount + " project(s)" : " with no complexity adjustment";
   return {
     eligible: true,
     pricing: { mode: recommended === 0 ? "free" : "paid", price: recommended, compareAtPrice: Math.max(recommended, Number(course.pricing?.compareAtPrice) || 0), currency: String(course.pricing?.currency || "INR").toUpperCase(), saleEnabled: Boolean(course.pricing?.saleEnabled) && Number(course.pricing?.salePrice) < recommended, salePrice: Number(course.pricing?.salePrice) || 0 },
-    explanation: "Category/level band " + min + "–" + max + " INR; current base price " + current + " INR clamped into the configured band."
+    explanation: "Uses " + bandSource + " band " + min + "–" + max + " INR; baseline " + Math.round(baseline) + " INR" + adjustmentSummary + "; final recommendation is clamped to the configured band.",
+    factors: { moduleCount: modules.length, projectCount, depthAdjustmentPercent: depthAdjustment, projectAdjustmentPercent: projectAdjustment }
   };
 }

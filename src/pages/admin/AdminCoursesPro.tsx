@@ -131,11 +131,16 @@ export default function AdminCoursesPro() {
     } finally { setReadinessLoading(current => ({ ...current, [courseId]: false })); }
   }
   async function save(c: any, patch: any) {
-    await adminFetch(`/api/admin/courses/${c._id}`, {
-      method: "PUT",
-      body: JSON.stringify(patch),
-    });
-    await load();
+    setLoadError("");
+    try {
+      await adminFetch(`/api/admin/courses/${c._id}`, {
+        method: "PUT",
+        body: JSON.stringify(patch),
+      });
+      await load();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to save course controls.");
+    }
   }
 
   async function publishCourse(c: any) {

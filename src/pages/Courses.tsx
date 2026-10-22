@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import type { Course, CourseLevel } from '@/types';
+import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
@@ -21,14 +21,106 @@ const AI_GOAL_OPTIONS = [
   { value: 'Explore a personal interest', label: 'Personal interest', description: 'Learn for curiosity or everyday life' },
 ] as const;
 
-function mapCourse(raw: any): Course {
+type RawCourse = {
+  _id?: string;
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  category?: string;
+  level?: CourseLevel;
+  duration?: string | number;
+  thumbnail?: string | null;
+  learningOutcomes?: string[];
+  learning_outcomes?: string[];
+  modules?: Course["modules"];
+  isPublished?: boolean;
+  enrollmentCount?: number;
+  enrollment_count?: number;
+  ratingAverage?: number;
+  rating_average?: number;
+  ratingCount?: number;
+  rating_count?: number;
+  reviewStats?: { average?: number; count?: number };
+  stats?: { average?: number; count?: number };
+  cardMetadata?: Course["cardMetadata"];
+  generation?: { mode?: string; sourceResourceType?: string | null; query?: string };
+  moduleCount?: number;
+  lessonCount?: number;
+  pricing?: Course["pricing"];
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type SearchEnrollmentRow = {
+  status?: string;
+  course?: string | { _id?: string; id?: string } | null;
+  course_id?: string;
+  courseId?: string;
+};
+
+type AiLesson = {
+  id?: string;
+  _id?: string;
+  title: string;
+  description?: string;
+  type: LessonType;
+  tutorial?: { videos?: NonNullable<TutorialContent["videos"]> };
+  quiz?: Partial<QuizContent>;
+};
+
+type AiModule = {
+  id?: string;
+  _id?: string;
+  title: string;
+  description?: string;
+  order?: number;
+  lessons?: AiLesson[];
+};
+
+type AiRoadmap = {
+  course: {
+    _id?: string;
+    id?: string;
+    title: string;
+    description?: string;
+    level?: CourseLevel;
+    duration?: string;
+    isPublished?: boolean;
+    modules?: AiModule[];
+  };
+  personalization?: {
+    studyTimeMinutesPerDay?: number;
+    goals?: string[];
+    skippedSkills?: string[];
+    rationale?: string[];
+  };
+};
+
+type AiUsage = {
+  plan?: { name?: string; limits?: { ai_course_builds_per_month?: number | null } };
+  features?: { aiCourseBuilder?: boolean };
+};
+
+type SearchDiscovery = {
+  mode?: string;
+  query: string;
+  courseRecommendations?: Parameters<typeof YouTubeSearchFallback>[0]["courses"];
+  playlists?: Parameters<typeof YouTubeSearchFallback>[0]["playlists"];
+  curatedResources?: Parameters<typeof YouTubeSearchFallback>[0]["curatedResources"];
+  curationMeta?: Parameters<typeof YouTubeSearchFallback>[0]["curationMeta"];
+  youtubeError?: string;
+};
+
+function mapCourse(raw: RawCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
-    title: raw.title,
-    slug: raw.slug,
-    description: raw.description,
-    category: raw.category,
-    level: raw.level,
+    title: raw.title || "Untitled course",
+    slug: raw.slug || "",
+    description: raw.description || "",
+    category: raw.category || "Uncategorized",
+    level: raw.level || "Beginner",
     duration: String(raw.duration ?? ''),
     thumbnail: raw.thumbnail ?? null,
     learning_outcomes: raw.learningOutcomes ?? raw.learning_outcomes ?? [],
@@ -61,7 +153,7 @@ export default function Courses() {
   const [savedCourseIds, setSavedCourseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
-  const [youtubeDiscovery, setYoutubeDiscovery] = useState<any>(null);
+  const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,7 +162,7 @@ export default function Courses() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const { session } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiRoadmap, setAiRoadmap] = useState<any>(null);
+  const [aiRoadmap, setAiRoadmap] = useState<AiRoadmap | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const aiDialogRef = useRef<HTMLElement | null>(null);
@@ -81,7 +173,7 @@ export default function Courses() {
   const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiKnownSkills, setAiKnownSkills] = useState('');
-  const [aiUsage, setAiUsage] = useState<any>(null);
+  const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
   const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
@@ -94,11 +186,11 @@ export default function Courses() {
         setYoutubeDiscovery(null);
         setYoutubePlaylistsLoading(false);
         setYoutubePlaylistError("");
-        const allRows: any[] = [];
+        const allRows: RawCourse[] = [];
         let page = 1;
-        let batch: any[] = [];
-        let lastResponse: any = null;
-        let searchDiscovery: any = null;
+        let batch: RawCourse[] = [];
+        let lastResponse: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } | null = null;
+        let searchDiscovery: SearchDiscovery | null = null;
         do {
           const params = new URLSearchParams({ page: String(page), limit: '50' });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
@@ -175,11 +267,11 @@ export default function Courses() {
     ]).then(([enrollmentData, savedData]) => {
       if (!active) return;
       const enrolledIds = (enrollmentData.enrollments || [])
-        .filter((item: any) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
-        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.course_id ?? item.courseId ?? ''))
+        .filter((item: SearchEnrollmentRow) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
+        .map((item: SearchEnrollmentRow) => String(typeof item.course === "object" && item.course !== null ? item.course._id ?? item.course.id ?? "" : item.course ?? item.course_id ?? item.courseId ?? ''))
         .filter(Boolean);
       const savedIds = (savedData.savedCourses || [])
-        .map((item: any) => String(item.course?._id ?? item.course?.id ?? item.course ?? item.courseId ?? ''))
+        .map((item: SearchEnrollmentRow) => String(typeof item.course === "object" && item.course !== null ? item.course._id ?? item.course.id ?? "" : item.course ?? item.courseId ?? ''))
         .filter(Boolean);
       setEnrolledCourseIds(new Set(enrolledIds));
       setSavedCourseIds(new Set(savedIds));
@@ -314,7 +406,7 @@ export default function Courses() {
     setAiEnrollError(null);
     try {
       const data = await apiFetch("/api/courses/" + encodeURIComponent(courseId));
-      setAiRoadmap((current: any) => current ? {
+      setAiRoadmap((current) => current ? {
         ...current,
         course: {
           ...current.course,
@@ -692,7 +784,7 @@ export default function Courses() {
                   <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {(aiRoadmap.course.modules || []).reduce((sum: number, module: any) => sum + (module.lessons || []).length, 0)} lessons and assessments
+                    {(aiRoadmap.course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0)} lessons and assessments
                   </span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.duration || 'Self-paced'}</span>
                 </div>
@@ -745,12 +837,12 @@ export default function Courses() {
             </div>
 
             <div className="space-y-3">
-              {(aiRoadmap.course.modules || []).map((module: any, moduleIndex: number) => {
+              {(aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
                 const expanded = expandedAiModules.has(moduleIndex);
                 const lessons = module.lessons || [];
-                const tutorialCount = lessons.filter((lesson: any) => lesson.type === 'tutorial').length;
-                const quizCount = lessons.filter((lesson: any) => lesson.type === 'quiz').length;
-                const projectCount = lessons.filter((lesson: any) => lesson.type === 'project').length;
+                const tutorialCount = lessons.filter((lesson) => lesson.type === 'tutorial').length;
+                const quizCount = lessons.filter((lesson) => lesson.type === 'quiz').length;
+                const projectCount = lessons.filter((lesson) => lesson.type === 'project').length;
                 return (
                   <div key={module._id || module.id || module.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                     <button type="button" onClick={() => setExpandedAiModules((previous) => {
@@ -769,7 +861,7 @@ export default function Courses() {
                     </button>
                     {expanded && (
                       <div className="border-t border-slate-100">
-                        {lessons.map((lesson: any, lessonIndex: number) => {
+                        {lessons.map((lesson, lessonIndex: number) => {
                           const isTutorial = lesson.type === 'tutorial';
                           const isQuiz = lesson.type === 'quiz';
                           const videos = lesson.tutorial?.videos || [];
@@ -789,7 +881,7 @@ export default function Courses() {
                                 </div>
                                 {isTutorial && videos.length > 0 && (
                                   <div className="mt-3 space-y-2">
-                                    {videos.slice(0, 3).map((video: any) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
+                                    {videos.slice(0, 3).map((video) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
                                   </div>
                                 )}
                               </div>

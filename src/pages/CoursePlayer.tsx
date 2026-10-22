@@ -107,7 +107,7 @@ function mapCourse(raw: RawPlayerCourse): Course {
     created_by: raw.createdBy ?? null,
     created_at: raw.createdAt ?? "",
     updated_at: raw.updatedAt ?? "",
-  };
+  } as Course;
 }
 
 function mapProgress(raw: RawPlayerProgress): Progress {
@@ -127,7 +127,7 @@ function mapProgress(raw: RawPlayerProgress): Progress {
     last_accessed_at: raw.lastAccessedAt ?? null,
     created_at: raw.createdAt ?? "",
     updated_at: raw.updatedAt ?? "",
-  };
+  } as Progress;
 }
 
 export default function CoursePlayer() {

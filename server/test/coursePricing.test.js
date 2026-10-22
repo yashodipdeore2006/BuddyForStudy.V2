@@ -90,7 +90,7 @@ test("pricing batch rollback and automatic rules retain audit and revision safeg
   const here = path.dirname(fileURLToPath(import.meta.url));
   const controller = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
   assert.match(controller, /course\.\$locals\.revisionContext/);
-  assert.match(controller, /course\.pricing batch/i);
+  assert.match(controller, /Course pricing batch/i);
   assert.match(controller, /recordAuditEvent/);
   assert.match(controller, /enabled: true, autoApply: true/);
   assert.match(controller, /Rollback skipped because the course price has changed/);

@@ -584,8 +584,8 @@ export default function AdminUsersPro() {
       key: "verification",
       header: "Verification",
       sortable: true,
-      render: (user: any) => <AdminBadge tone={user.emailVerified ? "success" : "warning"}>{user.emailVerified ? "Verified" : "Pending"}</AdminBadge>,
-    } satisfies DataTableColumn<any>] : []),
+      render: (user: AdminUserRow) => <AdminBadge tone={user.emailVerified ? "success" : "warning"}>{user.emailVerified ? "Verified" : "Pending"}</AdminBadge>,
+    } satisfies DataTableColumn<AdminUserRow>] : []),
     ...(visibleColumns.includes("provider") ? [{
       key: "authProvider",
       header: "Provider",

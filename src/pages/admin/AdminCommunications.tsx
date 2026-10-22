@@ -413,7 +413,7 @@ export default function AdminCommunications() {
     });
   }
 
-  async function performSend(channel: "notification" | "email" | "announcement", announcementReason: string): Promise<boolean> {
+  async function performSend(channel: "notification" | "email" | "announcement", reason: string): Promise<boolean> {
     if (!audiencePreview) {
       setStatus("Preview the recipients and confirm the audience before sending.");
       setConfirmationError("The audience preview is no longer available. Close this dialog and preview recipients again.");
@@ -430,7 +430,7 @@ export default function AdminCommunications() {
             : "/api/admin/announcements/send";
       const body =
         channel === "email"
-          ? { ...audiencePayload(), subject, html, previewToken: audiencePreview.previewToken }
+          ? { ...audiencePayload(), subject, html, reason: reason.trim(), previewToken: audiencePreview.previewToken }
           : {
               ...audiencePayload(),
               previewToken: audiencePreview.previewToken,
@@ -439,10 +439,10 @@ export default function AdminCommunications() {
               type: "system",
               link: link.trim(),
               channel: channels,
+              reason: reason.trim(),
               ...(channel === "announcement" ? {
                 ...(scheduledAt ? { scheduledAt: new Date(scheduledAt + ":00+05:30").toISOString() } : {}),
                 timezone: "Asia/Kolkata",
-                reason: announcementReason.trim(),
               } : {}),
             };
       const data = await adminFetch(path, { method: "POST", body: JSON.stringify(body) });
@@ -470,7 +470,7 @@ export default function AdminCommunications() {
     const action = confirmationAction;
     if (!action) return;
     const reason = confirmationReason.trim();
-    const requiresReason = action.kind !== "send" || action.channel === "announcement";
+    const requiresReason = true;
     if (requiresReason && (reason.length < 10 || reason.length > 500)) {
       setConfirmationError("Enter a reason between 10 and 500 characters.");
       return;
@@ -544,9 +544,7 @@ export default function AdminCommunications() {
       : confirmationAction?.kind === "send" && confirmationAction.recipientCount > 500
         ? "SEND TO " + confirmationAction.recipientCount.toLocaleString("en-US") + " USERS"
         : undefined;
-  const confirmationNeedsReason = Boolean(confirmationAction && (
-    confirmationAction.kind !== "send" || confirmationAction.channel === "announcement"
-  ));
+  const confirmationNeedsReason = Boolean(confirmationAction);
   const confirmationTitle = !confirmationAction ? "Confirm action"
     : confirmationAction.kind === "retry-delivery" ? `Retry failed ${confirmationAction.channel === "email" ? "email" : "push"} delivery`
     : confirmationAction.kind === "cancel-campaign" ? "Cancel scheduled announcement"

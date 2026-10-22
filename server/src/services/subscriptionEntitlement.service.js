@@ -76,9 +76,10 @@ export async function getEntitlement(userId, feature) {
 }
 
 export function isCourseAccessAllowed({ isPaidCourse, planEntitled, hasIndividualAccess }) {
-  // A subscription entitlement must never override the payment requirement
-  // for individually priced courses, including after a refund.
-  if (isPaidCourse) return Boolean(hasIndividualAccess);
+  // A plan that explicitly grants published-course access also covers paid
+  // course content while that subscription remains entitled. Individual
+  // purchases continue to grant access independently of the subscription.
+  if (isPaidCourse) return Boolean(planEntitled || hasIndividualAccess);
   return Boolean(planEntitled || hasIndividualAccess);
 }
 

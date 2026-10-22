@@ -28,18 +28,19 @@ type RawLearningCourse = {
   createdAt?: string; created_at?: string; updatedAt?: string; updated_at?: string;
   lessonCount?: number; lesson_count?: number;
 };
+type RawSavedCourseRow = { course?: { _id?: string; id?: string } | string | null; courseId?: string; course_id?: string; _id?: string; id?: string };
 type RawLearningEnrollment = { _id?: string; id?: string; user?: { _id?: string } | string; user_id?: string; course?: RawLearningCourse | null; courseId?: string; course_id?: string; status?: string; enrolledAt?: string; enrolled_at?: string; createdAt?: string; created_at?: string; updatedAt?: string; updated_at?: string };
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
 type CourseStatus = { progressPct: number; completedLessons: number; totalLessons: number; nextLessonId: string | null; status: LearningTab; loading: boolean };
 
 function mapCourse(raw: RawLearningCourse): Course {
-  const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: any) => ({
+  const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: RawLearningModule) => ({
     id: String(module?._id ?? module?.id ?? ""),
     title: String(module?.title ?? ""),
     description: String(module?.description ?? ""),
     order: Number(module?.order ?? 0),
-    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson: any) => ({
+    lessons: Array.isArray(module?.lessons) ? module.lessons.map((lesson: RawLearningLesson) => ({
       id: String(lesson?._id ?? lesson?.id ?? ""),
       title: String(lesson?.title ?? ""),
       description: String(lesson?.description ?? ""),
@@ -319,7 +320,7 @@ export default function MyCourses() {
       setLoadError(enrollmentResult.reason instanceof Error ? enrollmentResult.reason.message : "Couldn't load your courses.");
     }
     if (savedResult.status === "fulfilled") {
-      const ids = (savedResult.value.savedCourses ?? []).map((item: any) => {
+      const ids = (savedResult.value.savedCourses ?? []).map((item: RawSavedCourseRow) => {
         const course = item?.course ?? item?.courseId ?? item?.course_id ?? item;
         return String(course?._id ?? course?.id ?? course).toLowerCase();
       }).filter(Boolean);

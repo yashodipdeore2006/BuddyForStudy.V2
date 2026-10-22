@@ -76,8 +76,71 @@ function youtubeEmbedUrl(url: string) {
   }
 }
 
+type RoadmapStage = {
+  id?: string;
+  title?: string;
+  emoji?: string;
+  skills?: string[] | string;
+  outcome?: string;
+  lessonIds?: string[];
+  hours?: number;
+};
+
+type CourseResource = {
+  _id: string;
+  title?: string;
+  url?: string;
+  type?: ResourceForm["type"];
+};
+
+type CourseVideo = { url?: string; title?: string; videoId?: string; duration?: string };
+
+type CourseLesson = {
+  _id: string;
+  title?: string;
+  type: LearningItemForm["type"];
+  tutorial?: { videos?: CourseVideo[]; [key: string]: unknown };
+};
+
+type CourseModule = {
+  _id: string;
+  title?: string;
+  description?: string;
+  order?: number;
+  lessons?: CourseLesson[];
+  resources?: CourseResource[];
+};
+
+type AdminCourseRecord = {
+  _id: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  category?: string;
+  level?: CourseMetaForm["level"];
+  duration?: string | number;
+  thumbnail?: string | null;
+  learningOutcomes?: string[];
+  isPublished?: boolean;
+  enrollmentEnabled?: boolean;
+  certificateEnabled?: boolean;
+  featured?: boolean;
+  pricing?: { mode?: string; price?: number; currency?: string };
+  roadmap?: { stages?: RoadmapStage[]; [key: string]: unknown };
+  modules?: CourseModule[];
+};
+
+type CourseReadinessCheck = { key: string; label: string; fix?: string };
+type CourseReadiness = {
+  ready?: boolean;
+  error?: string;
+  failedChecks?: CourseReadinessCheck[];
+  passedCount?: number;
+  totalChecks?: number;
+};
+
 export default function AdminCoursesPro() {
-  const [courses, setCourses] = useState<any[]>([]);
+  const [courses, setCourses] = useState<AdminCourseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
@@ -85,19 +148,19 @@ export default function AdminCoursesPro() {
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
-  const [courseDetails, setCourseDetails] = useState<Record<string, any>>({});
+  const [courseDetails, setCourseDetails] = useState<Record<string, AdminCourseRecord>>({});
   const [detailLoading, setDetailLoading] = useState<Record<string, boolean>>({});
   const [editors, setEditors] = useState<Record<string, TutorialEditor>>({});
   const [moduleForms, setModuleForms] = useState<Record<string, ModuleForm>>({});
   const [newModuleForms, setNewModuleForms] = useState<Record<string, ModuleForm>>({});
   const [resourceForms, setResourceForms] = useState<Record<string, ResourceForm>>({});
   const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
-  const [roadmapDrafts, setRoadmapDrafts] = useState<Record<string, any[]>>({});
+  const [roadmapDrafts, setRoadmapDrafts] = useState<Record<string, RoadmapStage[]>>({});
   const [roadmapSaving, setRoadmapSaving] = useState<Record<string, boolean>>({});
   const [roadmapMessages, setRoadmapMessages] = useState<Record<string, string>>({});
   const [learningItemForms, setLearningItemForms] = useState<Record<string, LearningItemForm>>({});
   const [courseQuery, setCourseQuery] = useState("");
-  const [readinessResults, setReadinessResults] = useState<Record<string, any>>({});
+  const [readinessResults, setReadinessResults] = useState<Record<string, CourseReadiness>>({});
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
   const [permissions, setPermissions] = useState<string[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
@@ -145,7 +208,7 @@ export default function AdminCoursesPro() {
       setReadinessResults(current => ({ ...current, [courseId]: { error: error instanceof Error ? error.message : "Unable to check readiness" } }));
     } finally { setReadinessLoading(current => ({ ...current, [courseId]: false })); }
   }
-  async function save(c: any, patch: any) {
+  async function save(c: AdminCourseRecord, patch: Record<string, unknown>) {
     setLoadError("");
     try {
       await adminFetch(`/api/admin/courses/${c._id}`, {
@@ -158,7 +221,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function publishCourse(c: any) {
+  async function publishCourse(c: AdminCourseRecord) {
     setReadinessLoading(current => ({ ...current, [c._id]: true }));
     try {
       const check = await adminFetch("/api/admin/courses/" + c._id + "/readiness");
@@ -170,7 +233,7 @@ export default function AdminCoursesPro() {
       });
       await load();
     } catch (error) {
-      const readiness = (error as any)?.readiness;
+      const readiness = error && typeof error === "object" && "readiness" in error ? error.readiness as CourseReadiness : undefined;
       if (readiness) setReadinessResults(current => ({ ...current, [c._id]: readiness }));
       else setReadinessResults(current => ({ ...current, [c._id]: { error: error instanceof Error ? error.message : "Unable to publish course" } }));
     } finally {
@@ -212,7 +275,7 @@ export default function AdminCoursesPro() {
     }));
   }
 
-  function courseMeta(course: any): CourseMetaForm {
+  function courseMeta(course: AdminCourseRecord): CourseMetaForm {
     return courseMetaForms[course._id] || {
       title: course.title || "",
       description: course.description || "",
@@ -226,7 +289,7 @@ export default function AdminCoursesPro() {
     };
   }
 
-  async function saveCourseMeta(courseId: string, course: any) {
+  async function saveCourseMeta(courseId: string, course: AdminCourseRecord) {
     const form = courseMeta(course);
     const missingFields = [
       !form.title.trim() && "title",
@@ -310,11 +373,11 @@ export default function AdminCoursesPro() {
     finally { setRoadmapSaving((current) => ({ ...current, [courseId]: false })); }
   }
 
-  function patchDetail(courseId: string, course: any) {
+  function patchDetail(courseId: string, course: AdminCourseRecord) {
     setCourseDetails((current) => ({ ...current, [courseId]: course }));
   }
 
-  function moduleForm(module: any): ModuleForm {
+  function moduleForm(module: CourseModule): ModuleForm {
     return moduleForms[module._id] || {
       title: module.title || "",
       description: module.description || "",
@@ -351,7 +414,7 @@ export default function AdminCoursesPro() {
     };
   }
 
-  async function addLearningItem(courseId: string, module: any) {
+  async function addLearningItem(courseId: string, module: CourseModule) {
     const form = learningItemForm(module._id);
     if (!form.title.trim()) return;
 
@@ -416,7 +479,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function updateModule(courseId: string, module: any) {
+  async function updateModule(courseId: string, module: CourseModule) {
     const form = moduleForm(module);
     if (!form.title.trim()) return;
 
@@ -447,7 +510,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteModule(courseId: string, module: any) {
+  async function deleteModule(courseId: string, module: CourseModule) {
     if (!window.confirm(`Remove module "${module.title}" and all its lessons/resources?`)) return;
 
     try {
@@ -460,7 +523,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function addVideoToModule(courseId: string, module: any) {
+  async function addVideoToModule(courseId: string, module: CourseModule) {
     const key = `add-video:${module._id}`;
     const editor = editors[key];
     if (!editor?.url.trim()) return;
@@ -508,7 +571,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteLesson(courseId: string, module: any, lesson: any) {
+  async function deleteLesson(courseId: string, module: CourseModule, lesson: CourseLesson) {
     if (!window.confirm(`Remove "${lesson.title}" from "${module.title}"?`)) return;
     try {
       const data = await adminFetch(
@@ -521,7 +584,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function addModuleResource(courseId: string, module: any) {
+  async function addModuleResource(courseId: string, module: CourseModule) {
     const form = resourceForm(module._id);
     if (!form.title.trim() || !form.url.trim()) return;
 
@@ -555,7 +618,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteModuleResource(courseId: string, module: any, resource: any) {
+  async function deleteModuleResource(courseId: string, module: CourseModule, resource: CourseResource) {
     if (!window.confirm(`Remove module resource "${resource.title}"?`)) return;
     try {
       const data = await adminFetch(
@@ -679,7 +742,7 @@ export default function AdminCoursesPro() {
                   {readinessResults[course._id] && <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                     {readinessResults[course._id].error ? <p role="alert" className="text-sm text-red-700">{readinessResults[course._id].error}</p> : <>
                       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{readinessResults[course._id].ready ? "Ready for publishing review" : "Publishing checklist needs attention"}</p><span className="text-xs text-slate-500">{readinessResults[course._id].passedCount}/{readinessResults[course._id].totalChecks} checks passed</span></div>
-                      {readinessResults[course._id].failedChecks.length > 0 && <div className="mt-3 space-y-2">{readinessResults[course._id].failedChecks.map((check: any) => <div key={check.key} className="rounded-lg border border-amber-200 bg-white p-3"><p className="flex items-start gap-2 text-sm font-semibold text-slate-900"><span className="mt-0.5 text-amber-600">!</span><span>{check.label}</span></p><p className="mt-1 pl-5 text-sm leading-5 text-slate-600">{check.fix || "Review this requirement and complete the missing information."}</p><p className="mt-2 pl-5 text-xs font-semibold text-blue-700">Where to fix: {["quizContent","tutorialContent","projectContent","moduleTitles","lessonTitles","lessonTypes","modules","lessons"].includes(check.key) ? "Manage Curriculum" : "Course details / pricing controls"}</p></div>)}</div>}
+                      {readinessResults[course._id].failedChecks.length > 0 && <div className="mt-3 space-y-2">{readinessResults[course._id].failedChecks.map((check: CourseReadinessCheck) => <div key={check.key} className="rounded-lg border border-amber-200 bg-white p-3"><p className="flex items-start gap-2 text-sm font-semibold text-slate-900"><span className="mt-0.5 text-amber-600">!</span><span>{check.label}</span></p><p className="mt-1 pl-5 text-sm leading-5 text-slate-600">{check.fix || "Review this requirement and complete the missing information."}</p><p className="mt-2 pl-5 text-xs font-semibold text-blue-700">Where to fix: {["quizContent","tutorialContent","projectContent","moduleTitles","lessonTitles","lessonTypes","modules","lessons"].includes(check.key) ? "Manage Curriculum" : "Course details / pricing controls"}</p></div>)}</div>}
                     </>}
                   </div>}
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -811,7 +874,7 @@ export default function AdminCoursesPro() {
                             <button type="button" className="btn-secondary" onClick={() => void regenerateRoadmap(course._id)} disabled={Boolean(roadmapSaving[course._id])}>{roadmapSaving[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}Regenerate with AI</button>
                           </div>
                           {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).length === 0 ? <p className="mt-4 rounded-xl bg-white p-4 text-sm text-slate-500">Roadmap stages will be generated when this course has lessons.</p> : <div className="mt-4 space-y-3">
-                            {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).map((stage: any, stageIndex: number) => <div key={stage.id || stageIndex} className="grid gap-3 rounded-xl border border-violet-100 bg-white p-3">
+                            {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).map((stage: RoadmapStage, stageIndex: number) => <div key={stage.id || stageIndex} className="grid gap-3 rounded-xl border border-violet-100 bg-white p-3">
                               <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]"><label className="text-xs font-semibold text-slate-600">Stage {stageIndex + 1} title<input className="input-field mt-1" maxLength={100} value={stage.title || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { title: event.target.value })} /></label><label className="text-xs font-semibold text-slate-600">Emoji<input className="input-field mt-1" maxLength={12} value={stage.emoji || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { emoji: event.target.value })} /></label></div>
                               <label className="text-xs font-semibold text-slate-600">Skills (comma-separated)<input className="input-field mt-1" value={Array.isArray(stage.skills) ? stage.skills.join(", ") : stage.skills || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { skills: event.target.value })} placeholder="Skill one, Skill two, Skill three" /></label>
                               <label className="text-xs font-semibold text-slate-600">Outcome<textarea className="input-field mt-1 min-h-20" maxLength={1000} value={stage.outcome || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { outcome: event.target.value })} placeholder="What the learner will be able to build or do" /></label>
@@ -864,7 +927,7 @@ export default function AdminCoursesPro() {
                           <p className="text-xs text-slate-500">Add or remove modules, tutorial videos/playlists, and module resources.</p>
                         </div>
 
-                        {detail.modules?.map((module: any, moduleIndex: number) => (
+                        {detail.modules?.map((module: CourseModule, moduleIndex: number) => (
                           <div key={module._id || moduleIndex} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                             <div className="border-b border-slate-100 px-4 py-3">
                               <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
@@ -978,7 +1041,7 @@ export default function AdminCoursesPro() {
                             </div>
 
                             <div className="divide-y divide-slate-100">
-                              {(module.lessons || []).map((lesson: any, lessonIndex: number) => {
+                              {(module.lessons || []).map((lesson: CourseLesson, lessonIndex: number) => {
                                 const currentVideo = lesson.tutorial?.videos?.[0];
                                 const editor = editors[lesson._id] || {
                                   lessonId: lesson._id,
@@ -1060,7 +1123,7 @@ export default function AdminCoursesPro() {
                                 );
                               })}
 
-                              {!(module.lessons || []).some((lesson: any) => lesson.type === "tutorial" && lesson.tutorial?.videos?.length) && (
+                              {!(module.lessons || []).some((lesson: CourseLesson) => lesson.type === "tutorial" && lesson.tutorial?.videos?.length) && (
                                 (() => {
                                   const editorKey = `module:${module._id || module.order}`;
                                   const editor = editors[editorKey] || {
@@ -1188,7 +1251,7 @@ export default function AdminCoursesPro() {
 
                               {(module.resources || []).length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                  {(module.resources || []).map((resource: any) => {
+                                  {(module.resources || []).map((resource: CourseResource) => {
                                     const Icon =
                                       resource.type === "repository"
                                         ? Github

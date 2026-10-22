@@ -47,7 +47,7 @@ const links: AdminLink[] = [
 ];
 
 const groupOrder: AdminLink["group"][] = ["Overview", "Learning", "Operations", "Finance & governance"];
-const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system" };
+const routeLabels: Record<string, string> = { ...Object.fromEntries(links.map((item) => [item.to, item.label])), "/admin/design-system": "Admin design system", "/admin/legal": "Legal & policies" };
 const quickActions = [
   { to: "/admin/courses", label: "Open course management", description: "Create and update learning content", permission: "courses.read", icon: BookOpen },
   { to: "/admin/plans", label: "Open subscription plans", description: "Manage pricing and entitlements", permission: "plans.read", icon: CreditCard },

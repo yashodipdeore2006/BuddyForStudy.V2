@@ -102,7 +102,11 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
 
   const existing = await Enrollment.findOne({ user: userId, course: courseId });
   if (existing) {
-    if (subscriptionAccess && !paidPayment && existing.accessSource !== "subscription") {
+    if (paidPayment && existing.accessSource === "subscription") {
+      // An individual purchase upgrades subscription-backed access to lifetime access.
+      existing.accessSource = "self";
+      await existing.save();
+    } else if (subscriptionAccess && !paidPayment && existing.accessSource !== "subscription") {
       existing.accessSource = "subscription";
       await existing.save();
     }

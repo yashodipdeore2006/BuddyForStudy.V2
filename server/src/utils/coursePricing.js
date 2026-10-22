@@ -93,6 +93,7 @@ export function calculateNextPricing(pricing = {}, operation) {
   };
   let price = before.price;
   let mode = before.mode;
+  let compareAtPrice = before.compareAtPrice;
   if (operation.type === "set_free") { mode = "free"; price = 0; }
   else if (operation.type === "set_paid") { mode = "paid"; price = before.price > 0 ? before.price : (operation.amount || 0); }
   else if (operation.type === "set_compare_at") { if (operation.amount > 0 && operation.amount <= price) throw new Error("Comparison price must be greater than the base price, or zero to clear it."); compareAtPrice = operation.amount; }
@@ -108,7 +109,6 @@ export function calculateNextPricing(pricing = {}, operation) {
   else mode = "paid";
   let saleEnabled = before.saleEnabled;
   let salePrice = before.salePrice;
-  let compareAtPrice = before.compareAtPrice;
   if (operation.saleHandling === "clear") { saleEnabled = false; salePrice = 0; }
   else if (operation.saleHandling === "adjust" && saleEnabled) {
     salePrice = Math.min(salePrice, Math.max(0, price - 1));

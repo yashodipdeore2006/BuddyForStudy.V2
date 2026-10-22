@@ -40,6 +40,13 @@ type PricingMessage = {
   text: string;
 };
 
+type CurrentSubscription = {
+  status?: string;
+  plan?: { name?: string } | string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+};
+
 export default function Pricing() {
   const { session } = useAuth();
   const [searchParams] = useSearchParams();
@@ -49,6 +56,8 @@ export default function Pricing() {
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<PricingMessage | null>(null);
+  const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
+  const hasActiveSubscription = Boolean(currentSubscription && ["active", "trialing", "past_due"].includes(String(currentSubscription.status || "")) && (!currentSubscription.currentPeriodEnd || new Date(currentSubscription.currentPeriodEnd).getTime() > Date.now()));
 
   useEffect(() => {
     apiFetch("/api/billing/plans")
@@ -68,10 +77,30 @@ export default function Pricing() {
       .finally(() => setLoadingPlans(false));
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    if (!session) {
+      setCurrentSubscription(null);
+      return () => { active = false; };
+    }
+    apiFetch("/api/billing/me")
+      .then((data) => {
+        if (active) setCurrentSubscription(data.subscription || null);
+      })
+      .catch(() => {
+        if (active) setCurrentSubscription(null);
+      });
+    return () => { active = false; };
+  }, [session]);
+
   async function subscribe(planId: string) {
     const plan = plans.find((item) => item._id === planId);
 
     if (!plan || Number(plan.price) === 0) return;
+    if (hasActiveSubscription) {
+      setMessage({ type: "info", text: "You already have an active subscription. Manage your current plan in Billing instead of purchasing another plan." });
+      return;
+    }
 
     if (!session) {
       window.location.href = routes.login();
@@ -199,6 +228,14 @@ export default function Pricing() {
         </div>
       )}
 
+      {hasActiveSubscription && (
+        <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left" role="status">
+          <p className="font-semibold text-emerald-900">You already have an active subscription{typeof currentSubscription?.plan === "object" && currentSubscription.plan?.name ? ` — ${currentSubscription.plan.name}` : ""}.</p>
+          <p className="mt-1 text-sm text-emerald-800">Your included course access is available now. You do not need to subscribe again.</p>
+          <Link to={routes.billing()} className="mt-3 inline-flex items-center gap-2 font-semibold text-emerald-900 underline underline-offset-4">Manage subscription <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+      )}
+
       {loadingPlans && (
         <div role="status" aria-live="polite" className="mt-10 flex min-h-40 items-center justify-center gap-3 text-sm font-semibold text-slate-500"><Loader2 className="h-5 w-5 animate-spin text-violet-600" /> Loading subscription plans…</div>
       )}
@@ -238,11 +275,11 @@ export default function Pricing() {
               </ul>
               <button
                 type="button"
-                disabled={loading === plan._id || Number(plan.price) === 0}
+                disabled={loading === plan._id || Number(plan.price) === 0 || hasActiveSubscription}
                 onClick={() => void subscribe(plan._id)}
                 className={`mt-7 w-full ${Number(plan.price) === 0 ? "btn-secondary" : "btn-buy"}`}
               >
-                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : Number(plan.price) === 0 ? "Included" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
+                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : hasActiveSubscription ? "Already subscribed" : Number(plan.price) === 0 ? "Included" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
               </button>
             </article>
           );

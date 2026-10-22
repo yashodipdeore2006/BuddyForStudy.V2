@@ -57,6 +57,24 @@ async function mockAdminApi(page: Page, principal: {
         failedPayments: 0, pendingRefunds: 0,
       } });
     }
+    if (pathname === "/api/admin/courses") {
+      return json(route, {
+        courses: [{
+          _id: "507f1f77bcf86cd799439011",
+          title: "Course reader fixture",
+          category: "Development",
+          level: "Beginner",
+          status: "draft",
+          isPublished: false,
+          featured: false,
+          enrollmentEnabled: true,
+          certificateEnabled: true,
+          pricing: { mode: "free", price: 0, currency: "INR" },
+        }],
+        total: 1,
+        pages: 1,
+      });
+    }
     if (pathname === "/api/admin/health") return json(route, { database: "connected" });
     if (pathname === "/api/admin/operations/alerts") return json(route, { alerts: [] });
     if (pathname === "/api/admin/operations/system-health") return json(route, { overallStatus: "healthy" });
@@ -108,6 +126,24 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin");
     await expect(page).toHaveURL(/\/home$/);
     await expect(page.getByRole("navigation", { name: "Admin navigation" })).toHaveCount(0);
+  });
+
+  test("course-read-only administrators do not see management controls", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "Course Reader", email: "course-reader@example.test" },
+      adminRole: "custom_course_reader",
+      roleLabel: "Course Reader",
+      permissions: ["dashboard.read", "courses.read"],
+    });
+    await page.goto(baseURL + "/admin/courses");
+    await expect(page.getByText("Course reader fixture")).toBeVisible();
+    await expect(page.getByText(/Read-only catalog access/i)).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: /Publish Course reader fixture/i })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: /Feature Course reader fixture/i })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: /Enable enrollment for Course reader fixture/i })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: /Enable certificates for Course reader fixture/i })).toHaveCount(0);
+    await expect(page.getByLabel("Pricing mode for Course reader fixture")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Manage Curriculum/i })).toHaveCount(0);
   });
 
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {

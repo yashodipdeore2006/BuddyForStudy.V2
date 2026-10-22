@@ -37,8 +37,8 @@ test("subscription feature normalization ignores malformed values", () => {
   assert.deepEqual(normalizeSubscriptionFeatures(["", null, 12, "Normal course search"]), ["Normal course search"]);
 });
 
-test("paid courses require verified individual access even when a plan has general course access", () => {
-  assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: true, hasIndividualAccess: false }), false);
+test("paid courses accept active all-courses plan access or verified individual access", () => {
+  assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: true, hasIndividualAccess: false }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: true, planEntitled: false, hasIndividualAccess: true }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: true, hasIndividualAccess: false }), true);
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: true }), true);

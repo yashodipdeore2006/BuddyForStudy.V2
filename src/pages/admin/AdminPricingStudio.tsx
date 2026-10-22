@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDownUp, CheckCircle2, Clock3, RefreshCw, ShieldCheck, Sparkles, Tags, WandSparkles } from "lucide-react";
+import { ArrowDownUp, CheckCircle2, Clock3, RefreshCw, ShieldCheck, Sparkles, Tags } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 
 type CourseRow = {
@@ -15,6 +15,7 @@ type CourseRow = {
 type Pricing = { mode: string; price: number; compareAtPrice: number; currency: string; saleEnabled: boolean; salePrice: number };
 type PreviewItem = { courseId: string; title: string; updatedAt: string; before: Pricing; after: Pricing | null; status: string; note?: string };
 type Rule = { _id: string; name: string; enabled: boolean; autoApply: boolean; priority: number; filters: Record<string, unknown>; operation: Record<string, unknown>; createdAt?: string };
+type PricingBatchHistory = { _id: string; status: string; reason?: string; operation?: { type?: string }; appliedCount?: number; skippedCount?: number; createdAt: string };
 type Band = { min: number; max: number };
 const defaultBands = { Beginner: { min: 199, max: 499 }, Intermediate: { min: 499, max: 999 }, Advanced: { min: 999, max: 1999 } };
 const money = (amount?: number, currency = "INR") => new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(amount || 0));
@@ -43,7 +44,7 @@ export default function AdminPricingStudio() {
   const [ruleType, setRuleType] = useState("fixed");
   const [ruleAmount, setRuleAmount] = useState("499");
   const [ruleAutoApply, setRuleAutoApply] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<PricingBatchHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -185,7 +186,7 @@ export default function AdminPricingStudio() {
         <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["Beginner","Intermediate","Advanced"] as const).map(level => <div key={level} className="rounded-xl border border-slate-200 bg-white p-3"><p className="mb-2 text-sm font-bold text-slate-800">{level}</p><label className="text-xs text-slate-500">Minimum ₹<input className={inputClass + " mt-1"} type="number" min="0" value={bands[level].min} onChange={e => setBands(v => ({ ...v, [level]: { ...v[level], min: Number(e.target.value) } }))} /></label><label className="mt-2 block text-xs text-slate-500">Maximum ₹<input className={inputClass + " mt-1"} type="number" min="0" value={bands[level].max} onChange={e => setBands(v => ({ ...v, [level]: { ...v[level], max: Number(e.target.value) } }))} /></label></div>)}</div>
         <div className="mt-3 grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-slate-600">Adjustment per module (%)<input className={inputClass + " mt-1"} type="number" min="0" max="25" value={depthAdjustmentPerModule} onChange={e => setDepthAdjustmentPerModule(e.target.value)} /></label><label className="text-xs font-semibold text-slate-600">Adjustment per project (%)<input className={inputClass + " mt-1"} type="number" min="0" max="50" value={projectAdjustment} onChange={e => setProjectAdjustment(e.target.value)} /></label></div>
         {filters.category && <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-violet-800">These bands will apply specifically to category “{filters.category}”.</p>}
-        <button disabled={busy || loading} onClick={() => void makePreview("recommend")} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-bold text-violet-800 transition hover:bg-violet-100 disabled:opacity-50"><WandSparkles size={17} /> Generate recommendation preview</button>
+        <button disabled={busy || loading} onClick={() => void makePreview("recommend")} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-3 text-sm font-bold text-violet-800 transition hover:bg-violet-100 disabled:opacity-50"><Sparkles size={17} /> Generate recommendation preview</button>
       </div>
     </section>
 

@@ -44,6 +44,7 @@ import AdminAIContent from '@/pages/admin/AdminAIContent';
 import AdminSupport from '@/pages/admin/AdminSupport';
 import AdminOperations from '@/pages/admin/AdminOperations';
 import AdminLegalDocuments from '@/pages/admin/AdminLegalDocuments';
+import AdminPricingStudio from '@/pages/admin/AdminPricingStudio';
 import LegalPage from '@/pages/LegalPage';
 import AcceptAdminInvitation from '@/pages/AcceptAdminInvitation';
 import { Link } from 'react-router-dom';
@@ -94,6 +95,7 @@ function App() {
     <Route path="/admin/content-quality" element={<AdminPage><AdminContentQuality /></AdminPage>} />
     <Route path="/admin/roadmaps" element={<AdminPage><AdminRoadmaps /></AdminPage>} />
     <Route path="/admin/plans" element={<AdminPage><AdminPlans /></AdminPage>} />
+    <Route path="/admin/pricing" element={<AdminPage><AdminPricingStudio /></AdminPage>} />
     <Route path="/admin/billing" element={<AdminPage><AdminBilling /></AdminPage>} />
     <Route path="/admin/subscriptions" element={<AdminPage><AdminSubscriptions /></AdminPage>} />
     <Route path="/admin/communications" element={<AdminPage><AdminCommunications /></AdminPage>} />

@@ -60,7 +60,8 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
           const result = await apiFetch(`/api/progress/${encodeURIComponent(courseId)}`);
           progress = result.progress ?? null;
         } catch (error) {
-          const status = Number((error as any)?.status ?? (error as any)?.statusCode ?? 0);
+          const errorRecord = error !== null && typeof error === "object" ? error as Record<string, unknown> : {};
+          const status = Number(errorRecord.status ?? errorRecord.statusCode ?? 0);
           if (status !== 404) errorMessage = errorMessage ?? (error instanceof Error ? error.message : "Progress is unavailable.");
         }
       }

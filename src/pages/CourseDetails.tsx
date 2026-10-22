@@ -58,12 +58,6 @@ type RelatedCourseCard = {
   level: string;
 };
 
-const levelColors: Record<string, string> = {
-  Beginner: 'bg-green-50 text-green-700',
-  Intermediate: 'bg-amber-50 text-amber-700',
-  Advanced: 'bg-red-50 text-red-700',
-};
-
 function getDisplayTopic(course: Course): string {
   const sourceCategory = /^(youtube discovery|ai course search|youtube|course search|discovery)$/i.test(String(course.category || '').trim());
   if (!sourceCategory) return course.category || 'Professional learning';
@@ -156,6 +150,11 @@ function getCourseOutcomes(course: Course): string[] {
     : 'Build practical understanding of ' + topic + '.');
 }
 
+type SubscriptionPlanSummary = { price?: number | string; billingInterval?: string };
+type RawCourseLesson = { _id?: string; id?: string; lessonId?: string; type?: string; completedAt?: string; [key: string]: unknown };
+type RawCourseModule = { _id?: string; id?: string; lessons?: RawCourseLesson[]; [key: string]: unknown };
+type RawCompletedLesson = { lessonId?: string; type?: string; completedAt?: string };
+
 export default function CourseDetails() {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
@@ -187,7 +186,7 @@ export default function CourseDetails() {
   const [shareNotice, setShareNotice] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlanSummary[]>([]);
   const [purchaseChoice, setPurchaseChoice] = useState<'subscription' | 'individual'>('subscription');
   const [courseNotes, setCourseNotes] = useState('');
   const [notesStorageReady, setNotesStorageReady] = useState(false);
@@ -230,7 +229,7 @@ export default function CourseDetails() {
       .then((data) => {
         if (!active) return;
         const topicTokens = getDisplayTopic(course).toLowerCase().match(/[a-z]+/g)?.filter((token) => token.length > 3) || [];
-        const rows: RelatedCourseCard[] = (data.courses || data.items || []).map((raw: any) => ({
+        const rows: RelatedCourseCard[] = (data.courses || data.items || []).map((raw: Record<string, unknown>) => ({
           id: String(raw?._id ?? raw?.id ?? ''),
           title: String(raw?.title ?? ''),
           category: String(raw?.category ?? ''),
@@ -316,10 +315,10 @@ export default function CourseDetails() {
           is_published: raw.isPublished,
           created_at: raw.createdAt,
           updated_at: raw.updatedAt,
-          modules: (raw.modules || []).map((m: any) => ({
+          modules: (raw.modules || []).map((m: RawCourseModule) => ({
             ...m,
             id: String(m._id ?? m.id),
-            lessons: (m.lessons || []).map((l: any) => ({
+            lessons: (m.lessons || []).map((l: RawCourseLesson) => ({
               ...l,
               id: String(l._id ?? l.id),
             })),
@@ -338,7 +337,7 @@ export default function CourseDetails() {
               id: String(rawProgress._id ?? rawProgress.id),
               user_id: String(rawProgress.user ?? rawProgress.user_id),
               course_id: String(rawProgress.course ?? rawProgress.course_id),
-              completed_lessons: (rawProgress.completedLessons ?? []).map((item: any) => ({
+              completed_lessons: (rawProgress.completedLessons ?? []).map((item: RawCompletedLesson) => ({
                 lessonId: String(item.lessonId),
                 type: item.type,
                 completedAt: item.completedAt,

@@ -1,10 +1,10 @@
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
 
-type CachedGet = { expiresAt: number; data: any };
+type CachedGet = { expiresAt: number; data: unknown };
 const GET_CACHE_TTL_MS = 5000;
 const getResponseCache = new Map<string, CachedGet>();
-const getInFlight = new Map<string, Promise<any>>();
+const getInFlight = new Map<string, Promise<unknown>>();
 
 if (typeof window !== "undefined") {
   window.addEventListener("bfs:entitlements-updated", () => {
@@ -71,7 +71,7 @@ export class ApiError extends Error {
 
 type ApiFetchOptions = RequestInit & { showFeatureUpgrade?: boolean };
 
-export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
+export async function apiFetch<T = Record<string, unknown>>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { showFeatureUpgrade = false, ...requestOptions } = options;
   const token = getToken();
   const method = (requestOptions.method || 'GET').toUpperCase();
@@ -83,10 +83,10 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   // related entries so save/enroll actions remain immediately consistent.
   if (isGet) {
     const cached = getResponseCache.get(key);
-    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    if (cached && cached.expiresAt > Date.now()) return cached.data as T;
     if (cached) getResponseCache.delete(key);
     const pending = getInFlight.get(key);
-    if (pending) return pending;
+    if (pending) return pending as Promise<T>;
   } else {
     invalidateRelatedGetCache(path);
   }
@@ -176,7 +176,7 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
     }
 
     if (isGet) getResponseCache.set(key, { data, expiresAt: Date.now() + GET_CACHE_TTL_MS });
-    return data;
+    return data as T;
   })();
 
   if (isGet) getInFlight.set(key, request);

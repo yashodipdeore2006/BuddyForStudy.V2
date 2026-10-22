@@ -37,6 +37,10 @@ export default function AdminUsersPro() {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportReason, setExportReason] = useState("");
+  const [exportConfirmationValue, setExportConfirmationValue] = useState("");
+  const [exportError, setExportError] = useState("");
   const [pagination, setPagination] = useState<any>({ page: Number(searchParams.get("page")) || 1, pages: 1, total: 0 });
   const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
   const [q, setQ] = useState(searchParams.get("q") || "");
@@ -306,13 +310,38 @@ export default function AdminUsersPro() {
     }
   }
 
-  async function exportSelectedUsers() {
+  async function exportSelectedUsers(confirmed = false) {
+    if (!canRevealPii) {
+      setError("Exporting full email addresses requires PII access permission.");
+      return;
+    }
     if (!selectedIds.length || exporting) return;
+    if (!confirmed) {
+      setExportDialogOpen(true);
+      setExportReason("");
+      setExportConfirmationValue("");
+      setExportError("");
+      return;
+    }
+    const reason = exportReason.trim();
+    const confirmationPhrase = "EXPORT " + selectedIds.length + " USERS";
+    if (reason.length < 10 || reason.length > 500) {
+      setExportError("Enter an export reason between 10 and 500 characters.");
+      return;
+    }
+    if (exportConfirmationValue.trim() !== confirmationPhrase) {
+      setExportError("Type the exact export confirmation phrase to continue.");
+      return;
+    }
+
     setExporting(true);
     setError("");
+    setExportError("");
     try {
-      const params = new URLSearchParams({ ids: selectedIds.join(","), sortBy, sortOrder });
-      const result = await adminFetch("/api/admin/users/export?" + params.toString());
+      const result = await adminFetch("/api/admin/users/export", {
+        method: "POST",
+        body: JSON.stringify({ ids: selectedIds, sortBy, sortOrder, reason }),
+      });
       const fields = ["name", "email", "role", "isActive", "emailVerified", "authProvider", "createdAt"] as const;
       const headings = ["Name", "Email", "Role", "Active", "Email verified", "Authentication provider", "Created at"];
       const rows = [headings, ...((result.users || []) as any[]).map((user) => fields.map((field) => user[field]))];
@@ -327,8 +356,13 @@ export default function AdminUsersPro() {
       anchor.remove();
       URL.revokeObjectURL(url);
       setSelectedIds([]);
+      setExportDialogOpen(false);
+      setExportReason("");
+      setExportConfirmationValue("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to export selected users.");
+      const message = err instanceof Error ? err.message : "Unable to export selected users.";
+      setExportError(message);
+      setError(message);
     } finally {
       setExporting(false);
     }
@@ -612,7 +646,7 @@ export default function AdminUsersPro() {
         </div>
       </FilterBar>
 
-      {selectedIds.length > 0 && <div className="admin-bulk-action-bar" role="toolbar" aria-label="Selected user actions">
+      {canRevealPii && selectedIds.length > 0 && <div className="admin-bulk-action-bar" role="toolbar" aria-label="Selected user actions">
         <span><strong>{selectedIds.length}</strong> selected on this page</span>
         <div className="admin-bulk-action-buttons">
           <AdminButton variant="ghost" onClick={() => setSelectedIds([])} disabled={exporting}>Clear selection</AdminButton>
@@ -626,8 +660,8 @@ export default function AdminUsersPro() {
         tableProps={{ "aria-label": "Users" }}
         rowKey={(user) => String(user._id)}
         onRowClick={(user) => void openUser(String(user._id))}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
+        selectedIds={canRevealPii ? selectedIds : []}
+        onSelectionChange={canRevealPii ? setSelectedIds : undefined}
         density={density}
         sortBy={sortBy}
         sortOrder={sortOrder}
@@ -790,6 +824,30 @@ export default function AdminUsersPro() {
             </section>
         </DetailDrawer>
       )}
+      <TypedConfirmDialog
+        open={Boolean(exportDialogOpen && canRevealPii && selectedIds.length)}
+        title="Export selected user records?"
+        description={`This creates a CSV containing full email addresses and account metadata for ${selectedIds.length} selected user(s). The export is recorded in the audit log.`}
+        consequence={exportError ? <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{exportError}</p> : "Treat the downloaded file as confidential personal data and store it only in an approved location."}
+        confirmLabel="Export user CSV"
+        requiredText={"EXPORT " + selectedIds.length + " USERS"}
+        value={exportConfirmationValue}
+        onValueChange={setExportConfirmationValue}
+        reason={exportReason}
+        onReasonChange={(value) => { setExportReason(value); setExportError(""); }}
+        reasonRequired
+        onConfirm={() => { void exportSelectedUsers(true); }}
+        onClose={() => {
+          if (!exporting) {
+            setExportDialogOpen(false);
+            setExportReason("");
+            setExportConfirmationValue("");
+            setExportError("");
+          }
+        }}
+        loading={exporting}
+        danger={false}
+      />
       <TypedConfirmDialog
         open={Boolean(canManageUsers && pendingUserAction)}
         title={pendingUserAction?.isActive ? "Disable user account?" : "Re-enable user account?"}

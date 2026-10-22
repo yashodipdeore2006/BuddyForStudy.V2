@@ -69,11 +69,11 @@ export async function listAdmin(req, res, next) {
   try {
     const documents = await LegalDocument.find({ isArchived: false }).sort({ updatedAt: -1 }).lean();
     return success(res, { documents: documents.map((doc) => ({
-      _id: doc._id, slug: doc.slug, title: doc.title, category: doc.category, summary: doc.summary,
+      _id: doc._id, slug: doc.slug, publishedSlug: doc.publishedSlug, title: doc.title, category: doc.category, summary: doc.summary,
       body: doc.body, documentUrl: doc.documentUrl, effectiveAt: doc.effectiveAt,
       isPublished: doc.isPublished, currentVersion: doc.currentVersion, publishedAt: doc.publishedAt,
       updatedAt: doc.updatedAt, revisionNote: doc.revisionNote,
-      hasUnpublishedChanges: Boolean(doc.isPublished && (doc.body !== (doc.versions || []).find((v) => v.version === doc.currentVersion)?.body || doc.title !== (doc.versions || []).find((v) => v.version === doc.currentVersion)?.title))
+      hasUnpublishedChanges: Boolean(doc.isPublished && (() => { const live = (doc.versions || []).find((v) => v.version === doc.currentVersion); return !live || doc.body !== live.body || doc.title !== live.title || doc.slug !== live.slug || doc.category !== live.category || doc.summary !== live.summary || doc.documentUrl !== live.documentUrl || String(doc.effectiveAt || "") !== String(live.effectiveAt || ""); })())
     })) });
   } catch (error) { next(error); }
 }

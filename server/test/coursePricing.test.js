@@ -95,3 +95,11 @@ test("pricing batch rollback and automatic rules retain audit and revision safeg
   assert.match(controller, /enabled: true, autoApply: true/);
   assert.match(controller, /Rollback skipped because the course price has changed/);
 });
+
+test("comparison-price updates do not change the base price and must remain above it", () => {
+  const changed = calculateNextPricing({ mode: "paid", price: 499, compareAtPrice: 0 }, validatePricingOperation({ type: "set_compare_at", amount: 799 }));
+  assert.equal(changed.price, 499);
+  assert.equal(changed.compareAtPrice, 799);
+  assert.throws(() => calculateNextPricing({ mode: "paid", price: 499 }, validatePricingOperation({ type: "set_compare_at", amount: 450 })), /greater than the base price/);
+  assert.equal(calculateNextPricing({ mode: "paid", price: 499, compareAtPrice: 799 }, validatePricingOperation({ type: "set_compare_at", amount: 0 })).compareAtPrice, 0);
+});

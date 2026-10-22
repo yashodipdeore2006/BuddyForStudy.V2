@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Course } from "../models/Course.js";
 import { PricingBatch } from "../models/PricingBatch.js";
+import { PricingRule } from "../models/PricingRule.js";
 import { cacheDelete } from "../config/cache.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
@@ -255,5 +256,142 @@ export async function rollback(req, res, next) {
       { appliedCount: batch.appliedCount },
       { rolledBackCount, skippedCount }, reason);
     return success(res, { batchId: String(batch._id), rolledBackCount, skippedCount }, "Rollback finished. Courses changed after the original batch were left untouched.");
+  } catch (error) { next(error); }
+}
+
+
+function validateRuleInput(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("A pricing rule is required.");
+  const allowed = ["name", "enabled", "autoApply", "priority", "filters", "operation"];
+  for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported pricing rule field: " + key);
+  const name = String(input.name || "").trim();
+  if (name.length < 3 || name.length > 120) throw new Error("Rule name must be between 3 and 120 characters.");
+  const enabled = input.enabled === true;
+  const autoApply = input.autoApply === true;
+  if (autoApply && !enabled) throw new Error("Enable the rule before opting into automatic application.");
+  const priority = Number(input.priority ?? 100);
+  if (!Number.isInteger(priority) || priority < 1 || priority > 10000) throw new Error("Priority must be an integer from 1 to 10000.");
+  const rawFilters = input.filters || {};
+  const filterAllowed = ["category", "level", "mode", "minPrice", "maxPrice"];
+  for (const key of Object.keys(rawFilters)) if (!filterAllowed.includes(key)) throw new Error("Unsupported rule filter: " + key);
+  const filters = {};
+  if (rawFilters.category) filters.category = String(rawFilters.category).trim().slice(0, 100);
+  if (rawFilters.level) {
+    if (!["Beginner", "Intermediate", "Advanced"].includes(rawFilters.level)) throw new Error("Invalid rule level.");
+    filters.level = rawFilters.level;
+  }
+  if (rawFilters.mode) {
+    if (!["free", "paid"].includes(rawFilters.mode)) throw new Error("Invalid rule pricing mode.");
+    filters.mode = rawFilters.mode;
+  }
+  for (const key of ["minPrice", "maxPrice"]) {
+    if (rawFilters[key] !== undefined && rawFilters[key] !== null && rawFilters[key] !== "") {
+      const value = Number(rawFilters[key]);
+      if (!Number.isFinite(value) || value < 0 || value > 1000000) throw new Error(key + " must be between 0 and 1,000,000.");
+      filters[key] = value;
+    }
+  }
+  if (filters.minPrice !== undefined && filters.maxPrice !== undefined && filters.minPrice > filters.maxPrice) throw new Error("Rule minimum price cannot exceed maximum price.");
+  const operation = validatePricingOperation(input.operation || {});
+  return { name, enabled, autoApply, priority, filters, operation };
+}
+
+export async function listRules(req, res, next) {
+  try {
+    const rules = await PricingRule.find().sort({ priority: 1, createdAt: 1 }).populate("actor", "name email").lean();
+    return success(res, { rules });
+  } catch (error) { next(error); }
+}
+
+export async function createRule(req, res, next) {
+  try {
+    const input = validateRuleInput(req.body);
+    const rule = await PricingRule.create({ ...input, actor: actorId(req) });
+    await audit(req, "course.pricing.rule_created", rule._id, null, { name: rule.name, enabled: rule.enabled, autoApply: rule.autoApply, priority: rule.priority, filters: rule.filters, operation: rule.operation }, "Pricing rule created");
+    return success(res, { rule }, "Pricing rule created", 201);
+  } catch (error) { return failure(res, safeError(error), 400); }
+}
+
+export async function updateRule(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.ruleId)) return failure(res, "Invalid pricing rule ID.", 400);
+    const input = validateRuleInput(req.body);
+    const rule = await PricingRule.findById(req.params.ruleId);
+    if (!rule) return failure(res, "Pricing rule not found.", 404);
+    const before = { name: rule.name, enabled: rule.enabled, autoApply: rule.autoApply, priority: rule.priority, filters: rule.filters, operation: rule.operation };
+    rule.set(input);
+    await rule.save();
+    await audit(req, "course.pricing.rule_updated", rule._id, before, input, "Pricing rule updated");
+    return success(res, { rule }, "Pricing rule updated");
+  } catch (error) { return failure(res, safeError(error), 400); }
+}
+
+export async function deleteRule(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.ruleId)) return failure(res, "Invalid pricing rule ID.", 400);
+    const rule = await PricingRule.findById(req.params.ruleId);
+    if (!rule) return failure(res, "Pricing rule not found.", 404);
+    const before = { name: rule.name, enabled: rule.enabled, autoApply: rule.autoApply };
+    await rule.deleteOne();
+    await audit(req, "course.pricing.rule_deleted", rule._id, before, null, "Pricing rule deleted");
+    return success(res, { deleted: true }, "Pricing rule deleted");
+  } catch (error) { next(error); }
+}
+
+export async function runEnabledRules(req, res, next) {
+  try {
+    const actor = actorId(req);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!actor) return failure(res, "Administrator identity is missing.", 401);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "Provide a reason between 10 and 500 characters.", 400);
+    const rules = await PricingRule.find({ enabled: true, autoApply: true }).sort({ priority: 1, createdAt: 1 }).lean();
+    if (!rules.length) return success(res, { appliedCount: 0, skippedCount: 0 }, "No enabled auto-apply rules are configured.");
+    const courses = await Course.find({ deletedAt: null }).select("title category level status isPublished pricing updatedAt").sort({ _id: 1 }).limit(MAX_PREVIEW_COURSES + 1);
+    if (courses.length > MAX_PREVIEW_COURSES) return failure(res, "Automatic rule execution is limited to 500 courses per run. Narrow rule filters and retry.", 409);
+    let appliedCount = 0;
+    let skippedCount = 0;
+    const items = [];
+    for (const course of courses) {
+      const price = Number(course.pricing?.price) || 0;
+      const rule = rules.find((candidate) => {
+        const f = candidate.filters || {};
+        return (!f.category || f.category === course.category) &&
+          (!f.level || f.level === course.level) &&
+          (!f.mode || f.mode === (course.pricing?.mode || "free")) &&
+          (f.minPrice === undefined || f.minPrice === null || price >= f.minPrice) &&
+          (f.maxPrice === undefined || f.maxPrice === null || price <= f.maxPrice);
+      });
+      if (!rule) continue;
+      try {
+        const before = pricingSnapshot(course.pricing);
+        const after = calculateNextPricing(course.pricing, rule.operation);
+        if (samePricing(before, after)) { skippedCount++; items.push({ courseId: String(course._id), title: course.title, rule: rule.name, status: "skipped", note: "Price already matches the rule." }); continue; }
+        course.pricing = after;
+        course.$locals.revisionContext = { actor, source: "admin", reason, summary: "Automatic pricing rule: " + rule.name };
+        await course.save();
+        await cacheDelete("course:" + course._id);
+        appliedCount++;
+        items.push({ courseId: String(course._id), title: course.title, rule: rule.name, status: "applied", before, after: pricingSnapshot(course.pricing) });
+      } catch (error) {
+        skippedCount++;
+        items.push({ courseId: String(course._id), title: course.title, rule: rule.name, status: "skipped", note: safeError(error) });
+      }
+    }
+    const batch = await PricingBatch.create({
+      kind: "batch", status: skippedCount ? "partially_applied" : "applied", actor, reason,
+      operation: { type: "enabled_auto_rules", ruleIds: rules.map((rule) => String(rule._id)) },
+      filters: {}, profile: {}, items: items.map((item) => ({
+        courseId: new mongoose.Types.ObjectId(item.courseId),
+        title: item.title,
+        updatedAt: new Date(),
+        before: item.before || {},
+        after: item.after || null,
+        status: item.status === "applied" ? "applied" : "skipped",
+        note: item.rule ? "Rule: " + item.rule + (item.note ? " — " + item.note : "") : item.note || ""
+      })),
+      matchedCount: items.length, appliedCount, skippedCount, appliedAt: new Date()
+    });
+    await audit(req, "course.pricing.auto_rules_applied", batch._id, { ruleCount: rules.length }, { appliedCount, skippedCount, rules: rules.map((rule) => rule.name) }, reason);
+    return success(res, { batchId: String(batch._id), appliedCount, skippedCount, items }, "Enabled automatic pricing rules executed. Review the audit history for the result.");
   } catch (error) { next(error); }
 }

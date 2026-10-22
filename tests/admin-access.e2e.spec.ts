@@ -231,7 +231,7 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByLabel("course-access-reason")).toHaveCount(0);
   });
 
-  test("communications readers cannot access the send composer without communications.send", async ({ page }) => {
+  test("direct communications access is restricted without communications.send", async ({ page }) => {
     await mockAdminApi(page, {
       user: { ...analystUser, name: "Communications Reader", email: "communications-reader@example.test" },
       adminRole: "analyst_auditor",
@@ -239,12 +239,24 @@ test.describe("administrator route and permission UX", () => {
       permissions: ["dashboard.read", "notifications.read", "operations.read", "billing.read"],
     });
     await page.goto(baseURL + "/admin/communications");
-    await expect(page.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
-    await expect(page.getByText(/Your administrator role can open this page/i)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Compose", exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "In-app notification", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Send now|Queue announcement|Schedule announcement/i })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Delivery log", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Compose", exact: true })).toHaveCount(0);
+  });
+
+  test("send-only administrators can compose but cannot open template or campaign management", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "Communication Sender", email: "sender@example.test" },
+      adminRole: "custom_communications_sender",
+      roleLabel: "Communication Sender",
+      permissions: ["dashboard.read", "communications.send"],
+    });
+    await page.goto(baseURL + "/admin/communications");
+    await expect(page.getByRole("button", { name: "Compose", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "In-app notification", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Templates/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Campaigns/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Delivery log", exact: true })).toHaveCount(0);
   });
 
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {

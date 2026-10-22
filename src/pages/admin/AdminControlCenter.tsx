@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+
+// API records vary by admin endpoint; this alias keeps the response boundary explicit.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdminDashboardRecord = Record<string, any>;
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -19,12 +23,12 @@ function money(value: number) {
 }
 
 export default function AdminControlCenter() {
-  const [data, setData] = useState<any>(null);
-  const [health, setHealth] = useState<any>(null);
-  const [operationsHealth, setOperationsHealth] = useState<any>(null);
+  const [data, setData] = useState<AdminDashboardRecord | null>(null);
+  const [health, setHealth] = useState<AdminDashboardRecord | null>(null);
+  const [operationsHealth, setOperationsHealth] = useState<AdminDashboardRecord | null>(null);
   const [error, setError] = useState("");
   const [healthError, setHealthError] = useState("");
-  const [operationalAlerts, setOperationalAlerts] = useState<any[]>([]);
+  const [operationalAlerts, setOperationalAlerts] = useState<AdminDashboardRecord[]>([]);
   const [alertsError, setAlertsError] = useState("");
   const [acknowledgingAlert, setAcknowledgingAlert] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,7 +125,7 @@ export default function AdminControlCenter() {
     [CreditCard, "Subscribers", s.activeSubscribers, String(s.pastDueSubscribers || 0) + " past due", "billing.read"],
     [IndianRupee, "Net revenue", money(s.netRevenue ?? s.revenue), "Gross " + money(s.grossRevenue) + " · refunds " + money(s.processedRefunds), "billing.read"],
   ];
-  const visibleCards = cards.filter(([, , , , permission]: any) => permissions.includes(permission));
+  const visibleCards = cards.filter(([, , , , permission]: AdminDashboardRecord) => permissions.includes(permission));
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -150,7 +154,7 @@ export default function AdminControlCenter() {
       </section>
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {visibleCards.map(([Icon, label, value, sub]: any) => (
+        {visibleCards.map(([Icon, label, value, sub]: AdminDashboardRecord) => (
           <AdminCard className="admin-stat-card" key={label}>
             <div className="flex items-center justify-between">
               <div className="rounded-xl bg-blue-50 p-3 text-blue-600"><Icon className="h-5 w-5" /></div>
@@ -170,7 +174,7 @@ export default function AdminControlCenter() {
         {alertsError && <p role="status" aria-live="polite" className="border-b border-slate-100 p-4 text-sm text-amber-700">{alertsError}</p>}
         {operationalAlerts.length ? (
           <div className="divide-y divide-slate-100">
-            {operationalAlerts.map((alert: any) => (
+            {operationalAlerts.map((alert: AdminDashboardRecord) => (
               <div key={alert._id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
                 <AlertTriangle className={"h-5 w-5 shrink-0 " + (alert.severity === "critical" ? "text-red-600" : "text-amber-600")} />
                 <div className="min-w-0 flex-1">
@@ -210,7 +214,7 @@ export default function AdminControlCenter() {
             <Link to="/admin/users" className="text-xs font-bold text-blue-600 hover:text-blue-700">View all</Link>
           </div>
           <div className="divide-y divide-slate-100">
-            {(data?.recentUsers || []).map((user: any) => (
+            {(data?.recentUsers || []).map((user: AdminDashboardRecord) => (
               <div key={user._id} className="flex items-center gap-3 px-5 py-4">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 font-bold text-slate-600">{user.name?.[0]?.toUpperCase() || "U"}</div>
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900">{user.name}</p><p className="truncate text-xs text-slate-500">{user.email}</p></div>
@@ -246,7 +250,7 @@ export default function AdminControlCenter() {
         {dashboardView === "finance" && permissions.includes("billing.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Recent payments</h2><p className="mt-1 text-xs text-slate-500">Latest billing activity.</p></div><Link to="/admin/billing" className="text-xs font-bold text-blue-600">Billing <ArrowRight className="inline h-3 w-3" /></Link></div>
           <div className="divide-y divide-slate-100">
-            {(data?.recentPayments || []).map((payment: any) => (
+            {(data?.recentPayments || []).map((payment: AdminDashboardRecord) => (
               <div key={payment._id} className="flex items-center gap-3 p-4">
                 <CreditCard className="h-4 w-4 text-slate-400" />
                 <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{payment.user?.name || "Unknown user"}</p><p className="text-xs text-slate-500">{payment.status} · {payment.provider}</p></div>
@@ -260,7 +264,7 @@ export default function AdminControlCenter() {
         {dashboardView === "learning" && permissions.includes("courses.read") && <section className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Top courses</h2><p className="mt-1 text-xs text-slate-500">Highest enrollment counts.</p></div><Link to="/admin/courses" className="text-xs font-bold text-blue-600">Content <ArrowRight className="inline h-3 w-3" /></Link></div>
           <div className="divide-y divide-slate-100">
-            {(data?.topCourses || []).map((course: any, index: number) => (
+            {(data?.topCourses || []).map((course: AdminDashboardRecord, index: number) => (
               <div key={course._id || index} className="flex items-center gap-3 p-4">
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">#{index + 1}</span>
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">{course.title || "Untitled course"}</span>
@@ -275,7 +279,7 @@ export default function AdminControlCenter() {
       {dashboardView === "governance" && permissions.includes("audit.read") && <section className="card mt-6 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 p-5"><div><h2 className="font-bold text-slate-900">Recent admin activity</h2><p className="mt-1 text-xs text-slate-500">Sensitive operational changes are audited.</p></div><Link to="/admin/audit" className="text-xs font-bold text-blue-600">Open audit log</Link></div>
         <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
-          {(data?.recentAudit || []).map((log: any) => (
+          {(data?.recentAudit || []).map((log: AdminDashboardRecord) => (
             <div key={log._id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="truncate font-mono text-xs font-bold text-slate-700">{log.action}</p>
               <p className="mt-1 truncate text-xs text-slate-500">{log.actor?.email || "system"}</p>

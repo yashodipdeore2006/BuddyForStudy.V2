@@ -157,10 +157,47 @@ test("role change is rejected safely when the governance lock is already held", 
     const res = makeResponse();
     await updateAdministratorRole({
       params: { userId: administratorId },
-      body: { adminRole: "platform_admin" },
+      body: { adminRole: "platform_admin", reason: "Scheduled role governance check" },
       user: { userId: "507f191e810c19729de860ea" }
     }, res, (error) => assert.fail(error));
     assert.equal(res.result.statusCode, 409);
     assert.match(res.result.body.message, /role change is in progress/i);
   });
+});
+
+
+test("administrator role changes reject missing or too-short audit reasons before locking", async () => {
+  let lockAttempted = false;
+  await withMocks([
+    [PlatformSetting, {
+      findOneAndUpdate: async () => { lockAttempted = true; return null; }
+    }],
+    [User, {
+      findOne: async () => { throw new Error("target lookup must not run for invalid reason"); }
+    }]
+  ], async () => {
+    for (const reason of ["", "   ", "too short"]) {
+      lockAttempted = false;
+      const res = makeResponse();
+      await updateAdministratorRole({
+        params: { userId: administratorId },
+        body: { adminRole: "platform_admin", reason },
+        user: { userId: "507f191e810c19729de860ea" }
+      }, res, (error) => assert.fail(error));
+      assert.equal(res.result.statusCode, 400);
+      assert.match(res.result.body.message, /reason between 10 and 500/i);
+      assert.equal(lockAttempted, false);
+    }
+  });
+});
+
+test("administrator role changes reject reasons longer than 500 characters", async () => {
+  const res = makeResponse();
+  await updateAdministratorRole({
+    params: { userId: administratorId },
+    body: { adminRole: "platform_admin", reason: "x".repeat(501) },
+    user: { userId: "507f191e810c19729de860ea" }
+  }, res, (error) => assert.fail(error));
+  assert.equal(res.result.statusCode, 400);
+  assert.match(res.result.body.message, /reason between 10 and 500/i);
 });

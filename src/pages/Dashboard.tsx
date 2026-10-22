@@ -5,7 +5,6 @@ import { apiFetch } from '@/lib/api';
 import type { Course, Enrollment, Progress } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
-import PageHeader from '@/components/PageHeader';
 import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play } from 'lucide-react';
 
 import { routes } from "@/lib/routes";

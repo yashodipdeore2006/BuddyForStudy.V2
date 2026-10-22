@@ -182,7 +182,7 @@ export default function CourseDetails() {
     if (!myReview) return;
     setReviewRating(myReview.rating);
     setReviewComment(myReview.comment || '');
-  }, [myReview?._id, myReview?.rating, myReview?.comment]);
+  }, [myReview]);
   const [shareNotice, setShareNotice] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);

@@ -34,6 +34,9 @@ export default function Footer() {
           <Link to={routes.pricing()}>Pricing</Link>
           <Link to={routes.login()}>Sign in</Link>
           <Link to={routes.register()}>Get started</Link>
+          <Link to="/legal/privacy-policy">Privacy</Link>
+          <Link to="/legal/terms-of-service">Terms</Link>
+          <Link to="/legal">Policies</Link>
         </nav>
         <p>© 2026 BuddyForStudy. Learn with purpose, one step at a time.</p>
       </div>

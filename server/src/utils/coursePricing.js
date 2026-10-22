@@ -60,12 +60,12 @@ export function validatePricingOperation(input = {}) {
   const allowed = ["type", "amount", "minPrice", "maxPrice", "saleHandling"];
   for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported pricing operation field: " + key);
   const type = input.type;
-  if (!["fixed", "percent_increase", "percent_decrease", "amount_increase", "amount_decrease", "set_free", "set_paid"].includes(type)) {
+  if (!["fixed", "percent_increase", "percent_decrease", "amount_increase", "amount_decrease", "set_free", "set_paid", "set_compare_at"].includes(type)) {
     throw new Error("Choose a supported pricing operation.");
   }
   const operation = { type, saleHandling: input.saleHandling || "preserve" };
   if (!["preserve", "clear", "adjust"].includes(operation.saleHandling)) throw new Error("Invalid sale-price handling.");
-  if (["fixed", "percent_increase", "percent_decrease", "amount_increase", "amount_decrease", "set_paid"].includes(type)) {
+  if (["fixed", "percent_increase", "percent_decrease", "amount_increase", "amount_decrease", "set_paid", "set_compare_at"].includes(type)) {
     const amount = Number(input.amount);
     if (!Number.isFinite(amount) || amount < 0 || amount > PRICE_LIMIT) throw new Error("Amount must be between 0 and " + PRICE_LIMIT + ".");
     if (["percent_increase", "percent_decrease"].includes(type) && amount > 100) throw new Error("Percentage adjustments must be between 0 and 100.");
@@ -95,6 +95,7 @@ export function calculateNextPricing(pricing = {}, operation) {
   let mode = before.mode;
   if (operation.type === "set_free") { mode = "free"; price = 0; }
   else if (operation.type === "set_paid") { mode = "paid"; price = before.price > 0 ? before.price : (operation.amount || 0); }
+  else if (operation.type === "set_compare_at") { if (operation.amount > 0 && operation.amount <= price) throw new Error("Comparison price must be greater than the base price, or zero to clear it."); compareAtPrice = operation.amount; }
   else if (operation.type === "fixed") { mode = operation.amount === 0 ? "free" : "paid"; price = operation.amount; }
   else if (operation.type === "percent_increase") { price = Math.round(price * (1 + operation.amount / 100)); mode = price === 0 ? "free" : "paid"; }
   else if (operation.type === "percent_decrease") { price = Math.round(price * (1 - operation.amount / 100)); mode = price === 0 ? "free" : "paid"; }
@@ -136,7 +137,7 @@ export function recommendBandPrice(course, profile) {
   const projectCount = lessons.filter((lesson) => lesson?.type === "project").length;
   const depthAdjustment = modules.length * profile.depthAdjustmentPerModule;
   const projectAdjustment = projectCount * profile.projectAdjustment;
-  const baseline = current > 0 ? current : (min + max) / 2;
+  const baseline = (min + max) / 2;
   const adjusted = Math.round(baseline * (1 + (depthAdjustment + projectAdjustment) / 100));
   const recommended = Math.round(Math.min(max, Math.max(min, adjusted)));
   const bandSource = categoryBand?.levels?.[level] ? "category " + course.category + " / " + level : level + " level";
@@ -144,7 +145,7 @@ export function recommendBandPrice(course, profile) {
   return {
     eligible: true,
     pricing: { mode: recommended === 0 ? "free" : "paid", price: recommended, compareAtPrice: Math.max(recommended, Number(course.pricing?.compareAtPrice) || 0), currency: String(course.pricing?.currency || "INR").toUpperCase(), saleEnabled: Boolean(course.pricing?.saleEnabled) && Number(course.pricing?.salePrice) < recommended, salePrice: Number(course.pricing?.salePrice) || 0 },
-    explanation: "Uses " + bandSource + " band " + min + "–" + max + " INR; baseline " + Math.round(baseline) + " INR" + adjustmentSummary + "; final recommendation is clamped to the configured band.",
+    explanation: "Uses " + bandSource + " band " + min + "–" + max + " INR; band-midpoint baseline " + Math.round(baseline) + " INR" + adjustmentSummary + "; final recommendation is clamped to the configured band.",
     factors: { moduleCount: modules.length, projectCount, depthAdjustmentPercent: depthAdjustment, projectAdjustmentPercent: projectAdjustment }
   };
 }

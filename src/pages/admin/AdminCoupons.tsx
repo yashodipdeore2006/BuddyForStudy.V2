@@ -4,6 +4,10 @@ import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
+type CouponCourse = { _id: string; title?: string };
+type CouponRecord = { _id: string; code?: string; type?: "percentage" | "fixed"; value?: number; maxDiscount?: number | null; minOrderAmount?: number; usedCount?: number; usageLimit?: number | null; expiresAt?: string | null; isActive?: boolean; course?: { title?: string } | null };
+type CouponForm = { code: string; type: "percentage" | "fixed"; value: number | string; maxDiscount: string; minOrderAmount: number | string; usageLimit: string; expiresAt: string; course: string };
+
 const emptyForm = {
   code: "",
   type: "percentage",
@@ -16,9 +20,9 @@ const emptyForm = {
 };
 
 export default function AdminCoupons() {
-  const [coupons, setCoupons] = useState<any[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [form, setForm] = useState<any>(emptyForm);
+  const [coupons, setCoupons] = useState<CouponRecord[]>([]);
+  const [courses, setCourses] = useState<CouponCourse[]>([]);
+  const [form, setForm] = useState<CouponForm>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +30,7 @@ export default function AdminCoupons() {
   const [bulkPrefix, setBulkPrefix] = useState("BFS");
   const [bulkCount, setBulkCount] = useState(10);
   const [activeSection, setActiveSection] = useState<"promotions" | "create">("promotions");
-  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "bulk" | "toggle"; coupon?: any } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "bulk" | "toggle"; coupon?: CouponRecord } | null>(null);
   const [confirmText, setConfirmText] = useState("");
   const [actionReason, setActionReason] = useState("");
   const [actionError, setActionError] = useState("");
@@ -52,7 +56,7 @@ export default function AdminCoupons() {
 
   useEffect(() => { void load(); }, []);
 
-  function openConfirmation(action: { kind: "create" | "bulk" | "toggle"; coupon?: any }) {
+  function openConfirmation(action: { kind: "create" | "bulk" | "toggle"; coupon?: CouponRecord }) {
     if (!permissions.includes("coupons.manage")) { setError("You do not have permission to manage coupons."); return; }
     if (action.kind === "bulk" && (!Number.isInteger(bulkCount) || bulkCount < 1 || bulkCount > 100)) { setError("Choose a batch size from 1 to 100."); return; }
     setError(""); setActionError(""); setConfirmText(""); setActionReason(""); setConfirmAction(action);
@@ -145,7 +149,7 @@ export default function AdminCoupons() {
     } finally { setSaving(false); }
   }
 
-  async function toggle(coupon: any, reason?: string) {
+  async function toggle(coupon: CouponRecord, reason?: string) {
     if (reason === undefined) { openConfirmation({ kind: "toggle", coupon }); return; }
     try {
       await adminFetch("/api/admin/coupons/" + coupon._id, {

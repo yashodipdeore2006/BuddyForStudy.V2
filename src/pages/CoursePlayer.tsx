@@ -206,9 +206,6 @@ export default function CoursePlayer() {
     [course, lessonId]
   );
   const siblingLessonTitles = allLessons.map((lesson) => lesson.title);
-  const currentLessonNotes = currentLesson
-    ? timestampNotes.filter((note) => note.lessonId === String(currentLesson.lesson.id)).sort((a, b) => a.timestampSeconds - b.timestampSeconds)
-    : [];
   const visibleCourseNotes = useMemo(() => {
     const filtered = notesLessonFilter === "all" ? timestampNotes : timestampNotes.filter((note) => note.lessonId === notesLessonFilter);
     return [...filtered].sort((a, b) => notesSortOrder === "recent"

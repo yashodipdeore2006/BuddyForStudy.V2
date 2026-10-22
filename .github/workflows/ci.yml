@@ -40,7 +40,7 @@ jobs:
           cat /tmp/buddy-preview.log
           exit 1
       - name: Browser navigation smoke tests
-        run: npx playwright test tests/navigation.e2e.spec.ts
+        run: npx playwright test tests/navigation.e2e.spec.ts tests/admin-access.e2e.spec.ts
 
   backend:
     runs-on: ubuntu-latest

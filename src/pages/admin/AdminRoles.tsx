@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCcw, Users, Save, LockKeyhole, AlertTriangle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
@@ -26,7 +26,7 @@ export default function AdminRoles() {
   const [notice, setNotice] = useState("");
   const [activeSection, setActiveSection] = useState<"administrators" | "profiles" | "invitations">("administrators");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -47,9 +47,9 @@ export default function AdminRoles() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   async function saveRole(admin: Administrator) {
     const adminRole = selectedRoles[admin._id] || admin.adminRole;

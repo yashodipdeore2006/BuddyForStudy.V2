@@ -705,3 +705,16 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `8e8bc4e`.
 
 **Verification still required:** CI typecheck/build and browser review at desktop and mobile widths.
+
+
+## Public authentication layout — wider header and footer alignment
+
+**Status:** CSS updated; CI verification pending.
+
+- Expanded the public header's inner container from the narrower content maximum to a responsive viewport-width container capped at 1920px.
+- Applied the same horizontal alignment to the marketing footer and signed-in slim footer so the brand, navigation and footer content share consistent left/right edges.
+- Preserved responsive gutters on small screens rather than allowing content to touch the viewport edges.
+- File: `src/styles/learner-components.css`.
+- Commit: `c4a19a6`.
+
+**Verification still required:** CI and visual checks on registration, login, and mobile breakpoints.

@@ -254,7 +254,7 @@ test("revocation returns not found for an invitation that is no longer pending",
     [AdminInvitation, { findOneAndUpdate: async () => null }]
   ], async () => {
     const res = makeResponse();
-    await revokeInvitation({ params: { invitationId }, user: { userId: "actor-id" } }, res, () => assert.fail("next must not run"));
+    await revokeInvitation({ params: { invitationId }, body: { reason: "Invitation no longer needed" }, user: { userId: "actor-id" } }, res, () => assert.fail("next must not run"));
     assert.equal(res.result.statusCode, 404);
     assert.match(res.result.body.message, /Pending invitation not found/i);
   });
@@ -576,4 +576,24 @@ test("invitation creation stays successful and exposes audit loss if both audit 
     nodemailer.createTransport = original.createTransport;
     console.error = original.consoleError;
   }
+});
+
+
+test("invitation revocation rejects missing or too-short audit reasons before database writes", async () => {
+  let writes = 0;
+  await withMocks([
+    [AdminInvitation, { findOneAndUpdate: async () => { writes += 1; return makeInvitation(); } }]
+  ], async () => {
+    for (const reason of ["", "  ", "not enough"]) {
+      const res = makeResponse();
+      await revokeInvitation({
+        params: { invitationId },
+        body: { reason },
+        user: { userId: "actor-id" }
+      }, res, (error) => assert.fail(error));
+      assert.equal(res.result.statusCode, 400);
+      assert.match(res.result.body.message, /reason between 10 and 500/i);
+      assert.equal(writes, 0);
+    }
+  });
 });

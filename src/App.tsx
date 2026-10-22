@@ -43,6 +43,8 @@ import AdminRoles from '@/pages/admin/AdminRoles';
 import AdminAIContent from '@/pages/admin/AdminAIContent';
 import AdminSupport from '@/pages/admin/AdminSupport';
 import AdminOperations from '@/pages/admin/AdminOperations';
+import AdminLegalDocuments from '@/pages/admin/AdminLegalDocuments';
+import LegalPage from '@/pages/LegalPage';
 import AcceptAdminInvitation from '@/pages/AcceptAdminInvitation';
 import { Link } from 'react-router-dom';
 import { routes } from '@/lib/routes';

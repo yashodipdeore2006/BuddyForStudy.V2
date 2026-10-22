@@ -340,16 +340,16 @@ export default function MyCourses() {
     setSearchParams(next, { replace: true });
   };
 
-  const statusFor = (item: Enrollment & { course: Course }): LearningTab => {
+  const statusFor = useCallback((item: Enrollment & { course: Course }): LearningTab => {
     if (item.status === "completed") return "completed";
     return courseStates[item.course.id]?.status ?? getInitialStatus(item);
-  };
+  }, [courseStates]);
 
   const tabCounts = useMemo(() => ({
     "in-progress": enrollments.filter((item) => statusFor(item) === "in-progress").length,
     "not-started": enrollments.filter((item) => statusFor(item) === "not-started").length,
     completed: enrollments.filter((item) => statusFor(item) === "completed").length,
-  }), [enrollments, courseStates]);
+  }), [enrollments, courseStates, statusFor]);
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -363,11 +363,11 @@ export default function MyCourses() {
       if (sort === "progress") return (courseStates[b.course.id]?.progressPct ?? 0) - (courseStates[a.course.id]?.progressPct ?? 0);
       return new Date(b.updated_at || b.enrolled_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || a.created_at || 0).getTime();
     });
-  }, [enrollments, activeTab, query, sort, courseStates]);
+  }, [enrollments, activeTab, query, sort, courseStates, statusFor]);
 
   const activeEnrollment = useMemo(() => enrollments
     .filter((item) => statusFor(item) === "in-progress")
-    .sort((a, b) => new Date(b.updated_at || b.enrolled_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || 0).getTime())[0], [enrollments, courseStates]);
+    .sort((a, b) => new Date(b.updated_at || b.enrolled_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || 0).getTime())[0], [enrollments, courseStates, statusFor]);
 
   const handleUnenroll = async () => {
     if (!pendingUnenroll || unenrolling) return;

@@ -132,7 +132,7 @@ export default function Notifications() {
         ) : (
           <div className="space-y-3">
             {notifications.map((notification) => {
-              const Icon = iconByType[notification.type] || Info;
+              const Icon = notification.type ? iconByType[notification.type] || Info : Info;
               const unread = !notification.readAt;
 
               const content = (

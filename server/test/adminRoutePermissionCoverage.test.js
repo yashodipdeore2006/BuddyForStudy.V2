@@ -13,6 +13,10 @@ const routeFiles = [
     // effective access profile; all other endpoints require a named permission.
     unguardedAllowlist: new Set(["GET /access"]),
   },
+  {
+    path: new URL("../src/routes/curriculum.routes.js", import.meta.url),
+    unguardedAllowlist: new Set(),
+  },
 ];
 
 test("every admin endpoint is protected by a named permission or explicit self-access exception", async () => {

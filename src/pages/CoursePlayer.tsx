@@ -433,7 +433,7 @@ export default function CoursePlayer() {
             lessonId,
             quizBankId: practiceQuizData.quizBankId,
             quizBankIds: practiceQuizData.quizBankIds || [],
-            score: Math.round((questions.filter((question: any) => practiceQuizAnswers[question.id] === question.correctOptionId).length / questions.length) * 100),
+            score: Math.round((questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / questions.length) * 100),
             answers: practiceQuizAnswers
           })
         });
@@ -444,7 +444,7 @@ export default function CoursePlayer() {
   };
 
   const practiceQuizScore = practiceQuizData?.questions?.length
-    ? Math.round((practiceQuizData.questions.filter((question: any) => practiceQuizAnswers[question.id] === question.correctOptionId).length / practiceQuizData.questions.length) * 100)
+    ? Math.round((practiceQuizData.questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / practiceQuizData.questions.length) * 100)
     : 0;
 
   const handleGenerateLessonQuiz = async (mode: "generate" | "reattempt") => {
@@ -487,7 +487,7 @@ export default function CoursePlayer() {
 
     const questions = quizData.questions || [];
     const correct = questions.filter(
-      (question: any) => quizAnswers[question.id] === question.correctOptionId
+      (question: PlayerQuizQuestion) => quizAnswers[question.id] === question.correctOptionId
     ).length;
     const score = Math.round((correct / questions.length) * 100);
     setQuizScore(score);
@@ -915,7 +915,7 @@ export default function CoursePlayer() {
                     )}
                                             {practiceQuizData?.questions?.length > 0 && (
                           <div className="mt-5 space-y-4">
-                            {practiceQuizData.questions.map((question: any, questionIndex: number) => (
+                            {practiceQuizData.questions.map((question: PlayerQuizQuestion, questionIndex: number) => (
                               <article key={question.id} className="rounded-2xl border border-slate-200 p-4">
                                 <div className="flex items-start gap-3">
                                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-700">{questionIndex + 1}</span>

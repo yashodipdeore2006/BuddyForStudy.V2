@@ -159,6 +159,16 @@ export async function hasPaidCourseAccess(userId, courseId) {
   if (enrollment.accessSource === "admin") {
     return Boolean(await Course.exists({ _id: courseId, deletedAt: null, status: { $ne: "archived" } }));
   }
+  if (enrollment.accessSource === "subscription") {
+    const entitlement = await getEntitlement(userId, "published_courses");
+    if (!entitlement.allowed) return false;
+    return Boolean(await Course.exists({
+      _id: courseId,
+      deletedAt: null,
+      status: { $ne: "archived" },
+      "pricing.mode": "paid"
+    }));
+  }
   const course = await Course.findOne({
     _id: courseId,
     deletedAt: null,

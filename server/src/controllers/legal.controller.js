@@ -32,7 +32,7 @@ function publicVersion(doc) {
   const version = versions.find((item) => item.version === doc.currentVersion) || versions[versions.length - 1];
   if (!version) return null;
   return {
-    slug: doc.slug, category: doc.category, title: version.title, summary: version.summary,
+    slug: version.slug, category: version.category, title: version.title, summary: version.summary,
     body: version.body, documentUrl: version.documentUrl, effectiveAt: version.effectiveAt,
     version: version.version, publishedAt: version.publishedAt, updatedAt: version.publishedAt
   };
@@ -51,14 +51,14 @@ export async function listPublic(_req, res, next) {
     const docs = await LegalDocument.find({ isPublished: true, isArchived: false }).sort({ category: 1, title: 1 }).lean();
     return success(res, { documents: docs.map((doc) => {
       const version = (doc.versions || []).find((item) => item.version === doc.currentVersion);
-      return version ? { slug: doc.slug, title: version.title, category: doc.category, summary: version.summary, version: version.version, effectiveAt: version.effectiveAt, publishedAt: version.publishedAt } : null;
+      return version ? { slug: version.slug, title: version.title, category: version.category, summary: version.summary, version: version.version, effectiveAt: version.effectiveAt, publishedAt: version.publishedAt } : null;
     }).filter(Boolean) });
   } catch (error) { next(error); }
 }
 
 export async function getPublic(req, res, next) {
   try {
-    const doc = await LegalDocument.findOne({ slug: String(req.params.slug || "").toLowerCase(), isPublished: true, isArchived: false }).lean();
+    const doc = await LegalDocument.findOne({ publishedSlug: String(req.params.slug || "").toLowerCase(), isPublished: true, isArchived: false }).lean();
     const version = doc && publicVersion(doc);
     if (!version) return failure(res, "This policy document is not available.", 404);
     return success(res, { document: version });
@@ -128,11 +128,12 @@ export async function publish(req, res, next) {
     const publishedAt = new Date();
     const version = Number(document.currentVersion || 0) + 1;
     document.versions.push({
-      version, title: document.title, summary: document.summary, body: document.body,
+      version, slug: document.slug, category: document.category, title: document.title, summary: document.summary, body: document.body,
       documentUrl: document.documentUrl, effectiveAt: document.effectiveAt, publishedAt,
       publishedBy: actorId(req), revisionNote: reason
     });
     document.currentVersion = version;
+    document.publishedSlug = document.slug;
     document.isPublished = true;
     document.publishedAt = publishedAt;
     document.publishedBy = actorId(req);

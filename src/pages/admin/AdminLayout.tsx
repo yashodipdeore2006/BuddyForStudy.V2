@@ -160,7 +160,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const permissions = access?.permissions || [];
+  const permissions = useMemo(() => access?.permissions ?? [], [access?.permissions]);
   const visibleLinks = useMemo(() => links.filter((item) => permissions.includes(item.permission)), [permissions]);
   const visibleQuickActions = useMemo(() => quickActions.filter((item) => permissions.includes(item.permission)), [permissions]);
   const matchingCommands = useMemo<CommandItem[]>(() => {

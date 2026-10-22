@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import curriculumRouter from "../src/routes/curriculum.routes.js";
+import courseRouter from "../src/routes/course.routes.js";
 import aiRouter from "../src/routes/ai.routes.js";
 import { ADMIN_ROLE_PROFILES } from "../src/utils/adminRbac.js";
 
@@ -92,5 +93,22 @@ test("AI course generation rejects ordinary users even with forged admin metadat
     const result = runGateChain(route.gates, forged);
     assert.equal(result.nextCalled, false);
     assert.equal(result.statusCode, 403);
+  }
+});
+
+
+test("legacy course create, update and delete routes require courses.manage", () => {
+  const mutations = routesFrom(courseRouter).filter((route) =>
+    route.methods.some((method) => ["post", "put", "delete"].includes(method))
+  );
+  assert.equal(mutations.length, 3);
+  for (const route of mutations) {
+    assert.equal(route.gates.length, 1, route.methods.join(",") + " " + route.path);
+    for (const role of Object.keys(ADMIN_ROLE_PROFILES)) {
+      const result = runGate(route.gates[0], adminPrincipal(role));
+      const shouldAllow = ["super_admin", "platform_admin", "ai_content_manager"].includes(role);
+      assert.equal(result.nextCalled, shouldAllow, role + " authorization for " + route.path);
+      if (!shouldAllow) assert.equal(result.statusCode, 403);
+    }
   }
 });

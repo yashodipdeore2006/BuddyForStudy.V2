@@ -745,16 +745,3 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `f1b9ecb`.
 
 **Verification still required:** CI typecheck/build and visual contrast verification at desktop breakpoints. Interaction is intentionally lightweight and does not make informational benefit rows behave like navigation links.
-
-
-## Auth promotional brand alignment
-
-**Status:** Implemented in source; CI verification pending.
-
-- Replaced the oversized, square promotional logo tile with a compact horizontal brand lockup (mascot mark + BuddyForStudy wordmark) matching the main header's scale and visual rhythm.
-- Removed the conflicting large image footprint that visually overlapped the top/header region in the registration screenshot.
-- Preserved the landing-page link and added keyboard focus feedback to the compact lockup.
-- File: `src/components/AuthLayout.tsx`.
-- Commit: `ff3a41f`.
-
-**Verification still required:** CI and visual check on `/register` at desktop and mobile widths.

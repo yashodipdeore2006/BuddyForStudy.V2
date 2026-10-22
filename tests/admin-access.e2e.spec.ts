@@ -180,10 +180,10 @@ test.describe("administrator route and permission UX", () => {
 
   test("course-read-only administrators do not see management controls", async ({ page }) => {
     await mockAdminApi(page, {
-      user: { ...analystUser, name: "Read-only Admin", email: "course-reader@example.test" },
+      user: { ...analystUser, name: "Course Reader", email: "course-reader@example.test" },
       adminRole: "custom_course_reader",
-      roleLabel: "Read-only Admin",
-      permissions: ["dashboard.read", "courses.read", "users.read"],
+      roleLabel: "Course Reader",
+      permissions: ["dashboard.read", "courses.read"],
     });
     await page.goto(baseURL + "/admin/courses");
     await expect(page.getByText("Course reader fixture")).toBeVisible();
@@ -204,6 +204,15 @@ test.describe("administrator route and permission UX", () => {
     await page.getByRole("button", { name: "Broken links" }).click();
     await expect(page.getByRole("button", { name: /Run link check/i })).toHaveCount(0);
 
+  });
+
+  test("users.read-only administrators cannot mutate accounts, features, course access or export PII", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "User Reader", email: "user-reader@example.test" },
+      adminRole: "custom_user_reader",
+      roleLabel: "User Reader",
+      permissions: ["dashboard.read", "users.read"],
+    });
     await page.goto(baseURL + "/admin/users");
     await expect(page.getByText(/Read-only user access/i)).toBeVisible();
     await expect(page.getByText("Read-only learner")).toBeVisible();

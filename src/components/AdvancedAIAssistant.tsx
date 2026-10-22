@@ -73,7 +73,7 @@ export default function AdvancedAIAssistant({
     } finally {
       setLoadingUsage(false);
     }
-  }, [loadUsage]);
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     setOpen(false);
@@ -81,7 +81,7 @@ export default function AdvancedAIAssistant({
     setAnswer(null);
     setQuestion("");
     void loadUsage();
-  }, [courseId, lessonId]);
+  }, [loadUsage]);
 
   async function generateInsight() {
     setLoadingInsight(true);

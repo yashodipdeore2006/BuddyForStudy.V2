@@ -218,7 +218,7 @@ export default function AdminCoupons() {
           </label>
           <label className="block text-sm font-medium text-slate-700">
             Discount type
-            <select className="input-field mt-1" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+            <select className="input-field mt-1" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as CouponForm["type"] })}>
               <option value="percentage">Percentage (%)</option>
               <option value="fixed">Fixed amount (₹)</option>
             </select>

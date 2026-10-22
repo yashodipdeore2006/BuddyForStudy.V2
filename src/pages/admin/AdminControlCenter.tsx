@@ -1,8 +1,4 @@
 import { useEffect, useState } from "react";
-
-// API records vary by admin endpoint; this alias keeps the response boundary explicit.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AdminDashboardRecord = Record<string, any>;
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -17,6 +13,10 @@ import {
 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminBadge, AdminCard, AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+
+// API records vary by admin endpoint; this alias keeps the response boundary explicit.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdminDashboardRecord = Record<string, any>;
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");
@@ -125,7 +125,7 @@ export default function AdminControlCenter() {
     [CreditCard, "Subscribers", s.activeSubscribers, String(s.pastDueSubscribers || 0) + " past due", "billing.read"],
     [IndianRupee, "Net revenue", money(s.netRevenue ?? s.revenue), "Gross " + money(s.grossRevenue) + " · refunds " + money(s.processedRefunds), "billing.read"],
   ];
-  const visibleCards = cards.filter(([, , , , permission]: AdminDashboardRecord) => permissions.includes(permission));
+  const visibleCards = cards.filter(([, , , , permission]) => permissions.includes(permission));
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -154,7 +154,7 @@ export default function AdminControlCenter() {
       </section>
 
       <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {visibleCards.map(([Icon, label, value, sub]: AdminDashboardRecord) => (
+        {visibleCards.map(([Icon, label, value, sub]) => (
           <AdminCard className="admin-stat-card" key={label}>
             <div className="flex items-center justify-between">
               <div className="rounded-xl bg-blue-50 p-3 text-blue-600"><Icon className="h-5 w-5" /></div>

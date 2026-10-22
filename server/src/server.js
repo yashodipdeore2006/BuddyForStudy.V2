@@ -28,6 +28,7 @@ import webhookRoutes from "./routes/webhook.routes.js";
 import healthRoutes from "./routes/health.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import savedCourseRoutes from "./routes/savedCourse.routes.js";
+import legalRoutes from "./routes/legal.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 

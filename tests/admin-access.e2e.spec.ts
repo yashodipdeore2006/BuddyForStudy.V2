@@ -207,6 +207,8 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin/users");
     await expect(page.getByText(/Read-only user access/i)).toBeVisible();
     await expect(page.getByText("Read-only learner")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Select all rows on this page" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Export selected/i })).toHaveCount(0);
     await page.getByRole("button", { name: "View", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Individual course access" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Disable", exact: true })).toHaveCount(0);

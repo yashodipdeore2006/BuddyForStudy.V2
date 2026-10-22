@@ -214,6 +214,10 @@ export default function AdminSettings() {
       setError("Setting key is required.");
       return;
     }
+    if (reason.trim().length < 10 || reason.trim().length > 500) {
+      setError("Enter a change reason between 10 and 500 characters.");
+      return;
+    }
     setSavingKey(key);
     setError("");
     setStatus("");
@@ -347,9 +351,9 @@ export default function AdminSettings() {
           <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Value</span><textarea className="input-field mt-2 min-h-28 font-mono text-sm" value={value} onChange={(e) => setValue(e.target.value)} placeholder='false, 25, "text", or JSON object' /></label>
           <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Description</span><input className="input-field mt-2" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this setting control?" /></label>
           <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} /> Public setting</label>
-          <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Change reason (recommended)</span><input className="input-field mt-2" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this setting changing?" /></label>
+          <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Change reason (required)</span><input className="input-field mt-2" value={reason} onChange={(e) => setReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="admin-setting-reason-help" placeholder="Why is this setting changing?" /><span id="admin-setting-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {reason.trim().length}/500</span></label>
           <div className="mt-5 flex gap-2">
-            <button type="button" className="btn-primary" onClick={() => void save()} disabled={savingKey !== null}><Save className="h-4 w-4" /> {savingKey ? "Saving..." : "Save setting"}</button>
+            <button type="button" className="btn-primary" onClick={() => void save()} disabled={savingKey !== null || reason.trim().length < 10 || reason.trim().length > 500}><Save className="h-4 w-4" /> {savingKey ? "Saving..." : "Save setting"}</button>
             <button type="button" className="btn-secondary" onClick={() => { setKey(""); setValue(""); setDescription(""); setIsPublic(false); setStatus(""); }}>Clear</button>
           </div>
           {status && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-green-600">{status}</p>}

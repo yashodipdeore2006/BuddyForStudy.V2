@@ -692,11 +692,14 @@ export default function AdminCoursesPro() {
                       {readinessLoading[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       {readinessLoading[course._id] ? "Checking…" : "Readiness"}
                     </button>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" aria-label={`Publish ${course.title}`} checked={course.isPublished} disabled={Boolean(readinessLoading[course._id])} onChange={(e) => e.target.checked ? void publishCourse(course) : void save(course, { isPublished: false })} />
-                      Published
-                    </label>
+                    {canManageCourses && canPublishCourses ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" aria-label={"Publish " + course.title} checked={course.isPublished} disabled={Boolean(readinessLoading[course._id])} onChange={(e) => e.target.checked ? void publishCourse(course) : void save(course, { isPublished: false })} />
+                        Published
+                      </label>
+                    ) : <span className="text-sm text-slate-500">{course.isPublished ? "Published" : "Draft"}</span>}
 
+                    {canManageCourses && <>
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" aria-label={`Feature ${course.title}`} checked={course.featured} onChange={(e) => save(course, { featured: e.target.checked })} />
                       Featured
@@ -748,6 +751,7 @@ export default function AdminCoursesPro() {
                       Manage Curriculum
                       {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </button>
+                    </>}
                   </div>
                 </div>
 

@@ -134,11 +134,12 @@ export async function updateAdministratorRole(req, res, next) {
   let governanceLockToken = "";
   try {
     const { userId } = req.params;
-    const { adminRole, reason = "" } = req.body || {};
+    const { adminRole } = req.body || {};
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (!isValidObjectId(userId)) return failure(res, "Invalid administrator ID.", 400);
     if (!isAdminRoleProfile(adminRole)) return failure(res, "A valid administrator role profile is required.", 400);
-    if (typeof reason !== "string" || reason.length > 500) {
-      return failure(res, "Reason must be a string of at most 500 characters.", 400);
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to change administrator roles.", 400);
     }
     if (String(req.user?.userId) === String(userId)) {
       return failure(res, "You cannot change your own administrator role.", 409);

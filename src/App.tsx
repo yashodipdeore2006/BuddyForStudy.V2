@@ -100,6 +100,7 @@ function App() {
     <Route path="/admin/deliveries" element={<AdminPage><AdminDeliveries /></AdminPage>} />
     <Route path="/admin/coupons" element={<AdminPage><AdminCoupons /></AdminPage>} />
     <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
+    <Route path="/admin/legal" element={<AdminPage><AdminLegalDocuments /></AdminPage>} />
     <Route path="/admin/design-system" element={<AdminPage><AdminDesignSystem /></AdminPage>} />
     <Route path="/admin/audit" element={<AdminPage><AdminAudit /></AdminPage>} />
     <Route path="/admin/roles" element={<AdminPage><AdminRoles /></AdminPage>} />

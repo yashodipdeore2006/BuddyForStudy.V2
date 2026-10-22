@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, BookOpen, CheckCheck, CreditCard, Info, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -53,7 +53,7 @@ export default function NotificationMenu() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -65,15 +65,15 @@ export default function NotificationMenu() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void load();
   }, []);
 
   useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
     if (open) void load();
-  }, [open]);
+  }, [open, load]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {

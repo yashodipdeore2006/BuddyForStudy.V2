@@ -298,6 +298,8 @@ export default function CourseDetails() {
 
   useEffect(() => {
     async function fetchCourse() {
+      setPlanCourseAccess(false);
+      setEnrollment(null);
       if (!courseId) {
         setError('Invalid course');
         setLoading(false);

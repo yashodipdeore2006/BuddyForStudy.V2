@@ -827,3 +827,22 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Enabled the existing Playwright navigation smoke suite after the production build. CI installs `@playwright/test` temporarily and Chromium in the runner, starts the Vite production preview, waits for readiness, then runs `tests/navigation.e2e.spec.ts`.
 - Workflow change commit: `0273140`.
 - Status: the new workflow run must complete successfully before this is considered verified.
+
+
+### Follow-up remediation — legacy admin permission gates and audited mutations
+
+**Date:** 2026-10-22  
+**Status:** Implemented in source; latest CI verification pending.
+
+- Added named `courses.manage` checks to all six legacy curriculum module/lesson mutations in `server/src/routes/curriculum.routes.js`, and included that route file in automated admin permission coverage.
+- Replaced the broad legacy admin-only gate on `POST /api/courses`, `PUT /api/courses/:courseId`, and `DELETE /api/courses/:courseId` with `courses.manage`. Legacy course delete still uses the existing soft-delete service; it now requires an explicit 10–500 character reason. Price/pricing updates through the legacy course endpoint also require a valid reason.
+- AI-generated course create/save endpoints now require both `courses.manage` and `ai.manage`, rather than relying only on a generic admin role.
+- Added authorization tests across admin role profiles and invalid principal types for the legacy course, curriculum, and AI generation route gates.
+- Notification and email campaign sends now require a trimmed 10–500 character reason on the server and persist it through the existing audit event. The Admin Communications confirmation now collects and sends a reason for notification, email, and announcement sends.
+- Platform setting upserts now require a valid reason and write it to the audit event; the settings form labels the reason as required and blocks invalid submissions. Added controller-level regression tests for missing, short, and oversized reasons.
+- Updated the invitation revocation audit-failure test so the request satisfies the new reason requirement before simulating audit-store failure.
+- Reworked learner Playwright fixtures to mock the app's current course and journey endpoints and align tests with protected-route behavior. Replaced temporary logging with a production-like smoke test. One previous failure was caused by asserting obsolete “You’re enrolled” copy rather than current course-hub content; the assertion was updated to the current learning-progress and start/continue action.
+
+**Commits:** `3ad65fb`, `22af626`, `6d28ddd`, `b6216cb`, `a9f9db2`, `b28e104`, `09601b4`, `baec191`, `d95e011`, `7e5c7b5`, `aabf0a7`, `7064666`, `93d182a`, `9c69dd3`, `037c48a`.
+
+**Verification note:** Backend CI passed at the previous checkpoint, but the overall run still failed on one browser assertion that has since been updated. The latest CI run after these changes must pass before this remediation can be considered verified. Do not describe browser coverage as full production verification; no live provider credentials, deployed integrations, or complete admin role-by-role visual/accessibility sweep were exercised.

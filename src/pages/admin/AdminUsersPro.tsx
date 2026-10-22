@@ -590,12 +590,12 @@ export default function AdminUsersPro() {
       key: "authProvider",
       header: "Provider",
       sortable: true,
-      render: (user: any) => (
+      render: (user: AdminUserRow) => (
         <span className="admin-user-provider capitalize">
           {user.authProvider === "local_google" ? "Email + Google" : user.authProvider === "google" ? "Google" : "Email + password"}
         </span>
       ),
-    } satisfies DataTableColumn<any>] : []),
+    } satisfies DataTableColumn<AdminUserRow>] : []),
     {
       key: "actions",
       header: "Actions",

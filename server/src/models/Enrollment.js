@@ -10,7 +10,7 @@ const enrollmentSchema = new mongoose.Schema({
     default: "active",
     required: true
   },
-  accessSource: { type: String, enum: ["self", "admin"], default: "self", required: true },
+  accessSource: { type: String, enum: ["self", "admin", "subscription"], default: "self", required: true },
   grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   accessReason: { type: String, default: "", maxlength: 500 },
   revokedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

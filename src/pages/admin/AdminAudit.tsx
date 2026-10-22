@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { ChevronDown, RefreshCcw, Search } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
@@ -17,7 +17,7 @@ type AuditLog = {
   before?: unknown;
   after?: unknown;
 };
-type SavedViewPayload = Parameters<NonNullable<React.ComponentProps<typeof SavedViews>["onCreate"]>>[0];
+type SavedViewPayload = Parameters<NonNullable<ComponentProps<typeof SavedViews>["onCreate"]>>[0];
 
 export default function AdminAudit() {
   const [logs, setLogs] = useState<AuditLog[]>([]);

@@ -12,6 +12,11 @@ import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
 type ThemeMode = "light" | "dark" | "system";
+type EnrollmentLessonSummary = { _id?: string; id?: string };
+type EnrollmentModuleSummary = { _id?: string; id?: string; lessons?: EnrollmentLessonSummary[] };
+type EnrollmentCourseSummary = { _id?: string; id?: string; modules?: EnrollmentModuleSummary[] };
+type EnrollmentSummary = { status?: string; course?: EnrollmentCourseSummary; course_id?: string };
+type EnrollmentProgressSummary = { completedLessons?: Array<{ lessonId?: unknown }>; lastAccessedAt?: unknown };
 
 const learnerLinks = [
   { to: routes.home(), label: "Home", icon: Home },
@@ -143,24 +148,24 @@ export default function Navbar() {
       }
       try {
         const data = await apiFetch("/api/enrollments");
-        const active = (data.enrollments ?? []).filter((item: any) => String(item.status).toLowerCase() === "active" && item.course);
+        const active = (data.enrollments ?? []).filter((item: EnrollmentSummary) => String(item.status).toLowerCase() === "active" && item.course);
         if (!active.length) {
           navigate(routes.home());
           return;
         }
-        const candidates = await Promise.all(active.map(async (item: any) => {
+        const candidates = await Promise.all(active.map(async (item: EnrollmentSummary) => {
           const courseId = String(item.course?._id ?? item.course?.id ?? item.course_id ?? "");
           if (!courseId) return null;
           try {
             const result = await apiFetch("/api/progress/" + courseId);
-            const progress = result.progress ?? {};
-            const completed = new Set((progress.completedLessons ?? []).map((entry: any) => String(entry.lessonId)));
-            const modules = (item.course.modules ?? []).map((module: any) => ({
+            const progress = (result.progress ?? {}) as EnrollmentProgressSummary;
+            const completed = new Set((progress.completedLessons ?? []).map((entry) => String(entry.lessonId ?? "")));
+            const modules = (item.course?.modules ?? []).map((module) => ({
               ...module,
               id: String(module._id ?? module.id ?? ""),
-              lessons: (module.lessons ?? []).map((lesson: any) => ({ ...lesson, id: String(lesson._id ?? lesson.id ?? "") })),
+              lessons: (module.lessons ?? []).map((lesson) => ({ ...lesson, id: String(lesson._id ?? lesson.id ?? "") })),
             }));
-            const nextLesson = modules.flatMap((module: any) => module.lessons).find((lesson: any) => !completed.has(lesson.id));
+            const nextLesson = modules.flatMap((module) => module.lessons).find((lesson) => !completed.has(lesson.id));
             return {
               courseId,
               nextLessonId: nextLesson?.id ?? "",
@@ -170,7 +175,9 @@ export default function Navbar() {
             return { courseId, nextLessonId: "", lastAccessedAt: "" };
           }
         }));
-        const mostRecent = candidates.filter(Boolean).sort((a: any, b: any) => b.lastAccessedAt.localeCompare(a.lastAccessedAt))[0] as { courseId: string; nextLessonId: string } | undefined;
+        const mostRecent = candidates
+          .filter((candidate): candidate is { courseId: string; nextLessonId: string; lastAccessedAt: string } => candidate !== null)
+          .sort((a, b) => b.lastAccessedAt.localeCompare(a.lastAccessedAt))[0];
         if (mostRecent) navigate(routes.learn(mostRecent.courseId, mostRecent.nextLessonId));
         else navigate(routes.home());
       } catch {

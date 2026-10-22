@@ -144,6 +144,15 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("checkbox", { name: /Enable certificates for Course reader fixture/i })).toHaveCount(0);
     await expect(page.getByLabel("Pricing mode for Course reader fixture")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Manage Curriculum/i })).toHaveCount(0);
+
+    await page.goto(baseURL + "/admin/content-quality");
+    await expect(page.getByText("Course reader fixture")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Publish", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Archive", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Soft delete", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "AI-generated and AI-assembled courses approval mode" })).toBeDisabled();
+    await page.getByRole("button", { name: "Broken links" }).click();
+    await expect(page.getByRole("button", { name: /Run link check/i })).toHaveCount(0);
   });
 
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {

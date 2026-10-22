@@ -4,7 +4,7 @@ import { adminFetch } from "@/lib/adminApi";
 import { AdminAlert, AdminButton, AdminCard, AdminEmptyState, AdminPageHeader, AdminSkeleton } from "@/components/admin/AdminUI";
 
 type LegalDocument = {
-  _id: string; slug: string; title: string; category: string; summary: string; body: string;
+  _id: string; slug: string; publishedSlug?: string; title: string; category: string; summary: string; body: string;
   documentUrl?: string; effectiveAt?: string | null; isPublished: boolean; currentVersion: number;
   publishedAt?: string | null; updatedAt?: string; revisionNote?: string; hasUnpublishedChanges?: boolean;
 };
@@ -133,7 +133,7 @@ export default function AdminLegalDocuments() {
                 <AdminButton size="sm" icon={<History size={14}/>} onClick={() => void showHistory(doc)}>History</AdminButton>
                 {doc.isPublished && <AdminButton size="sm" icon={<EyeOff size={14}/>} onClick={() => void changeState("unpublish", doc)}>Unpublish</AdminButton>}
                 <AdminButton size="sm" variant="danger-ghost" icon={<Archive size={14}/>} onClick={() => void changeState("archive", doc)}>Archive</AdminButton>
-                {doc.isPublished && <a className="admin-button admin-button--sm" href={"/legal/" + doc.slug} target="_blank" rel="noreferrer"><ExternalLink size={14}/>View live</a>}
+                {doc.isPublished && <a className="admin-button admin-button--sm" href={"/legal/" + (doc.publishedSlug || doc.slug)} target="_blank" rel="noreferrer"><ExternalLink size={14}/>View live</a>}
               </div>
             </article>)}
           </div> : <AdminEmptyState title="No policy documents yet" description="Create a draft for your privacy policy, terms, rules, or another platform document." icon={<FileText size={24}/>}/>}

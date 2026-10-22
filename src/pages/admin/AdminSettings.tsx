@@ -4,8 +4,18 @@ import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
-function formatValue(value: any) {
-  return typeof value === "string" ? value : JSON.stringify(value ?? "");
+type PlatformSetting = {
+  _id: string;
+  key: string;
+  value: unknown;
+  description?: string;
+  isPublic?: boolean;
+};
+
+function formatValue(value: unknown) {
+  if (typeof value === "string") return value;
+  const serialized = JSON.stringify(value ?? "");
+  return serialized ?? "";
 }
 
 function parseValue(value: string) {
@@ -21,7 +31,7 @@ function parseValue(value: string) {
 }
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState<any[]>([]);
+  const [settings, setSettings] = useState<PlatformSetting[]>([]);
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
   const [description, setDescription] = useState("");
@@ -56,7 +66,7 @@ export default function AdminSettings() {
   const [savingNotificationConfig, setSavingNotificationConfig] = useState(false);
   const [notificationReason, setNotificationReason] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
-  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PlatformSetting | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteError, setDeleteError] = useState("");
@@ -68,7 +78,7 @@ export default function AdminSettings() {
       const [data, accessData] = await Promise.all([adminFetch("/api/admin/settings"), adminFetch("/api/admin/access")]);
       setSettings(data.settings || []);
       setPermissions(accessData.access?.permissions || []);
-      const values = Object.fromEntries((data.settings || []).map((item: any) => [item.key, item.value]));
+      const values = Object.fromEntries((data.settings as PlatformSetting[] | undefined || []).map((item) => [item.key, item.value]));
       setAdvancedAI({
         questionsPerHourVideo: Number(values.advanced_ai_questions_per_hour_video ?? 10),
         unknownDurationQuestions: Number(values.advanced_ai_questions_unknown_duration ?? 10),
@@ -176,7 +186,7 @@ export default function AdminSettings() {
     }
   }
 
-  async function removeSetting(setting: any, reason?: string) {
+  async function removeSetting(setting: PlatformSetting, reason?: string) {
     if (!permissions.includes("settings.manage")) {
       setError("You do not have permission to delete platform settings.");
       return;
@@ -213,7 +223,7 @@ export default function AdminSettings() {
       setDeletingId(null);
     }
   }
-  function edit(setting: any) {
+  function edit(setting: PlatformSetting) {
     setKey(setting.key);
     setValue(formatValue(setting.value));
     setDescription(setting.description || "");

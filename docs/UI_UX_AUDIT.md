@@ -757,3 +757,16 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `def61c8`.
 
 **Verification still required:** CI for the CSS change and browser scroll test on `/register`.
+
+
+## Authentication promo logo refresh
+
+**Status:** Implemented in source; CI verification pending.
+
+- Replaced the square dark logo tile with the repository's `Logo.png` asset, imported from the project root.
+- Presented it as a circular, contained logo badge with subtle border/ring, soft shadow, and restrained hover/focus states.
+- Centered the logo badge within the promotional panel's brand area while keeping the rest of the panel layout intact.
+- File: `src/components/AuthLayout.tsx`.
+- Commit: `899ce18`.
+
+**Verification still required:** CI typecheck/build and browser check that the imported image renders correctly on `/register`.

@@ -582,6 +582,7 @@ export default function CourseDetails() {
 
   const lessonCount = countAllLessons(course.modules);
   const isEnrolled = enrollment?.status === 'active' || enrollment?.status === 'completed';
+  const isSubscriptionEnrollment = (enrollment as (Enrollment & { accessSource?: string }) | null)?.accessSource === 'subscription';
   const isPaidCourse = course.pricing?.mode === 'paid';
   const enrollmentEnabled = (course as Course & { enrollmentEnabled?: boolean }).enrollmentEnabled !== false;
   const currency = course.pricing?.currency || 'INR';
@@ -1236,9 +1237,9 @@ export default function CourseDetails() {
                 <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
                   <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
                     <CheckCircle2 className="h-4 w-4" />
-                    {enrollment?.status === 'completed' ? 'Course completed' : 'You’re enrolled'}
+                    {enrollment?.status === 'completed' ? 'Course completed' : isSubscriptionEnrollment ? 'Included with your active plan' : 'You’re enrolled'}
                   </p>
-                  <p className="mt-1 text-xs text-emerald-700">This course is in your learning library.</p>
+                  <p className="mt-1 text-xs text-emerald-700">{isSubscriptionEnrollment ? 'Your plan covers this course while your subscription remains active.' : 'This course is in your learning library.'}</p>
                 </div>
                 <div className="mb-4">
                   <div className="flex items-center justify-between text-sm mb-2">
@@ -1253,6 +1254,14 @@ export default function CourseDetails() {
                 <button onClick={handleStartLearning} className="btn-primary w-full">
                   Continue Learning <ChevronRight className="h-4 w-4" />
                 </button>
+                {isSubscriptionEnrollment && isPaidCourse && (
+                  <div className="mt-4 rounded-xl border border-slate-200 p-3">
+                    <p className="text-xs leading-5 text-slate-600">Prefer to keep access after your subscription ends?</p>
+                    <button type="button" onClick={() => void handleCheckout()} disabled={checkoutLoading || !enrollmentEnabled} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                      {checkoutLoading ? 'Opening checkout…' : 'Optional lifetime access · ' + formatCoursePrice(salePrice, currency)}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div>

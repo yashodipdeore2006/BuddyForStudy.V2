@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Eye,
@@ -34,6 +34,8 @@ export default function AdminUsersPro() {
   const { session } = useAuth();
   const savedViewStorageKey = "bfs-admin-users-views:" + (session?.user.email || "administrator");
   const [searchParams, setSearchParams] = useSearchParams();
+  const usersRequestId = useRef(0);
+  const detailRequestId = useRef(0);
   const [users, setUsers] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
@@ -87,6 +89,7 @@ export default function AdminUsersPro() {
   const [savingFeatureKey, setSavingFeatureKey] = useState<string | null>(null);
 
   async function load(page = 1, filters = { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, limit = pageSize) {
+    const requestId = ++usersRequestId.current;
     setLoading(true);
     setError("");
     try {
@@ -104,12 +107,15 @@ export default function AdminUsersPro() {
       setSearchParams(params, { replace: true });
 
       const data = await adminFetch("/api/admin/users?" + params.toString());
+      if (requestId !== usersRequestId.current) return;
       setUsers(data.users || []);
       setPagination(data.pagination || { page, pages: 1, total: 0 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load users");
+      if (requestId === usersRequestId.current) {
+        setError(e instanceof Error ? e.message : "Unable to load users");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === usersRequestId.current) setLoading(false);
     }
   }
 
@@ -371,6 +377,7 @@ export default function AdminUsersPro() {
   }
 
   async function openUser(userId: string) {
+    const requestId = ++detailRequestId.current;
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("id", userId);
     setSearchParams(nextParams, { replace: true });
@@ -386,6 +393,7 @@ export default function AdminUsersPro() {
         adminFetch("/api/admin/users/" + userId + "/courses"),
         adminFetch("/api/admin/users/" + userId + "/feature-overrides"),
       ]);
+      if (requestId !== detailRequestId.current) return;
       setSelected(data);
       setCourseAccess(courseData.courses || []);
       setFeatureOverrides(overrideData.features || []);
@@ -393,10 +401,14 @@ export default function AdminUsersPro() {
       setFeatureOverrideReason("");
       setFeatureOverrideExpiresAt("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load user details");
+      if (requestId === detailRequestId.current) {
+        setError(e instanceof Error ? e.message : "Unable to load user details");
+      }
     } finally {
-      setDetailLoading(false);
-      setCourseAccessLoading(false);
+      if (requestId === detailRequestId.current) {
+        setDetailLoading(false);
+        setCourseAccessLoading(false);
+      }
     }
   }
 
@@ -408,6 +420,9 @@ export default function AdminUsersPro() {
   }, [searchParams, selected?.user?._id, detailLoading]);
 
   function closeUserDrawer() {
+    detailRequestId.current += 1;
+    setDetailLoading(false);
+    setCourseAccessLoading(false);
     setSelected(null);
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("id");

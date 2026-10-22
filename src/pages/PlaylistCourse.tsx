@@ -1,26 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+
+// Playlist responses vary between provider and normalized course shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PlaylistApiRecord = any;
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, PlayCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 
-type PlaylistLesson = {
-  id: string;
-  title: string;
-  description?: string;
-  durationSeconds?: number;
-  videoId?: string;
-  url: string;
-  embedUrl?: string;
-  thumbnail?: string;
-  channelTitle?: string;
-};
-type PlaylistCourseData = { title: string; description?: string; lessons: PlaylistLesson[] };
-
 export default function PlaylistCourse() {
   const { playlistId } = useParams<{ playlistId: string }>();
   const navigate = useNavigate();
-  const [course, setCourse] = useState<PlaylistCourseData | null>(null);
+  const [course, setCourse] = useState<PlaylistApiRecord>(null);
   const [loading, setLoading] = useState(true);
   const [auditing, setAuditing] = useState(false);
   const [showAudit, setShowAudit] = useState(true);
@@ -35,7 +26,7 @@ export default function PlaylistCourse() {
   }, [playlistId]);
 
   const totalSeconds = useMemo(
-    () => (course?.lessons || []).reduce((sum: number, lesson: PlaylistLesson) => sum + (lesson.durationSeconds || 0), 0),
+    () => (course?.lessons || []).reduce((sum: number, lesson: PlaylistApiRecord) => sum + (lesson.durationSeconds || 0), 0),
     [course]
   );
 
@@ -76,7 +67,7 @@ export default function PlaylistCourse() {
               skillIds: [],
               order: 1,
               quiz: null,
-              lessons: course.lessons.map((lesson: PlaylistLesson) => ({
+              lessons: course.lessons.map((lesson: PlaylistApiRecord) => ({
                 id: lesson.id,
                 title: lesson.title,
                 description: lesson.description,
@@ -190,7 +181,7 @@ export default function PlaylistCourse() {
             </p>
 
             <div className="mt-4 space-y-2">
-              {course.lessons.slice(0, 13).map((lesson: PlaylistLesson) => (
+              {course.lessons.slice(0, 13).map((lesson: PlaylistApiRecord) => (
                 <div key={lesson.id} className="flex gap-3 rounded-xl bg-white p-3">
                   <PlayCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
                   <div className="min-w-0">

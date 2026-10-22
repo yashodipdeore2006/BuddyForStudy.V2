@@ -745,3 +745,15 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `f1b9ecb`.
 
 **Verification still required:** CI typecheck/build and visual contrast verification at desktop breakpoints. Interaction is intentionally lightweight and does not make informational benefit rows behave like navigation links.
+
+
+## Sticky navigation layering on authentication pages
+
+**Status:** CSS fix committed; CI verification pending for this commit.
+
+- Raised the public sticky header above scrolling page content and isolated its stacking context so the registration promotional panel cannot paint over the navigation while scrolling.
+- Kept the auth panel and registration form layout/visual styling unchanged.
+- File: `src/styles/learner-components.css`.
+- Commit: `def61c8`.
+
+**Verification still required:** CI for the CSS change and browser scroll test on `/register`.

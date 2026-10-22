@@ -335,17 +335,12 @@ export default function CourseDetails() {
             setPlanCourseAccess(hasPlanAccess);
 
             let enrollmentData: { enrollment?: Enrollment } | null = null;
-            if (hasPlanAccess) {
-              // The enrollment endpoint also repairs legacy active enrollments
-              // by marking them as subscription-backed instead of requiring a purchase.
-              try {
-                enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
-              } catch (subscriptionEnrollmentError) {
-                console.warn('Plan-backed course enrollment unavailable:', subscriptionEnrollmentError);
-                try { enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`); } catch { /* Keep the course preview usable. */ }
-              }
-            } else {
-              try { enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`); } catch { /* A missing enrollment is expected for new learners. */ }
+            // Loading course details is read-only. Never create an enrollment just
+            // because the current subscription could cover this course.
+            try {
+              enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`);
+            } catch {
+              // A missing enrollment is expected until the learner explicitly chooses an access option.
             }
             if (enrollmentData?.enrollment) {
               const accessSource = (enrollmentData.enrollment as Enrollment & { accessSource?: string }).accessSource;
@@ -473,6 +468,12 @@ export default function CourseDetails() {
   };
 
   const handleSelectedPurchase = () => {
+    // Make the learner's access choice explicit. Selecting lifetime purchase
+    // always uses checkout, even when the current plan already covers the course.
+    if (isPaidCourse && purchaseChoice === 'individual') {
+      void handleCheckout();
+      return;
+    }
     if (isPaidCourse && planCourseAccess) {
       void handleEnroll();
       return;
@@ -961,7 +962,7 @@ export default function CourseDetails() {
               <p className="text-xs text-slate-500">{isPaidCourse ? formatCoursePrice(purchaseChoice === 'individual' ? salePrice : Number(subscriptionPlans[0]?.price || 0), currency) : 'Free'}{course.cardMetadata?.qualityScore != null ? ' · ' + Math.round(course.cardMetadata.qualityScore) + '/100 curated' : ''}</p>
             </div>
             <button type="button" onClick={handleSelectedPurchase} disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled} className="btn-primary shrink-0 px-4 py-2 text-sm">
-              {enrolling || checkoutLoading ? 'Please wait…' : isPaidCourse ? (purchaseChoice === 'subscription' ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')) : (session ? 'Enroll free' : 'Sign in to enroll')}
+              {enrolling || checkoutLoading ? 'Please wait…' : isPaidCourse ? (purchaseChoice === 'subscription' ? (planCourseAccess ? 'Continue with current plan' : session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')) : (session ? 'Enroll free' : 'Sign in to enroll')}
             </button>
           </div>
         </div>
@@ -1197,19 +1198,19 @@ export default function CourseDetails() {
             )}
             {isPaidCourse && planCourseAccess && !isEnrolled && (
               <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><CheckCircle2 className="h-4 w-4" />Included with your active plan</p>
-                <p className="mt-1 text-xs leading-5 text-emerald-800">Your subscription includes access to this course. You do not need to buy it separately.</p>
+                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><CheckCircle2 className="h-4 w-4" />Your current plan includes this course</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">Choose whether to continue with your subscription or buy lifetime access that remains yours after the plan ends.</p>
               </div>
             )}
-            {isPaidCourse && !planCourseAccess && !isEnrolled && (
+            {isPaidCourse && !isEnrolled && (
               <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200">
                 <label className={classNames("block cursor-pointer p-4 transition-colors", purchaseChoice === 'subscription' ? "bg-violet-50/70" : "bg-white hover:bg-slate-50")}>
                   <span className="flex items-start gap-3">
                     <input type="radio" name="purchase-choice" value="subscription" checked={purchaseChoice === 'subscription'} onChange={() => setPurchaseChoice('subscription')} className="mt-1 h-4 w-4 accent-violet-600" />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm text-slate-600">Subscribe and save</span>
-                      <span className="mt-0.5 block text-xl font-bold text-slate-950">From {subscriptionPlans.length ? formatCoursePrice(Number(subscriptionPlans[0].price || 0), 'INR') : 'subscription plans'}<span className="text-xs font-normal text-slate-500">{subscriptionPlans.length ? ' /' + (subscriptionPlans[0].billingInterval || 'month') : ''}</span></span>
-                      <span className="mt-2 block rounded-lg bg-violet-100 p-2.5 text-xs leading-5 text-violet-900">Subscribers can access published courses and included learning features according to their plan.</span>
+                      <span className="block text-sm text-slate-600">{planCourseAccess ? 'Continue with current plan' : 'Subscribe and save'}</span>
+                      <span className="mt-0.5 block text-xl font-bold text-slate-950">{planCourseAccess ? 'Included in your subscription' : <>From {subscriptionPlans.length ? formatCoursePrice(Number(subscriptionPlans[0].price || 0), 'INR') : 'subscription plans'}<span className="text-xs font-normal text-slate-500">{subscriptionPlans.length ? ' /' + (subscriptionPlans[0].billingInterval || 'month') : ''}</span></>}</span>
+                      <span className="mt-2 block rounded-lg bg-violet-100 p-2.5 text-xs leading-5 text-violet-900">{planCourseAccess ? 'Use your existing plan now. No additional subscription payment is needed.' : 'Subscribers can access published courses and included learning features according to their plan.'}</span>
                       <span className="mt-3 block space-y-2 text-xs text-slate-600">
                         <span className="flex items-center gap-2"><BookOpen className="h-4 w-4" />Access courses included with your plan</span>
                         <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Manage or cancel according to plan terms</span>
@@ -1272,8 +1273,8 @@ export default function CourseDetails() {
                 >
                   {enrolling || checkoutLoading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
-                  ) : isPaidCourse && planCourseAccess ? (
-                    session ? 'Start learning with your plan' : 'Sign in to access course'
+                  ) : isPaidCourse && planCourseAccess && purchaseChoice === 'subscription' ? (
+                    session ? 'Continue with current plan' : 'Sign in to access course'
                   ) : isPaidCourse ? (
                     purchaseChoice === 'subscription' ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')
                   ) : session ? 'Enroll free' : 'Sign in to enroll'}

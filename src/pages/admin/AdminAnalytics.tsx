@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, ArrowDown, ArrowUp, IndianRupee, RefreshCcw, TrendingUp, Users } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
@@ -22,7 +22,7 @@ export default function AdminAnalytics() {
   const [error, setError] = useState("");
   const [analyticsView, setAnalyticsView] = useState<"trends" | "performance" | "learning">("trends");
 
-  async function load(selectedDays = days) {
+  const load = useCallback(async (selectedDays = days) => {
     setLoading(true);
     setError("");
     try {
@@ -33,9 +33,9 @@ export default function AdminAnalytics() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [days]);
 
-  useEffect(() => { void load(); }, [days]);
+  useEffect(() => { void load(); }, [load]);
 
   const enrollmentMax = useMemo(() => maxOf(data?.enrollmentsDaily || [], "count"), [data]);
   const revenueMax = useMemo(() => maxOf(data?.revenueDaily || [], "amount"), [data]);

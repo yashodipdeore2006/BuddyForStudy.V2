@@ -53,7 +53,11 @@ export default function AdminUsersPro() {
   const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
   const [visibleColumns, setVisibleColumns] = useState<string[]>(["access", "verification", "provider"]);
   const [savedViews, setSavedViews] = useState<SavedViewRecord[]>([]);
-  const [canRevealPii, setCanRevealPii] = useState(false);
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const canManageUsers = permissions.includes("users.manage");
+  const canRevealPii = permissions.includes("users.pii.reveal");
+  const canManageSavedViews = permissions.includes("saved_views.manage");
   const [savedViewsLoading, setSavedViewsLoading] = useState(false);
   const [savedViewsError, setSavedViewsError] = useState("");
   const [activeSavedViewId, setActiveSavedViewId] = useState<string | null>(null);
@@ -108,8 +112,9 @@ export default function AdminUsersPro() {
   useEffect(() => {
     let cancelled = false;
     void adminFetch("/api/admin/access").then((data) => {
-      if (!cancelled) setCanRevealPii(Array.isArray(data.access?.permissions) && data.access.permissions.includes("users.pii.reveal"));
-    }).catch(() => { if (!cancelled) setCanRevealPii(false); });
+      if (!cancelled) setPermissions(Array.isArray(data.access?.permissions) ? data.access.permissions : []);
+    }).catch(() => { if (!cancelled) setPermissions([]); })
+      .finally(() => { if (!cancelled) setPermissionsLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
@@ -180,7 +185,9 @@ export default function AdminUsersPro() {
     }
   }
 
-  useEffect(() => { void loadAndImportSavedViews(); }, [savedViewStorageKey]);
+  useEffect(() => {
+    if (!permissionsLoading && canManageSavedViews) void loadAndImportSavedViews();
+  }, [savedViewStorageKey, permissionsLoading, canManageSavedViews]);
 
   async function createSavedView(payload: Omit<SavedViewRecord, "id" | "owner" | "canManage" | "createdAt" | "updatedAt">) {
     setSavedViewsError("");
@@ -498,7 +505,7 @@ export default function AdminUsersPro() {
           <AdminButton size="sm" variant="secondary" onClick={() => void openUser(user._id)}>
             <Eye className="h-4 w-4" /> View
           </AdminButton>
-          <AdminButton
+          {canManageUsers && <AdminButton
             size="sm"
             variant={user.isActive ? "secondary" : "primary"}
             onClick={() => void toggleUser(user)}
@@ -508,7 +515,7 @@ export default function AdminUsersPro() {
           >
             {user.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
             {user.isActive ? "Disable" : "Enable"}
-          </AdminButton>
+          </AdminButton>}
         </div>
       ),
     },

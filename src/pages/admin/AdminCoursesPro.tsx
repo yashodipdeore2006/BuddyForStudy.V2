@@ -182,8 +182,6 @@ export default function AdminCoursesPro() {
     } finally {
       setLoading(false);
     }
-  }
-
   }, [courseQuery, page, limit]);
 
   useEffect(() => {

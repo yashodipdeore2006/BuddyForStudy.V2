@@ -421,18 +421,19 @@ export default function CoursePlayer() {
 
 
   const handlePracticeQuizSubmit = async () => {
-    const questions = practiceQuizData?.questions || [];
-    if (!questions.length || questions.some((question: PlayerQuizQuestion) => !practiceQuizAnswers[question.id])) return;
+    const quizData = practiceQuizData;
+    const questions = quizData?.questions ?? [];
+    if (!quizData || !questions.length || questions.some((question: PlayerQuizQuestion) => !practiceQuizAnswers[question.id])) return;
     setPracticeQuizSubmitted(true);
     try {
-      if (practiceQuizData.quizBankId || practiceQuizData.quizBankIds?.length) {
+      if (quizData.quizBankId || quizData.quizBankIds?.length) {
         await apiFetch("/api/ai/practice-quiz/submit", {
           method: "POST",
           body: JSON.stringify({
             courseId,
             lessonId,
-            quizBankId: practiceQuizData.quizBankId,
-            quizBankIds: practiceQuizData.quizBankIds || [],
+            quizBankId: quizData.quizBankId,
+            quizBankIds: quizData.quizBankIds || [],
             score: Math.round((questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / questions.length) * 100),
             answers: practiceQuizAnswers
           })
@@ -913,9 +914,9 @@ export default function CoursePlayer() {
                     {practiceQuizLoading && (
                       <p className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Preparing quiz questions...</p>
                     )}
-                                            {practiceQuizData?.questions?.length > 0 && (
+                                            {(practiceQuizData?.questions?.length ?? 0) > 0 && (
                           <div className="mt-5 space-y-4">
-                            {practiceQuizData.questions.map((question: PlayerQuizQuestion, questionIndex: number) => (
+                            {(practiceQuizData?.questions ?? []).map((question: PlayerQuizQuestion, questionIndex: number) => (
                               <article key={question.id} className="rounded-2xl border border-slate-200 p-4">
                                 <div className="flex items-start gap-3">
                                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-700">{questionIndex + 1}</span>
@@ -941,9 +942,9 @@ export default function CoursePlayer() {
                               </article>
                             ))}
                             <div className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                              {practiceQuizSubmitted ? <p className="text-sm font-bold text-slate-900">Your practice score: {practiceQuizScore}%</p> : <p className="text-sm text-slate-500">{Object.keys(practiceQuizAnswers).length} of {practiceQuizData.questions.length} answered</p>}
+                              {practiceQuizSubmitted ? <p className="text-sm font-bold text-slate-900">Your practice score: {practiceQuizScore}%</p> : <p className="text-sm text-slate-500">{Object.keys(practiceQuizAnswers).length} of {(practiceQuizData?.questions ?? []).length} answered</p>}
                               {!practiceQuizSubmitted ? (
-                                <button type="button" onClick={handlePracticeQuizSubmit} disabled={Object.keys(practiceQuizAnswers).length !== practiceQuizData.questions.length} className="btn-primary justify-center">Check answers</button>
+                                <button type="button" onClick={handlePracticeQuizSubmit} disabled={Object.keys(practiceQuizAnswers).length !== (practiceQuizData?.questions ?? []).length} className="btn-primary justify-center">Check answers</button>
                               ) : (
                                 <div className="flex flex-col gap-2 sm:flex-row">
                                   <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">

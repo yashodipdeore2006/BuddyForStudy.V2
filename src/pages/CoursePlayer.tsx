@@ -18,6 +18,9 @@ import {
   type TimestampedCourseNote,
 } from "@/lib/courseNotes";
 
+type PlayerQuizOption = { id: string; text: string };
+type PlayerQuizQuestion = { id: string; question: string; correctOptionId: string; options: PlayerQuizOption[]; explanation?: string; topic?: string };
+type PlayerQuizData = { questions: PlayerQuizQuestion[]; quizBankId?: string; quizBankIds?: string[]; passingScore?: number; title?: string; instructions?: string; };
 type RawPlayerLesson = { _id?: string; id?: string; [key: string]: unknown };
 type RawPlayerModule = { _id?: string; id?: string; lessons?: RawPlayerLesson[]; [key: string]: unknown };
 type RawPlayerCourse = {
@@ -141,14 +144,14 @@ export default function CoursePlayer() {
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState("");
   const [quizRetryCount, setQuizRetryCount] = useState(0);
-  const [quizData, setQuizData] = useState<any>(null);
+  const [quizData, setQuizData] = useState<PlayerQuizData | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [quizPassed, setQuizPassed] = useState(false);
   const [quizActionLoading, setQuizActionLoading] = useState(false);
   const [quizActionError, setQuizActionError] = useState("");
-  const [practiceQuizData, setPracticeQuizData] = useState<any>(null);
+  const [practiceQuizData, setPracticeQuizData] = useState<PlayerQuizData | null>(null);
   const [practiceQuizAnswers, setPracticeQuizAnswers] = useState<Record<string, string>>({});
   const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
   const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
@@ -419,7 +422,7 @@ export default function CoursePlayer() {
 
   const handlePracticeQuizSubmit = async () => {
     const questions = practiceQuizData?.questions || [];
-    if (!questions.length || questions.some((question: any) => !practiceQuizAnswers[question.id])) return;
+    if (!questions.length || questions.some((question: PlayerQuizQuestion) => !practiceQuizAnswers[question.id])) return;
     setPracticeQuizSubmitted(true);
     try {
       if (practiceQuizData.quizBankId || practiceQuizData.quizBankIds?.length) {
@@ -654,7 +657,7 @@ export default function CoursePlayer() {
                         </div>
                       ) : quizData?.questions?.length ? (
                         <div className="mt-8 space-y-5">
-                          {quizData.questions.map((question: any, questionIndex: number) => (
+                          {quizData.questions.map((question: PlayerQuizQuestion, questionIndex: number) => (
                             <article key={question.id} className="rounded-[24px] border border-slate-200 bg-white p-5">
                               <div className="flex items-start gap-3">
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
@@ -671,7 +674,7 @@ export default function CoursePlayer() {
                               </div>
 
                               <div className="mt-4 grid gap-2">
-                                {(question.options || []).map((option: any, optionIndex: number) => {
+                                {(question.options || []).map((option: PlayerQuizOption, optionIndex: number) => {
                                   const selected = quizAnswers[question.id] === option.id;
                                   const correctOption = question.correctOptionId === option.id;
                                   const showResult = quizSubmitted;
@@ -922,7 +925,7 @@ export default function CoursePlayer() {
                                   </div>
                                 </div>
                                 <div className="mt-3 grid gap-2">
-                                  {(question.options || []).map((option: any) => {
+                                  {(question.options || []).map((option: PlayerQuizOption) => {
                                     const selected = practiceQuizAnswers[question.id] === option.id;
                                     const correct = question.correctOptionId === option.id;
                                     const tone = practiceQuizSubmitted

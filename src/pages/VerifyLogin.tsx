@@ -13,7 +13,7 @@ export default function VerifyLogin() {
   const navigate = useNavigate();
   const { verifyLogin } = useAuth();
   const state = location.state as { email?: string; from?: string } | null;
-  const [email, setEmail] = useState(state?.email || "");
+  const email = state?.email || "";
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(0);
   const [loading, setLoading] = useState(false);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrainCircuit, Check, RefreshCcw, Save, SlidersHorizontal } from "lucide-react";
+import { Check, RefreshCcw, Save, SlidersHorizontal } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 

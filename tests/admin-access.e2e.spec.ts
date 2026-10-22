@@ -60,6 +60,25 @@ async function mockAdminApi(page: Page, principal: {
     if (pathname === "/api/admin/health") return json(route, { database: "connected" });
     if (pathname === "/api/admin/operations/alerts") return json(route, { alerts: [] });
     if (pathname === "/api/admin/operations/system-health") return json(route, { overallStatus: "healthy" });
+    if (pathname === "/api/admin/deliveries") {
+      return json(route, {
+        deliveries: [{
+          id: "failed-notification-1",
+          time: "2026-10-22T10:00:00.000Z",
+          recipient: { name: "Learner One", email: "l***@example.test" },
+          type: "system",
+          eventKey: "fixture:failed-delivery",
+          title: "Failed notice",
+          channels: {
+            in_app: { status: "sent" },
+            email: { status: "failed", attempts: 1, error: "SMTP unavailable" },
+            push: { status: "skipped", attempts: 0 },
+          },
+        }],
+        pages: 1,
+        total: 1,
+      });
+    }
     return json(route, {});
   });
 }
@@ -114,5 +133,10 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin/users");
     await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
     await expect(page.getByText(/does not have permission to access this section/i)).toBeVisible();
+
+    await page.goto(baseURL + "/admin/deliveries");
+    await expect(page.getByText("Failed notice")).toBeVisible();
+    await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
 });

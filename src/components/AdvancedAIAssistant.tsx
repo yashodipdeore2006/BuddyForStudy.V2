@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bot, Brain, CheckCircle2, Loader2, MessageCircleQuestion, RefreshCcw, Send, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -50,7 +50,7 @@ export default function AdvancedAIAssistant({
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
 
-  async function loadUsage() {
+  const loadUsage = useCallback(async () => {
     setLoadingUsage(true);
     setError("");
     try {
@@ -73,7 +73,7 @@ export default function AdvancedAIAssistant({
     } finally {
       setLoadingUsage(false);
     }
-  }
+  }, [loadUsage]);
 
   useEffect(() => {
     setOpen(false);

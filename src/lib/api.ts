@@ -72,7 +72,7 @@ export class ApiError extends Error {
 type ApiFetchOptions = RequestInit & { showFeatureUpgrade?: boolean };
 // API response shapes vary by endpoint; callers can provide a stricter generic when needed.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ApiResponse = Record<string, any>;
+type ApiResponse = any;
 
 export async function apiFetch<T = ApiResponse>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { showFeatureUpgrade = false, ...requestOptions } = options;

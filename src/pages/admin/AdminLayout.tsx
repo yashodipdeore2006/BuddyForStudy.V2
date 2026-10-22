@@ -42,6 +42,7 @@ const links: AdminLink[] = [
   { to: "/admin/ai-content", label: "AI and content", permission: "ai.manage", group: "Finance & governance", icon: BrainCircuit, description: "AI controls and discovery settings" },
   { to: "/admin/audit", label: "Audit log", permission: "audit.read", group: "Finance & governance", icon: ScrollText, description: "Sensitive actions and accountability" },
   { to: "/admin/settings", label: "Platform settings", permission: "settings.read", group: "Finance & governance", icon: Settings, description: "Platform configuration" },
+  { to: "/admin/legal", label: "Legal & policies", permission: "legal.manage", group: "Finance & governance", icon: ScrollText, description: "Publish policies, terms and platform rules" },
   { to: "/admin/roles", label: "Administrator roles", permission: "admin_roles.manage", group: "Finance & governance", icon: ShieldCheck, description: "Administrator access and invitations" },
 ];
 

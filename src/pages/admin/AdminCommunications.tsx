@@ -617,14 +617,14 @@ export default function AdminCommunications() {
       />
 
       <div className="mt-6">
-        <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={(value) => setWorkspaceView(value as "compose" | "templates" | "deliveries" | "campaigns")} items={[
+        {(canSendCommunications || canManageCommunications || canReadCommunicationDeliveries) && <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={(value) => setWorkspaceView(value as "compose" | "templates" | "deliveries" | "campaigns")} items={[
           ...(canSendCommunications ? [{ value: "compose", label: "Compose" }] : []),
           ...(canManageCommunications ? [
             { value: "templates", label: loadingTemplates ? "Templates…" : templatesLoadError ? "Templates" : `Templates (${templates.length})` },
             { value: "campaigns", label: `Campaigns (${campaignTotal})` },
           ] : []),
           ...(canReadCommunicationDeliveries ? [{ value: "deliveries", label: "Delivery log" }] : []),
-        ]} />
+        ]} />}
       </div>
 
       {deliveryPermissionsLoaded && !canSendCommunications && !canManageCommunications && !canReadCommunicationDeliveries && <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Your administrator role can open this page, but it does not have permission to send communications, manage message templates, or view delivery logs.</div>}
@@ -746,7 +746,7 @@ export default function AdminCommunications() {
         )}
       </section>}
 
-      {workspaceView === "compose" && <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+      {workspaceView === "compose" && canSendCommunications && <div className="mt-5 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
         <section className="card p-6">
           <div className="rounded-2xl border border-slate-200 p-4">
             <div className="grid gap-3 sm:grid-cols-2">

@@ -23,7 +23,10 @@ const PAGE_COMMANDS: CommandItem[] = [
   { id: "build", title: "Build my path", description: "Create a learning path with AI", icon: Sparkles, kind: "build", href: routes.buildPath() },
 ];
 
-function mapCourse(raw: any): Course {
+function mapCourse(value: unknown): Course {
+  const raw = value !== null && typeof value === "object"
+    ? value as Record<string, unknown>
+    : {};
   return {
     ...raw,
     id: String(raw?._id ?? raw?.id ?? ""),

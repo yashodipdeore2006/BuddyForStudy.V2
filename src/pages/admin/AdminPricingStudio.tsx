@@ -42,6 +42,9 @@ export default function AdminPricingStudio() {
   const [ruleCategory, setRuleCategory] = useState("");
   const [ruleLevel, setRuleLevel] = useState("");
   const [ruleMode, setRuleMode] = useState("");
+  const [ruleMinPrice, setRuleMinPrice] = useState("");
+  const [ruleMaxPrice, setRuleMaxPrice] = useState("");
+  const [rulePriority, setRulePriority] = useState("100");
   const [ruleType, setRuleType] = useState("fixed");
   const [ruleAmount, setRuleAmount] = useState("499");
   const [ruleAutoApply, setRuleAutoApply] = useState(false);
@@ -107,8 +110,8 @@ export default function AdminPricingStudio() {
     setBusy(true); setError(""); setNotice("");
     try {
       await adminFetch("/api/admin/pricing/rules", { method: "POST", body: JSON.stringify({
-        name: ruleName.trim(), enabled: true, autoApply: ruleAutoApply, priority: 100,
-        filters: { ...(ruleCategory ? { category: ruleCategory } : {}), ...(ruleLevel ? { level: ruleLevel } : {}), ...(ruleMode ? { mode: ruleMode } : {}) },
+        name: ruleName.trim(), enabled: true, autoApply: ruleAutoApply, priority: Number(rulePriority),
+        filters: { ...(ruleCategory ? { category: ruleCategory } : {}), ...(ruleLevel ? { level: ruleLevel } : {}), ...(ruleMode ? { mode: ruleMode } : {}), ...(ruleMinPrice !== "" ? { minPrice: Number(ruleMinPrice) } : {}), ...(ruleMaxPrice !== "" ? { maxPrice: Number(ruleMaxPrice) } : {}) },
         operation: { type: ruleType, amount: Number(ruleAmount), saleHandling: "preserve" }
       }) });
       setRuleName(""); setNotice("Pricing rule saved."); await load();
@@ -210,6 +213,7 @@ export default function AdminPricingStudio() {
           <label className="block text-xs font-semibold text-slate-600">Rule name<input className={inputClass + " mt-1"} value={ruleName} onChange={e => setRuleName(e.target.value)} placeholder="e.g. Beginner Python standard price" /></label>
           <div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-slate-600">Category<select className={inputClass + " mt-1"} value={ruleCategory} onChange={e => setRuleCategory(e.target.value)}><option value="">Any category</option>{categories.map(c => <option key={c}>{c}</option>)}</select></label><label className="text-xs font-semibold text-slate-600">Level<select className={inputClass + " mt-1"} value={ruleLevel} onChange={e => setRuleLevel(e.target.value)}><option value="">Any level</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label></div>
           <div className="grid grid-cols-2 gap-3"><label className="text-xs font-semibold text-slate-600">Current mode<select className={inputClass + " mt-1"} value={ruleMode} onChange={e => setRuleMode(e.target.value)}><option value="">Any mode</option><option value="free">Free</option><option value="paid">Paid</option></select></label><label className="text-xs font-semibold text-slate-600">Action<select className={inputClass + " mt-1"} value={ruleType} onChange={e => setRuleType(e.target.value)}><option value="fixed">Set fixed price</option><option value="percent_increase">Increase percentage</option><option value="percent_decrease">Decrease percentage</option></select></label></div>
+          <div className="grid grid-cols-3 gap-3"><label className="text-xs font-semibold text-slate-600">Price min ₹<input className={inputClass + " mt-1"} type="number" min="0" value={ruleMinPrice} onChange={e => setRuleMinPrice(e.target.value)} /></label><label className="text-xs font-semibold text-slate-600">Price max ₹<input className={inputClass + " mt-1"} type="number" min="0" value={ruleMaxPrice} onChange={e => setRuleMaxPrice(e.target.value)} /></label><label className="text-xs font-semibold text-slate-600">Priority<input className={inputClass + " mt-1"} type="number" min="1" max="10000" value={rulePriority} onChange={e => setRulePriority(e.target.value)} /></label></div>
           <label className="block text-xs font-semibold text-slate-600">Price / percentage<input className={inputClass + " mt-1"} type="number" min="0" max={ruleType.includes("percent") ? 100 : 1000000} value={ruleAmount} onChange={e => setRuleAmount(e.target.value)} /></label>
           <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={ruleAutoApply} onChange={e => setRuleAutoApply(e.target.checked)} className="mt-1" /><span><strong>Opt in to automatic rule execution</strong><span className="block text-xs text-slate-500">When enabled, this rule may change prices when an administrator explicitly runs enabled rules.</span></span></label>
           <button disabled={busy} onClick={() => void saveRule()} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50">Save pricing rule</button>

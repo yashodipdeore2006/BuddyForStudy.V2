@@ -503,7 +503,7 @@ test("revocation reports audit persistence loss without undoing the completed re
     const res = makeResponse();
     await revokeInvitation({
       params: { invitationId },
-      body: {},
+      body: { reason: "Revocation required after access review" },
       user: { userId: "actor-id" }
     }, res, (error) => assert.fail(error));
     assert.equal(transitionCalls, 1);

@@ -922,11 +922,11 @@ export default function AdminUsersPro() {
       />
       <TypedConfirmDialog
         open={Boolean(canManageUsers && pendingCourseAction)}
-        title={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status) ? "Remove course access?" : "Grant course access?") : "Confirm course access"}
-        description={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status)
+        title={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status ?? "") ? "Remove course access?" : "Grant course access?") : "Confirm course access"}
+        description={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status ?? "")
           ? `This removes ${pendingCourseAction.title} from ${selected?.user?.name || "this user"}. Payment and refund records remain unchanged.`
           : `This grants ${pendingCourseAction.title} to ${selected?.user?.name || "this user"} without creating a payment or receipt.`) : ""}
-        confirmLabel={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status) ? "Remove course access" : "Grant course access") : "Confirm"}
+        confirmLabel={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status ?? "") ? "Remove course access" : "Grant course access") : "Confirm"}
         requiredText={pendingCourseAction?.title ?? ""}
         value={confirmationValue}
         onValueChange={setConfirmationValue}
@@ -935,7 +935,7 @@ export default function AdminUsersPro() {
         onConfirm={() => { if (pendingCourseAction) void changeCourseAccess(pendingCourseAction, true); }}
         onClose={() => { setPendingCourseAction(null); setConfirmationValue(""); }}
         loading={Boolean(pendingCourseAction && courseActionId === String(pendingCourseAction._id))}
-        danger={Boolean(pendingCourseAction && ["active", "completed"].includes(pendingCourseAction.enrollment?.status))}
+        danger={Boolean(pendingCourseAction && ["active", "completed"].includes(pendingCourseAction.enrollment?.status ?? ""))}
       />
     </div>
   );

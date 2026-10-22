@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { routes } from "@/lib/routes";
+import brandLogo from "../../Logo.png";
 
 interface AuthLayoutProps {
   title: string;
@@ -18,9 +19,13 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
         <div aria-hidden="true" className="pointer-events-none absolute -right-24 top-1/4 h-72 w-72 rounded-full border border-white/[0.06] transition-transform duration-700 ease-out group-hover/auth:scale-110 motion-reduce:transition-none" />
         <div aria-hidden="true" className="pointer-events-none absolute -right-12 top-[30%] h-48 w-48 rounded-full border border-white/[0.08] transition-transform duration-700 ease-out group-hover/auth:scale-110 motion-reduce:transition-none" />
         <div className="relative z-10 flex w-full flex-col justify-between p-8 xl:p-12 2xl:p-16">
-          <Link to={routes.landing()} aria-label="BuddyForStudy home" className="group/brand inline-flex w-fit items-center rounded-2xl outline-none transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-4 focus-visible:ring-offset-[#171936] motion-reduce:transform-none">
-            <img src="/buddyforstudy-logo-dark.webp" alt="BuddyForStudy — Learn, Plan, Grow" className="h-auto w-36 rounded-xl ring-1 ring-white/15 transition-shadow duration-200 group-hover/brand:shadow-lg group-hover/brand:shadow-violet-500/10 xl:w-40" />
-          </Link>
+          <div className="flex w-full justify-center lg:justify-start">
+            <Link to={routes.landing()} aria-label="BuddyForStudy home" className="group/brand inline-flex items-center justify-center rounded-full outline-none transition-transform duration-300 hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-4 focus-visible:ring-offset-[#171936] motion-reduce:transform-none">
+              <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10 p-2 shadow-lg shadow-violet-950/20 ring-4 ring-white/[0.04] transition duration-300 group-hover/brand:border-violet-200/50 group-hover/brand:bg-white/15 group-hover/brand:shadow-violet-500/20 xl:h-28 xl:w-28">
+                <img src={brandLogo} alt="BuddyForStudy logo" className="h-full w-full rounded-full object-contain" />
+              </span>
+            </Link>
+          </div>
           <div className="my-8 max-w-xl 2xl:my-12">
             <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/25 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 shadow-sm shadow-violet-950/20">
               <Sparkles className="h-3.5 w-3.5" /> AI-powered learning

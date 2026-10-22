@@ -13,7 +13,7 @@ export default function CourseRoadmap() {
   const navigate = useNavigate();
   const [course, setCourse] = useState<RawCourse | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-  const [progressKnown, setProgressKnown] = useState(false);
+  const [, setProgressKnown] = useState(false);
   const [loadError, setLoadError] = useState('');
   useEffect(() => {
     let active = true;

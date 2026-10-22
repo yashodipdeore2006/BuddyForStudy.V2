@@ -102,8 +102,10 @@ export function calculateNextPricing(pricing = {}, operation) {
   else if (operation.type === "percent_decrease") { price = Math.round(price * (1 - operation.amount / 100)); mode = price === 0 ? "free" : "paid"; }
   else if (operation.type === "amount_increase") { price = Math.round(price + operation.amount); mode = price === 0 ? "free" : "paid"; }
   else if (operation.type === "amount_decrease") { price = Math.max(0, Math.round(price - operation.amount)); mode = price === 0 ? "free" : "paid"; }
-  if (operation.minPrice !== undefined) price = Math.max(price, operation.minPrice);
-  if (operation.maxPrice !== undefined) price = Math.min(price, operation.maxPrice);
+  if (operation.type !== "set_compare_at") {
+    if (operation.minPrice !== undefined) price = Math.max(price, operation.minPrice);
+    if (operation.maxPrice !== undefined) price = Math.min(price, operation.maxPrice);
+  }
   price = Math.round(price);
   if (mode === "free" || price === 0) { mode = "free"; price = 0; }
   else mode = "paid";

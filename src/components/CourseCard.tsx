@@ -244,10 +244,6 @@ export default function CourseCard({
       : /business|finance|marketing/.test(coverCategory) ? "business"
         : /ai|machine|python|program/.test(coverCategory) ? "technology"
           : "learning";
-  const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
-  const displayCategory = /^ai\s+course\s+search$/i.test(course.category || "")
-    ? "AI and machine learning"
-    : course.category;
   const CoverIcon = /data|analytics|sql|database/.test(coverCategory) ? Database
     : /design|ui|ux|art/.test(coverCategory) ? Palette
       : /business|finance|marketing/.test(coverCategory) ? BriefcaseBusiness

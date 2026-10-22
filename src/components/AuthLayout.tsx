@@ -13,25 +13,31 @@ interface AuthLayoutProps {
 export default function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
   return (
     <div className="min-h-[calc(100vh-64px)] bg-white lg:grid lg:grid-cols-2">
-      <section className="relative hidden overflow-hidden bg-[#1A1B41] text-white lg:flex">
-        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 18% 22%, rgba(255,255,255,.18), transparent 34%), radial-gradient(circle at 80% 78%, rgba(0,100,224,.28), transparent 38%)' }} />
-        <div className="relative flex w-full flex-col justify-between p-12 xl:p-16">
-          <Link to={routes.landing()} className="flex items-center gap-3">
-            <img src="/buddyforstudy-logo-dark.webp" alt="BuddyForStudy — Learn, Plan, Grow" className="h-auto w-44 rounded-xl ring-1 ring-white/10" />
+      <section className="group/auth relative hidden overflow-hidden bg-[#171936] text-white lg:flex">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_16%_18%,rgba(139,92,246,0.24),transparent_38%),radial-gradient(ellipse_at_85%_78%,rgba(59,130,246,0.18),transparent_42%)]" />
+        <div aria-hidden="true" className="pointer-events-none absolute -right-24 top-1/4 h-72 w-72 rounded-full border border-white/[0.06] transition-transform duration-700 ease-out group-hover/auth:scale-110 motion-reduce:transition-none" />
+        <div aria-hidden="true" className="pointer-events-none absolute -right-12 top-[30%] h-48 w-48 rounded-full border border-white/[0.08] transition-transform duration-700 ease-out group-hover/auth:scale-110 motion-reduce:transition-none" />
+        <div className="relative z-10 flex w-full flex-col justify-between p-8 xl:p-12 2xl:p-16">
+          <Link to={routes.landing()} aria-label="BuddyForStudy home" className="group/brand inline-flex w-fit items-center rounded-2xl outline-none transition-transform duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-4 focus-visible:ring-offset-[#171936] motion-reduce:transform-none">
+            <img src="/buddyforstudy-logo-dark.webp" alt="BuddyForStudy — Learn, Plan, Grow" className="h-auto w-36 rounded-xl ring-1 ring-white/15 transition-shadow duration-200 group-hover/brand:shadow-lg group-hover/brand:shadow-violet-500/10 xl:w-40" />
           </Link>
-          <div className="max-w-xl">
-            <span className="badge border border-white/20 bg-white/10 text-white"><Sparkles className="h-3.5 w-3.5" /> AI-powered learning</span>
-            <h2 className="mt-7 text-4xl font-medium leading-tight tracking-tight xl:text-5xl">A clearer path to what you want to become.</h2>
-            <p className="mt-5 max-w-lg text-base leading-7 text-white/75">Discover structured learning, personalized roadmaps and real projects without losing sight of the next step.</p>
-            <div className="mt-8 space-y-4">
-              {['Prerequisite-aware learning paths', 'Hands-on projects and progress tracking', 'One place for your entire learning journey'].map((item) => (
-                <div key={item} className="flex items-center gap-3 text-sm text-white/85">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20"><Check className="h-4 w-4" /></span>{item}
+          <div className="my-8 max-w-xl 2xl:my-12">
+            <span className="inline-flex items-center gap-2 rounded-full border border-violet-200/25 bg-violet-300/10 px-3 py-1.5 text-xs font-semibold text-violet-100 shadow-sm shadow-violet-950/20">
+              <Sparkles className="h-3.5 w-3.5" /> AI-powered learning
+            </span>
+            <h2 className="mt-6 text-3xl font-semibold leading-[1.12] tracking-tight !text-white sm:text-4xl xl:mt-7 xl:text-5xl">A clearer path to what you want to become.</h2>
+            <p className="mt-4 max-w-lg text-sm leading-6 !text-slate-200 sm:text-base sm:leading-7">Discover structured learning, personalized roadmaps and real projects without losing sight of the next step.</p>
+            <div className="mt-6 grid gap-2.5 xl:mt-8 xl:gap-3">
+              {["Prerequisite-aware learning paths", "Hands-on projects and progress tracking", "One place for your entire learning journey"].map((item) => (
+                <div key={item} className="group/feature flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2.5 text-sm !text-slate-100 transition duration-200 hover:translate-x-1 hover:border-violet-200/25 hover:bg-white/[0.08] hover:shadow-md hover:shadow-black/10 focus-within:ring-2 focus-within:ring-violet-300 motion-reduce:transform-none">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-200/20 bg-violet-300/[0.08] !text-violet-100 transition-colors duration-200 group-hover/feature:border-violet-200/40 group-hover/feature:bg-violet-300/15"><Check className="h-4 w-4" /></span>
+                  <span className="leading-5">{item}</span>
+                  <span aria-hidden="true" className="ml-auto translate-x-[-4px] text-violet-200 opacity-0 transition duration-200 group-hover/feature:translate-x-0 group-hover/feature:opacity-100">↗</span>
                 </div>
               ))}
             </div>
           </div>
-          <p className="text-xs text-white/50">© 2026 BuddyForStudy</p>
+          <p className="text-xs !text-slate-400">© 2026 BuddyForStudy</p>
         </div>
       </section>
       <section className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f1f4f7] px-4 py-4 sm:px-6 sm:py-5 lg:py-3">

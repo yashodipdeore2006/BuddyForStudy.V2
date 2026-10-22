@@ -75,6 +75,56 @@ async function mockAdminApi(page: Page, principal: {
         pages: 1,
       });
     }
+    if (pathname === "/api/admin/users") {
+      return json(route, {
+        users: [{
+          _id: "507f1f77bcf86cd799439012",
+          name: "Read-only learner",
+          emailMasked: "r***@example.test",
+          role: "user",
+          isActive: true,
+          emailVerified: true,
+          authProvider: "local",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        }],
+        pagination: { page: 1, pages: 1, total: 1 },
+      });
+    }
+    if (pathname === "/api/admin/users/507f1f77bcf86cd799439012") {
+      return json(route, {
+        user: {
+          _id: "507f1f77bcf86cd799439012",
+          name: "Read-only learner",
+          emailMasked: "r***@example.test",
+          role: "user",
+          isActive: true,
+          emailVerified: true,
+          authProvider: "local",
+        },
+        subscription: null,
+        payments: [],
+        enrollments: [],
+        notifications: [],
+      });
+    }
+    if (pathname === "/api/admin/users/507f1f77bcf86cd799439012/courses") {
+      return json(route, {
+        courses: [{
+          _id: "507f1f77bcf86cd799439013",
+          title: "Course access fixture",
+          category: "Development",
+          slug: "course-access-fixture",
+          enrollment: null,
+          pricing: { mode: "free" },
+          hasVerifiedPayment: false,
+        }],
+      });
+    }
+    if (pathname === "/api/admin/users/507f1f77bcf86cd799439012/feature-overrides") {
+      return json(route, {
+        features: [{ key: "advanced_ai_paths", label: "Advanced AI paths", override: null }],
+      });
+    }
     if (pathname === "/api/admin/health") return json(route, { database: "connected" });
     if (pathname === "/api/admin/operations/alerts") return json(route, { alerts: [] });
     if (pathname === "/api/admin/operations/system-health") return json(route, { overallStatus: "healthy" });
@@ -130,10 +180,10 @@ test.describe("administrator route and permission UX", () => {
 
   test("course-read-only administrators do not see management controls", async ({ page }) => {
     await mockAdminApi(page, {
-      user: { ...analystUser, name: "Course Reader", email: "course-reader@example.test" },
+      user: { ...analystUser, name: "Read-only Admin", email: "course-reader@example.test" },
       adminRole: "custom_course_reader",
-      roleLabel: "Course Reader",
-      permissions: ["dashboard.read", "courses.read"],
+      roleLabel: "Read-only Admin",
+      permissions: ["dashboard.read", "courses.read", "users.read"],
     });
     await page.goto(baseURL + "/admin/courses");
     await expect(page.getByText("Course reader fixture")).toBeVisible();
@@ -153,6 +203,17 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("combobox", { name: "AI-generated and AI-assembled courses approval mode" })).toBeDisabled();
     await page.getByRole("button", { name: "Broken links" }).click();
     await expect(page.getByRole("button", { name: /Run link check/i })).toHaveCount(0);
+
+    await page.goto(baseURL + "/admin/users");
+    await expect(page.getByText(/Read-only user access/i)).toBeVisible();
+    await expect(page.getByText("Read-only learner")).toBeVisible();
+    await page.getByRole("button", { name: "View", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Individual course access" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Disable", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Enable", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Feature access for Advanced AI paths" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Grant", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
   });
 
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useId, useLayoutEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 function maskPii(value: string, kind: "email" | "phone" | "text") {
@@ -14,12 +14,12 @@ export function PiiCell({ value, kind = "email", masked = true, maskedValue, can
   const actual = String(value || "");
   const reasonHelpId = useId();
   // Never carry an expanded PII value across record changes or a permission/masking change.
-  useEffect(() => {
+  useLayoutEffect(() => {
     setRevealed(false);
     setRevealedValue(null);
     setReason("");
     setError("");
-  }, [actual, kind, canReveal, masked]);
+  }, [actual, kind, canReveal, masked, maskedValue]);
   async function reveal() { if (!onReveal || busy) return; if (reason.trim().length < 10 || reason.trim().length > 500) { setError("Enter a reason between 10 and 500 characters."); return; } setBusy(true); setError(""); try { const result = await onReveal(reason.trim()); if (typeof result === "string") setRevealedValue(result); setRevealed(true); } catch (e) { setError(e instanceof Error ? e.message : "Could not reveal this value."); } finally { setBusy(false); } }
   return <span className={["admin-pii-cell", className].filter(Boolean).join(" ")}>
     <span>{masked && !revealed ? (maskedValue ?? maskPii(actual, kind)) : (revealedValue ?? actual) || "—"}</span>

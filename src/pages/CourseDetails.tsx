@@ -187,6 +187,7 @@ export default function CourseDetails() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlanSummary[]>([]);
+  const [planCourseAccess, setPlanCourseAccess] = useState(false);
   const [purchaseChoice, setPurchaseChoice] = useState<'subscription' | 'individual'>('subscription');
   const [courseNotes, setCourseNotes] = useState('');
   const [notesStorageReady, setNotesStorageReady] = useState(false);
@@ -327,8 +328,21 @@ export default function CourseDetails() {
 
         if (session) {
           try {
-            const eData = await apiFetch(`/api/enrollments/course/${courseId}`);
-            setEnrollment(eData.enrollment);
+            const entitlementData = await apiFetch('/api/billing/entitlements');
+            const hasPlanAccess = raw.pricing?.mode === 'paid' && Boolean(entitlementData?.features?.published_courses);
+            setPlanCourseAccess(hasPlanAccess);
+
+            let enrollmentData: { enrollment?: Enrollment } | null = null;
+            try {
+              enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`);
+            } catch {
+              // A learner with an eligible all-courses plan can be enrolled
+              // without paying for the course individually.
+              if (hasPlanAccess) {
+                enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+              }
+            }
+            if (enrollmentData?.enrollment) setEnrollment(enrollmentData.enrollment);
 
             const pData = await apiFetch(`/api/progress/${courseId}`);
             const rawProgress = pData.progress;
@@ -353,6 +367,8 @@ export default function CourseDetails() {
           } catch (learningError) {
             console.warn('Course enrollment/progress unavailable:', learningError);
           }
+        } else {
+          setPlanCourseAccess(false);
         }
 
         if (session) {
@@ -434,7 +450,7 @@ export default function CourseDetails() {
   const handleEnroll = async () => {
     if (!session) { navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } }); return; }
     if (!course || !course.is_published) return;
-    if (course.pricing?.mode === 'paid') { await handleCheckout(); return; }
+    if (course.pricing?.mode === 'paid' && !planCourseAccess) { await handleCheckout(); return; }
     setEnrolling(true); setError(null);
     try {
       const data = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
@@ -446,6 +462,10 @@ export default function CourseDetails() {
   };
 
   const handleSelectedPurchase = () => {
+    if (isPaidCourse && planCourseAccess) {
+      void handleEnroll();
+      return;
+    }
     if (isPaidCourse && purchaseChoice === 'subscription') {
       if (!session) {
         navigate(routes.login(), { state: { from: { pathname: routes.pricing() } } });
@@ -1163,7 +1183,13 @@ export default function CourseDetails() {
                 <p className="mt-1 text-xs leading-5 text-emerald-800">Enroll to add this course to your learning library.</p>
               </div>
             )}
-            {isPaidCourse && !isEnrolled && (
+            {isPaidCourse && planCourseAccess && !isEnrolled && (
+              <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><CheckCircle2 className="h-4 w-4" />Included with your active plan</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">Your subscription includes access to this course. You do not need to buy it separately.</p>
+              </div>
+            )}
+            {isPaidCourse && !planCourseAccess && !isEnrolled && (
               <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200">
                 <label className={classNames("block cursor-pointer p-4 transition-colors", purchaseChoice === 'subscription' ? "bg-violet-50/70" : "bg-white hover:bg-slate-50")}>
                   <span className="flex items-start gap-3">
@@ -1226,6 +1252,8 @@ export default function CourseDetails() {
                 >
                   {enrolling || checkoutLoading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
+                  ) : isPaidCourse && planCourseAccess ? (
+                    session ? 'Start learning with your plan' : 'Sign in to access course'
                   ) : isPaidCourse ? (
                     purchaseChoice === 'subscription' ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')
                   ) : session ? 'Enroll free' : 'Sign in to enroll'}

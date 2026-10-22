@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+
+// API records vary by admin endpoint; this alias keeps the response boundary explicit.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AdminContentRecord = Record<string, any>;
 import { Activity, Check, FileClock, Link2, RefreshCcw, RotateCcw, Trash2, X, XCircle } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
@@ -25,14 +29,14 @@ const reasonPrompt = (label: string) => {
   const reason = window.prompt("Reason for " + label + " (10–500 characters):")?.trim() || "";
   return reason.length >= 10 && reason.length <= 500 ? reason : null;
 };
-const aiGenerated = (course: any) => ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
+const aiGenerated = (course: AdminContentRecord) => ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
 
 export default function AdminContentQuality() {
   const [tab, setTab] = useState<Tab>("courses");
-  const [courses, setCourses] = useState<any[]>([]);
-  const [items, setItems] = useState<any[]>([]);
-  const [roadmaps, setRoadmaps] = useState<any[]>([]);
-  const [links, setLinks] = useState<any[]>([]);
+  const [courses, setCourses] = useState<AdminContentRecord[]>([]);
+  const [items, setItems] = useState<AdminContentRecord[]>([]);
+  const [roadmaps, setRoadmaps] = useState<AdminContentRecord[]>([]);
+  const [links, setLinks] = useState<AdminContentRecord[]>([]);
   const [revisions, setRevisions] = useState<Record<string, Revision[]>>({});
   const [expandedRevisions, setExpandedRevisions] = useState<string | null>(null);
   const [includeDeleted, setIncludeDeleted] = useState(false);
@@ -54,7 +58,7 @@ export default function AdminContentQuality() {
     setLoading(true); setError("");
     try {
       const data = await adminFetch("/api/admin/courses?includeDeleted=true");
-      setCourses((data.courses || []).filter((course: any) => includeDeleted || !course.deletedAt));
+      setCourses((data.courses || []).filter((course: AdminContentRecord) => includeDeleted || !course.deletedAt));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load courses."); }
     finally { setLoading(false); }
   }, [includeDeleted]);
@@ -132,7 +136,7 @@ export default function AdminContentQuality() {
   }
 
 
-  async function publish(course: any) {
+  async function publish(course: AdminContentRecord) {
     if (aiGenerated(course) && (course.aiReviewStatus !== "approved" || (!course.aiReviewedBy && course.aiReviewSource !== "automatic"))) {
       setError("This AI-generated course must be approved by an administrator or the configured automatic approval policy before publishing."); return;
     }
@@ -142,7 +146,7 @@ export default function AdminContentQuality() {
     try {
       const readiness = await adminFetch("/api/admin/courses/" + course._id + "/readiness");
       if (!readiness.readiness?.ready) {
-        setError("Publishing blocked: " + (readiness.readiness?.failedChecks || []).map((item: any) => item.label).join(", "));
+        setError("Publishing blocked: " + (readiness.readiness?.failedChecks || []).map((item: AdminContentRecord) => item.label).join(", "));
         return;
       }
       await adminFetch("/api/admin/courses/" + course._id + "/publish", { method: "POST", body: JSON.stringify({ reason }) });
@@ -151,7 +155,7 @@ export default function AdminContentQuality() {
     finally { setBusy(null); }
   }
 
-  async function lifecycle(course: any, status: "draft" | "archived") {
+  async function lifecycle(course: AdminContentRecord, status: "draft" | "archived") {
     const reason = reasonPrompt(status === "archived" ? "archiving " + course.title : "moving " + course.title + " to draft");
     if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setBusy(course._id); setError(""); setNotice("");
@@ -162,7 +166,7 @@ export default function AdminContentQuality() {
     finally { setBusy(null); }
   }
 
-  async function deleteOrRestore(course: any) {
+  async function deleteOrRestore(course: AdminContentRecord) {
     const deleted = Boolean(course.deletedAt);
     const reason = reasonPrompt((deleted ? "restoring " : "soft-deleting ") + course.title);
     if (!reason) { setError("A reason of 10–500 characters is required."); return; }
@@ -174,7 +178,7 @@ export default function AdminContentQuality() {
     finally { setBusy(null); }
   }
 
-  async function aiReview(course: any, decision: "approved" | "rejected") {
+  async function aiReview(course: AdminContentRecord, decision: "approved" | "rejected") {
     const reason = reasonPrompt((decision === "approved" ? "approving AI-generated content for " : "rejecting AI-generated content for ") + course.title);
     if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setBusy(course._id); setError(""); setNotice("");
@@ -201,7 +205,7 @@ export default function AdminContentQuality() {
     finally { setBusy(null); }
   }
 
-  async function rollback(course: any, revision: Revision) {
+  async function rollback(course: AdminContentRecord, revision: Revision) {
     const reason = reasonPrompt("rolling " + course.title + " back to revision " + revision.revisionNumber);
     if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setBusy(course._id); setError(""); setNotice("");
@@ -214,7 +218,7 @@ export default function AdminContentQuality() {
     finally { setBusy(null); }
   }
 
-  async function moderate(item: any, status: "approved" | "rejected" | "pending") {
+  async function moderate(item: AdminContentRecord, status: "approved" | "rejected" | "pending") {
     const reason = reasonPrompt(status + " " + tab + " content");
     if (!reason) { setError("A reason of 10–500 characters is required."); return; }
     setBusy(item._id); setError(""); setNotice("");
@@ -316,7 +320,7 @@ export default function AdminContentQuality() {
 
     {["review","quiz","insight","qa"].includes(tab) && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5"><div><h2 className="font-bold">{TABS.find((item) => item.id === tab)?.label} moderation</h2><p className="mt-1 text-sm text-slate-500">Review content, approve it for use, or reject and hide it. Every decision is audited with a reason.</p></div><select className="input-field w-auto" value={moderationStatus} onChange={(e) => setModerationStatus(e.target.value)}><option value="pending">Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option></select></div>
-      {loading ? <Loading/> : <div className="divide-y divide-slate-100">{items.map((item) => <article key={item._id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{item.course?.title || "Course unavailable"} · {tab === "review" ? (item.rating + "/5 review") : tab === "quiz" ? (item.title || "Practice quiz") : tab === "insight" ? "AI lesson insight" : "Learner Q&A"}</h3><AdminBadge tone={item.moderationStatus === "approved" ? "success" : item.moderationStatus === "rejected" ? "danger" : "warning"}>{item.moderationStatus || "pending"}</AdminBadge>{item.isHidden && <AdminBadge tone="danger">Hidden</AdminBadge>}</div><p className="mt-1 text-xs text-slate-500">{when(item.createdAt)} · {item._id}</p><div className="mt-3 max-w-4xl whitespace-pre-wrap break-words text-sm text-slate-700">{tab === "review" ? (item.comment || "No written comment") : tab === "quiz" ? (item.questions || []).slice(0, 5).map((q: any) => q.question).join("\n") || "No quiz questions" : tab === "insight" ? item.summary : "Question: " + (item.question || "") + "\n\nAnswer: " + (item.answer || "")}</div>{item.moderationNote && <p className="mt-2 text-xs text-slate-500">Previous moderation note: {item.moderationNote}</p>}</div>{canManageCourses && <div className="flex flex-wrap gap-2"><button type="button" disabled={busy === item._id} onClick={() => void moderate(item, "approved")} className="btn-primary"><Check className="h-4 w-4"/> Approve</button><button type="button" disabled={busy === item._id} onClick={() => void moderate(item, "rejected")} className="btn-secondary"><XCircle className="h-4 w-4"/> Reject & hide</button></div>}</div></article>)}{!items.length && <p className="p-8 text-center text-sm text-slate-500">No records match this moderation filter.</p>}</div>}
+      {loading ? <Loading/> : <div className="divide-y divide-slate-100">{items.map((item) => <article key={item._id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{item.course?.title || "Course unavailable"} · {tab === "review" ? (item.rating + "/5 review") : tab === "quiz" ? (item.title || "Practice quiz") : tab === "insight" ? "AI lesson insight" : "Learner Q&A"}</h3><AdminBadge tone={item.moderationStatus === "approved" ? "success" : item.moderationStatus === "rejected" ? "danger" : "warning"}>{item.moderationStatus || "pending"}</AdminBadge>{item.isHidden && <AdminBadge tone="danger">Hidden</AdminBadge>}</div><p className="mt-1 text-xs text-slate-500">{when(item.createdAt)} · {item._id}</p><div className="mt-3 max-w-4xl whitespace-pre-wrap break-words text-sm text-slate-700">{tab === "review" ? (item.comment || "No written comment") : tab === "quiz" ? (item.questions || []).slice(0, 5).map((q: AdminContentRecord) => q.question).join("\n") || "No quiz questions" : tab === "insight" ? item.summary : "Question: " + (item.question || "") + "\n\nAnswer: " + (item.answer || "")}</div>{item.moderationNote && <p className="mt-2 text-xs text-slate-500">Previous moderation note: {item.moderationNote}</p>}</div>{canManageCourses && <div className="flex flex-wrap gap-2"><button type="button" disabled={busy === item._id} onClick={() => void moderate(item, "approved")} className="btn-primary"><Check className="h-4 w-4"/> Approve</button><button type="button" disabled={busy === item._id} onClick={() => void moderate(item, "rejected")} className="btn-secondary"><XCircle className="h-4 w-4"/> Reject & hide</button></div>}</div></article>)}{!items.length && <p className="p-8 text-center text-sm text-slate-500">No records match this moderation filter.</p>}</div>}
     </section>}
 
     {tab === "roadmaps" && <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="border-b border-slate-100 p-5"><h2 className="font-bold">Generated learning roadmaps</h2><p className="mt-1 text-sm text-slate-500">Inspect roadmap topics, learner, completion status and recent activity.</p></div>{loading ? <Loading/> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="p-4">Topic</th><th className="p-4">Learner</th><th className="p-4">Level</th><th className="p-4">Status</th><th className="p-4">Activity</th></tr></thead><tbody className="divide-y divide-slate-100">{roadmaps.map((item) => <tr key={item._id}><td className="p-4"><p className="font-semibold">{item.course?.title || item.canonicalTopic || item.query}</p><p className="text-xs text-slate-500">{item.intent || item.careerOutcome || item.query}</p></td><td className="p-4">{item.user?.name || "Unknown"}<p className="text-xs text-slate-500">{item.user?.email || ""}</p></td><td className="p-4">{item.level}</td><td className="p-4"><AdminBadge tone={item.status === "completed" ? "success" : "neutral"}>{item.status}</AdminBadge></td><td className="p-4 text-xs text-slate-500">Last accessed {when(item.lastAccessedAt)}<p>Updated {when(item.updatedAt)}</p></td></tr>)}</tbody></table>{!roadmaps.length && <p className="p-8 text-center text-sm text-slate-500">No roadmap records found.</p>}</div>}</section>}

@@ -41,3 +41,26 @@ test("selected-user export rejects malformed IDs before querying", async () => {
   assert.match(res.body.message, /IDs are invalid/i);
   assert.equal(queried, false);
 });
+
+
+test("selected-user export rejects missing, short, and oversized audit reasons before querying", async () => {
+  let queried = false;
+  const res = responseRecorder();
+  await withUserFind(() => { queried = true; throw new Error("should not query"); }, async () => {
+    for (const reason of [undefined, "", "too short", "x".repeat(501)]) {
+      const invalid = responseRecorder();
+      await exportUsers({
+        method: "POST",
+        body: {
+          ids: ["507f1f77bcf86cd799439011"],
+          ...(reason === undefined ? {} : { reason }),
+        },
+        user: { userId: "507f191e810c19729de860ea" },
+      }, invalid, (error) => { throw error; });
+      assert.equal(invalid.statusCode, 400);
+      assert.equal(invalid.body.success, false);
+      assert.match(invalid.body.message, /reason between 10 and 500 characters/i);
+    }
+  });
+  assert.equal(queried, false);
+});

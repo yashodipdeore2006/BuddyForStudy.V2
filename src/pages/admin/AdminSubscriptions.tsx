@@ -3,7 +3,7 @@ import { RefreshCcw, CalendarClock, CreditCard } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminBadge, AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
 
-const money = (value: number, currency = "INR") => new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(Number(value || 0));
+const money = (value: number | undefined, currency = "INR") => new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(Number(value || 0));
 const date = (value?: string | null) => value ? new Date(value).toLocaleString() : "—";
 
 type SubscriptionRow = {

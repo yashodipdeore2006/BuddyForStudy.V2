@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Activity, ArrowDown, ArrowUp, IndianRupee, RefreshCcw, TrendingUp, Users } from "lucide-react";
+import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 // API records vary by admin endpoint; this alias keeps the response boundary explicit.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminAnalyticsRecord = Record<string, any>;
-import { Activity, ArrowDown, ArrowUp, IndianRupee, RefreshCcw, TrendingUp, Users } from "lucide-react";
-import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 
 function money(value: number) {
   return "₹" + Number(value || 0).toLocaleString("en-IN");

@@ -42,14 +42,15 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
     setRemote((previous) => ({ ...previous, loading: true, error: null }));
 
     void (async () => {
-      let enrollment: any = null;
-      let progress: any = null;
+      let enrollment: Record<string, unknown> | null = null;
+      let progress: Record<string, unknown> | null = null;
       let errorMessage: string | null = null;
       try {
         const result = await apiFetch(`/api/enrollments/course/${encodeURIComponent(courseId)}`);
         enrollment = result.enrollment ?? null;
       } catch (error) {
-        const status = Number((error as any)?.status ?? (error as any)?.statusCode ?? 0);
+        const errorRecord = error !== null && typeof error === "object" ? error as Record<string, unknown> : {};
+        const status = Number(errorRecord.status ?? errorRecord.statusCode ?? 0);
         if (status !== 404) errorMessage = error instanceof Error ? error.message : "Enrollment status is unavailable.";
       }
 
@@ -66,7 +67,10 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
 
       const completedRaw = Array.isArray(progress?.completedLessons) ? progress.completedLessons
         : Array.isArray(progress?.completed_lessons) ? progress.completed_lessons : [];
-      const completedIds = new Set(completedRaw.map((item: any) => String(item.lessonId ?? item.lesson_id ?? item.id ?? "")));
+      const completedIds = new Set(completedRaw.map((item) => {
+        const entry = item !== null && typeof item === "object" ? item as Record<string, unknown> : {};
+        return String(entry.lessonId ?? entry.lesson_id ?? entry.id ?? "");
+      }));
       const nextLesson = lessons.find((lesson) => !completedIds.has(String(lesson.id)));
       const totalLessons = Number(progress?.totalLessons ?? progress?.total_lessons ?? lessons.length);
       const completedLessons = Number(progress?.completedCount ?? progress?.completed_count ?? completedIds.size);
@@ -76,7 +80,10 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
       if (current) setRemote({
         loading: false, isEnrolled, isCompleted, progressPct, completedLessons, totalLessons,
         nextLessonId: isCompleted ? null : nextLesson ? String(nextLesson.id) : null,
-        hasRoadmap, hasPreview: lessons.some((lesson: any) => lesson.isPreview === true || lesson.is_preview === true),
+        hasRoadmap, hasPreview: lessons.some((lesson) => {
+          const previewMetadata = lesson as unknown as { isPreview?: boolean; is_preview?: boolean };
+          return previewMetadata.isPreview === true || previewMetadata.is_preview === true;
+        }),
         isPublished: course?.is_published !== false, error: errorMessage,
       });
     })().catch((error) => {

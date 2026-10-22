@@ -74,7 +74,8 @@ async function mockAppApi(page: Page, options: {
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
 
-    if (pathname === "/api/auth/me") {
+    if (pathname.endsWith("/api/auth/me")) {
+      if (process.env.E2E_DEBUG === "1") console.log("[E2E] auth-me route", route.request().url(), "authenticated=", Boolean(options.authenticated));
       return options.authenticated
         ? json(route, { user: learner })
         : json(route, { message: "Authentication required" }, 401);
@@ -105,7 +106,8 @@ async function mockAppApi(page: Page, options: {
       return json(route, { reviews: [], stats: { count: 0, average: 0, distribution: {} } });
     }
     if (pathname === "/api/billing/plans") return json(route, { plans: [] });
-    if (pathname === `/api/enrollments/course/${courseId}`) {
+    if (pathname.endsWith(`/api/enrollments/course/${courseId}`)) {
+      if (process.env.E2E_DEBUG === "1") console.log("[E2E] enrollment route", route.request().url(), "enrolled=", Boolean(options.enrolled));
       return json(route, { enrollment: options.enrolled ? { status: "active" } : null });
     }
     if (pathname === `/api/progress/${courseId}`) {
@@ -196,6 +198,7 @@ test.describe("canonical learner navigation", () => {
     }));
     await page.goto(baseURL + "/courses/course-fixture");
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
+    if (process.env.E2E_DEBUG === "1") console.log("[E2E] enrolled fixture body", (await page.locator("body").innerText()).slice(0, 3000));
     await expect(page.getByText(/You’re enrolled/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue Learning/i })).toBeVisible();
     await expect(page.getByText("Buy individual course")).toHaveCount(0);

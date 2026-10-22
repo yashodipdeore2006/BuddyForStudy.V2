@@ -70,7 +70,7 @@ export default function Register() {
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         {error && (
           <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -156,14 +156,14 @@ export default function Register() {
           {loading ? 'Creating account...' : 'Create Account'}
         </button>
 
-        <div className="relative py-1">
+        <div className="relative py-0.5">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
           <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-slate-400">OR</span></div>
         </div>
 
         <GoogleSignInButton onCredential={handleGoogle} disabled={loading} />
 
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-[11px] leading-4 text-slate-400">
           By signing up, you agree to our Terms of Service and Privacy Policy.
         </p>
       </form>

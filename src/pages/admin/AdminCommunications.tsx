@@ -71,6 +71,7 @@ export default function AdminCommunications() {
   const [deliveryPermissionsLoaded, setDeliveryPermissionsLoaded] = useState(false);
   const [canManageDeliveries, setCanManageDeliveries] = useState(false);
   const [canManageCommunications, setCanManageCommunications] = useState(false);
+  const [canSendCommunications, setCanSendCommunications] = useState(false);
   const [canReadCommunicationDeliveries, setCanReadCommunicationDeliveries] = useState(false);
   const [deliveryNotice, setDeliveryNotice] = useState("");
   const [retryingDelivery, setRetryingDelivery] = useState("");
@@ -206,30 +207,41 @@ export default function AdminCommunications() {
     if (!deliveryPermissionsLoaded) return;
     const restrictedManagementView = (workspaceView === "templates" || workspaceView === "campaigns") && !canManageCommunications;
     const restrictedDeliveryView = workspaceView === "deliveries" && !canReadCommunicationDeliveries;
-    if (restrictedManagementView || restrictedDeliveryView) setWorkspaceView("compose");
-  }, [deliveryPermissionsLoaded, workspaceView, canManageCommunications, canReadCommunicationDeliveries]);
+    const restrictedComposeView = workspaceView === "compose" && !canSendCommunications;
+    if (restrictedManagementView || restrictedDeliveryView) {
+      setWorkspaceView(canSendCommunications ? "compose" : canManageCommunications ? "templates" : canReadCommunicationDeliveries ? "deliveries" : "compose");
+    } else if (restrictedComposeView && (canManageCommunications || canReadCommunicationDeliveries)) {
+      setWorkspaceView(canManageCommunications ? "templates" : "deliveries");
+    }
+  }, [deliveryPermissionsLoaded, workspaceView, canSendCommunications, canManageCommunications, canReadCommunicationDeliveries]);
 
   useEffect(() => {
-    adminFetch("/api/admin/notifications/audience-options").then((data) => {
-      setAudiencePlans(Array.isArray(data.plans) ? data.plans : []);
-      setAudienceCourses(Array.isArray(data.courses) ? data.courses : []);
-      setAudienceOptionsError("");
-    }).catch((error) => setAudienceOptionsError(error instanceof Error ? error.message : "Unable to load plan and course filters."));
     adminFetch("/api/admin/access").then((data) => {
-      const permissions: string[] = data.access?.permissions || [];
+      const permissions: string[] = Array.isArray(data.access?.permissions) ? data.access.permissions : [];
+      const canSendCommunicationContent = permissions.includes("communications.send");
       const canManageCommunicationContent = permissions.includes("communications.manage");
       const canReadDeliveryOperations = permissions.includes("operations.read");
+      setCanSendCommunications(canSendCommunicationContent);
       setCanManageCommunications(canManageCommunicationContent);
       setCanReadCommunicationDeliveries(canReadDeliveryOperations);
       setCanManageDeliveries(permissions.includes("operations.manage"));
       setDeliveryPermissionsLoaded(true);
-      // Avoid protected 403 requests and expose each workspace only when its read permission is present.
+      // Call only APIs the principal is permitted to use. Direct-route access
+      // must not create a stream of predictable 403 requests.
+      if (canSendCommunicationContent) {
+        void adminFetch("/api/admin/notifications/audience-options").then((options) => {
+          setAudiencePlans(Array.isArray(options.plans) ? options.plans : []);
+          setAudienceCourses(Array.isArray(options.courses) ? options.courses : []);
+          setAudienceOptionsError("");
+        }).catch((error) => setAudienceOptionsError(error instanceof Error ? error.message : "Unable to load plan and course filters."));
+      }
       if (canManageCommunicationContent) {
         void loadTemplates();
         void loadCampaigns();
       }
       if (canReadDeliveryOperations) void loadDeliveryLogs();
     }).catch(() => {
+      setCanSendCommunications(false);
       setCanManageCommunications(false);
       setCanReadCommunicationDeliveries(false);
       setCanManageDeliveries(false);
@@ -353,6 +365,7 @@ export default function AdminCommunications() {
   }
 
   async function previewAudience() {
+    if (!canSendCommunications) { setStatus("You do not have permission to preview or send communications."); return; }
     const targetingProblem = targetingError();
     if (targetingProblem) { setStatus(targetingProblem); return; }
     setPreviewingAudience(true);
@@ -387,6 +400,7 @@ export default function AdminCommunications() {
   }
 
   async function send() {
+    if (!canSendCommunications) { setStatus("You do not have permission to send communications."); return; }
     const targetingProblem = targetingError();
     if (targetingProblem) { setStatus(targetingProblem); return; }
     if (!audiencePreview) {
@@ -414,6 +428,10 @@ export default function AdminCommunications() {
   }
 
   async function performSend(channel: "notification" | "email" | "announcement", reason: string): Promise<boolean> {
+    if (!canSendCommunications) {
+      const message = "You do not have permission to send communications.";
+      setStatus(message); setConfirmationError(message); return false;
+    }
     if (!audiencePreview) {
       setStatus("Preview the recipients and confirm the audience before sending.");
       setConfirmationError("The audience preview is no longer available. Close this dialog and preview recipients again.");
@@ -600,7 +618,7 @@ export default function AdminCommunications() {
 
       <div className="mt-6">
         <AdminTabs ariaLabel="Communication workspace" value={workspaceView} onChange={(value) => setWorkspaceView(value as "compose" | "templates" | "deliveries" | "campaigns")} items={[
-          { value: "compose", label: "Compose" },
+          ...(canSendCommunications ? [{ value: "compose", label: "Compose" }] : []),
           ...(canManageCommunications ? [
             { value: "templates", label: loadingTemplates ? "Templates…" : templatesLoadError ? "Templates" : `Templates (${templates.length})` },
             { value: "campaigns", label: `Campaigns (${campaignTotal})` },
@@ -609,7 +627,9 @@ export default function AdminCommunications() {
         ]} />
       </div>
 
-      {workspaceView === "compose" && <AdminTabs
+      {deliveryPermissionsLoaded && !canSendCommunications && !canManageCommunications && !canReadCommunicationDeliveries && <div role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Your administrator role can open this page, but it does not have permission to send communications, manage message templates, or view delivery logs.</div>}
+
+      {workspaceView === "compose" && canSendCommunications && <AdminTabs
         ariaLabel="Communication type"
         value={tab}
         onChange={(nextTab) => { setTab(nextTab); setAudiencePreview(null); setStatus(""); }}
@@ -620,9 +640,9 @@ export default function AdminCommunications() {
         ]}
       />}
 
-      {workspaceView === "compose" && templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setAudiencePreview(null); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
+      {workspaceView === "compose" && canSendCommunications && templates.some(template => template.isActive) && <div className="mt-5 card p-4"><label className="block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Reusable message template</span><select className="input-field mt-2" value={selectedTemplateId} onChange={e => setSelectedTemplateId(e.target.value)}><option value="">Choose a saved template</option>{templates.filter(template => template.isActive).map(template => <option key={template._id} value={template._id}>{template.name} · {template.channel}</option>)}</select></label><button type="button" className="btn-secondary mt-3" disabled={!selectedTemplateId} onClick={() => { const template = templates.find(item => item._id === selectedTemplateId); if (!template) return; setTab(template.channel); setAudiencePreview(null); setTitle(template.title || ""); setMessage(template.channel === "email" ? "" : template.body); setSubject(template.subject || ""); setHtml(template.channel === "email" ? template.body : ""); setLink(template.link || ""); setStatus("Template loaded. Review audience and content before sending."); }}>Load template into composer</button></div>}
 
-      {workspaceView === "templates" && <section className="card mt-5 p-5 sm:p-6">
+      {workspaceView === "templates" && canManageCommunications && <section className="card mt-5 p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Automation templates</p>
@@ -848,7 +868,7 @@ export default function AdminCommunications() {
             <button type="button" className="btn-secondary" onClick={() => setPreview((value) => !value)}>
               <Eye className="h-4 w-4" /> {preview ? "Hide preview" : "Preview"}
             </button>
-            <button type="button" className="btn-primary" onClick={() => void send()} disabled={sending || !canSend}>
+            <button type="button" className="btn-primary" onClick={() => void send()} disabled={!canSendCommunications || sending || !canSend}>
               <Send className="h-4 w-4" /> {sending ? "Queuing..." : tab === "announcement" ? (scheduledAt ? "Schedule announcement" : "Queue announcement") : "Send now"}
             </button>
           </div>
@@ -869,7 +889,7 @@ export default function AdminCommunications() {
         )}
       </div>}
 
-      {workspaceView === "deliveries" && <section className="card mt-6 overflow-hidden">
+      {workspaceView === "deliveries" && canReadCommunicationDeliveries && <section className="card mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Operations</p>
@@ -930,7 +950,7 @@ export default function AdminCommunications() {
         <AdminPagination page={deliveryPage} pages={deliveryPages} total={deliveryTotal} from={deliveryTotal ? (deliveryPage - 1) * deliveryLimit + 1 : 0} to={Math.min(deliveryPage * deliveryLimit, deliveryTotal)} limit={deliveryLimit} loading={loadingDeliveries} onPageChange={(nextPage) => { setDeliveryPage(nextPage); void loadDeliveryLogs(nextPage, deliveryLimit, deliverySearch); }} onLimitChange={(nextLimit) => { setDeliveryLimit(nextLimit); setDeliveryPage(1); void loadDeliveryLogs(1, nextLimit, deliverySearch); }} />
       </section>}
 
-      {workspaceView === "campaigns" && <section className="card mt-6 overflow-hidden">
+      {workspaceView === "campaigns" && canManageCommunications && <section className="card mt-6 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 xl:flex-row xl:items-end xl:justify-between">
           <div><p className="text-xs font-bold uppercase tracking-wide text-blue-600">Campaigns</p><h2 className="mt-1 text-xl font-semibold text-slate-950">Announcement schedule and reports</h2><p className="mt-1 text-sm text-slate-500">{campaignTotal.toLocaleString()} campaigns · scheduled work can be cancelled before processing starts.</p></div>
           <form className="grid gap-2 sm:grid-cols-[180px_minmax(220px,1fr)_auto_auto]" onSubmit={(event) => { event.preventDefault(); const next = campaignSearchInput.trim(); setCampaignSearch(next); setCampaignPage(1); void loadCampaigns(1, campaignLimit, campaignStatus, next); }}>

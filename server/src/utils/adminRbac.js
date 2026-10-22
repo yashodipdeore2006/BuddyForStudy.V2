@@ -61,7 +61,7 @@ export const ADMIN_PERMISSION_CATALOG = Object.freeze([
   "payment_issues.manage",
   "communications.send", "communications.manage", "notifications.read", "notifications.retry",
   "coupons.read", "coupons.manage",
-  "settings.read", "settings.manage",
+  "settings.read", "settings.manage", "legal.manage",
   "audit.read",
   "operations.read", "operations.manage",
   "admin_roles.manage",

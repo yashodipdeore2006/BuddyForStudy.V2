@@ -197,9 +197,15 @@ export async function overview(req, res, next) {
 
 export async function exportUsers(req, res, next) {
   try {
-    const ids = String(req.query.ids || "").split(",").map((value) => value.trim()).filter(Boolean);
+    const input = req.body && Object.keys(req.body).length ? req.body : req.query || {};
+    const rawIds = Array.isArray(input.ids) ? input.ids : String(input.ids || "").split(",");
+    const ids = rawIds.map((value) => String(value || "").trim()).filter(Boolean);
     if (!ids.length || ids.length > 100) return failure(res, "Select between 1 and 100 users to export.", 400);
     if (ids.some((id) => !isValidObjectId(id))) return failure(res, "One or more selected user IDs are invalid.", 400);
+    const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to export user records.", 400);
+    }
 
     const filter = { _id: { $in: ids } };
     const sortFields = {
@@ -211,9 +217,9 @@ export async function exportUsers(req, res, next) {
       verification: "emailVerified",
       authProvider: "authProvider",
     };
-    const requestedSort = String(req.query.sortBy || "name");
+    const requestedSort = String(input.sortBy || "name");
     const sortField = Object.hasOwn(sortFields, requestedSort) ? sortFields[requestedSort] : "name";
-    const sortOrder = req.query.sortOrder === "desc" ? -1 : 1;
+    const sortOrder = input.sortOrder === "desc" ? -1 : 1;
     const users = await User.find(filter)
       .select("_id name email role isActive emailVerified authProvider createdAt")
       .sort({ [sortField]: sortOrder, _id: -1 })
@@ -224,7 +230,7 @@ export async function exportUsers(req, res, next) {
       count: users.length,
       selectedCount: ids.length,
       fields: ["name", "email", "role", "isActive", "emailVerified", "authProvider", "createdAt"],
-    }, "Administrator exported selected user records");
+    }, reason);
 
     return success(res, { users, count: users.length });
   } catch (error) {

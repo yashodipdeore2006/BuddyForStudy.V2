@@ -75,17 +75,26 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
 
   if (course.enrollmentEnabled === false) { const error = new Error("Enrollment is currently disabled for this course"); error.status = 403; throw error; }
   let paidPayment = null;
+  let subscriptionAccess = false;
   if (course.pricing?.mode === "paid") {
     paidPayment = await Payment.findOne({ user: userId, course: courseId, provider: "razorpay", status: { $in: ["paid", "partially_refunded"] } }).sort({ paidAt: -1, createdAt: -1 });
-    if (!paidPayment) { const error = new Error("Verified payment is required before enrolling in this course"); error.status = 402; throw error; }
+    if (!paidPayment && !isAdmin) {
+      const entitlement = await getEntitlement(userId, "published_courses");
+      subscriptionAccess = Boolean(entitlement.allowed);
+      if (!subscriptionAccess) {
+        const error = new Error("This paid course requires an active plan that includes all published courses or a verified individual purchase.");
+        error.status = 402;
+        throw error;
+      }
+    }
   }
 
-  // A verified individual purchase grants access to this course independently
-  // of the user's subscription. Free courses still follow the plan entitlement.
-  if (!paidPayment && !isAdmin) {
+  // A verified individual purchase grants lifetime access. An active subscription
+  // may also grant access when its published-course entitlement includes paid courses.
+  if (!paidPayment && !subscriptionAccess && !isAdmin) {
     const entitlement = await getEntitlement(userId, "published_courses");
     if (!entitlement.allowed) {
-      const error = new Error("Free course enrollment is not included in your current plan. Upgrade your plan or purchase an eligible paid course.");
+      const error = new Error("Course enrollment is not included in your current plan. Upgrade your plan or purchase this course.");
       error.status = 403;
       throw error;
     }
@@ -101,6 +110,7 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
       }
       existing.status = "active";
       existing.enrolledAt = new Date();
+      if (subscriptionAccess) existing.accessSource = "subscription";
       await existing.save();
       if (paidPayment) await notifyPaidCoursePurchase(userId, course, paidPayment, existing);
       else await notifyFreeCourseEnrollment(userId, course, existing);
@@ -110,12 +120,13 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
       await notifyPaidCoursePurchase(userId, course, paidPayment, existing);
       return existing;
     }
+    if (subscriptionAccess || existing.accessSource === "subscription") return existing;
     const error = new Error("Already enrolled in this course");
     error.status = 409;
     throw error;
   }
 
-  const enrollment = await Enrollment.create({ user: userId, course: courseId });
+  const enrollment = await Enrollment.create({ user: userId, course: courseId, accessSource: subscriptionAccess ? "subscription" : isAdmin ? "admin" : "self" });
   if (paidPayment) await notifyPaidCoursePurchase(userId, course, paidPayment, enrollment);
   else await notifyFreeCourseEnrollment(userId, course, enrollment);
   return enrollment;

@@ -74,3 +74,10 @@ Give administrators one place to filter courses, safely apply bulk pricing chang
 - The recommendation engine is deterministic and explainable, not machine-learning or market-price prediction.
 - There is no automatic recurring repricing job. An admin must preview and apply changes. This avoids unexpected price changes and billing disputes.
 - Bulk apply is intentionally conservative and audited; it does not alter completed payments, existing enrollments, or subscription entitlements.
+
+
+## Confirmed implementation decisions (2026-10-22)
+- Default smart-pricing behavior is recommendation-only; the administrator must review a preview and explicitly apply it.
+- Default recommendation strategy uses category-specific bands when a category is selected, otherwise level bands. Admin-defined module and project adjustment percentages nudge the baseline while the recommendation remains clamped to each band's min/max.
+- Optional automatic rules are explicitly opt-in per rule. They execute only when an administrator deliberately selects **Execute enabled automatic rules** and provides a reason; there is no background/scheduled repricing worker.
+- Pricing Studio UI is at `/admin/pricing`; APIs are mounted under `/api/admin/pricing`.

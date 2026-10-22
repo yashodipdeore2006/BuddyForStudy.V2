@@ -2415,6 +2415,8 @@ export async function previewNotificationAudience(req, res, next) {
 }
 export async function sendNotification(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to send a notification campaign.", 400);
     const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
     const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
     const type = req.body.type || "system";
@@ -2446,13 +2448,15 @@ export async function sendNotification(req, res, next) {
       push: false,
       metadata: { source: "admin-broadcast", broadcastId, initiatedBy: String(req.user.user._id) }
     }));
-    await audit(req, "notification.sent", "Notification", broadcastId, null, { recipients: users.length, title, type });
+    await audit(req, "notification.sent", "Notification", broadcastId, null, { recipients: users.length, title, type }, reason);
     return success(res, { sent: users.length }, "Notification queued");
   } catch (e) { next(e); }
 }
 
 export async function sendEmail(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to send an email campaign.", 400);
     const subject = typeof req.body.subject === "string" ? req.body.subject.trim() : "";
     const html = typeof req.body.html === "string" ? req.body.html : "";
     if (!subject || !html) return failure(res, "subject and html are required", 400);
@@ -2505,7 +2509,7 @@ export async function sendEmail(req, res, next) {
       queued,
       skipped,
       subject
-    });
+    }, reason);
     return success(res, { queued, sent: queued, skipped, recipients: users.length, broadcastId }, "Email campaign queued");
   } catch (e) { next(e); }
 }

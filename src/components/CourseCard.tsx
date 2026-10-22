@@ -263,7 +263,10 @@ export default function CourseCard({
     progressPct: progress,
     nextLessonId,
     hasRoadmap: getAllLessonsFlat(course.modules).length > 0,
-    hasPreview: getAllLessonsFlat(course.modules).some((lesson: { isPreview?: boolean; is_preview?: boolean }) => lesson.isPreview === true || lesson.is_preview === true),
+    hasPreview: getAllLessonsFlat(course.modules).some((lesson) => {
+      const previewMetadata = lesson as unknown as { isPreview?: boolean; is_preview?: boolean };
+      return previewMetadata.isPreview === true || previewMetadata.is_preview === true;
+    }),
     isPublished: course.is_published !== false,
   });
   const rootClass = [

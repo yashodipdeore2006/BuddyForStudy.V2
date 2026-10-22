@@ -92,7 +92,7 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
     });
 
     return () => { current = false; };
-  }, [courseId, course?.id, course?.is_published, enabled, hasRoadmap, lessonKey, refreshKey]);
+  }, [courseId, course?.id, course?.is_published, enabled, hasRoadmap, lessonKey, lessons, refreshKey]);
 
   return { ...remote, hasRoadmap: course ? hasRoadmap : remote.hasRoadmap, isPublished: course ? course.is_published !== false : remote.isPublished };
 }

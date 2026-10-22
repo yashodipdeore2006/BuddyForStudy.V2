@@ -258,8 +258,10 @@ export default function AdminUsersPro() {
   }, [page, debouncedQ, status, role, authProvider, pageSize, sortBy, sortOrder]);
 
   useEffect(() => {
+    // Bulk selection is scoped to the visible result page. Clear it when
+    // pagination or the result shape changes so stale IDs cannot be exported.
     setSelectedIds([]);
-  }, [page, debouncedQ, status, role, authProvider, sortBy, sortOrder]);
+  }, [page, pageSize, debouncedQ, status, role, authProvider, sortBy, sortOrder]);
 
   useEffect(() => {
     const urlPage = Number(searchParams.get("page") || 1);

@@ -517,7 +517,7 @@ export default function AdminUsersPro() {
       return;
     }
     if (!selected?.user?._id || !course?._id) return;
-    const currentlyHasAccess = ["active", "completed"].includes(course.enrollment?.status);
+    const currentlyHasAccess = ["active", "completed"].includes(course.enrollment?.status ?? "");
     const reason = courseReason.trim();
     if (!reason) {
       setError("Enter a reason before changing course access.");
@@ -764,7 +764,7 @@ export default function AdminUsersPro() {
                 {selected.subscription ? (
                   <div className="flex items-center justify-between gap-3">
                     <span>{selected.subscription.plan?.name || "Plan"}</span>
-                    <StatusBadge domain="subscription" value={selected.subscription.status} />
+                    <StatusBadge domain="subscription" value={selected.subscription.status ?? "unknown"} />
                   </div>
                 ) : <p className="text-slate-500">No active subscription.</p>}
               </div>
@@ -820,7 +820,7 @@ export default function AdminUsersPro() {
                 {(selected.enrollments || []).slice(0, 10).map((enrollment: AdminEnrollment) => (
                   <div key={enrollment._id} className="rounded-xl border border-slate-200 p-3">
                     <p className="text-sm font-semibold">{enrollment.course?.title || "Course"}</p>
-                    <p className="mt-1 text-xs text-slate-500"><StatusBadge domain="enrollment" value={enrollment.status} /></p>
+                    <p className="mt-1 text-xs text-slate-500"><StatusBadge domain="enrollment" value={enrollment.status ?? "unknown"} /></p>
                   </div>
                 ))}
                 {!selected.enrollments?.length && <p className="text-sm text-slate-500">No enrollments.</p>}
@@ -833,7 +833,7 @@ export default function AdminUsersPro() {
                   <h3 className="font-bold text-slate-900">Individual course access</h3>
                   <p className="mt-1 text-xs text-slate-500">Grant or remove a specific course for this user. Changes are recorded in the audit log.</p>
                 </div>
-                <span className="badge bg-blue-50 text-blue-700">{courseAccess.filter((course) => ["active", "completed"].includes(course.enrollment?.status)).length} active</span>
+                <span className="badge bg-blue-50 text-blue-700">{courseAccess.filter((course) => ["active", "completed"].includes(course.enrollment?.status ?? "")).length} active</span>
               </div>
               <div className="mt-3">
                 {canManageUsers && <>
@@ -845,7 +845,7 @@ export default function AdminUsersPro() {
               </div>
               <div className="mt-3 space-y-2">
                 {courseAccessLoading ? <div className="p-5 text-center text-sm text-slate-500"><RefreshCcw className="mx-auto animate-spin" /></div> : courseAccess.filter((course) => `${course.title} ${course.category} ${course.slug}`.toLowerCase().includes(courseSearch.toLowerCase())).map((course) => {
-                  const hasAccess = ["active", "completed"].includes(course.enrollment?.status);
+                  const hasAccess = ["active", "completed"].includes(course.enrollment?.status ?? "");
                   const isPaid = course.pricing?.mode === "paid";
                   return <div key={course._id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3">
                     <div className="min-w-0">
@@ -870,7 +870,7 @@ export default function AdminUsersPro() {
                 {(selected.payments || []).slice(0, 8).map((payment: AdminPayment) => (
                   <div key={payment._id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3">
                     <div><p className="text-sm font-semibold"><MoneyCell amount={payment.amount} currency={payment.currency || "INR"} /></p><p className="text-xs text-slate-500">{payment.provider}</p></div>
-                    <StatusBadge domain="payment" value={payment.status} />
+                    <StatusBadge domain="payment" value={payment.status ?? "unknown"} />
                   </div>
                 ))}
                 {!selected.payments?.length && <p className="text-sm text-slate-500">No payments.</p>}
@@ -927,7 +927,7 @@ export default function AdminUsersPro() {
           ? `This removes ${pendingCourseAction.title} from ${selected?.user?.name || "this user"}. Payment and refund records remain unchanged.`
           : `This grants ${pendingCourseAction.title} to ${selected?.user?.name || "this user"} without creating a payment or receipt.`) : ""}
         confirmLabel={pendingCourseAction ? (["active", "completed"].includes(pendingCourseAction.enrollment?.status) ? "Remove course access" : "Grant course access") : "Confirm"}
-        requiredText={pendingCourseAction?.title}
+        requiredText={pendingCourseAction?.title ?? ""}
         value={confirmationValue}
         onValueChange={setConfirmationValue}
         reason={courseReason}

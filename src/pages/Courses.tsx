@@ -189,15 +189,13 @@ export default function Courses() {
         const allRows: RawCourse[] = [];
         let page = 1;
         let batch: RawCourse[] = [];
-        let lastResponse: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } | null = null;
         let searchDiscovery: SearchDiscovery | null = null;
         do {
           const params = new URLSearchParams({ page: String(page), limit: '50' });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-          const response: NonNullable<typeof lastResponse> = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
-          lastResponse = response;
+          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
           batch = response.courses || response.items || [];
           if (response.discovery) searchDiscovery = response.discovery;
           allRows.push(...batch);

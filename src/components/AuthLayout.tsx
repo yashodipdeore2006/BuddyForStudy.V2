@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles, Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { routes } from "@/lib/routes";
-import brandLogo from "../../Logo.png";
+import brandLogo from "../../logo_new.png";
 
 interface AuthLayoutProps {
   title: string;
@@ -21,9 +21,7 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
         <div className="relative z-10 flex w-full flex-col justify-between p-8 xl:p-12 2xl:p-16">
           <div className="flex w-full justify-center lg:justify-start">
             <Link to={routes.landing()} aria-label="BuddyForStudy home" className="group/brand inline-flex items-center justify-center rounded-full outline-none transition-transform duration-300 hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-violet-300 focus-visible:ring-offset-4 focus-visible:ring-offset-[#171936] motion-reduce:transform-none">
-              <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-white/10 p-2 shadow-lg shadow-violet-950/20 ring-4 ring-white/[0.04] transition duration-300 group-hover/brand:border-violet-200/50 group-hover/brand:bg-white/15 group-hover/brand:shadow-violet-500/20 xl:h-28 xl:w-28">
-                <img src={brandLogo} alt="BuddyForStudy logo" className="h-full w-full rounded-full object-contain" />
-              </span>
+              <img src={brandLogo} alt="BuddyForStudy logo" className="h-24 w-24 rounded-full bg-transparent object-contain drop-shadow-[0_8px_18px_rgba(8,8,35,0.28)] transition-transform duration-300 group-hover/brand:scale-105 xl:h-28 xl:w-28" />
             </Link>
           </div>
           <div className="my-8 max-w-xl 2xl:my-12">

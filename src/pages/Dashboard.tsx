@@ -1,4 +1,8 @@
 import { useEffect, useState } from 'react';
+
+// Dashboard endpoints have legacy and current payload variants.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DashboardRecord = any;
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
@@ -175,7 +179,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <section className="mt-8 rounded-[32px] border border-slate-200 bg-white p-6"><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-amber-600">Badges</p></div><div className="flex flex-wrap gap-2">{(learningStats?.achievements||[]).length?learningStats.achievements.map((a:any)=><span key={a.key} className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm">{a.title}</span>):<span className="text-sm text-slate-500">Complete lessons to unlock your first achievement.</span>}</div></div></section>
+      <section className="mt-8 rounded-[32px] border border-slate-200 bg-white p-6"><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[.14em] text-amber-600">Badges</p></div><div className="flex flex-wrap gap-2">{(learningStats?.achievements||[]).length?learningStats.achievements.map((a: DashboardRecord)=><span key={a.key} className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm">{a.title}</span>):<span className="text-sm text-slate-500">Complete lessons to unlock your first achievement.</span>}</div></div></section>
 
       <section className="mt-10"><div className="flex items-end justify-between gap-4"><div><h2 className="mt-2 text-2xl font-extrabold">Picked for you</h2></div><Link to={routes.explore()} className="inline-flex items-center gap-1 text-sm font-bold text-blue-600">See all <ArrowRight className="h-4 w-4"/></Link></div><div className="mt-5">{publishedCourses.length===0?<p className="py-8 text-center text-sm text-slate-500">No courses available yet.</p>:<div className="bfs-course-grid">{publishedCourses.map(course=><CourseCard key={course.id} course={course}/>)}</div>}</div></section>
     </div>

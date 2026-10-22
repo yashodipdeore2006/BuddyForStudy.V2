@@ -34,7 +34,7 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
           <p className="text-xs text-white/50">© 2026 BuddyForStudy</p>
         </div>
       </section>
-      <section className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f1f4f7] px-5 py-10 sm:px-8">
+      <section className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f1f4f7] px-4 py-4 sm:px-6 sm:py-5 lg:py-3">
         <div className="w-full max-w-md">
           <div className="mb-8 lg:hidden">
             <Link to="/" className="flex items-center gap-3">
@@ -42,11 +42,11 @@ export default function AuthLayout({ title, subtitle, children, footer }: AuthLa
               <span className="bfs-brand-wordmark text-lg">Buddy<span className="brand-accent">For</span>Study</span>
             </Link>
           </div>
-          <div className="rounded-[32px] border border-slate-200 bg-white p-6 sm:p-9">
-            <h1 className="text-3xl font-medium tracking-tight text-slate-950">{title}</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600">{subtitle}</p>
-            <div className="mt-7">{children}</div>
-            <div className="mt-7 border-t border-slate-200 pt-5 text-center text-sm text-slate-600">{footer}</div>
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 sm:p-6">
+            <h1 className="text-2xl font-medium tracking-tight text-slate-950">{title}</h1>
+            <p className="mt-1.5 text-sm leading-5 text-slate-600">{subtitle}</p>
+            <div className="mt-5">{children}</div>
+            <div className="mt-4 border-t border-slate-200 pt-3 text-center text-sm text-slate-600">{footer}</div>
           </div>
         </div>
       </section>

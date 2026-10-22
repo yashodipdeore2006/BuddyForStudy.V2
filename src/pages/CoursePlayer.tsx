@@ -18,6 +18,22 @@ import {
   type TimestampedCourseNote,
 } from "@/lib/courseNotes";
 
+type RawPlayerLesson = { _id?: string; id?: string; [key: string]: unknown };
+type RawPlayerModule = { _id?: string; id?: string; lessons?: RawPlayerLesson[]; [key: string]: unknown };
+type RawPlayerCourse = {
+  _id?: string; id?: string; title: string; slug: string; description: string; category: string;
+  level: Course["level"]; duration?: string | number; thumbnail?: string | null;
+  learningOutcomes?: string[]; modules?: RawPlayerModule[]; isPublished?: boolean;
+  pricing?: Course["pricing"]; createdBy?: string | null; createdAt?: string; updatedAt?: string;
+};
+type RawPlayerProgress = {
+  _id?: string; id?: string; user?: string; user_id?: string; course?: string; course_id?: string;
+  completedLessons?: Array<{ lessonId?: string; type?: Course["modules"][number]["lessons"][number]["type"]; completedAt?: string }>;
+  completed_count?: number; completedCount?: number; totalLessons?: number; total_lessons?: number;
+  percentage?: number; lastLessonId?: string; last_accessed_at?: string | null; lastAccessedAt?: string | null;
+  createdAt?: string; updatedAt?: string;
+};
+
 function cleanPlayerLessonTitle(title: string, siblingTitles: string[] = []): string {
   const parts = String(title || "").split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean);
   if (parts.length <= 1) return String(title || "").trim();
@@ -64,7 +80,7 @@ function formatPlayerDuration(seconds: number): string {
   return remaining ? hours + "h " + remaining + "m" : hours + "h";
 }
 
-function mapCourse(raw: any): Course {
+function mapCourse(raw: RawPlayerCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
     title: raw.title,
@@ -75,10 +91,10 @@ function mapCourse(raw: any): Course {
     duration: String(raw.duration ?? ""),
     thumbnail: raw.thumbnail ?? null,
     learning_outcomes: raw.learningOutcomes ?? [],
-    modules: (raw.modules ?? []).map((module: any) => ({
+    modules: (raw.modules ?? []).map((module: RawPlayerModule) => ({
       ...module,
       id: String(module._id ?? module.id),
-      lessons: (module.lessons ?? []).map((lesson: any) => ({
+      lessons: (module.lessons ?? []).map((lesson: RawPlayerLesson) => ({
         ...lesson,
         id: String(lesson._id ?? lesson.id),
       })),
@@ -91,12 +107,12 @@ function mapCourse(raw: any): Course {
   };
 }
 
-function mapProgress(raw: any): Progress {
+function mapProgress(raw: RawPlayerProgress): Progress {
   return {
     id: String(raw._id ?? raw.id),
     user_id: String(raw.user ?? raw.user_id),
     course_id: String(raw.course ?? raw.course_id),
-    completed_lessons: (raw.completedLessons ?? []).map((item: any) => ({
+    completed_lessons: (raw.completedLessons ?? []).map((item) => ({
       lessonId: String(item.lessonId),
       type: item.type,
       completedAt: item.completedAt,

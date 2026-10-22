@@ -342,7 +342,7 @@ export default function YouTubeSearchFallback({
       const source = data?.course;
 
       const lessons: CourseLesson[] = (source?.lessons || [])
-        .map((lesson: any) => {
+        .map((lesson: Record<string, unknown>) => {
           const videoId = String(lesson.videoId || lesson.id || "");
           if (!videoId) return null;
 
@@ -353,7 +353,7 @@ export default function YouTubeSearchFallback({
             channelTitle: lesson.channelTitle || source?.channelTitle || "",
             duration: lesson.duration || formatMinutes(Number(lesson.durationSeconds || 0)),
             durationSeconds: Number(lesson.durationSeconds || 0),
-            thumbnail: lesson.thumbnail || "",
+            thumbnail: String(lesson.thumbnail || ""),
             embedUrl: toEmbedUrl(videoId),
           };
         })

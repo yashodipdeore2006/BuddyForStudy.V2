@@ -215,6 +215,24 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("button", { name: "Enable", exact: true })).toHaveCount(0);
   });
 
+  test("changing user page size clears page-scoped bulk selection", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "User Administrator", email: "user-admin@example.test" },
+      adminRole: "custom_user_manager",
+      roleLabel: "User Manager",
+      permissions: ["dashboard.read", "users.read", "users.manage", "users.pii.reveal"],
+    });
+    await page.goto(baseURL + "/admin/users");
+    await expect(page.getByText("Read-only learner")).toBeVisible();
+    await page.getByRole("checkbox", { name: "Select row 507f1f77bcf86cd799439012" }).check();
+    await expect(page.getByRole("button", { name: /Export selected \(1\)/ })).toBeVisible();
+
+    await page.getByRole("combobox", { name: "Rows per page" }).selectOption("50");
+
+    await expect(page.getByRole("button", { name: /Export selected/ })).toHaveCount(0);
+    await expect(page.getByRole("checkbox", { name: "Select row 507f1f77bcf86cd799439012" })).not.toBeChecked();
+  });
+
   test("read-only user detail drawer hides feature override and individual course mutations", async ({ page }) => {
     await mockAdminApi(page, {
       user: { ...analystUser, name: "User Reader", email: "user-reader@example.test" },

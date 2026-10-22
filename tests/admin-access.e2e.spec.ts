@@ -252,11 +252,11 @@ test.describe("administrator route and permission UX", () => {
       permissions: ["dashboard.read", "communications.send"],
     });
     await page.goto(baseURL + "/admin/communications");
-    await expect(page.getByRole("button", { name: "Compose", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "In-app notification", exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Templates/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Campaigns/ })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Delivery log", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Compose", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "In-app notification", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: /Templates/ })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: /Campaigns/ })).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: "Delivery log", exact: true })).toHaveCount(0);
   });
 
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {

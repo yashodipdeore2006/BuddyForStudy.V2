@@ -16,6 +16,7 @@ export default function AdminAIContent() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [reason, setReason] = useState("");
   const [activeGroup, setActiveGroup] = useState(GROUPS[0].title);
 
   async function load() {
@@ -33,6 +34,10 @@ export default function AdminAIContent() {
 
   async function save(setting: Setting) {
     const value = drafts[setting.key];
+    if (reason.trim().length < 10 || reason.trim().length > 500) {
+      setError("Enter a change reason between 10 and 500 characters.");
+      return;
+    }
     if (setting.type === "number" && (typeof value !== "number" || !Number.isFinite(value) || value < (setting.min ?? 0) || value > (setting.max ?? Number.MAX_SAFE_INTEGER))) {
       setError("Enter a valid value for " + setting.key + ".");
       return;
@@ -49,9 +54,10 @@ export default function AdminAIContent() {
     try {
       await adminFetch("/api/admin/ai-content/settings/" + encodeURIComponent(setting.key), {
         method: "PUT",
-        body: JSON.stringify({ value, reason: "AI & Learning Content Manager updated " + setting.key }),
+        body: JSON.stringify({ value, reason: reason.trim() }),
       });
       setNotice("Saved " + setting.key.split("_").join(" ") + ".");
+      setReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save this setting.");
@@ -69,6 +75,10 @@ export default function AdminAIContent() {
     />
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+    <label className="block rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">Change reason (required)
+      <input className="input-field mt-2" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} aria-describedby="ai-content-reason-help" placeholder="Why is this AI/content setting changing?" />
+      <span id="ai-content-reason-help" className="mt-1 block text-xs font-normal text-slate-500">Use 10–500 characters. {reason.trim().length}/500. The reason is recorded in the audit log for each saved setting.</span>
+    </label>
     <div className="mt-6">
       <AdminTabs ariaLabel="AI configuration areas" value={activeGroup} onChange={setActiveGroup} items={GROUPS.map((group) => ({ value: group.title, label: group.title }))} />
     </div>
@@ -82,7 +92,7 @@ export default function AdminAIContent() {
         return <div key={key} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_220px_auto] sm:items-center">
           <div><label htmlFor={"ai-setting-" + key} className="text-sm font-semibold text-slate-800">{label(key)}</label><p className="mt-1 text-xs leading-5 text-slate-500">{setting.description}{setting.type === "number" ? " Range: " + setting.min + "–" + setting.max + "." : ""}</p></div>
           <div>{setting.type === "boolean" ? <label className="flex items-center gap-3 text-sm text-slate-700"><input id={"ai-setting-" + key} type="checkbox" checked={Boolean(value)} onChange={(e) => setDrafts((old) => ({ ...old, [key]: e.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"/>{value ? "Enabled" : "Disabled"}</label> : <input id={"ai-setting-" + key} type="number" min={setting.min} max={setting.max} value={Number(value)} onChange={(e) => setDrafts((old) => ({ ...old, [key]: e.target.value === "" ? Number.NaN : Number(e.target.value) }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"/>}</div>
-          <button type="button" onClick={() => void save(setting)} disabled={!changed || savingKey === key} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-4 w-4"/>{savingKey === key ? "Saving…" : changed ? "Save" : <><Check className="h-4 w-4"/> Saved</>}</button>
+          <button type="button" onClick={() => void save(setting)} disabled={!changed || savingKey === key || reason.trim().length < 10 || reason.trim().length > 500} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-4 w-4"/>{savingKey === key ? "Saving…" : changed ? "Save" : <><Check className="h-4 w-4"/> Saved</>}</button>
         </div>;
       })}</div>
     </section>)}

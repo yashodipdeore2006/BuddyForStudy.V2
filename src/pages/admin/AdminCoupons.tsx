@@ -8,7 +8,7 @@ type CouponCourse = { _id: string; title?: string };
 type CouponRecord = { _id: string; code?: string; type?: "percentage" | "fixed"; value?: number; maxDiscount?: number | null; minOrderAmount?: number; usedCount?: number; usageLimit?: number | null; expiresAt?: string | null; isActive?: boolean; course?: { title?: string } | null };
 type CouponForm = { code: string; type: "percentage" | "fixed"; value: number | string; maxDiscount: string; minOrderAmount: number | string; usageLimit: string; expiresAt: string; course: string };
 
-const emptyForm = {
+const emptyForm: CouponForm = {
   code: "",
   type: "percentage",
   value: 10,

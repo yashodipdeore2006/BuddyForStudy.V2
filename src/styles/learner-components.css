@@ -211,7 +211,7 @@
 }
 
 /* Global learner shell, menu, command palette and shortcut reference. */
-.bfs-user-header { position: sticky; top: 0; z-index: var(--z-sticky); background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); }
+.bfs-user-header { position: sticky; top: 0; z-index: 100; isolation: isolate; background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); }
 .bfs-user-header__inner { min-height: var(--header-h); width: calc(100% - clamp(24px, 5vw, 80px)); max-width: 1920px; margin-inline: auto; display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); }
 .bfs-user-brand { display:inline-flex; align-items:center; gap:var(--s-2); color:var(--text); text-decoration:none; flex-shrink:0; }
 .bfs-user-brand__mark { width:40px; height:40px; display:grid; place-items:center; overflow:hidden; border-radius:var(--r-md); background:var(--surface-2); }

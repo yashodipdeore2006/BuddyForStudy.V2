@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch, clearAuth, getToken, setAuth } from '@/lib/api';
 import { syncBrowserPushSubscription, logoutBrowserPush } from '@/lib/pushNotifications';
 import type { Profile } from '@/types';
@@ -36,13 +36,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile,setProfile]=useState<Profile|null>(null);
   const [loading,setLoading]=useState(true);
 
-  const applyUser = (u: AuthUser) => {
+  const applyUser = useCallback((u: AuthUser) => {
     const s:AppSession={user:{id:u.id,email:u.email,name:u.name,role:u.role,authProvider:u.authProvider,profileImage:u.profileImage}};
     setSession(s);
     setProfile(profileFromUser(u));
-  };
+  }, []);
 
-  const hydrate = async () => {
+  const hydrate = useCallback(async () => {
     const token=getToken();
     if(!token){setLoading(false);return;}
     try {
@@ -52,9 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try { await logoutBrowserPush(); } catch { /* Push cleanup is best-effort when the session is invalid. */ }
       clearAuth(); setSession(null); setProfile(null);
     } finally { setLoading(false); }
-  };
+  }, [applyUser]);
 
-  useEffect(()=>{ void hydrate(); },[]);
+  useEffect(() => { void hydrate(); }, [hydrate]);
 
   useEffect(() => {
     const handleExpiredSession = () => {

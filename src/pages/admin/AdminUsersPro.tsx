@@ -662,6 +662,7 @@ export default function AdminUsersPro() {
 
       {selected && (
         <DetailDrawer open={Boolean(selected)} title={selected.user?.name || "User details"} subtitle={<PiiCell key={String(selected.user?._id || "selected-user-email")} value={undefined} maskedValue={selected.user?.emailMasked} identityKey={String(selected.user?._id || "selected-user-email")} kind="email" canReveal={canRevealPii} onReveal={(reason) => revealUserEmail(String(selected.user?._id), reason)} />} onClose={closeUserDrawer}>
+            {!canManageUsers && <div role="status" className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Read-only view. You can inspect account, subscription, feature and course-access records, but cannot change them with your current role.</div>}
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Role</p><p className="mt-1 font-bold capitalize">{selected.user?.role}</p></div>
               <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Sign-in</p><p className="mt-1 font-bold">{selected.user?.authProvider}</p></div>
@@ -689,11 +690,13 @@ export default function AdminUsersPro() {
                   <p className="mt-1 text-xs text-slate-500">Temporarily or indefinitely allow/deny subscription features for this learner. Paid-course purchase checks remain separate.</p>
                 </div>
               </div>
+              {canManageUsers && <>
               <label className="mb-1 mt-3 block text-xs font-semibold text-slate-600" htmlFor="feature-override-reason">Reason required for audit</label>
               <textarea id="feature-override-reason" className="input-field min-h-20 w-full" maxLength={500} value={featureOverrideReason} onChange={(e) => setFeatureOverrideReason(e.target.value)} placeholder="e.g. Support-approved access while a billing issue is investigated" />
               <label className="mb-1 mt-3 block text-xs font-semibold text-slate-600" htmlFor="feature-override-expiry">Override expiry (optional)</label>
               <input id="feature-override-expiry" type="date" className="input-field w-full" min={new Date().toISOString().slice(0, 10)} value={featureOverrideExpiresAt} onChange={(e) => setFeatureOverrideExpiresAt(e.target.value)} />
               <p className="mt-1 text-xs text-slate-500">Leave blank for no expiry. Expired overrides automatically stop applying.</p>
+              </>}
               <div className="mt-3 space-y-2">
                 {featureOverrides.map((feature: any) => {
                   const choice = featureChoices[feature.key] ?? (feature.override ? (feature.override.allowed ? "allow" : "deny") : "plan");
@@ -703,7 +706,7 @@ export default function AdminUsersPro() {
                         <p className="text-sm font-semibold text-slate-900">{feature.label}</p>
                         <p className="mt-1 text-xs text-slate-500">{feature.key}{feature.override ? ` · Override ${feature.override.allowed ? "allows" : "denies"} access${feature.override.expiresAt ? ` until ${new Date(feature.override.expiresAt).toLocaleDateString()}` : " · no expiry"}` : " · Plan default"}</p>
                       </div>
-                      <div className="flex shrink-0 gap-2">
+                      {canManageUsers ? <div className="flex shrink-0 gap-2">
                         <select aria-label={`Feature access for ${feature.label}`} className="input-field w-auto text-xs" value={choice} onChange={(e) => setFeatureChoices((current) => ({ ...current, [feature.key]: e.target.value }))}>
                           <option value="plan">Use plan</option>
                           <option value="allow">Allow</option>
@@ -713,7 +716,7 @@ export default function AdminUsersPro() {
                           {savingFeatureKey === feature.key ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                           Save
                         </button>
-                      </div>
+                      </div> : <span className="text-xs text-slate-500">Read only</span>}
                     </div>
                   </div>;
                 })}
@@ -745,8 +748,10 @@ export default function AdminUsersPro() {
                 <span className="badge bg-blue-50 text-blue-700">{courseAccess.filter((course) => ["active", "completed"].includes(course.enrollment?.status)).length} active</span>
               </div>
               <div className="mt-3">
+                {canManageUsers && <>
                 <label className="mb-1 block text-xs font-semibold text-slate-600" htmlFor="course-access-reason">Reason required for audit</label>
                 <textarea id="course-access-reason" className="input-field min-h-20 w-full" maxLength={500} value={courseReason} onChange={(e) => setCourseReason(e.target.value)} placeholder="e.g. Support-approved complimentary access" />
+                </>}
                 <label className="sr-only" htmlFor="course-access-search">Search courses</label>
                 <div className="relative mt-3"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><input id="course-access-search" className="input-field pl-10" value={courseSearch} onChange={(e) => setCourseSearch(e.target.value)} placeholder="Search published courses" /></div>
               </div>
@@ -760,10 +765,10 @@ export default function AdminUsersPro() {
                       <p className="mt-1 text-xs text-slate-500">{course.category || "Course"} · {isPaid ? "Paid course" : "Free course"} · {course.enrollment?.accessSource === "admin" ? "Admin grant" : course.hasVerifiedPayment ? "Payment verified" : course.enrollment ? "Enrollment" : "Not assigned"}</p>
                       {course.enrollment?.status === "completed" && <p className="mt-1 text-xs text-emerald-700">Completed enrollment</p>}
                     </div>
-                    <button type="button" className={hasAccess ? "btn-secondary shrink-0 text-xs" : "btn-primary shrink-0 text-xs"} disabled={courseActionId === course._id} onClick={() => void changeCourseAccess(course)}>
+                    {canManageUsers && <button type="button" className={hasAccess ? "btn-secondary shrink-0 text-xs" : "btn-primary shrink-0 text-xs"} disabled={courseActionId === course._id} onClick={() => void changeCourseAccess(course)}>
                       {courseActionId === course._id ? <RefreshCcw className="h-4 w-4 animate-spin" /> : hasAccess ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                       {hasAccess ? "Remove" : "Grant"}
-                    </button>
+                    </button>}
                   </div>;
                 })}
                 {!courseAccessLoading && !courseAccess.filter((course) => `${course.title} ${course.category} ${course.slug}`.toLowerCase().includes(courseSearch.toLowerCase())).length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No published courses match this search.</p>}

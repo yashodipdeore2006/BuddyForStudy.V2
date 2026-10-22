@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as pricingController from "../controllers/adminPricing.controller.js";
 import { authMiddleware, adminMiddleware, adminPermissionMiddleware } from "../middleware/auth.js";
 import * as controller from "../controllers/adminPro.controller.js";
 import * as journeyController from "../controllers/courseJourneyRoadmap.controller.js";
@@ -12,6 +13,11 @@ const router = Router();
 router.use(authMiddleware, adminMiddleware);
 
 router.get("/access", adminRolesController.currentAdminAccess);
+router.get("/pricing/courses", adminPermissionMiddleware("pricing.manage"), pricingController.listCourses);
+router.post("/pricing/preview", adminPermissionMiddleware("pricing.manage"), pricingController.preview);
+router.post("/pricing/apply", adminPermissionMiddleware("pricing.manage"), pricingController.applyPreview);
+router.get("/pricing/history", adminPermissionMiddleware("pricing.manage"), pricingController.history);
+router.post("/pricing/history/:batchId/rollback", adminPermissionMiddleware("pricing.manage"), pricingController.rollback);
 router.get("/ai-content/settings", adminPermissionMiddleware("ai.manage"), adminRolesController.getAIContentSettings);
 router.put("/ai-content/settings/:key", adminPermissionMiddleware("ai.manage"), adminRolesController.updateAIContentSetting);
 router.get("/roles", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdminRoles);

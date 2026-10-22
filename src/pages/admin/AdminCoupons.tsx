@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, Power, Plus, RefreshCcw, Tag } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
@@ -35,7 +35,7 @@ export default function AdminCoupons() {
   const [actionReason, setActionReason] = useState("");
   const [actionError, setActionError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -52,9 +52,9 @@ export default function AdminCoupons() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   function openConfirmation(action: { kind: "create" | "bulk" | "toggle"; coupon?: CouponRecord }) {
     if (!permissions.includes("coupons.manage")) { setError("You do not have permission to manage coupons."); return; }

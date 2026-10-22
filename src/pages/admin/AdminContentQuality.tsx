@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { Activity, Check, FileClock, Link2, RefreshCcw, RotateCcw, Trash2, X, XCircle } from "lucide-react";
+import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 
 // API records vary by admin endpoint; this alias keeps the response boundary explicit.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AdminContentRecord = Record<string, any>;
-import { Activity, Check, FileClock, Link2, RefreshCcw, RotateCcw, Trash2, X, XCircle } from "lucide-react";
-import { adminFetch } from "@/lib/adminApi";
-import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 
 type Tab = "courses" | "review" | "quiz" | "insight" | "qa" | "roadmaps" | "links";
 type Revision = { _id: string; revisionNumber: number; changedBy?: { name?: string; email?: string }; changeSource: string; reason: string; summary: string; createdAt: string };
@@ -134,7 +134,6 @@ export default function AdminContentQuality() {
       setSavingApprovalPolicies(false);
     }
   }
-
 
   async function publish(course: AdminContentRecord) {
     if (aiGenerated(course) && (course.aiReviewStatus !== "approved" || (!course.aiReviewedBy && course.aiReviewSource !== "automatic"))) {

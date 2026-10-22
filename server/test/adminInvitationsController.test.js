@@ -584,7 +584,7 @@ test("invitation revocation rejects missing or too-short audit reasons before da
   await withMocks([
     [AdminInvitation, { findOneAndUpdate: async () => { writes += 1; return makeInvitation(); } }]
   ], async () => {
-    for (const reason of ["", "  ", "not enough"]) {
+    for (const reason of ["", "  ", "too short"]) {
       const res = makeResponse();
       await revokeInvitation({
         params: { invitationId },

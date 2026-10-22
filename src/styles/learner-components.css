@@ -212,7 +212,7 @@
 
 /* Global learner shell, menu, command palette and shortcut reference. */
 .bfs-user-header { position: sticky; top: 0; z-index: var(--z-sticky); background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); }
-.bfs-user-header__inner { min-height: var(--header-h); width: min(100% - var(--s-4) * 2, var(--content-max)); margin-inline: auto; display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); }
+.bfs-user-header__inner { min-height: var(--header-h); width: calc(100% - clamp(24px, 5vw, 80px)); max-width: 1920px; margin-inline: auto; display:flex; align-items:center; justify-content:space-between; gap:var(--s-4); }
 .bfs-user-brand { display:inline-flex; align-items:center; gap:var(--s-2); color:var(--text); text-decoration:none; flex-shrink:0; }
 .bfs-user-brand__mark { width:40px; height:40px; display:grid; place-items:center; overflow:hidden; border-radius:var(--r-md); background:var(--surface-2); }
 .bfs-user-brand__mark img { width:100%; height:100%; object-fit:contain; }
@@ -289,11 +289,11 @@
 .bfs-course-card__compact .bfs-course-card__body { padding-left:var(--s-3); }
 .bfs-course-card__compact .bfs-course-card__action-row { grid-column:2; padding-left:var(--s-3); }
 .bfs-course-card__compact .bfs-course-card__save { top:var(--s-2); left:var(--s-2); right:auto; width:32px; height:32px; }
-@media (min-width:640px) { .bfs-user-header__inner { width:min(100% - var(--s-6) * 2,var(--content-max)); } }
+@media (min-width:640px) { .bfs-user-header__inner { width:calc(100% - clamp(32px, 5vw, 96px)); } }
 @media (max-width:1023px) { .bfs-user-primary-nav { gap:var(--s-2); } .bfs-user-nav-link { gap:var(--s-1); padding-inline:var(--s-1); } .bfs-user-nav-link span { font-size:var(--fs-xs); } }
 @media (max-width:767px) {
   body.bfs-has-bottom-tabs { padding-bottom:calc(56px + env(safe-area-inset-bottom)); }
-  .bfs-user-header__inner { min-height:var(--header-h); width:calc(100% - var(--s-4) * 2); gap:var(--s-2); }
+  .bfs-user-header__inner { min-height:var(--header-h); width:calc(100% - 24px); gap:var(--s-2); }
   .bfs-user-brand__wordmark { display:none; }
   .bfs-user-primary-nav { display:none; }
   .bfs-avatar-trigger { padding:var(--s-1); }
@@ -315,12 +315,12 @@
   .bfs-course-card:hover { transform:none; }
 }
 
-.bfs-slim-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--s-3); width:min(100% - var(--s-4) * 2,var(--content-max)); margin:0 auto; padding:var(--s-4) 0 calc(var(--s-4) + env(safe-area-inset-bottom)); border-top:1px solid var(--border); color:var(--muted); font-size:var(--fs-sm); }
+.bfs-slim-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--s-3); width:calc(100% - clamp(24px, 5vw, 80px)); max-width:1920px; margin:0 auto; padding:var(--s-4) 0 calc(var(--s-4) + env(safe-area-inset-bottom)); border-top:1px solid var(--border); color:var(--muted); font-size:var(--fs-sm); }
 .bfs-slim-footer nav,.bfs-marketing-footer__inner nav { display:flex; flex-wrap:wrap; gap:var(--s-4); }
 .bfs-slim-footer a,.bfs-marketing-footer a { color:var(--text-2); text-decoration:none; }
 .bfs-slim-footer a:hover,.bfs-marketing-footer a:hover { color:var(--accent); }
 .bfs-marketing-footer { background:var(--surface); border-top:1px solid var(--border); color:var(--text); }
-.bfs-marketing-footer__inner { width:min(100% - var(--s-4) * 2,var(--content-max)); margin-inline:auto; display:grid; grid-template-columns:1fr auto; gap:var(--s-4); align-items:center; padding:var(--s-5) 0; }
+.bfs-marketing-footer__inner { width:calc(100% - clamp(24px, 5vw, 80px)); max-width:1920px; margin-inline:auto; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:var(--s-4); align-items:center; padding:var(--s-5) 0; }
 .bfs-marketing-footer__inner p { grid-column:1/-1; margin:0; padding-top:var(--s-3); border-top:1px solid var(--border); color:var(--muted); font-size:var(--fs-sm); }
 @media (max-width:767px) {
   .bfs-slim-footer { margin-bottom:0; padding-bottom:calc(var(--s-4) + 56px + env(safe-area-inset-bottom)); }

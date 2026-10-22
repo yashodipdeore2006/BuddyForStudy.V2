@@ -132,8 +132,8 @@ function mapCourse(raw: RawCourse): Course {
     ratingCount: Number(raw.ratingCount ?? raw.rating_count ?? raw.reviewStats?.count ?? raw.stats?.count ?? 0),
     cardMetadata: raw.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
     generation: raw.generation && typeof raw.generation === "object" ? {
-      mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode) ? raw.generation.mode : undefined,
-      sourceResourceType: ["video", "playlist", "series"].includes(raw.generation.sourceResourceType) ? raw.generation.sourceResourceType : null,
+      mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode || "") ? raw.generation.mode as NonNullable<Course["generation"]>["mode"] : undefined,
+      sourceResourceType: ["video", "playlist", "series"].includes(raw.generation.sourceResourceType || "") ? raw.generation.sourceResourceType as NonNullable<Course["generation"]>["sourceResourceType"] : null,
       query: String(raw.generation.query ?? ""),
     } : undefined,
     module_count: Number.isFinite(Number(raw.moduleCount)) ? Number(raw.moduleCount) : undefined,

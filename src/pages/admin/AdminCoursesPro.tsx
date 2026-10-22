@@ -99,6 +99,10 @@ export default function AdminCoursesPro() {
   const [courseQuery, setCourseQuery] = useState("");
   const [readinessResults, setReadinessResults] = useState<Record<string, any>>({});
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const canManageCourses = permissions.includes("courses.manage");
+  const canPublishCourses = permissions.includes("courses.publish");
 
   async function load(query = courseQuery, selectedPage = page, selectedLimit = limit) {
     setLoading(true);
@@ -119,6 +123,17 @@ export default function AdminCoursesPro() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void adminFetch("/api/admin/access")
+      .then((data) => {
+        if (!cancelled) setPermissions(Array.isArray(data.access?.permissions) ? data.access.permissions : []);
+      })
+      .catch(() => { if (!cancelled) setPermissions([]); })
+      .finally(() => { if (!cancelled) setPermissionsLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   async function checkReadiness(courseId: string) {
@@ -620,6 +635,7 @@ export default function AdminCoursesPro() {
         )}
       />
 
+      {!permissionsLoading && !canManageCourses && <div role="status" className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Read-only catalog access. Course editing, pricing, enrollment controls and curriculum changes are hidden because your role does not have course-management permission.</div>}
       {loadError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>}
       {!openCourseId && <div className="card mt-6 p-4">
         <div className="flex flex-col gap-3 md:flex-row">

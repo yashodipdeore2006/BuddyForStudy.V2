@@ -770,3 +770,16 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `899ce18`.
 
 **Verification still required:** CI typecheck/build and browser check that the imported image renders correctly on `/register`.
+
+
+## Auth logo asset update — transparent logo_new.png
+
+**Status:** Source updated; CI verification pending.
+
+- Switched the auth promotional logo import from `Logo.png` to the repository-root `logo_new.png` asset.
+- Removed the decorative white translucent circular tile, border, padding and ring behind the image so only the supplied logo artwork is presented against the existing dark panel.
+- Preserved circular image clipping, responsive sizing, and a subtle drop shadow/hover scale.
+- File: `src/components/AuthLayout.tsx`.
+- Commit: `a79a877`.
+
+**Verification still required:** CI build and browser review to confirm the source image itself has transparency; CSS cannot remove a background baked into the image pixels.

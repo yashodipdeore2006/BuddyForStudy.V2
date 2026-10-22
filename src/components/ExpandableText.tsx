@@ -30,6 +30,7 @@ export default function ExpandableText({
   useEffect(() => {
     if (!expanded || presentation !== "popup") return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const trigger = triggerRef.current;
     dialogRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -54,7 +55,7 @@ export default function ExpandableText({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       if (previousFocus?.isConnected) previousFocus.focus();
-      else triggerRef.current?.focus();
+      else trigger?.focus();
     };
   }, [expanded, presentation]);
 

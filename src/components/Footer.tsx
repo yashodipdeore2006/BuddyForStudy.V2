@@ -14,6 +14,9 @@ export default function Footer() {
           <Link to={routes.profile()}>Help and account</Link>
           <Link to={routes.settings() + "#learning-goals"}>Learning goals</Link>
           <Link to={routes.notifications()}>Notifications</Link>
+          <Link to="/legal/privacy-policy">Privacy</Link>
+          <Link to="/legal/terms-of-service">Terms</Link>
+          <Link to="/legal">Policies</Link>
         </nav>
       </footer>
     );

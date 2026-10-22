@@ -68,3 +68,30 @@ test("converting a free course to paid requires and uses a positive configured a
   assert.equal(calculateNextPricing({ mode: "free", price: 0 }, operation).price, 299);
   assert.throws(() => validatePricingOperation({ type: "set_paid" }), /Amount must be between/);
 });
+
+test("pricing write routes are protected by authentication, admin role and pricing permission", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const routes = fs.readFileSync(path.join(here, "../src/routes/adminPricing.routes.js"), "utf8");
+  const rbac = fs.readFileSync(path.join(here, "../src/utils/adminRbac.js"), "utf8");
+  assert.match(routes, /router\.use\(authMiddleware, adminMiddleware\)/);
+  assert.match(routes, /adminPermissionMiddleware\("pricing\.manage"\)/);
+  assert.match(routes, /router\.post\("\/apply"/);
+  assert.match(routes, /router\.post\("\/rules\/run"/);
+  assert.match(rbac, /"pricing\.manage"/);
+});
+
+test("pricing batch rollback and automatic rules retain audit and revision safeguards", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const controller = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
+  assert.match(controller, /course\.\$locals\.revisionContext/);
+  assert.match(controller, /course\.pricing batch/i);
+  assert.match(controller, /recordAuditEvent/);
+  assert.match(controller, /enabled: true, autoApply: true/);
+  assert.match(controller, /Rollback skipped because the course price has changed/);
+});

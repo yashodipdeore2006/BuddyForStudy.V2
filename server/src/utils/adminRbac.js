@@ -12,7 +12,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
       "courses.read", "courses.manage", "courses.publish", "operations.manage",
       "analytics.read", "plans.read", "billing.read",
       "communications.send", "communications.manage", "notifications.read", "notifications.retry", "coupons.read",
-      "settings.read", "audit.read", "operations.read",
+      "settings.read", "legal.manage", "audit.read", "operations.read",
     ],
   },
   ai_content_manager: {

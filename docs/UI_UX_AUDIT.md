@@ -718,3 +718,16 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `c4a19a6`.
 
 **Verification still required:** CI and visual checks on registration, login, and mobile breakpoints.
+
+
+## Registration form — compact viewport fit
+
+**Status:** Implemented in source; CI verification pending.
+
+- Reduced registration form vertical gaps and legal-copy line height.
+- Reduced auth card padding, heading/subtitle spacing, footer spacing, and desktop vertical padding so the full registration form is more likely to fit without scrolling on common desktop viewports.
+- Kept controls full-width and retained responsive spacing at smaller widths; this is a density refinement, not a fixed-height card, so shorter screens can still scroll naturally.
+- Files: `src/pages/Register.tsx`, `src/components/AuthLayout.tsx`.
+- Commits: `c17547d`, `1b9174d`.
+
+**Verification still required:** CI typecheck/build and visual check at 1366×768 and smaller laptop/mobile heights.

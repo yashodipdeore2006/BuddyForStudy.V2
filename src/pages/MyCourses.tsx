@@ -14,11 +14,26 @@ import { useCourseState } from "@/lib/useCourseState";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 
+type RawLearningLesson = { _id?: string; id?: string; title?: string; description?: string; type?: string; order?: number };
+type RawLearningModule = { _id?: string; id?: string; title?: string; description?: string; order?: number; lessons?: RawLearningLesson[] };
+type RawLearningCourse = {
+  _id?: string; id?: string; title?: string; slug?: string; description?: string; category?: string;
+  level?: Course["level"]; duration?: string | number; thumbnail?: string | null;
+  learningOutcomes?: string[]; learning_outcomes?: string[]; modules?: RawLearningModule[];
+  isPublished?: boolean; is_published?: boolean; pricing?: Course["pricing"];
+  cardMetadata?: Course["cardMetadata"];
+  generation?: { mode?: string; sourceResourceType?: string | null; query?: string };
+  enrollmentCount?: number; enrollment_count?: number; ratingAverage?: number; rating_average?: number;
+  ratingCount?: number; rating_count?: number; createdBy?: string | null; created_by?: string | null;
+  createdAt?: string; created_at?: string; updatedAt?: string; updated_at?: string;
+  lessonCount?: number; lesson_count?: number;
+};
+type RawLearningEnrollment = { _id?: string; id?: string; user?: { _id?: string } | string; user_id?: string; course?: RawLearningCourse | null; courseId?: string; course_id?: string; status?: string; enrolledAt?: string; enrolled_at?: string; createdAt?: string; created_at?: string; updatedAt?: string; updated_at?: string };
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
 type CourseStatus = { progressPct: number; completedLessons: number; totalLessons: number; nextLessonId: string | null; status: LearningTab; loading: boolean };
 
-function mapCourse(raw: any): Course {
+function mapCourse(raw: RawLearningCourse): Course {
   const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: any) => ({
     id: String(module?._id ?? module?.id ?? ""),
     title: String(module?.title ?? ""),
@@ -48,8 +63,8 @@ function mapCourse(raw: any): Course {
     pricing: raw?.pricing,
     cardMetadata: raw?.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
     generation: raw?.generation && typeof raw.generation === "object" ? {
-      mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode) ? raw.generation.mode : undefined,
-      sourceResourceType: ["video", "playlist", "series"].includes(raw.generation.sourceResourceType) ? raw.generation.sourceResourceType : null,
+      mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode || "") ? raw.generation.mode as NonNullable<Course["generation"]>["mode"] : undefined,
+      sourceResourceType: ["video", "playlist", "series"].includes(raw.generation.sourceResourceType || "") ? raw.generation.sourceResourceType as NonNullable<Course["generation"]>["sourceResourceType"] : null,
       query: String(raw.generation.query ?? ""),
     } : undefined,
     enrollment_count: raw?.enrollmentCount ?? raw?.enrollment_count,
@@ -63,7 +78,7 @@ function mapCourse(raw: any): Course {
   };
 }
 
-function mapEnrollment(raw: any): Enrollment & { course: Course } {
+function mapEnrollment(raw: RawLearningEnrollment): Enrollment & { course: Course } {
   const course = mapCourse(raw?.course ?? {});
   return {
     id: String(raw?._id ?? raw?.id ?? ""),

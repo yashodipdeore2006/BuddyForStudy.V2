@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Activity,
   AlertTriangle,
   ArrowRight,
   BookOpen,
@@ -9,7 +8,6 @@ import {
   CreditCard,
   IndianRupee,
   RefreshCcw,
-  ShieldCheck,
   Users,
   XCircle,
 } from "lucide-react";

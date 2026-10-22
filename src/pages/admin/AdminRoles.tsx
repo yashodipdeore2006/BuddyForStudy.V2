@@ -38,9 +38,9 @@ export default function AdminRoles() {
       const adminList = adminData.administrators || [];
       setRoles(roleList);
       setAdministrators(adminList);
-      setSelectedRoles(Object.fromEntries(adminList.map((admin: Administrator) => [
+      setSelectedRoles((current) => Object.fromEntries(adminList.map((admin: Administrator) => [
         admin._id,
-        selectedRoles[admin._id] || admin.adminRole || "platform_admin",
+        current[admin._id] || admin.adminRole || "platform_admin",
       ])));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load administrator access.");

@@ -345,7 +345,13 @@ export default function CourseDetails() {
             } else {
               try { enrollmentData = await apiFetch(`/api/enrollments/course/${courseId}`); } catch { /* A missing enrollment is expected for new learners. */ }
             }
-            if (enrollmentData?.enrollment) setEnrollment(enrollmentData.enrollment);
+            if (enrollmentData?.enrollment) {
+              const accessSource = (enrollmentData.enrollment as Enrollment & { accessSource?: string }).accessSource;
+              if (accessSource === "subscription" && !hasPlanAccess) setEnrollment(null);
+              else setEnrollment(enrollmentData.enrollment);
+            } else {
+              setEnrollment(null);
+            }
 
             const pData = await apiFetch(`/api/progress/${courseId}`);
             const rawProgress = pData.progress;

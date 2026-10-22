@@ -783,3 +783,40 @@ The CI run after the first subscription-plan dialog commit exposed stale handler
 - Commit: `a79a877`.
 
 **Verification still required:** CI build and browser review to confirm the source image itself has transparency; CSS cannot remove a background baked into the image pixels.
+
+
+## Cross-system reliability audit — administrator security and integration
+
+**Audit date:** 2026-10-22  
+**Scope:** Source and test review of the frontend route map, admin shell, server permission middleware, admin route inventory, sensitive administrator mutations, and CI configuration. This is not a claim that every UI has been browser-tested.
+
+### Verified from source and existing automated coverage
+
+- The server defines six admin profiles: Super Admin, Platform Administrator, AI & Learning Content Manager, Finance & Subscription Manager, Support Manager, and Analyst & Auditor.
+- `adminPermissionMiddleware` enforces the authenticated principal's role, access type, and named permission at the server boundary. Unknown roles/permissions fail closed.
+- The current admin route surface has 94 registered routes in `adminPro.routes.js`; the route coverage test checks that protected endpoints declare permission middleware. Companion authorization tests exercise route gates against all six profiles and reject invalid principal types.
+- Existing backend tests cover admin RBAC, invitations, PII reveal, user status auditing, admin operations, pagination, audit outbox behavior, payments/refunds, notifications, subscriptions, and other domain workflows.
+- The latest pre-audit CI for the logo update passed frontend typecheck, course-navigation unit tests, production build, backend tests, and server JavaScript syntax checks. Frontend lint is configured as advisory and is not a release-blocking check.
+
+### Defects found and fixed during this audit
+
+- **Admin role change reason enforcement:** the controller previously accepted a missing or too-short reason when called directly. It now requires a trimmed 10–500 character reason before acquiring the governance lock or attempting a role mutation.
+- **Admin invitation revocation reason enforcement:** the controller previously supplied a default audit reason when callers omitted one. It now requires a trimmed 10–500 character reason before attempting the revocation write.
+- Regression tests were added for absent/short reasons and assert the database write/lock path is not entered for invalid input.
+
+### Remaining verification and release gates
+
+- CI for the new regression tests is pending at the time of this note; do not mark those tests as passed until the run completes.
+- Browser-level admin journeys are not executed by the current CI workflow. `tests/navigation.e2e.spec.ts` uses Playwright but is not invoked by the configured workflow or root package scripts.
+- Frontend lint remains advisory; a successful CI run does not mean lint is clean.
+- Every admin page still needs role-by-role browser verification for visible controls, disabled/denied actions, loading/empty/error states, focus behavior, narrow viewport behavior, and independent API failures.
+- Production integrations require environment-specific verification (OAuth, SMTP, YouTube/AI provider, Razorpay webhooks, Redis/worker, web push, deployed CORS and callback URLs). CI's local MongoDB test service does not validate live credentials or external provider behavior.
+- Do not state that all features are fully verified until the browser and configured integration checks above are completed.
+
+### Next audit sequence
+
+1. Wait for the new backend regression tests and full CI run to pass.
+2. Turn on a CI Playwright job with a deterministic preview server and fixtures.
+3. Add a role matrix for each admin route/action: expected allow, expected deny, mutation reason/confirmation, and audit event.
+4. Run smoke tests for the learner journey (register/login, discovery, course details/reviews, enrollment, player/tutorial/quiz, progress, saved courses, notifications, billing).
+5. Verify deployment configuration and external integrations in a staging environment without exposing secrets.

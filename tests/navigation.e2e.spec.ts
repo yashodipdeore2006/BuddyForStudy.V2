@@ -184,8 +184,19 @@ test.describe("canonical learner navigation", () => {
       enrolled: true,
       course: courseFixture("course-fixture", { pricing: { mode: "paid", price: 499, currency: "INR" } }),
     });
+    // Keep the critical session/enrollment responses explicit for this state-transition smoke test.
+    await page.route("**/api/auth/me", (route) => json(route, { user: learner }));
+    await page.route("**/api/enrollments/course/course-fixture", (route) => json(route, { enrollment: { status: "active" } }));
+    await page.route("**/api/progress/course-fixture", (route) => json(route, {
+      progress: {
+        _id: "progress-1", user: learner.id, course: "course-fixture",
+        completedLessons: [], completedCount: 0, totalLessons: 1,
+        lastLessonId: null, percentage: 0, lastAccessedAt: null,
+      },
+    }));
     await page.goto(baseURL + "/courses/course-fixture");
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
+    await expect(page.getByText(/You’re enrolled/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue Learning/i })).toBeVisible();
     await expect(page.getByText("Buy individual course")).toHaveCount(0);
   });

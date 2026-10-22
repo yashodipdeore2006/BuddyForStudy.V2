@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Bookmark, BookOpen, CheckCircle2, Clock3, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
+import { Bookmark, CheckCircle2, Code2, Palette, BriefcaseBusiness, Database, BrainCircuit, GraduationCap, Sparkles, Users, Eye, Star, Share2 } from "lucide-react";
 import type { Course } from "@/types";
 import { countAllLessons, getAllLessonsFlat } from "@/lib/courseUtils";
 import { apiFetch } from "@/lib/api";
@@ -35,11 +35,15 @@ function formatCompactCount(value: number): string {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-function normalizeCourseId(value: any): string {
-  const candidate = value?.course ?? value?.courseId ?? value?.course_id ?? value;
-  const id = candidate && typeof candidate === "object"
-    ? candidate._id ?? candidate.id ?? candidate.$oid
-    : candidate;
+function normalizeCourseId(value: unknown): string {
+  const record = value !== null && typeof value === "object"
+    ? value as Record<string, unknown>
+    : undefined;
+  const candidate = record?.course ?? record?.courseId ?? record?.course_id ?? value;
+  const candidateRecord = candidate !== null && typeof candidate === "object"
+    ? candidate as Record<string, unknown>
+    : undefined;
+  const id = candidateRecord?._id ?? candidateRecord?.id ?? candidateRecord?.$oid ?? candidate;
   return id == null ? "" : String(id).toLowerCase();
 }
 
@@ -259,7 +263,7 @@ export default function CourseCard({
     progressPct: progress,
     nextLessonId,
     hasRoadmap: getAllLessonsFlat(course.modules).length > 0,
-    hasPreview: getAllLessonsFlat(course.modules).some((lesson: any) => lesson.isPreview === true || lesson.is_preview === true),
+    hasPreview: getAllLessonsFlat(course.modules).some((lesson: { isPreview?: boolean; is_preview?: boolean }) => lesson.isPreview === true || lesson.is_preview === true),
     isPublished: course.is_published !== false,
   });
   const rootClass = [

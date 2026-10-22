@@ -6,7 +6,7 @@ import { failure, success } from "../utils/response.js";
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const categories = new Set(["privacy", "terms", "rules", "refunds", "cookies", "community", "other"]);
 
-function cleanInput(body = {}) {
+export function cleanInput(body = {}) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   const slug = typeof body.slug === "string" ? body.slug.trim().toLowerCase() : "";
   const category = typeof body.category === "string" ? body.category.trim().toLowerCase() : "other";
@@ -20,7 +20,7 @@ function cleanInput(body = {}) {
   if (!categories.has(category)) throw new Error("Choose a supported document category.");
   if (summary.length > 500) throw new Error("Summary must be 500 characters or fewer.");
   if (!content || content.length > 50000) throw new Error("Document content is required and must be at most 50,000 characters.");
-  if (documentUrl && (documentUrl.length > 2048 || !/^https:\/\//i.test(documentUrl))) throw new Error("Document URL must be a valid HTTPS URL.");
+  if (documentUrl) {\n    let parsedUrl;\n    try { parsedUrl = new URL(documentUrl); } catch { throw new Error("Document URL must be a valid HTTPS URL."); }\n    if (documentUrl.length > 2048 || parsedUrl.protocol !== "https:" || !parsedUrl.hostname || parsedUrl.username || parsedUrl.password) throw new Error("Document URL must be a valid HTTPS URL without embedded credentials.");\n  }
   if (effectiveAt && Number.isNaN(effectiveAt.getTime())) throw new Error("Effective date is invalid.");
   if (revisionNote.length > 500) throw new Error("Revision note must be 500 characters or fewer.");
   return { title, slug, category, summary, body: content, documentUrl, effectiveAt, revisionNote };

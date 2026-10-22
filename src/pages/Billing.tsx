@@ -57,11 +57,18 @@ function statusClass(status: string) {
   return styles[status] || "bg-slate-100 text-slate-700 ring-slate-500/15";
 }
 
+type SubscriptionSummary = {
+  status: string;
+  plan?: { name?: string; billingInterval?: string } | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+};
+
 export default function Billing() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
-  const [subscription, setSubscription] = useState<any>(null);
+  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");

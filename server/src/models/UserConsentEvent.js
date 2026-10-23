@@ -19,7 +19,7 @@ const userConsentEventSchema = new mongoose.Schema({
   preferences: { type: cookiePreferencesSchema, default: undefined, immutable: true },
   source: {
     type: String,
-    enum: ["registration", "account_gate", "cookie_banner", "settings", "google_onboarding", "profile_settings"],
+    enum: ["registration", "account_gate", "cookie_banner", "settings", "google_onboarding", "profile_settings", "email_unsubscribe"],
     required: true,
     immutable: true
   },

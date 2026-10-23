@@ -299,6 +299,7 @@ export default function CourseDetails() {
   useEffect(() => {
     async function fetchCourse() {
       setPlanCourseAccess(false);
+      setPurchaseChoice("individual");
       setEnrollment(null);
       if (!courseId) {
         setError('Invalid course');
@@ -311,6 +312,7 @@ export default function CourseDetails() {
         // requests must never block the course page from rendering.
         const data = await apiFetch(`/api/courses/${courseId}`);
         const raw = data.course;
+        setPurchaseChoice(raw.pricing?.mode === "paid" ? "subscription" : "individual");
         setCourse({
           ...raw,
           id: String(raw._id ?? raw.id),
@@ -331,8 +333,9 @@ export default function CourseDetails() {
         if (session) {
           try {
             const entitlementData = await apiFetch('/api/billing/entitlements');
-            const hasPlanAccess = raw.pricing?.mode === 'paid' && Boolean(entitlementData?.features?.published_courses);
+            const hasPlanAccess = Boolean(entitlementData?.features?.published_courses);
             setPlanCourseAccess(hasPlanAccess);
+            setPurchaseChoice(raw.pricing?.mode === "paid" || hasPlanAccess ? "subscription" : "individual");
 
             let enrollmentData: { enrollment?: Enrollment } | null = null;
             // Loading course details is read-only. Never create an enrollment just
@@ -453,13 +456,16 @@ export default function CourseDetails() {
     }
   };
 
-  const handleEnroll = async () => {
+  const handleEnroll = async (accessPreference?: "subscription" | "individual") => {
     if (!session) { navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } }); return; }
     if (!course || !course.is_published) return;
     if (course.pricing?.mode === 'paid' && !planCourseAccess) { await handleCheckout(); return; }
     setEnrolling(true); setError(null);
     try {
-      const data = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+      const data = await apiFetch(`/api/enrollments/${courseId}`, {
+        method: 'POST',
+        body: JSON.stringify(accessPreference ? { accessPreference } : {}),
+      });
       setEnrollment(data.enrollment);
       window.dispatchEvent(new CustomEvent("bfs:course-enrollment-updated", { detail: { courseId: String(courseId), status: String(data.enrollment?.status || "active") } }));
     } catch (err) {
@@ -468,17 +474,25 @@ export default function CourseDetails() {
   };
 
   const handleSelectedPurchase = () => {
-    // Make the learner's access choice explicit. Selecting lifetime purchase
-    // always uses checkout, even when the current plan already covers the course.
-    if (isPaidCourse && purchaseChoice === 'individual') {
-      void handleCheckout();
+    // Respect the selected access route for free and paid courses.
+    if (purchaseChoice === 'individual') {
+      if (isPaidCourse) {
+        // Paid individual access always goes through verified checkout.
+        void handleCheckout();
+      } else {
+        // Free courses can be enrolled individually without a plan.
+        void handleEnroll('individual');
+      }
       return;
     }
-    if (isPaidCourse && planCourseAccess) {
-      void handleEnroll();
+
+    if (planCourseAccess) {
+      void handleEnroll('subscription');
       return;
     }
-    if (isPaidCourse && purchaseChoice === 'subscription') {
+
+    // Do not charge until the learner enters the actual billing flow.
+    if (purchaseChoice === 'subscription') {
       if (!session) {
         navigate(routes.login(), { state: { from: { pathname: routes.pricing() } } });
         return;
@@ -486,11 +500,12 @@ export default function CourseDetails() {
       navigate(routes.pricing());
       return;
     }
+
     if (isPaidCourse) {
       void handleCheckout();
       return;
     }
-    void handleEnroll();
+    void handleEnroll('individual');
   };
 
 

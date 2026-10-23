@@ -307,6 +307,9 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         body: JSON.stringify(notifPrefs),
       });
       setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data.preferences || {}) });
+      if (typeof data.preferences?.emailAnnouncements === "boolean") {
+        setMarketingEmailConsent(data.preferences.emailAnnouncements);
+      }
       setPushAvailable(Boolean(data.pushAvailable));
       setNotifSuccess(true);
     } catch (error) {
@@ -333,6 +336,9 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         body: JSON.stringify(next),
       });
       setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data.preferences || next) });
+      if (typeof data.preferences?.emailAnnouncements === "boolean") {
+        setMarketingEmailConsent(data.preferences.emailAnnouncements);
+      }
       setPushAvailable(Boolean(data.pushAvailable));
       setNotifSuccess(true);
     } catch (error) {

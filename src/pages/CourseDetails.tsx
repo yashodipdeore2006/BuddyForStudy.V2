@@ -977,7 +977,7 @@ export default function CourseDetails() {
               <p className="text-xs text-slate-500">{isPaidCourse ? formatCoursePrice(purchaseChoice === 'individual' ? salePrice : Number(subscriptionPlans[0]?.price || 0), currency) : 'Free'}{course.cardMetadata?.qualityScore != null ? ' · ' + Math.round(course.cardMetadata.qualityScore) + '/100 curated' : ''}</p>
             </div>
             <button type="button" onClick={handleSelectedPurchase} disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled} className="btn-primary shrink-0 px-4 py-2 text-sm">
-              {enrolling || checkoutLoading ? 'Please wait…' : isPaidCourse ? (purchaseChoice === 'subscription' ? (planCourseAccess ? 'Continue with current plan' : session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')) : (session ? 'Enroll free' : 'Sign in to enroll')}
+              {enrolling || checkoutLoading ? 'Please wait…' : purchaseChoice === 'subscription' ? (planCourseAccess ? 'Continue with current plan' : isPaidCourse ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'View plans' : 'Sign in to view plans')) : isPaidCourse ? (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy') : (session ? 'Enroll free' : 'Sign in to enroll')}
             </button>
           </div>
         </div>
@@ -1288,10 +1288,12 @@ export default function CourseDetails() {
                 >
                   {enrolling || checkoutLoading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
-                  ) : isPaidCourse && planCourseAccess && purchaseChoice === 'subscription' ? (
+                  ) : purchaseChoice === 'subscription' && planCourseAccess ? (
                     session ? 'Continue with current plan' : 'Sign in to access course'
+                  ) : purchaseChoice === 'subscription' ? (
+                    isPaidCourse ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'View plans' : 'Sign in to view plans')
                   ) : isPaidCourse ? (
-                    purchaseChoice === 'subscription' ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy')
+                    session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy'
                   ) : session ? 'Enroll free' : 'Sign in to enroll'}
                 </button>
                 {!session && <p className="mt-3 text-center text-xs text-slate-500">Sign in or create a free account to continue.</p>}

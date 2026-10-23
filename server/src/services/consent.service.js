@@ -63,6 +63,15 @@ async function appendEvent(userId, event) {
   });
 }
 
+export function hasExplicitPushConsentChoice(input) {
+  return Boolean(
+    input &&
+    typeof input === "object" &&
+    Object.prototype.hasOwnProperty.call(input, "pushEnabled") &&
+    typeof input.pushEnabled === "boolean"
+  );
+}
+
 export function buildPushNotificationConsentEvent(enabled) {
   if (typeof enabled !== "boolean") {
     throw serviceError("Push notification consent must be true or false.");

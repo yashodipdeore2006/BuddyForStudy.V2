@@ -1208,24 +1208,24 @@ export default function CourseDetails() {
               <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Course price</p>
                 <p className="mt-1 text-3xl font-bold tracking-tight text-emerald-900">Free</p>
-                <p className="mt-1 text-xs leading-5 text-emerald-800">Enroll to add this course to your learning library.</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">No payment is required. Choose free individual enrollment or use an eligible active plan below.</p>
               </div>
             )}
-            {isPaidCourse && planCourseAccess && !isEnrolled && (
+            {planCourseAccess && !isEnrolled && (
               <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><CheckCircle2 className="h-4 w-4" />Your current plan includes this course</p>
-                <p className="mt-1 text-xs leading-5 text-emerald-800">Choose whether to continue with your subscription or buy lifetime access that remains yours after the plan ends.</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">{isPaidCourse ? "Continue with your plan at no additional cost, or buy individual lifetime access." : "Use your active plan or enroll individually for free. Your choice is shown below."}</p>
               </div>
             )}
-            {isPaidCourse && !isEnrolled && (
+            {!isEnrolled && (
               <div className="mb-5 overflow-hidden rounded-2xl border border-slate-200">
                 <label className={classNames("block cursor-pointer p-4 transition-colors", purchaseChoice === 'subscription' ? "bg-violet-50/70" : "bg-white hover:bg-slate-50")}>
                   <span className="flex items-start gap-3">
                     <input type="radio" name="purchase-choice" value="subscription" checked={purchaseChoice === 'subscription'} onChange={() => setPurchaseChoice('subscription')} className="mt-1 h-4 w-4 accent-violet-600" />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm text-slate-600">{planCourseAccess ? 'Continue with current plan' : 'Subscribe and save'}</span>
+                      <span className="block text-sm text-slate-600">{planCourseAccess ? 'Continue with current plan' : isPaidCourse ? 'Subscribe and save' : 'Explore subscription plans'}</span>
                       <span className="mt-0.5 block text-xl font-bold text-slate-950">{planCourseAccess ? 'Included in your subscription' : <>From {subscriptionPlans.length ? formatCoursePrice(Number(subscriptionPlans[0].price || 0), 'INR') : 'subscription plans'}<span className="text-xs font-normal text-slate-500">{subscriptionPlans.length ? ' /' + (subscriptionPlans[0].billingInterval || 'month') : ''}</span></>}</span>
-                      <span className="mt-2 block rounded-lg bg-violet-100 p-2.5 text-xs leading-5 text-violet-900">{planCourseAccess ? 'Use your existing plan now. No additional subscription payment is needed.' : 'Subscribers can access published courses and included learning features according to their plan.'}</span>
+                      <span className="mt-2 block rounded-lg bg-violet-100 p-2.5 text-xs leading-5 text-violet-900">{planCourseAccess ? 'Use your existing plan now. No additional subscription payment is needed.' : isPaidCourse ? 'Subscribers can access published courses and included learning features according to their plan.' : 'A subscription is optional for this free course and may provide access to other published courses and included learning features.'}</span>
                       <span className="mt-3 block space-y-2 text-xs text-slate-600">
                         <span className="flex items-center gap-2"><BookOpen className="h-4 w-4" />Access courses included with your plan</span>
                         <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" />Manage or cancel according to plan terms</span>
@@ -1237,11 +1237,11 @@ export default function CourseDetails() {
                   <span className="flex items-start gap-3">
                     <input type="radio" name="purchase-choice" value="individual" checked={purchaseChoice === 'individual'} onChange={() => setPurchaseChoice('individual')} className="mt-1 h-4 w-4 accent-emerald-600" />
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm text-slate-600">Buy individual course</span>
-                      <span className="mt-0.5 block text-xl font-bold text-slate-950">{formatCoursePrice(salePrice, currency)}</span>
-                      {crossedPrice > salePrice && <span className="ml-1 text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>}
-                      <span className="mt-1 block text-xs text-slate-500">One-time payment · full lifetime access</span>
-                      {discountPercent > 0 && <span className="mt-2 inline-flex w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Save {discountPercent}%</span>}
+                      <span className="block text-sm text-slate-600">{isPaidCourse ? 'Buy individual course' : 'Enroll individually'}</span>
+                      <span className="mt-0.5 block text-xl font-bold text-slate-950">{isPaidCourse ? formatCoursePrice(salePrice, currency) : 'Free'}</span>
+                      {isPaidCourse && crossedPrice > salePrice && <span className="ml-1 text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>}
+                      <span className="mt-1 block text-xs text-slate-500">{isPaidCourse ? 'One-time payment · full lifetime access' : 'No payment required · add this course to your learning library without a subscription.'}</span>
+                      {isPaidCourse && discountPercent > 0 && <span className="mt-2 inline-flex w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Save {discountPercent}%</span>}
                     </span>
                   </span>
                 </label>

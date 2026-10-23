@@ -61,9 +61,34 @@ export default function PushNotificationPrompt() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [preferences, setPreferences] = useState<PushPreferences>({});
+  const [permissionBlocked, setPermissionBlocked] = useState(false);
+  const [blockedPromptDismissed, setBlockedPromptDismissed] = useState(false);
+
+  useEffect(() => {
+    const refreshPermission = () => {
+      if (typeof window === "undefined" || !("Notification" in window)) return;
+      const denied = Notification.permission === "denied";
+      setPermissionBlocked(denied);
+      if (!denied) {
+        // The learner may have changed this site's permission in browser settings.
+        setBlockedPromptDismissed(false);
+        setError("");
+      }
+    };
+    window.addEventListener("focus", refreshPermission);
+    document.addEventListener("visibilitychange", refreshPermission);
+    return () => {
+      window.removeEventListener("focus", refreshPermission);
+      document.removeEventListener("visibilitychange", refreshPermission);
+    };
+  }, []);
 
   useEffect(() => {
     if (authLoading || !userId || isAdmin || excludedRoute) {
+      setVisible(false);
+      return;
+    }
+    if (blockedPromptDismissed) {
       setVisible(false);
       return;
     }
@@ -74,11 +99,15 @@ export default function PushNotificationPrompt() {
 
     const checkPromptEligibility = async () => {
       const thisCheck = ++checkVersion;
-      if (!hasCookieChoice() || !browserCanOfferPush() || Notification.permission === "denied") {
+      if (!hasCookieChoice() || !browserCanOfferPush()) {
         setVisible(false);
         return;
       }
-      if (wasRecentlyDismissed(userId)) {
+      const isPermissionBlocked = Notification.permission === "denied";
+      setPermissionBlocked(isPermissionBlocked);
+      // A browser-level block cannot be overridden by requestPermission(). Keep
+      // showing an in-app recovery prompt on a fresh app entry instead.
+      if (!isPermissionBlocked && wasRecentlyDismissed(userId)) {
         setVisible(false);
         return;
       }
@@ -104,7 +133,7 @@ export default function PushNotificationPrompt() {
 
         const currentPreferences = (notificationData.preferences || {}) as PushPreferences;
         setPreferences(currentPreferences);
-        if (currentPreferences.pushEnabled === true && subscribed) {
+        if (!isPermissionBlocked && currentPreferences.pushEnabled === true && subscribed) {
           setVisible(false);
           return;
         }
@@ -131,16 +160,41 @@ export default function PushNotificationPrompt() {
       window.removeEventListener("bfs:cookie-consent-updated", recheck);
       window.removeEventListener("bfs:account-consent-settled", recheck);
     };
-  }, [authLoading, userId, isAdmin, excludedRoute, location.pathname]);
+  }, [authLoading, userId, isAdmin, excludedRoute, location.pathname, blockedPromptDismissed]);
 
   const dismiss = useCallback(() => {
-    if (userId) rememberDismissal(userId);
+    if (userId) {
+      if ("Notification" in window && Notification.permission === "denied") {
+        // Dismiss for this mounted app session only. On the next app entry,
+        // explain how to unblock notifications again.
+        setBlockedPromptDismissed(true);
+      } else {
+        rememberDismissal(userId);
+      }
+    }
     setError("");
     setVisible(false);
   }, [userId]);
 
+  const recheckPermission = useCallback(() => {
+    if (!("Notification" in window)) return;
+    const stillBlocked = Notification.permission === "denied";
+    setPermissionBlocked(stillBlocked);
+    setError(stillBlocked
+      ? "Notifications are still blocked. Change this site's permission in your browser settings, then check again."
+      : "");
+    if (!stillBlocked) {
+      setBlockedPromptDismissed(false);
+    }
+  }, []);
+
   const handleEnable = useCallback(async () => {
     if (busy || !userId) return;
+    if ("Notification" in window && Notification.permission === "denied") {
+      setPermissionBlocked(true);
+      setError("");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -180,11 +234,20 @@ export default function PushNotificationPrompt() {
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[.14em] text-violet-700">Stay on track</p>
           <h2 id="push-notification-prompt-title" className="mt-1 text-lg font-extrabold text-slate-950">
-            Keep your learning moving
+            {permissionBlocked ? "Notifications are blocked in your browser" : "Keep your learning moving"}
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Get useful course updates and learning reminders, even when BuddyForStudy isn’t open.
+            {permissionBlocked
+              ? "Your browser will not show the permission popup again until you change this site's permission."
+              : "Get useful course updates and learning reminders, even when BuddyForStudy isn’t open."}
           </p>
+          {permissionBlocked && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+              <p className="font-bold">How to unblock notifications</p>
+              <p className="mt-1">In Chrome or Edge, select the site controls icon beside the address bar, open Site settings, change Notifications from Block to Allow, then return here.</p>
+              <p className="mt-1">Other browsers provide a similar Notifications permission in their site settings.</p>
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -206,17 +269,29 @@ export default function PushNotificationPrompt() {
         <button type="button" onClick={dismiss} disabled={busy} className="rounded-full px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-100 disabled:opacity-60">
           Not now
         </button>
-        <button
-          type="button"
-          onClick={() => void handleEnable()}
-          disabled={busy}
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1A1B41] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#12132f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] disabled:cursor-wait disabled:opacity-70"
-        >
-          {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Enabling…</> : "Enable notifications"}
-        </button>
+        {permissionBlocked ? (
+          <button
+            type="button"
+            onClick={recheckPermission}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1A1B41] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#12132f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6]"
+          >
+            Check permission again
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void handleEnable()}
+            disabled={busy}
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#1A1B41] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#12132f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8B5CF6] disabled:cursor-wait disabled:opacity-70"
+          >
+            {busy ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Enabling…</> : "Enable notifications"}
+          </button>
+        )}
       </div>
       <p className="px-5 pb-3 text-center text-[11px] leading-4 text-slate-500">
-        Optional — choose Enable to open your browser’s permission prompt. You can change this anytime in Settings.
+        {permissionBlocked
+          ? "After allowing notifications in browser settings, return here and check again. This prompt will appear again the next time you open BuddyForStudy until access is restored."
+          : "Optional — choose Enable to open your browser’s permission prompt. You can change this anytime in Settings."}
       </p>
     </aside>
   );

@@ -51,7 +51,7 @@
 - [x] Audit/record explicit push enable and disable choices in consent history.
 - [x] Ensure general notification-preference saving does not accidentally re-record a push decision when the user changes only another preference.
 - [x] Improve push error/state copy for unsupported browser, insecure non-local origin, native permission denied, missing server VAPID configuration, and successful subscription.
-- [x] Add unit regression coverage for push consent enable/disable event payloads. [ ] Add a route-level test for independent preference saving.
+- [x] Add unit and controller-boundary regression coverage: general notification preference saves do not create push consent events; explicit push enable/disable choices create auditable events.
 
 ### Phase B — Verify privacy enforcement
 - [x] Review current frontend source/dependencies for analytics/ad SDKs: none found in this build. Cookie UI now states that preferences are recorded but no optional analytics/ad tracker is currently enabled. Re-check the deployed bundle before production.

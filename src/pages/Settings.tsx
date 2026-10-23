@@ -396,6 +396,13 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
+  const pushActiveOnThisBrowser = notifPrefs.pushEnabled && browserPushSubscribed;
+  const browserPushCanRequest = pushAvailable &&
+    browserPushPermission !== "checking" &&
+    browserPushPermission !== "unsupported" &&
+    browserPushPermission !== "insecure" &&
+    browserPushPermission !== "denied";
+
   const notificationGroups = [
     {
       title: "Course updates",
@@ -606,20 +613,27 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-slate-600">
-                  {notifPrefs.pushEnabled && browserPushSubscribed
+                  {pushActiveOnThisBrowser
                     ? "Push notifications are enabled for this browser and account."
                     : notifPrefs.pushEnabled
-                      ? "Push is enabled for your account, but this browser is not subscribed. Enable it here to receive notifications on this device."
+                      ? "Push is enabled for your account, but this browser is not subscribed. Enable it here to receive notifications on this device, or turn the account preference off."
                       : "Push notifications are off. Enabling them is optional."}
                 </p>
-                <button
-                  type="button"
-                  disabled={savingPush || (!(notifPrefs.pushEnabled && browserPushSubscribed) && (!pushAvailable || browserPushPermission === "checking" || browserPushPermission === "unsupported" || browserPushPermission === "insecure" || browserPushPermission === "denied"))}
-                  onClick={() => void handlePushToggle(!(notifPrefs.pushEnabled && browserPushSubscribed))}
-                  className={notifPrefs.pushEnabled && browserPushSubscribed ? "btn-secondary" : "btn-primary"}
-                >
-                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled && browserPushSubscribed ? "Disable push notifications" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push on this browser"}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={savingPush || (!pushActiveOnThisBrowser && !browserPushCanRequest)}
+                    onClick={() => void handlePushToggle(!pushActiveOnThisBrowser)}
+                    className={pushActiveOnThisBrowser ? "btn-secondary" : "btn-primary"}
+                  >
+                    {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : pushActiveOnThisBrowser ? "Disable push notifications" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push on this browser"}
+                  </button>
+                  {notifPrefs.pushEnabled && !browserPushSubscribed && (
+                    <button type="button" disabled={savingPush} onClick={() => void handlePushToggle(false)} className="btn-secondary">
+                      Disable push for account
+                    </button>
+                  )}
+                </div>
               </div>
               <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">
                 {getBrowserPushStatusMessage(browserPushPermission, pushAvailable)}

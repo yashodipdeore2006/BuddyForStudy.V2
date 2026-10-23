@@ -95,6 +95,7 @@ export default function AccountConsentGate() {
       const nextStatus = data.status;
       if (!nextStatus) throw new Error("The consent response was incomplete. Please retry.");
       setGate((current) => current ? { ...current, status: nextStatus, error: "" } : current);
+      window.dispatchEvent(new Event("bfs:account-consent-settled"));
       void refreshProfile().catch(() => {});
     } catch (error) {
       setGate((current) => current ? {
@@ -119,6 +120,7 @@ export default function AccountConsentGate() {
       const nextStatus = data.status;
       if (!nextStatus) throw new Error("The profile response was incomplete. Please retry.");
       setGate((current) => current ? { ...current, status: nextStatus, error: "" } : current);
+      window.dispatchEvent(new Event("bfs:account-consent-settled"));
       void refreshProfile().catch(() => {});
     } catch (error) {
       setGate((current) => current ? {
@@ -139,6 +141,7 @@ export default function AccountConsentGate() {
       const nextStatus = data.status;
       if (!nextStatus) throw new Error("The profile response was incomplete. Please retry.");
       setGate((current) => current ? { ...current, status: nextStatus, error: "" } : current);
+      window.dispatchEvent(new Event("bfs:account-consent-settled"));
     } catch (error) {
       setGate((current) => current ? {
         ...current,

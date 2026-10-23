@@ -4,9 +4,9 @@ import { UserConsentEvent } from "../models/UserConsentEvent.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
 
 const DEFAULT_POLICY_VERSIONS = Object.freeze({
-  terms: "terms-of-service@default-2026-10",
-  privacy: "privacy-policy@default-2026-10",
-  cookies: "cookies@default-2026-10",
+  terms: "terms-of-service@v1",
+  privacy: "privacy-policy@v1",
+  cookies: "cookie-policy@v1",
   marketing: "marketing-email@v1"
 });
 

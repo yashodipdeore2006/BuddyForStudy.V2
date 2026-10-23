@@ -12,6 +12,12 @@ export interface Profile {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  phone_number?: string;
+  phone_number_verified?: boolean;
+  city?: string;
+  learning_goal?: string;
+  profile_setup_skipped_at?: string | null;
+  marketing_email_consent?: boolean;
 }
 
 export interface TutorialContent {

@@ -8,6 +8,7 @@ import * as operationalAlertController from "../controllers/operationalAlert.con
 import * as adminRolesController from "../controllers/adminRoles.controller.js";
 import * as adminInvitationsController from "../controllers/adminInvitations.controller.js";
 import * as adminOperationsController from "../controllers/adminOperations.controller.js";
+import * as aiPromptController from "../controllers/aiPrompt.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -20,6 +21,10 @@ router.get("/pricing/history", adminPermissionMiddleware("pricing.manage"), pric
 router.post("/pricing/history/:batchId/rollback", adminPermissionMiddleware("pricing.manage"), pricingController.rollback);
 router.get("/ai-content/settings", adminPermissionMiddleware("ai.manage"), adminRolesController.getAIContentSettings);
 router.put("/ai-content/settings/:key", adminPermissionMiddleware("ai.manage"), adminRolesController.updateAIContentSetting);
+router.get("/prompts", adminPermissionMiddleware("ai.manage"), aiPromptController.listPromptVersions);
+router.get("/prompts/:feature/versions/:versionId", adminPermissionMiddleware("ai.manage"), aiPromptController.getPromptVersion);
+router.post("/prompts/:feature/versions", adminPermissionMiddleware("ai.manage"), aiPromptController.createPromptVersion);
+router.post("/prompts/:feature/activate", adminPermissionMiddleware("ai.manage"), aiPromptController.activatePromptVersion);
 router.get("/roles", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdminRoles);
 router.get("/administrators", adminPermissionMiddleware("admin_roles.manage"), adminRolesController.listAdministrators);
 router.get("/invitations", adminPermissionMiddleware("admin_roles.manage"), adminInvitationsController.listInvitations);

@@ -173,7 +173,7 @@ export async function updateContactDetails(userId, {
     await appendEvent(user._id, {
       type: "profile_details",
       version: "google-profile-v1",
-      accepted: true,
+      accepted: null,
       source,
       changedFields: ["profile_setup_skipped"]
     });
@@ -208,7 +208,7 @@ export async function updateContactDetails(userId, {
     await appendEvent(user._id, {
       type: "profile_details",
       version: "profile-details-v1",
-      accepted: true,
+      accepted: null,
       source,
       changedFields
     });

@@ -5,7 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight } from "lucide-react";
-import { disableBrowserPush, enableBrowserPush } from "@/lib/pushNotifications";
+import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 import { routes } from "@/lib/routes";
 
 type NotificationPreferences = {
@@ -121,6 +121,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [notifError, setNotifError] = useState("");
   const [pushAvailable, setPushAvailable] = useState(false);
   const [browserPushPermission, setBrowserPushPermission] = useState<BrowserPushStatus>("checking");
+  const [browserPushSubscribed, setBrowserPushSubscribed] = useState(false);
   const [savingPush, setSavingPush] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
     try { const stored = localStorage.getItem("bfs-theme"); return stored === "dark" || stored === "system" ? stored : "light"; } catch { return "light"; }
@@ -222,11 +223,18 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   };
 
   useEffect(() => {
-    const refreshBrowserPermission = () => setBrowserPushPermission(readBrowserPushStatus());
+    let active = true;
+    const refreshBrowserPermission = () => {
+      setBrowserPushPermission(readBrowserPushStatus());
+      void hasBrowserPushSubscription()
+        .then((subscribed) => { if (active) setBrowserPushSubscribed(subscribed); })
+        .catch(() => { if (active) setBrowserPushSubscribed(false); });
+    };
     refreshBrowserPermission();
     window.addEventListener("focus", refreshBrowserPermission);
     document.addEventListener("visibilitychange", refreshBrowserPermission);
     return () => {
+      active = false;
       window.removeEventListener("focus", refreshBrowserPermission);
       document.removeEventListener("visibilitychange", refreshBrowserPermission);
     };
@@ -381,6 +389,9 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       setNotifError(error instanceof Error ? error.message : "Unable to update push notifications.");
     } finally {
       setBrowserPushPermission(readBrowserPushStatus());
+      void hasBrowserPushSubscription()
+        .then(setBrowserPushSubscribed)
+        .catch(() => setBrowserPushSubscribed(false));
       setSavingPush(false);
     }
   };
@@ -594,14 +605,20 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-600">{notifPrefs.pushEnabled ? "Push notifications are enabled for this account." : "Push notifications are off. Enabling them is optional."}</p>
+                <p className="text-sm text-slate-600">
+                  {notifPrefs.pushEnabled && browserPushSubscribed
+                    ? "Push notifications are enabled for this browser and account."
+                    : notifPrefs.pushEnabled
+                      ? "Push is enabled for your account, but this browser is not subscribed. Enable it here to receive notifications on this device."
+                      : "Push notifications are off. Enabling them is optional."}
+                </p>
                 <button
                   type="button"
-                  disabled={savingPush || (!notifPrefs.pushEnabled && (!pushAvailable || browserPushPermission === "checking" || browserPushPermission === "unsupported" || browserPushPermission === "insecure" || browserPushPermission === "denied"))}
-                  onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)}
-                  className={notifPrefs.pushEnabled ? "btn-secondary" : "btn-primary"}
+                  disabled={savingPush || (!(notifPrefs.pushEnabled && browserPushSubscribed) && (!pushAvailable || browserPushPermission === "checking" || browserPushPermission === "unsupported" || browserPushPermission === "insecure" || browserPushPermission === "denied"))}
+                  onClick={() => void handlePushToggle(!(notifPrefs.pushEnabled && browserPushSubscribed))}
+                  className={notifPrefs.pushEnabled && browserPushSubscribed ? "btn-secondary" : "btn-primary"}
                 >
-                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled ? "Disable push" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push"}
+                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled && browserPushSubscribed ? "Disable push on this browser" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push on this browser"}
                 </button>
               </div>
               <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">

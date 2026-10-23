@@ -1,7 +1,7 @@
 # Consent, Permissions & Personal Data — Audit and Implementation Plan
 
 **Branch:** `test`  
-**Status:** Inventory completed; implementation follows the priority list below.  
+**Status:** Inventory completed. Consent and push/email enforcement updates are implemented on `test`; the latest changes are under CI validation.  
 **Design rule:** Reuse BuddyForStudy's unified brand tokens and established controls. Do not introduce a second color system or a separate-looking permission center.
 
 ## Product rules
@@ -24,10 +24,10 @@
 | C01 | Terms of Service | Inline notice on registration; versioned server acknowledgement; existing-user gate for new policy versions | Keep links visible before account action, version and timestamp recorded; do not pre-check unrelated marketing choices. |
 | C02 | Privacy Policy | Inline notice and account gate | Keep accessible policy link and acknowledgement record; policy wording/version must match the displayed policy. |
 | C03 | Essential storage | Described in Cookie settings; auth/session and preference storage are used by the app | Always-on only for required operations. Describe local storage/session technology accurately; do not call every browser-storage item a cookie. |
-| C04 | Optional analytics storage | Separate off-by-default category in Cookie settings; no confirmed analytics SDK in the reviewed code | Keep off by default. A future analytics integration must read the saved choice before loading and support revocation. |
-| C05 | Optional marketing/advertising storage | Separate off-by-default category in Cookie settings; no confirmed ad/pixel SDK in the reviewed code | Keep off by default. Do not load ad/pixel technology before opt-in. |
-| C06 | Browser push permission | Separate Settings → Notifications action calls `Notification.requestPermission()`; service worker and push subscription are registered on demand | **Implemented:** clear browser support/HTTPS/server-config/denied states; prompt stays user-initiated; explicit enable/disable is audited. Browser permission remains per-browser/device. |
-| C07 | Promotional email | Separate unchecked marketing opt-in, settings control, unsubscribe link and delivery preference | Keep unchecked by default; synchronize consent and delivery suppression; record opt-in/withdrawal; transactional/security/billing mail remains separate. |
+| C04 | Optional analytics storage | Separate off-by-default category; source review found no analytics SDK in this build | **Source audit completed:** no analytics SDK found in frontend dependencies/source. The banner explains that this is currently a saved preference only; future analytics must gate initialization on opt-in and support revocation. |
+| C05 | Optional marketing/advertising storage | Separate off-by-default category; source review found no advertising/marketing pixel SDK in this build | **Source audit completed:** no ad/pixel SDK found in frontend dependencies/source. The banner says this choice is recorded for future use until a reviewed tracker is added; future trackers must be gated. |
+| C06 | Browser push permission | Separate Settings → Notifications action calls `Notification.requestPermission()`; service worker and push subscription are registered on demand | **Implemented:** clear browser support/HTTPS/server-config/denied states; native permission is requested only on explicit user action; explicit enable/disable is audited. Browser permission remains per-browser/device. |
+| C07 | Promotional email | Separate unchecked marketing opt-in, Settings control, signed unsubscribe link and delivery preference | **Enforcement updated:** explicit opt-in/withdrawal synchronizes account and delivery preference; one-click unsubscribe uses the central revocation service and appends an `email_unsubscribe` event; transactional/security/billing mail remains separate. |
 | C08 | In-app notification types | Existing preferences for course/project updates, announcements and reminders | Keep user-controlled defaults and persist current choices; do not request browser permission for in-app notifications. |
 | C09 | Reminder schedule / quiet hours | Existing time-zone, reminder-hour and quiet-hours controls | Explain effect and validate settings; this is a preference, not a browser permission. |
 | C10 | Google sign-in profile data | Google OAuth supplies basic identity fields; app asks the user to enter a contact number, with optional city/learning goal and a skip path | Do not claim Google supplied phone number. Phone remains unverified until a real verification feature exists. Make purpose and skip/withdraw paths explicit. |
@@ -37,7 +37,7 @@
 | C14 | Course payments / refunds | Existing checkout, payment and refund flows | Keep payment-provider handling and transactional communications explained; never treat payment/account messages as optional marketing. |
 | C15 | Camera, microphone, geolocation, clipboard, file access | No general-purpose permission request is part of the reviewed consent flows | Do not ask globally. Request at the point a specific feature needs one and explain why. If no feature needs it, do not request it. |
 | C16 | Account access, export, correction and deletion | Contact fields can be edited; a full privacy rights workflow was not found in this inventory | Audit separately before launch. Define export/deletion request handling, retention/legal holds and identity verification. Do not promise automated deletion/export until implemented. |
-| C17 | Consent proof and audit history | Append-only `UserConsentEvent` records cover terms, privacy, cookies, marketing, push, and profile events | **Implemented for the identified gaps:** push event type and explicit enable/disable records added; general preference save omits push so it cannot fabricate a push-choice event. Keep event meanings accurate and avoid recording ordinary profile edits as consent acceptance. |
+| C17 | Consent proof and audit history | Append-only `UserConsentEvent` records cover terms, privacy, cookies, marketing, push, and profile events | **Implemented for identified gaps:** push event type and explicit enable/disable records; general preference save omits push; promotional opt-out records `accepted: false` with source `email_unsubscribe`; profile edits are not labeled as consent acceptance. |
 | C18 | Legal policy publication/versioning | Admin can publish policy versions; interim default policies exist | Ensure displayed version matches the one recorded on acceptance. Have policy text reviewed for target markets before production launch. |
 | C19 | Consent center placement / visual system | Cookie settings available in footer and Settings; privacy preferences in Settings | Keep entry points findable; use current indigo/violet palette, neutral surfaces, semantic success/warning/error colors, existing buttons and keyboard focus rings. |
 
@@ -53,11 +53,11 @@
 - [x] Add unit regression coverage for push consent enable/disable event payloads. [ ] Add a route-level test for independent preference saving.
 
 ### Phase B — Verify privacy enforcement
-- [ ] Verify whether any analytics/ad scripts exist in the deployed frontend; if none, keep categories as preferences only and clearly label that no optional tracking tool is currently enabled.
-- [ ] Verify every promotional delivery path honors the unchecked/withdrawn state; preserve unsubscribe.
-- [ ] Ensure cookie consent works for anonymous visitors and syncs safely after sign-in/account switching.
-- [ ] Verify legal version mismatch re-prompts the learner, records exactly the accepted version, and fails closed on API errors.
-- [ ] Review all browser permission calls and confirm none run on page load.
+- [x] Review current frontend source/dependencies for analytics/ad SDKs: none found in this build. Cookie UI now states that preferences are recorded but no optional analytics/ad tracker is currently enabled. Re-check the deployed bundle before production.
+- [x] Reviewed the notification service promotional email gate (explicit opt-in timestamp required) and routed unsubscribe through the central revocation service to synchronize account state, delivery preference, and audit event. Re-run backend tests after the latest changes.
+- [x] Cookie manager stores an anonymous choice locally and syncs it to the account after sign-in/account switching; a regression test is included.
+- [x] Account gate compares current policy versions, prompts when accepted versions differ, records the exact current versions, and fails closed on missing/error responses. Browser checks display the current version identifiers.
+- [x] Reviewed browser permission call sites: `Notification.requestPermission()` is called only inside the explicit push-enable helper; a browser test asserts Settings page load does not call it.
 
 ### Phase C — User transparency and future launch readiness
 - [ ] Verify policy documents describe identity, contact, learning activity, AI-provider processing, third parties, storage, retention and contact channels accurately.

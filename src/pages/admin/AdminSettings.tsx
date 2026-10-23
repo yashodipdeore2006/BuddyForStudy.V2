@@ -317,7 +317,7 @@ export default function AdminSettings() {
     }
   }
 
-  const configurationSettings = settings.filter((setting) => !PUBLIC_SOCIAL_PLATFORMS.some((platform) => platform.settingKey === setting.key));
+  const configurationSettings = settings.filter((setting) => !PUBLIC_SOCIAL_PLATFORMS.some((platform) => platform.settingKey === setting.key) && !["ai_prompt_active_version_build_with_ai", "ai_prompt_active_version_lesson_summary"].includes(setting.key));
 
   return (
     <div className="mx-auto max-w-6xl">

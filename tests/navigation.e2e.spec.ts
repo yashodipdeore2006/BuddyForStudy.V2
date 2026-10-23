@@ -51,6 +51,8 @@ async function mockAppApi(page: Page, options: {
   catalogCourses?: Array<ReturnType<typeof courseFixture>>;
   enrolled?: boolean;
   hasPlanAccess?: boolean;
+  consentStatus?: Record<string, unknown>;
+  cookiePreferences?: Record<string, unknown> | null;
   missingCourse?: boolean;
   missingProgress?: boolean;
   roadmapStages?: Array<Record<string, unknown>>;
@@ -84,6 +86,51 @@ async function mockAppApi(page: Page, options: {
     }
     if (pathname === "/api/notifications/preferences") {
       return json(route, { preferences: { pushEnabled: false } });
+    }
+    if (pathname === "/api/consent/status") {
+      return json(route, {
+        status: options.consentStatus || {
+          requiresLegalAcceptance: false,
+          requiresProfileCompletion: false,
+          policies: {
+            termsVersion: "terms-fixture-v1",
+            privacyVersion: "privacy-fixture-v1",
+            termsPublished: true,
+            privacyPublished: true,
+            termsUrl: "/legal/terms-of-service",
+            privacyUrl: "/legal/privacy-policy",
+          },
+          user: {
+            authProvider: options.authenticated ? "local" : "local",
+            marketingEmailConsent: false,
+            phoneNumber: "",
+            city: "",
+            learningGoal: "",
+          },
+        },
+      });
+    }
+    if (pathname === "/api/consent/cookies" && route.request().method() === "GET") {
+      return json(route, { preferences: options.cookiePreferences || null, version: "cookies-fixture-v1" });
+    }
+    if (pathname === "/api/consent/cookies" && route.request().method() === "PUT") {
+      const body = route.request().postDataJSON() as { analytics?: boolean; marketing?: boolean };
+      return json(route, { preferences: { necessary: true, analytics: body.analytics === true, marketing: body.marketing === true } });
+    }
+    if (pathname === "/api/consent/accept") {
+      return json(route, { status: {
+        ...(options.consentStatus || {}),
+        requiresLegalAcceptance: false,
+        requiresProfileCompletion: Boolean((options.consentStatus as { requiresProfileCompletion?: boolean } | undefined)?.requiresProfileCompletion),
+      } });
+    }
+    if (pathname === "/api/consent/profile/complete" || pathname === "/api/consent/profile/skip") {
+      return json(route, { status: { requiresLegalAcceptance: false, requiresProfileCompletion: false, user: { authProvider: "google", phoneNumber: " +919876543210 " } } });
+    }
+    if (pathname === "/api/consent/profile" && route.request().method() === "PUT") return json(route, { status: { requiresProfileCompletion: false } });
+    if (pathname === "/api/consent/marketing-email" && route.request().method() === "PUT") {
+      const body = route.request().postDataJSON() as { enabled?: boolean };
+      return json(route, { marketingEmailConsent: body.enabled === true });
     }
     if (pathname === "/api/courses") return json(route, { courses: options.catalogCourses || [] });
     if (pathname === `/api/courses/${courseId}/roadmap`) {
@@ -140,6 +187,90 @@ async function mockAppApi(page: Page, options: {
     return json(route, {});
   });
 }
+
+test.describe("privacy and consent controls", () => {
+  test("cookie banner offers reject, granular settings, and persists a choice", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/login");
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Cookie settings", exact: true }).last().click();
+    await expect(page.getByText("Essential storage", { exact: true })).toBeVisible();
+    await expect(page.getByLabel(/Analytics/)).not.toBeChecked();
+    await expect(page.getByLabel(/Marketing/)).not.toBeChecked();
+
+    await page.getByRole("button", { name: "Reject optional" }).click();
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toHaveCount(0);
+    const rejected = await page.evaluate(() => JSON.parse(localStorage.getItem("bfs-cookie-consent-v1") || "{}"));
+    expect(rejected.preferences.analytics).toBe(false);
+    expect(rejected.preferences.marketing).toBe(false);
+
+    await page.evaluate(() => window.dispatchEvent(new Event("bfs:open-cookie-settings")));
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toBeVisible();
+    await expect(page.getByLabel(/Analytics/)).not.toBeChecked();
+    await page.getByRole("button", { name: "Accept all" }).click();
+    const accepted = await page.evaluate(() => JSON.parse(localStorage.getItem("bfs-cookie-consent-v1") || "{}"));
+    expect(accepted.preferences.analytics).toBe(true);
+    expect(accepted.preferences.marketing).toBe(true);
+  });
+
+  test("registration requires Terms and Privacy acknowledgement while marketing stays optional", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/register");
+    const createAccount = page.getByRole("button", { name: "Create Account" });
+    await expect(createAccount).toBeDisabled();
+    await expect(page.getByLabel(/Send me optional product news/)).not.toBeChecked();
+
+    await page.getByLabel(/I agree to the Terms of Service/).check();
+    await expect(createAccount).toBeDisabled();
+    await page.getByLabel(/I have read and acknowledge the Privacy Policy/).check();
+    await expect(createAccount).toBeEnabled();
+    await expect(page.getByLabel(/Send me optional product news/)).not.toBeChecked();
+  });
+
+  test("Google sign-in account gate asks for policy acknowledgement before profile completion", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      consentStatus: {
+        requiresLegalAcceptance: true,
+        requiresProfileCompletion: true,
+        policies: {
+          termsVersion: "terms-fixture-v1",
+          privacyVersion: "privacy-fixture-v1",
+          termsPublished: true,
+          privacyPublished: true,
+          termsUrl: "/legal/terms-of-service",
+          privacyUrl: "/legal/privacy-policy",
+        },
+        user: { authProvider: "google", marketingEmailConsent: false, phoneNumber: "", city: "", learningGoal: "" },
+      },
+    });
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("heading", { name: "Review your agreements" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Agree and continue" })).toBeDisabled();
+    await page.getByLabel(/I agree to the Terms of Service/).check();
+    await page.getByLabel(/I have read and acknowledge the Privacy Policy/).check();
+    await expect(page.getByRole("button", { name: "Agree and continue" })).toBeEnabled();
+  });
+
+  test("Google profile completion requires a valid phone when chosen and allows skipping", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      consentStatus: {
+        requiresLegalAcceptance: false,
+        requiresProfileCompletion: true,
+        policies: {},
+        user: { authProvider: "google", marketingEmailConsent: false, phoneNumber: "", city: "", learningGoal: "" },
+      },
+    });
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("heading", { name: "Add your contact details" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save details and continue" })).toBeDisabled();
+    await page.getByLabel(/Contact number/).fill("9876543210");
+    await expect(page.getByRole("button", { name: "Save details and continue" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Skip for now" })).toBeVisible();
+  });
+});
 
 test.describe("canonical learner navigation", () => {
   test("unknown URLs show a real 404 with a Home destination", async ({ page }) => {

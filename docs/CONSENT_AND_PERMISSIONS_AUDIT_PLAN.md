@@ -40,6 +40,7 @@
 | C17 | Consent proof and audit history | Append-only `UserConsentEvent` records cover terms, privacy, cookies, marketing, push, and profile events | **Implemented for identified gaps:** push event type and explicit enable/disable records; general preference save omits push; promotional opt-out records `accepted: false` with source `email_unsubscribe`; profile edits are not labeled as consent acceptance. |
 | C18 | Legal policy publication/versioning | Admin can publish policy versions; interim default policies exist | Ensure displayed version matches the one recorded on acceptance. Have policy text reviewed for target markets before production launch. |
 | C19 | Consent center placement / visual system | Cookie settings available in footer and Settings; privacy preferences in Settings | Keep entry points findable; use current indigo/violet palette, neutral surfaces, semantic success/warning/error colors, existing buttons and keyboard focus rings. |
+| C20 | Third-party scripts and external assets | Google Fonts loads the Inter typeface globally; Google Identity Services is loaded dynamically only where the Google sign-in button is mounted; no analytics/ad SDK was found in the reviewed frontend source | Disclose external resources in the Privacy Policy, minimize when they load, and review provider behavior/configuration before production. Do not confuse sign-in/typography requests with optional analytics cookies. |
 
 ## Implementation sequence
 

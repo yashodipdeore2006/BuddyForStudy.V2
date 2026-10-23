@@ -1,7 +1,7 @@
 # Consent, Permissions & Personal Data — Audit and Implementation Plan
 
 **Branch:** `test`  
-**Status:** Inventory completed. Consent and push/email enforcement updates are implemented on `test`; the latest changes are under CI validation.  
+**Status:** Inventory completed. Consent, email enforcement, and the proactive in-app push opt-in are implemented on `test`; the latest changes are under CI validation.  
 **Design rule:** Reuse BuddyForStudy's unified brand tokens and established controls. Do not introduce a second color system or a separate-looking permission center.
 
 ## Product rules
@@ -26,7 +26,7 @@
 | C03 | Essential storage | Described in Cookie settings; auth/session and preference storage are used by the app | Always-on only for required operations. Describe local storage/session technology accurately; do not call every browser-storage item a cookie. |
 | C04 | Optional analytics storage | Separate off-by-default category; source review found no analytics SDK in this build | **Source audit completed:** no analytics SDK found in frontend dependencies/source. The banner explains that this is currently a saved preference only; future analytics must gate initialization on opt-in and support revocation. |
 | C05 | Optional marketing/advertising storage | Separate off-by-default category; source review found no advertising/marketing pixel SDK in this build | **Source audit completed:** no ad/pixel SDK found in frontend dependencies/source. The banner says this choice is recorded for future use until a reviewed tracker is added; future trackers must be gated. |
-| C06 | Browser push permission | Separate Settings → Notifications action calls `Notification.requestPermission()`; service worker and push subscription are registered on demand | **Implemented:** clear browser support/HTTPS/server-config/denied states; native permission is requested only on explicit user action; explicit enable/disable is audited. Browser permission remains per-browser/device. |
+| C06 | Browser push permission | A proactive in-app opt-in appears for eligible signed-in learners after cookie/account consent gates are settled; Settings → Notifications remains available as a persistent entry point | **Implemented:** the branded prompt explains the benefit, offers Enable and Not now, waits seven days after dismissal, skips unsupported/insecure/browser-blocked cases, and never calls `Notification.requestPermission()` until Enable is clicked. Enabling updates both the browser subscription and account preference. Browser permission remains per-browser/device. |
 | C07 | Promotional email | Separate unchecked marketing opt-in, Settings control, signed unsubscribe link and delivery preference | **Enforcement updated:** explicit opt-in/withdrawal synchronizes account and delivery preference; one-click unsubscribe uses the central revocation service and appends an `email_unsubscribe` event; transactional/security/billing mail remains separate. |
 | C08 | In-app notification types | Existing preferences for course/project updates, announcements and reminders | Keep user-controlled defaults and persist current choices; do not request browser permission for in-app notifications. |
 | C09 | Reminder schedule / quiet hours | Existing time-zone, reminder-hour and quiet-hours controls | Explain effect and validate settings; this is a preference, not a browser permission. |
@@ -58,7 +58,8 @@
 - [x] Reviewed the notification service promotional email gate (explicit opt-in timestamp required) and routed unsubscribe through the central revocation service to synchronize account state, delivery preference, and audit event. Re-run backend tests after the latest changes.
 - [x] Cookie manager stores an anonymous choice locally and syncs it to the account after sign-in/account switching; a regression test is included.
 - [x] Account gate compares current policy versions, prompts when accepted versions differ, records the exact current versions, and fails closed on missing/error responses. Browser checks display the current version identifiers.
-- [x] Reviewed browser permission call sites: `Notification.requestPermission()` is called only inside the explicit push-enable helper; a browser test asserts Settings page load does not call it.
+- [x] Reviewed browser permission call sites: `Notification.requestPermission()` is called only inside the explicit push-enable helper; browser tests cover the Settings flow and confirm the entry prompt does not trigger the native permission dialog automatically.
+- [x] Added a branded first-entry push prompt for eligible signed-in learners; it waits for cookie/account consent dialogs, respects dismissal for seven days, and keeps a non-blocking Settings path for later changes.
 
 ### Phase C — User transparency and future launch readiness
 - [ ] Verify policy documents describe identity, contact, learning activity, AI-provider processing, third parties, storage, retention and contact channels accurately.

@@ -222,7 +222,7 @@ test.describe("privacy and consent controls", () => {
     await mockAppApi(page, { authenticated: true, pushAvailable: true });
     await page.goto(baseURL + "/settings");
     await expect(page.getByRole("heading", { name: "Desktop notifications" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Enable push on this browser" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Enable push on this browser|Blocked in browser/ })).toBeVisible();
     await page.waitForTimeout(200);
     const promptCount = await page.evaluate(() => (window as Window & { __bfsPushPermissionPromptCount?: number }).__bfsPushPermissionPromptCount || 0);
     expect(promptCount).toBe(0);

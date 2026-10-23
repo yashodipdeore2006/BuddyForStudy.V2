@@ -129,7 +129,6 @@ export default function CookieConsentManager() {
     } catch {
       setSyncError("Browser storage is unavailable. Your choice may not persist after this visit.");
     }
-    setStoredChoice(choice);
     setPreferences(choice.preferences);
     setVisible(false);
     setCustomizing(false);

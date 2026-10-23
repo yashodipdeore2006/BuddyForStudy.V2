@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCcw, Save, Settings2, Trash2 } from "lucide-react";
+import { RefreshCcw, Save, Settings2, Share2, Trash2 } from "lucide-react";
+import { DEFAULT_PUBLIC_SOCIAL_LINKS, normalizeHttpsSocialUrl, PUBLIC_SOCIAL_PLATFORMS, type SocialPlatformId } from "@/lib/socialLinks";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
 import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
@@ -42,7 +43,10 @@ export default function AdminSettings() {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [activeSection, setActiveSection] = useState<"ai" | "notifications" | "configuration">("configuration");
+  const [activeSection, setActiveSection] = useState<"ai" | "notifications" | "social" | "configuration">("configuration");
+  const [socialLinks, setSocialLinks] = useState<Record<SocialPlatformId, string>>(DEFAULT_PUBLIC_SOCIAL_LINKS);
+  const [socialReason, setSocialReason] = useState("");
+  const [savingSocialLinks, setSavingSocialLinks] = useState(false);
   const [advancedAI, setAdvancedAI] = useState({
     questionsPerHourVideo: 10,
     unknownDurationQuestions: 10,
@@ -78,7 +82,13 @@ export default function AdminSettings() {
       const [data, accessData] = await Promise.all([adminFetch("/api/admin/settings"), adminFetch("/api/admin/access")]);
       setSettings(data.settings || []);
       setPermissions(accessData.access?.permissions || []);
-      const values = Object.fromEntries((data.settings as PlatformSetting[] | undefined || []).map((item) => [item.key, item.value]));
+      const loadedSettings = (data.settings as PlatformSetting[] | undefined) || [];
+      const values = Object.fromEntries(loadedSettings.map((item) => [item.key, item.value]));
+      const settingsByKey = new Map(loadedSettings.map((item) => [item.key, item]));
+      setSocialLinks(Object.fromEntries(PUBLIC_SOCIAL_PLATFORMS.map((platform) => {
+        const setting = settingsByKey.get(platform.settingKey);
+        return [platform.id, setting ? (typeof setting.value === "string" ? setting.value : "") : platform.envUrl];
+      })) as Record<SocialPlatformId, string>);
       setAdvancedAI({
         questionsPerHourVideo: Number(values.advanced_ai_questions_per_hour_video ?? 10),
         unknownDurationQuestions: Number(values.advanced_ai_questions_unknown_duration ?? 10),
@@ -183,6 +193,47 @@ export default function AdminSettings() {
       setError(e instanceof Error ? e.message : "Unable to save notification settings");
     } finally {
       setSavingNotificationConfig(false);
+    }
+  }
+
+  async function saveSocialLinks() {
+    if (socialReason.trim().length < 10 || socialReason.trim().length > 500) {
+      setError("Enter a social-links change reason between 10 and 500 characters.");
+      return;
+    }
+
+    const normalized = PUBLIC_SOCIAL_PLATFORMS.map((platform) => ({
+      platform,
+      url: normalizeHttpsSocialUrl(socialLinks[platform.id] || "")
+    }));
+    if (normalized.some((entry) => entry.url === null)) {
+      setError("Each social link must be a valid HTTPS URL. Leave a field empty to hide that social icon.");
+      return;
+    }
+
+    setSavingSocialLinks(true);
+    setError("");
+    setStatus("");
+    try {
+      await Promise.all(normalized.map(({ platform, url }) =>
+        adminFetch("/api/admin/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            key: platform.settingKey,
+            value: url,
+            description: `Official BuddyForStudy ${platform.label} profile URL. An empty value hides the link.`,
+            isPublic: true,
+            reason: socialReason.trim()
+          })
+        })
+      ));
+      setStatus("Social media links saved. Public pages now use the centralized settings.");
+      setSocialReason("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save social media links");
+    } finally {
+      setSavingSocialLinks(false);
     }
   }
 
@@ -302,6 +353,7 @@ export default function AdminSettings() {
             ...(permissions.includes("settings.manage") ? [
               { value: "ai" as const, label: "AI controls" },
               { value: "notifications" as const, label: "Notifications" },
+              { value: "social" as const, label: "Social links" },
             ] : []),
             { value: "configuration" as const, label: `Configuration (${settings.length})` },
           ]}
@@ -367,6 +419,53 @@ export default function AdminSettings() {
         {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig || notificationReason.trim().length < 10 || notificationReason.trim().length > 500}>
           <Save className="h-4 w-4" /> {savingNotificationConfig ? "Saving..." : "Save notification controls"}
         </button>}
+      </section>
+      )}
+
+      {activeSection === "social" && permissions.includes("settings.manage") && (
+      <section className="card mt-4 p-6" aria-labelledby="social-links-heading">
+        <div className="flex items-start gap-3">
+          <span className="rounded-xl bg-violet-50 p-3 text-violet-700"><Share2 className="h-5 w-5" aria-hidden="true" /></span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700">Public presence</p>
+            <h2 id="social-links-heading" className="mt-1 text-xl font-extrabold text-slate-950">Social media links</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Manage the official profile URLs in one place. The footer and Contact page use these same saved links. Only HTTPS URLs are accepted; leave any platform empty to hide its icon.</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {PUBLIC_SOCIAL_PLATFORMS.map((platform) => (
+            <label key={platform.id} className="block">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{platform.label} URL</span>
+              <input
+                className="input-field mt-2"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                maxLength={500}
+                value={socialLinks[platform.id] || ""}
+                onChange={(event) => setSocialLinks((current) => ({ ...current, [platform.id]: event.target.value }))}
+                placeholder={`https://www.${platform.id === "x" ? "x.com" : platform.id === "github" ? "github.com" : platform.id + ".com"}/your-profile`}
+                aria-label={`${platform.label} profile URL`}
+              />
+              <span className="mt-1 block text-xs text-slate-500">Public link shown wherever BuddyForStudy social icons are displayed.</span>
+            </label>
+          ))}
+        </div>
+
+        <label className="mt-5 block text-xs font-semibold text-slate-600">
+          Change reason (required)
+          <input className="input-field mt-2" value={socialReason} onChange={(event) => setSocialReason(event.target.value)} minLength={10} maxLength={500} aria-describedby="social-links-reason-help" placeholder="Why are the social profile URLs changing?" />
+          <span id="social-links-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {socialReason.trim().length}/500. Every link change is audit logged.</span>
+        </label>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button type="button" className="btn-primary" onClick={() => void saveSocialLinks()} disabled={savingSocialLinks || socialReason.trim().length < 10 || socialReason.trim().length > 500}>
+            <Save className="h-4 w-4" /> {savingSocialLinks ? "Saving links..." : "Save social links"}
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => { setSocialLinks(DEFAULT_PUBLIC_SOCIAL_LINKS); setSocialReason(""); setError(""); setStatus(""); }} disabled={savingSocialLinks}>Reset form</button>
+        </div>
+        {status && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
       </section>
       )}
 

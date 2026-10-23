@@ -208,26 +208,14 @@ export default function CourseCard({
     setUndoSavedTo(null);
     setActionError("");
     setActionNotice("");
-    if (!session && enrollmentState === "not-enrolled") {
-      navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
-      return;
-    }
-    if (actionState === "not-enrolled-paid") {
+    // Course cards always open the course details page before enrollment.
+    // Learners review the curriculum, free/paid options, and eligibility there.
+    if (actionState === "not-enrolled-paid" || actionState === "not-enrolled-free") {
       navigate(routes.course(course.id));
       return;
     }
-    if (actionState === "not-enrolled-free") {
-      setActionLoading(true);
-      try {
-        const data = await apiFetch("/api/enrollments/" + course.id, { method: "POST" });
-        setEnrollmentState(String(data.enrollment?.status ?? "active").toLowerCase() === "completed" ? "completed" : "active");
-        setProgress(0);
-        setActionNotice("Enrolled in " + course.title + ".");
-      } catch (error) {
-        setActionError(error instanceof Error ? error.message : "Enrollment failed. Check your connection and retry.");
-      } finally {
-        setActionLoading(false);
-      }
+    if (!session && enrollmentState === "not-enrolled") {
+      navigate(routes.login(), { state: { from: { pathname: routes.course(course.id) } } });
       return;
     }
     if (actionState === "completed") {

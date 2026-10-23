@@ -317,6 +317,8 @@ export default function AdminSettings() {
     }
   }
 
+  const configurationSettings = settings.filter((setting) => !PUBLIC_SOCIAL_PLATFORMS.some((platform) => platform.settingKey === setting.key));
+
   return (
     <div className="mx-auto max-w-6xl">
       <AdminPageHeader
@@ -355,7 +357,7 @@ export default function AdminSettings() {
               { value: "notifications" as const, label: "Notifications" },
               { value: "social" as const, label: "Social links" },
             ] : []),
-            { value: "configuration" as const, label: `Configuration (${settings.length})` },
+            { value: "configuration" as const, label: `Configuration (${configurationSettings.length})` },
           ]}
         />
       </div>
@@ -487,11 +489,11 @@ export default function AdminSettings() {
 )}
 
         <section className="card overflow-hidden">
-          <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Current settings</h2><p className="mt-1 text-xs text-slate-500">{settings.length} configuration entries</p></div>
+          <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Current settings</h2><p className="mt-1 text-xs text-slate-500">{configurationSettings.length} configuration entries</p></div>
           {loading ? <div role="status" aria-live="polite" aria-label="Loading platform settings" className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading platform settings</span></div> : (
             <div className="divide-y divide-slate-100">
-              {!settings.length && <p className="p-8 text-center text-sm text-slate-500">No platform settings yet.</p>}
-              {settings.map((setting) => (
+              {!configurationSettings.length && <p className="p-8 text-center text-sm text-slate-500">No general platform settings yet.</p>}
+              {configurationSettings.map((setting) => (
                 <div key={setting._id} className="flex items-start gap-2 p-4 transition hover:bg-slate-50">
                   {permissions.includes("settings.manage") ? <button type="button" onClick={() => edit(setting)} className="min-w-0 flex-1 text-left">
                     <div className="flex flex-wrap items-center justify-between gap-2">

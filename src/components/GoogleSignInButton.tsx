@@ -149,7 +149,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
     <div className="w-full space-y-2">
       <div
         ref={containerRef}
-        className={status === "ready" ? "flex min-h-10 w-full justify-center" : "hidden"}
+        className={status === "ready" ? (disabled ? "pointer-events-none flex min-h-10 w-full justify-center opacity-60" : "flex min-h-10 w-full justify-center") : "hidden"}
         aria-hidden={status !== "ready"}
         aria-disabled={disabled}
       />

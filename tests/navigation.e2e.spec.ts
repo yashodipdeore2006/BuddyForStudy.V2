@@ -262,3 +262,79 @@ test.describe("canonical learner navigation", () => {
     await expect(page).toHaveURL(/\/home$/);
   });
 });
+
+
+test.describe("public platform pages and footer", () => {
+  test("public pages render the marketing footer and their main content", async ({ page }) => {
+    const pages = [
+      { path: "/about", heading: "Make your next learning step feel clear." },
+      { path: "/contact", heading: "We want your learning experience to work for you." },
+      { path: "/faq", heading: "Frequently asked questions" },
+    ];
+
+    for (const item of pages) {
+      await page.goto(baseURL + item.path);
+      await expect(page.getByRole("main")).toBeVisible();
+      await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
+      await expect(page.locator("footer.bfs-marketing-footer")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Platform", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Plans", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Company", exact: true })).toBeVisible();
+    }
+  });
+
+  test("public aliases redirect to canonical information pages", async ({ page }) => {
+    const aliases = [
+      { path: "/about-us", canonical: "/about" },
+      { path: "/contact-us", canonical: "/contact" },
+      { path: "/help", canonical: "/faq" },
+    ];
+    for (const item of aliases) {
+      await page.goto(baseURL + item.path);
+      await expect(page).toHaveURL(new RegExp(item.canonical + "$"));
+    }
+  });
+
+  test("footer navigation points to supported destinations", async ({ page }) => {
+    await page.goto(baseURL + "/about");
+    const footer = page.locator("footer.bfs-marketing-footer");
+    await expect(footer.getByRole("link", { name: /Explore courses/ })).toHaveAttribute("href", "/explore");
+    await expect(footer.getByRole("link", { name: /Build a roadmap/ })).toHaveAttribute("href", "/explore?build=1");
+    await expect(footer.getByRole("link", { name: "Plans and pricing" }).first()).toHaveAttribute("href", "/pricing");
+    await expect(footer.getByRole("link", { name: "Create an account" })).toHaveAttribute("href", "/register");
+    await expect(footer.getByRole("link", { name: "About us" })).toHaveAttribute("href", "/about");
+    await expect(footer.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", "/contact");
+    await expect(footer.getByRole("link", { name: /Help centre \/ FAQ/ })).toHaveAttribute("href", "/faq");
+    await expect(footer.getByRole("link", { name: "All policies" }).first()).toHaveAttribute("href", "/legal");
+    await expect(footer.getByText(/Official social links will appear here/)).toBeVisible();
+  });
+
+  test("footer remains compact for signed-in learners", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/home");
+    await expect(page.locator("footer.bfs-slim-footer")).toBeVisible();
+    await expect(page.locator("footer.bfs-marketing-footer")).toHaveCount(0);
+  });
+
+  test("footer is excluded from focused learning experiences", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/learn/course-fixture");
+    await expect(page.locator("footer")).toHaveCount(0);
+    await page.goto(baseURL + "/courses/course-fixture/roadmap");
+    await expect(page.locator("footer")).toHaveCount(0);
+  });
+
+  test("public footer layouts do not overflow at mobile viewport width", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    for (const path of ["/about", "/contact", "/faq"]) {
+      await page.goto(baseURL + path);
+      const dimensions = await page.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        page: document.documentElement.scrollWidth,
+      }));
+      expect(dimensions.page, `Horizontal overflow at ${path}: ${JSON.stringify(dimensions)}`).toBeLessThanOrEqual(dimensions.viewport);
+    }
+  });
+});
+

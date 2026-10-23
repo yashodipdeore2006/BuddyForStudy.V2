@@ -235,9 +235,10 @@ test.describe("privacy and consent controls", () => {
     await page.goto(baseURL + "/register");
     const createAccount = page.getByRole("button", { name: "Create Account" });
     await expect(createAccount).toBeEnabled();
-    await expect(page.getByText(/By continuing, you agree to our/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Terms of Service" })).toHaveAttribute("href", "/legal/terms-of-service");
-    await expect(page.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/legal/privacy-policy");
+    const legalNotice = page.getByText(/By continuing, you agree to our/);
+    await expect(legalNotice).toBeVisible();
+    await expect(legalNotice.getByRole("link", { name: "Terms of Service" })).toHaveAttribute("href", "/legal/terms-of-service");
+    await expect(legalNotice.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/legal/privacy-policy");
     await expect(page.getByLabel(/Send me optional product news/)).not.toBeChecked();
     await expect(page.getByRole("checkbox")).toHaveCount(1);
   });

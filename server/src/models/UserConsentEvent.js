@@ -10,7 +10,7 @@ const userConsentEventSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true, immutable: true },
   type: {
     type: String,
-    enum: ["terms", "privacy", "marketing_email", "cookie_preferences", "profile_details"],
+    enum: ["terms", "privacy", "marketing_email", "cookie_preferences", "push_notifications", "profile_details"],
     required: true,
     immutable: true
   },

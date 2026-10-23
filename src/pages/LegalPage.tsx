@@ -56,8 +56,8 @@ To run the platform, we process course enrollments, saved courses, learning prog
 # 3. How information is used
 Information is used to authenticate your account, provide learning features, personalize your experience, remember settings, support purchases, maintain safety, prevent abuse, troubleshoot reliability issues, and respond to requests. Optional product-news and promotional email is separate from essential account and transactional messages.
 
-# 4. Service providers
-The platform may rely on providers for identity verification, hosting and storage, email delivery, payment processing, AI-assisted features, and learning-resource retrieval. Information should be shared with these providers only as needed to deliver or protect the relevant service and subject to applicable requirements.
+# 4. Service providers and external resources
+The platform may rely on providers for sign-in and identity (including Google when you choose Google sign-in), hosting and storage, email delivery, payment processing, AI-assisted features, and learning-resource retrieval. The website also loads the Inter typeface from Google Fonts. Google Identity Services is loaded when a page offering Google sign-in is opened, rather than across every page. These third-party requests may receive technical connection information such as your IP address, browser/device details, and the page/request metadata necessary to deliver the resource. Each provider may process data under its own terms and privacy notices. We aim to use providers only as needed to deliver or protect the relevant service and subject to applicable requirements.
 
 # 5. Your choices
 You can change cookie and browser-storage preferences through Cookie settings, update or remove optional profile details in Settings, and opt out of product-news emails there. Declining optional marketing does not affect access to ordinary learning features. Essential storage required for sign-in and security cannot be switched off while using the signed-in service.
@@ -80,7 +80,7 @@ For questions or requests about access, correction, deletion, or use of your inf
 BuddyForStudy uses browser storage for sign-in/session state, security, appearance, and remembering your consent choices. Some essential storage may not be an HTTP cookie, but the same preference controls are provided here for clarity. Essential storage remains active while you use signed-in features.
 
 # 2. Optional categories
-The consent manager offers separate Analytics and Marketing categories. They are off by default until you choose to enable them. Any optional tracking technology added to the platform must check and respect your recorded preference before loading or storing optional information.
+The consent manager offers separate Analytics and Marketing categories. They are off by default until you choose to enable them. In this build, BuddyForStudy has not enabled an analytics SDK or an advertising/marketing pixel, so these preferences are recorded for your control and future use; they do not currently enable a tracker. Any optional tracking technology added to the platform must check and respect your recorded preference before loading or storing optional information.
 
 # 3. Your choice and changes
 You can Accept all, Reject optional categories, or open Cookie settings to choose categories separately. You can reopen Cookie settings from the footer or Settings at any time. Your preference is kept in this browser and, when you are signed in, may also be stored with your account.

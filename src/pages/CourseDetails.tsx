@@ -1204,17 +1204,10 @@ export default function CourseDetails() {
               </button>
               <div className="bg-white p-3 text-xs leading-5 text-slate-500">{creatorName ? 'Source creator: ' + creatorName : 'Preview the learning content before enrolling.'}</div>
             </div>
-            {!isPaidCourse && (
-              <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Course price</p>
-                <p className="mt-1 text-3xl font-bold tracking-tight text-emerald-900">Free</p>
-                <p className="mt-1 text-xs leading-5 text-emerald-800">No payment is required. Choose free individual enrollment or use an eligible active plan below.</p>
-              </div>
-            )}
-            {planCourseAccess && !isEnrolled && (
+            {isPaidCourse && planCourseAccess && !isEnrolled && (
               <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><CheckCircle2 className="h-4 w-4" />Your current plan includes this course</p>
-                <p className="mt-1 text-xs leading-5 text-emerald-800">{isPaidCourse ? "Continue with your plan at no additional cost, or buy individual lifetime access." : "Use your active plan or enroll individually for free. Your choice is shown below."}</p>
+                <p className="mt-1 text-xs leading-5 text-emerald-800">Continue with your plan at no additional cost, or buy individual lifetime access.</p>
               </div>
             )}
             {!isEnrolled && (

@@ -44,7 +44,7 @@ export default function Contact() {
       <section className="bfs-contact-card bfs-contact-social-card" aria-labelledby="contact-social-title">
         <h2 id="contact-social-title">Find us on social media</h2>
         <p>Follow BuddyForStudy for platform updates, learning resources, and announcements.</p>
-        <PublicSocialLinks variant="contact" showLabels showEmptyMessage={false} />
+        <PublicSocialLinks variant="contact" showLabels />
       </section>
     </main>
   );

@@ -193,7 +193,7 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
     await expect(page.getByRole("radio", { name: /Explore subscription plans/ })).toBeVisible();
     await expect(page.getByRole("radio", { name: /Enroll individually/ })).toBeVisible();
-    await expect(page.getByText("Free", { exact: true })).toBeVisible();
+    await expect(page.getByText("Free", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in to enroll" })).toBeVisible();
   });
 

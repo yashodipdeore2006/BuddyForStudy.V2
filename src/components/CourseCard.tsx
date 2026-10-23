@@ -89,7 +89,6 @@ export default function CourseCard({
   );
   const [progress, setProgress] = useState(Math.max(0, Math.min(100, progressPercentage ?? 0)));
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [shareNotice, setShareNotice] = useState("");
@@ -204,7 +203,7 @@ export default function CourseCard({
   }, [course.id, onSavedChange, saved, saving, session, undoSavedTo]);
 
   const handlePrimaryAction = async () => {
-    if (actionLoading || courseState.loading || courseState.error) return;
+    if (courseState.loading || courseState.error) return;
     setUndoSavedTo(null);
     setActionError("");
     setActionNotice("");
@@ -345,7 +344,6 @@ export default function CourseCard({
         <CourseActionButton
           state={actionState}
           onClick={() => void handlePrimaryAction()}
-          loading={actionLoading}
           disabled={courseState.loading || Boolean(courseState.error)}
           disabledReason={courseState.loading
             ? "Checking enrollment and progress"

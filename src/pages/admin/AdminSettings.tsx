@@ -84,9 +84,9 @@ export default function AdminSettings() {
       setPermissions(accessData.access?.permissions || []);
       const loadedSettings = (data.settings as PlatformSetting[] | undefined) || [];
       const values = Object.fromEntries(loadedSettings.map((item) => [item.key, item.value]));
-      const settingsByKey = new Map(loadedSettings.map((item) => [item.key, item]));
+      const settingsByKey = Object.fromEntries(loadedSettings.map((item) => [item.key, item])) as Record<string, PlatformSetting>;
       setSocialLinks(Object.fromEntries(PUBLIC_SOCIAL_PLATFORMS.map((platform) => {
-        const setting = settingsByKey.get(platform.settingKey);
+        const setting = settingsByKey[platform.settingKey];
         return [platform.id, setting ? (typeof setting.value === "string" ? setting.value : "") : platform.envUrl];
       })) as Record<SocialPlatformId, string>);
       setAdvancedAI({

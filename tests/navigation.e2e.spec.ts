@@ -228,6 +228,24 @@ test.describe("privacy and consent controls", () => {
     expect(promptCount).toBe(0);
   });
 
+  test("an anonymous cookie choice syncs to the account after sign-in", async ({ page }) => {
+    const syncedChoices: Array<{ analytics?: boolean; marketing?: boolean }> = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "PUT" && url.pathname === "/api/consent/cookies") {
+        try {
+          syncedChoices.push(request.postDataJSON() as { analytics?: boolean; marketing?: boolean });
+        } catch { /* A malformed request is not counted as a valid sync. */ }
+      }
+    });
+
+    await mockAppApi(page, { authenticated: true, cookiePreferences: null });
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toHaveCount(0);
+    await expect.poll(() => syncedChoices.length).toBeGreaterThan(0);
+    expect(syncedChoices[0]).toEqual({ analytics: false, marketing: false });
+  });
+
   test("cookie banner offers reject, granular settings, and persists a choice", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/login");
@@ -285,6 +303,8 @@ test.describe("privacy and consent controls", () => {
     });
     await page.goto(baseURL + "/home");
     await expect(page.getByRole("heading", { name: "Review your agreements" })).toBeVisible();
+    await expect(page.getByText("Version: terms-fixture-v1")).toBeVisible();
+    await expect(page.getByText("Version: privacy-fixture-v1")).toBeVisible();
     await expect(page.getByRole("button", { name: "Agree and continue" })).toBeDisabled();
     await page.getByLabel(/I agree to the Terms of Service/).check();
     await page.getByLabel(/I have read and acknowledge the Privacy Policy/).check();

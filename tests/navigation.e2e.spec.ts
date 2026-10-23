@@ -230,18 +230,16 @@ test.describe("privacy and consent controls", () => {
     expect(accepted.preferences.marketing).toBe(true);
   });
 
-  test("registration requires Terms and Privacy acknowledgement while marketing stays optional", async ({ page }) => {
+  test("registration uses inline Terms and Privacy notice while marketing stays optional", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/register");
     const createAccount = page.getByRole("button", { name: "Create Account" });
-    await expect(createAccount).toBeDisabled();
-    await expect(page.getByLabel(/Send me optional product news/)).not.toBeChecked();
-
-    await page.getByLabel(/I agree to the Terms of Service/).check();
-    await expect(createAccount).toBeDisabled();
-    await page.getByLabel(/I have read and acknowledge the Privacy Policy/).check();
     await expect(createAccount).toBeEnabled();
+    await expect(page.getByText(/By continuing, you agree to our/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "Terms of Service" })).toHaveAttribute("href", "/legal/terms-of-service");
+    await expect(page.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/legal/privacy-policy");
     await expect(page.getByLabel(/Send me optional product news/)).not.toBeChecked();
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
   });
 
   test("Google sign-in account gate asks for policy acknowledgement before profile completion", async ({ page }) => {

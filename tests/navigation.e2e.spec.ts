@@ -274,13 +274,13 @@ test.describe("public platform pages and footer", () => {
 
     for (const item of pages) {
       await page.goto(baseURL + item.path);
-      await expect(page.getByRole("main")).toBeVisible();
+      await expect(page.locator("main.bfs-public-page")).toBeVisible();
       await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
       await expect(page.locator("footer.bfs-marketing-footer")).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Platform", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Plans", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Company", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "About", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Discover and learn", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Plans and support", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Legal and accessibility", exact: true })).toBeVisible();
     }
   });
 
@@ -300,21 +300,22 @@ test.describe("public platform pages and footer", () => {
     await page.goto(baseURL + "/about");
     const footer = page.locator("footer.bfs-marketing-footer");
     await expect(footer.getByRole("link", { name: /Explore courses/ })).toHaveAttribute("href", "/explore");
-    await expect(footer.getByRole("link", { name: /Build a roadmap/ })).toHaveAttribute("href", "/explore?build=1");
+    await expect(footer.getByRole("link", { name: /Build a learning roadmap/ })).toHaveAttribute("href", "/explore?build=1");
     await expect(footer.getByRole("link", { name: "Plans and pricing" }).first()).toHaveAttribute("href", "/pricing");
     await expect(footer.getByRole("link", { name: "Create an account" })).toHaveAttribute("href", "/register");
-    await expect(footer.getByRole("link", { name: "About us" })).toHaveAttribute("href", "/about");
+    await expect(footer.getByRole("link", { name: "About BuddyForStudy" })).toHaveAttribute("href", "/about");
     await expect(footer.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", "/contact");
-    await expect(footer.getByRole("link", { name: /Help centre \/ FAQ/ })).toHaveAttribute("href", "/faq");
+    await expect(footer.getByRole("link", { name: "Help and support" })).toHaveAttribute("href", "/faq");
     await expect(footer.getByRole("link", { name: "All policies" }).first()).toHaveAttribute("href", "/legal");
-    await expect(footer.getByText(/Official social links will appear here/)).toBeVisible();
+    await expect(footer.getByText(/Official social links have not been configured yet/)).toBeVisible();
   });
 
-  test("footer remains compact for signed-in learners", async ({ page }) => {
+  test("footer uses the full platform layout for signed-in learners", async ({ page }) => {
     await mockAppApi(page, { authenticated: true });
     await page.goto(baseURL + "/home");
-    await expect(page.locator("footer.bfs-slim-footer")).toBeVisible();
-    await expect(page.locator("footer.bfs-marketing-footer")).toHaveCount(0);
+    await expect(page.locator("footer.bfs-marketing-footer.bfs-marketing-footer--signed-in")).toBeVisible();
+    await expect(page.locator("footer.bfs-marketing-footer")).toHaveCount(1);
+    await expect(page.locator("footer.bfs-marketing-footer").getByRole("link", { name: "My learning" })).toBeVisible();
   });
 
   test("footer is excluded from focused learning experiences", async ({ page }) => {

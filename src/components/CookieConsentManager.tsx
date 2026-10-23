@@ -173,7 +173,7 @@ export default function CookieConsentManager() {
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700"><Cookie size={21} /></div>
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-extrabold">Your privacy choices</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-600">BuddyForStudy uses essential storage to keep sign-in, security, and your preferences working. Optional analytics and marketing categories stay off unless you choose them. You can change this decision later in Cookie settings.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">BuddyForStudy uses essential storage for sign-in, security, and your preferences. This build does not currently load optional analytics or advertising trackers; those categories are recorded for your choice and must gate any such tools added later. You can change your decision in Cookie settings.</p>
             </div>
             <button type="button" aria-label="Reject optional cookies and close" onClick={() => void saveChoice({ ...DEFAULT_PREFERENCES, analytics: false, marketing: false })} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
           </div>
@@ -185,11 +185,11 @@ export default function CookieConsentManager() {
                 <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700">Always on</span>
               </div>
               <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-200 p-3.5">
-                <span><span className="block text-sm font-bold">Analytics</span><span className="mt-1 block text-xs leading-5 text-slate-500">Allow optional measurement of how the platform is used to help improve learning experiences.</span></span>
+                <span><span className="block text-sm font-bold">Analytics</span><span className="mt-1 block text-xs leading-5 text-slate-500">No analytics SDK is currently enabled in this build. Keep this off unless a reviewed analytics tool is introduced and gated by this preference.</span></span>
                 <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-violet-600" checked={preferences.analytics} onChange={(event) => setPreferences((value) => ({ ...value, analytics: event.target.checked }))} />
               </label>
               <label className="flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-slate-200 p-3.5">
-                <span><span className="block text-sm font-bold">Marketing</span><span className="mt-1 block text-xs leading-5 text-slate-500">Allow optional marketing or advertising storage if those tools are enabled on the platform.</span></span>
+                <span><span className="block text-sm font-bold">Marketing</span><span className="mt-1 block text-xs leading-5 text-slate-500">No advertising or marketing tracker is currently enabled in this build. This choice will apply if such tools are introduced later.</span></span>
                 <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-violet-600" checked={preferences.marketing} onChange={(event) => setPreferences((value) => ({ ...value, marketing: event.target.checked }))} />
               </label>
               <p className="text-xs leading-5 text-slate-500">Selecting a category records your preference; any optional third-party tool must separately respect it before loading. Essential storage cannot be disabled because the account would not work safely.</p>

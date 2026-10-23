@@ -250,12 +250,9 @@ export async function registerPushSubscription(req, res, next) {
       { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
     ).select("_id active");
 
-    await NotificationPreference.findOneAndUpdate(
-      { user: req.user.userId },
-      { $set: { pushEnabled: true }, $setOnInsert: { user: req.user.userId } },
-      { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
-    );
-
+    // Registering a device subscription must not silently change the account's
+    // notification preference. The explicit Settings action saves pushEnabled
+    // separately and records the consent event.
     return success(res, { subscription: { id: String(subscription._id), active: subscription.active } }, "Browser push subscription saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Invalid browser push subscription", 400, e.flatten().fieldErrors);

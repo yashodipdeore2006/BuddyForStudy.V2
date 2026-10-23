@@ -118,10 +118,16 @@ export default function AIPromptVersionsPanel() {
   }
 
   async function readPromptFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file || !selected) return;
     setError("");
     setNotice("");
+    if (file.size > selected.maxLength * 4) {
+      setError(`The file is too large. ${selected.label} prompts must be ${selected.maxLength.toLocaleString()} characters or fewer.`);
+      input.value = "";
+      return;
+    }
     try {
       const text = await file.text();
       if (text.length > selected.maxLength) {
@@ -135,7 +141,7 @@ export default function AIPromptVersionsPanel() {
     } catch {
       setError("Unable to read that file. Use a UTF-8 .txt or .md prompt file.");
     } finally {
-      event.currentTarget.value = "";
+      input.value = "";
     }
   }
 
@@ -232,6 +238,12 @@ export default function AIPromptVersionsPanel() {
         <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading prompt configuration…</div>
       ) : selected ? (
         <>
+          <label className="block rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">
+            Change reason (required for upload and activation)
+            <input className="input-field mt-2" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} placeholder="Why is this prompt version being created or activated?" aria-describedby="prompt-version-reason-help" />
+            <span id="prompt-version-reason-help" className="mt-1 block text-xs font-normal text-slate-500">10–500 characters. Prompt creation and activation/rollback actions are recorded in the audit log. {reason.trim().length}/500</span>
+          </label>
+
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,.85fr)]">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -331,10 +343,6 @@ export default function AIPromptVersionsPanel() {
             </aside>
           </div>
 
-          <label className="block rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">Change reason (required for upload and activation)
-            <input className="input-field mt-2" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} placeholder="Why is this prompt version being created or activated?" aria-describedby="prompt-version-reason-help" />
-            <span id="prompt-version-reason-help" className="mt-1 block text-xs font-normal text-slate-500">10–500 characters. Prompt creation and activation/rollback actions are recorded in the audit log. {reason.trim().length}/500</span>
-          </label>
         </>
       ) : null}
     </section>

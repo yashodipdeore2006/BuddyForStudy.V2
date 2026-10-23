@@ -92,8 +92,9 @@ export default function AccountConsentGate() {
         method: "POST",
         body: JSON.stringify({ termsAccepted: true, privacyAcknowledged: true, marketingEmailConsent })
       });
-      if (!data.status) throw new Error("The consent response was incomplete. Please retry.");
-      setGate((current) => current ? { ...current, status: data.status, error: "" } : current);
+      const nextStatus = data.status;
+      if (!nextStatus) throw new Error("The consent response was incomplete. Please retry.");
+      setGate((current) => current ? { ...current, status: nextStatus, error: "" } : current);
       void refreshProfile().catch(() => {});
     } catch (error) {
       setGate((current) => current ? {
@@ -115,8 +116,9 @@ export default function AccountConsentGate() {
         method: "POST",
         body: JSON.stringify({ phoneNumber, city, learningGoal })
       });
-      if (!data.status) throw new Error("The profile response was incomplete. Please retry.");
-      setGate((current) => current ? { ...current, status: data.status, error: "" } : current);
+      const nextStatus = data.status;
+      if (!nextStatus) throw new Error("The profile response was incomplete. Please retry.");
+      setGate((current) => current ? { ...current, status: nextStatus, error: "" } : current);
       void refreshProfile().catch(() => {});
     } catch (error) {
       setGate((current) => current ? {

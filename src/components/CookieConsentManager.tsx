@@ -137,6 +137,7 @@ export default function CookieConsentManager() {
     setPreferences(choice.preferences);
     setVisible(false);
     setCustomizing(false);
+    window.dispatchEvent(new Event("bfs:cookie-consent-updated"));
 
     if (session?.user.id) {
       try {

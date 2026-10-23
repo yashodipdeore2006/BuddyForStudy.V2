@@ -92,8 +92,8 @@ export default function AccountConsentGate() {
         method: "POST",
         body: JSON.stringify({ termsAccepted: true, privacyAcknowledged: true, marketingEmailConsent })
       });
-      const next = data.status || { requiresLegalAcceptance: false, requiresProfileCompletion: false };
-      setGate((current) => current ? { ...current, status: next, error: "" } : current);
+      if (!data.status) throw new Error("The consent response was incomplete. Please retry.");
+      setGate((current) => current ? { ...current, status: data.status, error: "" } : current);
       void refreshProfile().catch(() => {});
     } catch (error) {
       setGate((current) => current ? {
@@ -115,7 +115,8 @@ export default function AccountConsentGate() {
         method: "POST",
         body: JSON.stringify({ phoneNumber, city, learningGoal })
       });
-      setGate((current) => current ? { ...current, status: data.status || { requiresProfileCompletion: false }, error: "" } : current);
+      if (!data.status) throw new Error("The profile response was incomplete. Please retry.");
+      setGate((current) => current ? { ...current, status: data.status, error: "" } : current);
       void refreshProfile().catch(() => {});
     } catch (error) {
       setGate((current) => current ? {
@@ -133,7 +134,8 @@ export default function AccountConsentGate() {
     setGate((current) => current ? { ...current, error: "" } : current);
     try {
       const data = await apiFetch<{ status?: ConsentStatus }>("/api/consent/profile/skip", { method: "POST", body: JSON.stringify({}) });
-      setGate((current) => current ? { ...current, status: data.status || { requiresProfileCompletion: false }, error: "" } : current);
+      if (!data.status) throw new Error("The profile response was incomplete. Please retry.");
+      setGate((current) => current ? { ...current, status: data.status, error: "" } : current);
     } catch (error) {
       setGate((current) => current ? {
         ...current,

@@ -81,6 +81,13 @@ export async function enableBrowserPush(): Promise<void> {
   await saveSubscription(subscription);
 }
 
+export async function hasBrowserPushSubscription(): Promise<boolean> {
+  if (!isPushSupported()) return false;
+  const registration = await navigator.serviceWorker.getRegistration("/");
+  const subscription = await registration?.pushManager.getSubscription();
+  return Boolean(subscription);
+}
+
 export async function syncBrowserPushSubscription(): Promise<void> {
   if (!isPushSupported() || Notification.permission !== "granted") return;
   const registration = await navigator.serviceWorker.getRegistration("/");

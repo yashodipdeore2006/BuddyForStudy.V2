@@ -8,6 +8,9 @@ const encodeRouteSegment = (value: string, label: string): string => {
 
 export const routes = {
   landing: () => "/",
+  about: () => "/about",
+  contact: () => "/contact",
+  faq: () => "/faq",
   adminHome: () => "/admin",
   adminSettings: () => "/admin/settings",
   adminUsers: () => "/admin/users",

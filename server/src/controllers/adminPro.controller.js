@@ -28,6 +28,7 @@ import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRe
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { isPublicSocialSettingKey, validateSocialSettingValue } from "../utils/publicSocialLinks.js";
+import { isAIPromptActiveSettingKey } from "../services/aiPrompt.service.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
@@ -2637,6 +2638,7 @@ export async function deleteSetting(req, res, next) {
     const setting = await PlatformSetting.findById(req.params.settingId);
     if (!setting) return failure(res, "Setting not found", 404);
     if (isPublicSocialSettingKey(setting.key)) return failure(res, "Social links are managed in the Social links panel. Clear a profile URL there instead of deleting its setting.", 400);
+    if (isAIPromptActiveSettingKey(setting.key)) return failure(res, "Active AI prompt pointers are managed in the Prompt versions panel and cannot be deleted from general settings.", 400);
 
     const metadata = {
       key: setting.key,
@@ -2654,6 +2656,7 @@ export async function upsertSetting(req, res, next) {
     if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to change platform settings.", 400);
     const settingKey = String(req.body?.key || "").trim();
     if (!settingKey) return failure(res, "key is required", 400);
+    if (isAIPromptActiveSettingKey(settingKey)) return failure(res, "Active AI prompt pointers are managed in the Prompt versions panel and cannot be edited from general settings.", 400);
 
     const typedValidation = validateTypedSetting(settingKey, req.body.value);
     if (!typedValidation.valid) return failure(res, typedValidation.message, 400);

@@ -74,12 +74,12 @@ export default function AdminAIContent() {
       description="Manage safe generation limits and discovery quality rules. Provider API keys and secrets are intentionally not exposed here."
       actions={<button type="button" onClick={() => void load()} disabled={loading} className="btn-secondary"><RefreshCcw className={"h-4 w-4 " + (loading ? "animate-spin" : "")} /> Refresh</button>}
     />
-    {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-    {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
-    <label className="block rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">Change reason (required)
+    {activeGroup !== "prompt_versions" && error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+    {activeGroup !== "prompt_versions" && notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+    {activeGroup !== "prompt_versions" && <label className="block rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700">Change reason (required)
       <input className="input-field mt-2" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} aria-describedby="ai-content-reason-help" placeholder="Why is this AI/content setting changing?" />
       <span id="ai-content-reason-help" className="mt-1 block text-xs font-normal text-slate-500">Use 10–500 characters. {reason.trim().length}/500. The reason is recorded in the audit log for each saved setting.</span>
-    </label>
+    </label>}
     <div className="mt-6">
       <AdminTabs ariaLabel="AI configuration areas" value={activeGroup} onChange={setActiveGroup} items={[...GROUPS.map((group) => ({ value: group.title, label: group.title })), { value: "prompt_versions", label: "Prompt versions" }]} />
     </div>

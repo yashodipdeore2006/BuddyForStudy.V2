@@ -47,7 +47,7 @@ async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
   }
 }
 
-export async function enroll(userId, courseId, { isAdmin = false } = {}) {
+export async function enroll(userId, courseId, { isAdmin = false, accessPreference } = {}) {
   const course = await Course.findOne({
     _id: courseId,
     deletedAt: null,
@@ -87,18 +87,29 @@ export async function enroll(userId, courseId, { isAdmin = false } = {}) {
         throw error;
       }
     }
-  }
-
-  // A verified individual purchase grants lifetime access. An active subscription
-  // may also grant access when its published-course entitlement includes paid courses.
-  if (!paidPayment && !subscriptionAccess && !isAdmin) {
+  } else if (!isAdmin) {
+    // A free course can be enrolled individually without buying a subscription.
+    // If the learner explicitly selects their subscription, only allow it when
+    // their current plan has the published-course entitlement.
     const entitlement = await getEntitlement(userId, "published_courses");
-    if (!entitlement.allowed) {
-      const error = new Error("Course enrollment is not included in your current plan. Upgrade your plan or purchase this course.");
-      error.status = 403;
-      throw error;
+    if (accessPreference === "subscription") {
+      if (!entitlement.allowed) {
+        const error = new Error("An active plan with published-course access is required to enroll through your subscription.");
+        error.status = 403;
+        throw error;
+      }
+      subscriptionAccess = true;
+    } else if (accessPreference === "individual") {
+      subscriptionAccess = false;
+    } else {
+      // Keep default enrollment convenient: existing plan holders use their plan;
+      // everyone else can still enroll in a free course without a subscription.
+      subscriptionAccess = Boolean(entitlement.allowed);
     }
   }
+
+  // Paid courses still require a verified individual purchase or active plan.
+  // Free courses may be enrolled individually without a subscription.
 
   const existing = await Enrollment.findOne({ user: userId, course: courseId });
   if (existing) {

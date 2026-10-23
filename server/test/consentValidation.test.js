@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildMarketingEmailConsentEvent,
   buildPushNotificationConsentEvent,
   hasExplicitPushConsentChoice,
   normalizeCookiePreferences,
@@ -68,4 +69,24 @@ test("only an explicit boolean pushEnabled choice creates a push-consent audit e
   assert.equal(hasExplicitPushConsentChoice({ emailCourseUpdates: false }), false);
   assert.equal(hasExplicitPushConsentChoice({ pushEnabled: undefined }), false);
   assert.equal(hasExplicitPushConsentChoice(null), false);
+});
+
+
+test("promotional email opt-out and unsubscribe use an explicit, auditable event", () => {
+  assert.deepEqual(buildMarketingEmailConsentEvent(false, "email_unsubscribe"), {
+    type: "marketing_email",
+    version: "marketing-email@v1",
+    accepted: false,
+    source: "email_unsubscribe",
+    changedFields: []
+  });
+  assert.deepEqual(buildMarketingEmailConsentEvent(true, "settings"), {
+    type: "marketing_email",
+    version: "marketing-email@v1",
+    accepted: true,
+    source: "settings",
+    changedFields: []
+  });
+  assert.throws(() => buildMarketingEmailConsentEvent("true", "settings"), /must be true or false/i);
+  assert.throws(() => buildMarketingEmailConsentEvent(false, "unknown_source"), /unsupported marketing consent event source/i);
 });

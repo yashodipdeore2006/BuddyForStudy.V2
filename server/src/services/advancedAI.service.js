@@ -12,6 +12,7 @@ import { getYouTubeVideoResource } from "./youtube.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { getEntitlement, readPlanLimit } from "./subscriptionEntitlement.service.js";
 import { getContentApprovalMode } from "./contentApprovalPolicy.service.js";
+import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -344,7 +345,12 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   const durationSeconds = await refreshVideoDuration(course, lesson);
   const context = buildLessonContext(course, module, lesson);
   context.lesson.tutorialDurationSeconds = durationSeconds;
-  const contextHash = hash(JSON.stringify(context));
+  const activePrompt = await getActiveAIPrompt("lesson_summary");
+  // Switching prompts creates a distinct cache entry while preserving the earlier insight.
+  const contextHash = hash(JSON.stringify({
+    context,
+    promptVersionId: activePrompt.versionId || "built_in_default"
+  }));
 
   const approvalMode = await getContentApprovalMode("aiInsights");
   const existing = await AILessonInsight.findOne({
@@ -391,18 +397,11 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   try {
     if (!client) throw Object.assign(new Error("Gemini AI is not configured."), { status: 503 });
 
+    const customPrompt = renderActivePrompt(activePrompt, { context: JSON.stringify(context) });
+    const finalPrompt = customPrompt + "\n\nPLATFORM OUTPUT CONTRACT: Use only the supplied context. Return one valid JSON object with exactly two fields: summary (a concise learner-friendly string of fewer than 250 words) and keyNotes (an array of 5–10 short strings). Do not include markdown fences or extra commentary.";
     const response = await client.models.generateContent({
       model: env.geminiModel,
-      contents: [
-        "You are BuddyForStudy's lesson study assistant.",
-        "Use ONLY the supplied lesson/course context.",
-        "Do not introduce unrelated topics, facts, recommendations, or content that is not supported by that context.",
-        "Create a concise learner-friendly summary and practical key notes for THIS lesson only.",
-        "Return valid JSON with exactly: summary (string) and keyNotes (array of strings).",
-        "Keep summary under 250 words and keyNotes between 5 and 10 items.",
-        "Context:",
-        JSON.stringify(context)
-      ].join("\n"),
+      contents: finalPrompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -439,6 +438,9 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
           summary,
           keyNotes,
           model: env.geminiModel,
+          promptVersionId: activePrompt.versionId,
+          promptVersion: activePrompt.version,
+          promptVersionName: activePrompt.name,
           generatedAt: new Date()
         },
         $setOnInsert: {

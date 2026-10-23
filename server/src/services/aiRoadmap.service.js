@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { normalizeMultiVideoLessons } from "./course.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
+import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -880,59 +881,25 @@ const quizResponseSchema = {
 };
 
 
-async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }) {
+async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }, activePrompt) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to build a personalized roadmap.");
     error.status = 503;
     throw error;
   }
 
-  const prompt = [
-    "You are BuddyForStudy's curriculum architect.",
-    "Create a realistic prerequisite-ordered learning curriculum for the learner.",
-    "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
-    "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
-    "For Data Analytics requests, generate a complete Data Analytics curriculum rather than a generic Data Science curriculum. It must cover spreadsheet analysis (Excel or equivalent), SQL and relational querying, descriptive statistics and probability basics, Python for analytics, NumPy and Pandas, data cleaning and exploratory data analysis, visualization and dashboards (Power BI or Tableau), business metrics and communicating insights, and portfolio projects.",
-    "For a broad career or full-course request such as Data Analytics, target 8-12 ordered skill modules unless the learner explicitly says they already know or want to skip parts. Each module must contain multiple concrete topics, a suitable long-form tutorial search query, a lesson quiz, and an applied project at meaningful milestones. Include a final capstone that uses a realistic dataset and ends with actionable business recommendations.",
-    "Do not return only a high-level roadmap or a list of skill names. The generated course must be learner-ready: ordered modules, specific topic-level lessons, real tutorial/video resources attached by the resource service, quizzes/assessments, practical projects, and a final portfolio capstone.",
-    "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
-    "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
-    "Infer the important skills even when the topic is broad or uncommon.",
-    "Use concise skill IDs in lowercase kebab-case.",
-    "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
-    "Do not add a prerequisite that is not needed.",
-    "Include practical projects after major skill stages.",
-    "For software/web/full-stack learning paths, explicitly include a Git & GitHub workflow stage after the core programming/foundation stage and before heavy framework work. Teach repositories, branches, commits, pull requests, issues, README/documentation, code review, and collaborative workflow.",
-    "For web/full-stack paths, include production readiness: HTTP and APIs, validation, authentication/authorization, security basics, testing/debugging, environment configuration, deployment, monitoring, and performance where relevant.",
-    "Also teach software engineering fundamentals that transfer across stacks: clean code, debugging strategy, API contracts/documentation, data modeling, security, testing strategy, deployment, observability, performance trade-offs, and basic system design when relevant.",
-    "Do not assume a learner becomes job-ready by watching videos alone. Sequence learning so each major stage has hands-on application, feedback/assessment, and professional engineering practice.",
-    "Project plans must be detailed enough for a complete beginner to understand the problem, why it matters, what to build, architecture, feature milestones, testing, GitHub workflow, industry skills, and a sensible definition of done.",
-    "At the END of a web/full-stack curriculum, provide 1-2 portfolio-grade capstone projects that combine the major technologies. For MERN, these must be full-stack MERN applications. Generate one strong YouTube search query per capstone for a long-form project build tutorial.",
-    "Never invent GitHub repository URLs or YouTube URLs. Return search queries only; the resource search layer will select real embeddable resources.",
-    "Adapt the sequence to the learner's topic rather than forcing MERN-specific technologies onto unrelated careers.",
-
-    "Create 5-12 technologies/stages for broad stacks/careers and 3-8 for focused topics.",
-    "Treat the topic as a complete stack/career when appropriate: identify the major technologies, modules, prerequisites, and project milestones needed to finish the stack.",
-    "For every technology/stage, decide whether a practical project should follow it: use projectPlacement=skill for a meaningful project, milestone for a larger project after two stages, or none when a project would add little value.",
-    "For EVERY skill, decide a realistic complete-course duration range based on the depth required to become competent in that skill.",
-    "Return minMinutes, targetMinutes, and maxMinutes for each skill.",
-    "Do not use one generic duration for every skill. A deeper technology such as JavaScript may require a much longer course than a smaller focused skill.",
-    "For EVERY skill, decide quiz density with quizPolicy: lessonQuestionCount (3-10) based on topic count and lesson depth, moduleQuestionCount (0-15) based on overall module breadth, and passingScore (50-90).",
-    "Lesson quizzes should validate the immediate topic after the lesson. Module assessments should cover the combined technology/module topics.",
-    "The duration and topic count should drive quiz counts; do not use the same quiz count for every technology.",
-    "The duration range is a SEARCH CONSTRAINT for YouTube resources, not the learner's total study duration.",
-    "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists.",
-    "",
-    `Topic: ${topic}`,
-    `Learner level: ${level}`,
-    `Goals: ${JSON.stringify(goals)}`,
-    `Study time per day: ${studyTimeMinutesPerDay || 60} minutes`,
-    `Already known skills: ${JSON.stringify(knownSkills || [])}`
-  ].join("\n");
+  const prompt = renderActivePrompt(activePrompt, {
+    topic: String(topic || "").trim(),
+    level: String(level || "Beginner"),
+    goals: JSON.stringify(Array.isArray(goals) ? goals : []),
+    studyTimeMinutesPerDay: String(studyTimeMinutesPerDay || 60),
+    knownSkills: JSON.stringify(Array.isArray(knownSkills) ? knownSkills : [])
+  });
+  const finalPrompt = prompt + "\n\nPLATFORM OUTPUT CONTRACT: Return one valid JSON object matching the supplied response schema, with no markdown fences or surrounding commentary. Do not invent URLs or claim a resource has been found; resource retrieval is handled by the platform after the curriculum is generated.";
 
   const response = await client.models.generateContent({
     model: env.geminiModel,
-    contents: prompt,
+    contents: finalPrompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: roadmapSchema,
@@ -1363,6 +1330,8 @@ export async function generateAIRoadmap(input, options = {}) {
   const personalized = options.personalized !== false;
   const projectsEnabled = options.projectsEnabled !== false;
   const plan = options.plan || null;
+  const activePrompt = await getActiveAIPrompt("build_with_ai");
+  const promptVersionId = activePrompt.versionId || null;
   const topicKeys = buildTopicKeys(
     input.topic,
     "industry-ready-v2",
@@ -1370,7 +1339,7 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? JSON.stringify(input.knownSkills || []) : "",
     personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
   );
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true });
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
   if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {
@@ -1406,7 +1375,7 @@ export async function generateAIRoadmap(input, options = {}) {
     : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60 };
 
   try {
-    const ai = await generateWithGemini(generationInput);
+    const ai = await generateWithGemini(generationInput, activePrompt);
     const built = buildCourse(ai, generationInput);
     if (!projectsEnabled) {
       built.course.modules = (built.course.modules || []).map((module) => ({
@@ -1427,6 +1396,9 @@ export async function generateAIRoadmap(input, options = {}) {
         topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", ai.canonicalTopic, ai.title, ai.category),
         snapshot: {
           intent: "ai_personalized_path",
+          promptVersionId,
+          promptVersion: activePrompt.version,
+          promptVersionName: activePrompt.name,
           canonicalTopic: ai.canonicalTopic,
           careerOutcome: ai.careerOutcome,
           skillGraph: built.skillGraph,
@@ -1489,6 +1461,9 @@ export async function generateAIRoadmap(input, options = {}) {
           topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
           snapshot: {
             intent: fallback.intent || "ai_personalized_path_fallback",
+            promptVersionId,
+            promptVersion: activePrompt.version,
+            promptVersionName: activePrompt.name,
             canonicalTopic: fallback.canonicalTopic,
             careerOutcome: fallback.careerOutcome,
             skillGraph: fallback.skillGraph || [],

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, FileText, Loader2, ShieldCheck, UserRound } from "lucide-react";
+import { AlertCircle, Loader2, ShieldCheck, UserRound } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 

@@ -274,6 +274,36 @@ export async function updateMarketingEmailConsent(userId, enabled) {
   return { marketingEmailConsent: enabled, updatedAt: user.marketingEmailConsentAt };
 }
 
+export async function revokeMarketingEmailConsent(userId) {
+  // The signed unsubscribe URL must still work when an account is inactive or
+  // its profile row has already been removed. Never require a sign-in here.
+  const user = await User.findById(userId);
+  const now = new Date();
+  if (user) {
+    user.marketingEmailConsent = false;
+    user.marketingEmailConsentAt = now;
+    await user.save();
+  }
+
+  await NotificationPreference.findOneAndUpdate(
+    { user: userId },
+    {
+      $set: { emailAnnouncements: false, emailAnnouncementsConsentAt: null },
+      $setOnInsert: { user: userId }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  const versions = await getCurrentPolicyVersions();
+  await appendEvent(userId, {
+    type: "marketing_email",
+    version: versions.marketing,
+    accepted: false,
+    source: "email_unsubscribe"
+  });
+  return { marketingEmailConsent: false, updatedAt: now };
+}
+
 export async function getConsentStatus(userId) {
   const user = await User.findById(userId)
     .select("name email authProvider phoneNumber phoneNumberVerified city learningGoal profileSetupSkippedAt termsAcceptedVersion termsAcceptedAt privacyAcknowledgedVersion privacyAcknowledgedAt marketingEmailConsent marketingEmailConsentAt isActive")

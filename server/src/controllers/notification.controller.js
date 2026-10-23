@@ -8,6 +8,7 @@ import { NotificationPreference } from "../models/NotificationPreference.js";
 import { PushSubscription } from "../models/PushSubscription.js";
 import { getWebPushPublicKey, isWebPushConfigured, sendWebPushNotification } from "../services/webPush.service.js";
 import { isIP } from "node:net";
+import { recordPushNotificationConsent } from "../services/consent.service.js";
 
 function unsubscribePage(res, { title, message, token = "", status = 200, showForm = false }) {
   const safeToken = /^[A-Za-z0-9_.-]{1,2048}$/.test(token) ? token : "";
@@ -157,6 +158,11 @@ export async function updatePreferences(req, res, next) {
       return failure(res, "Reminder time falls within quiet hours. Choose a reminder time outside the quiet-hour window.", 400);
     }
     const preferences = await saveUserNotificationPreferences(req.user.userId, input);
+    // This field is sent only by the explicit Enable/Disable push action.
+    // General preference saves omit it so they cannot manufacture consent events.
+    if (Object.prototype.hasOwnProperty.call(input, "pushEnabled")) {
+      await recordPushNotificationConsent(req.user.userId, input.pushEnabled);
+    }
     return success(res, { preferences, pushAvailable: isWebPushConfigured() }, "Notification preferences saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Invalid notification preferences", 400, e.flatten().fieldErrors);

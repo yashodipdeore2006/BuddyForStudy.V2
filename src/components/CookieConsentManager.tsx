@@ -76,7 +76,12 @@ export default function CookieConsentManager() {
 
   useEffect(() => {
     const userId = session?.user.id;
-    if (!ready || !userId || syncedForUser.current === userId) return;
+    if (!ready) return;
+    if (!userId) {
+      syncedForUser.current = null;
+      return;
+    }
+    if (syncedForUser.current === userId) return;
     syncedForUser.current = userId;
     let active = true;
 

@@ -42,6 +42,25 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   quietHoursEnd: 8,
 };
 
+type BrowserPushStatus = "checking" | "unsupported" | "insecure" | NotificationPermission;
+
+function readBrowserPushStatus(): BrowserPushStatus {
+  if (typeof window === "undefined") return "checking";
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return "unsupported";
+  if (!window.isSecureContext) return "insecure";
+  return Notification.permission;
+}
+
+function getBrowserPushStatusMessage(status: BrowserPushStatus, serverAvailable: boolean): string {
+  if (!serverAvailable) return "Push delivery is currently unavailable because the platform has not configured its Web Push service.";
+  if (status === "checking") return "Checking this browser’s notification support…";
+  if (status === "unsupported") return "This browser does not support web push notifications. You can still use in-app notifications.";
+  if (status === "insecure") return "Browser push requires HTTPS. Localhost is supported for local development.";
+  if (status === "denied") return "Notifications are blocked by this browser for this site. Change this site’s notification permission in your browser settings, then return here.";
+  if (status === "granted") return "Browser permission is granted. BuddyForStudy only sends notifications while your account preference is enabled.";
+  return "When you choose Enable push, your browser will show its own permission prompt. You can decline and continue using the platform.";
+}
+
 function PreferenceToggle({
   checked,
   onChange,
@@ -101,6 +120,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [notifSuccess, setNotifSuccess] = useState(false);
   const [notifError, setNotifError] = useState("");
   const [pushAvailable, setPushAvailable] = useState(false);
+  const [browserPushPermission, setBrowserPushPermission] = useState<BrowserPushStatus>("checking");
   const [savingPush, setSavingPush] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
     try { const stored = localStorage.getItem("bfs-theme"); return stored === "dark" || stored === "system" ? stored : "light"; } catch { return "light"; }
@@ -200,6 +220,17 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       setLearningGoalError(error instanceof Error ? error.message : "Unable to save your learning goal. Please retry.");
     } finally { setSavingLearningGoal(false); }
   };
+
+  useEffect(() => {
+    const refreshBrowserPermission = () => setBrowserPushPermission(readBrowserPushStatus());
+    refreshBrowserPermission();
+    window.addEventListener("focus", refreshBrowserPermission);
+    document.addEventListener("visibilitychange", refreshBrowserPermission);
+    return () => {
+      window.removeEventListener("focus", refreshBrowserPermission);
+      document.removeEventListener("visibilitychange", refreshBrowserPermission);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -302,9 +333,14 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     setNotifError("");
     setNotifSuccess(false);
     try {
+      // Push changes are saved only from the explicit Enable/Disable action so
+      // editing a reminder or email preference cannot create a push-consent event.
+      const preferencesWithoutPush = Object.fromEntries(
+        Object.entries(notifPrefs).filter(([key]) => key !== "pushEnabled")
+      );
       const data = await apiFetch("/api/notifications/preferences", {
         method: "PUT",
-        body: JSON.stringify(notifPrefs),
+        body: JSON.stringify(preferencesWithoutPush),
       });
       setNotifPrefs({ ...DEFAULT_NOTIFICATION_PREFERENCES, ...(data.preferences || {}) });
       if (typeof data.preferences?.emailAnnouncements === "boolean") {
@@ -344,6 +380,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     } catch (error) {
       setNotifError(error instanceof Error ? error.message : "Unable to update push notifications.");
     } finally {
+      setBrowserPushPermission(readBrowserPushStatus());
       setSavingPush(false);
     }
   };
@@ -557,11 +594,19 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-600">{notifPrefs.pushEnabled ? "Push notifications are enabled for this account." : "Push notifications are currently off."}</p>
-                <button type="button" disabled={savingPush || (!notifPrefs.pushEnabled && !pushAvailable)} onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)} className={notifPrefs.pushEnabled ? "btn-secondary" : "btn-primary"}>
-                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled ? "Disable push" : "Enable push"}
+                <p className="text-sm text-slate-600">{notifPrefs.pushEnabled ? "Push notifications are enabled for this account." : "Push notifications are off. Enabling them is optional."}</p>
+                <button
+                  type="button"
+                  disabled={savingPush || (!notifPrefs.pushEnabled && (!pushAvailable || browserPushPermission === "checking" || browserPushPermission === "unsupported" || browserPushPermission === "insecure" || browserPushPermission === "denied"))}
+                  onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)}
+                  className={notifPrefs.pushEnabled ? "btn-secondary" : "btn-primary"}
+                >
+                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled ? "Disable push" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push"}
                 </button>
               </div>
+              <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">
+                {getBrowserPushStatusMessage(browserPushPermission, pushAvailable)}
+              </p>
             </div>
           </div>
         )}

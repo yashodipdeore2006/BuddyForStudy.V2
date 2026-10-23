@@ -66,6 +66,61 @@ const userSchema = new mongoose.Schema(
     profileImage: {
       type: String,
       default: ""
+    },
+    // Contact details are supplied by the learner, never silently imported from Google.
+    phoneNumber: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 32
+    },
+    phoneNumberVerified: {
+      type: Boolean,
+      default: false,
+      required: true
+    },
+    city: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 100
+    },
+    learningGoal: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 240
+    },
+    profileSetupSkippedAt: {
+      type: Date,
+      default: null
+    },
+    termsAcceptedVersion: {
+      type: String,
+      default: "",
+      maxlength: 160
+    },
+    termsAcceptedAt: {
+      type: Date,
+      default: null
+    },
+    privacyAcknowledgedVersion: {
+      type: String,
+      default: "",
+      maxlength: 160
+    },
+    privacyAcknowledgedAt: {
+      type: Date,
+      default: null
+    },
+    marketingEmailConsent: {
+      type: Boolean,
+      default: false,
+      required: true
+    },
+    marketingEmailConsentAt: {
+      type: Date,
+      default: null
     }
   },
   { timestamps: true, collection: "users" }

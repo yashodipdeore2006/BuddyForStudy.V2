@@ -1,6 +1,7 @@
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { AIPromptVersion } from "../models/AIPromptVersion.js";
-import { AI_PROMPT_FEATURES, renderPromptTemplate, validatePromptTemplate } from "../config/aiPromptTemplates.js";
+import { AI_PROMPT_FEATURES, AI_PROMPT_FEATURE_KEYS, renderPromptTemplate, validatePromptTemplate } from "../config/aiPromptTemplates.js";
+import { isValidObjectId } from "../utils/ids.js";
 
 export function getActivePromptSettingKey(feature) {
   if (!AI_PROMPT_FEATURES[feature]) throw new Error("Unsupported AI prompt feature: " + feature);
@@ -13,7 +14,7 @@ export async function getActiveAIPrompt(feature) {
 
   const activeSetting = await PlatformSetting.findOne({ key: getActivePromptSettingKey(feature) }).select("value").lean();
   const activeId = typeof activeSetting?.value === "string" ? activeSetting.value : "";
-  if (activeId) {
+  if (activeId && isValidObjectId(activeId)) {
     const version = await AIPromptVersion.findOne({ _id: activeId, feature }).lean();
     if (version) {
       return {
@@ -47,4 +48,8 @@ export function renderActivePrompt(activePrompt, values) {
 
 export function validateUploadedPrompt(feature, prompt) {
   return validatePromptTemplate(feature, prompt);
+}
+
+export function isAIPromptActiveSettingKey(key) {
+  return AI_PROMPT_FEATURE_KEYS.some((feature) => key === getActivePromptSettingKey(feature));
 }

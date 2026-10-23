@@ -96,10 +96,11 @@ export async function acceptLegalPolicies(userId, {
 }
 
 export function normalizeCookiePreferences(input = {}) {
+  const value = input && typeof input === "object" ? input : {};
   return {
     necessary: true,
-    analytics: input.analytics === true,
-    marketing: input.marketing === true
+    analytics: value.analytics === true,
+    marketing: value.marketing === true
   };
 }
 

@@ -194,7 +194,7 @@ export default function AccountConsentGate() {
               </label>
             </div>
 
-            {currentGate?.error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{gate.error}</p>}
+            {currentGate?.error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{currentGate.error}</p>}
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <button type="button" onClick={() => void signOut()} className="text-sm font-semibold text-slate-500 underline underline-offset-4">Sign out instead</button>
               <button type="submit" disabled={saving || !termsAccepted || !privacyAcknowledged} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">{saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Agree and continue"}</button>
@@ -216,7 +216,7 @@ export default function AccountConsentGate() {
             <label className="mt-4 block text-sm font-semibold text-slate-700">What are you learning? <span className="font-normal text-slate-400">(optional)</span>
               <input value={learningGoal} onChange={(event) => setLearningGoal(event.target.value)} maxLength={240} className="input-field mt-1.5" placeholder="e.g. Backend development, data analytics" />
             </label>
-            {gate?.error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{gate.error}</p>}
+            {currentGate?.error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{currentGate.error}</p>}
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button type="button" onClick={() => void skipGoogleProfile()} disabled={saving} className="min-h-10 text-sm font-semibold text-slate-500 underline underline-offset-4 disabled:opacity-50">Skip for now</button>
               <button type="submit" disabled={saving || !isValidPhone(phoneNumber)} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">{saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Save details and continue"}</button>

@@ -725,9 +725,6 @@
   background: var(--bfs-primary, #1a1b41);
   border-radius: 0 0 4px 0;
 }
-  border-top: 1px solid var(--bfs-line, #dfe1eb);
-  color: var(--bfs-ink, #292a40);
-}
 .bfs-marketing-footer__inner {
   width: min(calc(100% - 48px), 1440px);
   margin-inline: auto;

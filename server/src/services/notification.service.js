@@ -11,6 +11,8 @@ import { Notification } from "../models/Notification.js";
 import { PushSubscription } from "../models/PushSubscription.js";
 import { isWebPushConfigured, sendWebPushNotification } from "./webPush.service.js";
 import { NotificationPreference } from "../models/NotificationPreference.js";
+import { User } from "../models/User.js";
+import { UserConsentEvent } from "../models/UserConsentEvent.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
 import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey, getSubscriptionExpiryReminderWindow, subscriptionExpiryReminderEventKey } from "./reminderScheduling.js";
@@ -150,15 +152,42 @@ export async function saveUserNotificationPreferences(userId, updates) {
   for (const key of Object.keys(DEFAULT_PREFERENCES)) {
     if (Object.prototype.hasOwnProperty.call(updates, key)) patch[key] = updates[key];
   }
-  if (Object.prototype.hasOwnProperty.call(updates, "emailAnnouncements")) {
+
+  const updatesMarketingEmail = Object.prototype.hasOwnProperty.call(updates, "emailAnnouncements");
+  const previous = updatesMarketingEmail
+    ? await NotificationPreference.findOne({ user: userId }).select("emailAnnouncements emailAnnouncementsConsentAt").lean()
+    : null;
+
+  if (updatesMarketingEmail) {
     patch.emailAnnouncements = updates.emailAnnouncements === true;
     patch.emailAnnouncementsConsentAt = updates.emailAnnouncements === true ? new Date() : null;
   }
+
   const preferences = await NotificationPreference.findOneAndUpdate(
     { user: userId },
     { $set: patch, $setOnInsert: { user: userId } },
     { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
   ).lean();
+
+  if (updatesMarketingEmail) {
+    const enabled = preferences.emailAnnouncements === true && Boolean(preferences.emailAnnouncementsConsentAt);
+    const wasEnabled = previous?.emailAnnouncements === true && Boolean(previous?.emailAnnouncementsConsentAt);
+    const changedAt = new Date();
+    await User.updateOne({ _id: userId }, {
+      $set: { marketingEmailConsent: enabled, marketingEmailConsentAt: changedAt }
+    });
+    if (enabled !== wasEnabled) {
+      await UserConsentEvent.create({
+        user: userId,
+        type: "marketing_email",
+        version: "marketing-email@v1",
+        accepted: enabled,
+        source: "settings",
+        changedFields: []
+      });
+    }
+  }
+
   return normalizeUserNotificationPreferences(preferences, userId);
 }
 

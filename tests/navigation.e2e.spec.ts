@@ -181,6 +181,27 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByRole("img", { name: /Journey roadmap for Course fixture, 1 stages/i })).toBeVisible();
   });
 
+  test("Google sign-in explains missing backend configuration instead of silently disabling the button", async ({ page }) => {
+    await mockAppApi(page);
+    await page.goto(baseURL + "/login");
+    await expect(page.getByRole("button", { name: "Continue with Google" })).toBeDisabled();
+    await expect(page.getByRole("status").filter({ hasText: "Google sign-in is not configured on the backend" })).toBeVisible();
+  });
+
+  test("Google sign-in API failures offer a manual retry without repeated requests", async ({ page }) => {
+    await mockAppApi(page);
+    let configRequests = 0;
+    await page.route("**/api/auth/google/config", async (route) => {
+      configRequests += 1;
+      await route.abort();
+    });
+    await page.goto(baseURL + "/login");
+    await expect(page.getByRole("button", { name: "Retry Google sign-in setup" })).toBeEnabled();
+    await expect(page.getByRole("status").filter({ hasText: "Could not load Google sign-in settings from the API" })).toBeVisible();
+    await page.waitForTimeout(600);
+    expect(configRequests).toBe(1);
+  });
+
   test("public course details opens for a non-enrolled learner", async ({ page }) => {
     await mockAppApi(page, { course: courseFixture("course-fixture") });
     await page.goto(baseURL + "/courses/course-fixture");

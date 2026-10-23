@@ -97,7 +97,7 @@ export default function Footer() {
               <h2 id="footer-plans-title">Plans</h2>
               <Link to={routes.pricing()}>Plans and pricing</Link>
               <Link to={routes.explore()}>Browse courses</Link>
-              <Link to={routes.login()}>My learning</Link>
+              <Link to={routes.myLearning()}>My learning</Link>
               <Link to={routes.register()}>Create an account</Link>
             </section>
 
@@ -116,8 +116,7 @@ export default function Footer() {
           <nav aria-label="Legal and policy links">
             <Link to="/legal/privacy-policy">Privacy</Link>
             <Link to="/legal/terms-of-service">Terms of service</Link>
-            <Link to="/legal">Refunds and cancellations</Link>
-            <Link to="/legal">Cookies and policies</Link>
+            <Link to="/legal">All policies</Link>
           </nav>
           <Link className="bfs-footer-back-top" to={routes.landing()}><GraduationCap size={15} aria-hidden="true" /> BuddyForStudy <ArrowUpRight size={14} aria-hidden="true" /></Link>
         </div>

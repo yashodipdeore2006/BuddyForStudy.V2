@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, RefreshCcw, Save, SlidersHorizontal } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import AIPromptVersionsPanel from "@/pages/admin/AIPromptVersionsPanel";
 
 type Setting = { key: string; value: number | boolean; defaultValue: number | boolean; type: "number" | "boolean"; min?: number; max?: number; description: string };
 const GROUPS = [
@@ -80,9 +81,9 @@ export default function AdminAIContent() {
       <span id="ai-content-reason-help" className="mt-1 block text-xs font-normal text-slate-500">Use 10–500 characters. {reason.trim().length}/500. The reason is recorded in the audit log for each saved setting.</span>
     </label>
     <div className="mt-6">
-      <AdminTabs ariaLabel="AI configuration areas" value={activeGroup} onChange={setActiveGroup} items={GROUPS.map((group) => ({ value: group.title, label: group.title }))} />
+      <AdminTabs ariaLabel="AI configuration areas" value={activeGroup} onChange={setActiveGroup} items={[...GROUPS.map((group) => ({ value: group.title, label: group.title })), { value: "prompt_versions", label: "Prompt versions" }]} />
     </div>
-    {loading ? <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading AI settings…</div> : GROUPS.filter((group) => group.title === activeGroup).map((group) => <section key={group.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    {activeGroup === "prompt_versions" ? <AIPromptVersionsPanel /> : (loading ? <div role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Loading AI settings…</div> : GROUPS.filter((group) => group.title === activeGroup).map((group) => <section key={group.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 px-5 py-4"><div className="flex items-center gap-2"><SlidersHorizontal className="h-5 w-5 text-violet-600"/><h2 className="font-semibold text-slate-950">{group.title}</h2></div><p className="mt-1 text-sm text-slate-500">{group.description}</p></div>
       <div className="divide-y divide-slate-100">{group.keys.map((key) => {
         const setting = settings.find((item) => item.key === key);
@@ -95,6 +96,6 @@ export default function AdminAIContent() {
           <button type="button" onClick={() => void save(setting)} disabled={!changed || savingKey === key || reason.trim().length < 10 || reason.trim().length > 500} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-4 w-4"/>{savingKey === key ? "Saving…" : changed ? "Save" : <><Check className="h-4 w-4"/> Saved</>}</button>
         </div>;
       })}</div>
-    </section>)}
+    </section>))}
   </div>;
 }

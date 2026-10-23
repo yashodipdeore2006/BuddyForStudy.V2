@@ -2,6 +2,20 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 
+test.beforeEach(async ({ page }) => {
+  // Admin access tests focus on authorization rather than cookie banner UX.
+  await page.addInitScript((origin) => {
+    try {
+      if (window.location.origin !== origin) return;
+      localStorage.setItem("bfs-cookie-consent-v1", JSON.stringify({
+        version: "cookie-choice-v1",
+        preferences: { necessary: true, analytics: false, marketing: false },
+        updatedAt: new Date().toISOString()
+      }));
+    } catch { /* Leave storage failures to the test under examination. */ }
+  }, new URL(baseURL).origin);
+});
+
 const analystUser = {
   id: "admin-auditor-1",
   name: "Audit Analyst",
@@ -41,6 +55,29 @@ async function mockAdminApi(page: Page, principal: {
     if (pathname === "/api/auth/me") return json(route, { user: principal.user });
     if (pathname === "/api/notifications/preferences") {
       return json(route, { preferences: { pushEnabled: false } });
+    }
+    if (pathname === "/api/consent/status") {
+      return json(route, {
+        status: {
+          requiresLegalAcceptance: false,
+          requiresProfileCompletion: false,
+          policies: {
+            termsVersion: "terms-fixture-v1",
+            privacyVersion: "privacy-fixture-v1",
+            termsPublished: true,
+            privacyPublished: true,
+            termsUrl: "/legal/terms-of-service",
+            privacyUrl: "/legal/privacy-policy"
+          },
+          user: {
+            authProvider: "local",
+            phoneNumber: "",
+            city: "",
+            learningGoal: "",
+            marketingEmailConsent: false
+          }
+        }
+      });
     }
     if (pathname === "/api/admin/access") {
       return json(route, { access: {

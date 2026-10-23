@@ -32,7 +32,7 @@ function Brand() {
 
 function SocialLinks() {
   return (
-    <div className="bfs-footer-social-block">
+    <div className="bfs-footer-social-block" id="footer-socials">
       <h3>Follow BuddyForStudy</h3>
       {configuredSocialLinks.length ? (
         <div className="bfs-footer-socials">
@@ -87,26 +87,33 @@ export default function Footer() {
           <div className="bfs-marketing-footer__columns">
             <section className="bfs-footer-column" aria-labelledby="footer-platform-title">
               <h2 id="footer-platform-title">Platform</h2>
-              <Link to={routes.about()}>About us</Link>
               <Link to={routes.explore()}><Compass size={15} aria-hidden="true" /> Explore courses</Link>
-              <Link to={routes.explore()}><BookOpen size={15} aria-hidden="true" /> Learning library</Link>
-              <Link to={routes.faq()}><HelpCircle size={15} aria-hidden="true" /> How it works / FAQ</Link>
+              <Link to={routes.buildPath()}><BookOpen size={15} aria-hidden="true" /> Build a roadmap</Link>
+              <Link to={routes.myLearning()}><GraduationCap size={15} aria-hidden="true" /> My learning</Link>
+              <Link to={routes.saved()}>Saved learning</Link>
             </section>
 
             <section className="bfs-footer-column" aria-labelledby="footer-plans-title">
               <h2 id="footer-plans-title">Plans</h2>
               <Link to={routes.pricing()}>Plans and pricing</Link>
               <Link to={routes.explore()}>Browse courses</Link>
-              <Link to={routes.myLearning()}>My learning</Link>
+              <Link to={routes.login()}>Sign in</Link>
               <Link to={routes.register()}>Create an account</Link>
             </section>
 
-            <section className="bfs-footer-column" aria-labelledby="footer-support-title">
-              <h2 id="footer-support-title">Resources & support</h2>
-              <Link to={routes.faq()}>Help centre / FAQ</Link>
+            <section className="bfs-footer-column" aria-labelledby="footer-resources-title">
+              <h2 id="footer-resources-title">Resources</h2>
+              <Link to={routes.faq()}><HelpCircle size={15} aria-hidden="true" /> Help centre / FAQ</Link>
+              <Link to="/legal/privacy-policy">Privacy policy</Link>
+              <Link to="/legal/terms-of-service">Terms of service</Link>
+              <Link to="/legal">All policies</Link>
+            </section>
+
+            <section className="bfs-footer-column" aria-labelledby="footer-company-title">
+              <h2 id="footer-company-title">Company</h2>
+              <Link to={routes.about()}>About us</Link>
               <Link to={routes.contact()}><Mail size={15} aria-hidden="true" /> Contact us</Link>
-              <Link to={routes.contact()}>Feedback and support</Link>
-              <Link to="/legal">Policies and guidelines</Link>
+              <a href="#footer-socials">Social media <ArrowUpRight size={14} aria-hidden="true" /></a>
             </section>
           </div>
         </div>

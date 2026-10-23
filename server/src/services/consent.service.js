@@ -72,6 +72,28 @@ export function hasExplicitPushConsentChoice(input) {
   );
 }
 
+const CONSENT_EVENT_SOURCES = new Set([
+  "registration",
+  "account_gate",
+  "cookie_banner",
+  "settings",
+  "google_onboarding",
+  "profile_settings",
+  "email_unsubscribe"
+]);
+
+export function buildMarketingEmailConsentEvent(enabled, source = "settings", version = DEFAULT_POLICY_VERSIONS.marketing) {
+  if (typeof enabled !== "boolean") throw serviceError("Marketing email consent must be true or false.");
+  if (!CONSENT_EVENT_SOURCES.has(source)) throw serviceError("Unsupported marketing consent event source.");
+  return {
+    type: "marketing_email",
+    version,
+    accepted: enabled,
+    source,
+    changedFields: []
+  };
+}
+
 export function buildPushNotificationConsentEvent(enabled) {
   if (typeof enabled !== "boolean") {
     throw serviceError("Push notification consent must be true or false.");
@@ -265,12 +287,7 @@ export async function updateMarketingEmailConsent(userId, enabled) {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
   const versions = await getCurrentPolicyVersions();
-  await appendEvent(user._id, {
-    type: "marketing_email",
-    version: versions.marketing,
-    accepted: enabled,
-    source: "settings"
-  });
+  await appendEvent(user._id, buildMarketingEmailConsentEvent(enabled, "settings", versions.marketing));
   return { marketingEmailConsent: enabled, updatedAt: user.marketingEmailConsentAt };
 }
 
@@ -295,12 +312,7 @@ export async function revokeMarketingEmailConsent(userId) {
   );
 
   const versions = await getCurrentPolicyVersions();
-  await appendEvent(userId, {
-    type: "marketing_email",
-    version: versions.marketing,
-    accepted: false,
-    source: "email_unsubscribe"
-  });
+  await appendEvent(userId, buildMarketingEmailConsentEvent(false, "email_unsubscribe", versions.marketing));
   return { marketingEmailConsent: false, updatedAt: now };
 }
 

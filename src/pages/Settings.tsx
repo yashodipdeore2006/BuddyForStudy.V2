@@ -73,7 +73,7 @@ function PreferenceToggle({
 }
 
 export default function Settings({ embedded = false }: { embedded?: boolean }) {
-  const { profile, session } = useAuth();
+  const { profile, session, refreshProfile } = useAuth();
   const location = useLocation();
   const canChangePassword = profile?.auth_provider === "local" || profile?.auth_provider === "local_google";
 
@@ -83,6 +83,17 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [contactPhone, setContactPhone] = useState(profile?.phone_number || "");
+  const [contactCity, setContactCity] = useState(profile?.city || "");
+  const [contactLearningGoal, setContactLearningGoal] = useState(profile?.learning_goal || "");
+  const [savingContact, setSavingContact] = useState(false);
+  const [contactSuccess, setContactSuccess] = useState(false);
+  const [contactError, setContactError] = useState("");
+  const [marketingEmailConsent, setMarketingEmailConsent] = useState(profile?.marketing_email_consent === true);
+  const [loadingMarketingConsent, setLoadingMarketingConsent] = useState(true);
+  const [savingMarketingConsent, setSavingMarketingConsent] = useState(false);
+  const [marketingConsentMessage, setMarketingConsentMessage] = useState("");
+  const [marketingConsentError, setMarketingConsentError] = useState("");
 
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loadingNotifs, setLoadingNotifs] = useState(true);
@@ -101,6 +112,26 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [learningGoalError, setLearningGoalError] = useState("");
   const [learningGoalSuccess, setLearningGoalSuccess] = useState(false);
   const learningGoalDirty = dailyGoalLessons !== savedDailyGoalLessons;
+
+  useEffect(() => {
+    setContactPhone(profile?.phone_number || "");
+    setContactCity(profile?.city || "");
+    setContactLearningGoal(profile?.learning_goal || "");
+    setMarketingEmailConsent(profile?.marketing_email_consent === true);
+  }, [profile?.phone_number, profile?.city, profile?.learning_goal, profile?.marketing_email_consent]);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch("/api/consent/status")
+      .then((data) => {
+        if (active) setMarketingEmailConsent(data.status?.user?.marketingEmailConsent === true);
+      })
+      .catch(() => {
+        if (active) setMarketingConsentError("Unable to load the email update preference.");
+      })
+      .finally(() => { if (active) setLoadingMarketingConsent(false); });
+    return () => { active = false; };
+  }, [session?.user.id]);
 
   useEffect(() => {
     if (theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches)) {
@@ -187,6 +218,47 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     void loadPreferences();
     return () => { cancelled = true; };
   }, []);
+
+  const saveContactDetails = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSavingContact(true);
+    setContactError("");
+    setContactSuccess(false);
+    try {
+      await apiFetch("/api/consent/profile", {
+        method: "PUT",
+        body: JSON.stringify({
+          phoneNumber: contactPhone,
+          city: contactCity,
+          learningGoal: contactLearningGoal
+        })
+      });
+      await refreshProfile();
+      setContactSuccess(true);
+    } catch (error) {
+      setContactError(error instanceof Error ? error.message : "Unable to save contact details.");
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
+  const saveMarketingConsent = async (enabled: boolean) => {
+    setSavingMarketingConsent(true);
+    setMarketingConsentError("");
+    setMarketingConsentMessage("");
+    try {
+      const data = await apiFetch("/api/consent/marketing-email", {
+        method: "PUT",
+        body: JSON.stringify({ enabled })
+      });
+      setMarketingEmailConsent(data.marketingEmailConsent === true);
+      setMarketingConsentMessage(enabled ? "Optional email updates enabled." : "Optional email updates disabled.");
+    } catch (error) {
+      setMarketingConsentError(error instanceof Error ? error.message : "Unable to update email preferences.");
+    } finally {
+      setSavingMarketingConsent(false);
+    }
+  };
 
   const handlePasswordChange = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -298,6 +370,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><UserRound className="h-4 w-4" />Account</a>
         <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
         <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
+        <a href="#privacy-consent" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Privacy & consent</a>
         <a href="#learning-goals" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Target className="h-4 w-4" />Learning goals</a>
         <a href="#notifications" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Bell className="h-4 w-4" />Notifications</a>
         <a href={routes.billing()} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
@@ -492,6 +565,58 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
           <button type="button" onClick={() => void handleNotifSave()} disabled={savingNotifs || loadingNotifs} className="btn-primary">
             {savingNotifs ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : "Save Preferences"}
           </button>
+        </div>
+      </section>
+
+      <section id="contact-details" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+        <div className="flex items-start gap-3">
+          <UserRound className="mt-0.5 h-5 w-5 text-slate-400" />
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Contact & learning details</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Add only the details you want BuddyForStudy to keep. Phone numbers are not verified and are not used for SMS or account recovery.</p>
+          </div>
+        </div>
+        {contactError && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{contactError}</p>}
+        {contactSuccess && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">Contact details saved.</p>}
+        <form onSubmit={saveContactDetails} className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm font-semibold text-slate-700">Contact number <span className="font-normal text-slate-400">(optional)</span>
+            <input type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={32} className="input-field mt-1.5" placeholder="+91 98765 43210" />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">City <span className="font-normal text-slate-400">(optional)</span>
+            <input value={contactCity} onChange={(event) => setContactCity(event.target.value)} maxLength={100} autoComplete="address-level2" className="input-field mt-1.5" placeholder="Your city" />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">Learning goal <span className="font-normal text-slate-400">(optional)</span>
+            <input value={contactLearningGoal} onChange={(event) => setContactLearningGoal(event.target.value)} maxLength={240} className="input-field mt-1.5" placeholder="e.g. Become a backend developer" />
+          </label>
+          <div className="sm:col-span-2 flex justify-end">
+            <button type="submit" disabled={savingContact} className="btn-primary">{savingContact ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Save contact details"}</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="privacy-consent" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 h-5 w-5 text-slate-400" />
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Privacy & consent</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Essential storage stays on for sign-in and security. Optional cookie categories can be changed at any time; marketing email is a separate opt-in.</p>
+          </div>
+        </div>
+        {marketingConsentError && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{marketingConsentError}</p>}
+        {marketingConsentMessage && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{marketingConsentMessage}</p>}
+        <div className="mt-5">
+          <PreferenceToggle
+            checked={marketingEmailConsent}
+            disabled={loadingMarketingConsent || savingMarketingConsent}
+            onChange={(value) => void saveMarketingConsent(value)}
+            label="Optional product emails"
+            description="Send product news, learning tips, and occasional offers. This is not required for account or course notifications."
+          />
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => window.dispatchEvent(new Event("bfs:open-cookie-settings"))} className="btn-secondary">Cookie settings</button>
+          <a href="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-violet-700 underline underline-offset-2">Privacy policy</a>
+          <a href="/legal/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-violet-700 underline underline-offset-2">Terms of service</a>
         </div>
       </section>
     </div>

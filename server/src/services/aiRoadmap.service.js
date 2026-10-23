@@ -1461,9 +1461,11 @@ export async function generateAIRoadmap(input, options = {}) {
           topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
           snapshot: {
             intent: fallback.intent || "ai_personalized_path_fallback",
-            promptVersionId,
-            promptVersion: activePrompt.version,
-            promptVersionName: activePrompt.name,
+            // This course came from the validated knowledge base/topic fallback,
+            // not from the active custom prompt; keep it out of that version's cache.
+            promptVersionId: null,
+            promptVersion: null,
+            promptVersionName: "Fallback (prompt not used)",
             canonicalTopic: fallback.canonicalTopic,
             careerOutcome: fallback.careerOutcome,
             skillGraph: fallback.skillGraph || [],

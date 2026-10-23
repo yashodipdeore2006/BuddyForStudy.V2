@@ -206,6 +206,14 @@ async function mockAppApi(page: Page, options: {
 }
 
 test.describe("privacy and consent controls", () => {
+  test("Google Identity SDK is not loaded on pages without Google sign-in UI", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.locator('script[src="https://accounts.google.com/gsi/client"]')).toHaveCount(0);
+    await expect(page.locator('script[data-bfs-google-identity="true"]')).toHaveCount(0);
+  });
+
   test("push permission is not requested until the learner explicitly enables it", async ({ page }) => {
     await page.addInitScript(() => {
       if (!("Notification" in window)) return;

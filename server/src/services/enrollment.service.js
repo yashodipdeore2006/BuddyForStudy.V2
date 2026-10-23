@@ -130,9 +130,19 @@ export async function enroll(userId, courseId, { isAdmin = false, accessPreferen
       existing.status = "active";
       existing.enrolledAt = new Date();
       if (subscriptionAccess) existing.accessSource = "subscription";
+      else if (!paidPayment && course.pricing?.mode !== "paid" && accessPreference === "individual") {
+        existing.accessSource = isAdmin ? "admin" : "self";
+      }
       await existing.save();
       if (paidPayment) await notifyPaidCoursePurchase(userId, course, paidPayment, existing);
       else await notifyFreeCourseEnrollment(userId, course, existing);
+      return existing;
+    }
+    if (!paidPayment && course.pricing?.mode !== "paid" && accessPreference === "individual" && existing.accessSource === "subscription") {
+      // When a subscription ends, let a learner convert a free course to
+      // standalone access instead of leaving an unusable subscription enrollment.
+      existing.accessSource = isAdmin ? "admin" : "self";
+      await existing.save();
       return existing;
     }
     if (paidPayment) {

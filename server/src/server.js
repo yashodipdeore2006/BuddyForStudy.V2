@@ -5,6 +5,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
+import { isAllowedClientOrigin } from "./config/corsPolicy.js";
 import { connectDatabase } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
 import meRoutes from "./routes/me.routes.js";
@@ -42,7 +43,12 @@ const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeader
 app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors({
-  origin: env.clientUrl,
+  origin(origin, callback) {
+    if (isAllowedClientOrigin(origin, { nodeEnv: env.nodeEnv, clientUrl: env.clientUrl })) {
+      return callback(null, true);
+    }
+    return callback(new Error("Origin is not allowed by the BuddyForStudy CORS policy."));
+  },
   credentials: false
 }));
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));

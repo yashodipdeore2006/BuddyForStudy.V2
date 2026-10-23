@@ -1,6 +1,22 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
+
+test.beforeEach(async ({ page }, testInfo) => {
+  // Keep the consent banner out of unrelated navigation tests. The dedicated
+  // cookie-consent test intentionally starts with a fresh browser choice.
+  if (testInfo.title.includes("cookie banner offers reject")) return;
+  await page.addInitScript((origin) => {
+    try {
+      if (window.location.origin !== origin) return;
+      localStorage.setItem("bfs-cookie-consent-v1", JSON.stringify({
+        version: "cookie-choice-v1",
+        preferences: { necessary: true, analytics: false, marketing: false },
+        updatedAt: new Date().toISOString()
+      }));
+    } catch { /* Tests that cannot access storage still exercise the app. */ }
+  }, new URL(baseURL).origin);
+});
 const learner = {
   id: "learner-1",
   name: "Learner",
@@ -199,7 +215,7 @@ test.describe("privacy and consent controls", () => {
     await expect(page.getByLabel(/Analytics/)).not.toBeChecked();
     await expect(page.getByLabel(/Marketing/)).not.toBeChecked();
 
-    await page.getByRole("button", { name: "Reject optional" }).click();
+    await page.getByRole("button", { name: "Reject optional", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Your privacy choices" })).toHaveCount(0);
     const rejected = await page.evaluate(() => JSON.parse(localStorage.getItem("bfs-cookie-consent-v1") || "{}"));
     expect(rejected.preferences.analytics).toBe(false);

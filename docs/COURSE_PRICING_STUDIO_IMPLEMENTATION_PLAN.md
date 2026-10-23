@@ -81,3 +81,47 @@ Give administrators one place to filter courses, safely apply bulk pricing chang
 - Default recommendation strategy uses category-specific bands when a category is selected, otherwise level bands. Admin-defined module and project adjustment percentages nudge the baseline while the recommendation remains clamped to each band's min/max.
 - Optional automatic rules are explicitly opt-in per rule. They execute only when an administrator deliberately selects **Execute enabled automatic rules** and provides a reason; there is no background/scheduled repricing worker.
 - Pricing Studio UI is at `/admin/pricing`; APIs are mounted under `/api/admin/pricing`.
+
+# Public Platform Footer — Implementation Plan
+
+## Goal
+Upgrade the current public marketing footer into a complete, responsive BuddyForStudy platform footer while retaining the compact signed-in footer and existing page-layout exclusions.
+
+## Current findings
+- `src/components/Footer.tsx` already renders a full marketing footer for signed-out visitors and a compact footer for signed-in users.
+- Existing canonical routes include `/explore`, `/pricing`, authentication routes, and `/legal` plus policy slugs.
+- The app currently does not expose verified public company contact details or official social account URLs in the footer implementation. These must not be fabricated.
+- `src/App.tsx` already hides the footer on admin and lesson/player experiences. Preserve that behavior.
+
+## Phase 1 — Footer information architecture
+Build a clear multi-column footer:
+- **Platform:** About BuddyForStudy, Explore courses, Learning roadmaps, Free learning.
+- **Plans:** Pricing, available plans, free options, sign in, get started.
+- **Resources:** Help/FAQ, learning resources, contact/support.
+- **Company:** About us, contact us, feedback, social profiles when official URLs are configured.
+- **Legal:** Privacy, Terms, Refunds & Cancellation, Cookies, Community Guidelines, and the policy index.
+- **Footer bottom bar:** copyright, concise mission statement, and a back-to-top affordance where appropriate.
+
+## Phase 2 — Routes and destinations
+- Reuse existing routes wherever possible, including `/explore`, `/pricing`, `/login`, `/register`, and published policy routes.
+- Add focused public About and Contact pages only if no suitable existing destination is available.
+- Do not link to non-existent routes. Where policy slugs are dynamically loaded, use only supported/published destinations or the policy index.
+- Read contact/social URLs from explicit public configuration. Omit unavailable social links rather than inventing official accounts. A contact page must explain the available support path if no public support address is configured.
+
+## Phase 3 — Design and responsive behavior
+- Match BuddyForStudy's current design tokens, typography, colors, borders, and spacing.
+- Use semantic footer/nav landmarks, descriptive accessible link labels, visible keyboard focus, and sufficient contrast.
+- Use responsive columns on desktop and a readable stacked layout on small screens; avoid horizontal overflow.
+- Keep the footer visually quieter than the page's primary content and avoid excessive decoration.
+- Preserve the compact signed-in footer and do not show the marketing footer in admin, lesson-player, or focused learning-player routes.
+
+## Phase 4 — Verification
+- Check every internal destination against the route table.
+- Verify responsive behavior, keyboard navigation, and accessible labels.
+- Run frontend typecheck/build and relevant tests; inspect CI for the exact implementation commit.
+- Ensure no invented company address, support email, or social profile is presented as real.
+
+## Scope boundaries
+- This task upgrades the footer and adds only the minimal public informational destinations required for valid navigation.
+- It does not add unverified social accounts, claim unimplemented products/features, or change subscription/payment logic.
+- Contact form delivery, newsletter subscriptions, and social account management require verified endpoints/configuration and are not simulated by dead-end UI.

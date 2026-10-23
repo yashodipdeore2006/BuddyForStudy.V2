@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Notification } from "../src/models/Notification.js";
-import { list, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
+import { NotificationPreference } from "../src/models/NotificationPreference.js";
+import { UserConsentEvent } from "../src/models/UserConsentEvent.js";
+import { list, updatePreferences, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -65,4 +67,57 @@ test("push endpoint ownership guard prevents cross-account reassignment", () => 
   assert.equal(isPushSubscriptionOwnedByUser({ user: "user-1" }, "user-1"), true);
   assert.equal(isPushSubscriptionOwnedByUser({ user: { toString: () => "user-1" } }, "user-1"), true);
   assert.equal(isPushSubscriptionOwnedByUser({ user: "user-2" }, "user-1"), false);
+});
+
+
+function mockPreferenceStorage() {
+  return {
+    findOne: () => ({ lean: async () => null }),
+    findOneAndUpdate: (_filter, update) => ({
+      lean: async () => ({
+        user: "507f1f77bcf86cd799439011",
+        ...(update.$setOnInsert || {}),
+        ...(update.$set || {})
+      })
+    })
+  };
+}
+
+test("saving general notification settings does not create a push consent event", async () => {
+  let consentEvents = 0;
+  const res = responseRecorder();
+  await withMocks([
+    [NotificationPreference, mockPreferenceStorage()],
+    [UserConsentEvent, { create: async () => { consentEvents += 1; return {}; } }]
+  ], async () => {
+    await updatePreferences({
+      body: { emailCourseUpdates: false },
+      user: { userId: "507f1f77bcf86cd799439011" }
+    }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(consentEvents, 0);
+});
+
+test("explicit push enable/disable preferences create push consent audit events", async () => {
+  const events = [];
+  const res = responseRecorder();
+  await withMocks([
+    [NotificationPreference, mockPreferenceStorage()],
+    [UserConsentEvent, { create: async (event) => { events.push(event); return event; } }]
+  ], async () => {
+    await updatePreferences({
+      body: { pushEnabled: true },
+      user: { userId: "507f1f77bcf86cd799439011" }
+    }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].type, "push_notifications");
+  assert.equal(events[0].accepted, true);
+  assert.equal(events[0].source, "settings");
 });

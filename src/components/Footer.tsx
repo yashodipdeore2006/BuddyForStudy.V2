@@ -1,27 +1,8 @@
 import { ArrowUpRight } from "lucide-react";
+import PublicSocialLinks from "@/components/PublicSocialLinks";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
-
-type SocialLink = { label: string; href: string };
-
-function isPublicHttpsUrl(value?: string): value is string {
-  if (!value?.trim()) return false;
-  try {
-    return new URL(value.trim()).protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-const configuredSocialLinks: SocialLink[] = [
-  { label: "Instagram", href: import.meta.env.VITE_PUBLIC_SOCIAL_INSTAGRAM || "" },
-  { label: "LinkedIn", href: import.meta.env.VITE_PUBLIC_SOCIAL_LINKEDIN || "" },
-  { label: "YouTube", href: import.meta.env.VITE_PUBLIC_SOCIAL_YOUTUBE || "" },
-  { label: "X", href: import.meta.env.VITE_PUBLIC_SOCIAL_X || "" },
-]
-  .filter((item) => isPublicHttpsUrl(item.href))
-  .map((item) => ({ ...item, href: item.href.trim() }));
 
 function Brand() {
   return (
@@ -31,25 +12,6 @@ function Brand() {
       </span>
       <span className="bfs-user-brand__wordmark">Buddy<span>For</span>Study</span>
     </Link>
-  );
-}
-
-function SocialLinks() {
-  return (
-    <div className="bfs-footer-social-block">
-      <h3>Follow BuddyForStudy</h3>
-      {configuredSocialLinks.length ? (
-        <div className="bfs-footer-socials">
-          {configuredSocialLinks.map((social) => (
-            <a key={social.label} href={social.href} target="_blank" rel="noopener noreferrer" aria-label={`BuddyForStudy on ${social.label}`}>
-              {social.label}<ArrowUpRight size={12} aria-hidden="true" />
-            </a>
-          ))}
-        </div>
-      ) : (
-        <p className="bfs-footer-muted">Official social links will appear here once configured.</p>
-      )}
-    </div>
   );
 }
 
@@ -67,7 +29,7 @@ export default function Footer() {
               <Link to={routes.about()}>About BuddyForStudy</Link>
               <Link to={routes.contact()}>Contact us</Link>
               <Link to={routes.faq()}>Help and support</Link>
-              <SocialLinks />
+              <PublicSocialLinks title="Follow BuddyForStudy" variant="footer" />
             </section>
 
             <section className="bfs-footer-column" aria-labelledby="footer-discover-title">

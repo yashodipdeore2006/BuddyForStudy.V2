@@ -67,6 +67,7 @@ async function mockAppApi(page: Page, options: {
   catalogCourses?: Array<ReturnType<typeof courseFixture>>;
   enrolled?: boolean;
   hasPlanAccess?: boolean;
+  pushAvailable?: boolean;
   consentStatus?: Record<string, unknown>;
   cookiePreferences?: Record<string, unknown> | null;
   missingCourse?: boolean;
@@ -101,7 +102,7 @@ async function mockAppApi(page: Page, options: {
         : json(route, { message: "Authentication required" }, 401);
     }
     if (pathname === "/api/notifications/preferences") {
-      return json(route, { preferences: { pushEnabled: false } });
+      return json(route, { preferences: { pushEnabled: false }, pushAvailable: options.pushAvailable === true });
     }
     if (pathname === "/api/consent/status") {
       return json(route, {
@@ -205,6 +206,28 @@ async function mockAppApi(page: Page, options: {
 }
 
 test.describe("privacy and consent controls", () => {
+  test("push permission is not requested until the learner explicitly enables it", async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!("Notification" in window)) return;
+      const notificationType = window.Notification;
+      Object.defineProperty(notificationType, "requestPermission", {
+        configurable: true,
+        value: async () => {
+          const target = window as Window & { __bfsPushPermissionPromptCount?: number };
+          target.__bfsPushPermissionPromptCount = (target.__bfsPushPermissionPromptCount || 0) + 1;
+          return "default";
+        },
+      });
+    });
+    await mockAppApi(page, { authenticated: true, pushAvailable: true });
+    await page.goto(baseURL + "/settings");
+    await expect(page.getByRole("heading", { name: "Desktop notifications" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enable push on this browser" })).toBeVisible();
+    await page.waitForTimeout(200);
+    const promptCount = await page.evaluate(() => (window as Window & { __bfsPushPermissionPromptCount?: number }).__bfsPushPermissionPromptCount || 0);
+    expect(promptCount).toBe(0);
+  });
+
   test("cookie banner offers reject, granular settings, and persists a choice", async ({ page }) => {
     await mockAppApi(page);
     await page.goto(baseURL + "/login");

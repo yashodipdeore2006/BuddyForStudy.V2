@@ -68,6 +68,7 @@ export default function Footer() {
               <h2 id="footer-legal-title">Legal and accessibility</h2>
               <Link to="/legal/privacy-policy">Privacy policy</Link>
               <Link to="/legal/terms-of-service">Terms of service</Link>
+              <Link to="/legal/cookie-policy">Cookie policy</Link>
               <Link to="/legal">All policies</Link>
             </section>
           </div>
@@ -82,6 +83,7 @@ export default function Footer() {
             <Link to="/legal/privacy-policy">Privacy</Link>
             <Link to="/legal/terms-of-service">Terms</Link>
             <Link to="/legal">Policies</Link>
+            <a href="#cookie-settings" onClick={(event) => { event.preventDefault(); window.dispatchEvent(new Event("bfs:open-cookie-settings")); }}>Cookie settings</a>
           </nav>
           <a className="bfs-footer-back-top" href="#root">Back to top <ArrowUpRight size={13} aria-hidden="true" /></a>
         </div>

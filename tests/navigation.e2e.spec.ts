@@ -209,7 +209,7 @@ test.describe("privacy and consent controls", () => {
   test("Google Identity SDK is not loaded on pages without Google sign-in UI", async ({ page }) => {
     await mockAppApi(page, { authenticated: true });
     await page.goto(baseURL + "/home");
-    await expect(page.getByRole("main")).toBeVisible();
+    await expect(page.locator("#main-content")).toBeVisible();
     await expect(page.locator('script[src="https://accounts.google.com/gsi/client"]')).toHaveCount(0);
     await expect(page.locator('script[data-bfs-google-identity="true"]')).toHaveCount(0);
   });

@@ -23,7 +23,10 @@ const loginOtpSchema = z.object({
 });
 
 const googleSchema = z.object({
-  credential: z.string().min(1)
+  credential: z.string().min(1),
+  termsAccepted: z.literal(true).optional(),
+  privacyAcknowledged: z.literal(true).optional(),
+  marketingEmailConsent: z.boolean().optional()
 });
 
 const otpSchema = z.object({
@@ -83,8 +86,15 @@ export function googleConfig(_req, res) {
 
 export async function googleLogin(req, res) {
   try {
-    const { credential } = googleSchema.parse(req.body);
-    const result = await authService.googleLogin(credential);
+    const input = googleSchema.parse(req.body);
+    const consent = input.termsAccepted === true && input.privacyAcknowledged === true
+      ? {
+          termsAccepted: true,
+          privacyAcknowledged: true,
+          marketingEmailConsent: input.marketingEmailConsent === true
+        }
+      : null;
+    const result = await authService.googleLogin(input.credential, consent);
     return success(res, result, "Google authentication successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);

@@ -16,6 +16,9 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
+  const [marketingEmailConsent, setMarketingEmailConsent] = useState(false);
 
   useEffect(() => {
     if (session && profile) {
@@ -29,6 +32,10 @@ export default function Register() {
 
   const handleGoogle = async (credential: string) => {
     setError(null);
+    if (!termsAccepted || !privacyAcknowledged) {
+      setError("Please agree to the Terms of Service and acknowledge the Privacy Policy before continuing with Google.");
+      return;
+    }
     setLoading(true);
     try {
       await signInWithGoogle(credential);
@@ -46,7 +53,11 @@ export default function Register() {
     if (password.length < 8) { setError('Password must be at least 8 characters long'); return; }
     setLoading(true);
     try {
-      const result = await signUp(name, email, password);
+      const result = await signUp(name, email, password, {
+        termsAccepted: true,
+        privacyAcknowledged: true,
+        marketingEmailConsent
+      });
       if ("requiresVerification" in result) {
         navigate(routes.verifyEmail(), { state: { email: result.email } });
       }
@@ -152,7 +163,39 @@ export default function Register() {
           </div>
         </div>
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+          <label className="flex items-start gap-2.5 text-xs leading-5 text-slate-600">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(event) => setTermsAccepted(event.target.checked)}
+              required
+              className="mt-1 h-4 w-4 shrink-0 accent-violet-600"
+            />
+            <span>I agree to the <Link to="/legal/terms-of-service" target="_blank" rel="noopener noreferrer" className="font-semibold text-violet-700 underline underline-offset-2">Terms of Service</Link>. This is required to create an account.</span>
+          </label>
+          <label className="flex items-start gap-2.5 text-xs leading-5 text-slate-600">
+            <input
+              type="checkbox"
+              checked={privacyAcknowledged}
+              onChange={(event) => setPrivacyAcknowledged(event.target.checked)}
+              required
+              className="mt-1 h-4 w-4 shrink-0 accent-violet-600"
+            />
+            <span>I have read and acknowledge the <Link to="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="font-semibold text-violet-700 underline underline-offset-2">Privacy Policy</Link>, including how BuddyForStudy uses my account and learning data.</span>
+          </label>
+          <label className="flex items-start gap-2.5 border-t border-slate-200 pt-3 text-xs leading-5 text-slate-600">
+            <input
+              type="checkbox"
+              checked={marketingEmailConsent}
+              onChange={(event) => setMarketingEmailConsent(event.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0 accent-violet-600"
+            />
+            <span>Send me optional product news, learning tips, and offers by email. I can unsubscribe or change this preference later.</span>
+          </label>
+        </div>
+
+        <button type="submit" disabled={loading || !termsAccepted || !privacyAcknowledged} className="btn-primary w-full">
           {loading ? 'Creating account...' : 'Create Account'}
         </button>
 
@@ -161,11 +204,8 @@ export default function Register() {
           <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-slate-400">OR</span></div>
         </div>
 
-        <GoogleSignInButton onCredential={handleGoogle} disabled={loading} />
+        <GoogleSignInButton onCredential={handleGoogle} disabled={loading || !termsAccepted || !privacyAcknowledged} />
 
-        <p className="text-center text-[11px] leading-4 text-slate-400">
-          By signing up, you agree to our Terms of Service and Privacy Policy.
-        </p>
       </form>
     </AuthLayout>
   );

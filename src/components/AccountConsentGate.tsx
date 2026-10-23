@@ -41,6 +41,7 @@ export default function AccountConsentGate() {
   const [city, setCity] = useState("");
   const [learningGoal, setLearningGoal] = useState("");
   const [saving, setSaving] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     const userId = session?.user.id;
@@ -55,7 +56,8 @@ export default function AccountConsentGate() {
     void apiFetch<{ status?: ConsentStatus }>("/api/consent/status")
       .then((data) => {
         if (!active) return;
-        const status = data.status || { requiresLegalAcceptance: false, requiresProfileCompletion: false };
+        if (!data.status) throw new Error("The consent-status response was incomplete. Please retry.");
+        const status = data.status;
         setGate({ userId, status, loading: false, error: "" });
         setMarketingEmailConsent(status.user?.marketingEmailConsent === true);
         setPhoneNumber(status.user?.phoneNumber || "");
@@ -71,7 +73,7 @@ export default function AccountConsentGate() {
         });
       });
     return () => { active = false; };
-  }, [session?.user.id, authLoading]);
+  }, [session?.user.id, authLoading, retryKey]);
 
   const status = gate?.userId === session?.user.id ? gate.status : null;
   const requiresLegal = status?.requiresLegalAcceptance === true;
@@ -162,7 +164,7 @@ export default function AccountConsentGate() {
             <h2 id="account-consent-title" className="mt-4 text-xl font-extrabold">Unable to verify your account setup</h2>
             <p role="alert" className="mt-2 text-sm leading-6 text-slate-600">{statusError}</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button type="button" className="btn-primary" onClick={() => { setGate(null); void refreshProfile().catch(() => {}); }}>Retry after refreshing account</button>
+              <button type="button" className="btn-primary" onClick={() => setRetryKey((value) => value + 1)}>Retry</button>
               <button type="button" className="btn-secondary" onClick={() => void signOut()}>Sign out</button>
             </div>
           </>

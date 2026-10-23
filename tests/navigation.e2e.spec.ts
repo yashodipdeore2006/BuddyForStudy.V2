@@ -651,4 +651,46 @@ test.describe("push notification prompt", () => {
     await page.reload();
     await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toHaveCount(0);
   });
+
+
+  test("shows recovery instructions when browser push permission has been blocked", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "Notification", {
+        configurable: true,
+        value: {
+          permission: "denied",
+          requestPermission: async () => {
+            const state = window as unknown as { __nativePermissionPromptCalls?: number };
+            state.__nativePermissionPromptCalls = (state.__nativePermissionPromptCalls || 0) + 1;
+            return "denied";
+          },
+        },
+      });
+      Object.defineProperty(window, "PushManager", { configurable: true, value: function PushManager() {} });
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: { getRegistration: async () => null },
+      });
+      Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    });
+
+    await mockAppApi(page, { authenticated: true, pushAvailable: true });
+    await page.goto(baseURL + "/home");
+
+    await expect(page.getByRole("heading", { name: "Notifications are blocked in your browser" })).toBeVisible();
+    await expect(page.getByText(/change Notifications from Block to Allow/i)).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __nativePermissionPromptCalls?: number }).__nativePermissionPromptCalls || 0)).toBe(0);
+
+    await page.getByRole("button", { name: "Check permission again" }).click();
+    await expect(page.getByRole("heading", { name: "Notifications are blocked in your browser" })).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __nativePermissionPromptCalls?: number }).__nativePermissionPromptCalls || 0)).toBe(0);
+
+    await page.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Notifications are blocked in your browser" })).toHaveCount(0);
+
+    // A fresh app entry asks again; a browser-level denial is not hidden for seven days.
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Notifications are blocked in your browser" })).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __nativePermissionPromptCalls?: number }).__nativePermissionPromptCalls || 0)).toBe(0);
+  });
 });

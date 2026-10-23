@@ -4,11 +4,11 @@ import { failure, success } from "../utils/response.js";
 import { z } from "zod";
 import { getUserNotificationPreferences, saveUserNotificationPreferences, verifyEmailUnsubscribeToken } from "../services/notification.service.js";
 import { isWithinQuietHours } from "../services/reminderScheduling.js";
-import { NotificationPreference } from "../models/NotificationPreference.js";
+
 import { PushSubscription } from "../models/PushSubscription.js";
 import { getWebPushPublicKey, isWebPushConfigured, sendWebPushNotification } from "../services/webPush.service.js";
 import { isIP } from "node:net";
-import { hasExplicitPushConsentChoice, recordPushNotificationConsent } from "../services/consent.service.js";
+import { hasExplicitPushConsentChoice, recordPushNotificationConsent, revokeMarketingEmailConsent } from "../services/consent.service.js";
 
 function unsubscribePage(res, { title, message, token = "", status = 200, showForm = false }) {
   const safeToken = /^[A-Za-z0-9_.-]{1,2048}$/.test(token) ? token : "";
@@ -43,11 +43,7 @@ export async function unsubscribePromotionalEmails(req, res, next) {
       message: "This link is invalid or has expired. You can update email preferences from your BuddyForStudy account.",
       status: 400
     });
-    await NotificationPreference.findOneAndUpdate(
-      { user: claims.userId },
-      { $set: { emailAnnouncements: false, emailAnnouncementsConsentAt: null }, $setOnInsert: { user: claims.userId } },
-      { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
-    );
+    await revokeMarketingEmailConsent(claims.userId);
     return unsubscribePage(res, {
       title: "You are unsubscribed",
       message: "Promotional emails have been turned off for this account. Transactional account, security, and billing emails may still be sent."

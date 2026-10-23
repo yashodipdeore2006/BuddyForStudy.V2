@@ -2,13 +2,17 @@ import { ArrowUpRight, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { routes } from "@/lib/routes";
 
-const supportEmail = import.meta.env.VITE_PUBLIC_SUPPORT_EMAIL?.trim();
+const rawSupportEmail = import.meta.env.VITE_PUBLIC_SUPPORT_EMAIL?.trim() ?? "";
+const EMAIL_PATTERN = /^[A-Z0-9.!#$%&'*+/=?^`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
+const supportEmail = rawSupportEmail.length <= 254 && EMAIL_PATTERN.test(rawSupportEmail)
+  ? rawSupportEmail
+  : "";
 
 export default function Contact() {
   return (
     <main className="bfs-public-page">
       <section className="bfs-public-hero bfs-public-hero--compact">
-        <span className="bfs-public-eyebrow"><MessageCircle size={15} /> Contact us</span>
+        <span className="bfs-public-eyebrow"><MessageCircle size={15} aria-hidden="true" /> Contact us</span>
         <h1>We want your learning experience to work for you.</h1>
         <p>Choose the support route that fits your question. We only publish contact details that have been configured by the platform team.</p>
       </section>
@@ -18,10 +22,12 @@ export default function Contact() {
           <h2>Email support</h2>
           {supportEmail ? <>
             <p>For questions about the platform, account access, or learning experience, send us a message.</p>
-            <a className="bfs-contact-email" href={`mailto:${supportEmail}`}>{supportEmail} <ArrowUpRight size={16} /></a>
+            <a className="bfs-contact-email" href={`mailto:${encodeURIComponent(supportEmail).replace(/%40/g, "@")}`}>
+              {supportEmail} <ArrowUpRight size={16} aria-hidden="true" />
+            </a>
           </> : <>
-            <p>The public support email has not been configured yet. No address is shown here to avoid sending your message to an unverified destination.</p>
-            <p className="bfs-public-note">Platform team: configure <code>VITE_PUBLIC_SUPPORT_EMAIL</code> in the frontend environment to publish the official support address.</p>
+            <p>The official support email is not configured with a valid address yet. This page does not send messages through a contact form.</p>
+            <p className="bfs-public-note">When an official support address is available, the platform team can configure <code>VITE_PUBLIC_SUPPORT_EMAIL</code> in the frontend environment.</p>
           </>}
         </article>
         <article className="bfs-contact-card">

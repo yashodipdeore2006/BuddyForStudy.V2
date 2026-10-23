@@ -136,8 +136,9 @@ export default function AccountConsentGate() {
     setGate((current) => current ? { ...current, error: "" } : current);
     try {
       const data = await apiFetch<{ status?: ConsentStatus }>("/api/consent/profile/skip", { method: "POST", body: JSON.stringify({}) });
-      if (!data.status) throw new Error("The profile response was incomplete. Please retry.");
-      setGate((current) => current ? { ...current, status: data.status, error: "" } : current);
+      const nextStatus = data.status;
+      if (!nextStatus) throw new Error("The profile response was incomplete. Please retry.");
+      setGate((current) => current ? { ...current, status: nextStatus, error: "" } : current);
     } catch (error) {
       setGate((current) => current ? {
         ...current,

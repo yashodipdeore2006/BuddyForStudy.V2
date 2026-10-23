@@ -128,7 +128,7 @@ export default function Register() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input-field pl-10 pr-10"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
               required
               autoComplete="new-password"
             />
@@ -174,10 +174,6 @@ export default function Register() {
           <p className="text-center text-xs leading-5 text-slate-500">
             By continuing, you agree to our <Link to="/legal/terms-of-service" target="_blank" rel="noopener noreferrer" className="font-semibold text-violet-700 underline underline-offset-2">Terms of Service</Link> and acknowledge our <Link to="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="font-semibold text-violet-700 underline underline-offset-2">Privacy Policy</Link>.
           </p>
-          <label className="hidden">
-            <input type="checkbox" checked={false} readOnly className="hidden" />
-            <span aria-hidden="true">Optional marketing consent is controlled above.</span>
-          </label>
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full">

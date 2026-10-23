@@ -88,7 +88,7 @@ export default function AIPromptVersionsPanel() {
     setPromptText(selected.active.prompt);
     setName(nextVersionName(selected));
     setNotes("");
-  }, [feature, selected]);
+  }, [feature, selected?.active.versionId, selected?.active.prompt]);
 
   function selectFeature(value: string) {
     if (value === "build_with_ai" || value === "lesson_summary") {

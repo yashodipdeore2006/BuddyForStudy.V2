@@ -913,6 +913,7 @@
 .bfs-contact-social-card { margin-top: 18px; }
 .bfs-contact-social-card h2 { margin-top: 0; }
 .bfs-contact-social-block { margin-top: 18px; }
+.bfs-contact-social-block .bfs-footer-muted { color: var(--bfs-muted, #666980); }
 .bfs-contact-socials { display: flex; flex-wrap: wrap; gap: 10px 12px; }
 .bfs-contact-socials a {
   display: inline-flex;

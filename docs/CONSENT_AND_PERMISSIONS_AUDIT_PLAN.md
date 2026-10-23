@@ -26,7 +26,7 @@
 | C03 | Essential storage | Described in Cookie settings; auth/session and preference storage are used by the app | Always-on only for required operations. Describe local storage/session technology accurately; do not call every browser-storage item a cookie. |
 | C04 | Optional analytics storage | Separate off-by-default category in Cookie settings; no confirmed analytics SDK in the reviewed code | Keep off by default. A future analytics integration must read the saved choice before loading and support revocation. |
 | C05 | Optional marketing/advertising storage | Separate off-by-default category in Cookie settings; no confirmed ad/pixel SDK in the reviewed code | Keep off by default. Do not load ad/pixel technology before opt-in. |
-| C06 | Browser push permission | Separate Settings → Notifications action calls `Notification.requestPermission()`; service worker and push subscription are registered on demand | Preserve the click-to-request flow; explain browser/HTTPS support and denied-permission recovery. Record account-level enable/disable consent changes. Browser permission remains per-browser/device. |
+| C06 | Browser push permission | Separate Settings → Notifications action calls `Notification.requestPermission()`; service worker and push subscription are registered on demand | **Implemented:** clear browser support/HTTPS/server-config/denied states; prompt stays user-initiated; explicit enable/disable is audited. Browser permission remains per-browser/device. |
 | C07 | Promotional email | Separate unchecked marketing opt-in, settings control, unsubscribe link and delivery preference | Keep unchecked by default; synchronize consent and delivery suppression; record opt-in/withdrawal; transactional/security/billing mail remains separate. |
 | C08 | In-app notification types | Existing preferences for course/project updates, announcements and reminders | Keep user-controlled defaults and persist current choices; do not request browser permission for in-app notifications. |
 | C09 | Reminder schedule / quiet hours | Existing time-zone, reminder-hour and quiet-hours controls | Explain effect and validate settings; this is a preference, not a browser permission. |
@@ -37,7 +37,7 @@
 | C14 | Course payments / refunds | Existing checkout, payment and refund flows | Keep payment-provider handling and transactional communications explained; never treat payment/account messages as optional marketing. |
 | C15 | Camera, microphone, geolocation, clipboard, file access | No general-purpose permission request is part of the reviewed consent flows | Do not ask globally. Request at the point a specific feature needs one and explain why. If no feature needs it, do not request it. |
 | C16 | Account access, export, correction and deletion | Contact fields can be edited; a full privacy rights workflow was not found in this inventory | Audit separately before launch. Define export/deletion request handling, retention/legal holds and identity verification. Do not promise automated deletion/export until implemented. |
-| C17 | Consent proof and audit history | Append-only `UserConsentEvent` records cover terms, privacy, cookies, marketing and profile events | Add push consent event type and record explicit enable/disable changes. Keep event meanings accurate and avoid recording ordinary profile edits as consent acceptance. |
+| C17 | Consent proof and audit history | Append-only `UserConsentEvent` records cover terms, privacy, cookies, marketing, push, and profile events | **Implemented for the identified gaps:** push event type and explicit enable/disable records added; general preference save omits push so it cannot fabricate a push-choice event. Keep event meanings accurate and avoid recording ordinary profile edits as consent acceptance. |
 | C18 | Legal policy publication/versioning | Admin can publish policy versions; interim default policies exist | Ensure displayed version matches the one recorded on acceptance. Have policy text reviewed for target markets before production launch. |
 | C19 | Consent center placement / visual system | Cookie settings available in footer and Settings; privacy preferences in Settings | Keep entry points findable; use current indigo/violet palette, neutral surfaces, semantic success/warning/error colors, existing buttons and keyboard focus rings. |
 
@@ -47,10 +47,10 @@
 - [x] Keep cookie choices separate from push permission.
 - [x] Keep promotional email opt-in unchecked by default and independently revocable.
 - [x] Keep Google contact collection user-entered; do not infer phone from Google.
-- [ ] Audit/record explicit push enable and disable choices in consent history.
-- [ ] Ensure general notification-preference saving does not accidentally re-record a push decision when the user changes only another preference.
-- [ ] Improve push error/state copy for unsupported browser, insecure non-local origin, native permission denied, missing server VAPID configuration, and successful subscription.
-- [ ] Add regression tests for push consent logging and independent preference saving.
+- [x] Audit/record explicit push enable and disable choices in consent history.
+- [x] Ensure general notification-preference saving does not accidentally re-record a push decision when the user changes only another preference.
+- [x] Improve push error/state copy for unsupported browser, insecure non-local origin, native permission denied, missing server VAPID configuration, and successful subscription.
+- [x] Add unit regression coverage for push consent enable/disable event payloads. [ ] Add a route-level test for independent preference saving.
 
 ### Phase B — Verify privacy enforcement
 - [ ] Verify whether any analytics/ad scripts exist in the deployed frontend; if none, keep categories as preferences only and clearly label that no optional tracking tool is currently enabled.

@@ -6,7 +6,10 @@ import { success, failure } from "../utils/response.js";
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.string().trim().email(),
-  password: z.string().min(8).max(128)
+  password: z.string().min(8).max(128),
+  termsAccepted: z.literal(true, { error: "You must agree to the Terms of Service." }),
+  privacyAcknowledged: z.literal(true, { error: "Please acknowledge the Privacy Policy." }),
+  marketingEmailConsent: z.boolean().default(false)
 });
 
 const loginSchema = z.object({
@@ -186,7 +189,15 @@ export async function me(req, res) {
       role: req.user.user.role,
       isActive: req.user.user.isActive,
       profileImage: req.user.user.profileImage || "",
-      authProvider: req.user.user.authProvider
+      authProvider: req.user.user.authProvider,
+      phoneNumber: req.user.user.phoneNumber || "",
+      phoneNumberVerified: req.user.user.phoneNumberVerified === true,
+      city: req.user.user.city || "",
+      learningGoal: req.user.user.learningGoal || "",
+      profileSetupSkippedAt: req.user.user.profileSetupSkippedAt || null,
+      termsAcceptedVersion: req.user.user.termsAcceptedVersion || "",
+      privacyAcknowledgedVersion: req.user.user.privacyAcknowledgedVersion || "",
+      marketingEmailConsent: req.user.user.marketingEmailConsent === true
     }
   });
 }

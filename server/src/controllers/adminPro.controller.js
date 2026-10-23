@@ -27,6 +27,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
+import { validateSocialSettingValue } from "../utils/publicSocialLinks.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
@@ -2650,12 +2651,27 @@ export async function upsertSetting(req, res, next) {
   try {
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
     if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to change platform settings.", 400);
-    if (!req.body.key) return failure(res, "key is required", 400);
-    const typedValidation = validateTypedSetting(req.body.key, req.body.value);
+    const settingKey = String(req.body?.key || "").trim();
+    if (!settingKey) return failure(res, "key is required", 400);
+
+    const typedValidation = validateTypedSetting(settingKey, req.body.value);
     if (!typedValidation.valid) return failure(res, typedValidation.message, 400);
-    const current = await PlatformSetting.findOne({ key: req.body.key });
+
+    const socialValidation = validateSocialSettingValue(settingKey, req.body.value);
+    if (!socialValidation.valid) return failure(res, socialValidation.message, 400);
+    if (socialValidation.isSocialSetting && req.body.isPublic !== true) {
+      return failure(res, "Social media links must remain public so the footer and Contact page can display them.", 400);
+    }
+
+    const value = socialValidation.isSocialSetting ? socialValidation.value : req.body.value;
+    const isPublic = socialValidation.isSocialSetting ? true : Boolean(req.body.isPublic);
+    const current = await PlatformSetting.findOne({ key: settingKey });
     const before = current?.value ?? null;
-    const setting = await PlatformSetting.findOneAndUpdate({ key: req.body.key }, { $set: { value: req.body.value, description: req.body.description || "", isPublic: Boolean(req.body.isPublic), updatedBy: req.user.user._id } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+    const setting = await PlatformSetting.findOneAndUpdate(
+      { key: settingKey },
+      { $set: { value, description: req.body.description || "", isPublic, updatedBy: req.user.user._id } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
     await audit(req, "setting.updated", "PlatformSetting", setting._id, {
       valueChanged: true,
       valueType: before === null ? "null" : Array.isArray(before) ? "array" : typeof before

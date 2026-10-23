@@ -1,6 +1,5 @@
 import { ArrowRight, CircleHelp } from "lucide-react";
 import { Link } from "react-router-dom";
-import { routes } from "@/lib/routes";
 
 const faqs = [
   { question: "Where can I find courses?", answer: "Open Explore to browse the courses currently available on BuddyForStudy. Course details show the information available for each course." },

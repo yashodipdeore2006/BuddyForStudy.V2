@@ -1,6 +1,7 @@
 import { ArrowUpRight, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { routes } from "@/lib/routes";
+import PublicSocialLinks from "@/components/PublicSocialLinks";
 
 const rawSupportEmail = import.meta.env.VITE_PUBLIC_SUPPORT_EMAIL?.trim() ?? "";
 const EMAIL_PATTERN = /^[A-Z0-9.!#$%&'*+/=?^`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
@@ -39,6 +40,11 @@ export default function Contact() {
             <Link to={routes.pricing()}>Plans and pricing</Link>
           </div>
         </article>
+      </section>
+      <section className="bfs-contact-card bfs-contact-social-card" aria-labelledby="contact-social-title">
+        <h2 id="contact-social-title">Find us on social media</h2>
+        <p>Follow BuddyForStudy for platform updates, learning resources, and announcements.</p>
+        <PublicSocialLinks variant="contact" showLabels showEmptyMessage={false} />
       </section>
     </main>
   );

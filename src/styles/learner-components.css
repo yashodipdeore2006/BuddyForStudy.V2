@@ -884,29 +884,65 @@
 }
 .bfs-footer-social-block { margin-top: 18px; }
 .bfs-footer-social-block h3 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   color: #fff;
   font-size: 12px;
   font-weight: 700;
 }
-.bfs-footer-socials { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.bfs-footer-socials { display: flex; flex-wrap: wrap; gap: 8px; }
 .bfs-footer-socials a {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  min-height: 0;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(247, 247, 251, .78);
-  font-size: 12px;
-  font-weight: 500;
+  border: 1px solid rgba(255, 255, 255, .24);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .045);
+  color: rgba(247, 247, 251, .88);
   text-decoration: none;
-  transition: color .16s ease;
+  transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
 }
-.bfs-footer-socials a:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.bfs-footer-socials a:hover {
+  color: #fff;
+  border-color: rgba(196, 181, 253, .85);
+  background: rgba(167, 139, 250, .2);
+  transform: translateY(-1px);
+}
+.bfs-contact-social-card { margin-top: 18px; }
+.bfs-contact-social-card h2 { margin-top: 0; }
+.bfs-contact-social-block { margin-top: 18px; }
+.bfs-contact-socials { display: flex; flex-wrap: wrap; gap: 10px 12px; }
+.bfs-contact-socials a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--bfs-line, #dfe1eb);
+  border-radius: 999px;
+  background: var(--bfs-surface, #fff);
+  color: var(--bfs-ink, #292a40);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color .16s ease, background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.bfs-contact-socials a:hover {
+  color: var(--bfs-primary, #1a1b41);
+  background: var(--bfs-primary-soft, #eeeffb);
+  border-color: var(--bfs-primary, #1a1b41);
+  transform: translateY(-1px);
+}
+.bfs-footer-muted {
+  margin: 0;
+  color: rgba(247, 247, 251, .62);
+  font-size: 12px;
+  line-height: 1.6;
+}
 .bfs-footer-socials a:focus-visible,
+.bfs-contact-socials a:focus-visible,
 .bfs-footer-column a:focus-visible,
 .bfs-marketing-footer__legal a:focus-visible {
   outline: 2px solid #c4b5fd;

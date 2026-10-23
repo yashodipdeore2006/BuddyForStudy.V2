@@ -8,7 +8,7 @@ export async function getPublicSocialLinks(_req, res, next) {
     const settings = await PlatformSetting.find({ key: { $in: keys }, isPublic: true })
       .select("key value isPublic")
       .lean();
-    res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    res.set("Cache-Control", "no-store");
     return success(res, { links: toPublicSocialLinks(settings) });
   } catch (error) {
     next(error);

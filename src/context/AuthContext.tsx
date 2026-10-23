@@ -18,7 +18,7 @@ interface AuthContextValue {
   verifyEmail: (email:string,otp:string)=>Promise<Profile>;
   verifyLogin: (email:string,otp:string)=>Promise<Profile>;
   resetPassword: (email:string,otp:string,newPassword:string)=>Promise<Profile>;
-  signInWithGoogle: (credential:string)=>Promise<Profile>;
+  signInWithGoogle: (credential:string,consent?:RegistrationConsent)=>Promise<Profile>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -149,8 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return profileFromUser(data.user);
   };
 
-  const signInWithGoogle=async(credential:string)=>{
-    const data=await apiFetch('/api/auth/google',{method:'POST',body:JSON.stringify({credential})});
+  const signInWithGoogle=async(credential:string,consent?:RegistrationConsent)=>{
+    const data=await apiFetch('/api/auth/google',{method:'POST',body:JSON.stringify({credential,...(consent || {})})});
     setAuth(data.token,data.user);
     applyUser(data.user);
     return profileFromUser(data.user);

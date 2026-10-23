@@ -29,6 +29,7 @@ import healthRoutes from "./routes/health.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import savedCourseRoutes from "./routes/savedCourse.routes.js";
 import legalRoutes from "./routes/legal.routes.js";
+import publicSettingsRoutes from "./routes/publicSettings.routes.js";
 import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { notFound, errorHandler } from "./middleware/error.js";
@@ -67,6 +68,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/health", healthRoutes);
+app.use("/api/public", publicSettingsRoutes);
 app.get("/api/auth/google/config", googleConfig);
 app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/me", meRoutes);

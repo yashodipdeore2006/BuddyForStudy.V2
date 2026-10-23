@@ -75,11 +75,12 @@ export default function AccountConsentGate() {
     return () => { active = false; };
   }, [session?.user.id, authLoading, retryKey]);
 
-  const status = gate?.userId === session?.user.id ? gate.status : null;
+  const currentGate = gate && session && gate.userId === session.user.id ? gate : null;
+  const status = currentGate?.status || null;
   const requiresLegal = status?.requiresLegalAcceptance === true;
   const requiresProfile = !requiresLegal && status?.requiresProfileCompletion === true;
-  const loadingStatus = Boolean(gate?.userId === session?.user.id && gate.loading);
-  const statusError = gate?.userId === session?.user.id ? gate.error : "";
+  const loadingStatus = currentGate?.loading === true;
+  const statusError = currentGate?.error || "";
 
   async function saveLegalAcceptance(event: React.FormEvent) {
     event.preventDefault();
@@ -193,7 +194,7 @@ export default function AccountConsentGate() {
               </label>
             </div>
 
-            {gate?.error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{gate.error}</p>}
+            {currentGate?.error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{gate.error}</p>}
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
               <button type="button" onClick={() => void signOut()} className="text-sm font-semibold text-slate-500 underline underline-offset-4">Sign out instead</button>
               <button type="submit" disabled={saving || !termsAccepted || !privacyAcknowledged} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">{saving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Agree and continue"}</button>

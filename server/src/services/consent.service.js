@@ -1,6 +1,7 @@
 import { LegalDocument } from "../models/LegalDocument.js";
 import { User } from "../models/User.js";
 import { UserConsentEvent } from "../models/UserConsentEvent.js";
+import { NotificationPreference } from "../models/NotificationPreference.js";
 
 const DEFAULT_POLICY_VERSIONS = Object.freeze({
   terms: "terms-of-service@default-2026-10",
@@ -85,6 +86,19 @@ export async function acceptLegalPolicies(userId, {
   user.marketingEmailConsent = marketingEmailConsent;
   user.marketingEmailConsentAt = now;
   await user.save();
+
+  // Keep the existing announcement email delivery gate in sync with the explicit opt-in.
+  await NotificationPreference.findOneAndUpdate(
+    { user: user._id },
+    {
+      $set: {
+        emailAnnouncements: marketingEmailConsent,
+        emailAnnouncementsConsentAt: marketingEmailConsent ? now : null
+      },
+      $setOnInsert: { user: user._id }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
 
   await Promise.all([
     appendEvent(user._id, { type: "terms", version: versions.terms, accepted: true, source }),
@@ -211,6 +225,17 @@ export async function updateMarketingEmailConsent(userId, enabled) {
   user.marketingEmailConsent = enabled;
   user.marketingEmailConsentAt = new Date();
   await user.save();
+  await NotificationPreference.findOneAndUpdate(
+    { user: user._id },
+    {
+      $set: {
+        emailAnnouncements: enabled,
+        emailAnnouncementsConsentAt: enabled ? user.marketingEmailConsentAt : null
+      },
+      $setOnInsert: { user: user._id }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
   const versions = await getCurrentPolicyVersions();
   await appendEvent(user._id, {
     type: "marketing_email",

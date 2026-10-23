@@ -34,7 +34,7 @@ test("publishes only allowlisted, explicitly public social link values", () => {
     { key: "social_youtube_url", value: "javascript:alert(1)", isPublic: true },
     { key: "smtp_password", value: "must-never-leak", isPublic: true }
   ]), {
-    instagram: "https://instagram.com/bfs/",
+    instagram: "https://instagram.com/bfs",
     youtube: ""
   });
 });

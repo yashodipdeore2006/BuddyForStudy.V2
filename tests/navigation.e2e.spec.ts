@@ -615,3 +615,40 @@ test.describe("public platform pages and footer", () => {
   });
 });
 
+
+
+test.describe("push notification prompt", () => {
+  test("offers an in-app opt-in after app entry without opening the browser prompt automatically", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "Notification", {
+        configurable: true,
+        value: {
+          permission: "default",
+          requestPermission: async () => {
+            const state = window as unknown as { __nativePermissionPromptCalls?: number };
+            state.__nativePermissionPromptCalls = (state.__nativePermissionPromptCalls || 0) + 1;
+            return "default";
+          },
+        },
+      });
+      Object.defineProperty(window, "PushManager", { configurable: true, value: function PushManager() {} });
+      Object.defineProperty(navigator, "serviceWorker", {
+        configurable: true,
+        value: { getRegistration: async () => null },
+      });
+      Object.defineProperty(window, "isSecureContext", { configurable: true, value: true });
+    });
+
+    await mockAppApi(page, { authenticated: true, pushAvailable: true });
+    await page.goto(baseURL + "/home");
+
+    await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __nativePermissionPromptCalls?: number }).__nativePermissionPromptCalls || 0)).toBe(0);
+
+    await page.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toHaveCount(0);
+  });
+});

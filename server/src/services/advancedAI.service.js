@@ -346,11 +346,11 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
   const context = buildLessonContext(course, module, lesson);
   context.lesson.tutorialDurationSeconds = durationSeconds;
   const activePrompt = await getActiveAIPrompt("lesson_summary");
-  // Switching prompts creates a distinct cache entry while preserving the earlier insight.
-  const contextHash = hash(JSON.stringify({
-    context,
-    promptVersionId: activePrompt.versionId || "built_in_default"
-  }));
+  // Preserve legacy cache keys when the built-in prompt is active. Custom prompt
+  // versions get isolated cache entries so switching away and back remains reversible.
+  const contextHash = activePrompt.versionId
+    ? hash(JSON.stringify({ context, promptVersionId: activePrompt.versionId }))
+    : hash(JSON.stringify(context));
 
   const approvalMode = await getContentApprovalMode("aiInsights");
   const existing = await AILessonInsight.findOne({

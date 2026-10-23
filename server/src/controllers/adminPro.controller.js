@@ -27,7 +27,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
-import { validateSocialSettingValue } from "../utils/publicSocialLinks.js";
+import { isPublicSocialSettingKey, validateSocialSettingValue } from "../utils/publicSocialLinks.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
@@ -2636,6 +2636,7 @@ export async function deleteSetting(req, res, next) {
     if (!isValidObjectId(req.params.settingId)) return failure(res, "Invalid settingId", 400);
     const setting = await PlatformSetting.findById(req.params.settingId);
     if (!setting) return failure(res, "Setting not found", 404);
+    if (isPublicSocialSettingKey(setting.key)) return failure(res, "Social links are managed in the Social links panel. Clear a profile URL there instead of deleting its setting.", 400);
 
     const metadata = {
       key: setting.key,

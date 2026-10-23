@@ -618,7 +618,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
                   onClick={() => void handlePushToggle(!(notifPrefs.pushEnabled && browserPushSubscribed))}
                   className={notifPrefs.pushEnabled && browserPushSubscribed ? "btn-secondary" : "btn-primary"}
                 >
-                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled && browserPushSubscribed ? "Disable push on this browser" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push on this browser"}
+                  {savingPush ? <><Loader2 className="h-4 w-4 animate-spin" />Updating...</> : notifPrefs.pushEnabled && browserPushSubscribed ? "Disable push notifications" : browserPushPermission === "denied" ? "Blocked in browser" : "Enable push on this browser"}
                 </button>
               </div>
               <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">

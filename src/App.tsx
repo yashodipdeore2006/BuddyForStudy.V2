@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import FeatureUpgradeModal from '@/components/FeatureUpgradeModal';
 import CookieConsentManager from "@/components/CookieConsentManager";
 import AccountConsentGate from "@/components/AccountConsentGate";
+import PushNotificationPrompt from "@/components/PushNotificationPrompt";
 import Home from '@/pages/Home';
 import About from '@/pages/About';
 import Contact from '@/pages/Contact';
@@ -60,7 +61,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const isPlayerPage = pathname.startsWith('/learn/') || pathname.startsWith('/playlists/') || pathname.startsWith('/courses/') && pathname.endsWith('/roadmap');
   const isAdmin = pathname.startsWith('/admin');
-  return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /><CookieConsentManager /><AccountConsentGate /></div>;
+  return <div className="flex min-h-screen flex-col">{!isPlayerPage && !isAdmin && <Navbar />}<main className="flex-1">{children}</main>{!isPlayerPage && !isAdmin && <Footer />}<FeatureUpgradeModal /><CookieConsentManager /><AccountConsentGate /><PushNotificationPrompt /></div>;
 }
 
 function AdminPage({ children }: { children: React.ReactNode }) {

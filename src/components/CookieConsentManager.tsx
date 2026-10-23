@@ -45,7 +45,6 @@ function readChoice(): StoredChoice | null {
 export default function CookieConsentManager() {
   const { session } = useAuth();
   const [ready, setReady] = useState(false);
-  const [storedChoice, setStoredChoice] = useState<StoredChoice | null>(null);
   const [preferences, setPreferences] = useState<CookiePreferences>(DEFAULT_PREFERENCES);
   const [visible, setVisible] = useState(false);
   const [customizing, setCustomizing] = useState(false);
@@ -54,7 +53,6 @@ export default function CookieConsentManager() {
 
   useEffect(() => {
     const choice = readChoice();
-    setStoredChoice(choice);
     if (choice) {
       setPreferences(choice.preferences);
       setVisible(false);
@@ -93,7 +91,6 @@ export default function CookieConsentManager() {
             updatedAt: data.updatedAt || new Date().toISOString()
           };
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(choice)); } catch { /* The server copy remains saved. */ }
-          setStoredChoice(choice);
           setPreferences(serverPreferences);
           setVisible(false);
           return;
@@ -174,7 +171,7 @@ export default function CookieConsentManager() {
               <h2 className="text-base font-extrabold">Your privacy choices</h2>
               <p className="mt-1 text-sm leading-6 text-slate-600">BuddyForStudy uses essential storage to keep sign-in, security, and your preferences working. Optional analytics and marketing categories stay off unless you choose them. You can change this decision later in Cookie settings.</p>
             </div>
-            <button type="button" aria-label="Close cookie settings without saving" onClick={() => { setVisible(false); setCustomizing(false); }} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+            <button type="button" aria-label="Reject optional cookies and close" onClick={() => void saveChoice({ ...DEFAULT_PREFERENCES, analytics: false, marketing: false })} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
           </div>
 
           {customizing && (

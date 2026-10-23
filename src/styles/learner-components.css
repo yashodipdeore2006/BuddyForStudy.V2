@@ -766,7 +766,7 @@
 }
 .bfs-footer-socials a:hover { border-color: var(--bfs-primary, #1a1b41); background: var(--bfs-primary-soft, #eeeffb); transform: translateY(-1px); }
 .bfs-footer-muted { margin: 0; color: var(--bfs-muted, #666980); font-size: 12px; line-height: 1.7; }
-.bfs-marketing-footer__columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(20px, 3vw, 44px); }
+.bfs-marketing-footer__columns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 44px); }
 .bfs-footer-column { display: flex; align-items: flex-start; flex-direction: column; gap: 13px; }
 .bfs-footer-column h2 {
   margin: 3px 0 5px;
@@ -881,6 +881,7 @@
 @media (max-width: 900px) {
   .bfs-marketing-footer__top { grid-template-columns: 1fr; gap: 36px; }
   .bfs-marketing-footer__brand { max-width: 620px; }
+  .bfs-marketing-footer__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 700px) {
   .bfs-marketing-footer__inner { width: min(calc(100% - 32px), 1440px); gap: 28px; }

@@ -49,6 +49,7 @@ async function mockAppApi(page: Page, options: {
   courseId?: string;
   course?: ReturnType<typeof courseFixture>;
   enrolled?: boolean;
+  hasPlanAccess?: boolean;
   missingCourse?: boolean;
   missingProgress?: boolean;
   roadmapStages?: Array<Record<string, unknown>>;
@@ -106,6 +107,12 @@ async function mockAppApi(page: Page, options: {
       return json(route, { reviews: [], stats: { count: 0, average: 0, distribution: {} } });
     }
     if (pathname === "/api/billing/plans") return json(route, { plans: [] });
+    if (pathname === "/api/billing/entitlements") {
+      return json(route, {
+        plan: options.hasPlanAccess ? { id: "plan-fixture", name: "Current plan" } : null,
+        features: { published_courses: Boolean(options.hasPlanAccess) },
+      });
+    }
     if (pathname.endsWith(`/api/enrollments/course/${courseId}`)) {
       if (process.env.E2E_DEBUG === "1") console.log("[E2E] enrollment route", route.request().url(), "enrolled=", Boolean(options.enrolled));
       return json(route, { enrollment: options.enrolled ? { status: "active" } : null });
@@ -178,6 +185,28 @@ test.describe("canonical learner navigation", () => {
     await mockAppApi(page, { course: courseFixture("course-fixture") });
     await page.goto(baseURL + "/courses/course-fixture");
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
+  });
+
+  test("free course offers individual enrollment and subscription options", async ({ page }) => {
+    await mockAppApi(page, { course: courseFixture("course-fixture") });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Explore subscription plans/ })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Enroll individually/ })).toBeVisible();
+    await expect(page.getByText("Free", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in to enroll" })).toBeVisible();
+  });
+
+  test("free course offers current-plan enrollment when the learner has the entitlement", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      hasPlanAccess: true,
+      course: courseFixture("course-fixture"),
+    });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await expect(page.getByRole("radio", { name: /Continue with current plan/ })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Enroll individually/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue with current plan" }).first()).toBeVisible();
   });
 
   test("signed-in enrolled learner sees the course hub instead of enrollment sales controls", async ({ page }) => {

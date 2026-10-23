@@ -121,7 +121,7 @@ export async function verifyLogin({ email, otp }) {
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
-export async function googleLogin(credential) {
+export async function googleLogin(credential, consent = null) {
   if (!env.googleClientId) throw authError("Google OAuth is not configured on the server", 503);
 
   const ticket = await googleClient.verifyIdToken({
@@ -156,6 +156,17 @@ export async function googleLogin(credential) {
     user.emailVerified = true;
     if (!user.name && payload.name) user.name = payload.name;
     await user.save();
+  }
+
+  if (consent) {
+    await acceptLegalPolicies(user._id, {
+      termsAccepted: consent.termsAccepted === true,
+      privacyAcknowledged: consent.privacyAcknowledged === true,
+      marketingEmailConsent: consent.marketingEmailConsent === true,
+      source: "registration"
+    });
+    user = await User.findById(user._id);
+    if (!user) throw authError("Account not found", 404);
   }
 
   return { user: publicUser(user), token: signAccessToken(user) };

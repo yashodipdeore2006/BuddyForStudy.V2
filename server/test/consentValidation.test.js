@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildPushNotificationConsentEvent,
+  hasExplicitPushConsentChoice,
   normalizeCookiePreferences,
   normalizePhoneNumber
 } from "../src/services/consent.service.js";
@@ -58,4 +59,13 @@ test("push consent records explicit enable and disable with an accurate event me
     changedFields: []
   });
   assert.throws(() => buildPushNotificationConsentEvent("yes"), /must be true or false/i);
+});
+
+
+test("only an explicit boolean pushEnabled choice creates a push-consent audit event", () => {
+  assert.equal(hasExplicitPushConsentChoice({ pushEnabled: true }), true);
+  assert.equal(hasExplicitPushConsentChoice({ pushEnabled: false }), true);
+  assert.equal(hasExplicitPushConsentChoice({ emailCourseUpdates: false }), false);
+  assert.equal(hasExplicitPushConsentChoice({ pushEnabled: undefined }), false);
+  assert.equal(hasExplicitPushConsentChoice(null), false);
 });

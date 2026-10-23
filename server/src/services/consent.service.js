@@ -63,6 +63,25 @@ async function appendEvent(userId, event) {
   });
 }
 
+export function buildPushNotificationConsentEvent(enabled) {
+  if (typeof enabled !== "boolean") {
+    throw serviceError("Push notification consent must be true or false.");
+  }
+  return {
+    type: "push_notifications",
+    version: "web-push@v1",
+    accepted: enabled,
+    source: "settings",
+    changedFields: []
+  };
+}
+
+export async function recordPushNotificationConsent(userId, enabled) {
+  const event = buildPushNotificationConsentEvent(enabled);
+  await appendEvent(userId, event);
+  return { accepted: event.accepted, version: event.version };
+}
+
 export async function acceptLegalPolicies(userId, {
   termsAccepted,
   privacyAcknowledged,

@@ -26,6 +26,55 @@ let activeCredentialHandler: ((credential: string) => Promise<void>) | null = nu
 
 const retryableStates = new Set<GoogleSetupStatus>(["connection_error", "sdk_unavailable"]);
 
+let googleIdentityScriptPromise: Promise<void> | null = null;
+
+function loadGoogleIdentityScript(): Promise<void> {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (googleIdentityScriptPromise) return googleIdentityScriptPromise;
+
+  googleIdentityScriptPromise = new Promise<void>((resolve, reject) => {
+    let script = document.querySelector<HTMLScriptElement>('script[data-bfs-google-identity="true"]');
+    if (script?.dataset.loaded === "true" && window.google?.accounts?.id) {
+      resolve();
+      return;
+    }
+
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.dataset.bfsGoogleIdentity = "true";
+    }
+
+    const currentScript = script;
+    const onLoad = () => {
+      currentScript.dataset.loaded = "true";
+      cleanup();
+      if (window.google?.accounts?.id) resolve();
+      else reject(new Error("Google Identity Services loaded without its sign-in API."));
+    };
+    const onError = () => {
+      cleanup();
+      currentScript.remove();
+      reject(new Error("Unable to load Google Identity Services."));
+    };
+    const cleanup = () => {
+      currentScript.removeEventListener("load", onLoad);
+      currentScript.removeEventListener("error", onError);
+    };
+
+    currentScript.addEventListener("load", onLoad, { once: true });
+    currentScript.addEventListener("error", onError, { once: true });
+    if (!currentScript.isConnected) document.head.appendChild(currentScript);
+  }).catch((error) => {
+    googleIdentityScriptPromise = null;
+    throw error;
+  });
+
+  return googleIdentityScriptPromise;
+}
+
 function getStatusMessage(status: GoogleSetupStatus): string {
   switch (status) {
     case "unconfigured":
@@ -127,7 +176,12 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
 
         clientId = serverClientId;
         setStatus("waiting_for_sdk");
-        timer = window.setTimeout(renderWhenReady, 0);
+        try {
+          await loadGoogleIdentityScript();
+          if (!cancelled) timer = window.setTimeout(renderWhenReady, 0);
+        } catch {
+          if (!cancelled) setStatus("sdk_unavailable");
+        }
       } catch {
         if (!cancelled) setStatus("connection_error");
       }

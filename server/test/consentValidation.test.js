@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildPushNotificationConsentEvent,
   normalizeCookiePreferences,
   normalizePhoneNumber
 } from "../src/services/consent.service.js";
@@ -38,4 +39,23 @@ test("essential storage is always enabled and optional categories require explic
     analytics: false,
     marketing: false
   });
+});
+
+
+test("push consent records explicit enable and disable with an accurate event meaning", () => {
+  assert.deepEqual(buildPushNotificationConsentEvent(true), {
+    type: "push_notifications",
+    version: "web-push@v1",
+    accepted: true,
+    source: "settings",
+    changedFields: []
+  });
+  assert.deepEqual(buildPushNotificationConsentEvent(false), {
+    type: "push_notifications",
+    version: "web-push@v1",
+    accepted: false,
+    source: "settings",
+    changedFields: []
+  });
+  assert.throws(() => buildPushNotificationConsentEvent("yes"), /must be true or false/i);
 });

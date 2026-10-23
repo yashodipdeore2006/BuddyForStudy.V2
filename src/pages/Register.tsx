@@ -38,7 +38,11 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await signInWithGoogle(credential);
+      await signInWithGoogle(credential, {
+        termsAccepted: true,
+        privacyAcknowledged: true,
+        marketingEmailConsent
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {

@@ -182,7 +182,7 @@ export async function attachDraftEvents(req, res, draftId, userId) {
 export async function getRoadmapPoll(draftId, userId) {
   const draft = await getDraftForUser(draftId, userId);
   if (!draft) return null;
-  const course = draft.roadmapId ? await Course.findOne({ _id: draft.roadmapId, createdForUser: userId }).select("modules status visibility").lean() : null;
+  const course = draft.roadmapId ? await Course.findOne({ _id: draft.roadmapId, createdForUser: userId }).lean() : null;
   const nodes = (course?.modules || []).flatMap((module, moduleIndex) =>
     (module.lessons || []).map((lesson, lessonIndex) => ({
       nodeId: String(lesson._id || lesson.id || `${moduleIndex}-${lessonIndex}`),
@@ -190,5 +190,11 @@ export async function getRoadmapPoll(draftId, userId) {
       state: lesson.buildState || (lesson.tutorial?.videos?.length ? (lesson.tutorial.videos.some((video) => video.state === "low_confidence") ? "low_confidence" : "ready") : "pending")
     }))
   );
-  return { draftId, roadmapId: draft.roadmapId ? String(draft.roadmapId) : null, status: draft.status, nodes, result: draft.result || null, events: draft.events || [] };
+  const result = draft.result && course ? {
+    ...draft.result,
+    status: draft.status,
+    roadmapId: String(course._id),
+    course: { ...draft.result.course, ...course, _id: String(course._id), modules: course.modules }
+  } : draft.result || null;
+  return { draftId, roadmapId: draft.roadmapId ? String(draft.roadmapId) : null, status: draft.status, nodes, result, events: draft.events || [] };
 }

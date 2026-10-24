@@ -209,7 +209,7 @@ router.post("/issues", async (req,res,next)=>{ try {
     title: "New payment issue reported",
     message: `A learner reported "${category.replace(/_/g, " ")}" for payment ${String(payment._id)}. Review the support queue.`,
     type: "billing",
-    link: "/admin/payment-issues",
+    link: "/admin/billing",
     eventKey: `payment-issue-reported:${issue._id}`,
     emailSubject: "BuddyForStudy: new payment issue requires review",
     metadata: { issueId: String(issue._id), paymentId: String(payment._id), learnerId: String(req.user.userId), category }
@@ -265,7 +265,7 @@ router.post("/refunds", async (req,res,next)=>{ try {
     title: "New refund request",
     message: `A learner requested a refund of ${payment.currency || "INR"} ${amountValidation.amount}. Review the pending refund queue.`,
     type: "billing",
-    link: "/admin/refunds",
+    link: "/admin/billing",
     eventKey: `refund-requested:${refund._id}`,
     emailSubject: "BuddyForStudy: refund request requires review",
     metadata: { refundId: String(refund._id), paymentId: String(payment._id), learnerId: String(req.user.userId), amount: String(amountValidation.amount), currency: payment.currency || "INR" }

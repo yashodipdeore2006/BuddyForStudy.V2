@@ -14,6 +14,10 @@ const schema = z.object({
   score: z.number().min(0).max(100).optional().nullable()
 });
 
+function normalizeSkillId(value) {
+  return String(value || "").normalize("NFKC").toLowerCase().replace(/[^\\p{L}\\p{N}+#.-]+/gu, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 160);
+}
+
 function normalizeQuery(value) {
   return String(value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{M}\p{N}+#.]+/gu, " ").trim().replace(/\s+/g, " ");
 }
@@ -29,7 +33,7 @@ export async function recordCurationFeedback(req, res, next) {
       event: input.event,
       resourceType: input.resourceType,
       resourceId: input.resourceId,
-      skillId: input.skillId || null,
+      skillId: input.skillId ? normalizeSkillId(input.skillId) : null,
       courseId: input.courseId || null,
       engineVersion: "course-curation-decision-engine-v1.7",
       rank: input.rank ?? null,

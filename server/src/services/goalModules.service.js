@@ -182,13 +182,13 @@ export function buildLearnModule(profile = {}, skills = []) {
   return { title: `${topic} learning path`, description: "Fundamentals, knowledge checks, and one small project.", goalModule: "learn", skillIds: [], order: 0, lessons };
 }
 
-export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = null, examDate = null, studyDaysPerWeek = 6 } = {}) {
+export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = null, examDate = null, studyDaysPerWeek = 6, now = new Date() } = {}) {
   const dailyMinutes = Math.max(15, Number(minutesPerDay) || 60);
   const daysPerWeek = Math.max(1, Math.min(7, Number(studyDaysPerWeek) || 6));
   const endDate = deadline || examDate;
   const lessons = modules.flatMap((module) => module.lessons || []);
   const estimatedMinutes = lessons.reduce((sum, lesson) => sum + Math.max(15, Number(lesson.durationMinutes || lesson.tutorial?.durationMinutes?.targetMinutes || lesson.project?.estimatedMinutes || (lesson.type === "quiz" ? 20 : 45))), 0);
-  const availableDays = endDate ? Math.max(0, Math.ceil((Date.parse(endDate) - Date.now()) / 86400000)) : null;
+  const nowMs = now instanceof Date ? now.getTime() : Date.parse(now);\n  const availableDays = endDate ? Math.max(0, Math.ceil((Date.parse(endDate) - nowMs) / 86400000)) : null;
   const availableStudyDays = availableDays === null ? null : Math.floor(availableDays / 7) * daysPerWeek + Math.min(daysPerWeek, availableDays % 7);
   const requiredDailyMinutes = availableStudyDays > 0 ? Math.ceil(estimatedMinutes / availableStudyDays) : null;
   const scheduleWarning = requiredDailyMinutes !== null && requiredDailyMinutes > dailyMinutes * 1.5
@@ -200,4 +200,22 @@ export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = nul
     revision.forEach((lesson) => { lesson.schedule = { ...(lesson.schedule || {}), startDate: new Date(Date.parse(endDate) - Math.ceil(totalDays * 0.2) * 86400000).toISOString().slice(0, 10), endDate }; });
   }
   return { minutesPerDay: dailyMinutes, studyDaysPerWeek: daysPerWeek, deadline: endDate, estimatedMinutes, availableDays, requiredDailyMinutes, scheduleWarning, revisionShare: revision.length ? 0.2 : 0 };
+}
+
+/** Attach retrieved evidence after the normal video retrieval pipeline has completed. */
+export function applyInterviewEvidence(course) {
+  const module = (course?.modules || []).find((item) => item.goalModule === "interview");
+  if (!module) return course;
+  const lesson = (module.lessons || []).find((item) => item.id === "interview-experiences");
+  if (!lesson) return course;
+  const videos = (lesson.tutorial?.videos || []).map((video) => ({
+    videoId: video.videoId,
+    title: video.title,
+    description: video.description
+  }));
+  const summary = buildEvidenceBackedRoundsSummary(videos);
+  lesson.tutorial.roundsSummary = summary;
+  lesson.tutorial.evidenceVideoIds = summary?.evidenceVideoIds || [];
+  lesson.tutorial.content = summary?.summary || "No verified interview-video evidence has been retrieved yet. No company rounds or hiring facts are asserted.";
+  return course;
 }

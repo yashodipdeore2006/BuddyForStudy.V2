@@ -90,7 +90,15 @@ export async function refreshStaleVideos({
       { "generation.snapshot": { $exists: true, $ne: null } }
     ]
   });
-  const cacheEntries = await cacheModel.find({ kind: "node" });
+  const cacheEntries = await cacheModel.find({
+    kind: "node",
+    $or: [
+      { "payload.best.fetchedAt": { $lt: staleBefore } },
+      { "payload.best.fetchedAt": { $exists: false } },
+      { "payload.alternatives.fetchedAt": { $lt: staleBefore } },
+      { "payload.alternatives.fetchedAt": { $exists: false } }
+    ]
+  });
   const ids = new Set();
   for (const course of courses) {
     collectStaleVideoIds(course.modules || [], staleBefore, ids);

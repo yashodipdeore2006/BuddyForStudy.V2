@@ -46,7 +46,7 @@ import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
-import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
+import { createNotificationEvent, notifyActiveAdmins, retryNotificationDelivery } from "../services/notification.service.js";
 import { isWebPushConfigured } from "../services/webPush.service.js";
 import { refreshAnnouncementStats } from "../services/announcement.service.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
@@ -2083,6 +2083,17 @@ export async function updateRefund(req, res, next) {
           providerRefundId: refund.providerRefundId || "",
           hasAdminNote: Boolean(refund.adminNote)
         }, reason);
+        await notifyActiveAdmins({
+          title: "Refund provider operation needs attention",
+          message: `Refund ${String(refund._id)} could not be conclusively processed by the payment provider. Current status: ${refund.status}. Reconcile with the provider before retrying.`,
+          type: "security",
+          link: "/admin/refunds",
+          eventKey: `refund-provider-attempt-failed:${refund._id}:${refund.updatedAt?.getTime?.() || Date.now()}`,
+          emailSubject: "BuddyForStudy: refund provider operation needs attention",
+          metadata: { refundId: String(refund._id), paymentId: String(payment._id), status: refund.status }
+        }).catch((alertError) => console.error("[notifications] admin refund provider alert failed", {
+          refundId: String(refund._id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+        }));
         throw providerError;
       }
 

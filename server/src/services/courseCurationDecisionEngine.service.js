@@ -14,6 +14,7 @@ const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EMPTY_RESULT_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_QUERIES = 8;
 const memoryCache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -1504,12 +1505,22 @@ export async function curateNormalSearch(query, options = {}) {
     return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
   }
   const profile = classifyCurationIntent(normalizedQuery, options);
+  const hasInjectedSyllabus = options.syllabus && Array.isArray(options.syllabus.modules);
+  if (options.overrides && typeof options.overrides === "object") {
+    if (options.overrides.mode) profile.mode = options.overrides.mode;
+    if (Number.isFinite(Number(options.overrides.halfLifeDays))) profile.halfLifeDays = Math.max(1, Number(options.overrides.halfLifeDays));
+  }
+  const overrides = options.overrides && typeof options.overrides === "object" ? options.overrides : {};
+  const cacheScope = typeof options.cacheScope === "string" ? options.cacheScope.trim().slice(0, 180) : "";
+  const overridesHash = digest(JSON.stringify(Object.fromEntries(Object.entries(overrides).sort(([a], [b]) => a.localeCompare(b)))));
+  const extraQueries = Array.isArray(options.extraQueries) ? options.extraQueries.map((item) => String(item || "").trim()).filter((item) => item.length >= 2).slice(0, 2) : [];
+  const maxQueries = Math.max(1, Math.min(8, Math.floor(Number(options.maxQueries) || DEFAULT_MAX_QUERIES)));
   let settingCount = 30;
   try {
     const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
     settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
   } catch {}
-  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
+  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount + "|" + cacheScope + "|" + overridesHash);
   const cached = await getCachedValue(resultKey);
   if (cached?.resources) {
     console.info("Course curation completed", {
@@ -1531,9 +1542,10 @@ export async function curateNormalSearch(query, options = {}) {
 
   const startedAt = Date.now();
   const requestMetrics = { requestId, skillId, searchCalls: 0, quotaUnits: 0 };
-  const syllabus = await getTopicSyllabus(profile);
-  const queries = buildCandidateQueries(profile, syllabus);
-  const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + queries.join("|") + "|" + settingCount);
+  const syllabus = hasInjectedSyllabus ? normalizeSyllabus(options.syllabus, profile.query) : await getTopicSyllabus(profile);
+  let queries = buildCandidateQueries(profile, syllabus).slice(0, maxQueries);
+  if (extraQueries.length) queries = [...new Set([...queries, ...extraQueries])].slice(0, maxQueries);
+  const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + buildCandidateQueries(profile, hasInjectedSyllabus ? normalizeSyllabus(options.syllabus, profile.query) : { modules: [], aliases: [] }).join("|") + "|" + settingCount);
   let pool = await getCachedValue(poolKey);
   const poolCacheHit = Boolean(pool);
   let youtubeError = "";
@@ -1577,13 +1589,27 @@ export async function curateNormalSearch(query, options = {}) {
     await setCachedValue(poolKey, "candidate-search", pool, ttl);
   }
 
-  const initial = selectInitialShortlist(pool.videos || [], pool.playlists || [], profile);
-  const enriched = await withYouTubeRequestMetrics(requestMetrics, () => enrichPlaylists(initial.shortlist, profile));
-  const gates = hardGateEnriched(enriched, profile);
+  const selectionProfile = { ...profile, ...overrides };
+  const boundedPool = {
+    videos: (pool.videos || []).filter((item) => {
+      const duration = Number(item.durationSeconds || 0);
+      return (!Number.isFinite(Number(overrides.minVideoSeconds)) || duration >= Number(overrides.minVideoSeconds)) &&
+        (!Number.isFinite(Number(overrides.maxVideoSeconds)) || duration <= Number(overrides.maxVideoSeconds));
+    }),
+    playlists: (pool.playlists || []).filter((item) => {
+      const duration = Number(item.durationSeconds || 0);
+      const count = Number(item.itemCount || item.videoCount || 0);
+      return (!Number.isFinite(Number(overrides.minPlaylistSeconds)) || duration >= Number(overrides.minPlaylistSeconds)) &&
+        (!Number.isFinite(Number(overrides.minPlaylistItems)) || count >= Number(overrides.minPlaylistItems));
+    })
+  };
+  const initial = selectInitialShortlist(boundedPool.videos, boundedPool.playlists, selectionProfile);
+  const enriched = await withYouTubeRequestMetrics(requestMetrics, () => enrichPlaylists(initial.shortlist, selectionProfile));
+  const gates = hardGateEnriched(enriched, selectionProfile);
   const deduplicated = dedupeCandidates(gates.accepted);
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
-  const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, profile, syllabus);
-  const scored = scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
+  const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, selectionProfile, syllabus);
+  const scored = scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
   const resources = setRankingSlots(scored, settingCount);
   const composedPath = buildComposedLearningPath(scored, syllabus);
   const meta = {

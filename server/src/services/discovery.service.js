@@ -649,7 +649,7 @@ function formatDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
-export async function searchStructuredPlaylists(query, maxResults, searchOptions = {}) {
+async function searchStructuredPlaylistsUnsafe(query, maxResults, searchOptions = {}) {
   const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
   const requestedCount = Math.max(1, Math.min(Number(maxResults ?? setting?.value) || 30, 30));
   const normalizedQuery = String(query || "").trim();
@@ -663,7 +663,7 @@ export async function searchStructuredPlaylists(query, maxResults, searchOptions
     const pageSize = Math.min(25, requestedCount - searchItems.length);
     const data = await youtubeRequest("search", {
       part: "snippet",
-      type: "playlist",
+      type: env.ytCombinedSearch ? "video,playlist" : "playlist",
       order: "relevance",
       q: normalizedQuery,
       maxResults: pageSize,
@@ -672,7 +672,7 @@ export async function searchStructuredPlaylists(query, maxResults, searchOptions
       regionCode: searchOptions.regionCode || "IN",
       safeSearch: "moderate"
     });
-    searchItems.push(...(data.items || []));
+    searchItems.push(...(data.items || []).filter((item) => item.id?.playlistId));
     pageToken = data.nextPageToken || "";
     if (!pageToken || !(data.items || []).length) break;
   }
@@ -767,6 +767,17 @@ export async function searchStructuredPlaylists(query, maxResults, searchOptions
   setPlaylistCache(key, results);
   return results;
 }
+export async function searchStructuredPlaylists(query, maxResults, searchOptions = {}) {
+  try { return await searchStructuredPlaylistsUnsafe(query, maxResults, searchOptions); }
+  catch (error) {
+    if (error?.name === "QuotaBudgetError") {
+      console.warn("YouTube playlist search degraded by quota guard", { quotaState: error.state });
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function searchChannelCoursePlaylists(channelIds, maxPerChannel = 5) {
   if (!env.youtubeApiKey) return [];
   const ids = [...new Set((channelIds || []).map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 6);
@@ -812,7 +823,7 @@ export async function searchChannelCoursePlaylists(channelIds, maxPerChannel = 5
   return result;
 }
 
-export async function getPlaylistCourse(playlistId) {
+async function getPlaylistCourseUnsafe(playlistId) {
   const key = `playlist:${playlistId}`;
   const cached = getPlaylistCache(key);
   if (cached !== null) return cached;
@@ -909,4 +920,15 @@ export async function getPlaylistCourse(playlistId) {
 
   setPlaylistCache(key, result, PLAYLIST_DETAIL_CACHE_TTL_MS);
   return result;
+}
+
+export async function getPlaylistCourse(playlistId) {
+  try { return await getPlaylistCourseUnsafe(playlistId); }
+  catch (error) {
+    if (error?.name === "QuotaBudgetError") {
+      console.warn("YouTube playlist detail degraded by quota guard", { quotaState: error.state });
+      return null;
+    }
+    throw error;
+  }
 }

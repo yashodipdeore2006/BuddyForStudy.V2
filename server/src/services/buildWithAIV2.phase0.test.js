@@ -198,7 +198,7 @@ after(() => {
   restoreEnv();
 });
 
-test("Phase 0 flags remain disabled by default when explicitly off", () => {
+test("Phase 0 feature flags stay off under the baseline configuration", () => {
   assert.equal(env.useCurationEngineForAi, false);
   assert.equal(env.intentV2, false);
   assert.equal(env.asyncRoadmap, false);
@@ -218,12 +218,6 @@ test("MERN stack normal-search ranked IDs and scores match the Phase 0 snapshot"
     score: Number(Number(resource.score).toFixed(2))
   }));
 
-  if (phase0ExpectedSnapshots.normalSearchRanked === null) {
-    console.log("PHASE0_NORMAL_SEARCH_SNAPSHOT=" + JSON.stringify(actual));
-    assert.ok(actual.length > 0, "the mocked MERN fixture should produce at least one ranked resource");
-    return;
-  }
-
   assert.deepEqual(actual, phase0ExpectedSnapshots.normalSearchRanked);
 });
 
@@ -236,17 +230,6 @@ test("buildCourse output for the fixed Gemini response matches the Phase 0 snaps
     knownSkills: []
   });
   const actual = JSON.parse(JSON.stringify(built.course));
-
-  if (phase0ExpectedSnapshots.builtCourse === null) {
-    const snapshot = JSON.stringify(actual);
-    console.log("PHASE0_BUILD_COURSE_SNAPSHOT_LENGTH=" + snapshot.length);
-    for (let offset = 0, part = 0; offset < snapshot.length; offset += 3500, part += 1) {
-      console.log("PHASE0_BUILD_COURSE_SNAPSHOT_PART_" + String(part).padStart(2, "0") + "=" + snapshot.slice(offset, offset + 3500));
-    }
-    assert.ok(actual.modules.length > 0, "buildCourse should build modules from the fixed Gemini fixture");
-    assert.ok(actual.modules.some((module) => module.lessons.some((lesson) => lesson.type === "tutorial")));
-    return;
-  }
 
   assert.deepEqual(actual, phase0ExpectedSnapshots.builtCourse);
 });

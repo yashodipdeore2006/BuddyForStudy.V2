@@ -606,7 +606,40 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
               <div className="flex items-start gap-3">
                 <Smartphone className="mt-0.5 h-5 w-5 text-slate-400" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-             <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">
+                  <h3 className="font-semibold text-slate-900">Desktop notifications</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Receive important learning updates on this browser when browser permission and your account preference are enabled.</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900">Browser push notifications</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {pushActiveOnThisBrowser
+                      ? "Enabled for this account and subscribed on this browser."
+                      : notifPrefs.pushEnabled
+                        ? "Your account preference is on, but this browser still needs to be connected."
+                        : "Turn on to receive browser notifications on this device."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={notifPrefs.pushEnabled}
+                  aria-label="Browser push notifications"
+                  disabled={savingPush || (!notifPrefs.pushEnabled && !browserPushCanRequest)}
+                  onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${notifPrefs.pushEnabled ? "bg-violet-600" : "bg-slate-300"}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${notifPrefs.pushEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+                {savingPush && <Loader2 className="h-4 w-4 animate-spin text-violet-600" aria-label="Updating push notifications" />}
+              </div>
+              {notifPrefs.pushEnabled && !browserPushSubscribed && browserPushCanRequest && (
+                <button type="button" disabled={savingPush} onClick={() => void handlePushToggle(true)} className="btn-primary mt-3">
+                  {savingPush ? "Connecting this browser…" : "Connect this browser"}
+                </button>
+              )}
+              <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">
                 {getBrowserPushStatusMessage(browserPushPermission, pushAvailable)}
               </p>
             </div>

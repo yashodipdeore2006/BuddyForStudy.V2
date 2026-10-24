@@ -5,6 +5,15 @@ import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
 import YouTubeEmbedPlayer from "@/components/YouTubeEmbedPlayer";
+
+// Notes editor theme tokens: update these values to rebrand the notes UI.
+const NOTE_EDITOR_THEME = {
+  primaryAccent: "#6c2bd9",
+  secondaryHover: "#5b21b6",
+  timestampBackground: "#0d0e12",
+  timestampText: "#ffffff",
+  fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+} as const;
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github, Clock3, Trash2, Save } from "lucide-react";
 import { classNames } from "@/lib/utils";
 import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
@@ -1022,7 +1031,7 @@ export default function CoursePlayer() {
                         </div>
                         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                            <div className="flex items-center gap-2 rounded-md bg-[#0d0e12] px-2.5 py-1.5 text-sm font-semibold text-white"><Clock3 className="h-4 w-4" />{noteTimestamp.trim() ? formatMediaTimestamp(parseMediaTimestamp(noteTimestamp) || 0) : "Add a timestamp"}</div>
+                            <div className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-semibold" style={{ backgroundColor: NOTE_EDITOR_THEME.timestampBackground, color: NOTE_EDITOR_THEME.timestampText, fontFamily: NOTE_EDITOR_THEME.fontFamily }}><Clock3 className="h-4 w-4" />{noteTimestamp.trim() ? formatMediaTimestamp(parseMediaTimestamp(noteTimestamp) || 0) : "Add a timestamp"}</div>
                             <span className="text-xs text-slate-500">Current lecture: {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}</span>
                           </div>
                           <div className="p-4 sm:p-5">
@@ -1044,7 +1053,7 @@ export default function CoursePlayer() {
                               <p className="text-xs text-slate-500" aria-live="polite">{noteError || noteNotice || "Notes are saved in this browser for this account and course."}</p>
                               <div className="flex items-center gap-2">
                                 <button type="button" onClick={() => { setNoteDraft(""); setNoteTimestamp(""); setNoteError(""); setNoteNotice(""); }} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Cancel</button>
-                                <button type="button" onClick={saveLessonNote} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#6c2bd9] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5b21b6] disabled:cursor-not-allowed disabled:opacity-50" disabled={!notesStorageReady || !noteDraft.trim() || noteDraft.length > noteCharacterLimit}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
+                                <button type="button" onClick={saveLessonNote} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: NOTE_EDITOR_THEME.primaryAccent, fontFamily: NOTE_EDITOR_THEME.fontFamily }} onMouseOver={(event) => { event.currentTarget.style.backgroundColor = NOTE_EDITOR_THEME.secondaryHover; }} onMouseOut={(event) => { event.currentTarget.style.backgroundColor = NOTE_EDITOR_THEME.primaryAccent; }} disabled={!notesStorageReady || !noteDraft.trim() || noteDraft.length > noteCharacterLimit}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
                               </div>
                             </div>
                           </div>

@@ -1,6 +1,5 @@
 import { env } from "../config/env.js";
 import { youtubeRequest } from "./youtubeGateway.js";
-import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
 
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
@@ -112,7 +111,8 @@ async function searchVideos(query,maxResults=10,searchOptions={}){
   const key=String(maxResults)+":"+query.trim().toLowerCase()+":"+String(searchOptions.relevanceLanguage||"en")+":"+String(searchOptions.regionCode||"IN");
   const cached=getExpiringCache(SEARCH_CACHE,key);
   if(cached)return cached;
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+  const promise=youtubeRequest("search",{part:"snippet",type:env.ytCombinedSearch ? "video,playlist" : "video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+    .then((data) => env.ytCombinedSearch ? { ...data, items: (data?.items || []).filter((item) => item.id?.videoId) } : data)
     .catch((error)=>{SEARCH_CACHE.delete(key);throw error;});
   setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);
   return promise;

@@ -385,7 +385,60 @@ export default function Courses() {
     };
   }, [aiOpen]);
 
+  const startIntentFlow = async () => {
+    const query = aiTopic.trim();
+    if (query.length < 2) {
+      setAiError('Add a subject, skill, question, or outcome to build a plan.');
+      return;
+    }
+    if (!session) {
+      setAiError('Sign in to generate a personalized AI roadmap.');
+      return;
+    }
+    setIntentLoading(true);
+    setAiError(null);
+    try {
+      const result = await apiFetch('/api/ai/intent/parse', {
+        method: 'POST',
+        body: JSON.stringify({ query }),
+        showFeatureUpgrade: true,
+      }) as IntentParse;
+      setIntentResult(result);
+      setIntentQuestionIndex(0);
+      setIntentAnswers({});
+      if (!result.valid) {
+        setAiError('That does not look like a learning topic yet. Try Python, Data Analytics, an exam name, or a project idea.');
+        return;
+      }
+      const profile = result.profile || {};
+      if (profile.level) setAiLevel(profile.level as CourseLevel);
+      if (profile.minutesPerDay) setAiStudyTime(Number(profile.minutesPerDay));
+      if (Array.isArray(profile.knownSkills)) setAiKnownSkills(profile.knownSkills.join(', '));
+      const goalValues: Record<string, string> = { job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' };
+      if (profile.goal) setAiGoal(goalValues[profile.goal] || 'Build practical skills');
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'Unable to parse this learning intent.');
+    } finally {
+      setIntentLoading(false);
+    }
+  };
+
+  const intentGoal = String(intentAnswers.goal || intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn');
+  const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
+    !question.when || question.when === 'goal=' + intentGoal
+  );
+  const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
+  const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  const chooseIntentOption = (question: IntentQuestion, value: string) => {
+    setIntentAnswers((previous) => ({ ...previous, [question.id]: value }));
+    setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  };
+
   const generateAiRoadmap = async () => {
+    if (INTENT_V2 && !intentResult) {
+      await startIntentFlow();
+      return;
+    }
     const topic = aiTopic.trim();
     if (!topic) {
       setAiError('Add a subject, skill, question, or outcome to build a plan.');
@@ -395,19 +448,35 @@ export default function Courses() {
       setAiError('Sign in to generate a personalized AI roadmap.');
       return;
     }
-
     setAiLoading(true);
     aiLoadingRef.current = true;
     setAiError(null);
     try {
+      const legacyGoal = ({ job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' } as Record<string, string>)[intentGoal] || aiGoal;
+      const intentProfile = INTENT_V2 && intentResult?.valid ? {
+        ...intentResult.profile,
+        topic,
+        goal: intentGoal,
+        targetRole: String(intentAnswers.role ?? intentResult.profile?.targetRole ?? '') || null,
+        targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
+        examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,
+        examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,
+        syllabusText: String(intentAnswers.syllabus ?? intentResult.profile?.syllabusText ?? '') || null,
+        projectIdea: String(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea ?? '') || null,
+        scope: intentAnswers.depth ? (intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
+        minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
+        language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
+        knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50)
+      } : undefined;
       const data = await apiFetch('/api/ai/roadmap', {
         method: 'POST',
         body: JSON.stringify({
           topic,
-          level: aiLevel,
-          goals: [aiGoal, aiCustomGoal.trim()].filter(Boolean),
-          studyTimeMinutesPerDay: aiStudyTime,
-          knownSkills: aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
+          level: intentProfile?.level || aiLevel,
+          goals: INTENT_V2 ? [legacyGoal, aiCustomGoal.trim()].filter(Boolean) : [aiGoal, aiCustomGoal.trim()].filter(Boolean),
+          studyTimeMinutesPerDay: intentProfile?.minutesPerDay || aiStudyTime,
+          knownSkills: intentProfile?.knownSkills || aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
+          ...(intentProfile ? { intentProfile } : {})
         }),
         showFeatureUpgrade: true,
       });

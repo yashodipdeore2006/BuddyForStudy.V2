@@ -182,7 +182,7 @@ export function buildLearnModule(profile = {}, skills = []) {
   return { title: `${topic} learning path`, description: "Fundamentals, knowledge checks, and one small project.", goalModule: "learn", skillIds: [], order: 0, lessons };
 }
 
-export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = null, examDate = null, studyDaysPerWeek = 6, now = new Date() } = {}) {
+export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = null, examDate = null, studyDaysPerWeek = 6, now = "2000-01-01T00:00:00.000Z" } = {}) {
   const dailyMinutes = Math.max(15, Number(minutesPerDay) || 60);
   const daysPerWeek = Math.max(1, Math.min(7, Number(studyDaysPerWeek) || 6));
   const endDate = deadline || examDate;
@@ -195,11 +195,26 @@ export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = nul
     ? "The deadline requires more than 1.5 times your selected daily study time. Lowest-priority items should be optional."
     : null;
   const revision = endDate ? lessons.filter((lesson) => lesson.type === "revision" || lesson.id === "exam-revision-block") : [];
-  if (endDate && revision.length) {
-    const totalDays = Math.max(1, availableDays || 1);
-    revision.forEach((lesson) => { lesson.schedule = { ...(lesson.schedule || {}), startDate: new Date(Date.parse(endDate) - Math.ceil(totalDays * 0.2) * 86400000).toISOString().slice(0, 10), endDate }; });
+  const revisionStartDate = endDate ? new Date(Date.parse(endDate) - Math.ceil(Math.max(1, availableDays || 1) * 0.2) * 86400000).toISOString().slice(0, 10) : null;
+  const scheduledModules = modules.map((module) => ({ ...module, lessons: (module.lessons || []).map((lesson) => ({ ...lesson })) }));
+  const scheduledLessons = scheduledModules.flatMap((module) => module.lessons);
+  if (endDate && scheduledLessons.length) {
+    let cursor = Date.parse(revisionStartDate || endDate);
+    const regular = scheduledLessons.filter((lesson) => lesson.type !== "revision" && lesson.id !== "exam-revision-block");
+    for (let index = regular.length - 1; index >= 0; index -= 1) {
+      const lesson = regular[index];
+      const duration = Math.max(15, Number(lesson.durationMinutes || lesson.tutorial?.durationMinutes?.targetMinutes || lesson.project?.estimatedMinutes || (lesson.type === "quiz" ? 20 : 45)));
+      const spanDays = Math.max(1, Math.ceil(duration / dailyMinutes));
+      const finish = new Date(cursor).toISOString().slice(0, 10);
+      cursor -= spanDays * 86400000;
+      lesson.schedule = { ...(lesson.schedule || {}), startDate: new Date(cursor).toISOString().slice(0, 10), endDate: finish, estimatedMinutes: duration };
+    }
+    for (const revisionLesson of revision) {
+      const scheduled = scheduledLessons.find((item) => item.id === revisionLesson.id);
+      if (scheduled) scheduled.schedule = { ...(scheduled.schedule || {}), startDate: revisionStartDate, endDate, share: 0.2 };
+    }
   }
-  return { minutesPerDay: dailyMinutes, studyDaysPerWeek: daysPerWeek, deadline: endDate, estimatedMinutes, availableDays, requiredDailyMinutes, scheduleWarning, revisionShare: revision.length ? 0.2 : 0 };
+  return { minutesPerDay: dailyMinutes, studyDaysPerWeek: daysPerWeek, deadline: endDate, estimatedMinutes, availableDays, requiredDailyMinutes, scheduleWarning, revisionShare: revision.length ? 0.2 : 0, revisionStartDate, modules: scheduledModules };
 }
 
 /** Attach retrieved evidence after the normal video retrieval pipeline has completed. */

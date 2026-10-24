@@ -4,7 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
+import YouTubeEmbedPlayer from "@/components/YouTubeEmbedPlayer";
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github, Clock3, Trash2, Save } from "lucide-react";
 import { classNames } from "@/lib/utils";
 import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
@@ -846,16 +846,10 @@ export default function CoursePlayer() {
                     {currentLesson.lesson.tutorial?.videos?.[0] ? (
                         <div>
                           {currentLesson.lesson.tutorial.videos[0].videoId ? (
-                            <div className="aspect-video w-full">
-                              <iframe
-                                title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
-                                src={getYouTubeEmbedUrl(currentLesson.lesson.tutorial.videos[0].videoId)}
-                                className="h-full w-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowFullScreen
-                                referrerPolicy="strict-origin-when-cross-origin"
-                              />
-                            </div>
+                            <YouTubeEmbedPlayer
+                              videoId={currentLesson.lesson.tutorial.videos[0].videoId}
+                              title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
+                            />
                           ) : (
                             <div className="flex aspect-video items-center justify-center bg-slate-950 px-6 text-center text-sm text-slate-300">
                               This video does not provide an embeddable video ID.
@@ -1294,16 +1288,10 @@ export default function CoursePlayer() {
                               Watch the selected long-form project walkthrough inside BuddyForStudy.
                             </p>
                             <div className="mt-3 overflow-hidden rounded-xl bg-black">
-                              <div className="aspect-video">
-                                <iframe
-                                  title={currentLesson.lesson.project.videos[0].title || "Project tutorial"}
-                                  src={getYouTubeEmbedUrl(String(currentLesson.lesson.project.videos[0].videoId || ""))}
-                                  className="h-full w-full"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                  allowFullScreen
-                                  referrerPolicy="strict-origin-when-cross-origin"
-                                />
-                              </div>
+                              <YouTubeEmbedPlayer
+                                videoId={String(currentLesson.lesson.project.videos[0].videoId || "")}
+                                title={currentLesson.lesson.project.videos[0].title || "Project tutorial"}
+                              />
                             </div>
                           </section>
                         ) : null}

@@ -9,7 +9,7 @@ import { success, failure } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
-import { createNotificationEvent } from "../services/notification.service.js";
+import { createNotificationEvent, notifyActiveAdmins } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATUSES } from "../services/refundBalance.service.js";
 
@@ -205,6 +205,17 @@ router.post("/issues", async (req,res,next)=>{ try {
     metadata: { issueId: String(issue._id), paymentId: String(payment._id), category },
     templateKeys: { notification: "payment-issue-received-in-app", email: "payment-issue-received-email" }
   }, "payment-issue-report");
+  await notifyActiveAdmins({
+    title: "New payment issue reported",
+    message: `A learner reported "${category.replace(/_/g, " ")}" for payment ${String(payment._id)}. Review the support queue.`,
+    type: "billing",
+    link: "/admin/payment-issues",
+    eventKey: `payment-issue-reported:${issue._id}`,
+    emailSubject: "BuddyForStudy: new payment issue requires review",
+    metadata: { issueId: String(issue._id), paymentId: String(payment._id), learnerId: String(req.user.userId), category }
+  }).catch((error) => console.error("[notifications] admin payment issue alert failed", {
+    issueId: String(issue._id), message: String(error?.message || "Unknown error").slice(0, 200)
+  }));
   return success(res,{issue},"Payment issue reported",201);
 } catch(e){next(e)} });
 router.post("/refunds", async (req,res,next)=>{ try {
@@ -250,6 +261,17 @@ router.post("/refunds", async (req,res,next)=>{ try {
       message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
     });
   }
+  await notifyActiveAdmins({
+    title: "New refund request",
+    message: `A learner requested a refund of ${payment.currency || "INR"} ${amountValidation.amount}. Review the pending refund queue.`,
+    type: "billing",
+    link: "/admin/refunds",
+    eventKey: `refund-requested:${refund._id}`,
+    emailSubject: "BuddyForStudy: refund request requires review",
+    metadata: { refundId: String(refund._id), paymentId: String(payment._id), learnerId: String(req.user.userId), amount: String(amountValidation.amount), currency: payment.currency || "INR" }
+  }).catch((error) => console.error("[notifications] admin refund alert failed", {
+    refundId: String(refund._id), message: String(error?.message || "Unknown error").slice(0, 200)
+  }));
   return success(res, { refund }, "Refund request submitted", 201);
 } catch(e){next(e)} });
 

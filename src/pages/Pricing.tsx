@@ -13,6 +13,7 @@ type Plan = {
   billingInterval: string;
   description?: string;
   features?: string[];
+  limits?: Record<string, number>;
   currency?: string;
   isPopular?: boolean;
 };
@@ -33,6 +34,24 @@ function intervalLabel(interval: string) {
     case "one_time": return "one time";
     default: return interval || "billing period";
   }
+}
+
+const planLimitDefinitions = [
+  ["ai_course_builds_per_month", "AI course builds"],
+  ["advanced_ai_questions_per_month", "Advanced AI questions"],
+  ["advanced_ai_insights_per_month", "Advanced AI summaries"],
+  ["ai_quiz_generations_per_month", "AI quiz generations"],
+  ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+  ["ai_curated_courses_per_month", "AI-curated courses"],
+] as const;
+
+function formatPlanLimit(value: unknown) {
+  if (value === undefined || value === null || value === "") return "Not configured";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Not configured";
+  if (numeric === -1) return "Unlimited";
+  if (numeric === 0) return "Not included";
+  return `${numeric.toLocaleString("en-IN")} / month`;
 }
 
 type PricingMessage = {
@@ -264,15 +283,30 @@ export default function Pricing() {
                 <span className="text-sm font-medium text-slate-500">{Number(plan.price) === 0 ? "forever" : `/${intervalLabel(plan.billingInterval)}`}</span>
               </div>
               <div className="my-5 border-t border-slate-200" />
-              <ul className="bfs-plan-features flex-1 space-y-3 text-sm">
-                {(plan.features || []).map((feature) => (
-                  <li key={feature} className="flex items-start gap-2.5">
-                    <span className="bfs-plan-check mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"><Check className="h-3.5 w-3.5" /></span>
-                    <span>{feature}</span>
-                  </li>
-                ))}
-                {!(plan.features || []).length && <li className="text-slate-500">Core learning features included.</li>}
-              </ul>
+              <section className="flex-1" aria-label={`${plan.name} included features and usage limits`}>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Included features</h3>
+                <ul className="bfs-plan-features mt-3 space-y-3 text-sm">
+                  {(plan.features || []).map((feature) => (
+                    <li key={feature} className="flex items-start gap-2.5">
+                      <span className="bfs-plan-check mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"><Check className="h-3.5 w-3.5" /></span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                  {!(plan.features || []).length && <li className="text-sm text-slate-500">No feature entitlements are configured for this plan.</li>}
+                </ul>
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">AI usage limits</h3>
+                  <p className="mt-1 text-xs text-slate-500">Per-month allowances configured for this plan.</p>
+                  <dl className="mt-3 space-y-2.5">
+                    {planLimitDefinitions.map(([key, label]) => (
+                      <div key={key} className="flex items-start justify-between gap-3 text-xs">
+                        <dt className="min-w-0 text-slate-600">{label}</dt>
+                        <dd className="shrink-0 text-right font-semibold text-slate-900">{formatPlanLimit(plan.limits?.[key])}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </section>
               <button
                 type="button"
                 disabled={loading === plan._id || Number(plan.price) === 0 || hasActiveSubscription}

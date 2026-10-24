@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
-import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
+import { youtubeRequest } from "./youtubeGateway.js";
+import { QuotaBudgetError } from "./quota.service.js";
 
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
@@ -85,23 +86,6 @@ function scoreCandidate(video,lesson,pool) {
   return {score:Number(score.toFixed(2)),relevance:Math.round(relevance),coverage:Math.round(coverage),duration:Math.round(duration),views:Math.round(views),likeRatio:Math.round(likeRatio),subscribers:Math.round(subscribers),recency:Math.round(recency)};
 }
 
-async function youtubeRequest(endpoint,params){
-  if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return null;}
-  const url=new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
-  Object.entries({...params,key:env.youtubeApiKey}).forEach(([k,v])=>url.searchParams.set(k,String(v)));
-  recordYouTubeRequest(endpoint);
-  const response=await fetch(url,{headers:{"x-goog-api-key":env.youtubeApiKey}});
-  const data=await response.json();
-  if(!response.ok){
-    const reason=data?.error?.errors?.[0]?.reason||data?.error?.status||data?.error?.message||"unknown error";
-    const error=new Error(`YouTube ${endpoint} failed: ${reason}`);
-    error.status=response.status===403?503:response.status;
-    error.code=reason;
-    throw error;
-  }
-  return data;
-}
-
 const YOUTUBE_LOCALES_BY_LANGUAGE = {
   en: { relevanceLanguage: "en", regionCode: "IN" },
   hi: { relevanceLanguage: "hi", regionCode: "IN" },
@@ -128,8 +112,9 @@ async function searchVideos(query,maxResults=10,searchOptions={}){
   const key=String(maxResults)+":"+query.trim().toLowerCase()+":"+String(searchOptions.relevanceLanguage||"en")+":"+String(searchOptions.regionCode||"IN");
   const cached=getExpiringCache(SEARCH_CACHE,key);
   if(cached)return cached;
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
-    .catch((error)=>{SEARCH_CACHE.delete(key);throw error;});
+  const promise=youtubeRequest("search",{part:"snippet",type:env.ytCombinedSearch ? "video,playlist" : "video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+    .then((data) => env.ytCombinedSearch ? { ...data, items: (data?.items || []).filter((item) => item.id?.videoId) } : data)
+    .catch((error)=>{SEARCH_CACHE.delete(key);if(error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return null;throw error;});
   setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);
   return promise;
 }
@@ -139,7 +124,9 @@ async function getVideoDetails(videoIds){
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
-    const data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")});
+    let data;
+    try { data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")}); }
+    catch (error) { if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return []; throw error; }
     for(const item of data?.items||[]) setExpiringCache(VIDEO_CACHE,item.id,item,VIDEO_CACHE_TTL_MS);
   }
   return uniqueIds.map((id)=>getExpiringCache(VIDEO_CACHE,id)).filter(Boolean);
@@ -150,7 +137,9 @@ async function getChannelDetails(channelIds){
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
-    const data=await youtubeRequest("channels",{part:"snippet,statistics,contentDetails",id:batch.join(",")});
+    let data;
+    try { data=await youtubeRequest("channels",{part:"snippet,statistics,contentDetails",id:batch.join(",")}); }
+    catch (error) { if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return []; throw error; }
     for(const item of data?.items||[]) setExpiringCache(CHANNEL_CACHE,item.id,item,CHANNEL_CACHE_TTL_MS);
   }
   return uniqueIds.map((id)=>getExpiringCache(CHANNEL_CACHE,id)).filter(Boolean);
@@ -199,10 +188,9 @@ export async function getYouTubeVideoResource(videoId) {
   const id = String(videoId || "").trim();
   if (!id) throw new Error("YouTube videoId is required");
 
-  const data = await youtubeRequest("videos", {
-    part: "snippet,contentDetails,statistics,status",
-    id
-  });
+  let data;
+  try { data = await youtubeRequest("videos", { part: "snippet,contentDetails,statistics,status", id }); }
+  catch (error) { if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") { console.warn("YouTube resource lookup degraded by quota guard", { quotaState: error.state }); return null; } throw error; }
   const video = data?.items?.[0];
   if (!video) {
     const error = new Error("YouTube video not found");

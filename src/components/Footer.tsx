@@ -24,18 +24,18 @@ export default function Footer() {
       <div className="bfs-marketing-footer__inner">
         <div className="bfs-marketing-footer__top">
           <div className="bfs-marketing-footer__columns">
-            <section className="bfs-footer-column" aria-labelledby="footer-about-title">
-              <h2 id="footer-about-title">About</h2>
-              <Link to={routes.about()}>About BuddyForStudy</Link>
+            <section className="bfs-footer-column" aria-labelledby="footer-brand-title">
+              <h2 id="footer-brand-title">BuddyForStudy</h2>
+              <p className="bfs-footer-column__intro">Learn with direction. Build skills one step at a time.</p>
+              <Link to={routes.about()}>About us</Link>
               <Link to={routes.contact()}>Contact us</Link>
-              <Link to={routes.faq()}>Help and support</Link>
               <PublicSocialLinks title="Follow BuddyForStudy" variant="footer" />
             </section>
 
             <section className="bfs-footer-column" aria-labelledby="footer-discover-title">
-              <h2 id="footer-discover-title">Discover and learn</h2>
+              <h2 id="footer-discover-title">Discover</h2>
               <Link to={routes.explore()}>Explore courses</Link>
-              <Link to={routes.buildPath()}>Build a learning roadmap</Link>
+              <Link to={routes.buildPath()}>Learning roadmaps</Link>
               {isSignedIn ? (
                 <>
                   <Link to={routes.myLearning()}>My learning</Link>
@@ -43,33 +43,27 @@ export default function Footer() {
                 </>
               ) : (
                 <>
-                  <Link to={routes.login()}>Sign in to your learning</Link>
+                  <Link to={routes.login()}>Sign in</Link>
                   <Link to={routes.register()}>Create an account</Link>
                 </>
               )}
             </section>
 
-            <section className="bfs-footer-column" aria-labelledby="footer-plans-title">
-              <h2 id="footer-plans-title">Plans and support</h2>
-              <Link to={routes.pricing()}>Plans and pricing</Link>
-              <Link to={routes.faq()}>Frequently asked questions</Link>
+            <section className="bfs-footer-column" aria-labelledby="footer-support-title">
+              <h2 id="footer-support-title">Plans & support</h2>
+              <Link to={routes.pricing()}>Plans & pricing</Link>
+              <Link to={routes.faq()}>Help centre & FAQs</Link>
+              {isSignedIn && <Link to={routes.notifications()}>Notifications</Link>}
+              {isSignedIn && <Link to={routes.profile()}>My account</Link>}
               <Link to={routes.contact()}>Contact support</Link>
-              {isSignedIn ? (
-                <>
-                  <Link to={routes.profile()}>My account</Link>
-                  <Link to={routes.notifications()}>Notifications</Link>
-                </>
-              ) : (
-                <Link to={routes.login()}>Sign in</Link>
-              )}
             </section>
 
             <section className="bfs-footer-column" aria-labelledby="footer-legal-title">
-              <h2 id="footer-legal-title">Legal and accessibility</h2>
+              <h2 id="footer-legal-title">Policies</h2>
               <Link to="/legal/privacy-policy">Privacy policy</Link>
               <Link to="/legal/terms-of-service">Terms of service</Link>
               <Link to="/legal/cookie-policy">Cookie policy</Link>
-              <Link to="/legal">All policies</Link>
+              <Link to="/legal">All policies & accessibility</Link>
             </section>
           </div>
         </div>

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
+import YouTubeEmbedPlayer from "@/components/YouTubeEmbedPlayer";
 import {
   BookOpen,
   Bookmark,
@@ -892,16 +892,10 @@ export default function YouTubeSearchFallback({
             <div className="min-h-0 overflow-y-auto">
               <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="bg-black">
-                  <div className="aspect-video w-full">
-                    <iframe
-                      title={currentLesson?.title || viewer.course.title}
-                      src={getYouTubeEmbedUrl(currentLesson?.videoId || "")}
-                      className="h-full w-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      referrerPolicy="strict-origin-when-cross-origin"
-                    />
-                  </div>
+                  <YouTubeEmbedPlayer
+                    videoId={currentLesson?.videoId || ""}
+                    title={currentLesson?.title || viewer.course.title}
+                  />
 
                   <div className="border-t border-white/10 p-5 text-white">
                     <p className="text-lg font-extrabold">

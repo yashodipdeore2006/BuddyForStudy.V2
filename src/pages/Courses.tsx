@@ -775,6 +775,7 @@ export default function Courses() {
                   {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
                 </div>
               ) : (
+                <>
               <div>
                 <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">
                   What do you want to learn or achieve?

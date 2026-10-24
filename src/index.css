@@ -799,3 +799,91 @@ html[data-theme="dark"] .bfs-plan-option--selected {
   .bfs-shell { padding-inline: 12px; }
   .bfs-course-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
 }
+
+
+/* BuddyForStudy branded public footer */
+.bfs-marketing-footer {
+  --footer-bg: #1a1b41;
+  --footer-surface: #22234f;
+  --footer-accent: #8b5cf6;
+  --footer-accent-soft: #c4b5fd;
+  --footer-text: #f8f7ff;
+  --footer-muted: #d0cfe6;
+  position: relative;
+  overflow: hidden;
+  color: var(--footer-text);
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(139, 92, 246, .2), transparent 42%),
+    linear-gradient(125deg, #171833 0%, var(--footer-bg) 52%, #25204b 100%);
+  border-top: 1px solid rgba(196, 181, 253, .28);
+}
+.bfs-marketing-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: min(240px, 30vw);
+  height: 3px;
+  background: linear-gradient(90deg, var(--footer-accent), #c4b5fd, transparent);
+}
+.bfs-marketing-footer__inner {
+  position: relative;
+  width: min(100% - 32px, 1240px);
+  margin-inline: auto;
+}
+.bfs-marketing-footer__top { padding-block: clamp(32px, 5vw, 58px) 30px; }
+.bfs-marketing-footer__columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(22px, 3.5vw, 56px);
+}
+.bfs-footer-column { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 12px; }
+.bfs-footer-column h2 {
+  width: 100%;
+  margin: 0 0 2px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid rgba(196, 181, 253, .32);
+  color: #fff;
+  font-size: .9rem;
+  font-weight: 750;
+  letter-spacing: .01em;
+}
+.bfs-footer-column a,
+.bfs-marketing-footer__legal nav a,
+.bfs-footer-back-top {
+  color: var(--footer-muted);
+  font-size: .84rem;
+  line-height: 1.5;
+  text-decoration: none;
+  text-underline-offset: 4px;
+  transition: color .18s ease, transform .18s ease;
+}
+.bfs-footer-column a:hover,
+.bfs-marketing-footer__legal nav a:hover,
+.bfs-footer-back-top:hover { color: #fff; text-decoration: underline; text-decoration-color: var(--footer-accent-soft); }
+.bfs-footer-column__intro { max-width: 230px; margin: 0 0 2px; color: var(--footer-muted); font-size: .84rem; line-height: 1.65; }
+.bfs-marketing-footer .bfs-user-brand__wordmark { color: #fff; }
+.bfs-marketing-footer .bfs-user-brand__wordmark span { color: var(--footer-accent-soft); }
+.bfs-marketing-footer .bfs-user-brand__mark { border-color: rgba(196, 181, 253, .4); box-shadow: 0 0 0 3px rgba(139, 92, 246, .13); }
+.bfs-marketing-footer .bfs-social-links { margin-top: 8px; }
+.bfs-marketing-footer__legal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid rgba(196, 181, 253, .24);
+  padding-block: 20px 24px;
+}
+.bfs-footer-bottom-brand { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.bfs-footer-bottom-brand p { margin: 0; color: var(--footer-muted); font-size: .78rem; }
+.bfs-marketing-footer__legal nav { display: flex; flex-wrap: wrap; gap: 18px; }
+.bfs-marketing-footer__legal nav a { font-size: .8rem; }
+.bfs-footer-back-top { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; }
+@media (max-width: 850px) {
+  .bfs-marketing-footer__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 24px; }
+  .bfs-marketing-footer__legal { align-items: flex-start; flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+  .bfs-marketing-footer__inner { width: min(100% - 28px, 1240px); }
+  .bfs-marketing-footer__columns { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+  .bfs-marketing-footer__legal { flex-direction: column; gap: 14px; }
+}

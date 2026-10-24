@@ -544,12 +544,14 @@ export default function Courses() {
           await new Promise((resolve) => window.setTimeout(resolve, 1200));
           const polled = await apiFetch<{ status: string; result?: unknown }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
           current = polled;
+          if (polled.result) setAiRoadmap(polled.result);
           if (polled.status === 'ready' && polled.result) {
             data = polled.result;
             break;
           }
         }
         if (!data) throw new Error('Roadmap build ended without a result. Please retry.');
+        window.localStorage.removeItem('bfs_async_roadmap_draft');
       } else {
         data = await apiFetch('/api/ai/roadmap', {
           method: 'POST', body: JSON.stringify(profile), showFeatureUpgrade: true

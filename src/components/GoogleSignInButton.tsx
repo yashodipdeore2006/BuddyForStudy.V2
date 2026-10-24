@@ -138,9 +138,6 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
             },
             auto_select: false,
             cancel_on_tap_outside: true,
-            // Use Chrome's browser-mediated identity flow where supported to
-            // avoid relying on cross-origin popup/opener messaging.
-            use_fedcm_for_button: true,
           });
           initializedClientId = clientId;
         }

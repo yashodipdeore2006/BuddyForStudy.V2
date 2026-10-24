@@ -77,11 +77,14 @@ async function runMock() {
   process.env.MONGO_URI = "mongodb://127.0.0.1:27017/selector_mock_only";
   process.env.JWT_SECRET = "selector-mock-only-not-a-secret";
   process.env.YOUTUBE_API_KEY = "selector-mock-provider";
-  const [{ searchBestYouTubeCourse, __setYouTubeSelectorAdaptersForTests }, nodeModule] = await Promise.all([
+  const [youtubeModule, nodeModule, engineModule] = await Promise.all([
     import("../server/src/services/youtube.service.js"),
-    import("../server/src/services/nodeCuration.service.js")
+    import("../server/src/services/nodeCuration.service.js"),
+    import("../server/src/services/courseCurationDecisionEngine.service.js")
   ]);
-  const { curateForNode, __setNodeCurationSelectorForTests, __setNodeCurationCacheForTests } = nodeModule;
+  const { searchBestYouTubeCourse, __setYouTubeSelectorAdaptersForTests } = youtubeModule;
+  const { curateForNode, __setNodeCurationCacheForTests } = nodeModule;
+  const { __setCurationDecisionEngineAdaptersForTests } = engineModule;
   let activeSkill = SKILLS[0];
   const mockVideo = (skill, index) => ({
     id: `mock-video-${skill.id}-${index}`,
@@ -94,26 +97,44 @@ async function runMock() {
       publishedAt: "2025-01-01T00:00:00Z",
       thumbnails: { high: { url: "https://example.invalid/mock.jpg" } }
     },
-    contentDetails: { duration: index === 0 ? "PT90M" : "PT120M" },
+    contentDetails: { duration: `PT${Math.max(1, Math.round(skill.durationPolicy.targetMinutes + (index ? Math.min(15, (skill.durationPolicy.maxMinutes - skill.durationPolicy.targetMinutes) / 2) : 0)))}M` },
     statistics: { viewCount: String(100000 + index * 10000), likeCount: String(5000 + index * 100) },
     status: { embeddable: true, privacyStatus: "public" }
   });
   const mockVideos = () => [mockVideo(activeSkill, 0), mockVideo(activeSkill, 1)];
+  const mockCurationCandidates = () => mockVideos().map((video, index) => ({
+    videoId: video.id,
+    title: video.snippet.title,
+    description: `${video.snippet.description} Full course tutorial. Course content: ${activeSkill.topics.join(", ")}. 00:00 Introduction 05:00 ${activeSkill.topics[0]} 15:00 ${activeSkill.topics[1]} 25:00 ${activeSkill.topics[2]}.`,
+    tags: video.snippet.tags,
+    channelId: video.snippet.channelId,
+    channelTitle: video.snippet.channelTitle,
+    publishedAt: video.snippet.publishedAt,
+    durationSeconds: Number(video.contentDetails.duration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/)[1] || 0) * 3600 + Number(video.contentDetails.duration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/)[2] || 0) * 60,
+    viewCount: Number(video.statistics.viewCount),
+    likeCount: Number(video.statistics.likeCount),
+    thumbnail: video.snippet.thumbnails.high.url,
+    url: `https://www.youtube.com/watch?v=${video.id}`,
+    privacyStatus: "public", embeddable: true, isShort: false, hasChapters: true,
+    hasSyllabus: true, defaultAudioLanguage: "en", regionRestriction: {}
+  }));
   __setYouTubeSelectorAdaptersForTests({
     searchVideos: async () => ({ items: mockVideos().map((video) => ({ id: { videoId: video.id }, snippet: video.snippet })) }),
     getVideoDetails: async () => mockVideos(),
     getChannelDetails: async () => [0, 1].map((i) => ({ id: `mock-channel-${i}`, statistics: { subscriberCount: String(10000 + i * 1000) } }))
   });
   __setNodeCurationCacheForTests({ read: async () => null, write: async () => {} });
-  __setNodeCurationSelectorForTests(async () => ({
-    resources: mockVideos().map((video, index) => ({
-      id: `video:${video.id}`, videoId: video.id, title: video.snippet.title,
-      description: video.snippet.description, channelTitle: video.snippet.channelTitle,
-      durationSeconds: index === 0 ? 5400 : 7200, finalScore: index === 0 ? 82 : 78,
-      sourceUrl: `https://www.youtube.com/watch?v=${video.id}`
-    })),
-    meta: { searchCalls: 1, quotaUnits: 100, resultCacheHit: false }
-  }));
+  __setCurationDecisionEngineAdaptersForTests({
+    getCache: async () => null,
+    setCache: async () => {},
+    getSearchResultCount: async () => 30,
+    searchVideos: async () => mockCurationCandidates(),
+    searchPlaylists: async () => [],
+    searchChannelPlaylists: async () => [],
+    getPlaylistCourse: async () => null,
+    loadLearnerFeedback: async () => new Map(),
+    evaluateMetadata: async () => ({ byCandidateId: new Map(), source: "deterministic-test-fixture", judgedCount: 0 })
+  });
   const rows = [];
   try {
     for (const skill of SKILLS) {
@@ -139,18 +160,19 @@ async function runMock() {
     }
   } finally {
     __setYouTubeSelectorAdaptersForTests(null);
-    __setNodeCurationSelectorForTests(null);
+    __setCurationDecisionEngineAdaptersForTests(null);
     __setNodeCurationCacheForTests(null);
   }
-  console.log("Mode: MOCK (NOT VALID AS ACCEPTANCE EVIDENCE: the new-selector decision engine is replaced by a fixture selector)");
+  const validRows = rows.length === SKILLS.length && rows.every((row) => row.oldSelector && row.newSelector.selected);
+  console.log("Mode: MOCK (deterministic provider/dependency fixtures; real selector decision and ranking pipelines exercised)");
   console.table(rows.map((row) => ({ skill: row.skill, oldPick: row.oldSelector.title || "none",
     newPick: row.newSelector.title || "none", samePick: row.sameSelectedFixture })));
   console.log(JSON.stringify({
     mode: "mock",
-    comparisonValid: false,
-    selectorAgreement: null,
+    comparisonValid: validRows,
+    selectorAgreement: validRows ? `${rows.filter((row) => row.sameSelectedFixture).length}/${rows.length}` : null,
     skillsExercised: rows.length,
-    reason: "The new-selector ranking engine is replaced by __setNodeCurationSelectorForTests, so these rows do not compare the real curation algorithms. Do not use this output as Phase 8 acceptance evidence.",
+    reason: validRows ? "Both selectors ran against deterministic fixtures. This compares selector outcomes without contacting YouTube or Gemini." : "One or more selectors returned no selection; inspect row-level results before treating this run as acceptance evidence.",
     rows
   }, null, 2));
 }

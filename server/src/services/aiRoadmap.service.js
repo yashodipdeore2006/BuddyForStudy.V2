@@ -884,9 +884,9 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
         "Use Git and GitHub with professional collaboration and documentation practices.",
         "Test, debug, secure, and deploy applications instead of stopping at tutorial completion."
       ],
-      modules,
-      schedule
+      modules
     },
+    schedule: { minutesPerDay: schedule.minutesPerDay, studyDaysPerWeek: schedule.studyDaysPerWeek, deadline: schedule.deadline, estimatedMinutes: schedule.estimatedMinutes, availableDays: schedule.availableDays, requiredDailyMinutes: schedule.requiredDailyMinutes, scheduleWarning: schedule.scheduleWarning, revisionShare: schedule.revisionShare, revisionStartDate: schedule.revisionStartDate },
     skillGraph: activeSkills.map((skill) => ({
       id: skill.id,
       name: skill.name,

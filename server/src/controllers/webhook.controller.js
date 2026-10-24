@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { Payment } from "../models/Payment.js";
+import { TrialGrant } from "../models/TrialGrant.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
 import * as razorpay from "../services/razorpay.service.js";
@@ -124,6 +125,18 @@ async function activateSubscription(subscription, payment, eventAt = null, provi
   }
 }
 
+
+async function markTrialConversionIfPresent(payment, subscriptionId) {
+  const grantId = payment?.metadata?.get
+    ? payment.metadata.get("trialConversionGrantId")
+    : payment?.metadata?.trialConversionGrantId;
+  if (!grantId) return;
+  await TrialGrant.updateOne(
+    { _id: grantId, user: payment.user, status: "trialing", conversionConsentStatus: "pending_user_consent" },
+    { $set: { status: "converted", conversionConsentStatus: "authorized", providerSubscriptionId: subscriptionId } }
+  );
+}
+
 async function notifySubscriptionCharge(payment, subscriptionId, providerPaymentId) {
   const isRenewal = payment?.metadata?.get
     ? payment.metadata.get("renewal") === "true"
@@ -174,7 +187,8 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
       });
       return;
     }
-    await activateSubscription(subscription, duplicate, eventAt, providerEventId, providerEventName);
+    const activated = await activateSubscription(subscription, duplicate, eventAt, providerEventId, providerEventName);
+    if (activated) await markTrialConversionIfPresent(duplicate, subscription.id);
     // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
     await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
     return;
@@ -229,7 +243,8 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
     }
   }
 
-  await activateSubscription(subscription, payment, eventAt, providerEventId, providerEventName);
+  const activated = await activateSubscription(subscription, payment, eventAt, providerEventId, providerEventName);
+  if (activated) await markTrialConversionIfPresent(payment, subscription.id);
   await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);
 }
 
@@ -286,6 +301,7 @@ export async function razorpayWebhook(req, res, next) {
           // must not mutate payment status or enqueue activation messaging.
           const appliedSubscriptionEvent = await activateSubscription(subscriptionEntity, payment, subscriptionEventAt, subscriptionEventId, event.event);
           if (appliedSubscriptionEvent) {
+            await markTrialConversionIfPresent(payment, subscriptionEntity.id);
             payment.status = "paid";
             payment.paidAt = payment.paidAt || new Date();
             payment.subscriptionNotificationStatus = "pending";

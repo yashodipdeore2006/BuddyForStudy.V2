@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
+import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
 import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github, Clock3, Trash2, Save } from "lucide-react";
 import { classNames } from "@/lib/utils";
 import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
@@ -848,7 +849,7 @@ export default function CoursePlayer() {
                             <div className="aspect-video w-full">
                               <iframe
                                 title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
-                                src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(currentLesson.lesson.tutorial.videos[0].videoId)}?rel=0&playsinline=1`}
+                                src={getYouTubeEmbedUrl(currentLesson.lesson.tutorial.videos[0].videoId)}
                                 className="h-full w-full"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                 allowFullScreen
@@ -1296,7 +1297,7 @@ export default function CoursePlayer() {
                               <div className="aspect-video">
                                 <iframe
                                   title={currentLesson.lesson.project.videos[0].title || "Project tutorial"}
-                                  src={"https://www.youtube-nocookie.com/embed/" + encodeURIComponent(String(currentLesson.lesson.project.videos[0].videoId || "")) + "?rel=0&playsinline=1"}
+                                  src={getYouTubeEmbedUrl(String(currentLesson.lesson.project.videos[0].videoId || ""))}
                                   className="h-full w-full"
                                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                                   allowFullScreen

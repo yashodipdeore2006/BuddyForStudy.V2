@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { env } from "../config/env.js";
 import { CourseCurationCache } from "../models/CourseCurationCache.js";
 import { curateNormalSearch, extractCurationChapters } from "./courseCurationDecisionEngine.service.js";
+import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { QuotaBudgetError } from "./quota.service.js";
 
 const ENGINE_VERSION = "node-curation-v1";
@@ -109,14 +110,15 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
     cacheScope: `node:${canonicalSkillId}`,
     skillId: canonicalSkillId
   });
+  const requestMetrics = { requestId: `node:${canonicalSkillId}`, skillId: canonicalSkillId, searchCalls: 0, quotaUnits: 0 };
   let searchCalls = 0;
   let quotaUnits = 0;
   let result;
   let widened = false;
   try {
-    result = await callSelector(bounds);
-    searchCalls = Number(result?.meta?.searchCalls || 0);
-    quotaUnits = Number(result?.meta?.quotaUnits || 0);
+    result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(bounds));
+    searchCalls = Number(result?.meta?.searchCalls || requestMetrics.searchCalls || 0);
+    quotaUnits = Number(result?.meta?.quotaUnits || requestMetrics.quotaUnits || 0);
     let resources = Array.isArray(result?.resources) ? result.resources : [];
     if (!resources.length) {
       widened = true;
@@ -126,9 +128,9 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
         maxVideoSeconds: Math.ceil(bounds.maxVideoSeconds * 1.5),
         minPlaylistSeconds: Math.floor(bounds.minPlaylistSeconds * 0.5)
       };
-      result = await callSelector(widenedBounds);
-      searchCalls += Number(result?.meta?.searchCalls || 0);
-      quotaUnits += Number(result?.meta?.quotaUnits || 0);
+      result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(widenedBounds));
+      searchCalls += Number(result?.meta?.searchCalls || requestMetrics.searchCalls || 0);
+      quotaUnits += Number(result?.meta?.quotaUnits || requestMetrics.quotaUnits || 0);
       resources = Array.isArray(result?.resources) ? result.resources : [];
     }
     const ranked = resources.map((resource) => ({ raw: resource, score: scoreOf(resource) })).sort((a, b) => b.score - a.score);

@@ -67,21 +67,22 @@ export function buildQuestionPlan(parsed) {
   if (!profile.goal && !parsed.inferredGoal) {
     plan.push(question("goal", "single", "What are you working toward?", ["Job-ready", "Exam or certification", "Build a project", "Learn a skill"], null));
   }
-  addUnlessKnown("targetRole", question("role", "text", "Which role are you targeting?", parsed.options?.roles, "goal=job_ready", true));
-  addUnlessKnown("targetCompany", question("company", "text", "Any target company?", [], "goal=job_ready", true));
-  addUnlessKnown("examName", question("examType", "text", "Which exam or certification?", parsed.options?.exams, "goal=exam", true));
-  addUnlessKnown("examDate", question("examDate", "text", "When is your exam?", [], "goal=exam", true));
-  addUnlessKnown("syllabusText", question("syllabus", "paste", "Paste your syllabus if you have it.", [], "goal=exam", true));
-  addUnlessKnown("projectIdea", question("projectIdea", "text", "What would you like to build?", parsed.options?.projectIdeas, "goal=project", true));
-  addUnlessKnown("scope", question("depth", "single", "How deep should we go?", ["Quick overview", "Complete learning path"], null), "scope");
-  addUnlessKnown("knownSkills", question("knownSkills", "text", "What do you already know?", [], null, true));
-  addUnlessKnown("minutesPerDay", question("time", "time", "How much time can you study each day?", ["15 min", "30 min", "1 hour", "2 hours", "3+ hours"], null), "minutesPerDay");
-  addUnlessKnown("language", question("language", "single", "Which language should resources use?", ["English", "Hindi", "Marathi", "Other"], null), "language");
-  return plan;
+  const hasKnownValue = (field) => confidence[field] >= 0.8 || (profile[field] !== undefined && profile[field] !== null && profile[field] !== "");
+  if (!hasKnownValue("targetRole")) addUnlessKnown("targetRole", question("role", "text", "Which role are you targeting?", parsed.options?.roles, "goal=job_ready", true));
+  if (!hasKnownValue("targetCompany")) addUnlessKnown("targetCompany", question("company", "text", "Any target company?", [], "goal=job_ready", true));
+  if (!hasKnownValue("examName")) addUnlessKnown("examName", question("examType", "text", "Which exam or certification?", parsed.options?.exams, "goal=exam", true));
+  if (!hasKnownValue("examDate")) addUnlessKnown("examDate", question("examDate", "text", "When is your exam?", [], "goal=exam", true));
+  if (!hasKnownValue("syllabusText")) addUnlessKnown("syllabusText", question("syllabus", "paste", "Paste your syllabus if you have it.", [], "goal=exam", true));
+  if (!hasKnownValue("projectIdea")) addUnlessKnown("projectIdea", question("projectIdea", "text", "What would you like to build?", parsed.options?.projectIdeas, "goal=project", true));
+  if (!hasKnownValue("scope")) addUnlessKnown("scope", question("depth", "single", "How deep should we go?", ["Quick overview", "Complete learning path"], null));
+  if (!hasKnownValue("knownSkills")) addUnlessKnown("knownSkills", question("knownSkills", "text", "What do you already know?", [], null, true));
+  if (!hasKnownValue("minutesPerDay")) addUnlessKnown("minutesPerDay", question("time", "time", "How much time can you study each day?", ["15 min", "30 min", "1 hour", "2 hours", "3+ hours"], null));
+  if (!hasKnownValue("language")) addUnlessKnown("language", question("language", "single", "Which language should resources use?", ["English", "Hindi", "Marathi", "Other"], null));
+  return plan.map((item) => ({ ...item, options: item.options?.slice(0, 6).map((option) => String(option).slice(0, 40)) }));
 }
 export function mapLegacyGoal(goals = []) {
   const values = Array.isArray(goals) ? goals.map((value) => String(value).trim().toLowerCase()) : [];
-  if (values.some((value) => ["career or work growth", "career or professional growth", "career or work growth"].includes(value))) return "job_ready";
+  if (values.some((value) => ["career or work growth", "career or professional growth"].includes(value))) return "job_ready";
   if (values.some((value) => ["exam or certification", "prepare for an exam or certification"].includes(value))) return "exam";
   if (values.some((value) => ["create something", "create a project or deliverable"].includes(value))) return "project";
   return "learn";
@@ -158,12 +159,10 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
     normalized.questionPlan = buildQuestionPlan(normalized);
     normalized.assumed = Boolean(profile.goal && (confidences.goal ?? 0) < 0.8);
     if (normalized.assumed) normalized.inferredGoal = profile.goal;
-    if (normalized.valid) {
-      await model.updateOne({ normalizedQuery }, { $set: {
-        normalizedQuery, result: normalized, createdAt: now, expiresAt: new Date(now.getTime() + TTL_MS)
-      } }, { upsert: true }).catch(() => {});
-    }
-    return normalized;
+    if (!normalized.valid) return { ...normalized, profile: null, questionPlan: [], assumed: false, fallback: false };
+    await model.updateOne({ normalizedQuery }, { $set: {
+      normalizedQuery, result: normalized, createdAt: now, expiresAt: new Date(now.getTime() + TTL_MS)
+    } }, { upsert: true }).catch(() => {});
   } catch {
     return { ...staticIntentPlan(query), fallback: true };
   } finally {

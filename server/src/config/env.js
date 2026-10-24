@@ -53,5 +53,5 @@ export const env = {
   ytDailyQuotaBudget: Math.max(1, Number(process.env.YT_DAILY_QUOTA_BUDGET || 9000)),
   ytSoftLimitPct: Math.max(1, Math.min(100, Number(process.env.YT_SOFT_LIMIT_PCT || 80))),
   nodeCacheTtlDays: Math.max(1, Math.min(25, Number(process.env.NODE_CACHE_TTL_DAYS || 14))),
-  nodeConcurrency: Math.max(1, Math.min(10, Number(process.env.NODE_CONCURRENCY || 3)))
+  nodeConcurrency: Math.max(1, Number(process.env.NODE_CONCURRENCY || 3))
 };

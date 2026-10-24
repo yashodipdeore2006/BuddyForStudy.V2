@@ -95,8 +95,8 @@ export async function refreshStaleVideos({
     $or: [
       { "payload.best.fetchedAt": { $lt: staleBefore } },
       { "payload.best.fetchedAt": { $exists: false } },
-      { "payload.alternatives.fetchedAt": { $lt: staleBefore } },
-      { "payload.alternatives.fetchedAt": { $exists: false } }
+      { "payload.alternatives": { $elemMatch: { fetchedAt: { $lt: staleBefore } } } },
+      { "payload.alternatives": { $elemMatch: { fetchedAt: { $exists: false } } } }
     ]
   });
   const ids = new Set();

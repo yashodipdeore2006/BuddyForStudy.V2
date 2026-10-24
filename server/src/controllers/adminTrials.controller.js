@@ -111,10 +111,14 @@ export async function grant(req, res, next) {
           conversionConsentStatus: input.conversionPlanId ? "pending_user_consent" : "not_requested",
           idempotencyKey: key
         });
-        await UserSubscription.create({
-          user: user.id, plan: plan._id, status: "trialing", provider: "manual",
-          currentPeriodStart: now, currentPeriodEnd: endsAt
-        });
+        await UserSubscription.findOneAndUpdate(
+          { user: user.id },
+          { $set: {
+            plan: plan._id, status: "trialing", provider: "manual", providerSubscriptionId: "",
+            currentPeriodStart: now, currentPeriodEnd: endsAt, cancelAtPeriodEnd: false, cancelledAt: null
+          } },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
         await recordAuditEvent({
           actor: actorId(req), action: "trial.granted", targetType: "TrialGrant", targetId: String(grant._id),
           before: null, after: { userId: String(user.id), planId: String(plan._id), endsAt, conversionPlanId: input.conversionPlanId || null },

@@ -69,5 +69,8 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm test
+      - name: Build with AI selector comparison (mock mode only)
+        working-directory: .
+        run: node scripts/compareSelectors.js
       - name: Check all server JavaScript syntax
         run: find src -type f -name "*.js" -print0 | xargs -0 -n1 node --check

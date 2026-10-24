@@ -101,15 +101,8 @@ export async function refreshStaleVideos({
       if (lesson.tutorial?.videos?.some((video) => video.state === "unavailable")) lesson.tutorial.resourceStatus = "unavailable";
       if (lesson.project?.videos?.some((video) => video.state === "unavailable")) lesson.project.resourceStatus = "unavailable";
     }
-    const stripTransientState = (value) => {
-      if (Array.isArray(value)) return value.map(stripTransientState);
-      if (!value || typeof value !== "object" || value instanceof Date) return value;
-      const output = {};
-      for (const [key, child] of Object.entries(value)) if (key !== "state") output[key] = stripTransientState(child);
-      return output;
-    };
-    course.modules = stripStatistics(stripTransientState(course.modules));
-    if (course.generation?.snapshot) course.generation.snapshot = stripStatistics(stripTransientState(transformTree(course.generation.snapshot, byId, now)));
+    course.modules = stripStatistics(course.modules);
+    if (course.generation?.snapshot) course.generation.snapshot = stripStatistics(transformTree(course.generation.snapshot, byId, now));
     const after = JSON.stringify({ modules: course.modules, snapshot: course.generation?.snapshot });
     if (before !== after) {
       await course.save();

@@ -398,7 +398,7 @@ export default function Courses() {
     setIntentLoading(true);
     setAiError(null);
     try {
-      const result = await apiFetch('/api/ai/intent/parse', {
+      const result = await apiFetch('/api/intent/parse', {
         method: 'POST',
         body: JSON.stringify({ query }),
         showFeatureUpgrade: true,

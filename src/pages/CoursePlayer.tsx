@@ -373,11 +373,11 @@ export default function CoursePlayer() {
 
   useEffect(() => {
     const video = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] : null;
-    activeLessonCompletedRef.current = currentCompleted;
+    activeLessonCompletedRef.current = isLessonCompleted(progress?.completed_lessons || [], lessonId);
     return () => {
       if (video?.videoId && !activeLessonCompletedRef.current) void sendPlayerCurationFeedback("abandoned", video);
     };
-  }, [courseId, lessonId]);
+  }, [courseId, lessonId, currentLesson, progress?.completed_lessons]);
 
   const handleComplete = async () => {
     if (!courseId || !lessonId || !currentLesson || isLessonCompleted(progress?.completed_lessons || [], lessonId)) return;

@@ -1551,7 +1551,7 @@ export async function curateNormalSearch(query, options = {}) {
 
   const startedAt = Date.now();
   const requestMetrics = { requestId, skillId, searchCalls: 0, quotaUnits: 0 };
-  const resultStartedAt = Date.now();
+  
   const syllabus = hasInjectedSyllabus ? { ...options.syllabus, source: options.syllabus.source || "injected", confidence: Number(options.syllabus.confidence ?? 1), modules: options.syllabus.modules.map((item) => ({ name: String(item.name || "").trim(), weight: Number(item.weight ?? 1), keyConcepts: (item.keyConcepts || []).map(String), prerequisites: (item.prerequisites || []).map(String) })).filter((item) => item.name) } : await getTopicSyllabus(profile);
   let queries = (hasInjectedSyllabus ? [profile.query + " full course", profile.query + " bootcamp course", profile.query + " complete course for beginners", profile.query + " course chapters syllabus", profile.query + " course " + new Date().getFullYear(), ...syllabus.modules.slice(0, 2).map((item) => profile.query + " " + item.name + " tutorial")] : buildCandidateQueries(profile, syllabus)).slice(0, maxQueries);
   if (extraQueries.length) queries = [...new Set([...queries, ...extraQueries])].slice(0, maxQueries);
@@ -1660,7 +1660,7 @@ export async function curateNormalSearch(query, options = {}) {
   meta.searchCalls = requestMetrics.searchCalls;
   meta.quotaUnits = requestMetrics.quotaUnits;
   meta.resultCacheHit = false;
-  meta.cacheHit = Boolean(poolCacheHit);
+  meta.cacheHit = false;
   const response = { query: normalizedQuery, resources, meta };
   await setCachedValue(resultKey, "curated-results", response, resources.length ? RESULT_TTL_MS : EMPTY_RESULT_TTL_MS);
   console.info("Course curation completed", {
@@ -1672,7 +1672,7 @@ export async function curateNormalSearch(query, options = {}) {
     shortlisted: meta.tierBShortlist,
     eligible: meta.tierCEligible,
     results: meta.resultsShown,
-    cacheHit: Boolean(poolCacheHit),
+    cacheHit: false,
     resultCacheHit: false,
     poolCacheHit,
     searchCalls: requestMetrics.searchCalls,

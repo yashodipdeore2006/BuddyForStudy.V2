@@ -123,14 +123,12 @@ export async function logoutBrowserPush(): Promise<void> {
   const subscription = await registration?.pushManager.getSubscription();
   if (!subscription) return;
 
-  try {
-    await apiFetch("/api/notifications/push/subscriptions", {
-      method: "DELETE",
-      body: JSON.stringify({ endpoint: subscription.endpoint })
-    });
-  } finally {
-    // Retain the device subscription so it can be re-associated after the next sign-in.
-  }
+  // Remove the current account's server-side association, but keep the
+  // browser subscription so it can be registered again after the next sign-in.
+  await apiFetch("/api/notifications/push/subscriptions", {
+    method: "DELETE",
+    body: JSON.stringify({ endpoint: subscription.endpoint })
+  });
 }
 
 export async function sendTestBrowserPushNotification(): Promise<{ attempted: number; sent: number; failed: number }> {

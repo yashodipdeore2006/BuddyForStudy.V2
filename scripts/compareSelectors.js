@@ -5,9 +5,6 @@
  * Default mode is fully deterministic and does not contact YouTube or Gemini.
  * Opt in to live provider calls with --live. Live mode is capped at five skills.
  */
-import { searchBestYouTubeCourse } from "../server/src/services/youtube.service.js";
-import { curateForNode } from "../server/src/services/nodeCuration.service.js";
-import { getState } from "../server/src/services/quota.service.js";
 
 const SKILLS = [
   { id: "javascript-fundamentals", name: "JavaScript Fundamentals", topics: ["variables", "functions", "closures"], durationPolicy: { minMinutes: 30, targetMinutes: 90, maxMinutes: 180 } },
@@ -98,6 +95,11 @@ async function runMock() {
 }
 
 async function runLive() {
+  const [{ searchBestYouTubeCourse }, { curateForNode }, { getState }] = await Promise.all([
+    import("../server/src/services/youtube.service.js"),
+    import("../server/src/services/nodeCuration.service.js"),
+    import("../server/src/services/quota.service.js")
+  ]);
   const selectedSkills = SKILLS.slice(0, 5);
   console.log(`Mode: LIVE (hard cap: ${selectedSkills.length}/5 skills)`);
   const before = await getState();

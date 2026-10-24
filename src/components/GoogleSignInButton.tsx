@@ -18,7 +18,8 @@ type GoogleSetupStatus =
   | "unconfigured"
   | "connection_error"
   | "sdk_unavailable"
-  | "client_mismatch";
+  | "client_mismatch"
+  | "credential_error";
 
 const frontendGoogleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || "").trim();
 let initializedClientId = "";
@@ -85,6 +86,8 @@ function getStatusMessage(status: GoogleSetupStatus): string {
       return "Google Identity Services did not load. Check your internet connection or browser extensions, then retry.";
     case "client_mismatch":
       return "The frontend and backend Google OAuth client IDs do not match. Use the same Web client ID in VITE_GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID.";
+    case "credential_error":
+      return "Google did not return a sign-in credential. Check the authorized JavaScript origin and browser sign-in/privacy settings, then try again. If this repeats, open Google Sign-In troubleshooting below.";
     default:
       return "";
   }
@@ -96,6 +99,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
   const disabledRef = useRef(disabled);
   const [status, setStatus] = useState<GoogleSetupStatus>("checking");
   const [retryKey, setRetryKey] = useState(0);
+  const [credentialError, setCredentialError] = useState(false);
 
   credentialHandlerRef.current = onCredential;
   disabledRef.current = disabled;
@@ -134,7 +138,15 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
           window.google.accounts.id.initialize({
             client_id: clientId,
             callback: ({ credential }) => {
-              if (credential) void activeCredentialHandler?.(credential);
+              if (!credential) {
+                setCredentialError(true);
+                return;
+              }
+              setCredentialError(false);
+              void activeCredentialHandler?.(credential).catch(() => {
+                // The parent displays server-side authentication errors. Do not
+                // leak ID tokens or provider internals into the console.
+              });
             },
             auto_select: false,
             cancel_on_tap_outside: true,
@@ -200,7 +212,7 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
     };
   }, [retryKey]);
 
-  const statusMessage = getStatusMessage(status);
+  const statusMessage = credentialError ? getStatusMessage("credential_error") : getStatusMessage(status);
   const retryable = retryableStates.has(status);
 
   return (
@@ -221,6 +233,16 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
         >
           <span aria-hidden="true" className="text-base font-bold">G</span>
           <span>{retryable ? "Retry Google sign-in setup" : status === "checking" || status === "waiting_for_sdk" ? "Loading Google sign-in…" : "Continue with Google"}</span>
+        </button>
+      )}
+      {credentialError && (
+        <button
+          type="button"
+          onClick={() => { setCredentialError(false); setRetryKey((value) => value + 1); }}
+          disabled={disabled}
+          className="text-sm font-semibold text-violet-700 underline underline-offset-2 disabled:opacity-50"
+        >
+          Reload Google sign-in
         </button>
       )}
       {statusMessage && (

@@ -528,7 +528,8 @@ export default function Courses() {
         const draft = await apiFetch<{ draftId: string }>('/api/ai/roadmap/draft', {
           method: 'POST', body: JSON.stringify({ profile }), showFeatureUpgrade: true
         });
-        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: unknown[] }>('/api/ai/roadmap', {
+        window.localStorage.setItem('bfs_async_roadmap_draft', draft.draftId);
+        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: unknown[]; course?: unknown }>('/api/ai/roadmap', {
           method: 'POST', body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
         });
         setAiRoadmap({

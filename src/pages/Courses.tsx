@@ -73,6 +73,8 @@ type AiLesson = {
 type AiModule = {
   id?: string;
   _id?: string;
+  canonicalSkillId?: string;
+  skillIds?: string[];
   title: string;
   description?: string;
   order?: number;

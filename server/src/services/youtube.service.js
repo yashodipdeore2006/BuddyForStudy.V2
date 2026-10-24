@@ -8,6 +8,7 @@ import { extractCurationChapters } from "./courseCurationDecisionEngine.service.
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
 const CHANNEL_CACHE = new Map();
+let selectorTestAdapters = null;
 const SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
 const VIDEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CHANNEL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -207,6 +208,8 @@ export async function getYouTubeVideoResource(videoId) {
   return toCandidate(video, channel);
 }
 
+export function __setYouTubeSelectorAdaptersForTests(adapters = null) { selectorTestAdapters = adapters; }
+
 export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy, maxResultsPerQuery = 20 }) {
   if (!env.youtubeApiKey) return null;
 
@@ -215,7 +218,7 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
   const items = [];
   for (const query of queries) {
     try {
-      const data = await searchVideos(query, boundedMaxResults);
+      const data = await (selectorTestAdapters?.searchVideos || searchVideos)(query, boundedMaxResults);
       items.push(...(data?.items || []));
     } catch (error) {
       console.error("YouTube course search failed", { skill, query, message: error.message });
@@ -223,9 +226,9 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
   }
 
   const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];
-  const videoDetails = await getVideoDetails(uniqueIds);
+  const videoDetails = await (selectorTestAdapters?.getVideoDetails || getVideoDetails)(uniqueIds);
   const channelIds = [...new Set(videoDetails.map((video) => video.snippet?.channelId).filter(Boolean))];
-  const channels = await getChannelDetails(channelIds);
+  const channels = await (selectorTestAdapters?.getChannelDetails || getChannelDetails)(channelIds);
   const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
   const byId = new Map(videoDetails.map((video) => [video.id, video]));
 

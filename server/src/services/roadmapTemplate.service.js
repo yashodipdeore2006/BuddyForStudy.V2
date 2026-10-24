@@ -38,14 +38,50 @@ export async function getOrCreateRoadmapTemplate({ profile, promptVersion, gener
 }
 export function personalizeRoadmapTemplate(roadmap, profile = {}) {
   // Pure transformation: no model, provider, cache, or other I/O.
+  const personalizedRoadmap = structuredClone(roadmap);
+  const known = new Set((profile.knownSkills || []).map((item) => normalizeTemplateTopic(item).replace(/[^a-z0-9+#.]+/g, "-")));
+  const removedSkills = [];
+  personalizedRoadmap.skills = (personalizedRoadmap.skills || []).filter((skill) => {
+    const candidates = [skill.id, skill.canonicalSkillId, skill.name].filter(Boolean)
+      .map((item) => normalizeTemplateTopic(item).replace(/[^a-z0-9+#.]+/g, "-"));
+    if (candidates.some((candidate) => known.has(candidate))) {
+      removedSkills.push(skill.name || skill.id);
+      return false;
+    }
+    return true;
+  });
+  const remainingIds = new Set(personalizedRoadmap.skills.map((skill) =>
+    normalizeTemplateTopic(skill.id || skill.name).replace(/[^a-z0-9+#.]+/g, "-")
+  ));
+  personalizedRoadmap.skills = personalizedRoadmap.skills.map((skill) => ({
+    ...skill,
+    prerequisites: (skill.prerequisites || []).filter((item) =>
+      !known.has(normalizeTemplateTopic(item).replace(/[^a-z0-9+#.]+/g, "-")) &&
+      remainingIds.has(normalizeTemplateTopic(item).replace(/[^a-z0-9+#.]+/g, "-"))
+    )
+  }));
+  const studyTimeMinutesPerDay = Number(profile.studyTimeMinutesPerDay) || 60;
+  const totalTargetMinutes = personalizedRoadmap.skills.reduce((sum, skill) =>
+    sum + Math.max(0, Number(skill.courseDuration?.targetMinutes) || 0), 0);
   return {
-    roadmap: structuredClone(roadmap),
+    roadmap: personalizedRoadmap,
     profile: {
       topic: String(profile.topic || roadmap.canonicalTopic || ""), level: profile.level || "Beginner",
       goals: Array.isArray(profile.goals) ? [...profile.goals] : [],
-      knownSkills: Array.isArray(profile.knownSkills) ? [...profile.knownSkills] : [],
-      studyTimeMinutesPerDay: Number(profile.studyTimeMinutesPerDay) || 60,
+      // Known skills have already been removed by this pure transformation.
+      knownSkills: [],
+      studyTimeMinutesPerDay,
       language: profile.language || "en", domain: profile.domain || null
+    },
+    personalization: {
+      knownSkills: Array.isArray(profile.knownSkills) ? [...profile.knownSkills] : [],
+      skippedSkills: removedSkills,
+      goals: Array.isArray(profile.goals) ? [...profile.goals] : [],
+      studyTimeMinutesPerDay,
+      estimatedStudyDays: Math.max(1, Math.ceil(totalTargetMinutes / Math.max(30, studyTimeMinutesPerDay))),
+      goalModules: (personalizedRoadmap.goalModules || []).filter((module) =>
+        !module.goal || (profile.goals || []).includes(module.goal)
+      )
     }
   };
 }

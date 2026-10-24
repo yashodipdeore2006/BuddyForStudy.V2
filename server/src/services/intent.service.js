@@ -163,6 +163,7 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
     await model.updateOne({ normalizedQuery }, { $set: {
       normalizedQuery, result: normalized, createdAt: now, expiresAt: new Date(now.getTime() + TTL_MS)
     } }, { upsert: true }).catch(() => {});
+    return normalized;
   } catch {
     return { ...staticIntentPlan(query), fallback: true };
   } finally {

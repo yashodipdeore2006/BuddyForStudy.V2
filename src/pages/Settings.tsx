@@ -270,6 +270,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       });
       await refreshProfile();
       setContactSuccess(true);
+      setEditingPersonalInfo(false);
     } catch (error) {
       setContactError(error instanceof Error ? error.message : "Unable to save contact details.");
     } finally {

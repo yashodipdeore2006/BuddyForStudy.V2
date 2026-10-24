@@ -6,19 +6,31 @@ import { TrialGrant } from "../models/TrialGrant.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { resolveAdminAudience } from "../services/adminAudience.service.js";
 
 const filterSchema = z.object({
+  q: z.string().trim().max(100).optional().or(z.literal("")),
+  status: z.enum(["active", "disabled", ""]).optional(),
+  role: z.enum(["user", "admin", ""]).optional(),
+  emailVerified: z.enum(["yes", "no", "any"]).default("yes"),
+  authProvider: z.enum(["local", "google", "local_google", "any"]).default("any"),
+  subscriptionStatus: z.enum(["none", "trialing", "active", "past_due", "cancelled", "expired", "expired_or_cancelled", "any"]).default("none"),
+  planId: z.string().optional().or(z.literal("")),
+  expiresWithinDays: z.coerce.number().int().min(1).max(365).optional(),
+  courseId: z.string().optional().or(z.literal("")),
+  enrollmentStatus: z.enum(["active", "completed", "cancelled", ""]).optional(),
+  progressMin: z.coerce.number().min(0).max(100).optional(),
+  progressMax: z.coerce.number().min(0).max(100).optional(),
+  inactiveDays: z.coerce.number().int().min(1).max(365).optional(),
+  totalSpendMin: z.coerce.number().min(0).max(100000000).optional(),
+  courseCountMin: z.coerce.number().int().min(1).max(1000).optional(),
+  planSegment: z.enum(["popular", "paid", "free", "premium", ""]).optional(),
+  courseSegment: z.enum(["popular", "paid", "free", "featured", ""]).optional(),
+  registeredAfter: z.string().optional().or(z.literal("")),
+  registeredBefore: z.string().optional().or(z.literal("")),
   createdAfter: z.string().datetime().optional().or(z.literal("")),
   createdBefore: z.string().datetime().optional().or(z.literal("")),
-  authProvider: z.enum(["local", "google", "local_google", "any"]).default("any"),
-  emailVerified: z.enum(["yes", "no", "any"]).default("yes"),
-  phoneVerified: z.enum(["yes", "no", "any"]).default("any"),
-  marketingConsent: z.enum(["yes", "no", "any"]).default("any"),
-  profileSetup: z.enum(["complete", "skipped", "incomplete", "any"]).default("any"),
-  city: z.string().trim().max(100).optional().or(z.literal("")),
-  learningGoal: z.string().trim().max(240).optional().or(z.literal("")),
-  priorTrial: z.enum(["never", "any"]).default("never"),
-  subscriptionStatus: z.enum(["none", "expired_or_cancelled", "any"]).default("none")
+  priorTrial: z.enum(["never", "any"]).default("never")
 }).strict();
 
 const previewSchema = z.object({
@@ -31,45 +43,55 @@ const previewSchema = z.object({
 }).strict();
 
 function actorId(req) { return req.user?.user?._id || req.user?.userId; }
-function escapeRegex(value) { return value.split("").map((char) => ".+?^${}()|[]\\\\".includes(char) ? "\\" + char : char).join(""); }
-
 async function resolveAudience(rawFilters) {
   const filters = filterSchema.parse(rawFilters || {});
-  const userFilter = { role: "user", isActive: true };
-  if (filters.emailVerified !== "any") userFilter.emailVerified = filters.emailVerified === "yes";
-  if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;
-  if (filters.phoneVerified !== "any") userFilter.phoneNumberVerified = filters.phoneVerified === "yes";
-  if (filters.marketingConsent !== "any") userFilter.marketingEmailConsent = filters.marketingConsent === "yes";
-  if (filters.city) userFilter.city = { $regex: escapeRegex(filters.city), $options: "i" };
-  if (filters.learningGoal) userFilter.learningGoal = { $regex: escapeRegex(filters.learningGoal), $options: "i" };
-  if (filters.profileSetup === "complete") userFilter.profileSetupSkippedAt = null;
-  if (filters.profileSetup === "skipped") userFilter.profileSetupSkippedAt = { $ne: null };
-  if (filters.profileSetup === "incomplete") userFilter.$or = [{ profileSetupSkippedAt: { $ne: null } }, { city: "" }, { learningGoal: "" }];
-  if (filters.createdAfter || filters.createdBefore) {
-    userFilter.createdAt = {};
-    if (filters.createdAfter) userFilter.createdAt.$gte = new Date(filters.createdAfter);
-    if (filters.createdBefore) userFilter.createdAt.$lte = new Date(filters.createdBefore);
-  }
-  const users = await User.find(userFilter).select("_id name email createdAt authProvider emailVerified").sort({ createdAt: -1 }).lean();
+  const sharedFilters = {
+    ...filters,
+    role: "user",
+    status: "active",
+    emailVerified: filters.emailVerified === "any" ? undefined : filters.emailVerified === "yes",
+    authProvider: filters.authProvider === "any" ? undefined : filters.authProvider,
+    subscriptionStatus: undefined,
+    createdAfter: undefined,
+    createdBefore: undefined
+  };
+  // Use the same audience resolver as email campaigns so filter semantics stay aligned.
+  const users = await resolveAdminAudience(
+    { audience: "all", filters: sharedFilters },
+    { select: "_id name email createdAt authProvider emailVerified", limit: null }
+  );
   const ids = users.map((user) => user._id);
   const [subs, previousTrials] = await Promise.all([
     UserSubscription.find({ user: { $in: ids } }).select("user status currentPeriodEnd").lean(),
     filters.priorTrial === "never" ? TrialGrant.find({ user: { $in: ids } }).select("user").lean() : Promise.resolve([])
   ]);
-  const subByUser = new Map(subs.map((sub) => [String(sub.user), sub]));
+  const subsByUser = new Map();
+  for (const sub of subs) {
+    const key = String(sub.user);
+    const list = subsByUser.get(key) || [];
+    list.push(sub);
+    subsByUser.set(key, list);
+  }
   const priorSet = new Set(previousTrials.map((grant) => String(grant.user)));
+  const now = new Date();
   const eligible = [], skipped = [];
   for (const user of users) {
     const id = String(user._id);
-    const sub = subByUser.get(id);
-    const active = sub && ["trialing", "active", "past_due"].includes(sub.status) && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date());
+    const userSubs = subsByUser.get(id) || [];
+    const active = userSubs.some((sub) => ["trialing", "active", "past_due"].includes(sub.status) && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > now));
+    const hasExpiredOrCancelled = userSubs.some((sub) => ["expired", "cancelled", "expired_or_cancelled"].includes(sub.status));
+    const hasRequestedSubscription = filters.subscriptionStatus === "any" ||
+      (filters.subscriptionStatus === "none" && userSubs.length === 0) ||
+      (filters.subscriptionStatus === "expired_or_cancelled" && hasExpiredOrCancelled) ||
+      (["trialing", "active", "past_due", "cancelled", "expired"].includes(filters.subscriptionStatus) && userSubs.some((sub) => sub.status === filters.subscriptionStatus));
     const existingGrant = priorSet.has(id);
     const skipReason = filters.priorTrial === "never" && existingGrant ? "Previously received a trial"
       : active ? "Has an active subscription"
-      : filters.subscriptionStatus === "expired_or_cancelled" && (!sub || !["expired", "cancelled", "expired_or_cancelled"].includes(sub.status)) ? "No expired/cancelled subscription"
+      : !hasRequestedSubscription ? "Does not match subscription status filter"
       : "";
-    if (skipReason) skipped.push({ id, name: user.name, email: user.email, reason: skipReason });
-    else eligible.push({ id, name: user.name, email: user.email, createdAt: user.createdAt, authProvider: user.authProvider, emailVerified: user.emailVerified });
+    const row = { id, name: user.name, email: user.email, createdAt: user.createdAt, authProvider: user.authProvider, emailVerified: user.emailVerified };
+    if (skipReason) skipped.push({ ...row, reason: skipReason });
+    else eligible.push(row);
   }
   return { filters, eligible, skipped, totalEligibleBeforeLimit: eligible.length };
 }

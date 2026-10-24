@@ -13,6 +13,8 @@ function memoryCache() {
 function parsed({ goal = null, confidences = {}, profile = {}, options = {} } = {}) {
   const base = { topic: "Python", domain: "software_web", scope: "broad", goal, level: "Beginner", knownSkills: [], minutesPerDay: 60, language: "en", targetRole: null, targetCompany: null, examName: null, examDate: null, syllabusText: null, projectIdea: null, deadline: null };
   const result = { valid: true, profile: { ...base, ...profile }, confidences: { topic: 1, ...confidences }, domain: "software_web", scope: "broad", options };
+  result.assumed = Boolean(goal && (result.confidences.goal ?? 0) < 0.8);
+  if (result.assumed) result.inferredGoal = goal;
   result.questionPlan = buildQuestionPlan(result);
   return result;
 }

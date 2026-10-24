@@ -67,7 +67,9 @@ export function buildQuestionPlan(parsed) {
   if (!profile.goal && !parsed.inferredGoal) {
     plan.push(question("goal", "single", "What are you working toward?", ["Job-ready", "Exam or certification", "Build a project", "Learn a skill"], null));
   }
-  const hasKnownValue = (field) => confidence[field] >= 0.8 || (profile[field] !== undefined && profile[field] !== null && profile[field] !== "");
+  // Defaults in IntentProfile are not evidence that the user supplied an answer.
+  // Only suppress a question when parseIntent is confident enough in that field.
+  const hasKnownValue = (field) => Number(confidence[field] ?? 0) >= 0.8;
   if (!hasKnownValue("targetRole")) addUnlessKnown("targetRole", question("role", "text", "Which role are you targeting?", parsed.options?.roles, "goal=job_ready", true));
   if (!hasKnownValue("targetCompany")) addUnlessKnown("targetCompany", question("company", "text", "Any target company?", [], "goal=job_ready", true));
   if (!hasKnownValue("examName")) addUnlessKnown("examName", question("examType", "text", "Which exam or certification?", parsed.options?.exams, "goal=exam", true));

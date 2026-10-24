@@ -1509,6 +1509,10 @@ export async function curateNormalSearch(query, options = {}) {
   if (options.overrides && typeof options.overrides === "object") {
     if (options.overrides.mode) profile.mode = options.overrides.mode;
     if (Number.isFinite(Number(options.overrides.halfLifeDays))) profile.halfLifeDays = Math.max(1, Number(options.overrides.halfLifeDays));
+    if (Number.isFinite(Number(options.overrides.minVideoSeconds))) profile.minVideoSeconds = Math.max(0, Number(options.overrides.minVideoSeconds));
+    if (Number.isFinite(Number(options.overrides.maxVideoSeconds))) profile.maxVideoSeconds = Math.max(0, Number(options.overrides.maxVideoSeconds));
+    if (Number.isFinite(Number(options.overrides.minPlaylistSeconds))) profile.minPlaylistSeconds = Math.max(0, Number(options.overrides.minPlaylistSeconds));
+    if (Number.isFinite(Number(options.overrides.minPlaylistItems))) profile.minPlaylistItems = Math.max(1, Number(options.overrides.minPlaylistItems));
   }
   const overrides = options.overrides && typeof options.overrides === "object" ? options.overrides : {};
   const cacheScope = typeof options.cacheScope === "string" ? options.cacheScope.trim().slice(0, 180) : "";
@@ -1545,7 +1549,7 @@ export async function curateNormalSearch(query, options = {}) {
   const syllabus = hasInjectedSyllabus ? normalizeSyllabus(options.syllabus, profile.query) : await getTopicSyllabus(profile);
   let queries = buildCandidateQueries(profile, syllabus).slice(0, maxQueries);
   if (extraQueries.length) queries = [...new Set([...queries, ...extraQueries])].slice(0, maxQueries);
-  const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + buildCandidateQueries(profile, hasInjectedSyllabus ? normalizeSyllabus(options.syllabus, profile.query) : { modules: [], aliases: [] }).join("|") + "|" + settingCount);
+  const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   let pool = await getCachedValue(poolKey);
   const poolCacheHit = Boolean(pool);
   let youtubeError = "";
@@ -1593,14 +1597,12 @@ export async function curateNormalSearch(query, options = {}) {
   const boundedPool = {
     videos: (pool.videos || []).filter((item) => {
       const duration = Number(item.durationSeconds || 0);
-      return (!Number.isFinite(Number(overrides.minVideoSeconds)) || duration >= Number(overrides.minVideoSeconds)) &&
-        (!Number.isFinite(Number(overrides.maxVideoSeconds)) || duration <= Number(overrides.maxVideoSeconds));
+      return duration >= Number(profile.minVideoSeconds || 0) && duration <= Number(profile.maxVideoSeconds || Number.MAX_SAFE_INTEGER);
     }),
     playlists: (pool.playlists || []).filter((item) => {
       const duration = Number(item.durationSeconds || 0);
       const count = Number(item.itemCount || item.videoCount || 0);
-      return (!Number.isFinite(Number(overrides.minPlaylistSeconds)) || duration >= Number(overrides.minPlaylistSeconds)) &&
-        (!Number.isFinite(Number(overrides.minPlaylistItems)) || count >= Number(overrides.minPlaylistItems));
+      return duration >= Number(profile.minPlaylistSeconds || 0) && count >= Number(profile.minPlaylistItems || 1);
     })
   };
   const initial = selectInitialShortlist(boundedPool.videos, boundedPool.playlists, selectionProfile);

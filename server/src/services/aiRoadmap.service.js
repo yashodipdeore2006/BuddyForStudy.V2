@@ -14,6 +14,7 @@ import { resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js
 import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
 import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
 import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildLearnModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
+import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -1002,6 +1003,55 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
   return value;
 }
 
+async function curateInterviewEvidence(course, profile = {}) {
+  const interviewModule = (course?.modules || []).find((module) => module.goalModule === "interview");
+  const lesson = interviewModule?.lessons?.find((item) => item.id === "interview-experiences");
+  if (!lesson?.tutorial) return;
+  const chain = lesson.tutorial.queryFallbackChain || [];
+  const evidence = [];
+  for (const fallback of chain) {
+    try {
+      const result = await curateNormalSearch(fallback.query, {
+        nodeType: "interview",
+        cacheScope: `interview:${fallback.matchedLevel}`,
+        maxQueries: 2,
+        overrides: {
+          mode: "quick_reference",
+          halfLifeDays: 540,
+          minVideoSeconds: 60,
+          maxVideoSeconds: 5400,
+          minPlaylistItems: 1,
+          minPlaylistSeconds: 60
+        },
+        level: profile.level || "Beginner",
+        language: profile.language || "en"
+      });
+      const resources = (result.resources || []).filter((resource) => resource.videoId || resource.sourceId).slice(0, 3);
+      for (const resource of resources) {
+        evidence.push({
+          videoId: String(resource.videoId || resource.sourceId).replace(/^video:/, ""),
+          title: resource.title || "",
+          description: resource.description || "",
+          channelTitle: resource.channelTitle || "",
+          url: resource.url || "",
+          thumbnail: resource.thumbnail || "",
+          durationSeconds: Number(resource.durationSeconds || 0),
+          fetchedAt: resource.fetchedAt || new Date(),
+          matchedLevel: fallback.matchedLevel,
+          reason: `Matched ${fallback.matchedLevel.replace(/_/g, " ")} query`
+        });
+      }
+      if (resources.length) break;
+    } catch (error) {
+      // Interview resources are supplementary; retrieval failures must not fail roadmap generation.
+      console.warn("Interview evidence curation failed", { matchedLevel: fallback.matchedLevel, message: error?.message || String(error) });
+    }
+  }
+  lesson.tutorial.videos = evidence;
+  lesson.tutorial.matchedLevel = evidence[0]?.matchedLevel || null;
+  lesson.tutorial.searchResultsLabel = evidence.length ? `Matched ${evidence[0].matchedLevel.replace(/_/g, " ")}` : null;
+}
+
 function generatedAiSlug(title) {
   const base = String(title || "ai-course").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return `${base}-ai-${randomUUID().slice(0, 8)}`;
@@ -1482,6 +1532,7 @@ export async function generateAIRoadmap(input, options = {}) {
       }));
     }
     const sources = await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
+    await curateInterviewEvidence(built.course, { ...input, level: input.level, language: input.language || "en" });
     applyInterviewEvidence(built.course);
     normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);

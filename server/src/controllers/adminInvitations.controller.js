@@ -8,6 +8,7 @@ import { env } from "../config/env.js";
 import { failure, success } from "../utils/response.js";
 import { isAdminRoleProfile } from "../utils/adminRbac.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { notifyActiveAdmins } from "../services/notification.service.js";
 
 const invitationTtlMs = 24 * 60 * 60 * 1000;
 const inviteSchema = z.object({
@@ -145,6 +146,19 @@ export async function createInvitation(req, res, next) {
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500)
     });
+    await notifyActiveAdmins({
+      title: "Administrator invitation created",
+      message: "An administrator invitation was created. Review administrator governance activity if unexpected.",
+      type: "security",
+      link: "/admin/roles",
+      eventKey: `admin-invitation-created:${invitation._id}`,
+      requiredPermission: "admin_roles.manage",
+      severity: input.adminRole === "super_admin" ? "critical" : "warning",
+      emailSubject: "BuddyForStudy: administrator invitation created",
+      metadata: { invitationId: String(invitation._id), invitedRole: input.adminRole, actorAdminId: String(req.user.userId) }
+    }).catch((alertError) => console.error("[admin-invitations] creation alert failed", {
+      invitationId: String(invitation._id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+    }));
     return success(res, {
       invitation: {
         id: invitation._id.toString(),
@@ -194,6 +208,18 @@ export async function revokeInvitation(req, res, next) {
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500)
     });
+    await notifyActiveAdmins({
+      title: "Administrator invitation revoked",
+      message: "An administrator invitation was revoked. Review administrator governance activity if unexpected.",
+      type: "security",
+      link: "/admin/roles",
+      eventKey: `admin-invitation-revoked:${invitation._id}:${revokedAt.getTime()}`,
+      requiredPermission: "admin_roles.manage",
+      severity: "warning",
+      metadata: { invitationId: String(invitation._id), invitedRole: invitation.adminRole, actorAdminId: String(req.user.userId) }
+    }).catch((alertError) => console.error("[admin-invitations] revocation alert failed", {
+      invitationId: String(invitation._id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+    }));
     return success(res, {
       auditLogRecorded: auditResult.recorded,
       auditQueued: auditResult.queued

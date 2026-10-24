@@ -209,8 +209,10 @@ router.post("/issues", async (req,res,next)=>{ try {
     title: "New payment issue reported",
     message: `A learner reported "${category.replace(/_/g, " ")}" for payment ${String(payment._id)}. Review the support queue.`,
     type: "billing",
-    link: "/admin/billing",
+    link: "/admin/support",
     eventKey: `payment-issue-reported:${issue._id}`,
+    requiredPermission: "payment_issues.manage",
+    severity: category === "duplicate_charge" || category === "incorrect_amount" ? "critical" : "warning",
     emailSubject: "BuddyForStudy: new payment issue requires review",
     metadata: { issueId: String(issue._id), paymentId: String(payment._id), learnerId: String(req.user.userId), category }
   }).catch((error) => console.error("[notifications] admin payment issue alert failed", {
@@ -267,6 +269,8 @@ router.post("/refunds", async (req,res,next)=>{ try {
     type: "billing",
     link: "/admin/billing",
     eventKey: `refund-requested:${refund._id}`,
+    requiredPermission: "refunds.manage",
+    severity: "warning",
     emailSubject: "BuddyForStudy: refund request requires review",
     metadata: { refundId: String(refund._id), paymentId: String(payment._id), learnerId: String(req.user.userId), amount: String(amountValidation.amount), currency: payment.currency || "INR" }
   }).catch((error) => console.error("[notifications] admin refund alert failed", {

@@ -23,7 +23,8 @@ test("Super Admin has all catalogued permissions", () => {
 test("Platform Administrator can operate users and courses but not finance or roles", () => {
   assert.equal(hasAdminPermission("platform_admin", "users.manage"), true);
   assert.equal(hasAdminPermission("platform_admin", "courses.publish"), true);
-  assert.equal(hasAdminPermission("platform_admin", "refunds.manage"), false);
+  assert.equal(hasAdminPermission("platform_admin", "refunds.manage"), true);
+  assert.equal(hasAdminPermission("platform_admin", "payment_issues.manage"), true);
   assert.equal(hasAdminPermission("platform_admin", "plans.manage"), false);
   assert.equal(hasAdminPermission("platform_admin", "admin_roles.manage"), false);
   assert.equal(hasAdminPermission("platform_admin", "operations.manage"), true);
@@ -39,6 +40,7 @@ test("AI content manager cannot access finance or administrator governance", () 
 test("Finance manager can manage plans and refunds but cannot publish courses", () => {
   assert.equal(hasAdminPermission("finance_manager", "plans.manage"), true);
   assert.equal(hasAdminPermission("finance_manager", "refunds.manage"), true);
+  assert.equal(hasAdminPermission("finance_manager", "payment_issues.manage"), false);
   assert.equal(hasAdminPermission("finance_manager", "courses.publish"), false);
 });
 

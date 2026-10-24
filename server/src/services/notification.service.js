@@ -1005,10 +1005,18 @@ export async function notifyActiveAdmins({
   link = "/admin",
   eventKey,
   emailSubject = "",
-  metadata = {}
+  metadata = {},
+  requiredPermission = "operations.read",
+  severity = "warning"
 }) {
-  const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
-  const results = await Promise.allSettled(admins.map((admin) => createNotificationEvent({
+  const admins = await User.find({ role: "admin", isActive: true })
+    .select("_id adminRole adminPermissionOverrides")
+    .lean();
+  const { hasAdminPermission } = await import("../utils/adminRbac.js");
+  const eligibleAdmins = admins.filter((admin) =>
+    hasAdminPermission(admin.adminRole || "platform_admin", requiredPermission, admin.adminPermissionOverrides || [])
+  );
+  const results = await Promise.allSettled(eligibleAdmins.map((admin) => createNotificationEvent({
     userId: String(admin._id),
     title,
     message,
@@ -1016,19 +1024,19 @@ export async function notifyActiveAdmins({
     link,
     eventKey: eventKey ? `admin-alert:${eventKey}:${String(admin._id)}` : undefined,
     emailSubject: emailSubject || title,
-    metadata: { ...metadata, adminAlert: true },
+    metadata: { ...metadata, adminAlert: true, severity, requiredPermission },
     forceInApp: true,
     inApp: true,
-    email: true,
-    push: true
+    email: severity === "critical",
+    push: severity === "critical"
   })));
   const failed = results.filter((result) => result.status === "rejected").length;
   if (failed) {
     console.error("[notifications] admin alert fan-out partially failed", {
       eventKey: String(eventKey || "").slice(0, 120),
-      recipientCount: admins.length,
+      recipientCount: eligibleAdmins.length,
       failedCount: failed
     });
   }
-  return { recipientCount: admins.length, failedCount: failed };
+  return { recipientCount: eligibleAdmins.length, failedCount: failed };
 }

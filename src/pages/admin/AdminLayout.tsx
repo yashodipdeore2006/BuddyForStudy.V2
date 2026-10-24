@@ -33,6 +33,7 @@ const links: AdminLink[] = [
   { to: "/admin/support", label: "Support cases", permission: "billing.read", group: "Operations", icon: Headset, description: "Review learner payment and access issues" },
   { to: "/admin/operations", label: "System operations", permission: "operations.read", group: "Operations", icon: ServerCog, description: "Service health, queues, webhooks and alerts" },
   { to: "/admin/communications", label: "Communications", permission: "communications.send", group: "Operations", icon: Megaphone, description: "Announcements, templates and notifications" },
+  { to: "/admin/notifications", label: "Admin notifications", permission: "notifications.read", group: "Operations", icon: Bell, description: "Operational alerts and unread notifications" },
   { to: "/admin/deliveries", label: "Delivery log", permission: "notifications.read", group: "Operations", icon: MailCheck, description: "Delivery attempts, errors and safe retries" },
 
   { to: "/admin/plans", label: "Plans and pricing", permission: "plans.read", group: "Finance & governance", icon: CreditCard, description: "Subscription plans and entitlements" },
@@ -420,7 +421,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </div>}
             </div>
             <AdminIconButton label="Keyboard shortcuts and help" onClick={() => setHelpOpen(true)}><CircleHelp size={17} /></AdminIconButton>
-            {permissions.includes("audit.read") && <Link to="/admin/audit" className="admin-icon-button" aria-label="Review audit activity" title="Review audit activity"><Bell size={17} /></Link>}
+            {permissions.includes("notifications.read") && <Link to="/admin/notifications" className="admin-icon-button" aria-label="Admin notifications" title="Admin notifications"><Bell size={17} /></Link>}
             <AdminIconButton label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>
               {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
             </AdminIconButton>

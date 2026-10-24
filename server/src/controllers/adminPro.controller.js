@@ -2089,6 +2089,8 @@ export async function updateRefund(req, res, next) {
           type: "security",
           link: "/admin/billing",
           eventKey: `refund-provider-attempt-failed:${refund._id}:${refund.updatedAt?.getTime?.() || Date.now()}`,
+          requiredPermission: "refunds.manage",
+          severity: "critical",
           emailSubject: "BuddyForStudy: refund provider operation needs attention",
           metadata: { refundId: String(refund._id), paymentId: String(payment._id), status: refund.status }
         }).catch((alertError) => console.error("[notifications] admin refund provider alert failed", {

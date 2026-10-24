@@ -42,6 +42,7 @@ import AdminBilling from '@/pages/admin/AdminBilling';
 import AdminSubscriptions from '@/pages/admin/AdminSubscriptions';
 import AdminCommunications from '@/pages/admin/AdminCommunications';
 import AdminDeliveries from '@/pages/admin/AdminDeliveries';
+import AdminNotifications from '@/pages/admin/AdminNotifications';
 import AdminSettings from '@/pages/admin/AdminSettings';
 import AdminAudit from '@/pages/admin/AdminAudit';
 import AdminCoupons from '@/pages/admin/AdminCoupons';
@@ -108,6 +109,7 @@ function App() {
     <Route path="/admin/subscriptions" element={<AdminPage><AdminSubscriptions /></AdminPage>} />
     <Route path="/admin/communications" element={<AdminPage><AdminCommunications /></AdminPage>} />
     <Route path="/admin/deliveries" element={<AdminPage><AdminDeliveries /></AdminPage>} />
+    <Route path="/admin/notifications" element={<AdminPage><AdminNotifications /></AdminPage>} />
     <Route path="/admin/coupons" element={<AdminPage><AdminCoupons /></AdminPage>} />
     <Route path="/admin/settings" element={<AdminPage><AdminSettings /></AdminPage>} />
     <Route path="/admin/legal" element={<AdminPage><AdminLegalDocuments /></AdminPage>} />

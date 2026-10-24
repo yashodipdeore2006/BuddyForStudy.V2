@@ -5,6 +5,7 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { ADMIN_ROLE_PROFILES, getAdminPermissions, isAdminRoleProfile } from "../utils/adminRbac.js";
 import { acquireAdminGovernanceLock, releaseAdminGovernanceLock } from "../services/adminGovernanceLock.service.js";
+import { notifyActiveAdmins } from "../services/notification.service.js";
 
 export async function currentAdminAccess(req, res) {
   const adminRole = req.user?.adminRole || "platform_admin";
@@ -198,6 +199,19 @@ export async function updateAdministratorRole(req, res, next) {
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500),
     });
+    await notifyActiveAdmins({
+      title: "Administrator role changed",
+      message: "An administrator role assignment changed. Review the administrator governance audit log.",
+      type: "security",
+      link: "/admin/roles",
+      eventKey: `admin-role-updated:${target._id}:${previousRole}:${adminRole}:${target.updatedAt?.getTime?.() || Date.now()}`,
+      requiredPermission: "admin_roles.manage",
+      severity: adminRole === "super_admin" || previousRole === "super_admin" ? "critical" : "warning",
+      emailSubject: "BuddyForStudy: administrator role change",
+      metadata: { targetAdminId: String(target._id), previousRole, adminRole, actorAdminId: String(req.user.userId) }
+    }).catch((alertError) => console.error("[admin-governance] role-change alert failed", {
+      targetAdminId: String(target._id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+    }));
 
     return success(res, {
       administrator: {

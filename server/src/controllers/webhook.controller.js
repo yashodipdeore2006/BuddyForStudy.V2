@@ -352,8 +352,10 @@ export async function razorpayWebhook(req, res, next) {
             title: "Subscription requires billing attention",
             message: `A subscription entered ${event.event === "subscription.halted" ? "halted" : "pending"} status. Review the subscription and payment records.`,
             type: "billing",
-            link: "/admin/billing",
+            link: "/admin/subscriptions",
             eventKey: `subscription-billing-attention:${subscriptionEntity.id}:${event.event}:${claimedEventId}`,
+            requiredPermission: "billing.read",
+            severity: event.event === "subscription.halted" ? "critical" : "warning",
             emailSubject: "BuddyForStudy: subscription billing attention required",
             metadata: { subscriptionId: String(subscriptionEntity.id), status: event.event, planName: subscription.plan?.name || "BuddyForStudy" }
           }).catch((alertError) => console.error("[notifications] admin subscription alert failed", {
@@ -417,6 +419,8 @@ export async function razorpayWebhook(req, res, next) {
           type: "billing",
           link: "/admin/billing",
           eventKey: `payment-failed:${failedPayment._id}:${paymentEntity?.id || "attempt"}`,
+          requiredPermission: "billing.read",
+          severity: "warning",
           emailSubject: "BuddyForStudy: payment failure",
           metadata: { paymentId: String(failedPayment._id), learnerId: String(failedPayment.user), providerPaymentId: String(paymentEntity?.id || "") }
         }).catch((alertError) => console.error("[notifications] admin payment failure alert failed", {

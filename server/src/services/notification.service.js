@@ -991,3 +991,44 @@ export async function processLearningReminders(now = new Date(), batchSize = 500
 
   return { checked, sent };
 }
+
+
+/**
+ * Fan out an operational alert to active administrators. Each admin receives
+ * a deduplicated in-app notification; billing/security types are transactional
+ * and may also be delivered by email when SMTP is configured.
+ */
+export async function notifyActiveAdmins({
+  title,
+  message,
+  type = "billing",
+  link = "/admin",
+  eventKey,
+  emailSubject = "",
+  metadata = {}
+}) {
+  const admins = await User.find({ role: "admin", isActive: true }).select("_id").lean();
+  const results = await Promise.allSettled(admins.map((admin) => createNotificationEvent({
+    userId: String(admin._id),
+    title,
+    message,
+    type,
+    link,
+    eventKey: eventKey ? `admin-alert:${eventKey}:${String(admin._id)}` : undefined,
+    emailSubject: emailSubject || title,
+    metadata: { ...metadata, adminAlert: true },
+    forceInApp: true,
+    inApp: true,
+    email: true,
+    push: true
+  })));
+  const failed = results.filter((result) => result.status === "rejected").length;
+  if (failed) {
+    console.error("[notifications] admin alert fan-out partially failed", {
+      eventKey: String(eventKey || "").slice(0, 120),
+      recipientCount: admins.length,
+      failedCount: failed
+    });
+  }
+  return { recipientCount: admins.length, failedCount: failed };
+}

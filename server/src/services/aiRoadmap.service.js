@@ -1371,8 +1371,8 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
   );
   const templateProfile = personalized
-    ? { ...input, canonicalTopic: input.topic, language: input.language || "en" }
-    : { ...input, canonicalTopic: input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: input.language || "en" };
+    ? { ...input, canonicalTopic: input.canonicalTopic || input.topic, language: input.language || "en" }
+    : { ...input, canonicalTopic: input.canonicalTopic || input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: input.language || "en" };
   const templatePromptVersion = activePrompt.versionId || activePrompt.version || "builtin-v1";
   // Check the user-independent template before legacy course reuse. A template hit must be
   // personalized afresh so one learner never receives another learner's saved course.

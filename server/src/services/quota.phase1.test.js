@@ -69,19 +69,19 @@ test("degraded state refuses 100-unit search calls but allows 1-unit reads", asy
   assert.equal(calls, 1);
 });
 
-test("gateway retries a transient 5xx once, with mocked provider responses", async () => {
+test("gateway retries transient 5xx twice, with mocked provider responses", async () => {
   quotaUnits = 0;
   quotaState = "ok";
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
     calls += 1;
-    return calls === 1 ? jsonResponse({ error: { message: "temporary" } }, 503) : jsonResponse({ items: [{ id: "mock-video" }] });
+    return calls < 3 ? jsonResponse({ error: { message: "temporary" } }, 503) : jsonResponse({ items: [{ id: "mock-video" }] });
   };
   const result = await gateway.youtubeRequest("videos", { part: "snippet", id: "mock-video" });
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
   assert.equal(result.items[0].id, "mock-video");
-  assert.equal(quotaUnits, 2, "each API attempt consumes one quota unit");
+  assert.equal(quotaUnits, 3, "each API attempt consumes one quota unit");
 });
 
 test("quotaExceeded marks the day exhausted and is never retried", async () => {

@@ -170,7 +170,7 @@ export default function CoursePlayer() {
   const noteEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
   const activeLessonCompletedRef = useRef(false);
-  const sendPlayerCurationFeedback = async (event: "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
+  const sendPlayerCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
     if (!video?.videoId || !courseId || !currentLesson) return;
     const moduleMeta = currentLesson.module as typeof currentLesson.module & { canonicalSkillId?: string; skillIds?: string[] };
     try {
@@ -870,9 +870,9 @@ export default function CoursePlayer() {
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-300">
                         <span>Is this resource useful?</span>
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => void sendPlayerCurationFeedback("completed", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Helpful</button>
-                          <button type="button" onClick={() => void apiFetch("/api/ai/curation-feedback", { method: "POST", body: JSON.stringify({ event: "outdated", query: course.title, resourceId: currentLesson.lesson.tutorial!.videos![0].videoId, resourceType: "video", skillId: (currentLesson.module as typeof currentLesson.module & { canonicalSkillId?: string }).canonicalSkillId || currentLesson.module.title, courseId }) }).catch(() => {})} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Outdated</button>
-                          <button type="button" onClick={() => void apiFetch("/api/ai/curation-feedback", { method: "POST", body: JSON.stringify({ event: "wrong_level", query: course.title, resourceId: currentLesson.lesson.tutorial!.videos![0].videoId, resourceType: "video", skillId: currentLesson.module.title, courseId }) }).catch(() => {})} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Wrong level</button>
+                          <button type="button" onClick={() => void sendPlayerCurationFeedback("helpful", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Helpful</button>
+                          <button type="button" onClick={() => void sendPlayerCurationFeedback("outdated", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Outdated</button>
+                          <button type="button" onClick={() => void sendPlayerCurationFeedback("wrong_level", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Wrong level</button>
                         </div>
                       </div>
                     )}

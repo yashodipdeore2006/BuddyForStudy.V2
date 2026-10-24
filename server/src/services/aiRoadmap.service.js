@@ -828,16 +828,48 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
 
   const goalProfile = { topic, goal: intentProfile?.goal, goals, level, language, minutesPerDay: studyTimeMinutesPerDay, targetRole: targetRole || intentProfile?.targetRole, targetCompany: targetCompany || intentProfile?.targetCompany, examName: examName || intentProfile?.examName, examDate: examDate || intentProfile?.examDate, syllabusText: syllabusText || intentProfile?.syllabusText, projectIdea: projectIdea || intentProfile?.projectIdea, deadline: deadline || intentProfile?.deadline };
   const goal = normalizeGoal(goalProfile);
+  let verifiedSyllabusUnits = syllabusUnits;
+  if (goal === "exam" && goalProfile.syllabusText && !verifiedSyllabusUnits.length && client) {
+    try {
+      const syllabusResponse = await client.models.generateContent({
+        model: env.geminiModel,
+        contents: [
+          "Extract only unit or section headings that are explicitly present in the user's pasted syllabus.",
+          "Do not infer, complete, normalize into new units, or add official exam content.",
+          "Each returned unit must be a verbatim substring of the source text. Return an empty array if no clear unit headings exist.",
+          "Source syllabus:",
+          String(goalProfile.syllabusText).slice(0, 20000)
+        ].join("\n"),
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: { type: "object", properties: { units: { type: "array", items: { type: "string" }, maxItems: 100 } }, required: ["units"] },
+          thinkingConfig: { thinkingLevel: "LOW" },
+          maxOutputTokens: 2500
+        }
+      });
+      const extracted = JSON.parse(syllabusResponse.text || "{}");
+      const source = String(goalProfile.syllabusText).toLowerCase();
+      verifiedSyllabusUnits = (Array.isArray(extracted.units) ? extracted.units : []).filter((unit) => {
+        const value = String(unit || "").trim();
+        return value.length > 1 && source.includes(value.toLowerCase());
+      });
+    } catch {
+      // Never substitute invented units when extraction fails; the exam module will
+      // retain only revision/practice scaffolding until the learner supplies headings.
+      verifiedSyllabusUnits = [];
+    }
+  }
   let goalModule = null;
   if (goal === "job_ready") goalModule = buildInterviewModule(goalProfile);
-  else if (goal === "exam") goalModule = buildExamModules(goalProfile, { syllabusUnits });
+  else if (goal === "exam") goalModule = buildExamModules(goalProfile, { syllabusUnits: verifiedSyllabusUnits });
   else if (goal === "project") goalModule = buildProjectModule(goalProfile);
   else goalModule = buildLearnModule(goalProfile, activeSkills);
   if (goalModule) {
     goalModule.order = modules.length + 1;
     modules.push(goalModule);
   }
-  const schedule = buildSchedule(modules, { minutesPerDay: studyTimeMinutesPerDay || 60, deadline: goal === "exam" ? (goalProfile.examDate || deadline) : deadline, examDate: goalProfile.examDate });
+  const schedule = buildSchedule(modules, { minutesPerDay: studyTimeMinutesPerDay || 60, deadline: goal === "exam" ? (goalProfile.examDate || deadline) : deadline, examDate: goalProfile.examDate, now: new Date() });
+  modules.splice(0, modules.length, ...schedule.modules);
   return {
     course: {
       title: ai.title,

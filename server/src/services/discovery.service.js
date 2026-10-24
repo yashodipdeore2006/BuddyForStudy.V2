@@ -440,6 +440,7 @@ export async function getOrCreateYouTubeResourceCourse({
 
   if (type === "playlist") {
     const playlist = await getPlaylistCourse(id);
+    if (!playlist) return null;
     title = playlist.title || title;
     description = playlist.description || `A BuddyForStudy course built from the YouTube playlist “${title}”.`;
     thumbnail = playlist.thumbnail || "";
@@ -475,6 +476,7 @@ export async function getOrCreateYouTubeResourceCourse({
       throw error;
     }
     const videos = await Promise.all(videoIds.map((videoId) => getYouTubeVideoResource(videoId)));
+    if (videos.some((video) => !video)) return null;
     if (videos.some((video) => !video.embeddable || video.isShort || video.privacyStatus === "private")) {
       const error = new Error("This curated series includes a video that is unavailable, short-form, or cannot be embedded.");
       error.status = 409;
@@ -506,6 +508,7 @@ export async function getOrCreateYouTubeResourceCourse({
     durationSeconds = videos.reduce((sum, video) => sum + Number(video.durationSeconds || 0), 0);
   } else {
     const video = await getYouTubeVideoResource(id);
+    if (!video) return null;
     if (!video.embeddable) {
       const error = new Error("This YouTube video cannot be played inside BuddyForStudy");
       error.status = 409;

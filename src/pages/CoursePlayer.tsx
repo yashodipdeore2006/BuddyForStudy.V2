@@ -160,6 +160,8 @@ export default function CoursePlayer() {
   const practiceAutoAttemptRef = useRef("");
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
   const [noteTimestamp, setNoteTimestamp] = useState("");
+  const [pausedTimestampSeconds, setPausedTimestampSeconds] = useState<number | null>(null);
+  const [playerSeekRequest, setPlayerSeekRequest] = useState<{ seconds: number; id: number } | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [timestampNotes, setTimestampNotes] = useState<TimestampedCourseNote[]>([]);
   const [notesStorageReady, setNotesStorageReady] = useState(false);
@@ -169,6 +171,7 @@ export default function CoursePlayer() {
   const [notesLessonFilter, setNotesLessonFilter] = useState("all");
   const [notesSortOrder, setNotesSortOrder] = useState<"recent" | "oldest">("recent");
   const noteEditorRef = useRef<HTMLTextAreaElement | null>(null);
+  const noteCharacterLimit = 1000;
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
   const activeLessonCompletedRef = useRef(false);
   const sendPlayerCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
@@ -849,6 +852,8 @@ export default function CoursePlayer() {
                             <YouTubeEmbedPlayer
                               videoId={currentLesson.lesson.tutorial.videos[0].videoId}
                               title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
+                              onPausedAt={(seconds) => { setPausedTimestampSeconds(seconds); setNoteTimestamp(formatMediaTimestamp(seconds)); }}
+                              seekRequest={playerSeekRequest}
                             />
                           ) : (
                             <div className="flex aspect-video items-center justify-center bg-slate-950 px-6 text-center text-sm text-slate-300">
@@ -1024,22 +1029,22 @@ export default function CoursePlayer() {
                             <label htmlFor="course-note-timestamp" className="mb-1 block text-xs font-semibold text-slate-600">Video timestamp</label>
                             <input id="course-note-timestamp" value={noteTimestamp} onChange={(event) => setNoteTimestamp(event.target.value)} placeholder="00:15 (mm:ss or hh:mm:ss)" inputMode="numeric" className="input-field mb-3 w-full max-w-xs text-sm" aria-describedby="timestamp-note-help" />
                             <p id="timestamp-note-help" className="mb-3 text-xs text-slate-500">Use the time shown in the video, for example 01:25.</p>
-                            <div className="overflow-hidden rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+                            <div className="overflow-hidden rounded-xl border-[1.5px] border-slate-200 transition focus-within:border-[#6c2bd9] focus-within:ring-2 focus-within:ring-purple-100">
                               <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-2" aria-label="Note formatting tools">
                                 <button type="button" onClick={() => formatNoteDraft("**")} className="rounded-md px-3 py-1.5 text-sm font-bold text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Bold selected text">B</button>
                                 <button type="button" onClick={() => formatNoteDraft("*")} className="rounded-md px-3 py-1.5 text-sm italic text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Italic selected text">I</button>
                                 <span className="mx-1 h-5 w-px bg-slate-200" />
                                 <button type="button" onClick={() => formatNoteDraft("\n- ", "")} className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Insert bullet">• List</button>
                                 <button type="button" onClick={() => formatNoteDraft("`")} className="rounded-md px-3 py-1.5 font-mono text-xs text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Format as code">{"</>"}</button>
-                                <span className="ml-auto pr-2 text-xs text-slate-400">{noteDraft.length}/3000</span>
+                                <span className={`ml-auto pr-2 text-xs font-medium ${noteDraft.length > noteCharacterLimit ? "text-red-600" : "text-slate-500"}`}>{Math.max(0, noteCharacterLimit - noteDraft.length)} characters left</span>
                               </div>
-                              <textarea ref={noteEditorRef} value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} maxLength={3000} rows={5} placeholder="Write a note for this moment in the lecture..." className="block w-full resize-y border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-800 outline-none ring-0 placeholder:text-slate-400 focus:ring-0" />
+                              <textarea ref={noteEditorRef} value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} rows={5} placeholder="Write a note for this moment in the lecture..." className="block w-full resize-y border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-800 outline-none ring-0 placeholder:text-slate-400 focus:ring-0" />
                             </div>
                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                               <p className="text-xs text-slate-500" aria-live="polite">{noteError || noteNotice || "Notes are saved in this browser for this account and course."}</p>
                               <div className="flex items-center gap-2">
                                 <button type="button" onClick={() => { setNoteDraft(""); setNoteTimestamp(""); setNoteError(""); setNoteNotice(""); }} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Cancel</button>
-                                <button type="button" onClick={saveLessonNote} className="btn-primary inline-flex items-center justify-center gap-2" disabled={!notesStorageReady || !noteDraft.trim()}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
+                                <button type="button" onClick={saveLessonNote} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#6c2bd9] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#5b21b6] disabled:cursor-not-allowed disabled:opacity-50" disabled={!notesStorageReady || !noteDraft.trim() || noteDraft.length > noteCharacterLimit}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
                               </div>
                             </div>
                           </div>
@@ -1291,6 +1296,8 @@ export default function CoursePlayer() {
                               <YouTubeEmbedPlayer
                                 videoId={String(currentLesson.lesson.project.videos[0].videoId || "")}
                                 title={currentLesson.lesson.project.videos[0].title || "Project tutorial"}
+                                onPausedAt={(seconds) => { setPausedTimestampSeconds(seconds); setNoteTimestamp(formatMediaTimestamp(seconds)); }}
+                                seekRequest={playerSeekRequest}
                               />
                             </div>
                           </section>

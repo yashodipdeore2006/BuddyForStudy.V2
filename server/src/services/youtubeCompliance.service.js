@@ -23,8 +23,16 @@ function parseDurationSeconds(value) {
 }
 function chooseReplacement(video, apiItem, now, byId = new Map()) {
   if (isUsable(apiItem)) {
+    const alternatives = (video.alternatives || []).map((item) => {
+      const id = videoIdOf(item);
+      if (!id || !byId.has(id)) return item;
+      const alternativeItem = byId.get(id);
+      if (!isUsable(alternativeItem)) return null;
+      return chooseReplacement({ ...item, alternatives: [] }, alternativeItem, now, new Map());
+    }).filter(Boolean).slice(0, 2);
     return {
       ...video,
+      alternatives,
       videoId: apiItem.id,
       title: String(apiItem.snippet?.title || video.title || ""),
       channelTitle: String(apiItem.snippet?.channelTitle || video.channelTitle || ""),
@@ -76,7 +84,9 @@ export async function refreshStaleVideos({
   const courses = await courseModel.find({
     $or: [
       { "modules.lessons.tutorial.videos.fetchedAt": { $lt: staleBefore } },
+      { "modules.lessons.tutorial.videos.fetchedAt": { $exists: false } },
       { "modules.lessons.project.videos.fetchedAt": { $lt: staleBefore } },
+      { "modules.lessons.project.videos.fetchedAt": { $exists: false } },
       { "generation.snapshot": { $exists: true, $ne: null } }
     ]
   });

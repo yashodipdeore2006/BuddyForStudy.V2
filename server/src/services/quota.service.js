@@ -15,6 +15,7 @@ export class QuotaBudgetError extends Error {
   }
 }
 
+// Google resets YouTube Data API daily quota at midnight Pacific Time (including DST).
 export function getPacificQuotaDay(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Los_Angeles",

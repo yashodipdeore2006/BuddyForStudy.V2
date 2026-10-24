@@ -1507,6 +1507,7 @@ export async function curateNormalSearch(query, options = {}) {
   }
   const profile = classifyCurationIntent(normalizedQuery, options);
   const hasExplicitSelectionOptions = ["syllabus", "overrides", "maxQueries", "extraQueries", "cacheScope"].some((key) => Object.hasOwn(options, key));
+  const effectiveOptions = { ...options, _hasExplicitSelectionOptions: hasExplicitSelectionOptions };
   const hasInjectedSyllabus = options.syllabus && Array.isArray(options.syllabus.modules);
   if (options.overrides && typeof options.overrides === "object") {
     if (options.overrides.mode) profile.mode = options.overrides.mode;
@@ -1618,7 +1619,7 @@ export async function curateNormalSearch(query, options = {}) {
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
   const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, selectionProfile, syllabus);
   const scored = scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
-  const resources = setRankingSlots(scored, settingCount);
+  const resources = setRankingSlots(scored, settingCount).map((resource) => ({ ...resource, finalScore: Number(resource.finalScore ?? resource.score ?? 0) }));
   const composedPath = buildComposedLearningPath(scored, syllabus);
   const meta = {
     version: ENGINE_VERSION,

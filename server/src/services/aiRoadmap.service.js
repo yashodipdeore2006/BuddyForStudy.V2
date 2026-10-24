@@ -10,7 +10,7 @@ import { normalizeMultiVideoLessons } from "./course.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
 import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
-import { domainPlaybooks, resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
+import { resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
 import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
 import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
 
@@ -1426,6 +1426,9 @@ export async function generateAIRoadmap(input, options = {}) {
     const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
     const ai = personalizedTemplate.roadmap;
     const built = await buildCourse(ai, personalizedTemplate.profile);
+    built.personalization.knownSkills = personalizedTemplate.personalization.knownSkills;
+    built.personalization.skippedSkills = personalizedTemplate.personalization.skippedSkills;
+    built.personalization.estimatedStudyDays = personalizedTemplate.personalization.estimatedStudyDays;
     if (!projectsEnabled) {
       built.course.modules = (built.course.modules || []).map((module) => ({
         ...module,

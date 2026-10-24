@@ -16,6 +16,7 @@ const videoResourceSchema = new mongoose.Schema({
   playlistId: { type: String, default: "" },
   chapters: { type: [{ title: { type: String, default: "" }, timestampSeconds: { type: Number, min: 0 }, timestampLabel: { type: String, default: "" } }], default: [] },
   fetchedAt: { type: Date, default: null },
+  state: { type: String, enum: ["ready", "unavailable", "queued", "low_confidence", "failed"], default: "ready" },
   reason: { type: String, default: "", maxlength: 500 },
   alternatives: { type: [{ videoId: { type: String, default: "" }, playlistId: { type: String, default: "" }, title: { type: String, default: "" }, channelTitle: { type: String, default: "" }, durationSeconds: { type: Number, default: 0, min: 0 }, thumbnail: { type: String, default: "" }, fetchedAt: { type: Date, default: null }, reason: { type: String, default: "", maxlength: 500 } }], default: [] },
   startSeconds: { type: Number, min: 0 },
@@ -144,7 +145,7 @@ function sanitizePersistedYouTubeData(value, now = new Date()) {
     if (/^(viewCount|views|likeCount|likes|subscriberCount|subscribers|commentCount|statistics)$/i.test(key)) continue;
     output[key] = sanitizePersistedYouTubeData(child, now);
   }
-  if ((output.videoId || output.playlistId) && (Object.hasOwn(output, "title") || Object.hasOwn(output, "channelTitle") || Object.hasOwn(output, "durationSeconds"))) {
+  if (output.videoId || output.playlistId) {
     output.fetchedAt = output.fetchedAt ? new Date(output.fetchedAt) : now;
   }
   return output;

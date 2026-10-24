@@ -88,6 +88,10 @@ type AiModule = {
 };
 
 type AiRoadmap = {
+  query?: string;
+  status?: string;
+  draftId?: string;
+  roadmapId?: string | null;
   course: {
     _id?: string;
     id?: string;
@@ -194,7 +198,6 @@ export default function Courses() {
   const sendCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level", module: AiModule, video: NonNullable<TutorialContent["videos"]>[number]) => {
     const resourceId = String(video.videoId || "");
     if (!resourceId) return;
-    const key = `${resourceId}:${event}`;
     try {
       await apiFetch("/api/ai/curation-feedback", {
         method: "POST",
@@ -213,6 +216,33 @@ export default function Courses() {
     }
   };
 
+
+  useEffect(() => {
+    if (!ASYNC_ROADMAP || !session) return;
+    const draftId = window.localStorage.getItem('bfs_async_roadmap_draft');
+    if (!draftId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const resumeBuild = async () => {
+      try {
+        while (!cancelled) {
+          const status = await apiFetch<{ status: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
+          if (cancelled) return;
+          if (status.result) setAiRoadmap(status.result);
+          if (status.status === 'ready' || status.status === 'failed') {
+            window.localStorage.removeItem('bfs_async_roadmap_draft');
+            if (status.status === 'failed') setAiError('The roadmap build failed. Please try again.');
+            return;
+          }
+          await new Promise<void>((resolve) => { timer = window.setTimeout(resolve, 1200); });
+        }
+      } catch {
+        if (!cancelled) setAiError('Could not resume the roadmap build. You can retry from Build with AI.');
+      }
+    };
+    void resumeBuild();
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  }, [session]);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -528,7 +558,8 @@ export default function Courses() {
         const draft = await apiFetch<{ draftId: string }>('/api/ai/roadmap/draft', {
           method: 'POST', body: JSON.stringify({ profile }), showFeatureUpgrade: true
         });
-        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: unknown[] }>('/api/ai/roadmap', {
+        window.localStorage.setItem('bfs_async_roadmap_draft', draft.draftId);
+        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown }>('/api/ai/roadmap', {
           method: 'POST', body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
         });
         setAiRoadmap({
@@ -541,14 +572,16 @@ export default function Courses() {
         while (current.status !== 'ready') {
           if (current.status === 'failed') throw new Error('Roadmap build failed. Please retry.');
           await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          const polled = await apiFetch<{ status: string; result?: unknown }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
+          const polled = await apiFetch<{ draftId: string; status: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
           current = polled;
+          if (polled.result) setAiRoadmap(polled.result);
           if (polled.status === 'ready' && polled.result) {
             data = polled.result;
             break;
           }
         }
         if (!data) throw new Error('Roadmap build ended without a result. Please retry.');
+        window.localStorage.removeItem('bfs_async_roadmap_draft');
       } else {
         data = await apiFetch('/api/ai/roadmap', {
           method: 'POST', body: JSON.stringify(profile), showFeatureUpgrade: true

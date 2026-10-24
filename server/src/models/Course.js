@@ -73,6 +73,8 @@ const quizSchema = new mongoose.Schema({
 
 const lessonSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 }, description: { type: String, default: "", trim: true },
+  canonicalSkillId: { type: String, default: "", maxlength: 160 }, nodeType: { type: String, enum: ["skill", "project", "checkpoint", "interview", "revision", "mock_test"], default: "skill" },
+  buildState: { type: String, enum: ["pending", "queued", "ready", "low_confidence", "failed", "unavailable"], default: "pending", index: true },
   type: { type: String, enum: ["tutorial", "project", "quiz"], required: true }, order: { type: Number, required: true, min: 1 },
   tutorial: { type: tutorialSchema }, project: { type: projectSchema }, quiz: { type: quizSchema }
 });

@@ -58,7 +58,7 @@ export async function finalizeDraft(req, res, next) {
     draft = await waitForDraft(draftId, req.user.userId, 2000);
     if (draft?.status === "ready") return success(res, draft.result, "Learning roadmap generated successfully");
     if (draft?.status === "failed") return failure(res, "Roadmap build failed. Please retry.", 502, { draftId, retryable: true });
-    return success(res, { draftId, status: draft?.status || "queued", roadmapId: null, modules: [], eventsUrl: `/api/ai/roadmap/${draftId}/events`, pollUrl: `/api/ai/roadmap/${draftId}` }, "Roadmap is still building");
+    return success(res, { ...(draft?.result || {}), draftId, status: draft?.status || "queued", roadmapId: draft?.roadmapId ? String(draft.roadmapId) : null, modules: draft?.result?.course?.modules || [], eventsUrl: `/api/ai/roadmap/${draftId}/events`, pollUrl: `/api/ai/roadmap/${draftId}` }, "Roadmap is still building");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     next(error);

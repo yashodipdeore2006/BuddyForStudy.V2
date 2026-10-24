@@ -90,10 +90,14 @@ async function resolveCourseNodes({ draft, courseId, userId, profile }) {
       });
     }
   }
-  await Promise.all(jobs.map((job) => new Promise((resolve) => {
-    queue.push(async () => { try { await job(); } finally { resolve(); } });
-  })));
-  pump();
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
+    while (cursor < jobs.length) {
+      const index = cursor++;
+      await jobs[index]();
+    }
+  });
+  await Promise.all(workers);
 }
 
 export async function createRoadmapDraft({ userId, profile, options = {} }) {

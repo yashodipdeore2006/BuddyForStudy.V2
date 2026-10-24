@@ -36,7 +36,14 @@ function chooseReplacement(video, apiItem, now, byId = new Map()) {
     };
   }
   const replacement = (video.alternatives || []).find((item) => item.videoId && item.videoId !== video.videoId && item.state !== "unavailable");
-  if (replacement) return { ...chooseReplacement({ ...replacement, alternatives: (video.alternatives || []).filter((item) => item.videoId !== replacement.videoId).slice(0, 2) }, byId.get(String(replacement.videoId)), now, byId), reason: "Swapped after the selected YouTube video became unavailable", state: "ready" };
+  if (replacement) {
+    const remainingAlternatives = (video.alternatives || []).filter((item) => item.videoId !== replacement.videoId).slice(0, 2);
+    const replacementId = String(replacement.videoId);
+    const refreshed = byId.has(replacementId)
+      ? chooseReplacement({ ...replacement, alternatives: remainingAlternatives }, byId.get(replacementId), now, byId)
+      : { ...replacement, alternatives: remainingAlternatives, fetchedAt: replacement.fetchedAt || now, state: "ready" };
+    return { ...refreshed, reason: "Swapped after the selected YouTube video became unavailable", state: refreshed.state || "ready" };
+  }
   return { ...video, fetchedAt: now, state: "unavailable", alternatives: [] };
 }
 function transformTree(value, byId, now) {
@@ -112,7 +119,9 @@ export async function refreshStaleVideos({
 
   let updatedCacheEntries = 0;
   for (const entry of cacheEntries) {
+    const original = JSON.stringify(entry.payload || {});
     const payload = stripStatistics(transformTree(entry.payload || {}, byId, now));
+    if (JSON.stringify(payload) === original) continue;
     await cacheModel.updateOne({ _id: entry._id }, { $set: { payload } });
     updatedCacheEntries += 1;
   }

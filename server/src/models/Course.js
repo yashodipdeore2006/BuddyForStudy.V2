@@ -135,6 +135,21 @@ const courseSchema = new mongoose.Schema({
   }
 }, { timestamps: true, collection: "courses" });
 
+
+function sanitizePersistedYouTubeData(value, now = new Date()) {
+  if (Array.isArray(value)) return value.map((item) => sanitizePersistedYouTubeData(item, now));
+  if (!value || typeof value !== "object" || value instanceof Date) return value;
+  const output = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (/^(viewCount|views|likeCount|likes|subscriberCount|subscribers|commentCount|statistics)$/i.test(key)) continue;
+    output[key] = sanitizePersistedYouTubeData(child, now);
+  }
+  if ((output.videoId || output.playlistId) && (Object.hasOwn(output, "title") || Object.hasOwn(output, "channelTitle") || Object.hasOwn(output, "durationSeconds"))) {
+    output.fetchedAt = output.fetchedAt ? new Date(output.fetchedAt) : now;
+  }
+  return output;
+}
+
 async function getCourseApprovalMode() {
   const setting = await PlatformSetting.findOne({ key: "content_approval_ai_courses" }).select("value").lean();
   return setting?.value === "automatic" ? "automatic" : "manual";
@@ -164,6 +179,14 @@ async function applyAutomaticCourseApproval(course) {
 }
 
 courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
+  const now = new Date();
+  for (const module of this.modules || []) {
+    for (const lesson of module.lessons || []) {
+      if (lesson.tutorial?.videos) lesson.tutorial.videos = sanitizePersistedYouTubeData(lesson.tutorial.videos, now);
+      if (lesson.project?.videos) lesson.project.videos = sanitizePersistedYouTubeData(lesson.project.videos, now);
+    }
+  }
+  if (this.generation?.snapshot) this.generation.snapshot = sanitizePersistedYouTubeData(this.generation.snapshot, now);
   if (!this.isNew || !isGeneratedCourse(this)) return;
   if (await getCourseApprovalMode() === "automatic") {
     await applyAutomaticCourseApproval(this);

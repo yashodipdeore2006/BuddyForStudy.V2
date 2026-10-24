@@ -179,10 +179,7 @@ export default function Courses() {
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
   const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
-  const [intentLoading, setIntentLoading] = useState(false);
-  const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
-  const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
-  const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+
   const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
   const [aiCustomGoal, setAiCustomGoal] = useState('');
   const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');

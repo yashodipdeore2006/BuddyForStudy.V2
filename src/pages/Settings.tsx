@@ -4,7 +4,7 @@ import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight, Pencil, X } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, Pencil, X } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 import { routes } from "@/lib/routes";
 

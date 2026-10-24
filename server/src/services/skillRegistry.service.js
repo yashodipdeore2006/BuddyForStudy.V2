@@ -69,10 +69,18 @@ export function validateSkillGraph(skills, { logger = console } = {}) {
   const existing = new Set(unique.map((skill) => skill.id));
   for (const skill of unique) {
     const original = skill.prerequisites;
-    const kept = [...new Set(original.map(normalizeSkillSlug).filter((id) => existing.has(id) && id !== skill.id))];
+    const seenPrerequisites = new Set();
+    const kept = [];
     for (const prerequisite of original) {
       const id = normalizeSkillSlug(prerequisite);
-      if (!existing.has(id) || id === skill.id) report("invalid_prerequisite_removed", { skillId: skill.id, prerequisite: id });
+      if (!existing.has(id) || id === skill.id) {
+        report("invalid_prerequisite_removed", { skillId: skill.id, prerequisite: id });
+      } else if (seenPrerequisites.has(id)) {
+        report("duplicate_prerequisite_removed", { skillId: skill.id, prerequisite: id });
+      } else {
+        seenPrerequisites.add(id);
+        kept.push(id);
+      }
     }
     if (kept.length !== original.length) skill.prerequisites = kept;
   }
@@ -106,7 +114,13 @@ export function validateSkillGraph(skills, { logger = console } = {}) {
     const ranked = [...unique].sort((a, b) => importance(b) - importance(a));
     const kept = new Set(ranked.slice(0, 14).map((skill) => skill.id));
     for (const skill of unique.filter((item) => !kept.has(item.id))) report("skill_limit_trimmed", { skillId: skill.id, limit: 14 });
-    for (const skill of unique) if (kept.has(skill.id)) skill.prerequisites = skill.prerequisites.filter((id) => kept.has(id));
+    for (const skill of unique) if (kept.has(skill.id)) {
+      skill.prerequisites = skill.prerequisites.filter((id) => {
+        if (kept.has(id)) return true;
+        report("prerequisite_removed_for_skill_limit", { skillId: skill.id, prerequisite: id, limit: 14 });
+        return false;
+      });
+    }
     unique.splice(0, unique.length, ...unique.filter((item) => kept.has(item.id)));
   }
   while (unique.length < 3) {

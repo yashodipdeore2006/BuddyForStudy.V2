@@ -13,6 +13,8 @@ import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 import { resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
 import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
 import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
+import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildLearnModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
+import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -639,7 +641,7 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
   return result;
 }
 
-export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language }, { resolveSkill = resolveCanonicalSkill, logger = console } = {}) {
+export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language, intentProfile, targetRole, targetCompany, examName, examDate, syllabusText, projectIdea, deadline }, { resolveSkill = resolveCanonicalSkill, logger = console, syllabusUnits = [] } = {}) {
   const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
   const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
   const graph = validateSkillGraph(enrichedSkills, { logger });
@@ -825,6 +827,50 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60))
   );
 
+  const goalProfile = { topic, goal: intentProfile?.goal, goals, level, language, minutesPerDay: studyTimeMinutesPerDay, targetRole: targetRole || intentProfile?.targetRole, targetCompany: targetCompany || intentProfile?.targetCompany, examName: examName || intentProfile?.examName, examDate: examDate || intentProfile?.examDate, syllabusText: syllabusText || intentProfile?.syllabusText, projectIdea: projectIdea || intentProfile?.projectIdea, deadline: deadline || intentProfile?.deadline };
+  const goal = normalizeGoal(goalProfile);
+  let verifiedSyllabusUnits = syllabusUnits;
+  if (goal === "exam" && goalProfile.syllabusText && !verifiedSyllabusUnits.length && client) {
+    try {
+      const syllabusResponse = await client.models.generateContent({
+        model: env.geminiModel,
+        contents: [
+          "Extract only unit or section headings that are explicitly present in the user's pasted syllabus.",
+          "Do not infer, complete, normalize into new units, or add official exam content.",
+          "Each returned unit must be a verbatim substring of the source text. Return an empty array if no clear unit headings exist.",
+          "Source syllabus:",
+          String(goalProfile.syllabusText).slice(0, 20000)
+        ].join("\n"),
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: { type: "object", properties: { units: { type: "array", items: { type: "string" }, maxItems: 100 } }, required: ["units"] },
+          thinkingConfig: { thinkingLevel: "LOW" },
+          maxOutputTokens: 2500
+        }
+      });
+      const extracted = JSON.parse(syllabusResponse.text || "{}");
+      const source = String(goalProfile.syllabusText).toLowerCase();
+      verifiedSyllabusUnits = (Array.isArray(extracted.units) ? extracted.units : []).filter((unit) => {
+        const value = String(unit || "").trim();
+        return value.length > 1 && source.includes(value.toLowerCase());
+      });
+    } catch {
+      // Never substitute invented units when extraction fails; the exam module will
+      // retain only revision/practice scaffolding until the learner supplies headings.
+      verifiedSyllabusUnits = [];
+    }
+  }
+  let goalModule = null;
+  if (goal === "job_ready") goalModule = buildInterviewModule(goalProfile);
+  else if (goal === "exam") goalModule = buildExamModules(goalProfile, { syllabusUnits: verifiedSyllabusUnits });
+  else if (goal === "project") goalModule = buildProjectModule(goalProfile);
+  else goalModule = buildLearnModule(goalProfile, activeSkills);
+  if (goalModule) {
+    goalModule.order = modules.length + 1;
+    modules.push(goalModule);
+  }
+  const schedule = buildSchedule(modules, { minutesPerDay: studyTimeMinutesPerDay || 60, deadline: goal === "exam" ? (goalProfile.examDate || deadline) : deadline, examDate: goalProfile.examDate, now: new Date() });
+  modules.splice(0, modules.length, ...schedule.modules);
   return {
     course: {
       title: ai.title,
@@ -840,6 +886,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       ],
       modules
     },
+    schedule: { minutesPerDay: schedule.minutesPerDay, studyDaysPerWeek: schedule.studyDaysPerWeek, deadline: schedule.deadline, estimatedMinutes: schedule.estimatedMinutes, availableDays: schedule.availableDays, requiredDailyMinutes: schedule.requiredDailyMinutes, scheduleWarning: schedule.scheduleWarning, revisionShare: schedule.revisionShare, revisionStartDate: schedule.revisionStartDate },
     skillGraph: activeSkills.map((skill) => ({
       id: skill.id,
       name: skill.name,
@@ -954,6 +1001,55 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
     throw error;
   }
   return value;
+}
+
+async function curateInterviewEvidence(course, profile = {}) {
+  const interviewModule = (course?.modules || []).find((module) => module.goalModule === "interview");
+  const lesson = interviewModule?.lessons?.find((item) => item.id === "interview-experiences");
+  if (!lesson?.tutorial) return;
+  const chain = lesson.tutorial.queryFallbackChain || [];
+  const evidence = [];
+  for (const fallback of chain) {
+    try {
+      const result = await curateNormalSearch(fallback.query, {
+        nodeType: "interview",
+        cacheScope: `interview:${fallback.matchedLevel}`,
+        maxQueries: 2,
+        overrides: {
+          mode: "quick_reference",
+          halfLifeDays: 540,
+          minVideoSeconds: 60,
+          maxVideoSeconds: 5400,
+          minPlaylistItems: 1,
+          minPlaylistSeconds: 60
+        },
+        level: profile.level || "Beginner",
+        language: profile.language || "en"
+      });
+      const resources = (result.resources || []).filter((resource) => resource.videoId || resource.sourceId).slice(0, 3);
+      for (const resource of resources) {
+        evidence.push({
+          videoId: String(resource.videoId || resource.sourceId).replace(/^video:/, ""),
+          title: resource.title || "",
+          description: resource.description || "",
+          channelTitle: resource.channelTitle || "",
+          url: resource.url || "",
+          thumbnail: resource.thumbnail || "",
+          durationSeconds: Number(resource.durationSeconds || 0),
+          fetchedAt: resource.fetchedAt || new Date(),
+          matchedLevel: fallback.matchedLevel,
+          reason: `Matched ${fallback.matchedLevel.replace(/_/g, " ")} query`
+        });
+      }
+      if (resources.length) break;
+    } catch (error) {
+      // Interview resources are supplementary; retrieval failures must not fail roadmap generation.
+      console.warn("Interview evidence curation failed", { matchedLevel: fallback.matchedLevel, message: error?.message || String(error) });
+    }
+  }
+  lesson.tutorial.videos = evidence;
+  lesson.tutorial.matchedLevel = evidence[0]?.matchedLevel || null;
+  lesson.tutorial.searchResultsLabel = evidence.length ? `Matched ${evidence[0].matchedLevel.replace(/_/g, " ")}` : null;
 }
 
 function generatedAiSlug(title) {
@@ -1425,7 +1521,7 @@ export async function generateAIRoadmap(input, options = {}) {
     });
     const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
     const ai = personalizedTemplate.roadmap;
-    const built = await buildCourse(ai, personalizedTemplate.profile);
+    const built = await buildCourse(ai, { ...personalizedTemplate.profile, intentProfile: input.intentProfile, targetRole: input.targetRole, targetCompany: input.targetCompany, examName: input.examName, examDate: input.examDate, syllabusText: input.syllabusText, projectIdea: input.projectIdea, deadline: input.deadline });
     built.personalization.knownSkills = personalizedTemplate.personalization.knownSkills;
     built.personalization.skippedSkills = personalizedTemplate.personalization.skippedSkills;
     built.personalization.estimatedStudyDays = personalizedTemplate.personalization.estimatedStudyDays;
@@ -1436,6 +1532,8 @@ export async function generateAIRoadmap(input, options = {}) {
       }));
     }
     const sources = await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
+    await curateInterviewEvidence(built.course, { ...input, level: input.level, language: input.language || "en" });
+    applyInterviewEvidence(built.course);
     normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 

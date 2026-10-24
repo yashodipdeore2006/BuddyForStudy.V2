@@ -6,6 +6,10 @@ export function withYouTubeRequestMetrics(metrics, operation) {
   return youtubeMetricsContext.run(metrics, operation);
 }
 
+export function getCurrentYouTubeRequestMetrics() {
+  return youtubeMetricsContext.getStore() || null;
+}
+
 export function recordYouTubeRequest(endpoint, quotaState = "unknown") {
   const metrics = youtubeMetricsContext.getStore();
   if (!metrics) return;

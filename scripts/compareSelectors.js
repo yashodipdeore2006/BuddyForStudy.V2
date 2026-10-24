@@ -163,7 +163,7 @@ async function runMock() {
     __setCurationDecisionEngineAdaptersForTests(null);
     __setNodeCurationCacheForTests(null);
   }
-  const validRows = rows.length === SKILLS.length && rows.every((row) => row.oldSelector && row.newSelector.selected);
+  const validRows = rows.length === SKILLS.length && rows.every((row) => row.oldSelector?.selected && row.newSelector?.selected);
   console.log("Mode: MOCK (deterministic provider/dependency fixtures; real selector decision and ranking pipelines exercised)");
   console.table(rows.map((row) => ({ skill: row.skill, oldPick: row.oldSelector.title || "none",
     newPick: row.newSelector.title || "none", samePick: row.sameSelectedFixture })));

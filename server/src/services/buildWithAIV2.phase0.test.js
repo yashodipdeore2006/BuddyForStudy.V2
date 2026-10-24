@@ -32,6 +32,7 @@ let env;
 let curateNormalSearch;
 let buildCourse;
 let originalModelMethods = [];
+let resetQuotaAdapters;
 
 function jsonResponse(value) {
   return new Response(JSON.stringify(value), {
@@ -170,6 +171,14 @@ before(async () => {
 
   const envModule = await import("../config/env.js");
   env = envModule.env;
+  const quotaModule = await import("./quota.service.js");
+  let quotaUnits = 0;
+  quotaModule.__setQuotaTestAdapters({
+    getState: async () => ({ state: quotaUnits >= 7200 ? "degraded" : "ok", units: quotaUnits, budget: 9000, softLimitPct: 80, resetDay: "test", store: "mock" }),
+    increment: async (cost) => (quotaUnits += cost),
+    markQuotaExceeded: async () => { quotaUnits = 9000; }
+  });
+  resetQuotaAdapters = () => quotaModule.__setQuotaTestAdapters(null);
 
   const { CourseCurationCache } = await import("../models/CourseCurationCache.js");
   const { PlatformSetting } = await import("../models/PlatformSetting.js");
@@ -194,6 +203,7 @@ before(async () => {
 
 after(() => {
   globalThis.fetch = originalFetch;
+  resetQuotaAdapters?.();
   for (const { target, name, value } of originalModelMethods) target[name] = value;
   restoreEnv();
 });

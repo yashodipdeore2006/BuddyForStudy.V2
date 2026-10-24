@@ -1,3 +1,13 @@
+## Build with AI v2
+
+Build with AI turns a learning goal into a personalized roadmap. The v2 rollout is feature-flagged so the existing synchronous builder and normal course search can remain available while intent parsing, shared resource curation, goal modules, and asynchronous node resolution are validated.
+
+- **Rollout plan:** [Build with AI v2 rollout](docs/BUILD_WITH_AI_V2_ROLLOUT.md)
+- **Implementation guide and phase acceptance criteria:** [Build with AI v2 Implementation Guide](Build%20with%20AI%20v2%20Implementation%20Guide.md)
+- **Selector comparison (mock-first by default):** run `node scripts/compareSelectors.js`. Live mode is opt-in, capped at five skills, and must not be used in CI.
+- Keep server flags off by default. Enable one stage at a time in development, then staging; the rollout document lists each flag, its default, and the metrics to monitor.
+- Do not remove the legacy selector or synchronous flow until the two-week stability window and rollback review are complete.
+
 # BuddyForStudy.V2
 
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-bydm9yrw)

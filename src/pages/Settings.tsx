@@ -98,7 +98,8 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [editingPersonalInfo, setEditingPersonalInfo] = useState(false);\n  const [contactPhone, setContactPhone] = useState(profile?.phone_number || "");
+  const [editingPersonalInfo, setEditingPersonalInfo] = useState(false);
+  const [contactPhone, setContactPhone] = useState(profile?.phone_number || "");
   const [contactCity, setContactCity] = useState(profile?.city || "");
   const [contactLearningGoal, setContactLearningGoal] = useState(profile?.learning_goal || "");
   const [savingContact, setSavingContact] = useState(false);

@@ -453,6 +453,28 @@ export default function Courses() {
     else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   };
 
+  const commitIntentTextAnswer = (question: IntentQuestion) => {
+    const rawAnswer = String(intentAnswers[question.id] || '').trim();
+    if (question.id === 'role' && rawAnswer) {
+      const tokens = (value: string) => new Set(value.toLowerCase().split(/[^a-z0-9+#.]+/).filter((token) => token.length > 1));
+      const answerTokens = tokens(rawAnswer);
+      const candidates = intentResult?.options.roles || [];
+      const ranked = candidates.map((candidate) => {
+        const candidateTokens = tokens(candidate);
+        const overlap = [...answerTokens].filter((token) => candidateTokens.has(token)).length;
+        const score = overlap / Math.max(1, new Set([...answerTokens, ...candidateTokens]).size);
+        return { candidate, score };
+      }).sort((a, b) => b.score - a.score);
+      // Prefer an AI-suggested role only when the typed answer has meaningful lexical overlap.
+      const best = ranked[0];
+      const answer = best && (best.score >= 0.25 || best.candidate.toLowerCase() === rawAnswer.toLowerCase())
+        ? best.candidate
+        : rawAnswer;
+      setIntentAnswers((previous) => ({ ...previous, [question.id]: answer }));
+    }
+    setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  };
+
   const generateAiRoadmap = async () => {
     if (INTENT_V2 && intentResult && !intentResult.valid) {
       setAiError('Change the topic to a learnable subject or outcome before building a roadmap.');
@@ -743,6 +765,22 @@ export default function Courses() {
                           <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentAnswers((previous) => ({ ...previous, goal: '' })); setIntentQuestionIndex(0); }}>Change</button>
                         </div>
                       )}
+                      {intentAnswers.role && (
+                        <div className="flex flex-wrap items-center gap-2 text-sm" aria-label="Selected target role">
+                          <span className="text-slate-600">Target role:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const roleIndex = activeIntentQuestions.findIndex((question) => question.id === 'role');
+                              if (roleIndex >= 0) setIntentQuestionIndex(roleIndex);
+                            }}
+                            className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 font-semibold text-violet-900 hover:bg-violet-100"
+                            aria-label={`Change target role: ${String(intentAnswers.role)}`}
+                          >
+                            {String(intentAnswers.role)} · Change
+                          </button>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
                           <span>{Math.min(intentQuestionIndex + 1, activeIntentQuestions.length)} of {activeIntentQuestions.length || 1}</span>
@@ -768,7 +806,7 @@ export default function Courses() {
                           <div className="flex flex-wrap justify-between gap-2 pt-2">
                             <button type="button" onClick={skipIntentQuestion} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Skip</button>
                             {(currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' || currentIntentQuestion.type === 'checklist') && (
-                              <button type="button" onClick={() => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length))} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Next</button>
+                              <button type="button" onClick={() => commitIntentTextAnswer(currentIntentQuestion)} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Next</button>
                             )}
                           </div>
                         </section>

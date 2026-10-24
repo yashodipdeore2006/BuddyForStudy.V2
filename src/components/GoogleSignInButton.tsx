@@ -138,6 +138,10 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
             },
             auto_select: false,
             cancel_on_tap_outside: true,
+            // Keep the traditional popup/callback flow while FedCM token
+            // retrieval is failing in the current local browser setup.
+            ux_mode: "popup",
+            use_fedcm_for_button: false,
           });
           initializedClientId = clientId;
         }

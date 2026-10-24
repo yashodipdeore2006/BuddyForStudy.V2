@@ -4,7 +4,7 @@ import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 import { routes } from "@/lib/routes";
 
@@ -19,10 +19,6 @@ type NotificationPreferences = {
   inAppLearningReminders: boolean;
   learningRemindersEnabled: boolean;
   pushEnabled: boolean;
-  timezone: string;
-  reminderHour: number;
-  quietHoursStart: number;
-  quietHoursEnd: number;
 };
 
 const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -36,10 +32,6 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   inAppLearningReminders: true,
   learningRemindersEnabled: true,
   pushEnabled: false,
-  timezone: "Asia/Kolkata",
-  reminderHour: 18,
-  quietHoursStart: 22,
-  quietHoursEnd: 8,
 };
 
 type BrowserPushStatus = "checking" | "unsupported" | "insecure" | NotificationPermission;
@@ -75,19 +67,23 @@ function PreferenceToggle({
   disabled?: boolean;
 }) {
   return (
-    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50 ${disabled ? "cursor-not-allowed opacity-50" : ""}`}>
-      <input
-        type="checkbox"
-        checked={checked}
+    <div className={`flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4 transition ${disabled ? "opacity-50" : "hover:border-slate-300"}`}>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-slate-900">{label}</p>
+        {description && <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-      />
-      <span>
-        <span className="block text-sm font-semibold text-slate-900">{label}</span>
-        {description && <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>}
-      </span>
-    </label>
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${checked ? "bg-violet-600" : "bg-slate-300"}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
+      </button>
+    </div>
   );
 }
 
@@ -572,34 +568,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
                   <PreferenceToggle checked={notifPrefs.emailLearningReminders} onChange={(value) => updatePreference("emailLearningReminders", value)} label="Email reminders" disabled={!notifPrefs.learningRemindersEnabled} />
                   <PreferenceToggle checked={notifPrefs.inAppLearningReminders} onChange={(value) => updatePreference("inAppLearningReminders", value)} label="In-app reminders" disabled={!notifPrefs.learningRemindersEnabled} />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700">Reminder time
-                    <select className="input-field mt-1" value={notifPrefs.reminderHour} onChange={(event) => updatePreference("reminderHour", Number(event.target.value))} disabled={!notifPrefs.learningRemindersEnabled}>
-                      {Array.from({ length: 24 }, (_item, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}
-                    </select>
-                  </label>
-                  <label className="block text-sm font-medium text-slate-700">Time zone
-                    <select className="input-field mt-1" value={notifPrefs.timezone} onChange={(event) => updatePreference("timezone", event.target.value)} disabled={!notifPrefs.learningRemindersEnabled}>
-                      <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
-                      <option value="UTC">UTC</option>
-                      <option value="America/New_York">US Eastern</option>
-                      <option value="Europe/London">United Kingdom</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700">Quiet hours start
-                    <select className="input-field mt-1" value={notifPrefs.quietHoursStart} onChange={(event) => updatePreference("quietHoursStart", Number(event.target.value))} disabled={!notifPrefs.learningRemindersEnabled}>
-                      {Array.from({ length: 24 }, (_item, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}
-                    </select>
-                  </label>
-                  <label className="block text-sm font-medium text-slate-700">Quiet hours end
-                    <select className="input-field mt-1" value={notifPrefs.quietHoursEnd} onChange={(event) => updatePreference("quietHoursEnd", Number(event.target.value))} disabled={!notifPrefs.learningRemindersEnabled}>
-                      {Array.from({ length: 24 }, (_item, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>)}
-                    </select>
-                  </label>
-                </div>
-                <p className="text-xs leading-5 text-slate-500">Reminders are sent only at your chosen local time and never during quiet hours (default: 22:00–08:00).</p>
+                <p className="text-xs leading-5 text-slate-500">Reminders follow the platform’s delivery schedule. You can turn email and in-app reminders on or off independently.</p>
               </div>
             </div>
 

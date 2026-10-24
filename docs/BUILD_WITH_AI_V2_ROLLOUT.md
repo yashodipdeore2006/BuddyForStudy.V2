@@ -94,7 +94,7 @@ Run the mock harness:
 node scripts/compareSelectors.js
 ```
 
-**Important limitation:** this harness currently injects a fixture selector for the new-selector path. Its output is explicitly marked `comparisonValid: false` and `selectorAgreement: null`. It is useful only for checking the legacy provider adapter and report shape; it does **not** satisfy Phase 8 selector-agreement acceptance and must not be cited as proof that the real ranking algorithms agree. The real-algorithm comparison remains outstanding and must be completed with deterministic provider/dependency adapters before the Phase 8 acceptance item can be marked done.
+The mock harness injects deterministic provider and dependency fixtures while retaining the real legacy selector and the real shared curation/ranking pipeline. It does not contact YouTube or Gemini. The report sets `comparisonValid: true` only when all ten fixed skills receive a selection from both selectors; otherwise inspect the row-level results and treat the run as inconclusive. `selectorAgreement` reports matching selected fixture IDs, not a claim that either selector is objectively correct.
 
 Optional live mode is explicitly capped at five skills and makes real provider calls:
 

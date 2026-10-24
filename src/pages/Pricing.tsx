@@ -65,6 +65,7 @@ type CurrentSubscription = {
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
 };
+type TrialConversionOffer = { _id: string; endsAt: string; conversionConsentStatus: string; conversionPlan?: { _id?: string; name?: string; price?: number; currency?: string; billingInterval?: string } | null };
 
 export default function Pricing() {
   const { session } = useAuth();
@@ -76,6 +77,8 @@ export default function Pricing() {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<PricingMessage | null>(null);
   const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
+  const [trialConversion, setTrialConversion] = useState<TrialConversionOffer | null>(null);
+  const [consentChecked, setConsentChecked] = useState(false);
   const hasActiveSubscription = Boolean(currentSubscription && ["active", "trialing", "past_due"].includes(String(currentSubscription.status || "")) && (!currentSubscription.currentPeriodEnd || new Date(currentSubscription.currentPeriodEnd).getTime() > Date.now()));
 
   useEffect(() => {
@@ -102,9 +105,13 @@ export default function Pricing() {
       setCurrentSubscription(null);
       return () => { active = false; };
     }
-    apiFetch("/api/billing/me")
-      .then((data) => {
-        if (active) setCurrentSubscription(data.subscription || null);
+    Promise.all([apiFetch("/api/billing/me"), apiFetch("/api/billing/trial")])
+      .then(([data, trialData]) => {
+        if (active) {
+          setCurrentSubscription(data.subscription || null);
+          const offer = trialData.trial;
+          setTrialConversion(offer?.conversionConsentStatus === "pending_user_consent" && offer?.conversionPlan?._id ? offer : null);
+        }
       })
       .catch(() => {
         if (active) setCurrentSubscription(null);
@@ -112,12 +119,16 @@ export default function Pricing() {
     return () => { active = false; };
   }, [session]);
 
-  async function subscribe(planId: string) {
+  async function subscribe(planId: string, convertTrial = false) {
     const plan = plans.find((item) => item._id === planId);
 
     if (!plan || Number(plan.price) === 0) return;
-    if (hasActiveSubscription) {
+    if (hasActiveSubscription && !convertTrial) {
       setMessage({ type: "info", text: "You already have an active subscription. Manage your current plan in Billing instead of purchasing another plan." });
+      return;
+    }
+    if (convertTrial && (!trialConversion || !consentChecked || trialConversion.conversionPlan?._id !== planId)) {
+      setMessage({ type: "error", text: "Review the recurring payment terms and confirm consent before continuing." });
       return;
     }
 
@@ -132,7 +143,7 @@ export default function Pricing() {
     try {
       const data = await apiFetch("/api/payments/subscription/order", {
         method: "POST",
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, ...(convertTrial && trialConversion ? { trialConversionGrantId: trialConversion._id, recurringConsent: true } : {}) }),
       });
 
       await loadRazorpay();
@@ -247,12 +258,27 @@ export default function Pricing() {
         </div>
       )}
 
-      {hasActiveSubscription && (
+      {hasActiveSubscription && !trialConversion && (
         <div className="mx-auto mt-6 max-w-2xl rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-left" role="status">
           <p className="font-semibold text-emerald-900">You already have an active subscription{typeof currentSubscription?.plan === "object" && currentSubscription.plan?.name ? ` — ${currentSubscription.plan.name}` : ""}.</p>
           <p className="mt-1 text-sm text-emerald-800">Your included course access is available now. You do not need to subscribe again.</p>
           <Link to={routes.billing()} className="mt-3 inline-flex items-center gap-2 font-semibold text-emerald-900 underline underline-offset-4">Manage subscription <ArrowRight className="h-4 w-4" /></Link>
         </div>
+      )}
+
+      {trialConversion && (
+        <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-violet-200 bg-violet-50 p-5 text-left" aria-labelledby="trial-conversion-heading">
+          <h2 id="trial-conversion-heading" className="text-lg font-bold text-violet-950">Your trial is active — choose whether to continue</h2>
+          <p className="mt-2 text-sm text-violet-900">Your trial ends {new Date(trialConversion.endsAt).toLocaleDateString("en-IN")}. Continuing starts a recurring subscription for <strong>{trialConversion.conversionPlan?.name}</strong> at <strong>{formatMoney(Number(trialConversion.conversionPlan?.price || 0), trialConversion.conversionPlan?.currency || "INR")} / {intervalLabel(trialConversion.conversionPlan?.billingInterval || "")}</strong>, subject to Razorpay's authorization flow.</p>
+          <label className="mt-4 flex items-start gap-3 text-sm text-violet-950">
+            <input type="checkbox" checked={consentChecked} onChange={(event) => setConsentChecked(event.target.checked)} className="mt-1" />
+            <span>I want to continue with this paid recurring plan. I understand the stated price and billing interval, and I will authorize recurring payments in Razorpay checkout. I understand that no recurring payment is authorized until I complete that provider flow.</span>
+          </label>
+          <button type="button" disabled={!consentChecked || !trialConversion.conversionPlan?._id || loading === trialConversion.conversionPlan?._id} onClick={() => trialConversion.conversionPlan?._id && void subscribe(trialConversion.conversionPlan._id, true)} className="btn-primary mt-4 w-full sm:w-auto">
+            {loading === trialConversion.conversionPlan?._id ? "Opening checkout…" : "Continue with paid plan"}
+          </button>
+          <p className="mt-2 text-xs text-violet-800">You can decline this offer in Billing. If you do not authorize recurring payments, you will not be charged through this offer.</p>
+        </section>
       )}
 
       {loadingPlans && (
@@ -309,11 +335,11 @@ export default function Pricing() {
               </section>
               <button
                 type="button"
-                disabled={loading === plan._id || Number(plan.price) === 0 || hasActiveSubscription}
-                onClick={() => void subscribe(plan._id)}
+                disabled={loading === plan._id || Number(plan.price) === 0 || (hasActiveSubscription && !(trialConversion && trialConversion.conversionPlan?._id === plan._id && consentChecked))}
+                onClick={() => void subscribe(plan._id, Boolean(trialConversion && trialConversion.conversionPlan?._id === plan._id))}
                 className={`mt-7 w-full ${Number(plan.price) === 0 ? "btn-secondary" : "btn-buy"}`}
               >
-                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : hasActiveSubscription ? "Already subscribed" : Number(plan.price) === 0 ? "Included" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
+                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : hasActiveSubscription && !(trialConversion && trialConversion.conversionPlan?._id === plan._id) ? "Already subscribed" : Number(plan.price) === 0 ? "Included" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
               </button>
             </article>
           );

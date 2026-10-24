@@ -230,7 +230,7 @@ test.describe("privacy and consent controls", () => {
     await mockAppApi(page, { authenticated: true, pushAvailable: true });
     await page.goto(baseURL + "/settings");
     await expect(page.getByRole("heading", { name: "Desktop notifications" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Enable push on this browser|Blocked in browser/ })).toBeVisible();
+    await expect(page.getByRole("switch", { name: "Browser push notifications" })).toBeVisible();
     await page.waitForTimeout(200);
     const promptCount = await page.evaluate(() => (window as Window & { __bfsPushPermissionPromptCount?: number }).__bfsPushPermissionPromptCount || 0);
     expect(promptCount).toBe(0);
@@ -553,10 +553,10 @@ test.describe("public platform pages and footer", () => {
       await expect(page.locator("main.bfs-public-page")).toBeVisible();
       await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
       await expect(page.locator("footer.bfs-marketing-footer")).toBeVisible();
-      await expect(page.getByRole("heading", { name: "About", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Discover and learn", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Plans and support", exact: true })).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Legal and accessibility", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "BuddyForStudy", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Discover", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Plans & support", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Policies", exact: true })).toBeVisible();
     }
   });
 
@@ -576,14 +576,13 @@ test.describe("public platform pages and footer", () => {
     await page.goto(baseURL + "/about");
     const footer = page.locator("footer.bfs-marketing-footer");
     await expect(footer.getByRole("link", { name: /Explore courses/ })).toHaveAttribute("href", "/explore");
-    await expect(footer.getByRole("link", { name: /Build a learning roadmap/ })).toHaveAttribute("href", "/explore?build=1");
-    await expect(footer.getByRole("link", { name: "Plans and pricing" }).first()).toHaveAttribute("href", "/pricing");
+    await expect(footer.getByRole("link", { name: "Learning roadmaps" })).toHaveAttribute("href", "/explore?build=1");
+    await expect(footer.getByRole("link", { name: "Plans & pricing" })).toHaveAttribute("href", "/pricing");
     await expect(footer.getByRole("link", { name: "Create an account" })).toHaveAttribute("href", "/register");
-    await expect(footer.getByRole("link", { name: "About BuddyForStudy" })).toHaveAttribute("href", "/about");
-    await expect(footer.getByRole("link", { name: "Contact us" })).toHaveAttribute("href", "/contact");
-    await expect(footer.getByRole("link", { name: "Help and support" })).toHaveAttribute("href", "/faq");
-    await expect(footer.getByRole("link", { name: "All policies" }).first()).toHaveAttribute("href", "/legal");
-    await expect(footer.getByText(/Official social links have not been configured yet/)).toBeVisible();
+    await expect(footer.getByRole("link", { name: "About us" })).toHaveAttribute("href", "/about");
+    await expect(footer.getByRole("link", { name: "Contact us" }).first()).toHaveAttribute("href", "/contact");
+    await expect(footer.getByRole("link", { name: "Help centre & FAQs" })).toHaveAttribute("href", "/faq");
+    await expect(footer.getByRole("link", { name: "All policies & accessibility" })).toHaveAttribute("href", "/legal");
   });
 
   test("footer uses the full platform layout for signed-in learners", async ({ page }) => {
@@ -642,11 +641,11 @@ test.describe("push notification prompt", () => {
     await mockAppApi(page, { authenticated: true, pushAvailable: true });
     await page.goto(baseURL + "/home");
 
-    await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Enable all notifications" })).toBeVisible();
     expect(await page.evaluate(() => (window as unknown as { __nativePermissionPromptCalls?: number }).__nativePermissionPromptCalls || 0)).toBe(0);
 
     await page.getByRole("button", { name: "Not now", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Enable all notifications" })).toHaveCount(0);
 
     await page.reload();
     await expect(page.getByRole("heading", { name: "Keep your learning moving" })).toHaveCount(0);

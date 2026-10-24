@@ -179,6 +179,10 @@ export default function Courses() {
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
   const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+  const [intentLoading, setIntentLoading] = useState(false);
+  const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
+  const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
+  const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
   const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
   const [aiCustomGoal, setAiCustomGoal] = useState('');
   const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
@@ -453,6 +457,10 @@ export default function Courses() {
   };
 
   const generateAiRoadmap = async () => {
+    if (INTENT_V2 && intentResult && !intentResult.valid) {
+      setAiError('Change the topic to a learnable subject or outcome before building a roadmap.');
+      return;
+    }
     if (INTENT_V2 && !intentResult) {
       await startIntentFlow();
       return;
@@ -470,11 +478,12 @@ export default function Courses() {
     aiLoadingRef.current = true;
     setAiError(null);
     try {
-      const legacyGoal = ({ job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' } as Record<string, string>)[intentGoal || 'learn'] || (INTENT_V2 ? 'Build practical skills' : aiGoal);
+      const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn');
+      const legacyGoal = ({ job_ready: 'Career or work growth', exam: 'Exam or certification', project: 'Create something', learn: 'Build practical skills' } as Record<string, string>)[selectedGoal] || aiGoal;
       const intentProfile = INTENT_V2 && intentResult?.valid ? {
         ...intentResult.profile,
         topic,
-        goal: intentGoal || 'learn',
+        goal: selectedGoal,
         targetRole: String(intentAnswers.role ?? intentResult.profile?.targetRole ?? '') || null,
         targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
         examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,

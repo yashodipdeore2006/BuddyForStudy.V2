@@ -284,7 +284,9 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
     query._id = query._id ? { $in: progressUserIds.filter((id) => query._id.$in.some((baseId) => String(baseId) === String(id))) } : { $in: progressUserIds };
   }
 
-  return User.find(query).select(select).sort({ createdAt: -1 }).limit(Math.min(Math.max(Number(limit) || MAX_FILTERED_RECIPIENTS, 1), MAX_FILTERED_RECIPIENTS + 1)).lean();
+  const userQuery = User.find(query).select(select).sort({ createdAt: -1 });
+  if (limit === null) return userQuery.lean();
+  return userQuery.limit(Math.min(Math.max(Number(limit) || MAX_FILTERED_RECIPIENTS, 1), MAX_FILTERED_RECIPIENTS + 1)).lean();
 }
 
 export function validateAdminAudienceInput(input = {}) {

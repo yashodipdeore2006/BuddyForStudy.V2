@@ -1,15 +1,84 @@
-import { Link } from 'react-router-dom';
-import { GraduationCap, ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from "lucide-react";
+import PublicSocialLinks from "@/components/PublicSocialLinks";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { routes } from "@/lib/routes";
+
+function Brand() {
+  return (
+    <Link to={routes.landing()} className="bfs-user-brand bfs-marketing-footer__brand-link" aria-label="BuddyForStudy home">
+      <span className="bfs-user-brand__mark">
+        <img src="/buddyforstudy-mascot.webp" alt="" aria-hidden="true" />
+      </span>
+      <span className="bfs-user-brand__wordmark">Buddy<span>For</span>Study</span>
+    </Link>
+  );
+}
 
 export default function Footer() {
-  return <footer className="border-t border-white/10 bg-slate-950 text-white">
-    <div className="bfs-shell py-12">
-      <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_.7fr_.7fr]">
-        <div><div className="flex items-center gap-2.5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600"><GraduationCap className="h-5 w-5"/></div><span className="text-lg font-extrabold">BuddyForStudy</span></div><p className="mt-4 max-w-sm text-sm leading-6 text-slate-400">An AI-powered learning companion that turns ambitious goals into structured paths, practical projects and visible progress.</p></div>
-        <div><p className="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Product</p><div className="mt-4 space-y-3 text-sm text-slate-300"><Link className="block hover:text-white" to="/courses">Courses</Link><Link className="block hover:text-white" to="/pricing">Pricing</Link><Link className="block hover:text-white" to="/register">Get started</Link></div></div>
-        <div><p className="text-xs font-bold uppercase tracking-[.18em] text-slate-500">Account</p><div className="mt-4 space-y-3 text-sm text-slate-300"><Link className="block hover:text-white" to="/login">Sign in</Link><Link className="block hover:text-white" to="/dashboard">Dashboard</Link><Link className="block hover:text-white" to="/my-courses">My learning</Link></div></div>
+  const { session, profile } = useAuth();
+  const isSignedIn = Boolean(session || profile);
+
+  return (
+    <footer className={`bfs-marketing-footer${isSignedIn ? " bfs-marketing-footer--signed-in" : ""}`}>
+      <div className="bfs-marketing-footer__inner">
+        <div className="bfs-marketing-footer__top">
+          <div className="bfs-marketing-footer__columns">
+            <section className="bfs-footer-column" aria-labelledby="footer-brand-title">
+              <h2 id="footer-brand-title">BuddyForStudy</h2>
+              <p className="bfs-footer-column__intro">Learn with direction. Build skills one step at a time.</p>
+              <Link to={routes.about()}>About us</Link>
+              <Link to={routes.contact()}>Contact us</Link>
+              <PublicSocialLinks title="Follow BuddyForStudy" variant="footer" />
+            </section>
+
+            <section className="bfs-footer-column" aria-labelledby="footer-discover-title">
+              <h2 id="footer-discover-title">Discover</h2>
+              <Link to={routes.explore()}>Explore courses</Link>
+              <Link to={routes.buildPath()}>Learning roadmaps</Link>
+              {isSignedIn ? (
+                <>
+                  <Link to={routes.myLearning()}>My learning</Link>
+                  <Link to={routes.saved()}>Saved learning</Link>
+                </>
+              ) : (
+                <>
+                  <Link to={routes.login()}>Sign in</Link>
+                  <Link to={routes.register()}>Create an account</Link>
+                </>
+              )}
+            </section>
+
+            <section className="bfs-footer-column" aria-labelledby="footer-support-title">
+              <h2 id="footer-support-title">Plans & support</h2>
+              <Link to={routes.pricing()}>Plans & pricing</Link>
+              <Link to={routes.faq()}>Help centre & FAQs</Link>
+              {isSignedIn && <Link to={routes.notifications()}>Notifications</Link>}
+              {isSignedIn && <Link to={routes.profile()}>My account</Link>}
+              <Link to={routes.contact()}>Contact support</Link>
+            </section>
+
+            <section className="bfs-footer-column" aria-labelledby="footer-legal-title">
+              <h2 id="footer-legal-title">Policies</h2>
+              <Link to="/legal/privacy-policy">Privacy policy</Link>
+              <Link to="/legal/terms-of-service">Terms of service</Link>
+              <Link to="/legal/cookie-policy">Cookie policy</Link>
+              <Link to="/legal">All policies & accessibility</Link>
+            </section>
+          </div>
+        </div>
+
+        <div className="bfs-marketing-footer__legal">
+          <div className="bfs-footer-bottom-brand">
+            <Brand />
+            <p>© {new Date().getFullYear()} BuddyForStudy. All rights reserved.</p>
+          </div>
+          <nav aria-label="Footer preferences">
+            <a href="#cookie-settings" onClick={(event) => { event.preventDefault(); window.dispatchEvent(new Event("bfs:open-cookie-settings")); }}>Cookie settings</a>
+          </nav>
+          <a className="bfs-footer-back-top" href="#root">Back to top <ArrowUpRight size={13} aria-hidden="true" /></a>
+        </div>
       </div>
-      <div className="mt-10 flex flex-col justify-between gap-3 border-t border-white/10 pt-6 text-xs text-slate-500 sm:flex-row"><span>© 2026 BuddyForStudy. All rights reserved.</span><span className="inline-flex items-center gap-1">Built for focused learners <ArrowUpRight className="h-3 w-3"/></span></div>
-    </div>
-  </footer>;
+    </footer>
+  );
 }

@@ -3,6 +3,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
 import { findLearningItem, totalLessons } from "./course.service.js";
 import { recordLearningActivity } from "./achievement.service.js";
+import { createNotificationEvent } from "./notification.service.js";
 
 async function getAuthorizedCourse(userId, courseId) {
   const [course, enrollment] = await Promise.all([
@@ -96,6 +97,31 @@ export async function completeItem(userId, courseId, itemId) {
 
   if (!alreadyCompleted) {
     await recordLearningActivity(userId, { lessonCompleted: true, courseCompleted });
+  }
+
+  if (courseCompleted) {
+    try {
+      await createNotificationEvent({
+        userId: String(userId),
+        title: "Congratulations on completing your course",
+        message: `You completed ${course.title}. Celebrate your progress and choose your next learning goal.`,
+        type: "course",
+        link: `/courses/${courseId}/roadmap`,
+        eventKey: `course-completed:${userId}:${courseId}`,
+        emailSubject: "Congratulations on completing a BuddyForStudy course",
+        metadata: { courseId: String(courseId), courseTitle: course.title },
+        templateKeys: {
+          notification: "course-completed-in-app",
+          email: "course-completed-email"
+        }
+      });
+    } catch (error) {
+      // A delivery issue must never roll back already-saved learning progress.
+      console.error("[notifications] course completion notice failed", {
+        courseId: String(courseId),
+        message: String(error?.message || "Unknown notification error").slice(0, 200)
+      });
+    }
   }
 
   return progress;

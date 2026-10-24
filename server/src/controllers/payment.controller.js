@@ -6,6 +6,7 @@ import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { verifyPaymentSignature } from "../services/razorpay.service.js";
+import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
@@ -90,22 +91,16 @@ export async function verifyCoursePayment(req, res, next) {
     }
 
     const providerPayment = await razorpay.fetchPayment(input.razorpayPaymentId);
-    if (providerPayment.order_id !== payment.providerOrderId) {
-      return failure(res, "Provider payment order mismatch", 400);
-    }
-    if (providerPayment.status !== "captured") {
-      return failure(res, "Payment has not been captured", 400);
-    }
-    if (Number(providerPayment.amount) !== Math.round(payment.amount * 100)) {
-      return failure(res, "Payment amount mismatch", 400);
-    }
-    if (String(providerPayment.currency || "").toUpperCase() !== String(payment.currency).toUpperCase()) {
-      return failure(res, "Payment currency mismatch", 400);
-    }
+    const providerValidationError = capturedPaymentValidationError(payment, providerPayment);
+    if (providerValidationError) return failure(res, providerValidationError, 400);
 
     payment.providerPaymentId = input.razorpayPaymentId;
     payment.status = "paid";
     payment.paidAt = payment.paidAt || new Date();
+    if (payment.course) {
+      payment.purchaseNotificationStatus = "pending";
+      payment.purchaseNotificationLastCheckedAt = null;
+    }
     await payment.save();
 
     return success(res, { payment }, "Payment verified successfully");
@@ -128,9 +123,42 @@ export async function createSubscriptionOrder(req, res, next) {
 
     const existingSubscription = await UserSubscription.findOne({
       user: req.user.userId,
-      status: { $in: ["trialing", "active", "past_due"] }
+      status: { $in: ["trialing", "active", "past_due"] },
+      $or: [
+        { currentPeriodEnd: null },
+        { currentPeriodEnd: { $exists: false } },
+        { currentPeriodEnd: { $gt: new Date() } }
+      ]
     });
     if (existingSubscription) return failure(res, "An active subscription already exists", 409);
+
+    // Do not create another provider subscription when a previous checkout is
+    // still pending. This also makes retries after a page refresh idempotent
+    // instead of creating multiple billable subscriptions for the same user.
+    const pendingCheckout = await Payment.findOne({
+      user: req.user.userId,
+      provider: "razorpay",
+      status: "pending",
+      "metadata.checkoutType": "subscription"
+    }).select("_id providerOrderId plan").populate("plan", "name price currency billingInterval").lean();
+    if (pendingCheckout) {
+      if (pendingCheckout.providerOrderId && pendingCheckout.plan) {
+        return success(res, {
+          subscriptionId: pendingCheckout.providerOrderId,
+          keyId: razorpay.getPublicKey(),
+          plan: {
+            id: pendingCheckout.plan._id,
+            name: pendingCheckout.plan.name,
+            price: pendingCheckout.plan.price,
+            currency: pendingCheckout.plan.currency,
+            billingInterval: pendingCheckout.plan.billingInterval
+          }
+        }, "Existing subscription checkout reused");
+      }
+      return failure(res, "A subscription checkout is already pending. Contact support before starting another.", 409, {
+        paymentId: String(pendingCheckout._id)
+      });
+    }
 
     const intervalMap = { monthly: { period: "monthly", interval: 1 }, quarterly: { period: "monthly", interval: 3 }, yearly: { period: "yearly", interval: 1 } };
     const interval = intervalMap[plan.billingInterval];

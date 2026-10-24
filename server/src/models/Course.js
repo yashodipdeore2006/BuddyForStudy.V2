@@ -1,4 +1,7 @@
 import mongoose from "mongoose";
+import { CourseRevision } from "./CourseRevision.js";
+import { PlatformSetting } from "./PlatformSetting.js";
+import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -79,14 +82,29 @@ const moduleSchema = new mongoose.Schema({
   lessons: { type: [lessonSchema], default: [] }
 });
 
+const journeyStageSchema = new mongoose.Schema({
+  id: { type: String, required: true }, order: { type: Number, required: true }, title: { type: String, required: true, trim: true, maxlength: 100 },
+  hours: { type: Number, default: 0, min: 0 }, lessonIds: { type: [String], default: [] }, skills: { type: [String], default: [] }, outcome: { type: String, default: "", maxlength: 1000 }, emoji: { type: String, default: "" }
+}, { _id: false });
+const courseRoadmapSchema = new mongoose.Schema({ theme: { type: String, default: "trail", trim: true }, sourceFingerprint: { type: String, default: "" }, generatedAt: { type: Date, default: null }, stages: { type: [journeyStageSchema], default: [] } }, { _id: false });
+
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true, maxlength: 200 },
   slug: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
   description: { type: String, required: true, trim: true }, category: { type: String, required: true, trim: true },
   level: { type: String, enum: ["Beginner", "Intermediate", "Advanced"], required: true },
   duration: { type: String, required: true, trim: true }, thumbnail: { type: String, default: "" },
-  learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] },
+  learningOutcomes: { type: [String], default: [] }, modules: { type: [moduleSchema], default: [] }, roadmap: { type: courseRoadmapSchema, default: () => ({ theme: "trail", stages: [] }) },
   isPublished: { type: Boolean, default: false, required: true },
+  status: { type: String, enum: ["draft", "published", "archived"], default: "draft", index: true },
+  deletedAt: { type: Date, default: null, index: true },
+  visibility: { type: String, enum: ["public", "private"], default: "public", index: true },
+  createdForUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+  aiReviewStatus: { type: String, enum: ["not_required", "pending", "approved", "rejected"], default: "not_required", index: true },
+  aiReviewSource: { type: String, enum: ["manual", "automatic"], default: "manual", index: true },
+  aiReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  aiReviewedAt: { type: Date, default: null },
+  aiReviewNote: { type: String, default: "", maxlength: 2000 },
   pricing: {
     mode: { type: String, enum: ["free", "paid"], default: "free" },
     price: { type: Number, default: 0, min: 0 },
@@ -104,13 +122,98 @@ const courseSchema = new mongoose.Schema({
     topicKeys: { type: [String], default: [] },
     sourceCourse: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
     sourceModuleId: { type: mongoose.Schema.Types.ObjectId, default: null },
-    sourceResourceType: { type: String, enum: ["video", "playlist"], default: null },
+    sourceResourceType: { type: String, enum: ["video", "playlist", "series"], default: null },
     sourceResourceId: { type: String, default: "" },
     snapshot: { type: mongoose.Schema.Types.Mixed, default: null }
   }
 }, { timestamps: true, collection: "courses" });
 
+async function getCourseApprovalMode() {
+  const setting = await PlatformSetting.findOne({ key: "content_approval_ai_courses" }).select("value").lean();
+  return setting?.value === "automatic" ? "automatic" : "manual";
+}
+
+function isGeneratedCourse(course) {
+  return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
+}
+
+async function applyAutomaticCourseApproval(course) {
+  course.aiReviewStatus = "approved";
+  course.aiReviewSource = "automatic";
+  course.aiReviewedBy = null;
+  course.aiReviewedAt = new Date();
+  course.aiReviewNote = "Automatically approved by the platform content policy.";
+  const isUserPrivateCourse = course.visibility === "private" && Boolean(course.createdForUser);
+  const keepArchived = course.status === "archived";
+  const readiness = evaluateCourseReadiness(course);
+  if (isUserPrivateCourse || keepArchived || !readiness.ready) {
+    course.isPublished = false;
+    course.status = keepArchived ? "archived" : "draft";
+    return;
+  }
+  course.isPublished = true;
+  course.status = "published";
+  course.visibility = "public";
+}
+
+courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
+  if (!this.isNew || !isGeneratedCourse(this)) return;
+  if (await getCourseApprovalMode() === "automatic") {
+    await applyAutomaticCourseApproval(this);
+    return;
+  }
+  this.isPublished = false;
+  this.status = "draft";
+  this.aiReviewStatus = "pending";
+  this.aiReviewSource = "manual";
+  this.aiReviewedBy = null;
+  this.aiReviewedAt = null;
+  this.aiReviewNote = "";
+});
 courseSchema.index({ isPublished: 1, category: 1, level: 1 });
+courseSchema.pre("save", async function createRevisionBeforeCourseChange() {
+  if (this.isNew || !this.isModified()) return;
+  const previous = await this.constructor.findById(this._id).lean();
+  if (!previous) return;
+  const snapshot = { ...previous };
+  delete snapshot.__v;
+  const revisionNumber = (await CourseRevision.countDocuments({ course: this._id })) + 1;
+  const context = this.$locals?.revisionContext || {};
+  await CourseRevision.create({
+    course: this._id, revisionNumber, snapshot, changedBy: context.actor || null,
+    changeSource: context.source || (context.actor ? "admin" : "system"),
+    reason: String(context.reason || "").slice(0, 500),
+    summary: String(context.summary || "Course content or metadata changed").slice(0, 200)
+  });
+  const modifiedPaths = this.modifiedPaths();
+  const contentPaths = ["title", "slug", "description", "category", "level", "duration", "thumbnail", "learningOutcomes", "modules", "generation", "roadmap"];
+  const systemMetadataRefresh = ["Video duration metadata refresh", "Video resource normalization", "On-demand quiz generation"].includes(context.summary);
+  const contentChanged = !systemMetadataRefresh && modifiedPaths.some((path) => contentPaths.some((contentPath) => path === contentPath || path.startsWith(contentPath + ".")));
+  if (contentChanged && isGeneratedCourse(this)) {
+    if (await getCourseApprovalMode() === "automatic") {
+      await applyAutomaticCourseApproval(this);
+    } else {
+      if (this.isPublished) {
+        this.isPublished = false;
+        this.status = "draft";
+        if (this.createdForUser) this.visibility = "private";
+      } else {
+        this.status = this.status === "archived" ? "archived" : "draft";
+      }
+      this.aiReviewStatus = "pending";
+      this.aiReviewSource = "manual";
+      this.aiReviewedBy = null;
+      this.aiReviewedAt = null;
+      this.aiReviewNote = "";
+    }
+  } else if (contentChanged && this.isPublished) {
+    this.isPublished = false;
+    this.status = "draft";
+    if (this.createdForUser) this.visibility = "private";
+  } else {
+    this.status = this.isPublished ? "published" : (this.status === "archived" ? "archived" : "draft");
+  }
+});
 courseSchema.index({ "pricing.mode": 1, isPublished: 1 });
 courseSchema.index({ "generation.mode": 1, "generation.topicKeys": 1, createdAt: -1 });
 courseSchema.index({ "generation.mode": 1, "generation.sourceCourse": 1, "generation.sourceModuleId": 1 });

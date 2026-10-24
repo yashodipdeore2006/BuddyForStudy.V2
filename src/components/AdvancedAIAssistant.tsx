@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bot, Brain, CheckCircle2, Loader2, MessageCircleQuestion, RefreshCcw, Send, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -28,6 +28,10 @@ type Usage = {
   }>;
 };
 
+function isUpgradeGateError(error: unknown) {
+  return error instanceof Error && /not included in your current plan|reached your Advanced AI (?:summary|question) limit for this month/i.test(error.message);
+}
+
 export default function AdvancedAIAssistant({
   courseId,
   lessonId,
@@ -40,13 +44,13 @@ export default function AdvancedAIAssistant({
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [asking, setAsking] = useState(false);
-  const [insight, setInsight] = useState<{ summary: string; keyNotes: string[]; fromCache?: boolean } | null>(null);
+  const [insight, setInsight] = useState<{ summary?: string; keyNotes?: string[]; fromCache?: boolean; pendingReview?: boolean; message?: string } | null>(null);
   const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<{ question: string; answer: string; fromCache: boolean } | null>(null);
+  const [answer, setAnswer] = useState<{ question: string; answer?: string; fromCache: boolean; pendingReview?: boolean; message?: string } | null>(null);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
 
-  async function loadUsage() {
+  const loadUsage = useCallback(async () => {
     setLoadingUsage(true);
     setError("");
     try {
@@ -56,7 +60,7 @@ export default function AdvancedAIAssistant({
           "&lessonId=" +
           encodeURIComponent(lessonId)
       );
-      setUsage(data);
+      setUsage(data.enabled ? data : null);
       setSupported(Boolean(data.enabled));
     } catch (e) {
       const message = e instanceof Error ? e.message : "Advanced AI is unavailable";
@@ -69,7 +73,7 @@ export default function AdvancedAIAssistant({
     } finally {
       setLoadingUsage(false);
     }
-  }
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     setOpen(false);
@@ -77,7 +81,7 @@ export default function AdvancedAIAssistant({
     setAnswer(null);
     setQuestion("");
     void loadUsage();
-  }, [courseId, lessonId]);
+  }, [loadUsage]);
 
   async function generateInsight() {
     setLoadingInsight(true);
@@ -86,12 +90,13 @@ export default function AdvancedAIAssistant({
       const data = await apiFetch("/api/advanced-ai/insight", {
         method: "POST",
         body: JSON.stringify({ courseId, lessonId }),
+        showFeatureUpgrade: true,
       });
       setInsight(data);
       setOpen(true);
       await loadUsage();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to generate lesson summary");
+      if (!isUpgradeGateError(e)) setError(e instanceof Error ? e.message : "Unable to generate lesson summary");
     } finally {
       setLoadingInsight(false);
     }
@@ -107,23 +112,31 @@ export default function AdvancedAIAssistant({
       const data = await apiFetch("/api/advanced-ai/ask", {
         method: "POST",
         body: JSON.stringify({ courseId, lessonId, question: clean }),
+        showFeatureUpgrade: true,
       });
-      setAnswer({
-        question: data.question,
-        answer: data.answer,
-        fromCache: Boolean(data.fromCache),
-      });
+      if (data.pendingReview) {
+        setAnswer({
+          question: clean,
+          fromCache: Boolean(data.fromCache),
+          pendingReview: true,
+          message: data.message || "Your AI answer is waiting for administrator approval.",
+        });
+      } else {
+        setAnswer({
+          question: data.question,
+          answer: data.answer,
+          fromCache: Boolean(data.fromCache),
+        });
+      }
       setQuestion("");
       setOpen(true);
-      setUsage(data.usage);
+      if (data.usage) setUsage(data.usage);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to answer your question");
+      if (!isUpgradeGateError(e)) setError(e instanceof Error ? e.message : "Unable to answer your question");
     } finally {
       setAsking(false);
     }
   }
-
-  if (!supported) return null;
 
   return (
     <section className="mt-6 overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
@@ -155,22 +168,33 @@ export default function AdvancedAIAssistant({
         <div className="space-y-4">
           {insight && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-indigo-600" />
-                <h3 className="font-bold text-slate-900">Lesson summary</h3>
-                {insight.fromCache && <span className="rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">Cached</span>}
-              </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{insight.summary}</p>
-
-              <h4 className="mt-5 font-bold text-slate-900">Key notes</h4>
-              <ul className="mt-2 space-y-2">
-                {insight.keyNotes.map((note, index) => (
-                  <li key={note + "-" + index} className="flex gap-2 text-sm leading-6 text-slate-700">
-                    <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-green-600" />
-                    <span>{note}</span>
-                  </li>
-                ))}
-              </ul>
+              {insight.pendingReview ? (
+                <div role="status" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <Brain className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+                  <div>
+                    <h3 className="font-bold text-slate-900">Summary awaiting review</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">{insight.message || "This AI lesson insight is waiting for administrator approval."}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-indigo-600" />
+                    <h3 className="font-bold text-slate-900">Lesson summary</h3>
+                    {insight.fromCache && <span className="rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">Cached</span>}
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{insight.summary}</p>
+                  <h4 className="mt-5 font-bold text-slate-900">Key notes</h4>
+                  <ul className="mt-2 space-y-2">
+                    {(insight.keyNotes || []).map((note, index) => (
+                      <li key={note + "-" + index} className="flex gap-2 text-sm leading-6 text-slate-700">
+                        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-green-600" />
+                        <span>{note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
 
@@ -216,7 +240,11 @@ export default function AdvancedAIAssistant({
                 <p className="text-sm font-bold text-slate-900">{answer.question}</p>
                 {answer.fromCache && <span className="ml-auto rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700">Cached</span>}
               </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{answer.answer}</p>
+              {answer.pendingReview ? (
+                <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-slate-700">{answer.message || "This AI answer is waiting for administrator approval."}</p>
+              ) : (
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{answer.answer}</p>
+              )}
             </div>
           )}
 
@@ -268,6 +296,13 @@ export default function AdvancedAIAssistant({
                 </p>
               </div>
             </>
+          ) : !supported ? (
+            <div className="mt-3 rounded-xl border border-indigo-100 bg-white p-3">
+              <p className="text-sm font-bold text-slate-900">Upgrade to unlock Advanced AI</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                You can read the lesson and its resources as usual. Choose Summary or submit a question to see available plans.
+              </p>
+            </div>
           ) : null}
         </aside>
       </div>

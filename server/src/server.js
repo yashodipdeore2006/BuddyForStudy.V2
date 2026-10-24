@@ -5,8 +5,10 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
+import { isAllowedClientOrigin } from "./config/corsPolicy.js";
 import { connectDatabase } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
+import meRoutes from "./routes/me.routes.js";
 import { googleConfig } from "./controllers/auth.controller.js";
 import courseRoutes from "./routes/course.routes.js";
 import enrollmentRoutes from "./routes/enrollment.routes.js";
@@ -16,6 +18,7 @@ import curriculumRoutes from "./routes/curriculum.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import advancedAIRoutes from "./routes/advancedAI.routes.js";
 import adminProRoutes from "./routes/adminPro.routes.js";
+import savedViewRoutes from "./routes/savedView.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import roadmapRoutes from "./routes/roadmap.routes.js";
 import discoveryRoutes from "./routes/discovery.routes.js";
@@ -26,6 +29,11 @@ import webhookRoutes from "./routes/webhook.routes.js";
 import healthRoutes from "./routes/health.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import savedCourseRoutes from "./routes/savedCourse.routes.js";
+import legalRoutes from "./routes/legal.routes.js";
+import publicSettingsRoutes from "./routes/publicSettings.routes.js";
+import consentRoutes from "./routes/consent.routes.js";
+import adminPricingRoutes from "./routes/adminPricing.routes.js";
+import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -36,16 +44,26 @@ const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeader
 app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors({
-  origin: env.clientUrl,
+  origin(origin, callback) {
+    if (isAllowedClientOrigin(origin, { nodeEnv: env.nodeEnv, clientUrl: env.clientUrl })) {
+      return callback(null, true);
+    }
+    return callback(new Error("Origin is not allowed by the BuddyForStudy CORS policy."));
+  },
   credentials: false
 }));
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));
+app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
+// A learner page can legitimately request course data, enrollment state, saved
+// state and reviews in parallel. Keep a broad abuse-protection ceiling here;
+// sensitive endpoints retain their own stricter auth/payment limiters.
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 200,
+  limit: 1000,
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests from this connection. Please wait a few minutes and try again." }
 }));
 
 app.get("/health", (_req, res) => {
@@ -57,12 +75,17 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/health", healthRoutes);
+app.use("/api/public", publicSettingsRoutes);
+app.use("/api/consent", consentRoutes);
 app.get("/api/auth/google/config", googleConfig);
 app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/me", meRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/enrollments", enrollmentRoutes);
 app.use("/api/progress", progressRoutes);
 app.use("/api/admin", adminProRoutes);
+app.use("/api/admin/pricing", adminPricingRoutes);
+app.use("/api/admin/saved-views", savedViewRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/courses", curriculumRoutes);
 app.use("/api/ai", aiRoutes);
@@ -74,6 +97,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/achievements", achievementRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/saved-courses", savedCourseRoutes);
+app.use("/api/legal", legalRoutes);
 app.use("/api/payments", paymentLimiter, paymentRoutes);
 app.use("/api/webhooks", webhookLimiter, webhookRoutes);
 
@@ -82,7 +106,12 @@ app.use(errorHandler);
 
 connectDatabase()
   .then(() => {
-    app.listen(env.port, () => {
+    const workerHealthTimer = setInterval(() => {
+      void checkWorkerHeartbeat().catch((error) => console.error("[operations] worker heartbeat monitor failed", { name: error?.name || "Error", code: error?.code }));
+    }, 60 * 1000);
+    workerHealthTimer.unref?.();
+    void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
+    app.listen(env.port, '0.0.0.0', () => {
       console.log(`BuddyForStudy API running on port ${env.port}`);
     });
   })

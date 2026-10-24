@@ -2,7 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, BookOpen, TrendingUp, Award, Info, CreditCard, CheckCheck, Loader2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
+import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
+import { routes } from "@/lib/routes";
+
+type NotificationRecord = {
+  _id: string;
+  type?: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  readAt?: string | null;
+  link?: string | null;
+};
 
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
@@ -22,7 +34,7 @@ function formatTime(value: string) {
 }
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [markingAll, setMarkingAll] = useState(false);
@@ -77,26 +89,21 @@ export default function Notifications() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Stay updated on your learning activity and platform announcements
-          </p>
-        </div>
-
-        {unreadCount > 0 && (
+      <PageHeader
+        title="Notifications"
+        subtitle="Stay updated on your learning activity and platform announcements."
+        action={unreadCount > 0 ? (
           <button
             type="button"
             onClick={() => void markAllRead()}
             disabled={markingAll}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            className="btn-secondary"
           >
             {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
             Mark all read
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       {error && (
         <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -116,7 +123,7 @@ export default function Notifications() {
               title="No notifications yet"
               description="You'll see updates about your courses, projects, and platform announcements here."
               action={
-                <Link to="/courses" className="btn-primary">
+                <Link to={routes.explore()} className="btn-primary">
                   Browse Courses
                 </Link>
               }
@@ -125,7 +132,7 @@ export default function Notifications() {
         ) : (
           <div className="space-y-3">
             {notifications.map((notification) => {
-              const Icon = iconByType[notification.type] || Info;
+              const Icon = notification.type ? iconByType[notification.type] || Info : Info;
               const unread = !notification.readAt;
 
               const content = (

@@ -1,0 +1,92 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  buildMarketingEmailConsentEvent,
+  buildPushNotificationConsentEvent,
+  hasExplicitPushConsentChoice,
+  normalizeCookiePreferences,
+  normalizePhoneNumber
+} from "../src/services/consent.service.js";
+
+test("phone number normalization accepts formatted international numbers", () => {
+  assert.equal(normalizePhoneNumber("+91 98765 43210"), "+919876543210");
+  assert.equal(normalizePhoneNumber("(987) 654-3210"), "9876543210");
+  assert.equal(normalizePhoneNumber("9876543210"), "9876543210");
+});
+
+test("phone number validation rejects malformed or out-of-range values", () => {
+  assert.equal(normalizePhoneNumber(""), "");
+  assert.equal(normalizePhoneNumber("   "), "");
+  assert.equal(normalizePhoneNumber("12345"), null);
+  assert.equal(normalizePhoneNumber("call-me-please"), null);
+  assert.equal(normalizePhoneNumber("+12abc456789"), null);
+  assert.equal(normalizePhoneNumber("123456789012345678"), null);
+  assert.equal(normalizePhoneNumber("9".repeat(33)), null);
+  assert.equal(normalizePhoneNumber(9876543210), null);
+});
+
+test("essential storage is always enabled and optional categories require explicit true", () => {
+  assert.deepEqual(normalizeCookiePreferences({ necessary: false, analytics: true, marketing: false }), {
+    necessary: true,
+    analytics: true,
+    marketing: false
+  });
+  assert.deepEqual(normalizeCookiePreferences({ analytics: 1, marketing: "yes" }), {
+    necessary: true,
+    analytics: false,
+    marketing: false
+  });
+  assert.deepEqual(normalizeCookiePreferences(null), {
+    necessary: true,
+    analytics: false,
+    marketing: false
+  });
+});
+
+
+test("push consent records explicit enable and disable with an accurate event meaning", () => {
+  assert.deepEqual(buildPushNotificationConsentEvent(true), {
+    type: "push_notifications",
+    version: "web-push@v1",
+    accepted: true,
+    source: "settings",
+    changedFields: []
+  });
+  assert.deepEqual(buildPushNotificationConsentEvent(false), {
+    type: "push_notifications",
+    version: "web-push@v1",
+    accepted: false,
+    source: "settings",
+    changedFields: []
+  });
+  assert.throws(() => buildPushNotificationConsentEvent("yes"), /must be true or false/i);
+});
+
+
+test("only an explicit boolean pushEnabled choice creates a push-consent audit event", () => {
+  assert.equal(hasExplicitPushConsentChoice({ pushEnabled: true }), true);
+  assert.equal(hasExplicitPushConsentChoice({ pushEnabled: false }), true);
+  assert.equal(hasExplicitPushConsentChoice({ emailCourseUpdates: false }), false);
+  assert.equal(hasExplicitPushConsentChoice({ pushEnabled: undefined }), false);
+  assert.equal(hasExplicitPushConsentChoice(null), false);
+});
+
+
+test("promotional email opt-out and unsubscribe use an explicit, auditable event", () => {
+  assert.deepEqual(buildMarketingEmailConsentEvent(false, "email_unsubscribe"), {
+    type: "marketing_email",
+    version: "marketing-email@v1",
+    accepted: false,
+    source: "email_unsubscribe",
+    changedFields: []
+  });
+  assert.deepEqual(buildMarketingEmailConsentEvent(true, "settings"), {
+    type: "marketing_email",
+    version: "marketing-email@v1",
+    accepted: true,
+    source: "settings",
+    changedFields: []
+  });
+  assert.throws(() => buildMarketingEmailConsentEvent("true", "settings"), /must be true or false/i);
+  assert.throws(() => buildMarketingEmailConsentEvent(false, "unknown_source"), /unsupported marketing consent event source/i);
+});

@@ -3,6 +3,7 @@ import * as otpService from "./otp.service.js";
 import { User } from "../models/User.js";
 import { env } from "../config/env.js";
 import { signAccessToken } from "../utils/jwt.js";
+import { acceptLegalPolicies } from "./consent.service.js";
 
 const googleClient = new OAuth2Client(env.googleClientId);
 
@@ -15,7 +16,15 @@ function publicUser(user) {
     isActive: user.isActive,
     profileImage: user.profileImage || "",
     authProvider: user.authProvider,
-    emailVerified: user.emailVerified !== false
+    emailVerified: user.emailVerified !== false,
+    phoneNumber: user.phoneNumber || "",
+    phoneNumberVerified: user.phoneNumberVerified === true,
+    city: user.city || "",
+    learningGoal: user.learningGoal || "",
+    profileSetupSkippedAt: user.profileSetupSkippedAt || null,
+    termsAcceptedVersion: user.termsAcceptedVersion || "",
+    privacyAcknowledgedVersion: user.privacyAcknowledgedVersion || "",
+    marketingEmailConsent: user.marketingEmailConsent === true
   };
 }
 
@@ -25,7 +34,18 @@ function authError(message, status = 400) {
   return error;
 }
 
-export async function register({ name, email, password }) {
+export async function register({
+  name,
+  email,
+  password,
+  termsAccepted,
+  privacyAcknowledged,
+  marketingEmailConsent = false
+}) {
+  if (termsAccepted !== true) throw authError("You must agree to the Terms of Service before registering.", 400);
+  if (privacyAcknowledged !== true) throw authError("Please acknowledge the Privacy Policy before registering.", 400);
+  if (typeof marketingEmailConsent !== "boolean") throw authError("Marketing email preference must be true or false.", 400);
+
   const normalizedEmail = email.trim().toLowerCase();
   const existing = await User.findOne({ email: normalizedEmail });
   if (existing) throw authError("Email is already registered", 409);
@@ -37,12 +57,21 @@ export async function register({ name, email, password }) {
     password: hashedPassword,
     role: "user",
     authProvider: "local",
-    emailVerified: false
+    emailVerified: false,
+    marketingEmailConsent: false
   });
 
   try {
     await otpService.sendOtp(user, "email_verification");
+    await acceptLegalPolicies(user._id, {
+      termsAccepted,
+      privacyAcknowledged,
+      marketingEmailConsent,
+      source: "registration"
+    });
   } catch (error) {
+    // A failed registration must not leave an unusable half-created account.
+    await UserConsentEventDeleteBestEffort(user._id);
     await user.deleteOne();
     throw error;
   }
@@ -51,6 +80,15 @@ export async function register({ name, email, password }) {
     requiresVerification: true,
     email: user.email
   };
+}
+
+async function UserConsentEventDeleteBestEffort(userId) {
+  try {
+    const { UserConsentEvent } = await import("../models/UserConsentEvent.js");
+    await UserConsentEvent.deleteMany({ user: userId });
+  } catch {
+    // Preserve the original registration error; the account itself is removed below.
+  }
 }
 
 export async function login({ email, password }) {
@@ -83,7 +121,7 @@ export async function verifyLogin({ email, otp }) {
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
-export async function googleLogin(credential) {
+export async function googleLogin(credential, consent = null) {
   if (!env.googleClientId) throw authError("Google OAuth is not configured on the server", 503);
 
   const ticket = await googleClient.verifyIdToken({
@@ -118,6 +156,17 @@ export async function googleLogin(credential) {
     user.emailVerified = true;
     if (!user.name && payload.name) user.name = payload.name;
     await user.save();
+  }
+
+  if (consent) {
+    await acceptLegalPolicies(user._id, {
+      termsAccepted: consent.termsAccepted === true,
+      privacyAcknowledged: consent.privacyAcknowledged === true,
+      marketingEmailConsent: consent.marketingEmailConsent === true,
+      source: "registration"
+    });
+    user = await User.findById(user._id);
+    if (!user) throw authError("Account not found", 404);
   }
 
   return { user: publicUser(user), token: signAccessToken(user) };

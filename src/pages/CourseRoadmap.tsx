@@ -1,382 +1,42 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  BookOpen,
-  CheckCircle2,
-  ChevronRight,
-  Circle,
-  Clock,
-  Lock,
-  Play,
-  Trophy,
-} from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
-import type { Course, Progress } from '@/types';
-import { countAllLessons, getAllLessonsFlat } from '@/lib/courseUtils';
-import ExpandableText from '@/components/ExpandableText';
+import { routes } from '@/lib/routes';
+import JourneyRoadmap from '@/components/JourneyRoadmap';
 
-function mapCourse(raw: any): Course {
-  return {
-    id: String(raw._id ?? raw.id),
-    title: raw.title ?? '',
-    slug: raw.slug ?? '',
-    description: raw.description ?? '',
-    category: raw.category ?? 'General',
-    level: raw.level ?? 'Beginner',
-    duration: String(raw.duration ?? ''),
-    thumbnail: raw.thumbnail ?? null,
-    learning_outcomes: raw.learningOutcomes ?? raw.learning_outcomes ?? [],
-    modules: (raw.modules ?? []).map((module: any, moduleIndex: number) => ({
-      id: String(module._id ?? module.id ?? moduleIndex),
-      title: module.title ?? `Module ${moduleIndex + 1}`,
-      description: module.description ?? '',
-      order: module.order ?? moduleIndex + 1,
-      lessons: (module.lessons ?? []).map((lesson: any, lessonIndex: number) => ({
-        id: String(lesson._id ?? lesson.id ?? `${moduleIndex}-${lessonIndex}`),
-        title: lesson.title ?? `Lesson ${lessonIndex + 1}`,
-        description: lesson.description ?? '',
-        type: lesson.type ?? 'tutorial',
-        order: lesson.order ?? lessonIndex + 1,
-        tutorial: lesson.tutorial,
-        project: lesson.project,
-        quiz: lesson.quiz,
-      })),
-    })),
-    is_published: raw.isPublished ?? raw.is_published ?? true,
-    enrollment_count: raw.enrollmentCount,
-    pricing: raw.pricing,
-    created_by: raw.createdBy ?? raw.created_by ?? null,
-    created_at: raw.createdAt ?? raw.created_at ?? '',
-    updated_at: raw.updatedAt ?? raw.updated_at ?? '',
-  };
-}
-
-function mapProgress(raw: any): Progress {
-  return {
-    id: String(raw._id ?? raw.id),
-    user_id: String(raw.user ?? raw.user_id),
-    course_id: String(raw.course ?? raw.course_id),
-    completed_lessons: (raw.completedLessons ?? []).map((item: any) => ({
-      lessonId: String(item.lessonId),
-      type: item.type,
-      completedAt: item.completedAt,
-    })),
-    completed_count: raw.completedCount ?? 0,
-    total_lessons: raw.totalLessons ?? 0,
-    percentage: raw.percentage ?? 0,
-    last_lesson_id: raw.lastLessonId ? String(raw.lastLessonId) : null,
-    last_accessed_at: raw.lastAccessedAt ?? null,
-    created_at: raw.createdAt ?? '',
-    updated_at: raw.updatedAt ?? '',
-  };
-}
+type RawLesson = { _id?: string; id?: string; title?: string; order?: number };
+type RawCourse = { _id?: string; id?: string; modules?: Array<{ lessons?: RawLesson[] }>; lessons?: RawLesson[]; videos?: RawLesson[]; items?: RawLesson[]; playlistItems?: RawLesson[] };
+type RawProgress = { completedLessons?: Array<{ lessonId?: string }>; completed_lessons?: Array<{ lessonId?: string }>; percentage?: number; percent?: number };
 
 export default function CourseRoadmap() {
-  const { courseId } = useParams<{ courseId: string }>();
+  const { courseId = '' } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const [course, setCourse] = useState<Course | null>(null);
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
+  const [course, setCourse] = useState<RawCourse | null>(null);
+  const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [, setProgressKnown] = useState(false);
+  const [loadError, setLoadError] = useState('');
   useEffect(() => {
-    if (!courseId) {
-      setError('Invalid course');
-      setLoading(false);
-      return;
-    }
-
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [courseData, progressData] = await Promise.all([
-          apiFetch(`/api/courses/${courseId}`),
-          apiFetch(`/api/progress/${courseId}`),
-        ]);
-        setCourse(mapCourse(courseData.course));
-        setProgress(mapProgress(progressData.progress));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unable to load this course roadmap.');
-      } finally {
-        setLoading(false);
+    let active = true;
+    setCourse(null); setCompletedIds(new Set()); setProgressKnown(false); setLoadError('');
+    Promise.allSettled([apiFetch('/api/courses/' + encodeURIComponent(courseId)), apiFetch('/api/progress/' + encodeURIComponent(courseId))]).then(([courseResult, progressResult]) => {
+      if (!active) return;
+      if (courseResult.status !== 'fulfilled' || !courseResult.value?.course) { setLoadError('This course is not available.'); return; }
+      setCourse(courseResult.value.course as RawCourse);
+      if (progressResult.status === 'fulfilled') {
+        const raw = (progressResult.value?.progress || {}) as RawProgress;
+        const items = raw.completedLessons || raw.completed_lessons || [];
+        setCompletedIds(new Set(items.map((item) => String(item.lessonId || '')).filter(Boolean)));
       }
-    }
-    load();
+      setProgressKnown(true);
+    }).catch(() => { if (active) setLoadError('Unable to load this course.'); });
+    return () => { active = false; };
   }, [courseId]);
-
-  const completedIds = useMemo(
-    () => new Set((progress?.completed_lessons ?? []).map((lesson) => lesson.lessonId)),
-    [progress]
-  );
-
-  const flatLessons = useMemo(
-    () => (course ? getAllLessonsFlat(course.modules) : []),
-    [course]
-  );
-
-  const nextLesson = useMemo(() => {
-    if (!flatLessons.length) return null;
-    return flatLessons.find((lesson) => !completedIds.has(String(lesson.id))) ?? flatLessons[flatLessons.length - 1];
-  }, [flatLessons, completedIds]);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-      </div>
-    );
-  }
-
-  if (!course || error) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-4 py-16">
-        <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <BookOpen className="mx-auto h-12 w-12 text-slate-300" />
-          <h1 className="mt-4 text-2xl font-bold text-slate-900">Roadmap unavailable</h1>
-          <p className="mt-2 text-sm text-slate-500">{error ?? 'This course could not be loaded.'}</p>
-          <Link to="/my-courses" className="btn-primary mt-6 inline-flex">
-            Back to My Learning
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const totalLessons = progress?.total_lessons || countAllLessons(course.modules);
-  const completedCount = progress?.completed_count ?? completedIds.size;
-  const percentage = Math.min(100, Math.max(0, progress?.percentage ?? 0));
-  const isComplete = percentage >= 100;
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-          <Link
-            to="/my-courses"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            My Learning
-          </Link>
-
-          <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="hidden h-16 w-24 overflow-hidden rounded-xl bg-slate-100 sm:block">
-                {course.thumbnail ? (
-                  <img src={course.thumbnail} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <BookOpen className="h-7 w-7 text-slate-300" />
-                  </div>
-                )}
-              </div>
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="badge bg-blue-50 text-blue-700">{course.category}</span>
-                  <span className="badge bg-slate-100 text-slate-600">{course.level}</span>
-                </div>
-                <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                  {course.title}
-                </h1>
-                <ExpandableText
-                  text={course.description}
-                  maxLength={220}
-                  className="mt-1 max-w-2xl text-sm text-slate-500"
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => nextLesson && navigate(`/learn/${course.id}/${nextLesson.id}`)}
-              disabled={!nextLesson}
-              className="btn-primary shrink-0"
-            >
-              <Play className="h-4 w-4" />
-              {isComplete ? 'Review Course' : completedCount > 0 ? 'Continue Learning' : 'Start Learning'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl bg-blue-600 p-5 text-white shadow-sm md:col-span-2">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-blue-100">Your progress</p>
-                <p className="mt-1 text-3xl font-bold">{percentage}%</p>
-              </div>
-              <Trophy className="h-7 w-7 text-blue-100" />
-            </div>
-            <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-white/20">
-              <div
-                className="h-full rounded-full bg-white transition-all"
-                style={{ width: `${percentage}%` }}
-              />
-            </div>
-            <p className="mt-3 text-sm text-blue-100">
-              {completedCount} of {totalLessons} lessons completed
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-1">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <BookOpen className="h-4 w-4" />
-                Modules
-              </div>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{course.modules.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <Clock className="h-4 w-4" />
-                Duration
-              </div>
-              <p className="mt-2 text-2xl font-bold text-slate-900">{course.duration || 'Self-paced'}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-10">
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Learning path</p>
-            <h2 className="mt-1 text-2xl font-bold text-slate-900">Course Roadmap</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Follow the modules in order and complete each lesson to move forward.
-            </p>
-          </div>
-
-          <div className="relative">
-            <div className="absolute bottom-8 left-5 top-8 hidden w-px bg-slate-200 sm:block" />
-
-            <div className="space-y-5">
-              {course.modules.map((module, moduleIndex) => {
-                const moduleLessons = module.lessons;
-                const moduleCompleted = moduleLessons.filter((lesson) => completedIds.has(String(lesson.id))).length;
-                const modulePercentage = moduleLessons.length
-                  ? Math.round((moduleCompleted / moduleLessons.length) * 100)
-                  : 0;
-                const firstIncomplete = moduleLessons.find((lesson) => !completedIds.has(String(lesson.id)));
-                const isCurrent = Boolean(firstIncomplete && nextLesson?.id === firstIncomplete.id);
-
-                return (
-                  <article key={module.id} className="relative sm:pl-14">
-                    <div
-                      className={`absolute left-0 top-5 hidden h-10 w-10 items-center justify-center rounded-full border-4 border-slate-50 sm:flex ${
-                        modulePercentage === 100
-                          ? 'bg-green-100 text-green-700'
-                          : isCurrent
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-200 text-slate-500'
-                      }`}
-                    >
-                      {modulePercentage === 100 ? (
-                        <CheckCircle2 className="h-5 w-5" />
-                      ) : (
-                        <span className="text-sm font-bold">{moduleIndex + 1}</span>
-                      )}
-                    </div>
-
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                      <div className="border-b border-slate-100 p-5">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              Module {moduleIndex + 1}
-                            </p>
-                            <h3 className="mt-1 text-lg font-bold text-slate-900">{module.title}</h3>
-                            {module.description && (
-                              <ExpandableText
-                                text={module.description}
-                                maxLength={180}
-                                className="mt-1 max-w-3xl text-sm text-slate-500"
-                              />
-                            )}
-                          </div>
-                          <div className="shrink-0 text-left sm:text-right">
-                            <p className="text-sm font-semibold text-slate-700">
-                              {moduleCompleted}/{moduleLessons.length}
-                            </p>
-                            <p className="text-xs text-slate-400">{modulePercentage}% complete</p>
-                          </div>
-                        </div>
-                        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-blue-600 transition-all"
-                            style={{ width: `${modulePercentage}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="divide-y divide-slate-100">
-                        {moduleLessons.map((lesson, lessonIndex) => {
-                          const completed = completedIds.has(String(lesson.id));
-                          const isNext = nextLesson?.id === lesson.id;
-                          const previousLesson = flatLessons[flatLessons.findIndex((item) => item.id === lesson.id) - 1];
-                          const unlocked = lessonIndex === 0 || completedIds.has(String(previousLesson?.id));
-
-                          return (
-                            <div
-                              key={lesson.id}
-                              className={`flex items-center gap-3 px-5 py-4 ${
-                                isNext ? 'bg-blue-50/60' : 'bg-white'
-                              }`}
-                            >
-                              <div className="shrink-0">
-                                {completed ? (
-                                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                                ) : unlocked ? (
-                                  <Circle className="h-5 w-5 text-slate-300" />
-                                ) : (
-                                  <Lock className="h-4 w-4 text-slate-300" />
-                                )}
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <p className={`truncate text-sm font-medium ${
-                                  completed ? 'text-slate-500' : 'text-slate-800'
-                                }`}>
-                                  {lessonIndex + 1}. {lesson.title}
-                                </p>
-                                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                                  <span className="capitalize">{lesson.type}</span>
-                                  {completed && <span className="text-green-600">Completed</span>}
-                                  {isNext && !completed && <span className="font-medium text-blue-600">Up next</span>}
-                                </div>
-                              </div>
-
-                              {unlocked && (
-                                <Link
-                                  to={`/learn/${course.id}/${lesson.id}`}
-                                  className={`inline-flex shrink-0 items-center gap-1 text-sm font-semibold ${
-                                    isNext ? 'text-blue-600' : 'text-slate-500 hover:text-slate-900'
-                                  }`}
-                                >
-                                  {completed ? 'Review' : isNext ? 'Start' : 'Open'}
-                                  <ChevronRight className="h-4 w-4" />
-                                </Link>
-                              )}
-                            </div>
-                          );
-                        })}
-
-                        {!moduleLessons.length && (
-                          <div className="px-5 py-4 text-sm text-slate-500">
-                            Lessons will be added to this module soon.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+  const lessons = useMemo(() => {
+    if (!course) return [];
+    const modules = Array.isArray(course.modules) && course.modules.length ? course.modules : [{ lessons: course.lessons || course.videos || course.playlistItems || course.items || [] }];
+    return modules.flatMap((module) => module.lessons || []).map((lesson) => ({ id: String(lesson._id || lesson.id || ''), title: lesson.title || 'Lesson' })).filter((lesson) => lesson.id);
+  }, [course]);
+  const nextLesson = lessons.find((lesson) => !completedIds.has(lesson.id)) || lessons[lessons.length - 1];
+  if (loadError) return <main className='mx-auto max-w-3xl p-8 text-center' role='alert'><h1 className='text-xl font-semibold'>Roadmap unavailable</h1><p className='mt-2 text-sm text-slate-500'>{loadError}</p><button type='button' className='btn-primary mt-4' onClick={() => navigate(routes.course(courseId))}>Back to course</button></main>;
+  return <main className='relative min-h-screen overflow-hidden bg-[#f7f8fc] px-4 py-6 text-slate-900 dark:bg-[#080b14] dark:text-slate-100 sm:px-6 sm:py-10'><div aria-hidden='true' className='pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_at_top,rgba(139,92,246,0.13),transparent_65%)] dark:bg-[radial-gradient(ellipse_at_top,rgba(139,92,246,0.17),transparent_65%)]' /><div className='relative mx-auto max-w-6xl'><div className='mb-8 flex flex-wrap items-center justify-between gap-5 border-b border-slate-200/80 pb-6 dark:border-slate-800'><button type='button' onClick={() => navigate(routes.course(courseId))} className='group inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-violet-300 hover:text-violet-700 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-200 dark:hover:text-violet-300'> <span className='transition-transform group-hover:-translate-x-1'>←</span> Back to course</button><div className='min-w-[220px] flex-1 text-right'><p className='text-xs font-bold uppercase tracking-[.22em] text-violet-600 dark:text-violet-300'>YOUR LEARNING PATH</p><h1 className='mt-1 text-2xl font-extrabold tracking-tight text-slate-950 dark:text-white sm:text-3xl'>Journey roadmap</h1><p className='mt-1 text-sm text-slate-500 dark:text-slate-400'>Every milestone brings you closer to mastery.</p></div></div><JourneyRoadmap courseId={courseId} onEnroll={() => navigate(routes.course(courseId))} onContinue={() => nextLesson ? navigate(routes.learn(courseId, nextLesson.id)) : navigate(routes.course(courseId))} nextLessonTitle={nextLesson?.title} completed={lessons.length > 0 && lessons.every((lesson) => completedIds.has(lesson.id))} onViewLessons={(lessonIds) => { const target = lessons.find((lesson) => lessonIds.includes(lesson.id)); if (target) navigate(routes.learn(courseId, target.id)); else navigate(routes.course(courseId)); }} /></div></main>;
 }

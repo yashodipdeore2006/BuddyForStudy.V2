@@ -1,0 +1,119 @@
+import crypto from "crypto";
+import test from "node:test";
+import assert from "node:assert/strict";
+import { validateAdminAudienceInput, parseAdminAudienceDate, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../src/services/adminAudience.service.js";
+
+test("audience targeting accepts a bounded set of selected registered email addresses", () => {
+  assert.equal(validateAdminAudienceInput({ emails: ["learner@example.com", "second@example.com"] }), true);
+});
+
+test("audience targeting rejects malformed selected emails", () => {
+  assert.throws(() => validateAdminAudienceInput({ emails: ["not-an-email"] }), /email addresses are invalid/i);
+});
+
+test("audience targeting rejects more than 500 selected recipients", () => {
+  assert.throws(() => validateAdminAudienceInput({ emails: Array.from({ length: 501 }, (_, index) => `user${index}@example.com`) }), /at most 500/i);
+});
+
+test("audience targeting rejects malformed selected user IDs", () => {
+  assert.throws(() => validateAdminAudienceInput({ userIds: ["not-an-object-id"] }), /IDs are invalid/i);
+});
+
+test("audience targeting rejects mixing explicit recipients with filters", () => {
+  assert.throws(() => validateAdminAudienceInput({ emails: ["learner@example.com"], filters: { status: "active" } }), /not multiple targeting modes/i);
+});
+
+test("audience targeting rejects empty custom filters instead of falling back to all users", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { q: "", status: "" } }), /at least one valid audience filter/i);
+});
+
+test("audience targeting rejects unsupported account status and role filters", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { status: "anything" } }), /account status/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { role: "owner" } }), /account role/i);
+});
+
+test("audience targeting rejects impossible progress ranges and invalid date ranges", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { progressMin: 90, progressMax: 20 } }), /cannot exceed/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { registeredAfter: "2026-10-20", registeredBefore: "2026-10-01" } }), /cannot be later/i);
+});
+
+test("audience targeting rejects invalid inactivity windows", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { inactiveDays: 0 } }), /inactiveDays must be an integer/i);
+});
+
+test("audience targeting validates paid spend and enrolled-course thresholds", () => {
+  assert.equal(validateAdminAudienceInput({ filters: { totalSpendMin: 5000, courseCountMin: 4 } }), true);
+  assert.throws(() => validateAdminAudienceInput({ filters: { totalSpendMin: -1 } }), /totalSpendMin must be between/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { courseCountMin: 1.5 } }), /courseCountMin must be an integer/i);
+});
+
+test("audience targeting only accepts predefined plan and course segments", () => {
+  assert.equal(validateAdminAudienceInput({ filters: { planSegment: "premium", courseSegment: "popular" } }), true);
+  assert.throws(() => validateAdminAudienceInput({ filters: { planSegment: "unknown" } }), /Invalid plan segment/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { courseSegment: "unknown" } }), /Invalid course segment/i);
+});
+
+test("audience targeting validates subscription and course filter identifiers", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: { planId: "bad-id" } }), /Invalid planId/i);
+  assert.throws(() => validateAdminAudienceInput({ filters: { courseId: "bad-id" } }), /Invalid courseId/i);
+});
+
+
+test("audience targeting rejects empty explicit recipient lists instead of falling back to all users", () => {
+  assert.throws(() => validateAdminAudienceInput({ emails: [] }), /at least one email address/i);
+  assert.throws(() => validateAdminAudienceInput({ userIds: [] }), /at least one user ID/i);
+});
+
+test("audience targeting rejects an explicitly empty filter object", () => {
+  assert.throws(() => validateAdminAudienceInput({ filters: {} }), /at least one valid audience filter/i);
+});
+
+test("audience targeting accepts an explicit audience group without filter fields", () => {
+  assert.equal(validateAdminAudienceInput({ audience: "active" }), true);
+});
+
+
+test("audience preview tokens bind filters and recipients, reject tampering, and expire", () => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "test-audience-preview-secret";
+  try {
+    const input = { audience: "all", filters: { totalSpendMin: 5000 } };
+    const users = [{ _id: "user-1" }, { _id: "user-2" }];
+    const token = createAdminAudiencePreviewToken(input, users);
+    assert.equal(verifyAdminAudiencePreviewToken(token, input, users), true);
+    assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, filters: { totalSpendMin: 10000 } }, users), false);
+    assert.equal(verifyAdminAudiencePreviewToken(token, input, [{ _id: "user-1" }]), false);
+    assert.equal(verifyAdminAudiencePreviewToken(`${token}tampered`, input, users), false);
+    const [encoded] = token.split(".");
+    const expiredPayload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    expiredPayload.exp = Date.now() - 1;
+    const expiredEncoded = Buffer.from(JSON.stringify(expiredPayload)).toString("base64url");
+    const expiredSignature = crypto.createHmac("sha256", process.env.JWT_SECRET).update(expiredEncoded).digest("base64url");
+    assert.equal(verifyAdminAudiencePreviewToken(`${expiredEncoded}.${expiredSignature}`, input, users), false);
+  } finally {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  }
+});
+
+
+test("audience date filters use inclusive UTC calendar-day boundaries and reject impossible dates", () => {
+  assert.equal(parseAdminAudienceDate("2026-10-18", "registeredAfter").toISOString(), "2026-10-18T00:00:00.000Z");
+  assert.equal(parseAdminAudienceDate("2026-10-18", "registeredBefore").toISOString(), "2026-10-18T23:59:59.999Z");
+  assert.throws(() => parseAdminAudienceDate("2026-02-30", "registeredAfter"), /Invalid registeredAfter date/i);
+});
+
+test("announcement preview tokens bind the selected channels as well as audience and recipients", () => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "test-audience-preview-secret";
+  try {
+    const users = [{ _id: "user-1" }, { _id: "user-2" }];
+    const input = { audience: "all", filters: { status: "active" }, channels: ["email", "in_app"] };
+    const token = createAdminAudiencePreviewToken(input, users);
+    assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, channel: ["in_app", "email"] }, users), true);
+    assert.equal(verifyAdminAudiencePreviewToken(token, { ...input, channel: ["in_app"] , channels: undefined }, users), false);
+  } finally {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  }
+});

@@ -1,14 +1,89 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import type { Course, Progress } from "@/types";
 import { getAllLessonsFlat, findLessonById, isLessonCompleted, getNavigationLessons } from "@/lib/courseUtils";
-import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Play, ListChecks, CircleHelp, Menu, X, Loader2, ArrowLeft, AlertCircle, ExternalLink, FileText, Github, Clock3, Trash2, Save } from "lucide-react";
 import { classNames } from "@/lib/utils";
 import AdvancedAIAssistant from "@/components/AdvancedAIAssistant";
+import { routes } from "@/lib/routes";
+import {
+  courseTimestampNotesKey,
+  createTimestampedCourseNote,
+  formatMediaTimestamp,
+  loadTimestampedCourseNotes,
+  parseMediaTimestamp,
+  saveTimestampedCourseNotes,
+  type TimestampedCourseNote,
+} from "@/lib/courseNotes";
 
-function mapCourse(raw: any): Course {
+type PlayerQuizOption = { id: string; text: string };
+type PlayerQuizQuestion = { id: string; question: string; correctOptionId: string; options: PlayerQuizOption[]; explanation?: string; topic?: string };
+type PlayerQuizData = { questions: PlayerQuizQuestion[]; quizBankId?: string; quizBankIds?: string[]; passingScore?: number; title?: string; instructions?: string; };
+type RawPlayerLesson = { _id?: string; id?: string; [key: string]: unknown };
+type RawPlayerModule = { _id?: string; id?: string; lessons?: RawPlayerLesson[]; [key: string]: unknown };
+type RawPlayerCourse = {
+  _id?: string; id?: string; title: string; slug: string; description: string; category: string;
+  level: Course["level"]; duration?: string | number; thumbnail?: string | null;
+  learningOutcomes?: string[]; modules?: RawPlayerModule[]; isPublished?: boolean;
+  pricing?: Course["pricing"]; createdBy?: string | null; createdAt?: string; updatedAt?: string;
+};
+type RawPlayerProgress = {
+  _id?: string; id?: string; user?: string; user_id?: string; course?: string; course_id?: string;
+  completedLessons?: Array<{ lessonId?: string; type?: Course["modules"][number]["lessons"][number]["type"]; completedAt?: string }>;
+  completed_count?: number; completedCount?: number; totalLessons?: number; total_lessons?: number;
+  percentage?: number; lastLessonId?: string; last_accessed_at?: string | null; lastAccessedAt?: string | null;
+  createdAt?: string; updatedAt?: string;
+};
+
+function cleanPlayerLessonTitle(title: string, siblingTitles: string[] = []): string {
+  const parts = String(title || "").split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return String(title || "").trim();
+  const siblings = siblingTitles.map((sibling) => String(sibling || "").split(/\s*[|•]\s*/).map((part) => part.trim()).filter(Boolean));
+  let sharedSegments = 0;
+  while (
+    sharedSegments < parts.length - 1 &&
+    siblings.length > 1 &&
+    siblings.every((segments) => segments[sharedSegments] && segments[sharedSegments].toLowerCase() === parts[sharedSegments].toLowerCase())
+  ) sharedSegments += 1;
+  return sharedSegments > 0 ? (parts.slice(sharedSegments).join(" · ").trim() || parts[parts.length - 1]) : parts.join(" · ");
+}
+
+function parseDurationValue(value: unknown): number {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (!text) return 0;
+  const iso = text.match(/^pt(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
+  if (iso) return Number(iso[1] || 0) * 3600 + Number(iso[2] || 0) * 60 + Number(iso[3] || 0);
+  const clock = text.match(/^\d+(?::\d{1,2}){1,2}$/);
+  if (clock) {
+    const parts = text.split(":").map(Number);
+    return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+  }
+  const hours = text.match(/(\d+(?:\.\d+)?)\s*h/);
+  const minutes = text.match(/(\d+)\s*m/);
+  const seconds = text.match(/(\d+)\s*s/);
+  return Math.round(Number(hours?.[1] || 0) * 3600 + Number(minutes?.[1] || 0) * 60 + Number(seconds?.[1] || 0));
+}
+
+function getPlayerLessonDurationSeconds(lesson: Course["modules"][number]["lessons"][number]): number {
+  if (Number(lesson.durationSeconds) > 0) return Number(lesson.durationSeconds);
+  const videos = [...(lesson.tutorial?.videos || []), ...(lesson.project?.videos || [])];
+  const videoDuration = videos.reduce((sum, video) => sum + Math.max(0, Number(video.durationSeconds) || parseDurationValue("duration" in video ? video.duration : undefined)), 0);
+  return videoDuration || Math.max(0, parseDurationValue((lesson as typeof lesson & { duration?: string }).duration));
+}
+
+function formatPlayerDuration(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.round(safe / 60);
+  if (minutes < 1) return safe > 0 ? "<1 min" : "";
+  if (minutes < 60) return minutes + " min";
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return remaining ? hours + "h " + remaining + "m" : hours + "h";
+}
+
+function mapCourse(raw: RawPlayerCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
     title: raw.title,
@@ -19,10 +94,10 @@ function mapCourse(raw: any): Course {
     duration: String(raw.duration ?? ""),
     thumbnail: raw.thumbnail ?? null,
     learning_outcomes: raw.learningOutcomes ?? [],
-    modules: (raw.modules ?? []).map((module: any) => ({
+    modules: (raw.modules ?? []).map((module: RawPlayerModule) => ({
       ...module,
       id: String(module._id ?? module.id),
-      lessons: (module.lessons ?? []).map((lesson: any) => ({
+      lessons: (module.lessons ?? []).map((lesson: RawPlayerLesson) => ({
         ...lesson,
         id: String(lesson._id ?? lesson.id),
       })),
@@ -32,15 +107,15 @@ function mapCourse(raw: any): Course {
     created_by: raw.createdBy ?? null,
     created_at: raw.createdAt ?? "",
     updated_at: raw.updatedAt ?? "",
-  };
+  } as Course;
 }
 
-function mapProgress(raw: any): Progress {
+function mapProgress(raw: RawPlayerProgress): Progress {
   return {
     id: String(raw._id ?? raw.id),
     user_id: String(raw.user ?? raw.user_id),
     course_id: String(raw.course ?? raw.course_id),
-    completed_lessons: (raw.completedLessons ?? []).map((item: any) => ({
+    completed_lessons: (raw.completedLessons ?? []).map((item) => ({
       lessonId: String(item.lessonId),
       type: item.type,
       completedAt: item.completedAt,
@@ -52,7 +127,7 @@ function mapProgress(raw: any): Progress {
     last_accessed_at: raw.lastAccessedAt ?? null,
     created_at: raw.createdAt ?? "",
     updated_at: raw.updatedAt ?? "",
-  };
+  } as Progress;
 }
 
 export default function CoursePlayer() {
@@ -67,11 +142,34 @@ export default function CoursePlayer() {
   const [error, setError] = useState("");
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
-  const [quizData, setQuizData] = useState<any>(null);
+  const [quizError, setQuizError] = useState("");
+  const [quizRetryCount, setQuizRetryCount] = useState(0);
+  const [quizData, setQuizData] = useState<PlayerQuizData | null>(null);
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [quizPassed, setQuizPassed] = useState(false);
+  const [quizActionLoading, setQuizActionLoading] = useState(false);
+  const [quizActionError, setQuizActionError] = useState("");
+  const [practiceQuizData, setPracticeQuizData] = useState<PlayerQuizData | null>(null);
+  const [practiceQuizAnswers, setPracticeQuizAnswers] = useState<Record<string, string>>({});
+  const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
+  const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
+  const [practiceQuizError, setPracticeQuizError] = useState("");
+  const practiceAutoAttemptRef = useRef("");
+  const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
+  const [noteTimestamp, setNoteTimestamp] = useState("");
+  const [noteDraft, setNoteDraft] = useState("");
+  const [timestampNotes, setTimestampNotes] = useState<TimestampedCourseNote[]>([]);
+  const [notesStorageReady, setNotesStorageReady] = useState(false);
+  const [loadedNotesKey, setLoadedNotesKey] = useState("");
+  const [noteError, setNoteError] = useState("");
+  const [noteNotice, setNoteNotice] = useState("");
+  const [notesLessonFilter, setNotesLessonFilter] = useState("all");
+  const [notesSortOrder, setNotesSortOrder] = useState<"recent" | "oldest">("recent");
+  const noteEditorRef = useRef<HTMLTextAreaElement | null>(null);
+  const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
+
 
   useEffect(() => {
     if (!courseId) {
@@ -102,11 +200,97 @@ export default function CoursePlayer() {
     void load();
   }, [courseId]);
 
+  useEffect(() => {
+    setNotesStorageReady(false);
+    if (!timestampNotesKey) {
+      setTimestampNotes([]);
+      setLoadedNotesKey("");
+      return;
+    }
+    setTimestampNotes(loadTimestampedCourseNotes(timestampNotesKey));
+    setLoadedNotesKey(timestampNotesKey);
+    setNotesStorageReady(true);
+  }, [timestampNotesKey]);
+
+  useEffect(() => {
+    if (!notesStorageReady || !timestampNotesKey || loadedNotesKey !== timestampNotesKey) return;
+    if (!saveTimestampedCourseNotes(timestampNotesKey, timestampNotes)) {
+      setNoteError("Notes could not be saved in this browser. Check available storage and try again.");
+    }
+  }, [loadedNotesKey, notesStorageReady, timestampNotes, timestampNotesKey]);
+
   const allLessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
   const currentLesson = useMemo(
     () => course && lessonId ? findLessonById(course.modules, lessonId) : null,
     [course, lessonId]
   );
+  const siblingLessonTitles = allLessons.map((lesson) => lesson.title);
+  const visibleCourseNotes = useMemo(() => {
+    const filtered = notesLessonFilter === "all" ? timestampNotes : timestampNotes.filter((note) => note.lessonId === notesLessonFilter);
+    return [...filtered].sort((a, b) => notesSortOrder === "recent"
+      ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [notesLessonFilter, notesSortOrder, timestampNotes]);
+  const moduleLessonCounts = (module: Course["modules"][number]) => module.lessons.filter((lesson) => isLessonCompleted(progress?.completed_lessons || [], lesson.id)).length;
+
+  const saveLessonNote = () => {
+    if (!currentLesson) return;
+    const content = noteDraft.trim();
+    const seconds = parseMediaTimestamp(noteTimestamp);
+    if (!content) {
+      setNoteError("Write a note before saving.");
+      return;
+    }
+    if (seconds === null) {
+      setNoteError("Enter a timestamp such as 01:25 or 1:02:15.");
+      return;
+    }
+    const note = createTimestampedCourseNote({
+      lessonId: String(currentLesson.lesson.id),
+      lessonTitle: cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles),
+      timestampSeconds: seconds,
+      content,
+    });
+    setTimestampNotes((previous) => [...previous, note].sort((a, b) => a.timestampSeconds - b.timestampSeconds));
+    setNoteDraft("");
+    setNoteError("");
+    setNoteNotice("Timestamped note saved.");
+  };
+
+  const formatNoteDraft = (prefix: string, suffix = prefix) => {
+    const editor = noteEditorRef.current;
+    if (!editor) return;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const selected = noteDraft.slice(start, end) || "text";
+    const next = noteDraft.slice(0, start) + prefix + selected + suffix + noteDraft.slice(end);
+    setNoteDraft(next);
+    requestAnimationFrame(() => {
+      editor.focus();
+      editor.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+    });
+  };
+
+  const deleteLessonNote = (noteId: string) => {
+    setTimestampNotes((previous) => previous.filter((note) => note.id !== noteId));
+    setNoteNotice("Note removed.");
+    setNoteError("");
+  };
+
+
+  useEffect(() => {
+    setNoteTimestamp("");
+    setNoteDraft("");
+    setNoteError("");
+    setNoteNotice("");
+  }, [courseId, lessonId]);
+
+  useEffect(() => {
+    setPracticeQuizData(null);
+    setPracticeQuizAnswers({});
+    setPracticeQuizSubmitted(false);
+    setPracticeQuizError("");
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     if (currentLesson?.lesson.type !== "quiz" || !courseId || !lessonId) {
@@ -120,6 +304,7 @@ export default function CoursePlayer() {
 
     async function loadQuiz() {
       setQuizLoading(true);
+      setQuizError("");
       setQuizData(null);
       setQuizAnswers({});
       setQuizSubmitted(false);
@@ -135,16 +320,20 @@ export default function CoursePlayer() {
           method: "POST",
           body: JSON.stringify({ courseId, lessonId }),
         });
+        if (!data?.quiz?.questions?.length) {
+          setQuizError("No questions are available yet. BuddyForStudy will try to generate them again when you retry.");
+          return;
+        }
         setQuizData(data.quiz);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unable to load this quiz.");
+        setQuizError(err instanceof Error ? err.message : "Unable to load this quiz. Try again.");
       } finally {
         setQuizLoading(false);
       }
     }
 
     void loadQuiz();
-  }, [currentLesson?.lesson.type, courseId, lessonId]);
+  }, [currentLesson?.lesson.type, courseId, lessonId, quizRetryCount]);
 
   useEffect(() => {
     if (!course || lessonId || allLessons.length === 0) return;
@@ -152,11 +341,12 @@ export default function CoursePlayer() {
       progress?.last_lesson_id ||
       allLessons.find((item) => !isLessonCompleted(progress?.completed_lessons || [], item.id))?.id ||
       allLessons[0].id;
-    navigate(`/learn/${courseId}/${targetId}`, { replace: true });
+    if (courseId && targetId) navigate(routes.learn(courseId, targetId), { replace: true });
   }, [course, lessonId, allLessons, progress, navigate, courseId]);
 
   const handleNavigate = (id: string) => {
-    navigate(`/learn/${courseId}/${id}`);
+    if (!courseId) return;
+    navigate(routes.learn(courseId, id));
     setSidebarOpen(false);
   };
 
@@ -174,12 +364,131 @@ export default function CoursePlayer() {
     }
   };
 
+  const handleGeneratePracticeQuiz = async (mode: "generate" | "reattempt" = "generate") => {
+    if (!courseId || !lessonId) return;
+    setPracticeQuizLoading(true);
+    setPracticeQuizError("");
+    setPracticeQuizData(null);
+    setPracticeQuizAnswers({});
+    setPracticeQuizSubmitted(false);
+    try {
+      let data = await apiFetch("/api/ai/practice-quiz", {
+        method: "POST",
+        body: JSON.stringify({ courseId, lessonId, mode }),
+      });
+      if (data.generating) {
+        setPracticeQuizError("New questions are being prepared in the background. Waiting for the quiz bank...");
+        for (let attempt = 0; attempt < 20 && data.generating; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          data = await apiFetch("/api/ai/practice-quiz", {
+            method: "POST",
+            body: JSON.stringify({ courseId, lessonId, mode: "generate" }),
+          });
+          if (data.pendingReview) break;
+        }
+        if (data.pendingReview) {
+          setPracticeQuizError(data.message || "These AI-generated practice questions are waiting for administrator approval.");
+          return;
+        }
+        if (data.generating || !data.quiz) {
+          throw new Error("New questions are still being prepared. Please try Generate More again shortly.");
+        }
+      }
+      if (data.pendingReview) {
+        setPracticeQuizError(data.message || "These AI-generated practice questions are waiting for administrator approval.");
+        return;
+      }
+      setPracticeQuizError("");
+      setPracticeQuizData(data.quiz);
+    } catch (err) {
+      setPracticeQuizError(err instanceof Error ? err.message : "Unable to generate practice questions.");
+    } finally {
+      setPracticeQuizLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (lessonTab !== "quiz") {
+      practiceAutoAttemptRef.current = "";
+      return;
+    }
+    if (!courseId || !lessonId || currentLesson?.lesson.type === "quiz" || practiceQuizLoading) return;
+    const attemptKey = courseId + ":" + lessonId;
+    if (practiceAutoAttemptRef.current === attemptKey) return;
+    practiceAutoAttemptRef.current = attemptKey;
+    if (!practiceQuizData) void handleGeneratePracticeQuiz("generate");
+  }, [lessonTab, courseId, lessonId, currentLesson?.lesson.type, practiceQuizLoading, practiceQuizData]);
+
+
+  const handlePracticeQuizSubmit = async () => {
+    const quizData = practiceQuizData;
+    const questions = quizData?.questions ?? [];
+    if (!quizData || !questions.length || questions.some((question: PlayerQuizQuestion) => !practiceQuizAnswers[question.id])) return;
+    setPracticeQuizSubmitted(true);
+    try {
+      if (quizData.quizBankId || quizData.quizBankIds?.length) {
+        await apiFetch("/api/ai/practice-quiz/submit", {
+          method: "POST",
+          body: JSON.stringify({
+            courseId,
+            lessonId,
+            quizBankId: quizData.quizBankId,
+            quizBankIds: quizData.quizBankIds || [],
+            score: Math.round((questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / questions.length) * 100),
+            answers: practiceQuizAnswers
+          })
+        });
+      }
+    } catch (err) {
+      setPracticeQuizError(err instanceof Error ? err.message : "Quiz score could not be saved.");
+    }
+  };
+
+  const practiceQuizScore = practiceQuizData?.questions?.length
+    ? Math.round((practiceQuizData.questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / practiceQuizData.questions.length) * 100)
+    : 0;
+
+  const handleGenerateLessonQuiz = async (mode: "generate" | "reattempt") => {
+    if (!courseId || !lessonId || quizActionLoading) return;
+    setQuizActionLoading(true);
+    setQuizActionError("");
+    try {
+      let data = await apiFetch("/api/ai/practice-quiz", {
+        method: "POST",
+        body: JSON.stringify({ courseId, lessonId, mode }),
+      });
+      if (data.generating) {
+        for (let attempt = 0; attempt < 20 && data.generating; attempt += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          data = await apiFetch("/api/ai/practice-quiz", {
+            method: "POST",
+            body: JSON.stringify({ courseId, lessonId, mode: "generate" }),
+          });
+          if (data.pendingReview) break;
+        }
+      }
+      if (data.pendingReview) throw new Error(data.message || "New quiz questions are waiting for review.");
+      if (!data.quiz?.questions?.length) throw new Error(data.message || "No quiz questions are available for this action yet.");
+      setQuizData(data.quiz);
+      setQuizAnswers({});
+      setQuizSubmitted(false);
+      setQuizScore(null);
+      setQuizPassed(false);
+      setQuizError("");
+      setQuizActionError("");
+    } catch (err) {
+      setQuizActionError(err instanceof Error ? err.message : "Unable to load another quiz.");
+    } finally {
+      setQuizActionLoading(false);
+    }
+  };
+
   const handleQuizSubmit = async () => {
     if (!courseId || !lessonId || !quizData?.questions?.length) return;
 
     const questions = quizData.questions || [];
     const correct = questions.filter(
-      (question: any) => quizAnswers[question.id] === question.correctOptionId
+      (question: PlayerQuizQuestion) => quizAnswers[question.id] === question.correctOptionId
     ).length;
     const score = Math.round((correct / questions.length) * 100);
     setQuizScore(score);
@@ -187,6 +496,24 @@ export default function CoursePlayer() {
 
     const passed = score >= Number(quizData.passingScore || currentLesson?.lesson.quiz?.passingScore || 70);
     setQuizPassed(passed);
+
+    if (quizData.quizBankId || quizData.quizBankIds?.length) {
+      try {
+        await apiFetch("/api/ai/practice-quiz/submit", {
+          method: "POST",
+          body: JSON.stringify({
+            courseId,
+            lessonId,
+            quizBankId: quizData.quizBankId,
+            quizBankIds: quizData.quizBankIds || [],
+            score,
+            answers: quizAnswers,
+          }),
+        });
+      } catch (err) {
+        setQuizActionError(err instanceof Error ? err.message : "Quiz score could not be saved.");
+      }
+    }
 
     if (!passed || currentCompleted) return;
 
@@ -214,7 +541,7 @@ export default function CoursePlayer() {
         <h1 className="mt-4 text-2xl font-bold text-slate-900">
           {error || "Course Not Found"}
         </h1>
-        <Link to={`/courses/${courseId}`} className="btn-primary mt-6">
+        <Link to={courseId ? routes.course(courseId) : routes.explore()} className="btn-primary mt-6">
           View Course
         </Link>
       </div>
@@ -231,11 +558,11 @@ export default function CoursePlayer() {
   const progressPct = progress?.percentage || 0;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className="min-h-screen min-w-0 max-w-full overflow-x-clip bg-[#f1f4f7] text-slate-900">
+      <header className="sticky top-0 z-40 h-16 border-b border-slate-200 bg-white">
         <div className="flex h-full items-center gap-3 px-4 sm:gap-4">
           <button
-            className="inline-flex rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600 lg:hidden"
+            className="inline-flex rounded-full border border-slate-200 bg-white p-2 text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 lg:hidden"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open course content"
           >
@@ -243,7 +570,7 @@ export default function CoursePlayer() {
           </button>
 
           <Link
-            to={`/courses/${courseId}`}
+            to={courseId ? routes.course(courseId) : routes.explore()}
             className="hidden items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-900 sm:flex"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -274,7 +601,7 @@ export default function CoursePlayer() {
                 "inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition sm:px-4 sm:text-sm",
                 currentCompleted
                   ? "bg-green-50 text-green-700"
-                  : "bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700"
+                  : "bg-black text-white hover:bg-[#444950]"
               )}
             >
               {completing ? (
@@ -289,7 +616,7 @@ export default function CoursePlayer() {
           )}
 
           <Link
-            to="/dashboard"
+            to={routes.home()}
             className="hidden rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold transition hover:bg-slate-50 sm:block"
           >
             Dashboard
@@ -297,21 +624,21 @@ export default function CoursePlayer() {
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-64px)] lg:grid-cols-[minmax(0,1fr)_340px]">
-        <main className="min-w-0 bg-slate-50">
+      <div className="grid min-h-[calc(100vh-64px)] min-w-0 max-w-full overflow-x-clip lg:grid-cols-[minmax(0,1fr)_340px]">
+        <main className="min-w-0 max-w-full overflow-x-clip bg-slate-50">
           <div className="mx-auto max-w-5xl">
             {currentLesson ? (
               <>
                 {currentLesson.lesson.type === "quiz" && (
-                  <section className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
+                  <section className="border-b border-slate-200 bg-white px-5 py-7 sm:px-8 lg:px-10">
                     <div className="mx-auto max-w-4xl">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-xs font-semibold uppercase tracking-[.14em] text-blue-600">
                             {currentLesson.lesson.quiz?.scope === "module" ? "Module assessment" : "Lesson quiz"}
                           </p>
-                          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                            {currentLesson.lesson.title}
+                          <h1 className="mt-1 text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
+                            {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                           </h1>
                           <p className="mt-2 text-sm leading-6 text-slate-500">
                             {currentLesson.lesson.description}
@@ -331,8 +658,8 @@ export default function CoursePlayer() {
                         </div>
                       ) : quizData?.questions?.length ? (
                         <div className="mt-8 space-y-5">
-                          {quizData.questions.map((question: any, questionIndex: number) => (
-                            <article key={question.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                          {quizData.questions.map((question: PlayerQuizQuestion, questionIndex: number) => (
+                            <article key={question.id} className="rounded-[24px] border border-slate-200 bg-white p-5">
                               <div className="flex items-start gap-3">
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-xs font-bold text-white">
                                   {questionIndex + 1}
@@ -348,7 +675,7 @@ export default function CoursePlayer() {
                               </div>
 
                               <div className="mt-4 grid gap-2">
-                                {(question.options || []).map((option: any, optionIndex: number) => {
+                                {(question.options || []).map((option: PlayerQuizOption, optionIndex: number) => {
                                   const selected = quizAnswers[question.id] === option.id;
                                   const correctOption = question.correctOptionId === option.id;
                                   const showResult = quizSubmitted;
@@ -411,47 +738,70 @@ export default function CoursePlayer() {
                               )}
                             </div>
 
-                            {!quizSubmitted ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleQuizSubmit()}
-                                disabled={
-                                  quizLoading ||
-                                  Object.keys(quizAnswers).length !== quizData.questions.length ||
-                                  completing
-                                }
-                                className="btn-primary justify-center"
-                              >
-                                Submit Quiz
-                              </button>
-                            ) : quizPassed ? (
-                              <button
-                                type="button"
-                                onClick={() => navigation.next && handleNavigate(navigation.next.id)}
-                                className="btn-primary justify-center"
-                                disabled={completing}
-                              >
-                                {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setQuizSubmitted(false);
-                                  setQuizScore(null);
-                                  setQuizPassed(false);
-                                  setQuizAnswers({});
-                                }}
-                                className="btn-primary justify-center"
-                              >
-                                Try Again
-                              </button>
-                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {!quizSubmitted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleQuizSubmit()}
+                                  disabled={quizLoading || Object.keys(quizAnswers).length !== quizData.questions.length || completing}
+                                  className="btn-primary justify-center"
+                                >
+                                  Submit Quiz
+                                </button>
+                              ) : (
+                                <>
+                                  {quizPassed && (
+                                    <button
+                                      type="button"
+                                      onClick={() => navigation.next && handleNavigate(navigation.next.id)}
+                                      className="btn-primary justify-center"
+                                      disabled={completing}
+                                    >
+                                      {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
+                                    </button>
+                                  )}
+                                  {!quizPassed && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setQuizSubmitted(false);
+                                        setQuizScore(null);
+                                        setQuizPassed(false);
+                                        setQuizAnswers({});
+                                      }}
+                                      className="btn-secondary justify-center"
+                                      disabled={quizActionLoading}
+                                    >
+                                      Try Again
+                                    </button>
+                                  )}
+                                  <button type="button" onClick={() => void handleGenerateLessonQuiz("reattempt")} disabled={quizActionLoading} className="btn-secondary justify-center">
+                                    {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                    Reattempt
+                                  </button>
+                                  <button type="button" onClick={() => void handleGenerateLessonQuiz("generate")} disabled={quizActionLoading} className="btn-primary justify-center">
+                                    {quizActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                    {quizActionLoading ? "Generating..." : "Generate More Quiz"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
+                          {quizActionError && <p role="alert" className="mt-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{quizActionError}</p>}
                         </div>
                       ) : (
-                        <div className="mt-8 rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700">
-                          This quiz could not be generated. Try opening the lesson again.
+                        <div className="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+                          <p className="font-semibold">{quizError || "No quiz questions are available yet."}</p>
+                          <p className="mt-1 text-amber-800">The course remains available. Quiz generation can be retried without rebuilding the course.</p>
+                          <button
+                            type="button"
+                            onClick={() => setQuizRetryCount((count) => count + 1)}
+                            disabled={quizLoading}
+                            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-900 px-4 py-2 font-semibold text-white transition hover:bg-amber-800 disabled:opacity-60"
+                          >
+                            {quizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                            {quizLoading ? "Retrying quiz generation..." : "Retry quiz generation"}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -484,15 +834,16 @@ export default function CoursePlayer() {
                           No video is available for this lesson.
                         </div>
                       )}
+                    <div aria-hidden="true" className="h-3 w-full bg-[#1c1d1f]" />
                   </div>
                 )}
 
-                <section className="border-b border-slate-200 bg-white px-5 py-6 sm:px-8 lg:px-10">
+                <section className={`border-b border-slate-200 bg-white px-5 py-7 sm:px-8 lg:px-10 ${currentLesson.lesson.type === "quiz" ? "hidden" : ""}`}>
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-slate-400">{currentLesson.module.title}</p>
-                      <h1 className="mt-1 max-w-4xl text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                        {currentLesson.lesson.title}
+                      <h1 className="mt-1 max-w-4xl text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
+                        {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                       </h1>
                       {currentLesson.lesson.tutorial?.videos?.[0]?.channelTitle && (
                         <p className="mt-2 text-sm text-slate-500">
@@ -506,7 +857,7 @@ export default function CoursePlayer() {
                         "inline-flex w-fit flex-shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold",
                         currentLesson.lesson.type === "project"
                           ? "bg-purple-50 text-purple-700"
-                          : "bg-blue-50 text-blue-700"
+                          : "bg-slate-100 text-slate-950"
                       )}
                     >
                       {currentLesson.lesson.type === "project" ? (
@@ -514,20 +865,188 @@ export default function CoursePlayer() {
                       ) : (
                         <Play className="h-3.5 w-3.5" />
                       )}
-                      {currentLesson.lesson.type}
+                      {currentLesson.lesson.type === "tutorial" ? "Video lesson" : currentLesson.lesson.type === "quiz" ? "Quiz" : "Project"}
                     </span>
                   </div>
 
-                  <div className="mt-6 flex gap-6 border-b border-slate-200">
-                    <span className="border-b-2 border-blue-600 pb-3 text-sm font-bold text-blue-600">
-                      Lesson
-                    </span>
-                    <span className="pb-3 text-sm font-semibold text-slate-400">
-                      Progress {progressPct}%
-                    </span>
+                  <div className="mt-6 flex gap-6 border-b border-slate-200" role="tablist" aria-label="Lesson sections">
+                    {([
+                      { id: "lesson", label: "Lesson" },
+                      { id: "progress", label: "Progress" },
+                      { id: "quiz", label: "Quiz" },
+                      { id: "notes", label: "Notes" },
+                    ] as const).map((tab) => (
+                      <button key={tab.id} type="button" role="tab" aria-selected={lessonTab === tab.id} onClick={() => setLessonTab(tab.id)}
+                        className={classNames("pb-3 text-sm font-semibold transition", lessonTab === tab.id ? "border-b-2 border-blue-600 font-bold text-blue-600" : "text-slate-400 hover:text-slate-700")}>
+                        {tab.label}{tab.id === "progress" ? ` ${progressPct}%` : ""}
+                      </button>
+                    ))}
                   </div>
 
                   <div className="py-5">
+                    {lessonTab === "quiz" && currentLesson.lesson.type !== "quiz" && (
+                      <section className="space-y-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Practice & check understanding</p>
+                            <h2 className="mt-1 text-lg font-semibold text-slate-950">Quiz yourself on this lesson</h2>
+                            <p className="mt-1 text-sm text-slate-500">Quiz questions are separate from lesson notes, Q&A, and resources.</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {practiceQuizData && (
+                              <>
+                                <button type="button" onClick={() => void handleGeneratePracticeQuiz("reattempt")} disabled={practiceQuizLoading} className="btn-secondary justify-center">Reattempt</button>
+                                <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                                  {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                  {practiceQuizLoading ? "Loading..." : "Generate More"}
+                                </button>
+                              </>
+                            )}
+                            {!practiceQuizData && <button type="button" onClick={() => void handleGeneratePracticeQuiz()} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                              {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                              {practiceQuizLoading ? "Generating..." : "Generate Practice Quiz"}
+                            </button>}
+                          </div>
+                        </div>
+                    {practiceQuizError && (
+                      <p role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{practiceQuizError}</p>
+                    )}
+                    {practiceQuizLoading && (
+                      <p className="mb-4 flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Preparing quiz questions...</p>
+                    )}
+                                            {(practiceQuizData?.questions?.length ?? 0) > 0 && (
+                          <div className="mt-5 space-y-4">
+                            {(practiceQuizData?.questions ?? []).map((question: PlayerQuizQuestion, questionIndex: number) => (
+                              <article key={question.id} className="rounded-2xl border border-slate-200 p-4">
+                                <div className="flex items-start gap-3">
+                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-700">{questionIndex + 1}</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold leading-6 text-slate-900">{question.question}</p>
+                                    {question.topic && <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{question.topic}</p>}
+                                  </div>
+                                </div>
+                                <div className="mt-3 grid gap-2">
+                                  {(question.options || []).map((option: PlayerQuizOption) => {
+                                    const selected = practiceQuizAnswers[question.id] === option.id;
+                                    const correct = question.correctOptionId === option.id;
+                                    const tone = practiceQuizSubmitted
+                                      ? correct ? "border-green-200 bg-green-50 text-green-800" : selected ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-600"
+                                      : selected ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+                                    return <button key={option.id} type="button" disabled={practiceQuizSubmitted} onClick={() => setPracticeQuizAnswers((current) => ({ ...current, [question.id]: option.id }))} className={`flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left text-sm transition ${tone}`}>
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-current/20 text-[11px] font-bold">{option.id}</span>
+                                      <span>{option.text}</span>
+                                    </button>;
+                                  })}
+                                </div>
+                                {practiceQuizSubmitted && question.explanation && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{question.explanation}</p>}
+                              </article>
+                            ))}
+                            <div className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                              {practiceQuizSubmitted ? <p className="text-sm font-bold text-slate-900">Your practice score: {practiceQuizScore}%</p> : <p className="text-sm text-slate-500">{Object.keys(practiceQuizAnswers).length} of {(practiceQuizData?.questions ?? []).length} answered</p>}
+                              {!practiceQuizSubmitted ? (
+                                <button type="button" onClick={handlePracticeQuizSubmit} disabled={Object.keys(practiceQuizAnswers).length !== (practiceQuizData?.questions ?? []).length} className="btn-primary justify-center">Check answers</button>
+                              ) : (
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                  <button type="button" onClick={() => void handleGeneratePracticeQuiz("generate")} disabled={practiceQuizLoading} className="btn-primary justify-center">
+                                    {practiceQuizLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleHelp className="h-4 w-4" />}
+                                    Generate More
+                                  </button>
+                                  <button type="button" onClick={() => void handleGeneratePracticeQuiz("reattempt")} disabled={practiceQuizLoading} className="btn-secondary justify-center">
+                                    Reattempt
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </section>
+                    )}
+                    {lessonTab === "progress" && (
+                      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Learning progress</p>
+                        <h2 className="mt-1 text-lg font-semibold text-slate-950">{progressPct}% completed</h2>
+                        <p className="mt-2 text-sm text-slate-500">{progress?.completed_count || 0} of {allLessons.length} lessons completed in this course.</p>
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${progressPct}%` }} /></div>
+                      </section>
+                    )}
+                    {lessonTab === "notes" && (
+                      <section aria-labelledby="timestamp-notes-title" className="space-y-5">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h2 id="timestamp-notes-title" className="text-xl font-bold tracking-tight text-slate-950">Notes</h2>
+                            <p className="mt-1 text-sm text-slate-500">Timestamped notes help you capture ideas while learning and jump back to the exact moment in a lecture.</p>
+                          </div>
+                          <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{timestampNotes.length} {timestampNotes.length === 1 ? "note" : "notes"}</span>
+                        </div>
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Clock3 className="h-4 w-4 text-slate-500" />{noteTimestamp.trim() ? formatMediaTimestamp(parseMediaTimestamp(noteTimestamp) || 0) : "Add a timestamp"}</div>
+                            <span className="text-xs text-slate-500">Current lecture: {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}</span>
+                          </div>
+                          <div className="p-4 sm:p-5">
+                            <label htmlFor="course-note-timestamp" className="mb-1 block text-xs font-semibold text-slate-600">Video timestamp</label>
+                            <input id="course-note-timestamp" value={noteTimestamp} onChange={(event) => setNoteTimestamp(event.target.value)} placeholder="00:15 (mm:ss or hh:mm:ss)" inputMode="numeric" className="input-field mb-3 w-full max-w-xs text-sm" aria-describedby="timestamp-note-help" />
+                            <p id="timestamp-note-help" className="mb-3 text-xs text-slate-500">Use the time shown in the video, for example 01:25.</p>
+                            <div className="overflow-hidden rounded-xl border border-slate-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+                              <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-2" aria-label="Note formatting tools">
+                                <button type="button" onClick={() => formatNoteDraft("**")} className="rounded-md px-3 py-1.5 text-sm font-bold text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Bold selected text">B</button>
+                                <button type="button" onClick={() => formatNoteDraft("*")} className="rounded-md px-3 py-1.5 text-sm italic text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Italic selected text">I</button>
+                                <span className="mx-1 h-5 w-px bg-slate-200" />
+                                <button type="button" onClick={() => formatNoteDraft("\n- ", "")} className="rounded-md px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Insert bullet">• List</button>
+                                <button type="button" onClick={() => formatNoteDraft("`")} className="rounded-md px-3 py-1.5 font-mono text-xs text-slate-600 hover:bg-white hover:text-slate-950" aria-label="Format as code">{"</>"}</button>
+                                <span className="ml-auto pr-2 text-xs text-slate-400">{noteDraft.length}/3000</span>
+                              </div>
+                              <textarea ref={noteEditorRef} value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} maxLength={3000} rows={5} placeholder="Write a note for this moment in the lecture..." className="block w-full resize-y border-0 bg-white px-4 py-3 text-sm leading-6 text-slate-800 outline-none ring-0 placeholder:text-slate-400 focus:ring-0" />
+                            </div>
+                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                              <p className="text-xs text-slate-500" aria-live="polite">{noteError || noteNotice || "Notes are saved in this browser for this account and course."}</p>
+                              <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => { setNoteDraft(""); setNoteTimestamp(""); setNoteError(""); setNoteNotice(""); }} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Cancel</button>
+                                <button type="button" onClick={saveLessonNote} className="btn-primary inline-flex items-center justify-center gap-2" disabled={!notesStorageReady || !noteDraft.trim()}><Save className="h-4 w-4" aria-hidden="true" />Save note</button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                          <h3 className="mr-auto whitespace-nowrap text-sm font-bold text-slate-900 sm:text-base">Your notes <span className="ml-1 text-xs font-medium text-slate-500">({visibleCourseNotes.length})</span></h3>
+                          <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-0">
+                            <label className="sr-only" htmlFor="notes-lecture-filter">Filter notes by lecture</label>
+                            <select id="notes-lecture-filter" value={notesLessonFilter} onChange={(event) => setNotesLessonFilter(event.target.value)} className="input-field h-9 min-w-0 max-w-full px-2 py-1 text-xs sm:w-56 sm:text-sm">
+                              <option value="all">All lectures</option>
+                              {allLessons.map((lesson) => <option key={lesson.id} value={String(lesson.id)}>{cleanPlayerLessonTitle(lesson.title, siblingLessonTitles)}</option>)}
+                            </select>
+                            <label className="sr-only" htmlFor="notes-sort-order">Sort notes</label>
+                            <select id="notes-sort-order" value={notesSortOrder} onChange={(event) => setNotesSortOrder(event.target.value as "recent" | "oldest")} className="input-field h-9 min-w-0 max-w-full px-2 py-1 text-xs sm:w-36 sm:text-sm">
+                              <option value="recent">Recent</option>
+                              <option value="oldest">Oldest</option>
+                            </select>
+                          </div>
+                        </div>
+                        {visibleCourseNotes.length > 0 ? (
+                          <div className="space-y-3">
+                            {visibleCourseNotes.map((note) => (
+                              <article key={note.id} className="flex min-w-0 items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                                <a href={(() => { const lesson = allLessons.find((item) => String(item.id) === note.lessonId); const videoId = lesson?.tutorial?.videos?.[0]?.videoId; return videoId ? "https://www.youtube.com/watch?v=" + encodeURIComponent(videoId) + "&t=" + note.timestampSeconds + "s" : undefined; })()} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 transition hover:bg-blue-50 hover:text-blue-700" aria-label={"Open source video at " + formatMediaTimestamp(note.timestampSeconds)}><Clock3 className="h-3.5 w-3.5" aria-hidden="true" />{formatMediaTimestamp(note.timestampSeconds)}</a>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-semibold text-slate-500">{note.lessonTitle}</p>
+                                  <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-800">{note.content}</p>
+                                  <p className="mt-2 text-[11px] text-slate-400">{new Date(note.createdAt).toLocaleString()}</p>
+                                </div>
+                                <button type="button" onClick={() => deleteLessonNote(note.id)} className="shrink-0 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-700" aria-label="Delete note"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                              </article>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-5 text-center">
+                            <FileText className="mx-auto h-6 w-6 text-slate-300" aria-hidden="true" />
+                            <p className="mt-2 text-sm font-semibold text-slate-700">{timestampNotes.length ? "No notes match this lecture filter." : "No notes yet"}</p>
+                            <p className="mt-1 text-xs text-slate-500">Add a timestamp and note above to save your first learning note.</p>
+                          </div>
+                        )}
+                      </section>
+                    )}
+                    {lessonTab === "lesson" && (
+                      <div className="space-y-4">
                     {currentLesson.lesson.type !== "quiz" && courseId && lessonId && (
                       <AdvancedAIAssistant courseId={courseId} lessonId={lessonId} />
                     )}
@@ -599,13 +1118,13 @@ export default function CoursePlayer() {
                     )}
 
                     {currentLesson.lesson.type === "project" && (
-                      <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <div className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-5">
                         <div>
                           <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">
                             Project brief
                           </p>
                           <h2 className="mt-1 text-xl font-extrabold text-slate-950">
-                            {currentLesson.lesson.title}
+                            {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                           </h2>
                           <p className="mt-3 text-sm leading-7 text-slate-700">
                             {currentLesson.lesson.project?.description}
@@ -757,7 +1276,8 @@ export default function CoursePlayer() {
                       </div>
                     )}
                   </div>
-
+                    )}
+                  </div>
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
                     <button
                       disabled={!navigation.prev}
@@ -771,7 +1291,7 @@ export default function CoursePlayer() {
                     <button
                       disabled={!navigation.next}
                       onClick={() => navigation.next && handleNavigate(navigation.next.id)}
-                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center gap-2 rounded-full bg-black px-5 py-3 text-sm font-bold text-white transition hover:bg-[#444950] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       Next
                       <ChevronRight className="h-4 w-4" />
@@ -837,13 +1357,16 @@ export default function CoursePlayer() {
 
           <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
             {course.modules.map((module, index) => (
-              <div key={module.id} className="mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div key={module.id} className="mb-3 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <div className="bg-slate-50 px-4 py-3">
                   <p className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-400">
                     Module {index + 1}
                   </p>
                   <p className="mt-1 text-sm font-extrabold leading-5 text-slate-900">
                     {module.title}
+                  </p>
+                  <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                    {moduleLessonCounts(module)}/{module.lessons.length} done{module.lessons.some((lesson) => getPlayerLessonDurationSeconds(lesson) > 0) ? " · " + formatPlayerDuration(module.lessons.reduce((sum, lesson) => sum + getPlayerLessonDurationSeconds(lesson), 0)) : ""}
                   </p>
                 </div>
 
@@ -881,6 +1404,8 @@ export default function CoursePlayer() {
                 {module.lessons.map((lesson) => {
                   const done = isLessonCompleted(completedLessons, lesson.id);
                   const active = lesson.id === lessonId;
+                  const durationLabel = formatPlayerDuration(getPlayerLessonDurationSeconds(lesson));
+                  const cleanedTitle = cleanPlayerLessonTitle(lesson.title, allLessons.map((item) => item.title));
 
                   return (
                     <button
@@ -889,7 +1414,7 @@ export default function CoursePlayer() {
                       className={classNames(
                         "flex w-full items-start gap-3 border-t border-slate-100 px-4 py-3 text-left transition",
                         active
-                          ? "bg-blue-50 text-blue-700"
+                          ? "bg-slate-100 text-slate-950"
                           : "text-slate-700 hover:bg-slate-50"
                       )}
                     >
@@ -913,10 +1438,12 @@ export default function CoursePlayer() {
 
                       <span className="min-w-0 flex-1">
                         <span className="block line-clamp-2 text-xs font-semibold leading-5">
-                          {lesson.title}
+                          {cleanedTitle}
+                          <span className="mt-0.5 block text-[10px] font-medium text-slate-400">{done ? "Completed" : active ? "Currently learning" : lesson.type === "quiz" ? "Quiz" : lesson.type === "project" ? "Project" : "Video lesson"}</span>
                         </span>
                       </span>
 
+                      {durationLabel && <span className="shrink-0 self-center text-[10px] font-semibold text-slate-500">{durationLabel}</span>}
                       {active && (
                         <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-600" />
                       )}

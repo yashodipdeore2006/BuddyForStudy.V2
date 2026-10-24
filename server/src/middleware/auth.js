@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { env } from "../config/env.js";
 import { failure } from "../utils/response.js";
+import { hasAdminPermission } from "../utils/adminRbac.js";
 
 export async function authMiddleware(req, res, next) {
   try {
@@ -23,6 +24,8 @@ export async function authMiddleware(req, res, next) {
       userId: user._id.toString(),
       role: user.role,
       accessType: payload.accessType || "user",
+      adminRole: user.adminRole || "platform_admin",
+      adminPermissionOverrides: user.adminPermissionOverrides || [],
       user
     };
 
@@ -43,6 +46,20 @@ export function adminMiddleware(req, res, next) {
   next();
 }
 
+
+export function adminPermissionMiddleware(permission) {
+  return function requireAdminPermission(req, res, next) {
+    if (req.user?.role !== "admin" || req.user?.accessType !== "admin") {
+      return failure(res, "Administrator access required.", 403);
+    }
+    if (!hasAdminPermission(req.user.adminRole, permission, req.user.adminPermissionOverrides)) {
+      return failure(res, "You do not have permission to perform this action.", 403, {
+        requiredPermission: permission,
+      });
+    }
+    return next();
+  };
+}
 
 export async function optionalAuthMiddleware(req, res, next) {
   const header = req.headers.authorization;

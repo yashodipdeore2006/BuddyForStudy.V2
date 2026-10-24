@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Check, Power, Plus, RefreshCcw, Save } from "lucide-react";
+import { Check, Power, Plus, RefreshCcw, Save, Sparkles } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 type FeatureDefinition = {
   key: string;
@@ -55,6 +57,8 @@ const emptyForm: PlanForm = {
     advanced_ai_questions_per_month: 0,
     advanced_ai_insights_per_month: 0,
     ai_quiz_generations_per_month: 20,
+    youtube_discovery_courses_per_month: 10,
+    ai_curated_courses_per_month: 10,
   },
 };
 
@@ -66,13 +70,20 @@ export default function AdminPlans() {
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<"plans" | "create">("plans");
+  const [confirmAction, setConfirmAction] = useState<{ kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan } | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [actionReason, setActionReason] = useState("");
+  const [actionError, setActionError] = useState("");
 
   async function load() {
     setLoading(true);
     setError("");
 
     try {
-      const data = await adminFetch("/api/admin/plans");
+      const [data, accessData] = await Promise.all([adminFetch("/api/admin/plans"), adminFetch("/api/admin/access")]);
+      setPermissions(accessData.access?.permissions || []);
       setPlans(data.plans || []);
       setAvailableFeatures(data.availableFeatures || []);
     } catch (e) {
@@ -86,7 +97,13 @@ export default function AdminPlans() {
     void load();
   }, []);
 
-  async function create() {
+  function openConfirmation(action: { kind: "create" | "toggle" | "details" | "limits" | "features"; plan?: Plan }) {
+    if (!permissions.includes("plans.manage")) { setError("You do not have permission to manage subscription plans."); return; }
+    setError(""); setActionError(""); setConfirmText(""); setActionReason(""); setConfirmAction(action);
+  }
+
+  async function create(reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "create" }); return; }
     if (!form.name.trim() || !form.slug.trim()) {
       setError("Plan name and slug are required.");
       return;
@@ -100,25 +117,29 @@ export default function AdminPlans() {
           ...form,
           features: form.features,
           limits: form.limits,
+          reason,
         }),
       });
       setForm(emptyForm);
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to create plan");
+      setActionError(e instanceof Error ? e.message : "Unable to create plan");
     }
   }
 
-  async function toggle(plan: Plan) {
+  async function toggle(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "toggle", plan }); return; }
     try {
       setError("");
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
-        body: JSON.stringify({ isActive: !plan.isActive }),
+        body: JSON.stringify({ isActive: !plan.isActive, reason }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to update plan");
+      setActionError(e instanceof Error ? e.message : "Unable to update plan");
     }
   }
 
@@ -173,7 +194,8 @@ export default function AdminPlans() {
     return Number.isFinite(value) ? value : fallback;
   }
 
-  async function savePlanDetails(plan: Plan) {
+  async function savePlanDetails(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "details", plan }); return; }
     setSavingPlan(plan._id);
     setError("");
     try {
@@ -187,29 +209,51 @@ export default function AdminPlans() {
           sortOrder: Number(plan.sortOrder || 0),
           isPopular: Boolean(plan.isPopular),
           limits: plan.limits || {},
+          reason,
         }),
       });
       setEditingPlan(null);
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save plan");
+      setActionError(e instanceof Error ? e.message : "Unable to save plan");
     } finally {
       setSavingPlan(null);
     }
   }
 
-  async function saveFeatures(plan: Plan) {
+  async function savePlanLimits(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "limits", plan }); return; }
+    setSavingPlan(plan._id);
+    setError("");
+    try {
+      await adminFetch(`/api/admin/plans/${plan._id}`, {
+        method: "PUT",
+        body: JSON.stringify({ limits: plan.limits || {}, reason }),
+      });
+      setConfirmAction(null);
+      await load();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Unable to save plan limits");
+    } finally {
+      setSavingPlan(null);
+    }
+  }
+
+  async function saveFeatures(plan: Plan, reason?: string) {
+    if (reason === undefined) { openConfirmation({ kind: "features", plan }); return; }
     setSavingPlan(plan._id);
     setError("");
 
     try {
       await adminFetch(`/api/admin/plans/${plan._id}`, {
         method: "PUT",
-        body: JSON.stringify({ features: plan.features || [] }),
+        body: JSON.stringify({ features: plan.features || [], reason }),
       });
+      setConfirmAction(null);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save plan features");
+      setActionError(e instanceof Error ? e.message : "Unable to save plan features");
     } finally {
       setSavingPlan(null);
     }
@@ -218,20 +262,44 @@ export default function AdminPlans() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-950">Subscription Plans</h1>
-        <p className="mt-2 text-slate-500">
-          Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Subscription plans"
+        description="Manage plan pricing and choose exactly which BuddyForStudy features each plan unlocks."
+        actions={<button type="button" className="btn-primary" onClick={() => setActiveSection("create")} disabled={!permissions.includes("plans.manage")}><Plus className="h-4 w-4" /> Create plan</button>}
+      />
 
+      {confirmAction && <TypedConfirmDialog
+        open
+        title={confirmAction.kind === "create" ? "Create subscription plan" : confirmAction.kind === "toggle" ? (confirmAction.plan?.isActive ? "Disable subscription plan" : "Enable subscription plan") : confirmAction.kind === "details" ? "Save plan details" : confirmAction.kind === "limits" ? "Save plan limits" : "Save plan features"}
+        description={confirmAction.kind === "create" ? "Create a new subscription offering with the current price, features and limits." : `Confirm changes to ${confirmAction.plan?.name || "this subscription plan"}.`}
+        consequence={actionError || (confirmAction.kind === "toggle" ? "Changing plan availability may affect whether learners can subscribe to this plan." : confirmAction.kind === "details" ? "This updates plan pricing and public-facing details." : confirmAction.kind === "limits" ? "This changes usage limits for subscribers." : confirmAction.kind === "features" ? "This changes which features subscribers can access." : "The new plan will be created with the values currently entered.")}
+        confirmLabel={confirmAction.kind === "create" ? "Create plan" : confirmAction.kind === "toggle" ? "Confirm availability change" : "Save changes"}
+        requiredText={confirmAction.kind === "create" ? "CREATE PLAN" : String(confirmAction.plan?.name || "")}
+        value={confirmText} onValueChange={setConfirmText}
+        reason={actionReason} onReasonChange={setActionReason}
+        loading={Boolean(savingPlan)}
+        onClose={() => { if (!savingPlan) { setConfirmAction(null); setActionError(""); } }}
+        onConfirm={() => {
+          const reason = actionReason.trim();
+          if (!confirmAction || reason.length < 10 || reason.length > 500) return;
+          if (confirmAction.kind === "create") void create(reason);
+          else if (confirmAction.plan && confirmAction.kind === "toggle") void toggle(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "details") void savePlanDetails(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "limits") void savePlanLimits(confirmAction.plan, reason);
+          else if (confirmAction.plan && confirmAction.kind === "features") void saveFeatures(confirmAction.plan, reason);
+        }}
+      />}
       {error && (
-        <div className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="mt-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
         </div>
       )}
 
-      <div className="card mt-6 p-5">
+      <div className="mt-6">
+        <AdminTabs ariaLabel="Subscription plan work areas" value={activeSection} onChange={setActiveSection} items={[{ value: "plans" as const, label: `Plans (${plans.length})` }, ...(permissions.includes("plans.manage") ? [{ value: "create" as const, label: "Create plan" }] : [])]} />
+      </div>
+
+      {activeSection === "create" && <div className="card mt-4 p-5">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.14em] text-blue-600">Add another plan</p>
           <h2 className="mt-1 text-xl font-extrabold text-slate-950">Create plan</h2>
@@ -239,18 +307,21 @@ export default function AdminPlans() {
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <input
+            aria-label="Plan name"
             className="input-field"
             placeholder="Plan name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <input
+            aria-label="Plan slug"
             className="input-field"
             placeholder="Slug"
             value={form.slug}
             onChange={(e) => setForm({ ...form, slug: e.target.value })}
           />
           <input
+            aria-label="Plan price"
             className="input-field"
             type="number"
             min="0"
@@ -259,6 +330,7 @@ export default function AdminPlans() {
             onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
           />
           <select
+            aria-label="Plan billing interval"
             className="input-field"
             value={form.billingInterval}
             onChange={(e) => setForm({ ...form, billingInterval: e.target.value })}
@@ -319,6 +391,8 @@ export default function AdminPlans() {
               ["advanced_ai_questions_per_month", "Advanced AI questions"],
               ["advanced_ai_insights_per_month", "Advanced AI summaries"],
               ["ai_quiz_generations_per_month", "AI quiz generations"],
+              ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+              ["ai_curated_courses_per_month", "AI-curated courses"],
             ].map(([key, label]) => (
               <label key={key} className="block text-xs font-semibold text-slate-500">
                 {label}
@@ -335,19 +409,19 @@ export default function AdminPlans() {
           <p className="mt-2 text-[10px] text-slate-400">0 = blocked by quota; -1 = unlimited.</p>
         </div>
 
-        <button className="btn-primary mt-4" onClick={() => void create()}>
+        <button className="btn-primary mt-4" onClick={() => void create()} disabled={!permissions.includes("plans.manage")}>
           <Plus className="h-4 w-4" />
           Create Plan
         </button>
-      </div>
+      </div>}
 
-      <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {activeSection === "plans" && <div className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {loading ? (
-          <div className="card col-span-full p-12 text-center">
-            <RefreshCcw className="mx-auto animate-spin text-slate-400" />
+          <div role="status" aria-live="polite" aria-label="Loading subscription plans" className="card col-span-full p-12 text-center">
+            <RefreshCcw className="mx-auto animate-spin text-slate-400" /><span className="sr-only">Loading subscription plans</span>
           </div>
         ) : plans.length === 0 ? (
-          <div className="card col-span-full p-12 text-center text-sm text-slate-500">
+          <div role="status" aria-live="polite" className="card col-span-full p-12 text-center text-sm text-slate-500">
             No plans found.
           </div>
         ) : (
@@ -355,13 +429,11 @@ export default function AdminPlans() {
             const selectedFeatureCount = plan.features?.length || 0;
 
             return (
-              <div className="card flex flex-col p-5" key={plan._id}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+              <div className="card bfs-plan-card bfs-plan-admin-card flex flex-col p-5" key={plan._id}>
+                <div className="flex flex-col gap-4">
+                  <div className="w-full min-w-0">
                     {plan.isPopular && (
-                      <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.12em] text-blue-700">
-                        Most popular
-                      </span>
+                      <span className="bfs-plan-badge"><Sparkles className="h-3 w-3" /> Most popular</span>
                     )}
                     <h3 className="mt-2 text-xl font-extrabold text-slate-950">{plan.name}</h3>
                     {editingPlan === plan._id ? (
@@ -385,25 +457,39 @@ export default function AdminPlans() {
                         <p className="mt-1 line-clamp-2 text-sm text-slate-500">{plan.description || "Membership plan"}</p>
                         <p className="mt-3 text-3xl font-extrabold text-slate-950">₹{plan.price}<span className="text-xs font-normal text-slate-500">{plan.price === 0 ? " · free" : " / " + plan.billingInterval}</span></p>
                         <p className="mt-1 text-xs text-slate-400">Trial {plan.trialDays || 0} days · Sort {plan.sortOrder || 0}</p>
-                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">AI usage limits / month</p>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                            <label className="block"><span className="text-slate-500">AI course builds</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_course_builds_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_course_builds_per_month", Number(e.target.value))} /></label>
-                            <label className="block"><span className="text-slate-500">Adv. AI questions</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_questions_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_questions_per_month", Number(e.target.value))} /></label>
-                            <label className="block"><span className="text-slate-500">Adv. AI insights</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "advanced_ai_insights_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "advanced_ai_insights_per_month", Number(e.target.value))} /></label>
-                            <label className="block"><span className="text-slate-500">AI quiz generations</span><input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, "ai_quiz_generations_per_month", -1)} onChange={(e) => updatePlanLimit(plan._id, "ai_quiz_generations_per_month", Number(e.target.value))} /></label>
+                          <div className="mt-3 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                            {[
+                              ["ai_course_builds_per_month", "AI course builds"],
+                              ["advanced_ai_questions_per_month", "Advanced AI questions"],
+                              ["advanced_ai_insights_per_month", "Advanced AI summaries"],
+                              ["ai_quiz_generations_per_month", "AI quiz generations"],
+                              ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+                              ["ai_curated_courses_per_month", "AI-curated courses"],
+                            ].map(([key, label]) => (
+                              <label key={key} className="block min-w-0">
+                                <span className="block leading-5 text-slate-600">{label}</span>
+                                <input className="input-field mt-1" type="number" min="-1" value={planLimit(plan, key, -1)} onChange={(e) => updatePlanLimit(plan._id, key, Number(e.target.value))} />
+                              </label>
+                            ))}
                           </div>
-                          <p className="mt-2 text-[10px] text-slate-400">Use 0 to block the capability and -1 for unlimited.</p>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-[10px] text-slate-400">0 = blocked; -1 = unlimited. Changes apply to new course additions.</p>
+                            <button type="button" onClick={() => void savePlanLimits(plan)} disabled={!permissions.includes("plans.manage") || savingPlan === plan._id} className="btn-secondary">
+                              {savingPlan === plan._id ? "Saving limits..." : "Save limits"}
+                            </button>
+                          </div>
                         </div>
                       </>
                     )}
                   </div>
 
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setEditingPlan(editingPlan === plan._id ? null : plan._id)} className="btn-secondary">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button type="button" onClick={() => setEditingPlan(editingPlan === plan._id ? null : plan._id)} className="btn-secondary" disabled={!permissions.includes("plans.manage")}>
                       {editingPlan === plan._id ? "Close editor" : "Edit plan"}
                     </button>
-                    <button onClick={() => void toggle(plan)} className={plan.isActive ? "btn-secondary" : "btn-danger"}>
+                    <button onClick={() => void toggle(plan)} className={plan.isActive ? "btn-secondary" : "btn-danger"} disabled={!permissions.includes("plans.manage")}>
                       <Power className="h-4 w-4" />
                       {plan.isActive ? "Disable" : "Enable"}
                     </button>
@@ -461,7 +547,7 @@ export default function AdminPlans() {
                       <button
                         type="button"
                         className="btn-secondary text-xs"
-                        onClick={() => setAllPlanFeatures(plan._id, true)}
+                        onClick={() => setAllPlanFeatures(plan._id, true)} disabled={!permissions.includes("plans.manage")}
                       >
                         <Check className="h-3.5 w-3.5" />
                         Enable all
@@ -469,7 +555,7 @@ export default function AdminPlans() {
                       <button
                         type="button"
                         className="btn-secondary text-xs"
-                        onClick={() => setAllPlanFeatures(plan._id, false)}
+                        onClick={() => setAllPlanFeatures(plan._id, false)} disabled={!permissions.includes("plans.manage")}
                       >
                         Clear all
                       </button>
@@ -480,7 +566,7 @@ export default function AdminPlans() {
                     <button
                       type="button"
                       onClick={() => void savePlanDetails(plan)}
-                      disabled={savingPlan === plan._id}
+                      disabled={!permissions.includes("plans.manage") || savingPlan === plan._id}
                       className="btn-secondary mt-2 w-full justify-center"
                     >
                       <Save className="h-4 w-4" />
@@ -491,7 +577,7 @@ export default function AdminPlans() {
                   <button
                     type="button"
                     onClick={() => void saveFeatures(plan)}
-                    disabled={savingPlan === plan._id}
+                    disabled={!permissions.includes("plans.manage") || savingPlan === plan._id}
                     className="btn-primary mt-3 w-full justify-center"
                   >
                     {savingPlan === plan._id ? (
@@ -512,7 +598,7 @@ export default function AdminPlans() {
             );
           })
         )}
-      </div>
+      </div>}
     </div>
   );
 }

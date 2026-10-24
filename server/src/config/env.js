@@ -1,5 +1,14 @@
 import dotenv from "dotenv";
+import { getProductionConfigErrors } from "./productionConfigValidation.js";
 dotenv.config();
+
+const nodeEnv = process.env.NODE_ENV || "development";
+if (nodeEnv === "production") {
+  const errors = getProductionConfigErrors(process.env);
+  if (errors.length) {
+    throw new Error("Invalid production configuration: " + errors.join("; "));
+  }
+}
 
 const required = ["MONGO_URI", "JWT_SECRET"];
 for (const key of required) {
@@ -7,12 +16,13 @@ for (const key of required) {
 }
 
 export const env = {
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
   port: Number(process.env.PORT || 5000),
   mongoUri: process.env.MONGO_URI,
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  apiUrl: process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`,
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
   geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
@@ -23,6 +33,9 @@ export const env = {
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
   mailFrom: process.env.MAIL_FROM || process.env.SMTP_USER || "",
+  webPushVapidPublicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY || "",
+  webPushVapidPrivateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY || "",
+  webPushSubject: process.env.WEB_PUSH_SUBJECT || "",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",

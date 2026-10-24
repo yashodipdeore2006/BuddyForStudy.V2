@@ -9,7 +9,12 @@ const enrollmentSchema = new mongoose.Schema({
     enum: ["active", "completed", "cancelled"],
     default: "active",
     required: true
-  }
+  },
+  accessSource: { type: String, enum: ["self", "admin", "subscription"], default: "self", required: true },
+  grantedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  accessReason: { type: String, default: "", maxlength: 500 },
+  revokedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  revokedAt: { type: Date, default: null }
 }, { timestamps: true, collection: "enrollments" });
 
 enrollmentSchema.index({ user: 1, course: 1 }, { unique: true });

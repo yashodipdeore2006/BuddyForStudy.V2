@@ -12,13 +12,19 @@ export interface Profile {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  phone_number?: string;
+  phone_number_verified?: boolean;
+  city?: string;
+  learning_goal?: string;
+  profile_setup_skipped_at?: string | null;
+  marketing_email_consent?: boolean;
 }
 
 export interface TutorialContent {
   content: string;
   videoUrl?: string;
   resourceUrl?: string;
-  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; relevanceScore?: number }>;
+  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; durationSeconds?: number; duration?: string; relevanceScore?: number }>;
   resources?: Array<{ title?: string; url?: string; type?: string }>;
 }
 
@@ -78,6 +84,7 @@ export interface Lesson {
   description: string;
   type: LessonType;
   order: number;
+  durationSeconds?: number;
   tutorial?: TutorialContent;
   project?: ProjectContent;
   quiz?: QuizContent;
@@ -111,7 +118,25 @@ export interface Course {
   learning_outcomes: string[];
   modules: Module[];
   is_published: boolean;
+  enrollmentEnabled?: boolean;
+  certificateEnabled?: boolean;
   enrollment_count?: number;
+  enrollmentCount?: number;
+  ratingAverage?: number;
+  ratingCount?: number;
+  cardMetadata?: {
+    creatorName?: string;
+    creatorUrl?: string;
+    typeTag?: string;
+    videoCount?: number;
+    previewVideoId?: string;
+    qualityScore?: number;
+    viewCount?: number;
+    likeCount?: number;
+  };
+  generation?: { mode?: 'normal' | 'ai' | 'module' | 'discovery'; sourceResourceType?: 'video' | 'playlist' | 'series' | null; query?: string };
+  module_count?: number;
+  lesson_count?: number;
   pricing?: { mode: 'free' | 'paid'; price: number; compareAtPrice?: number; currency?: string; saleEnabled?: boolean; salePrice?: number };
   created_by: string | null;
   created_at: string;

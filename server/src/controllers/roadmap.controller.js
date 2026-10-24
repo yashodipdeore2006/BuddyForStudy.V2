@@ -2,6 +2,17 @@ import { z } from "zod";
 import * as service from "../services/roadmap.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
+import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
+
+async function requireRoadmapAccess(req, res) {
+  if (req.user?.role === "admin" || req.user?.user?.role === "admin") return true;
+  const entitlement = await getEntitlement(req.user.userId, "personalized_roadmaps");
+  if (entitlement.allowed) return true;
+  const plan = entitlement.plan || await getActivePlanForUser(req.user.userId);
+  failure(res, "Personalized learning roadmaps are not included in your current plan. Upgrade to use this feature.", 403, { feature: "personalized_roadmaps", plan: plan?.name || "Free" });
+  return false;
+}
 
 const saveSchema = z.object({
   query: z.string().trim().min(2).max(200),
@@ -24,6 +35,7 @@ const saveSchema = z.object({
 
 export async function save(req, res, next) {
   try {
+    if (!(await requireRoadmapAccess(req, res))) return;
     const input = saveSchema.parse(req.body);
     return success(res, { roadmap: await service.saveRoadmap(req.user.userId, input) }, "Learning roadmap saved", 201);
   } catch (e) {
@@ -33,12 +45,16 @@ export async function save(req, res, next) {
 }
 
 export async function list(req, res, next) {
-  try { return success(res, { roadmaps: await service.listRoadmaps(req.user.userId) }); }
+  try {
+    if (!(await requireRoadmapAccess(req, res))) return;
+    return success(res, { roadmaps: await service.listRoadmaps(req.user.userId) });
+  }
   catch (e) { next(e); }
 }
 
 export async function remove(req, res, next) {
   try {
+    if (!(await requireRoadmapAccess(req, res))) return;
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
     return success(
       res,
@@ -50,6 +66,7 @@ export async function remove(req, res, next) {
 
 export async function get(req, res, next) {
   try {
+    if (!(await requireRoadmapAccess(req, res))) return;
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
     return success(res, { roadmap: await service.getRoadmap(req.user.userId, req.params.roadmapId) });
   } catch (e) { next(e); }
@@ -62,6 +79,7 @@ const quizSchema = z.object({
 
 export async function generateQuiz(req, res, next) {
   try {
+    if (!(await requireRoadmapAccess(req, res))) return;
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
     const moduleIndex = Number(req.params.moduleIndex);
     if (!Number.isInteger(moduleIndex) || moduleIndex < 0) return failure(res, "Invalid moduleIndex", 400);
@@ -77,6 +95,7 @@ export async function generateQuiz(req, res, next) {
 
 export async function submitQuiz(req, res, next) {
   try {
+    if (!(await requireRoadmapAccess(req, res))) return;
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
     const input = quizSchema.parse(req.body);
     return success(res, { roadmap: await service.submitQuiz(req.user.userId, req.params.roadmapId, input.moduleIndex, input.answers) }, "Quiz submitted");
@@ -88,6 +107,7 @@ export async function submitQuiz(req, res, next) {
 
 export async function complete(req, res, next) {
   try {
+    if (!(await requireRoadmapAccess(req, res))) return;
     if (!isValidObjectId(req.params.roadmapId)) return failure(res, "Invalid roadmapId", 400);
     return success(res, { roadmap: await service.completeLesson(req.user.userId, req.params.roadmapId, String(req.params.lessonId)) }, "Roadmap lesson completed");
   } catch (e) { next(e); }

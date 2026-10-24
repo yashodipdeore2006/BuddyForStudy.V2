@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, ExternalLink, FileText, Github, Link as LinkIcon, Loader2, Plus, RefreshCcw, Save, Trash2, Video } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
 
 type TutorialEditor = {
   lessonId: string;
@@ -75,41 +76,169 @@ function youtubeEmbedUrl(url: string) {
   }
 }
 
+type RoadmapStage = {
+  id?: string;
+  title?: string;
+  emoji?: string;
+  skills?: string[] | string;
+  outcome?: string;
+  lessonIds?: string[];
+  hours?: number;
+};
+
+type CourseResource = {
+  _id: string;
+  title?: string;
+  url?: string;
+  type?: ResourceForm["type"];
+};
+
+type CourseVideo = { url?: string; title?: string; videoId?: string; duration?: string };
+
+type CourseLesson = {
+  _id: string;
+  title?: string;
+  type: LearningItemForm["type"];
+  tutorial?: { videos?: CourseVideo[]; [key: string]: unknown };
+};
+
+type CourseModule = {
+  _id: string;
+  title?: string;
+  description?: string;
+  order?: number;
+  lessons?: CourseLesson[];
+  resources?: CourseResource[];
+};
+
+type AdminCourseRecord = {
+  _id: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  category?: string;
+  level?: CourseMetaForm["level"];
+  duration?: string | number;
+  thumbnail?: string | null;
+  learningOutcomes?: string[];
+  isPublished?: boolean;
+  enrollmentEnabled?: boolean;
+  certificateEnabled?: boolean;
+  featured?: boolean;
+  pricing?: { mode?: string; price?: number; currency?: string };
+  roadmap?: { stages?: RoadmapStage[]; [key: string]: unknown };
+  modules?: CourseModule[];
+};
+
+type CourseReadinessCheck = { key: string; label: string; fix?: string };
+type CourseReadiness = {
+  ready?: boolean;
+  error?: string;
+  failedChecks?: CourseReadinessCheck[];
+  passedCount?: number;
+  totalChecks?: number;
+};
+
 export default function AdminCoursesPro() {
-  const [courses, setCourses] = useState<any[]>([]);
+  const [courses, setCourses] = useState<AdminCourseRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [openCourseId, setOpenCourseId] = useState<string | null>(null);
-  const [courseDetails, setCourseDetails] = useState<Record<string, any>>({});
+  const [courseDetails, setCourseDetails] = useState<Record<string, AdminCourseRecord>>({});
   const [detailLoading, setDetailLoading] = useState<Record<string, boolean>>({});
   const [editors, setEditors] = useState<Record<string, TutorialEditor>>({});
   const [moduleForms, setModuleForms] = useState<Record<string, ModuleForm>>({});
   const [newModuleForms, setNewModuleForms] = useState<Record<string, ModuleForm>>({});
   const [resourceForms, setResourceForms] = useState<Record<string, ResourceForm>>({});
   const [courseMetaForms, setCourseMetaForms] = useState<Record<string, CourseMetaForm>>({});
+  const [roadmapDrafts, setRoadmapDrafts] = useState<Record<string, RoadmapStage[]>>({});
+  const [roadmapSaving, setRoadmapSaving] = useState<Record<string, boolean>>({});
+  const [roadmapMessages, setRoadmapMessages] = useState<Record<string, string>>({});
   const [learningItemForms, setLearningItemForms] = useState<Record<string, LearningItemForm>>({});
   const [courseQuery, setCourseQuery] = useState("");
+  const [readinessResults, setReadinessResults] = useState<Record<string, CourseReadiness>>({});
+  const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const canManageCourses = permissions.includes("courses.manage");
+  const canPublishCourses = permissions.includes("courses.publish");
 
-  async function load(query = courseQuery) {
+  const load = useCallback(async (query = courseQuery, selectedPage = page, selectedLimit = limit) => {
     setLoading(true);
+    setLoadError("");
     try {
-      const suffix = query.trim() ? "?q=" + encodeURIComponent(query.trim()) : "";
-      const data = await adminFetch("/api/admin/courses" + suffix);
+      const params = new URLSearchParams({ page: String(selectedPage), limit: String(selectedLimit) });
+      if (query.trim()) params.set("q", query.trim());
+      const data = await adminFetch("/api/admin/courses?" + params.toString());
       setCourses(data.courses || []);
+      setTotal(Number(data.total || 0));
+      setPages(Math.max(1, Number(data.pages || 1)));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load courses.");
     } finally {
       setLoading(false);
     }
-  }
+  }, [courseQuery, page, limit]);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void adminFetch("/api/admin/access")
+      .then((data) => {
+        if (!cancelled) setPermissions(Array.isArray(data.access?.permissions) ? data.access.permissions : []);
+      })
+      .catch(() => { if (!cancelled) setPermissions([]); })
+      .finally(() => { if (!cancelled) setPermissionsLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
-  async function save(c: any, patch: any) {
-    await adminFetch(`/api/admin/courses/${c._id}`, {
-      method: "PUT",
-      body: JSON.stringify(patch),
-    });
-    await load();
+  async function checkReadiness(courseId: string) {
+    setReadinessLoading(current => ({ ...current, [courseId]: true }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId + "/readiness");
+      setReadinessResults(current => ({ ...current, [courseId]: data.readiness }));
+    } catch (error) {
+      setReadinessResults(current => ({ ...current, [courseId]: { error: error instanceof Error ? error.message : "Unable to check readiness" } }));
+    } finally { setReadinessLoading(current => ({ ...current, [courseId]: false })); }
+  }
+  async function save(c: AdminCourseRecord, patch: Record<string, unknown>) {
+    setLoadError("");
+    try {
+      await adminFetch(`/api/admin/courses/${c._id}`, {
+        method: "PUT",
+        body: JSON.stringify(patch),
+      });
+      await load();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to save course controls.");
+    }
+  }
+
+  async function publishCourse(c: AdminCourseRecord) {
+    setReadinessLoading(current => ({ ...current, [c._id]: true }));
+    try {
+      const check = await adminFetch("/api/admin/courses/" + c._id + "/readiness");
+      setReadinessResults(current => ({ ...current, [c._id]: check.readiness }));
+      if (!check.readiness?.ready) return;
+      await adminFetch("/api/admin/courses/" + c._id + "/publish", {
+        method: "POST",
+        body: JSON.stringify({ reason: "Admin published after readiness preflight" }),
+      });
+      await load();
+    } catch (error) {
+      const readiness = error && typeof error === "object" && "readiness" in error ? error.readiness as CourseReadiness : undefined;
+      if (readiness) setReadinessResults(current => ({ ...current, [c._id]: readiness }));
+      else setReadinessResults(current => ({ ...current, [c._id]: { error: error instanceof Error ? error.message : "Unable to publish course" } }));
+    } finally {
+      setReadinessLoading(current => ({ ...current, [c._id]: false }));
+    }
   }
 
   async function openEditor(courseId: string) {
@@ -125,6 +254,7 @@ export default function AdminCoursesPro() {
     try {
       const data = await adminFetch(`/api/admin/courses/${courseId}`);
       setCourseDetails((current) => ({ ...current, [courseId]: data.course }));
+      setRoadmapDrafts((current) => ({ ...current, [courseId]: Array.isArray(data.course?.roadmap?.stages) ? data.course.roadmap.stages : [] }));
     } finally {
       setDetailLoading((current) => ({ ...current, [courseId]: false }));
     }
@@ -145,7 +275,7 @@ export default function AdminCoursesPro() {
     }));
   }
 
-  function courseMeta(course: any): CourseMetaForm {
+  function courseMeta(course: AdminCourseRecord): CourseMetaForm {
     return courseMetaForms[course._id] || {
       title: course.title || "",
       description: course.description || "",
@@ -159,9 +289,25 @@ export default function AdminCoursesPro() {
     };
   }
 
-  async function saveCourseMeta(courseId: string, course: any) {
+  async function saveCourseMeta(courseId: string, course: AdminCourseRecord) {
     const form = courseMeta(course);
-    if (!form.title.trim() || !form.description.trim() || !form.category.trim()) return;
+    const missingFields = [
+      !form.title.trim() && "title",
+      !form.description.trim() && "description",
+      !form.category.trim() && "category",
+      !form.duration.trim() && "duration",
+    ].filter(Boolean);
+    if (missingFields.length) {
+      setCourseMetaForms((current) => ({
+        ...current,
+        [courseId]: {
+          ...form,
+          saving: false,
+          error: "Complete the required course fields: " + missingFields.join(", ") + ".",
+        },
+      }));
+      return;
+    }
 
     setCourseMetaForms((current) => ({ ...current, [courseId]: { ...form, saving: true, error: "" } }));
     try {
@@ -193,11 +339,45 @@ export default function AdminCoursesPro() {
     }
   }
 
-  function patchDetail(courseId: string, course: any) {
+  function patchRoadmapStage(courseId: string, stageIndex: number, patch: Record<string, unknown>) {
+    setRoadmapDrafts((current) => ({
+      ...current,
+      [courseId]: (current[courseId] || []).map((stage, index) => index === stageIndex ? { ...stage, ...patch } : stage),
+    }));
+  }
+
+  async function saveRoadmap(courseId: string) {
+    const stages = roadmapDrafts[courseId] || [];
+    setRoadmapSaving((current) => ({ ...current, [courseId]: true }));
+    setRoadmapMessages((current) => ({ ...current, [courseId]: "" }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId + "/roadmap", { method: "PUT", body: JSON.stringify({ stages: stages.map((stage, index) => ({ ...stage, order: index + 1, skills: String(Array.isArray(stage.skills) ? stage.skills.join(", ") : stage.skills || "").split(",").map((item) => item.trim()).filter(Boolean).slice(0, 3) })) }) });
+      setRoadmapDrafts((current) => ({ ...current, [courseId]: data.roadmap?.stages || stages }));
+      setRoadmapMessages((current) => ({ ...current, [courseId]: "Roadmap saved." }));
+      const detail = courseDetails[courseId];
+      if (detail) patchDetail(courseId, { ...detail, roadmap: data.roadmap });
+    } catch (error) { setRoadmapMessages((current) => ({ ...current, [courseId]: error instanceof Error ? error.message : "Unable to save roadmap." })); }
+    finally { setRoadmapSaving((current) => ({ ...current, [courseId]: false })); }
+  }
+
+  async function regenerateRoadmap(courseId: string) {
+    setRoadmapSaving((current) => ({ ...current, [courseId]: true }));
+    setRoadmapMessages((current) => ({ ...current, [courseId]: "" }));
+    try {
+      const data = await adminFetch("/api/admin/courses/" + courseId + "/roadmap/regenerate", { method: "POST", body: JSON.stringify({}) });
+      setRoadmapDrafts((current) => ({ ...current, [courseId]: data.roadmap?.stages || [] }));
+      const detail = courseDetails[courseId];
+      if (detail) patchDetail(courseId, { ...detail, roadmap: data.roadmap });
+      setRoadmapMessages((current) => ({ ...current, [courseId]: "Roadmap regenerated. AI metadata is used when configured; review and save any edits." }));
+    } catch (error) { setRoadmapMessages((current) => ({ ...current, [courseId]: error instanceof Error ? error.message : "Unable to regenerate roadmap." })); }
+    finally { setRoadmapSaving((current) => ({ ...current, [courseId]: false })); }
+  }
+
+  function patchDetail(courseId: string, course: AdminCourseRecord) {
     setCourseDetails((current) => ({ ...current, [courseId]: course }));
   }
 
-  function moduleForm(module: any): ModuleForm {
+  function moduleForm(module: CourseModule): ModuleForm {
     return moduleForms[module._id] || {
       title: module.title || "",
       description: module.description || "",
@@ -234,7 +414,7 @@ export default function AdminCoursesPro() {
     };
   }
 
-  async function addLearningItem(courseId: string, module: any) {
+  async function addLearningItem(courseId: string, module: CourseModule) {
     const form = learningItemForm(module._id);
     if (!form.title.trim()) return;
 
@@ -299,7 +479,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function updateModule(courseId: string, module: any) {
+  async function updateModule(courseId: string, module: CourseModule) {
     const form = moduleForm(module);
     if (!form.title.trim()) return;
 
@@ -330,7 +510,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteModule(courseId: string, module: any) {
+  async function deleteModule(courseId: string, module: CourseModule) {
     if (!window.confirm(`Remove module "${module.title}" and all its lessons/resources?`)) return;
 
     try {
@@ -343,7 +523,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function addVideoToModule(courseId: string, module: any) {
+  async function addVideoToModule(courseId: string, module: CourseModule) {
     const key = `add-video:${module._id}`;
     const editor = editors[key];
     if (!editor?.url.trim()) return;
@@ -391,7 +571,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteLesson(courseId: string, module: any, lesson: any) {
+  async function deleteLesson(courseId: string, module: CourseModule, lesson: CourseLesson) {
     if (!window.confirm(`Remove "${lesson.title}" from "${module.title}"?`)) return;
     try {
       const data = await adminFetch(
@@ -404,7 +584,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function addModuleResource(courseId: string, module: any) {
+  async function addModuleResource(courseId: string, module: CourseModule) {
     const form = resourceForm(module._id);
     if (!form.title.trim() || !form.url.trim()) return;
 
@@ -438,7 +618,7 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteModuleResource(courseId: string, module: any, resource: any) {
+  async function deleteModuleResource(courseId: string, module: CourseModule, resource: CourseResource) {
     if (!window.confirm(`Remove module resource "${resource.title}"?`)) return;
     try {
       const data = await adminFetch(
@@ -502,43 +682,56 @@ export default function AdminCoursesPro() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-950">Course Commerce Control</h1>
-          <p className="mt-2 text-slate-500">Publish, price, and fully manage modules, videos, playlists, and learning resources.</p>
-        </div>
-      </div>
+      <AdminPageHeader
+        title={openCourseId ? (courses.find((item) => item._id === openCourseId)?.title || "Course editor") : "Course management"}
+        description={openCourseId
+          ? "Edit course information and maintain its curriculum in one focused workspace."
+          : "Find a course, review publishing readiness, and open one course at a time to edit its curriculum."}
+        actions={openCourseId ? (
+          <button type="button" className="btn-secondary" onClick={() => setOpenCourseId(null)}>
+            <ChevronRight className="h-4 w-4 rotate-180" /> Back to course catalogue
+          </button>
+        ) : (
+          <button type="button" className="btn-secondary" onClick={() => { setPage(1); void load(courseQuery, 1, limit); }} disabled={loading}>
+            <RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh courses
+          </button>
+        )}
+      />
 
-      <div className="card mt-6 p-4">
+      {!permissionsLoading && !canManageCourses && <div role="status" className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">Read-only catalog access. Course editing, pricing, enrollment controls and curriculum changes are hidden because your role does not have course-management permission.</div>}
+      {loadError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>}
+      {!openCourseId && <div className="card mt-6 p-4">
         <div className="flex flex-col gap-3 md:flex-row">
           <input
+            aria-label="Search courses by title or category"
             className="input-field flex-1"
             value={courseQuery}
+            maxLength={100}
             onChange={(e) => setCourseQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void load()}
             placeholder="Search courses by title or category"
           />
-          <button type="button" className="btn-primary" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="btn-primary" onClick={() => { setPage(1); void load(courseQuery, 1, limit); }} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
             Search courses
           </button>
-          <button type="button" className="btn-secondary" onClick={() => { setCourseQuery(""); void load(""); }}>
+          <button type="button" aria-label="Clear course search" className="btn-secondary" onClick={() => { setCourseQuery(""); void load(""); }}>
             Clear
           </button>
         </div>
-      </div>
+      </div>}
 
       <div className="mt-6 space-y-4">
         {loading ? (
-          <div className="rounded-2xl bg-white p-10 text-center shadow-sm">
-            <RefreshCcw className="mx-auto animate-spin text-slate-400" />
+          <div role="status" aria-live="polite" aria-label="Loading courses" className="rounded-2xl bg-white p-10 text-center shadow-sm">
+            <RefreshCcw className="mx-auto animate-spin text-slate-400" /><span className="sr-only">Loading courses</span>
           </div>
         ) : courses.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          <div role="status" aria-live="polite" className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
             No courses found.
           </div>
         ) : (
-          courses.map((course) => {
+          courses.filter((course) => !openCourseId || course._id === openCourseId).map((course) => {
             const open = openCourseId === course._id;
             const detail = courseDetails[course._id];
             const newModuleFormValue = newModuleForm(course._id);
@@ -546,23 +739,47 @@ export default function AdminCoursesPro() {
             return (
               <div key={course._id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div className="p-5">
+                  {readinessResults[course._id] && <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    {readinessResults[course._id].error ? <p role="alert" className="text-sm text-red-700">{readinessResults[course._id].error}</p> : <>
+                      <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold">{readinessResults[course._id].ready ? "Ready for publishing review" : "Publishing checklist needs attention"}</p><span className="text-xs text-slate-500">{readinessResults[course._id].passedCount}/{readinessResults[course._id].totalChecks} checks passed</span></div>
+                      {Boolean(readinessResults[course._id].failedChecks?.length) && <div className="mt-3 space-y-2">{(readinessResults[course._id].failedChecks || []).map((check: CourseReadinessCheck) => <div key={check.key} className="rounded-lg border border-amber-200 bg-white p-3"><p className="flex items-start gap-2 text-sm font-semibold text-slate-900"><span className="mt-0.5 text-amber-600">!</span><span>{check.label}</span></p><p className="mt-1 pl-5 text-sm leading-5 text-slate-600">{check.fix || "Review this requirement and complete the missing information."}</p><p className="mt-2 pl-5 text-xs font-semibold text-blue-700">Where to fix: {["quizContent","tutorialContent","projectContent","moduleTitles","lessonTitles","lessonTypes","modules","lessons"].includes(check.key) ? "Manage Curriculum" : "Course details / pricing controls"}</p></div>)}</div>}
+                    </>}
+                  </div>}
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                     <div className="flex-1 min-w-0">
                       <h2 className="font-semibold text-slate-950">{course.title}</h2>
                       <p className="text-sm text-slate-500">{course.category} · {course.level}</p>
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={course.isPublished} onChange={(e) => save(course, { isPublished: e.target.checked })} />
-                      Published
-                    </label>
+                    <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => void checkReadiness(course._id)} disabled={Boolean(readinessLoading[course._id])}>
+                      {readinessLoading[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      {readinessLoading[course._id] ? "Checking…" : "Readiness"}
+                    </button>
+                    {canManageCourses && canPublishCourses ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" aria-label={"Publish " + course.title} checked={course.isPublished} disabled={Boolean(readinessLoading[course._id])} onChange={(e) => e.target.checked ? void publishCourse(course) : void save(course, { isPublished: false })} />
+                        Published
+                      </label>
+                    ) : <span className="text-sm text-slate-500">{course.isPublished ? "Published" : "Draft"}</span>}
 
+                    {canManageCourses && <>
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={course.featured} onChange={(e) => save(course, { featured: e.target.checked })} />
+                      <input type="checkbox" aria-label={`Feature ${course.title}`} checked={course.featured} onChange={(e) => save(course, { featured: e.target.checked })} />
                       Featured
                     </label>
 
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" aria-label={`Enable enrollment for ${course.title}`} checked={course.enrollmentEnabled !== false} onChange={(e) => save(course, { enrollmentEnabled: e.target.checked })} />
+                      Enrollment enabled
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" aria-label={`Enable certificates for ${course.title}`} checked={course.certificateEnabled !== false} onChange={(e) => save(course, { certificateEnabled: e.target.checked })} />
+                      Certificates enabled
+                    </label>
+
                     <select
+                      aria-label={`Pricing mode for ${course.title}`}
                       className="input-field w-auto"
                       value={course.pricing?.mode || "free"}
                       onChange={(e) => save(course, { pricing: { ...course.pricing, mode: e.target.value } })}
@@ -597,6 +814,7 @@ export default function AdminCoursesPro() {
                       Manage Curriculum
                       {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </button>
+                    </>}
                   </div>
                 </div>
 
@@ -650,6 +868,23 @@ export default function AdminCoursesPro() {
                           })()}
                         </div>
 
+                        <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div><p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700">Journey roadmap</p><h3 className="mt-1 text-lg font-bold text-slate-950">Milestones for learners</h3><p className="mt-1 text-xs text-slate-600">Edit the short journey stages shown on the course detail page. Every lesson must belong to one stage.</p></div>
+                            <button type="button" className="btn-secondary" onClick={() => void regenerateRoadmap(course._id)} disabled={Boolean(roadmapSaving[course._id])}>{roadmapSaving[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}Regenerate with AI</button>
+                          </div>
+                          {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).length === 0 ? <p className="mt-4 rounded-xl bg-white p-4 text-sm text-slate-500">Roadmap stages will be generated when this course has lessons.</p> : <div className="mt-4 space-y-3">
+                            {(roadmapDrafts[course._id] || detail.roadmap?.stages || []).map((stage: RoadmapStage, stageIndex: number) => <div key={stage.id || stageIndex} className="grid gap-3 rounded-xl border border-violet-100 bg-white p-3">
+                              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_140px]"><label className="text-xs font-semibold text-slate-600">Stage {stageIndex + 1} title<input className="input-field mt-1" maxLength={100} value={stage.title || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { title: event.target.value })} /></label><label className="text-xs font-semibold text-slate-600">Emoji<input className="input-field mt-1" maxLength={12} value={stage.emoji || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { emoji: event.target.value })} /></label></div>
+                              <label className="text-xs font-semibold text-slate-600">Skills (comma-separated)<input className="input-field mt-1" value={Array.isArray(stage.skills) ? stage.skills.join(", ") : stage.skills || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { skills: event.target.value })} placeholder="Skill one, Skill two, Skill three" /></label>
+                              <label className="text-xs font-semibold text-slate-600">Outcome<textarea className="input-field mt-1 min-h-20" maxLength={1000} value={stage.outcome || ""} onChange={(event) => patchRoadmapStage(course._id, stageIndex, { outcome: event.target.value })} placeholder="What the learner will be able to build or do" /></label>
+                              <p className="text-xs text-slate-500">{(stage.lessonIds || []).length} assigned lessons · {Number(stage.hours || 0)} h</p>
+                            </div>)}
+                          </div>}
+                          {roadmapMessages[course._id] && <p role="status" className="mt-3 text-sm text-slate-700">{roadmapMessages[course._id]}</p>}
+                          <button type="button" className="btn-primary mt-4" onClick={() => void saveRoadmap(course._id)} disabled={Boolean(roadmapSaving[course._id]) || !(roadmapDrafts[course._id] || detail.roadmap?.stages || []).length}>{roadmapSaving[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save roadmap</button>
+                        </section>
+
                         <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
                           <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Add module</p>
                           <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1.4fr_auto]">
@@ -692,7 +927,7 @@ export default function AdminCoursesPro() {
                           <p className="text-xs text-slate-500">Add or remove modules, tutorial videos/playlists, and module resources.</p>
                         </div>
 
-                        {detail.modules?.map((module: any, moduleIndex: number) => (
+                        {detail.modules?.map((module: CourseModule, moduleIndex: number) => (
                           <div key={module._id || moduleIndex} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                             <div className="border-b border-slate-100 px-4 py-3">
                               <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
@@ -806,7 +1041,7 @@ export default function AdminCoursesPro() {
                             </div>
 
                             <div className="divide-y divide-slate-100">
-                              {(module.lessons || []).map((lesson: any, lessonIndex: number) => {
+                              {(module.lessons || []).map((lesson: CourseLesson, lessonIndex: number) => {
                                 const currentVideo = lesson.tutorial?.videos?.[0];
                                 const editor = editors[lesson._id] || {
                                   lessonId: lesson._id,
@@ -888,7 +1123,7 @@ export default function AdminCoursesPro() {
                                 );
                               })}
 
-                              {!(module.lessons || []).some((lesson: any) => lesson.type === "tutorial" && lesson.tutorial?.videos?.length) && (
+                              {!(module.lessons || []).some((lesson: CourseLesson) => lesson.type === "tutorial" && lesson.tutorial?.videos?.length) && (
                                 (() => {
                                   const editorKey = `module:${module._id || module.order}`;
                                   const editor = editors[editorKey] || {
@@ -1016,7 +1251,7 @@ export default function AdminCoursesPro() {
 
                               {(module.resources || []).length > 0 && (
                                 <div className="mt-3 space-y-2">
-                                  {(module.resources || []).map((resource: any) => {
+                                  {(module.resources || []).map((resource: CourseResource) => {
                                     const Icon =
                                       resource.type === "repository"
                                         ? Github
@@ -1104,6 +1339,10 @@ export default function AdminCoursesPro() {
             );
           })
         )}
+        {!openCourseId && <div className="border-t border-slate-100 pt-3">
+          <AdminPagination page={page} pages={pages} total={total} from={total ? (page - 1) * limit + 1 : 0} to={Math.min(page * limit, total)} limit={limit} loading={loading} onPageChange={(nextPage) => { setPage(nextPage); void load(courseQuery, nextPage, limit); }} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); void load(courseQuery, 1, nextLimit); }} />
+        </div>}
+
       </div>
     </div>
   );

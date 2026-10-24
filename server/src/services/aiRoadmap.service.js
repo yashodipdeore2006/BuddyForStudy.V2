@@ -3,11 +3,13 @@ import { env } from "../config/env.js";
 import { generateCoursePlan as generateKnowledgeBaseCoursePlan } from "./roadmapGenerator.service.js";
 import { attachYouTubeResources } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 import { randomUUID } from "node:crypto";
 import { normalizeMultiVideoLessons } from "./course.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
+import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -879,59 +881,25 @@ const quizResponseSchema = {
 };
 
 
-async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }) {
+async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }, activePrompt) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to build a personalized roadmap.");
     error.status = 503;
     throw error;
   }
 
-  const prompt = [
-    "You are BuddyForStudy's curriculum architect.",
-    "Create a realistic prerequisite-ordered learning curriculum for the learner.",
-    "This is NOT a search result. Design a learning path from first principles to the stated outcome.",
-    "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
-    "For Data Analytics requests, generate a complete Data Analytics curriculum rather than a generic Data Science curriculum. It must cover spreadsheet analysis (Excel or equivalent), SQL and relational querying, descriptive statistics and probability basics, Python for analytics, NumPy and Pandas, data cleaning and exploratory data analysis, visualization and dashboards (Power BI or Tableau), business metrics and communicating insights, and portfolio projects.",
-    "For a broad career or full-course request such as Data Analytics, target 8-12 ordered skill modules unless the learner explicitly says they already know or want to skip parts. Each module must contain multiple concrete topics, a suitable long-form tutorial search query, a lesson quiz, and an applied project at meaningful milestones. Include a final capstone that uses a realistic dataset and ends with actionable business recommendations.",
-    "Do not return only a high-level roadmap or a list of skill names. The generated course must be learner-ready: ordered modules, specific topic-level lessons, real tutorial/video resources attached by the resource service, quizzes/assessments, practical projects, and a final portfolio capstone.",
-    "Use the requested topic to determine the curriculum title, canonicalTopic, category, skills, and learning outcomes. Only broaden the topic when the user explicitly asks for a broad career path.",
-    "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
-    "Infer the important skills even when the topic is broad or uncommon.",
-    "Use concise skill IDs in lowercase kebab-case.",
-    "Every prerequisite must refer to another skill id or exact skill name in the same skills list.",
-    "Do not add a prerequisite that is not needed.",
-    "Include practical projects after major skill stages.",
-    "For software/web/full-stack learning paths, explicitly include a Git & GitHub workflow stage after the core programming/foundation stage and before heavy framework work. Teach repositories, branches, commits, pull requests, issues, README/documentation, code review, and collaborative workflow.",
-    "For web/full-stack paths, include production readiness: HTTP and APIs, validation, authentication/authorization, security basics, testing/debugging, environment configuration, deployment, monitoring, and performance where relevant.",
-    "Also teach software engineering fundamentals that transfer across stacks: clean code, debugging strategy, API contracts/documentation, data modeling, security, testing strategy, deployment, observability, performance trade-offs, and basic system design when relevant.",
-    "Do not assume a learner becomes job-ready by watching videos alone. Sequence learning so each major stage has hands-on application, feedback/assessment, and professional engineering practice.",
-    "Project plans must be detailed enough for a complete beginner to understand the problem, why it matters, what to build, architecture, feature milestones, testing, GitHub workflow, industry skills, and a sensible definition of done.",
-    "At the END of a web/full-stack curriculum, provide 1-2 portfolio-grade capstone projects that combine the major technologies. For MERN, these must be full-stack MERN applications. Generate one strong YouTube search query per capstone for a long-form project build tutorial.",
-    "Never invent GitHub repository URLs or YouTube URLs. Return search queries only; the resource search layer will select real embeddable resources.",
-    "Adapt the sequence to the learner's topic rather than forcing MERN-specific technologies onto unrelated careers.",
-
-    "Create 5-12 technologies/stages for broad stacks/careers and 3-8 for focused topics.",
-    "Treat the topic as a complete stack/career when appropriate: identify the major technologies, modules, prerequisites, and project milestones needed to finish the stack.",
-    "For every technology/stage, decide whether a practical project should follow it: use projectPlacement=skill for a meaningful project, milestone for a larger project after two stages, or none when a project would add little value.",
-    "For EVERY skill, decide a realistic complete-course duration range based on the depth required to become competent in that skill.",
-    "Return minMinutes, targetMinutes, and maxMinutes for each skill.",
-    "Do not use one generic duration for every skill. A deeper technology such as JavaScript may require a much longer course than a smaller focused skill.",
-    "For EVERY skill, decide quiz density with quizPolicy: lessonQuestionCount (3-10) based on topic count and lesson depth, moduleQuestionCount (0-15) based on overall module breadth, and passingScore (50-90).",
-    "Lesson quizzes should validate the immediate topic after the lesson. Module assessments should cover the combined technology/module topics.",
-    "The duration and topic count should drive quiz counts; do not use the same quiz count for every technology.",
-    "The duration range is a SEARCH CONSTRAINT for YouTube resources, not the learner's total study duration.",
-    "The selected course should normally be at least minMinutes and should not exceed maxMinutes unless no acceptable candidate exists.",
-    "",
-    `Topic: ${topic}`,
-    `Learner level: ${level}`,
-    `Goals: ${JSON.stringify(goals)}`,
-    `Study time per day: ${studyTimeMinutesPerDay || 60} minutes`,
-    `Already known skills: ${JSON.stringify(knownSkills || [])}`
-  ].join("\n");
+  const prompt = renderActivePrompt(activePrompt, {
+    topic: String(topic || "").trim(),
+    level: String(level || "Beginner"),
+    goals: JSON.stringify(Array.isArray(goals) ? goals : []),
+    studyTimeMinutesPerDay: String(studyTimeMinutesPerDay || 60),
+    knownSkills: JSON.stringify(Array.isArray(knownSkills) ? knownSkills : [])
+  });
+  const finalPrompt = prompt + "\n\nPLATFORM OUTPUT CONTRACT: Return one valid JSON object matching the supplied response schema, with no markdown fences or surrounding commentary. Do not invent URLs or claim a resource has been found; resource retrieval is handled by the platform after the curriculum is generated.";
 
   const response = await client.models.generateContent({
     model: env.geminiModel,
-    contents: prompt,
+    contents: finalPrompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: roadmapSchema,
@@ -1028,9 +996,10 @@ function cachedRoadmapFromCourse(course, input) {
   };
 }
 
-function getQuizContext(module, lesson) {
-  const sourceLessons =
-    lesson.quiz?.scope === "module"
+function getQuizContext(module, lesson, practiceOnly = false) {
+  const sourceLessons = practiceOnly
+    ? (lesson.type === "quiz" ? (module.lessons || []).filter((item) => item.type !== "quiz") : [lesson])
+    : lesson.quiz?.scope === "module"
       ? (module.lessons || []).filter((item) => item.type !== "quiz")
       : (module.lessons || []).filter(
           (item) => item.type === "tutorial" && Number(item.order || 0) < Number(lesson.order || 0)
@@ -1042,7 +1011,8 @@ function getQuizContext(module, lesson) {
     description: item.description || "",
     topics: item.tutorial?.requiredTopics || [],
     content: item.tutorial?.content || "",
-    project: item.project || null
+    project: item.project || null,
+    videos: (item.tutorial?.videos || item.project?.videos || []).map((video) => ({ title: video.title, description: video.description, duration: video.duration }))
   }));
 }
 
@@ -1068,16 +1038,45 @@ function validateQuizQuestions(questions, expectedCount) {
   return valid.slice(0, expectedCount);
 }
 
-export async function generateCourseQuiz({ courseId, lessonId, userId = null }) {
+export async function generateCourseQuiz({ courseId, lessonId, userId = null, practiceOnly = false, excludeQuestions = [] }) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
     error.status = 503;
     throw error;
   }
 
-  const course = await Course.findOne({ _id: courseId, isPublished: true });
+  const publicCourseAccess = {
+    isPublished: true,
+    deletedAt: null,
+    $and: [{
+      $or: [
+        { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+        {
+          aiReviewStatus: "approved",
+          $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+        }
+      ]
+    }]
+  };
+  const accessBranches = [publicCourseAccess];
+  if (userId && await Enrollment.exists({
+    user: userId,
+    course: courseId,
+    status: { $in: ["active", "completed"] },
+    revokedBy: null
+  })) {
+    accessBranches.push({
+      visibility: "private",
+      createdForUser: userId,
+      deletedAt: null,
+      aiReviewStatus: "approved",
+      $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+    });
+  }
+
+  const course = await Course.findOne({ _id: courseId, $or: accessBranches });
   if (!course) {
-    const error = new Error("Course not found");
+    const error = new Error("Course not found or not approved for this learner");
     error.status = 404;
     throw error;
   }
@@ -1093,15 +1092,15 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     }
   }
 
-  if (!located?.lesson || located.lesson.type !== "quiz" || !located.lesson.quiz) {
-    const error = new Error("Quiz lesson not found");
+  if (!located?.lesson || (!practiceOnly && (located.lesson.type !== "quiz" || !located.lesson.quiz))) {
+    const error = new Error(practiceOnly ? "Choose a tutorial or project lesson to generate practice questions." : "Quiz lesson not found");
     error.status = 404;
     throw error;
   }
 
-  const requestedCount = Math.max(3, Math.min(15, Number(located.lesson.quiz.questionCount) || 5));
-  const existingQuestions = located.lesson.quiz.questions || [];
-  if (existingQuestions.length >= requestedCount) {
+  const requestedCount = practiceOnly ? 5 : Math.max(3, Math.min(15, Number(located.lesson.quiz.questionCount) || 5));
+  const existingQuestions = practiceOnly ? [] : (located.lesson.quiz.questions || []);
+  if (!practiceOnly && existingQuestions.length >= requestedCount) {
     return {
       courseId: String(course._id),
       lessonId: String(located.lesson._id),
@@ -1129,7 +1128,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     usageReserved = true;
   }
 
-  const context = getQuizContext(located.module, located.lesson);
+  const context = getQuizContext(located.module, located.lesson, practiceOnly);
   const prompt = [
     "You are BuddyForStudy's assessment designer.",
     "Generate a high-quality multiple-choice assessment from the supplied learning context.",
@@ -1142,8 +1141,9 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     "",
     `Course: ${course.title}`,
     `Level: ${course.level}`,
-    `Quiz scope: ${located.lesson.quiz.scope}`,
-    `Focus topics: ${JSON.stringify(located.lesson.quiz.focusTopics || [])}`,
+    `Quiz scope: ${practiceOnly ? "lesson practice" : located.lesson.quiz.scope}`,
+    `Focus topics: ${JSON.stringify(practiceOnly ? (located.lesson.quiz?.focusTopics || []) : (located.lesson.quiz.focusTopics || []))}`,
+    ...(practiceOnly ? ["Create a fresh practice set that directly assesses the selected lesson, including its video title/description or project brief when available. Do not repeat a fixed course assessment.", "Avoid repeating any question in this exclusion list; create different wording and test different concepts where possible.", `Previously used questions to avoid: ${JSON.stringify((excludeQuestions || []).slice(0, 100))}`] : []),
     `Learning context: ${JSON.stringify(context)}`
   ].join("\n");
 
@@ -1180,8 +1180,21 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null }) 
     explanation: String(question.explanation || "").trim()
   }));
 
+  if (practiceOnly) {
+    return {
+      courseId: String(course._id),
+      lessonId: String(located.lesson._id),
+      quiz: { scope: "lesson", questionCount: questions.length, passingScore: 70, focusTopics: [], questions, generatedAt: new Date() }
+    };
+  }
+
   located.lesson.quiz.questions = questions;
   located.lesson.quiz.generatedAt = new Date();
+  course.$locals.revisionContext = {
+    source: "system",
+    summary: "On-demand quiz generation",
+    reason: "Generate missing quiz questions when a learner opens the quiz"
+  };
   await course.save();
 
   return {
@@ -1211,11 +1224,114 @@ function courseHasTutorialVideos(course) {
   );
 }
 
+function buildTopicFallback(topic, level = "Beginner") {
+  const rawTopic = String(topic || "").trim();
+  const normalized = rawTopic.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const cybersecurityAliases = new Set(["ciber security", "cyber security", "cybersecurity", "cyber sec"]);
+  const canonicalTopic = cybersecurityAliases.has(normalized) ? "Cybersecurity" : rawTopic.replace(/\s+/g, " ");
+  const cyber = /cyber ?security|information security|ethical hacking|network security|soc|penetration testing/i.test(canonicalTopic);
+  const stages = cyber ? [
+    { id: "security-foundations", name: "Security Foundations", topics: ["confidentiality integrity availability", "threats vulnerabilities and risk", "security controls", "security ethics and legal boundaries"], project: "Create a personal security baseline and threat model" },
+    { id: "networking-linux", name: "Networking and Linux Fundamentals", topics: ["TCP IP and common ports", "DNS HTTP HTTPS and TLS", "Linux command line", "processes permissions and logs"], project: "Build a safe home lab and document network traffic" },
+    { id: "defensive-security", name: "Defensive Security and Monitoring", topics: ["logs and event analysis", "SIEM fundamentals", "indicators of compromise", "incident response lifecycle"], project: "Analyze a sample security log and write an incident report" },
+    { id: "web-security", name: "Web and Application Security", topics: ["OWASP Top 10", "authentication and session security", "input validation", "secure configuration and secrets"], project: "Review a deliberately vulnerable training application and document fixes" },
+    { id: "ethical-testing", name: "Ethical Security Testing", topics: ["scoping and authorization", "reconnaissance in a lab", "vulnerability validation", "responsible reporting"], project: "Write a lab-only vulnerability assessment with remediation steps" },
+    { id: "security-capstone", name: "Cybersecurity Capstone", topics: ["risk prioritization", "defense in depth", "monitoring plan", "incident playbook"], project: "Produce a defensive security portfolio with a threat model, lab evidence and response playbook" }
+  ] : [
+    { id: "foundations", name: rawTopic + " Foundations", topics: ["core terminology and concepts in " + canonicalTopic, "how the field is organized", "common use cases and outcomes"], project: "Create a concept map and glossary for " + canonicalTopic },
+    { id: "core-concepts", name: "Core Concepts and Methods", topics: ["essential principles of " + canonicalTopic, "common methods and workflows", "tools and environments used in the field"], project: "Complete a guided beginner exercise in " + canonicalTopic },
+    { id: "practical-workflows", name: "Tools and Practical Workflows", topics: ["set up a learning environment", "follow a repeatable workflow", "validate results and troubleshoot errors"], project: "Document a repeatable workflow for " + canonicalTopic },
+    { id: "applied-practice", name: "Applied Practice and Problem Solving", topics: ["analyze realistic scenarios", "compare approaches and trade-offs", "apply concepts to a practical problem"], project: "Solve a realistic " + canonicalTopic + " problem and explain the decisions" },
+    { id: "portfolio-capstone", name: "Portfolio Capstone", topics: ["define a measurable objective", "plan and implement a solution", "test, document and present the result"], project: "Build and document a portfolio-ready " + canonicalTopic + " capstone" }
+  ];
+  const modules = stages.map((stage, index) => {
+    const query = stage.name + " complete course tutorial";
+    const project = stage.project;
+    return {
+      title: stage.name,
+      description: "A structured " + level + "-level stage for " + canonicalTopic + ".",
+      skillIds: [stage.id],
+      order: index + 1,
+      lessons: [
+        {
+          id: stage.id + "-tutorial",
+          title: "Learn " + stage.name,
+          description: "Study the core topics and apply them to " + canonicalTopic + ".",
+          type: "tutorial",
+          order: 1,
+          tutorial: {
+            content: "Core topics: " + stage.topics.join(", ") + ".",
+            searchQuery: query,
+            searchQueries: [query, canonicalTopic + " " + stage.topics.slice(0, 2).join(" ") + " full tutorial"],
+            requiredTopics: stage.topics,
+            durationMinutes: { minMinutes: 30, targetMinutes: 90, maxMinutes: 240 },
+            searchPolicy: { contentType: "complete-course", minDurationMinutes: 20, targetDurationMinutes: 60, maxDurationMinutes: 240, excludeShorts: true, requireEmbeddable: true, preferProjectBased: true, preferredLanguage: "en" }
+          }
+        },
+        {
+          id: stage.id + "-quiz",
+          title: stage.name + " Knowledge Check",
+          description: "Check understanding before moving to the next stage.",
+          type: "quiz",
+          order: 2,
+          quiz: { scope: "lesson", questionCount: 5, passingScore: 70, focusTopics: stage.topics, instructions: "Answer questions about the listed stage topics." }
+        },
+        {
+          id: stage.id + "-project",
+          title: project,
+          description: project,
+          type: "project",
+          order: 3,
+          project: {
+            description: project,
+            objectives: stage.topics.slice(0, 4),
+            requirements: stage.topics.slice(0, 4),
+            instructions: "Work only in authorized practice environments. Record your process, evidence, testing and conclusions.",
+            expectedOutcome: "A documented practical deliverable demonstrating " + stage.name + ".",
+            submissionRequirements: ["Project notes or source files", "README with setup and scope", "Testing evidence", "Lessons learned"]
+          }
+        }
+      ]
+    };
+  });
+  return {
+    query: rawTopic,
+    intent: "topic_fallback",
+    canonicalTopic,
+    careerOutcome: "Build practical, demonstrable skills in " + canonicalTopic + ".",
+    skillGraph: stages.map((stage, index) => ({ id: stage.id, name: stage.name, category: canonicalTopic, importance: "core", prerequisites: index ? [stages[index - 1].id] : [], practiceProject: stage.project })),
+    course: {
+      title: canonicalTopic + " Learning Roadmap",
+      description: "A structured learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
+      category: cyber ? "Cybersecurity" : "AI Course Search",
+      level,
+      duration: (stages.length * 1.5) + "+ weeks",
+      learningOutcomes: [
+        "Explain the essential concepts of " + canonicalTopic + ".",
+        "Apply the concepts through guided practice and realistic scenarios.",
+        "Produce documented projects that demonstrate practical understanding."
+      ],
+      modules
+    },
+    personalization: {
+      goals: [],
+      studyTimeMinutesPerDay: 60,
+      knownSkills: [],
+      skippedSkills: [],
+      rationale: ["The configured AI provider and curated knowledge base could not supply a topic-specific path, so a structured topic fallback was created.", "Verify tutorial availability and complete each practical exercise before advancing."]
+    },
+    sources: [],
+    fallback: true
+  };
+}
+
 export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
   const projectsEnabled = options.projectsEnabled !== false;
   const plan = options.plan || null;
+  const activePrompt = await getActiveAIPrompt("build_with_ai");
+  const promptVersionId = activePrompt.versionId || null;
   const topicKeys = buildTopicKeys(
     input.topic,
     "industry-ready-v2",
@@ -1223,7 +1339,7 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? JSON.stringify(input.knownSkills || []) : "",
     personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
   );
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic });
+  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
   if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {
@@ -1259,7 +1375,7 @@ export async function generateAIRoadmap(input, options = {}) {
     : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60 };
 
   try {
-    const ai = await generateWithGemini(generationInput);
+    const ai = await generateWithGemini(generationInput, activePrompt);
     const built = buildCourse(ai, generationInput);
     if (!projectsEnabled) {
       built.course.modules = (built.course.modules || []).map((module) => ({
@@ -1280,6 +1396,9 @@ export async function generateAIRoadmap(input, options = {}) {
         topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", ai.canonicalTopic, ai.title, ai.category),
         snapshot: {
           intent: "ai_personalized_path",
+          promptVersionId,
+          promptVersion: activePrompt.version,
+          promptVersionName: activePrompt.name,
           canonicalTopic: ai.canonicalTopic,
           careerOutcome: ai.careerOutcome,
           skillGraph: built.skillGraph,
@@ -1306,47 +1425,73 @@ export async function generateAIRoadmap(input, options = {}) {
       cached: false
     };
   } catch (error) {
-    if (reservation && userId) {
-      await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+    if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) {
+      if (reservation && userId) {
+        await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+      }
+      throw error;
     }
-    if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) throw error;
-    const fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
-    const fallbackPersonalization = {
-      goals: input.goals || [],
-      studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
-      knownSkills: input.knownSkills || [],
-      skippedSkills: [],
-      rationale: ["AI generation was unavailable, so BuddyForStudy used its validated prerequisite knowledge base."]
-    };
-    const fallbackCourse = await Course.create({
-      ...fallback.course,
-      slug: generatedAiSlug(fallback.course.title),
-      generation: {
-        mode: "ai",
-        query: input.topic,
-        topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
-        snapshot: {
-          intent: "ai_personalized_path_fallback",
-          canonicalTopic: fallback.canonicalTopic,
-          careerOutcome: fallback.careerOutcome,
-          skillGraph: fallback.skillGraph || [],
-          personalization: fallbackPersonalization,
-          sources: fallback.sources || [],
-          normalSearchSnapshot: buildNormalSearchSnapshot(fallback.course, input.topic)
-        }
-      },
-      isPublished: true,
-      pricing: { mode: "free", price: 0, currency: "INR" },
-      enrollmentEnabled: true,
-      certificateEnabled: true
-    });
 
-    return {
-      ...fallback,
-      course: toPublicCourse(fallbackCourse),
-      intent: "ai_personalized_path_fallback",
-      personalization: fallbackPersonalization,
-      cached: false
-    };
+    try {
+      let fallback;
+      try {
+        fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
+      } catch (knowledgeBaseError) {
+        if (knowledgeBaseError?.status !== 404) throw knowledgeBaseError;
+        fallback = buildTopicFallback(input.topic, input.level);
+        fallback.sources = await attachYouTubeResources(fallback.course);
+      }
+
+      const fallbackPersonalization = {
+        goals: input.goals || [],
+        studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
+        knownSkills: input.knownSkills || [],
+        skippedSkills: [],
+        rationale: [
+          "AI generation was unavailable, so BuddyForStudy used a validated topic path when available or a structured topic fallback.",
+          ...(fallback.personalization?.rationale || [])
+        ]
+      };
+      const fallbackCourse = await Course.create({
+        ...fallback.course,
+        slug: generatedAiSlug(fallback.course.title),
+        generation: {
+          mode: "ai",
+          query: input.topic,
+          topicKeys: buildTopicKeys(input.topic, "industry-ready-v2", fallback.canonicalTopic, fallback.course.title),
+          snapshot: {
+            intent: fallback.intent || "ai_personalized_path_fallback",
+            // This course came from the validated knowledge base/topic fallback,
+            // not from the active custom prompt; keep it out of that version's cache.
+            promptVersionId: null,
+            promptVersion: null,
+            promptVersionName: "Fallback (prompt not used)",
+            canonicalTopic: fallback.canonicalTopic,
+            careerOutcome: fallback.careerOutcome,
+            skillGraph: fallback.skillGraph || [],
+            personalization: fallbackPersonalization,
+            sources: fallback.sources || [],
+            normalSearchSnapshot: buildNormalSearchSnapshot(fallback.course, input.topic)
+          }
+        },
+        isPublished: true,
+        pricing: { mode: "free", price: 0, currency: "INR" },
+        enrollmentEnabled: true,
+        certificateEnabled: true
+      });
+
+      return {
+        ...fallback,
+        course: toPublicCourse(fallbackCourse),
+        intent: fallback.intent || "ai_personalized_path_fallback",
+        personalization: fallbackPersonalization,
+        cached: false
+      };
+    } catch (fallbackError) {
+      if (reservation && userId) {
+        await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+      }
+      throw fallbackError;
+    }
   }
 }

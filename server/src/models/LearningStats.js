@@ -15,6 +15,9 @@ const learningStatsSchema = new mongoose.Schema({
   totalActiveDays: { type: Number, default: 0, min: 0 },
   totalLessonsCompleted: { type: Number, default: 0, min: 0 },
   totalCoursesCompleted: { type: Number, default: 0, min: 0 },
+  dailyGoalLessons: { type: Number, default: 1, min: 1, max: 20 },
+  activityDates: { type: [String], default: [] },
+  streakFreezeUsedWeek: { type: String, default: "" },
   achievements: { type: [achievementSchema], default: [] }
 }, { timestamps: true, collection: "learning_stats" });
 

@@ -1,14 +1,16 @@
 import { Router } from "express";
-import { authMiddleware, adminMiddleware } from "../middleware/auth.js";
+import { authMiddleware, adminPermissionMiddleware } from "../middleware/auth.js";
 import { requireFeature } from "../middleware/subscription.middleware.js";
-import { generateRoadmap, generateAndSaveCourse, generateQuiz, usage } from "../controllers/ai.controller.js";
+import { generateRoadmap, generateAndSaveCourse, generateQuiz, generatePracticeQuiz, submitPracticeQuiz, usage } from "../controllers/ai.controller.js";
 
 const router = Router();
 
 router.get("/usage", authMiddleware, usage);
-router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), generateRoadmap);
+router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), generateRoadmap);
 router.post("/quiz", authMiddleware, generateQuiz);
-router.post("/course", authMiddleware, adminMiddleware, generateAndSaveCourse);
-router.post("/course/save", authMiddleware, adminMiddleware, generateAndSaveCourse);
+router.post("/practice-quiz", authMiddleware, generatePracticeQuiz);
+router.post("/practice-quiz/submit", authMiddleware, submitPracticeQuiz);
+router.post("/course", authMiddleware, adminPermissionMiddleware("courses.manage"), adminPermissionMiddleware("ai.manage"), generateAndSaveCourse);
+router.post("/course/save", authMiddleware, adminPermissionMiddleware("courses.manage"), adminPermissionMiddleware("ai.manage"), generateAndSaveCourse);
 
 export default router;

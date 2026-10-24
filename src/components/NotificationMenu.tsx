@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Bell, BookOpen, CheckCheck, CreditCard, Info, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { routes, resolveNotificationRoute } from "@/lib/routes";
 
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
@@ -25,18 +26,34 @@ function formatRelativeTime(value: string) {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+type NotificationItem = {
+  _id: string;
+  title?: string;
+  message?: string;
+  body?: string;
+  type?: string;
+  read?: boolean;
+  readAt?: string | null;
+  isRead?: boolean;
+  createdAt?: string;
+  created_at?: string;
+  actionUrl?: string;
+  link?: string;
+  metadata?: Record<string, unknown>;
+};
+
 export default function NotificationMenu() {
   const navigate = useNavigate();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -48,15 +65,15 @@ export default function NotificationMenu() {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    void load();
   }, []);
 
   useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
     if (open) void load();
-  }, [open]);
+  }, [open, load]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -102,13 +119,14 @@ export default function NotificationMenu() {
     }
   };
 
-  const handleNotificationClick = async (notification: any) => {
+  const handleNotificationClick = async (notification: NotificationItem) => {
     await markRead(notification._id);
 
-    if (notification.link) {
+    const destination = resolveNotificationRoute(notification.link);
+    if (destination) {
       setOpen(false);
       setExpandedId(null);
-      navigate(notification.link);
+      navigate(destination);
       return;
     }
 
@@ -202,7 +220,7 @@ export default function NotificationMenu() {
               </div>
             ) : (
               notifications.map((notification) => {
-                const Icon = iconByType[notification.type] || Info;
+                const Icon = notification.type ? iconByType[notification.type] || Info : Info;
                 const unread = !notification.readAt;
                 const expanded = expandedId === notification._id;
 
@@ -228,7 +246,7 @@ export default function NotificationMenu() {
                           {notification.title}
                         </p>
                         <span className="flex-shrink-0 text-[10px] font-medium text-slate-400">
-                          {formatRelativeTime(notification.createdAt)}
+                          {formatRelativeTime(notification.createdAt ?? notification.created_at ?? "")}
                         </span>
                       </div>
                       <p className={`mt-0.5 text-[11px] leading-5 text-slate-500 ${
@@ -251,7 +269,7 @@ export default function NotificationMenu() {
 
           <div className="border-t border-slate-100 bg-slate-50/70 p-2">
             <Link
-              to="/notifications"
+              to={routes.notifications()}
               onClick={() => {
                 setOpen(false);
                 setExpandedId(null);

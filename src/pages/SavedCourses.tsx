@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bookmark, BookOpen, Clock, Trash2, ArrowRight } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import type { CourseLevel } from "@/types";
 import EmptyState from "@/components/EmptyState";
 import PageHeader from "@/components/PageHeader";
+import CourseCard from "@/components/CourseCard";
+import { routes } from "@/lib/routes";
 
 type Saved = {
   _id: string;
@@ -24,7 +27,6 @@ type Saved = {
 export default function SavedCourses() {
   const [savedCourses, setSavedCourses] = useState<Saved[]>([]);
   const [loading, setLoading] = useState(true);
-  const [removing, setRemoving] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -40,26 +42,17 @@ export default function SavedCourses() {
     void load();
   }, []);
 
-  async function remove(courseId: string) {
-    setRemoving(courseId);
-    try {
-      await apiFetch(`/api/saved-courses/${courseId}`, { method: "DELETE" });
-      setSavedCourses((current) => current.filter((item) => item.course._id !== courseId));
-    } finally {
-      setRemoving(null);
-    }
-  }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="bfs-shell py-8 sm:py-10">
       <PageHeader
         title="Saved Courses"
         subtitle="Courses you saved to come back to later."
       />
 
       {loading ? (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2].map((item) => (
+        <div className="bfs-course-grid mt-8">
+          {[0, 1, 2, 3].map((item) => (
             <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
           ))}
         </div>
@@ -69,71 +62,35 @@ export default function SavedCourses() {
             icon={<Bookmark className="h-8 w-8" />}
             title="No saved courses"
             description="Use Save Course on a course you want to learn later."
-            action={<Link to="/courses" className="btn-primary">Browse Courses</Link>}
+            action={<Link to={routes.explore()} className="btn-primary">Explore</Link>}
           />
         </div>
       ) : (
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {savedCourses.map((saved) => {
-            const course = saved.course;
-            return (
-              <div
-                key={saved._id}
-                className="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
-              >
-                <Link to={`/courses/${course._id}`} className="relative h-48 overflow-hidden bg-slate-100">
-                  {course.thumbnail ? (
-                    <img src={course.thumbnail} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <BookOpen className="h-12 w-12 text-slate-300" />
-                    </div>
-                  )}
-                </Link>
-
-                <div className="flex flex-1 flex-col p-5">
-                  <span className="text-[11px] font-bold uppercase tracking-[.14em] text-blue-600">
-                    {course.category}
-                  </span>
-                  <Link to={`/courses/${course._id}`}>
-                    <h3 className="mt-2 line-clamp-2 text-lg font-extrabold text-slate-900 hover:text-blue-600">
-                      {course.title}
-                    </h3>
-                  </Link>
-                  <p className="mt-2 line-clamp-3 flex-1 text-sm leading-6 text-slate-500">
-                    {course.description}
-                  </p>
-
-                  <div className="mt-4 flex items-center gap-3 text-xs text-slate-500">
-                    <span>{course.level}</span>
-                    {course.duration && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5" />
-                        {course.duration}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-[1fr_auto] gap-2">
-                    <Link to={`/courses/${course._id}`} className="btn-primary justify-center">
-                      Open Course
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => void remove(course._id)}
-                      disabled={removing === course._id}
-                      className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-3 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                      aria-label="Remove saved course"
-                      title="Remove saved course"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="bfs-course-grid mt-8">
+          {savedCourses.map((saved) => (
+            <div key={saved._id} className="relative min-w-0">
+              <CourseCard course={{
+                id: saved.course._id,
+                title: saved.course.title,
+                slug: saved.course.slug,
+                description: saved.course.description,
+                category: saved.course.category,
+                level: saved.course.level as CourseLevel,
+                duration: saved.course.duration,
+                thumbnail: saved.course.thumbnail || null,
+                learning_outcomes: [],
+                modules: [],
+                is_published: saved.course.isPublished,
+                created_by: null,
+                created_at: "",
+                updated_at: ""
+              }} showActions initiallySaved onSavedChange={(courseId, isSaved) => {
+                if (!isSaved) {
+                  setSavedCourses((current) => current.filter((item) => item.course._id !== courseId));
+                }
+              }} />
+            </div>
+          ))}
         </div>
       )}
     </div>

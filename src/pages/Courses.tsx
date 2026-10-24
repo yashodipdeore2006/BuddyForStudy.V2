@@ -1,30 +1,143 @@
-import { useEffect, useState, useMemo, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo, useRef, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import type { Course, CourseLevel } from '@/types';
+import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } from '@/types';
 import CourseCard from '@/components/CourseCard';
+import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
-import PageHeader from '@/components/PageHeader';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, TrendingUp, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
+import { routes } from "@/lib/routes";
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
-function mapCourse(raw: any): Course {
+const AI_GOAL_OPTIONS = [
+  { value: 'Build practical skills', label: 'Build practical skills', description: 'Learn by doing and applying' },
+  { value: 'Career or professional growth', label: 'Career or work growth', description: 'Advance in a role or change direction' },
+  { value: 'Prepare for an exam or certification', label: 'Exam or certification', description: 'Prepare for a structured assessment' },
+  { value: 'Create a project or deliverable', label: 'Create something', description: 'Make a project, portfolio, or tangible result' },
+  { value: 'Master the fundamentals', label: 'Learn the fundamentals', description: 'Build a clear foundation from the start' },
+  { value: 'Explore a personal interest', label: 'Personal interest', description: 'Learn for curiosity or everyday life' },
+] as const;
+
+type RawCourse = {
+  _id?: string;
+  id?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  category?: string;
+  level?: CourseLevel;
+  duration?: string | number;
+  thumbnail?: string | null;
+  learningOutcomes?: string[];
+  learning_outcomes?: string[];
+  modules?: Course["modules"];
+  isPublished?: boolean;
+  enrollmentCount?: number;
+  enrollment_count?: number;
+  ratingAverage?: number;
+  rating_average?: number;
+  ratingCount?: number;
+  rating_count?: number;
+  reviewStats?: { average?: number; count?: number };
+  stats?: { average?: number; count?: number };
+  cardMetadata?: Course["cardMetadata"];
+  generation?: { mode?: string; sourceResourceType?: string | null; query?: string };
+  moduleCount?: number;
+  lessonCount?: number;
+  pricing?: Course["pricing"];
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type SearchEnrollmentRow = {
+  status?: string;
+  course?: string | { _id?: string; id?: string } | null;
+  course_id?: string;
+  courseId?: string;
+};
+
+type AiLesson = {
+  id?: string;
+  _id?: string;
+  title: string;
+  description?: string;
+  type: LessonType;
+  tutorial?: { videos?: NonNullable<TutorialContent["videos"]> };
+  quiz?: Partial<QuizContent>;
+};
+
+type AiModule = {
+  id?: string;
+  _id?: string;
+  title: string;
+  description?: string;
+  order?: number;
+  lessons?: AiLesson[];
+};
+
+type AiRoadmap = {
+  course: {
+    _id?: string;
+    id?: string;
+    title: string;
+    description?: string;
+    level?: CourseLevel;
+    duration?: string;
+    isPublished?: boolean;
+    modules?: AiModule[];
+  };
+  personalization?: {
+    studyTimeMinutesPerDay?: number;
+    goals?: string[];
+    skippedSkills?: string[];
+    rationale?: string[];
+  };
+};
+
+type AiUsage = {
+  plan?: { name?: string; limits?: { ai_course_builds_per_month?: number | null } };
+  features?: { aiCourseBuilder?: boolean };
+};
+
+type SearchDiscovery = {
+  mode?: string;
+  query: string;
+  courseRecommendations?: Parameters<typeof YouTubeSearchFallback>[0]["courses"];
+  playlists?: Parameters<typeof YouTubeSearchFallback>[0]["playlists"];
+  curatedResources?: Parameters<typeof YouTubeSearchFallback>[0]["curatedResources"];
+  curationMeta?: Parameters<typeof YouTubeSearchFallback>[0]["curationMeta"];
+  youtubeError?: string;
+};
+
+function mapCourse(raw: RawCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
-    title: raw.title,
-    slug: raw.slug,
-    description: raw.description,
-    category: raw.category,
-    level: raw.level,
+    title: raw.title || "Untitled course",
+    slug: raw.slug || "",
+    description: raw.description || "",
+    category: raw.category || "Uncategorized",
+    level: raw.level || "Beginner",
     duration: String(raw.duration ?? ''),
     thumbnail: raw.thumbnail ?? null,
-    learning_outcomes: raw.learningOutcomes ?? [],
+    learning_outcomes: raw.learningOutcomes ?? raw.learning_outcomes ?? [],
     modules: raw.modules ?? [],
     is_published: raw.isPublished ?? true,
-    enrollment_count: raw.enrollmentCount,
+    enrollment_count: raw.enrollmentCount ?? raw.enrollment_count,
+    enrollmentCount: raw.enrollmentCount ?? raw.enrollment_count,
+    ratingAverage: Number(raw.ratingAverage ?? raw.rating_average ?? raw.reviewStats?.average ?? raw.stats?.average ?? 0),
+    ratingCount: Number(raw.ratingCount ?? raw.rating_count ?? raw.reviewStats?.count ?? raw.stats?.count ?? 0),
+    cardMetadata: raw.cardMetadata && typeof raw.cardMetadata === "object" ? raw.cardMetadata : undefined,
+    generation: raw.generation && typeof raw.generation === "object" ? {
+      mode: ["normal", "ai", "module", "discovery"].includes(raw.generation.mode || "") ? raw.generation.mode as NonNullable<Course["generation"]>["mode"] : undefined,
+      sourceResourceType: ["video", "playlist", "series"].includes(raw.generation.sourceResourceType || "") ? raw.generation.sourceResourceType as NonNullable<Course["generation"]>["sourceResourceType"] : null,
+      query: String(raw.generation.query ?? ""),
+    } : undefined,
+    module_count: Number.isFinite(Number(raw.moduleCount)) ? Number(raw.moduleCount) : undefined,
+    lesson_count: Number.isFinite(Number(raw.lessonCount)) ? Number(raw.lessonCount) : undefined,
     pricing: raw.pricing,
     created_by: raw.createdBy ?? null,
     created_at: raw.createdAt ?? '',
@@ -34,27 +147,33 @@ function mapCourse(raw: any): Course {
 
 export default function Courses() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [courses, setCourses] = useState<Course[]>([]);
-  const [popularCourses, setPopularCourses] = useState<Course[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
+  const [savedCourseIds, setSavedCourseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
-  const [youtubeDiscovery, setYoutubeDiscovery] = useState<any>(null);
+  const [youtubeDiscovery, setYoutubeDiscovery] = useState<SearchDiscovery | null>(null);
   const [youtubePlaylistsLoading, setYoutubePlaylistsLoading] = useState(false);
   const [youtubePlaylistError, setYoutubePlaylistError] = useState("");
-  const [popularLoading, setPopularLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [catalogQuery, setCatalogQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const { session } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiRoadmap, setAiRoadmap] = useState<any>(null);
+  const [aiRoadmap, setAiRoadmap] = useState<AiRoadmap | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiGoal, setAiGoal] = useState('Get job-ready');
+  const aiDialogRef = useRef<HTMLElement | null>(null);
+  const aiLoadingRef = useRef(false);
+  const [aiTopic, setAiTopic] = useState('');
+  const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
+  const [aiCustomGoal, setAiCustomGoal] = useState('');
+  const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiKnownSkills, setAiKnownSkills] = useState('');
-  const [aiUsage, setAiUsage] = useState<any>(null);
+  const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
   const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
@@ -67,40 +186,55 @@ export default function Courses() {
         setYoutubeDiscovery(null);
         setYoutubePlaylistsLoading(false);
         setYoutubePlaylistError("");
-        const params = new URLSearchParams({ page: '1', limit: '50' });
-        if (selectedLevel !== 'all') params.set('level', selectedLevel);
-        if (selectedCategory !== 'all') params.set('category', selectedCategory);
-        if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
-
-        const data = await apiFetch(`/api/courses?${params.toString()}`);
-        const rows = data.courses || data.items || [];
-        setCourses(rows.map(mapCourse));
+        const allRows: RawCourse[] = [];
+        let page = 1;
+        let batch: RawCourse[] = [];
+        let searchDiscovery: SearchDiscovery | null = null;
+        do {
+          const params = new URLSearchParams({ page: String(page), limit: '50' });
+          if (selectedLevel !== 'all') params.set('level', selectedLevel);
+          if (selectedCategory !== 'all') params.set('category', selectedCategory);
+          if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
+          const response: { courses?: RawCourse[]; items?: RawCourse[]; discovery?: SearchDiscovery; total?: number; pages?: number } = await apiFetch(`/api/courses?${params.toString()}`, { showFeatureUpgrade: Boolean(catalogQuery.trim()) });
+          batch = response.courses || response.items || [];
+          if (response.discovery) searchDiscovery = response.discovery;
+          allRows.push(...batch);
+          page += 1;
+        } while (batch.length === 50 && page <= 200);
+        setCourses(allRows.map(mapCourse));
 
         if (
-          data.discovery?.mode === 'youtube_fallback' ||
-          data.discovery?.mode === 'youtube_supplementary'
+          searchDiscovery?.mode === 'youtube_fallback' ||
+          searchDiscovery?.mode === 'youtube_supplementary'
         ) {
-          const discovery = data.discovery;
+          const discovery = searchDiscovery;
           setYoutubeDiscovery(discovery);
-          setYoutubePlaylistsLoading(true);
-          setYoutubePlaylistError("");
+          setYoutubePlaylistError(String(discovery.youtubeError || ""));
 
-          try {
-            const playlistData = await apiFetch(
-              `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`
-            );
-            setYoutubeDiscovery({
-              ...discovery,
-              playlists: playlistData.playlists || [],
-            });
-          } catch (playlistError) {
-            setYoutubePlaylistError(
-              playlistError instanceof Error
-                ? playlistError.message
-                : "Unable to load YouTube playlists"
-            );
-          } finally {
+          if (Array.isArray(discovery.curatedResources)) {
+            // The curation engine returns one ranked video/playlist/series list.
+            // Do not run the legacy playlist fetch and reintroduce duplicate categories.
             setYoutubePlaylistsLoading(false);
+          } else {
+            setYoutubePlaylistsLoading(true);
+            try {
+              const playlistData = await apiFetch(
+                `/api/discovery/search?q=${encodeURIComponent(discovery.query)}`,
+                { showFeatureUpgrade: Boolean(catalogQuery.trim()) }
+              );
+              setYoutubeDiscovery({
+                ...discovery,
+                playlists: playlistData.playlists || [],
+              });
+            } catch (playlistError) {
+              setYoutubePlaylistError(
+                playlistError instanceof Error
+                  ? playlistError.message
+                  : "Unable to load YouTube playlists"
+              );
+            } finally {
+              setYoutubePlaylistsLoading(false);
+            }
           }
         } else {
           setYoutubeDiscovery(null);
@@ -119,25 +253,35 @@ export default function Courses() {
   }, [selectedLevel, selectedCategory, catalogQuery]);
 
   useEffect(() => {
-    async function fetchPopularCourses() {
-      setPopularLoading(true);
-      try {
-        const params = new URLSearchParams({ page: '1', limit: '6', sort: 'popular' });
-        if (selectedLevel !== 'all') params.set('level', selectedLevel);
-        if (selectedCategory !== 'all') params.set('category', selectedCategory);
-
-        const data = await apiFetch(`/api/courses?${params.toString()}`);
-        const rows = data.courses || data.items || [];
-        setPopularCourses(rows.map(mapCourse));
-      } catch {
-        setPopularCourses([]);
-      } finally {
-        setPopularLoading(false);
-      }
+    let active = true;
+    if (!session) {
+      setEnrolledCourseIds(new Set());
+      setSavedCourseIds(new Set());
+      return;
     }
 
-    fetchPopularCourses();
-  }, [selectedLevel, selectedCategory]);
+    Promise.all([
+      apiFetch('/api/enrollments'),
+      apiFetch('/api/saved-courses'),
+    ]).then(([enrollmentData, savedData]) => {
+      if (!active) return;
+      const enrolledIds = (enrollmentData.enrollments || [])
+        .filter((item: SearchEnrollmentRow) => ['active', 'completed'].includes(String(item.status || '').toLowerCase()))
+        .map((item: SearchEnrollmentRow) => String(typeof item.course === "object" && item.course !== null ? item.course._id ?? item.course.id ?? "" : item.course ?? item.course_id ?? item.courseId ?? ''))
+        .filter(Boolean);
+      const savedIds = (savedData.savedCourses || [])
+        .map((item: SearchEnrollmentRow) => String(typeof item.course === "object" && item.course !== null ? item.course._id ?? item.course.id ?? "" : item.course ?? item.courseId ?? ''))
+        .filter(Boolean);
+      setEnrolledCourseIds(new Set(enrolledIds));
+      setSavedCourseIds(new Set(savedIds));
+    }).catch(() => {
+      if (!active) return;
+      setEnrolledCourseIds(new Set());
+      setSavedCourseIds(new Set());
+    });
+
+    return () => { active = false; };
+  }, [session]);
 
   const categories = useMemo(() => {
     const cats = new Set(courses.map((c) => c.category).filter(Boolean));
@@ -158,6 +302,16 @@ export default function Courses() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("build") !== "1") return;
+    setAiTopic(searchQuery.trim() || catalogQuery.trim());
+    setAiOpen(true);
+    params.delete("build");
+    const remaining = params.toString();
+    navigate({ pathname: location.pathname, search: remaining ? "?" + remaining : "" }, { replace: true });
+  }, [location.pathname, location.search, navigate, catalogQuery, searchQuery]);
+
+  useEffect(() => {
     if (!aiOpen || !session) {
       setAiUsage(null);
       return;
@@ -168,10 +322,48 @@ export default function Courses() {
       .catch(() => setAiUsage(null));
   }, [aiOpen, session]);
 
+  useEffect(() => {
+    if (!aiOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !aiLoadingRef.current) {
+        setAiOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const dialog = aiDialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      ));
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
+  }, [aiOpen]);
+
   const generateAiRoadmap = async () => {
-    const topic = searchQuery.trim();
+    const topic = aiTopic.trim();
     if (!topic) {
-      setAiError('Enter a course or topic first, then choose Build with AI.');
+      setAiError('Add a subject, skill, question, or outcome to build a plan.');
       return;
     }
     if (!session) {
@@ -180,25 +372,53 @@ export default function Courses() {
     }
 
     setAiLoading(true);
+    aiLoadingRef.current = true;
     setAiError(null);
     try {
       const data = await apiFetch('/api/ai/roadmap', {
         method: 'POST',
         body: JSON.stringify({
           topic,
-          level: selectedLevel === 'all' ? 'Beginner' : selectedLevel,
-          goals: [aiGoal],
+          level: aiLevel,
+          goals: [aiGoal, aiCustomGoal.trim()].filter(Boolean),
           studyTimeMinutesPerDay: aiStudyTime,
-          knownSkills: aiKnownSkills.split(',').map((item) => item.trim()).filter(Boolean),
+          knownSkills: aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         }),
+        showFeatureUpgrade: true,
       });
       setAiRoadmap(data);
       setExpandedAiModules(new Set([0]));
       setAiEnrollError(null);
+      setAiOpen(false);
     } catch (err) {
       setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
     } finally {
+      aiLoadingRef.current = false;
       setAiLoading(false);
+    }
+  };
+
+  const checkGeneratedCourseStatus = async () => {
+    const courseId = String(aiRoadmap?.course?._id ?? aiRoadmap?.course?.id ?? "");
+    if (!courseId || courseId === "undefined" || courseId === "null") return;
+    setAiEnrolling(true);
+    setAiEnrollError(null);
+    try {
+      const data = await apiFetch("/api/courses/" + encodeURIComponent(courseId));
+      setAiRoadmap((current) => current ? {
+        ...current,
+        course: {
+          ...current.course,
+          ...data.course,
+          isPublished: Boolean(data.course?.isPublished),
+          ...(data.course?.isPublished ? { aiReviewStatus: "approved" } : {})
+        }
+      } : current);
+      setAiEnrollError(null);
+    } catch {
+      setAiEnrollError("This course is not available yet. Content approval and the required readiness/publication checks must pass before enrollment.");
+    } finally {
+      setAiEnrolling(false);
     }
   };
 
@@ -212,12 +432,12 @@ export default function Courses() {
     setAiEnrollError(null);
     try {
       await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
-      navigate(`/learn/${courseId}`);
+      navigate(routes.learn(courseId));
     } catch (err) {
       try {
         const existing = await apiFetch(`/api/enrollments/course/${courseId}`);
         if (existing?.enrollment?.status === 'active' || existing?.enrollment?.status === 'completed') {
-          navigate(`/learn/${courseId}`);
+          navigate(routes.learn(courseId));
           return;
         }
       } catch {
@@ -238,81 +458,62 @@ export default function Courses() {
   };
 
   return (
-    <div className="bfs-shell py-8 sm:py-10">
-      <section className="relative overflow-hidden rounded-[32px] bg-slate-950 px-5 py-7 text-white shadow-[0_24px_70px_rgba(13,18,32,.14)] sm:px-8 sm:py-9 lg:px-10 lg:py-10">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 left-1/3 h-80 w-80 rounded-full bg-purple-500/10 blur-3xl" />
-
-        <div className="relative grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-blue-200">
-              <Sparkles className="h-3.5 w-3.5" />
-              AI-powered learning discovery
-            </div>
-            <h1 className="mt-4 max-w-3xl text-3xl font-extrabold tracking-[-.03em] sm:text-4xl lg:text-5xl">
-              Find the right course. Build the right path.
+    <div className="bfs-shell bfs-catalog-shell py-6 sm:py-8">
+      <section aria-labelledby="course-search-heading" className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="shrink-0 sm:w-44">
+            <h1 id="course-search-heading" className="text-lg font-bold tracking-tight text-slate-950 sm:text-xl">
+              Find a course
             </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-              Explore the catalog, discover learner-favorite courses, or let AI turn a topic into a prerequisite-ordered learning roadmap.
-            </p>
+            <p className="mt-0.5 text-xs text-slate-500">Search topics or build with AI</p>
           </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-semibold uppercase tracking-[.14em] text-slate-400">Discovery modes</span>
-              <Sparkles className="h-4 w-4 text-blue-300" />
+          <form onSubmit={handleSearch} className="min-w-0 flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-violet-500 focus:bg-white focus:ring-2 focus:ring-violet-500/15"
+                  placeholder="Search courses, skills, or topics"
+                  aria-label="Search courses"
+                />
+              </div>
+              <button type="submit" className="btn-primary h-11 justify-center rounded-xl px-5 sm:min-w-24">
+                <Search className="h-4 w-4" />
+                Search
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiTopic(searchQuery.trim() || catalogQuery.trim());
+                  setAiOpen(true);
+                  setAiError(null);
+                }}
+                disabled={aiLoading}
+                className="btn-secondary h-11 justify-center rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Building...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 text-violet-600" />
+                    Build with AI
+                  </>
+                )}
+              </button>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
-              <div className="rounded-xl bg-white/10 px-3 py-2.5 text-white">Course catalog</div>
-              <div className="rounded-xl bg-blue-500/20 px-3 py-2.5 text-blue-100">Build with AI</div>
-            </div>
-          </div>
+          </form>
         </div>
-
-        <form onSubmit={handleSearch} className="relative mt-8 rounded-2xl border border-white/10 bg-white p-2 shadow-2xl shadow-black/20">
-          <div className="flex flex-col gap-2 lg:flex-row">
-            <div className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 w-full rounded-xl bg-slate-50 pl-12 pr-4 text-sm font-medium text-slate-900 outline-none ring-0 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-                placeholder="Search for MERN, Python, Data Science, Java..."
-                aria-label="Search courses"
-              />
-            </div>
-
-            <button type="submit" className="btn-primary h-12 justify-center lg:min-w-28">
-              <Search className="h-4 w-4" />
-              Search
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setAiOpen(true); setAiError(null); }}
-              disabled={aiLoading}
-              className="h-12 justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Building...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 text-blue-600" />
-                  Build with AI
-                </>
-              )}
-            </button>
-          </div>
-        </form>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+      <section aria-label="Course filters" className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
             <Filter className="h-4 w-4 text-slate-400" />
             Refine your results
           </div>
@@ -350,7 +551,7 @@ export default function Courses() {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-slate-200 px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 <X className="h-3.5 w-3.5" />
                 Clear filters
@@ -361,102 +562,204 @@ export default function Courses() {
       </section>
 
       {aiOpen && (
-        <section className="mt-5 overflow-hidden rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-sm">
-          {aiUsage && (
-            <div className="border-b border-blue-100/80 bg-white/70 px-5 py-4 sm:px-7">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">{aiUsage.plan?.name || "Current"} plan AI allowance</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {aiUsage.features?.aiCourseBuilder ? "AI Course Builder available" : "AI Course Builder unavailable"}
-                    {" · "}
-                    {aiUsage.features?.personalizedRoadmaps ? "personalized" : "standard"}
-                    {" · "}
-                    {aiUsage.features?.projectBasedLearning ? "projects included" : "projects excluded"}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-                  <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? "—"}</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">Quizzes/month: {aiUsage.plan?.limits?.ai_quiz_generations_per_month ?? "—"}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="border-b border-blue-100/80 px-5 py-5 sm:px-7">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">AI Learning Architect</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900">Build a roadmap around your goal</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  Tell AI what you want to achieve, how much time you have, and what you already know. Your existing personalization flow stays exactly the same.
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !aiLoading) setAiOpen(false);
+          }}
+        >
+          <section
+            ref={aiDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-builder-title"
+            aria-describedby="ai-builder-description"
+            className="flex max-h-[min(92dvh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[.14em] text-violet-700">AI learning planner</p>
+                <h2 id="ai-builder-title" className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+                  Build a plan around your goal
+                </h2>
+                <p id="ai-builder-description" className="mt-1 text-sm leading-5 text-slate-600">
+                  For any subject—from study and work to creative, personal, or technical skills.
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={() => setAiOpen(false)}
-                className="rounded-xl border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-slate-300 hover:text-slate-700"
-                aria-label="Close AI builder"
+                disabled={aiLoading}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+                aria-label="Close AI learning planner"
               >
                 <X className="h-4 w-4" />
               </button>
-            </div>
-          </div>
+            </header>
 
-          <div className="grid gap-4 p-5 sm:p-7 md:grid-cols-3">
-            <label className="text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[11px] text-blue-700">1</span> Goal</span>
-              <select value={aiGoal} onChange={(e) => setAiGoal(e.target.value)} className="input-field mt-2 h-11 w-full text-sm">
-                <option>Get job-ready</option>
-                <option>Build real projects</option>
-                <option>Prepare for interviews</option>
-                <option>Learn for exams</option>
-                <option>Master the fundamentals</option>
-              </select>
-            </label>
+            {aiUsage && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-xs sm:px-6">
+                <span className="font-semibold text-slate-700">
+                  {aiUsage.plan?.name || 'Current'} plan
+                  {aiUsage.features?.aiCourseBuilder ? ' · AI builder available' : ' · Check plan access'}
+                </span>
+                <span className="text-slate-500">
+                  Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? '—'}
+                </span>
+              </div>
+            )}
 
-            <label className="text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[11px] text-blue-700">2</span> Study time</span>
-              <select value={aiStudyTime} onChange={(e) => setAiStudyTime(Number(e.target.value))} className="input-field mt-2 h-11 w-full text-sm">
-                <option value={30}>30 minutes/day</option>
-                <option value={60}>1 hour/day</option>
-                <option value={90}>1.5 hours/day</option>
-                <option value={120}>2 hours/day</option>
-                <option value={180}>3 hours/day</option>
-              </select>
-            </label>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+              <div>
+                <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">
+                  What do you want to learn or achieve?
+                </label>
+                <input
+                  id="ai-topic"
+                  autoFocus
+                  maxLength={200}
+                  value={aiTopic}
+                  onChange={(event) => setAiTopic(event.target.value)}
+                  placeholder="e.g. data analytics, conversational Spanish, nutrition, project management…"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void generateAiRoadmap();
+                    }
+                  }}
+                  className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                />
+                <p className="mt-1 text-xs text-slate-500">A subject, skill, question, exam, hobby, or real-world outcome all work.</p>
+              </div>
 
-            <label className="text-xs font-bold text-slate-600">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-[11px] text-blue-700">3</span> Known skills</span>
-              <input value={aiKnownSkills} onChange={(e) => setAiKnownSkills(e.target.value)} className="input-field mt-2 h-11 w-full text-sm" placeholder="HTML, CSS, JavaScript" />
-            </label>
-          </div>
+              <fieldset>
+                <legend className="mb-2 text-sm font-semibold text-slate-800">What is your main goal?</legend>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {AI_GOAL_OPTIONS.map((option) => {
+                    const selected = aiGoal === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setAiGoal(option.value)}
+                        className={`min-h-[76px] rounded-xl border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30 ${
+                          selected
+                            ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
+                        <span className="mt-1 block text-xs leading-4 text-slate-600">{option.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <label htmlFor="ai-custom-goal" className="mt-3 block text-xs font-semibold text-slate-700">
+                  Anything specific you want the plan to help you do? <span className="font-normal text-slate-500">Optional</span>
+                </label>
+                <textarea
+                  id="ai-custom-goal"
+                  rows={2}
+                  maxLength={500}
+                  value={aiCustomGoal}
+                  onChange={(event) => setAiCustomGoal(event.target.value)}
+                  placeholder="Describe your target, deadline, context, or what success looks like…"
+                  className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                />
+              </fieldset>
 
-          <div className="flex flex-col gap-4 border-t border-blue-100/80 bg-white/70 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            <div className="min-w-0">
-              <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Current topic</p>
-              <p className="mt-1 truncate text-sm font-bold text-slate-800">{searchQuery.trim() || 'Enter a topic in the search box above'}</p>
-            </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label htmlFor="ai-level" className="block text-sm font-semibold text-slate-800">
+                  Where are you starting from?
+                  <select
+                    id="ai-level"
+                    value={aiLevel}
+                    onChange={(event) => setAiLevel(event.target.value as CourseLevel)}
+                    className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                  >
+                    <option value="Beginner">New to this</option>
+                    <option value="Intermediate">Know the basics</option>
+                    <option value="Advanced">Experienced — go deeper</option>
+                  </select>
+                </label>
+                <label htmlFor="ai-study-time" className="block text-sm font-semibold text-slate-800">
+                  Time you can spend each day
+                  <select
+                    id="ai-study-time"
+                    value={aiStudyTime}
+                    onChange={(event) => setAiStudyTime(Number(event.target.value))}
+                    className="mt-1.5 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                  >
+                    <option value={15}>15 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={60}>1 hour</option>
+                    <option value={90}>1.5 hours</option>
+                    <option value={120}>2 hours</option>
+                    <option value={180}>3 hours</option>
+                    <option value={240}>4 hours</option>
+                    <option value={360}>6 hours</option>
+                    <option value={480}>8 hours</option>
+                    <option value={720}>12 hours</option>
+                  </select>
+                </label>
+              </div>
 
-            <button type="button" onClick={generateAiRoadmap} disabled={aiLoading} className="btn-primary justify-center">
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Building your path...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Build Personalized Roadmap
-                </>
+              <div>
+                <label htmlFor="ai-prior-knowledge" className="block text-sm font-semibold text-slate-800">
+                  What do you already know or have experience with? <span className="font-normal text-slate-500">Optional</span>
+                </label>
+                <textarea
+                  id="ai-prior-knowledge"
+                  rows={2}
+                  maxLength={1200}
+                  value={aiKnownSkills}
+                  onChange={(event) => setAiKnownSkills(event.target.value)}
+                  placeholder="Subjects, concepts, languages, tools, experience, prerequisites—or leave blank to start from scratch."
+                  className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
+                />
+              </div>
+
+              {aiError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
+                  {aiError}
+                </div>
               )}
-            </button>
-          </div>
-        </section>
+            </div>
+
+            <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <button
+                type="button"
+                onClick={() => setAiOpen(false)}
+                disabled={aiLoading}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={generateAiRoadmap}
+                disabled={aiLoading || !aiTopic.trim()}
+                className="btn-primary h-11 justify-center rounded-lg px-5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {aiLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Building your plan…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Build personalized plan
+                  </>
+                )}
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
 
-      {aiError && (
+      {aiError && !aiOpen && (
         <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {aiError}
         </div>
@@ -480,19 +783,35 @@ export default function Courses() {
                   <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {(aiRoadmap.course.modules || []).reduce((sum: number, module: any) => sum + (module.lessons || []).length, 0)} lessons and assessments
+                    {(aiRoadmap.course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0)} lessons and assessments
                   </span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.duration || 'Self-paced'}</span>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={() => navigate(`/courses/${String(aiRoadmap.course._id ?? aiRoadmap.course.id)}`)} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
-                  <ExternalLink className="h-4 w-4" /> Course details
-                </button>
+                {aiRoadmap.course.isPublished ? (
+                  <button type="button" onClick={() => navigate(routes.course(String(aiRoadmap.course._id ?? aiRoadmap.course.id)))} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
+                    <ExternalLink className="h-4 w-4" /> Course details
+                  </button>
+                ) : (
+                  <span className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-300">Details unlock after approval</span>
+                )}
                 <button onClick={() => { setAiRoadmap(null); setAiEnrollError(null); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">Close</button>
               </div>
             </div>
           </div>
+
+          {!aiRoadmap.course.isPublished && (
+            <div role="status" className="mx-5 mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:mx-7">
+              <p className="font-bold text-slate-900">Course access is not enabled yet</p>
+              <p className="mt-1 text-sm leading-6 text-slate-700">
+                This generated roadmap is a preview only. Enrollment and course-player access unlock when the required approval and publication checks are complete. Public courses must pass readiness checks; approval by itself does not bypass them.
+              </p>
+              <button type="button" className="btn-secondary mt-3" onClick={() => void checkGeneratedCourseStatus()} disabled={aiEnrolling}>
+                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking status…</> : "Check access status"}
+              </button>
+            </div>
+          )}
 
           {aiRoadmap.personalization && (
             <div className="m-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:m-7">
@@ -517,12 +836,12 @@ export default function Courses() {
             </div>
 
             <div className="space-y-3">
-              {(aiRoadmap.course.modules || []).map((module: any, moduleIndex: number) => {
+              {(aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
                 const expanded = expandedAiModules.has(moduleIndex);
                 const lessons = module.lessons || [];
-                const tutorialCount = lessons.filter((lesson: any) => lesson.type === 'tutorial').length;
-                const quizCount = lessons.filter((lesson: any) => lesson.type === 'quiz').length;
-                const projectCount = lessons.filter((lesson: any) => lesson.type === 'project').length;
+                const tutorialCount = lessons.filter((lesson) => lesson.type === 'tutorial').length;
+                const quizCount = lessons.filter((lesson) => lesson.type === 'quiz').length;
+                const projectCount = lessons.filter((lesson) => lesson.type === 'project').length;
                 return (
                   <div key={module._id || module.id || module.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                     <button type="button" onClick={() => setExpandedAiModules((previous) => {
@@ -541,7 +860,7 @@ export default function Courses() {
                     </button>
                     {expanded && (
                       <div className="border-t border-slate-100">
-                        {lessons.map((lesson: any, lessonIndex: number) => {
+                        {lessons.map((lesson, lessonIndex: number) => {
                           const isTutorial = lesson.type === 'tutorial';
                           const isQuiz = lesson.type === 'quiz';
                           const videos = lesson.tutorial?.videos || [];
@@ -561,7 +880,7 @@ export default function Courses() {
                                 </div>
                                 {isTutorial && videos.length > 0 && (
                                   <div className="mt-3 space-y-2">
-                                    {videos.slice(0, 3).map((video: any) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
+                                    {videos.slice(0, 3).map((video) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
                                   </div>
                                 )}
                               </div>
@@ -578,12 +897,22 @@ export default function Courses() {
             {aiEnrollError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{aiEnrollError}</div>}
             <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="font-extrabold text-slate-900">Ready to start learning?</p>
-                <p className="mt-1 text-sm text-slate-600">Enroll to track progress, take generated MCQ quizzes, and continue learning from My Learning.</p>
+                <p className="font-extrabold text-slate-900">{aiRoadmap.course.isPublished ? "Ready to start learning?" : "Learning access is locked"}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {aiRoadmap.course.isPublished
+                    ? "Enroll to track progress, take generated MCQ quizzes, and continue learning from My Learning."
+                    : "The generated outline is a preview only. Enrollment is enabled after the content approval and publication workflow is complete."}
+                </p>
               </div>
-              <button type="button" onClick={enrollGeneratedCourse} disabled={aiEnrolling} className="btn-primary min-w-48 justify-center">
-                {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Enrolling...</> : <><GraduationCap className="h-4 w-4" /> Enroll and start learning</>}
-              </button>
+              {aiRoadmap.course.isPublished ? (
+                <button type="button" onClick={enrollGeneratedCourse} disabled={aiEnrolling} className="btn-primary min-w-48 justify-center">
+                  {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Enrolling...</> : <><GraduationCap className="h-4 w-4" /> Enroll and start learning</>}
+                </button>
+              ) : (
+                <button type="button" onClick={() => void checkGeneratedCourseStatus()} disabled={aiEnrolling} className="btn-secondary min-w-48 justify-center">
+                  {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</> : "Check approval status"}
+                </button>
+              )}
             </div>
           </div>
         </section>
@@ -604,19 +933,15 @@ export default function Courses() {
           </div>
 
           {loading ? (
-            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {[0, 1, 2].map((item) => (
-                  <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-                ))}
-              </div>
+            <div className="mt-5 rounded-2xl">
+              <CourseGridSkeleton count={6} />
             </div>
           ) : (
-            <div className="mt-5 max-h-[72vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[74vh]">
+            <div className="mt-5 rounded-2xl">
               {filteredCourses.length > 0 && (
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="bfs-course-results-grid grid gap-4">
                   {filteredCourses.map((course) => (
-                    <CourseCard key={course.id} course={course} showActions />
+                    <CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />
                   ))}
                 </div>
               )}
@@ -626,6 +951,8 @@ export default function Courses() {
                   query={youtubeDiscovery.query}
                   courses={youtubeDiscovery.courseRecommendations || []}
                   playlists={youtubeDiscovery.playlists || []}
+                  curatedResources={Array.isArray(youtubeDiscovery.curatedResources) ? youtubeDiscovery.curatedResources : undefined}
+                  curationMeta={youtubeDiscovery.curationMeta || null}
                   loadingPlaylists={youtubePlaylistsLoading}
                   error={youtubePlaylistError || youtubeDiscovery.youtubeError || ""}
                   hasLocalResults={filteredCourses.length > 0}
@@ -648,36 +975,22 @@ export default function Courses() {
         <section className="mt-10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-sm font-bold text-blue-600">
-                <TrendingUp className="h-4 w-4" />
-                Popular with learners
-              </div>
-              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Most Enrolled Courses</h2>
-              <p className="mt-1 text-sm text-slate-500">Courses with the highest active and completed enrollments.</p>
+              <p className="bfs-eyebrow">Explore the catalog</p>
+              <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">All available courses</h2>
+              <p className="mt-1 text-sm text-slate-500">{filteredCourses.length} published course{filteredCourses.length === 1 ? '' : 's'} available. Browse the full catalog, not only popular courses.</p>
             </div>
           </div>
-
-          {popularLoading ? (
-            <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {[0, 1, 2].map((item) => (
-                <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
-              ))}
+          {loading ? (
+            <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((item) => <div key={item} className="h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
             </div>
-          ) : popularCourses.length === 0 ? (
-            <div className="mt-5">
-              <EmptyState
-                icon={<BookOpen className="h-8 w-8" />}
-                title="No popular courses yet"
-                description="Published courses will appear here as learners enroll."
-              />
-            </div>
+          ) : catalogError ? (
+            <div role="alert" className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">{catalogError}</div>
+          ) : filteredCourses.length === 0 ? (
+            <div className="mt-5"><EmptyState icon={<BookOpen className="h-8 w-8" />} title="No courses available" description="Published courses will appear here. Try changing your filters or search." /></div>
           ) : (
-            <div className="mt-5 max-h-[70vh] overflow-y-auto rounded-2xl pr-2 lg:max-h-[72vh]">
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {popularCourses.map((course) => (
-                  <CourseCard key={course.id} course={course} showActions />
-                ))}
-              </div>
+            <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {filteredCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
             </div>
           )}
         </section>

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { Course } from "../models/Course.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { AILessonInsight } from "../models/AILessonInsight.js";
 import { AIQuestionAnswer } from "../models/AIQuestionAnswer.js";
 import { AIQuestionAsk } from "../models/AIQuestionAsk.js";
@@ -10,6 +11,8 @@ import { AIUsageCounter as UsageCounter } from "../models/AIUsageCounter.js";
 import { getYouTubeVideoResource } from "./youtube.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { getEntitlement, readPlanLimit } from "./subscriptionEntitlement.service.js";
+import { getContentApprovalMode } from "./contentApprovalPolicy.service.js";
+import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -56,12 +59,80 @@ function lessonDurationSeconds(lesson) {
   return candidates.length ? candidates.reduce((total, value) => total + value, 0) : 0;
 }
 
-async function findCourseLesson(courseId, lessonId) {
-  const course = await Course.findOne({ _id: courseId, isPublished: true });
-  if (!course) {
-    const error = new Error("Course not found");
+async function findCourseLesson(courseId, lessonId, userId = null) {
+  const accessBranches = [{
+    isPublished: true,
+    $or: [
+      { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+      {
+        aiReviewStatus: "approved",
+        $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+      }
+    ]
+  }];
+  if (userId) accessBranches.push({
+    visibility: "private",
+    createdForUser: userId,
+    aiReviewStatus: "approved",
+    $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+  });
+
+  let course = await Course.findOne({ _id: courseId, deletedAt: null, $or: accessBranches });
+  let existingEnrollment = null;
+  if (!course && userId) {
+    existingEnrollment = await Enrollment.findOne({
+      user: userId,
+      course: courseId,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    }).select("_id").lean();
+    if (existingEnrollment) {
+      course = await Course.findOne({
+        _id: courseId,
+        deletedAt: null,
+        status: { $ne: "archived" },
+        visibility: { $ne: "private" },
+        aiReviewStatus: { $nin: ["pending", "rejected"] }
+      });
+    }
+  }
+
+  const generated = ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
+  const approvedByPolicy = !generated || (
+    course?.aiReviewStatus === "approved" &&
+    (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic")
+  );
+  const legacyPublishedEnrollment = Boolean(
+    course &&
+    existingEnrollment &&
+    course.status !== "archived" &&
+    course.visibility !== "private" &&
+    !["pending", "rejected"].includes(course.aiReviewStatus)
+  );
+  if (!course || (generated && !approvedByPolicy && !legacyPublishedEnrollment)) {
+    const error = new Error("Course not found or awaiting human content review");
     error.status = 404;
     throw error;
+  }
+
+  // Private course assistance requires both ownership and a valid enrollment.
+  if (course.visibility === "private") {
+    if (!userId || String(course.createdForUser || "") !== String(userId) || course.status === "archived") {
+      const error = new Error("Course not found");
+      error.status = 404;
+      throw error;
+    }
+    const enrollment = await Enrollment.exists({
+      user: userId,
+      course: course._id,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (!enrollment) {
+      const error = new Error("Course not found or enrollment access is required");
+      error.status = 404;
+      throw error;
+    }
   }
 
   for (const module of course.modules || []) {
@@ -127,6 +198,7 @@ async function refreshVideoDuration(course, lesson) {
       lesson.tutorial.videos[0].durationSeconds = resource.durationSeconds;
       lesson.tutorial.videos[0].duration = resource.duration || "";
       lesson.markModified?.("tutorial.videos");
+      course.$locals.revisionContext = { source: "system", summary: "Video duration metadata refresh", reason: "" };
       await course.save();
       return resource.durationSeconds;
     }
@@ -183,7 +255,7 @@ async function getQuestionLimit(course, lesson) {
 
 export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
   const entitlement = await planForUser(userId);
-  const { course, lesson } = await findCourseLesson(courseId, lessonId);
+  const { course, lesson } = await findCourseLesson(courseId, lessonId, userId);
   const questionPolicy = await getQuestionLimit(course, lesson);
 
   const usedOnLesson = await AIQuestionAsk.countDocuments({
@@ -211,7 +283,7 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
   })
     .sort({ askedAt: -1 })
     .limit(10)
-    .populate("answerCacheId", "question answer hitCount")
+    .populate("answerCacheId", "question answer hitCount moderationStatus")
     .lean();
 
   return {
@@ -235,12 +307,15 @@ export async function getAdvancedAIUsage({ userId, courseId, lessonId }) {
       monthlyUsed,
       monthlyRemaining: monthlyLimit === -1 ? -1 : Math.max(0, monthlyLimit - monthlyUsed)
     },
-    recentQuestions: recentAsks.map((item) => ({
-      question: item.answerCacheId?.question || "",
-      answer: item.answerCacheId?.answer || "",
-      askedAt: item.askedAt,
-      cachedHits: item.answerCacheId?.hitCount || 0
-    })).filter((item) => item.question && item.answer)
+    recentQuestions: recentAsks
+      .filter((item) => item.answerCacheId?.moderationStatus === "approved")
+      .map((item) => ({
+        question: item.answerCacheId?.question || "",
+        answer: item.answerCacheId?.answer || "",
+        askedAt: item.askedAt,
+        cachedHits: item.answerCacheId?.hitCount || 0
+      }))
+      .filter((item) => item.question && item.answer)
   };
 }
 
@@ -266,19 +341,31 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
     throw error;
   }
 
-  const { course, module, lesson } = await findCourseLesson(courseId, lessonId);
+  const { course, module, lesson } = await findCourseLesson(courseId, lessonId, userId);
   const durationSeconds = await refreshVideoDuration(course, lesson);
   const context = buildLessonContext(course, module, lesson);
   context.lesson.tutorialDurationSeconds = durationSeconds;
-  const contextHash = hash(JSON.stringify(context));
+  const activePrompt = await getActiveAIPrompt("lesson_summary");
+  // Preserve legacy cache keys when the built-in prompt is active. Custom prompt
+  // versions get isolated cache entries so switching away and back remains reversible.
+  const contextHash = activePrompt.versionId
+    ? hash(JSON.stringify({ context, promptVersionId: activePrompt.versionId }))
+    : hash(JSON.stringify(context));
 
+  const approvalMode = await getContentApprovalMode("aiInsights");
   const existing = await AILessonInsight.findOne({
     course: course._id,
     lesson: lesson._id,
-    contentHash: contextHash
+    contentHash: contextHash,
+    isHidden: { $ne: true }
   }).lean();
+  const hiddenInsight = await AILessonInsight.exists({ course: course._id, lesson: lesson._id, contentHash: contextHash, isHidden: true });
+  if (hiddenInsight) throw Object.assign(new Error("This AI lesson insight is hidden by content moderation."), { status: 403 });
 
   if (existing) {
+    if (existing.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: existing.moderationStatus || "pending", fromCache: true, generatedAt: existing.generatedAt, message: "This AI lesson insight is waiting for administrator approval." };
+    }
     return {
       summary: existing.summary,
       keyNotes: existing.keyNotes,
@@ -299,24 +386,22 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
     const error = new Error("You have reached your Advanced AI summary limit for this month.");
     error.status = 429;
     error.code = "AI_USAGE_LIMIT";
+    error.feature = "advanced_ai_paths";
+    error.limitKey = "advanced_ai_insights_per_month";
+    error.limit = reservation.limit;
+    error.used = reservation.count;
+    error.plan = entitlement.plan?.name || "Free";
     throw error;
   }
 
   try {
     if (!client) throw Object.assign(new Error("Gemini AI is not configured."), { status: 503 });
 
+    const customPrompt = renderActivePrompt(activePrompt, { context: JSON.stringify(context) });
+    const finalPrompt = customPrompt + "\n\nPLATFORM OUTPUT CONTRACT: Use only the supplied context. Return one valid JSON object with exactly two fields: summary (a concise learner-friendly string of fewer than 250 words) and keyNotes (an array of 5–10 short strings). Do not include markdown fences or extra commentary.";
     const response = await client.models.generateContent({
       model: env.geminiModel,
-      contents: [
-        "You are BuddyForStudy's lesson study assistant.",
-        "Use ONLY the supplied lesson/course context.",
-        "Do not introduce unrelated topics, facts, recommendations, or content that is not supported by that context.",
-        "Create a concise learner-friendly summary and practical key notes for THIS lesson only.",
-        "Return valid JSON with exactly: summary (string) and keyNotes (array of strings).",
-        "Keep summary under 250 words and keyNotes between 5 and 10 items.",
-        "Context:",
-        JSON.stringify(context)
-      ].join("\n"),
+      contents: finalPrompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -353,17 +438,28 @@ export async function getLessonInsight({ userId, courseId, lessonId }) {
           summary,
           keyNotes,
           model: env.geminiModel,
+          promptVersionId: activePrompt.versionId,
+          promptVersion: activePrompt.version,
+          promptVersionName: activePrompt.name,
           generatedAt: new Date()
         },
         $setOnInsert: {
           course: course._id,
           lesson: lesson._id,
-          generatedBy: userId
+          generatedBy: userId,
+          moderationStatus: approvalMode === "automatic" ? "approved" : "pending",
+          moderationNote: approvalMode === "automatic" ? "Automatically approved by the platform content policy." : "",
+          moderatedBy: null,
+          moderatedAt: approvalMode === "automatic" ? new Date() : null,
+          isHidden: false
         }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ).lean();
 
+    if (insight.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: insight.moderationStatus || "pending", fromCache: false, generatedAt: insight.generatedAt, message: "Your AI lesson insight is being held until an administrator approves it." };
+    }
     return {
       summary: insight.summary,
       keyNotes: insight.keyNotes,
@@ -401,17 +497,21 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
     throw error;
   }
 
-  const { course, module, lesson } = await findCourseLesson(courseId, lessonId);
+  const { course, module, lesson } = await findCourseLesson(courseId, lessonId, userId);
   const context = buildLessonContext(course, module, lesson);
   const contextHash = hash(JSON.stringify(context));
   const questionHash = hash(normalizeQuestion(cleanQuestion));
+  const approvalMode = await getContentApprovalMode("aiAnswers");
 
   const cached = await AIQuestionAnswer.findOne({
     course: course._id,
     lesson: lesson._id,
     questionHash,
-    contextHash
+    contextHash,
+    isHidden: { $ne: true }
   });
+  const hiddenAnswer = await AIQuestionAnswer.exists({ course: course._id, lesson: lesson._id, questionHash, contextHash, isHidden: true });
+  if (hiddenAnswer) throw Object.assign(new Error("This cached AI answer is hidden by content moderation."), { status: 403 });
 
   if (cached) {
     const questionLimit = await getQuestionLimit(course, lesson);
@@ -449,6 +549,11 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
         const error = new Error("You have reached your Advanced AI question limit for this month.");
         error.status = 429;
         error.code = "AI_USAGE_LIMIT";
+        error.feature = "advanced_ai_paths";
+        error.limitKey = "advanced_ai_questions_per_month";
+        error.limit = reservation.limit;
+        error.used = reservation.count;
+        error.plan = entitlement.plan?.name || "Free";
         throw error;
       }
 
@@ -470,9 +575,20 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
           }).catch(() => {});
           throw error;
         }
+        // Another concurrent request recorded the same question first.
+        await releaseUsage({ userId, feature: "advanced_ai_questions", period: "month", amount: 1 }).catch(() => {});
       }
     }
 
+    if (cached.moderationStatus !== "approved") {
+      return {
+        pendingReview: true,
+        reviewStatus: cached.moderationStatus || "pending",
+        fromCache: true,
+        message: "This AI answer is waiting for administrator approval.",
+        usage: await getAdvancedAIUsage({ userId, courseId, lessonId })
+      };
+    }
     cached.hitCount += 1;
     cached.lastAskedAt = new Date();
     await cached.save();
@@ -511,6 +627,11 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
     const error = new Error("You have reached your Advanced AI question limit for this month.");
     error.status = 429;
     error.code = "AI_USAGE_LIMIT";
+        error.feature = "advanced_ai_paths";
+        error.limitKey = "advanced_ai_questions_per_month";
+        error.limit = reservation.limit;
+        error.used = reservation.count;
+        error.plan = entitlement.plan?.name || "Free";
     throw error;
   }
 
@@ -554,7 +675,12 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
             model: env.geminiModel,
             firstAskedBy: userId,
             hitCount: 0,
-            lastAskedAt: new Date()
+            lastAskedAt: new Date(),
+            moderationStatus: approvalMode === "automatic" ? "approved" : "pending",
+            moderationNote: approvalMode === "automatic" ? "Automatically approved by the platform content policy." : "",
+            moderatedBy: null,
+            moderatedAt: approvalMode === "automatic" ? new Date() : null,
+            isHidden: false
           }
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -569,6 +695,25 @@ export async function askLessonQuestion({ userId, courseId, lessonId, question }
       }
     }
 
+    if (saved?._id) {
+      try {
+        await AIQuestionAsk.create({
+          user: userId,
+          course: course._id,
+          lesson: lesson._id,
+          questionHash,
+          answerCacheId: saved._id
+        });
+      } catch (error) {
+        // Concurrent duplicate submissions count as one question for this user.
+        if (error?.code !== 11000) throw error;
+        await releaseUsage({ userId, feature: "advanced_ai_questions", period: "month", amount: 1 }).catch(() => {});
+      }
+    }
+
+    if (saved?.moderationStatus !== "approved") {
+      return { pendingReview: true, reviewStatus: saved?.moderationStatus || "pending", fromCache: false, message: "Your AI answer is being held until an administrator approves it.", usage: await getAdvancedAIUsage({ userId, courseId, lessonId }) };
+    }
     return {
       question: saved?.question || cleanQuestion,
       answer: saved?.answer || answer,

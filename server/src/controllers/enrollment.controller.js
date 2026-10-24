@@ -5,7 +5,14 @@ import { isValidObjectId } from "../utils/ids.js";
 export async function enroll(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const enrollment = await service.enroll(req.user.userId, req.params.courseId);
+    const accessPreference = req.body?.accessPreference;
+    if (accessPreference !== undefined && !["subscription", "individual"].includes(accessPreference)) {
+      return failure(res, "accessPreference must be either subscription or individual.", 400);
+    }
+    const enrollment = await service.enroll(req.user.userId, req.params.courseId, {
+      isAdmin: req.user.role === "admin" && req.user.accessType === "admin",
+      accessPreference
+    });
     return success(res, { enrollment }, "Course enrollment successful", 201);
   } catch (e) { next(e); }
 }

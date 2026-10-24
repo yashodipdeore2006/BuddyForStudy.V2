@@ -4,6 +4,7 @@ import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
+import { routes } from "@/lib/routes";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -21,11 +22,11 @@ export default function Login() {
   useEffect(() => {
     if (session && profile) {
       if (profile.role === 'admin') {
-        navigate('/admin', { replace: true });
+        navigate(routes.adminHome(), { replace: true });
       } else if (from) {
         navigate(from, { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate(routes.home(), { replace: true });
       }
     }
   }, [session, profile, navigate, from]);
@@ -50,7 +51,7 @@ export default function Login() {
     try {
       const result = await signIn(email, password);
       if ("requiresOtp" in result) {
-        navigate("/verify-login", { replace: true, state: { email: result.email, from } });
+        navigate(routes.verifyLogin(), { replace: true, state: { email: result.email, from } });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
@@ -68,7 +69,7 @@ export default function Login() {
       footer={
         <>
           Don't have an account?{' '}
-          <Link to="/register" className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.register()} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign up
           </Link>
 
@@ -102,7 +103,7 @@ export default function Login() {
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-3">
             <label className="text-sm font-medium text-slate-700">Password</label>
-            <Link to="/forgot-password" className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot password?</Link>
+            <Link to={routes.forgotPassword()} className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot password?</Link>
           </div>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -128,7 +129,7 @@ export default function Login() {
 
         {needsVerification && (
           <Link
-            to="/verify-email"
+            to={routes.verifyEmail()}
             state={{ email }}
             className="block rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-bold text-blue-700 hover:bg-blue-100"
           >

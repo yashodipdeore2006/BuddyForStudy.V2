@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { getYouTubeVideoResource, searchBestYouTubeCourse } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 
 const cache = new Map();
@@ -56,17 +57,30 @@ function formatCourseDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
 }
 
-function normalizePolicy(policy) {
-  const min = Math.max(30, Math.min(2400, Number(policy?.minDurationMinutes) || 180));
-  const target = Math.max(min, Math.min(3000, Number(policy?.targetDurationMinutes) || min));
-  const max = Math.max(target, Math.min(3600, Number(policy?.maxDurationMinutes) || target));
+async function getDiscoveryAdminConfig() {
+  const keys = [
+    "discovery_max_skills_per_course", "discovery_search_results_per_query",
+    "discovery_min_duration_minutes", "discovery_max_duration_minutes",
+    "discovery_exclude_shorts", "discovery_require_embeddable",
+  ];
+  const saved = await PlatformSetting.find({ key: { $in: keys } }).lean();
+  return Object.fromEntries(saved.map((setting) => [setting.key, setting.value]));
+}
+
+function normalizePolicy(policy, config = {}) {
+  const globalMin = Math.max(0, Math.min(1200, Number(config.discovery_min_duration_minutes ?? 30)));
+  const globalMax = Math.max(30, Math.min(6000, Number(config.discovery_max_duration_minutes ?? 3600)));
+  const requestedMin = Math.min(2400, Number(policy?.minDurationMinutes) || 180);
+  const min = Math.min(globalMax, Math.max(globalMin, requestedMin));
+  const max = Math.max(min, Math.min(globalMax, Number(policy?.maxDurationMinutes) || globalMax));
+  const target = Math.max(min, Math.min(max, Number(policy?.targetDurationMinutes) || min));
   return {
     ...policy,
     minDurationMinutes: min,
     targetDurationMinutes: target,
     maxDurationMinutes: max,
-    excludeShorts: policy?.excludeShorts !== false,
-    requireEmbeddable: policy?.requireEmbeddable !== false,
+    excludeShorts: config.discovery_exclude_shorts === false ? false : policy?.excludeShorts !== false,
+    requireEmbeddable: config.discovery_require_embeddable === false ? false : policy?.requireEmbeddable !== false,
     preferProjectBased: policy?.preferProjectBased !== false,
     preferredLanguage: policy?.preferredLanguage || "en"
   };
@@ -114,6 +128,44 @@ async function generateSearchSpecification(topic) {
 function generatedSlug(title, mode) {
   const base = String(title || "course").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
   return `${base}-${mode}-${randomUUID().slice(0, 8)}`;
+}
+
+async function createPrivateCourseForUser(baseCourse, userId, sourceMeta = {}) {
+  if (!userId) return baseCourse;
+  const baseId = String(baseCourse?._id || "");
+  const existing = await Course.findOne({
+    visibility: "private",
+    createdForUser: userId,
+    "generation.snapshot.baseCourseId": baseId,
+    deletedAt: null
+  }).lean();
+  if (existing) return existing;
+
+  const source = baseCourse?.toObject ? baseCourse.toObject() : { ...(baseCourse || {}) };
+  const { _id, __v, createdAt, updatedAt, ...copy } = source;
+  const priorSnapshot = source.generation?.snapshot;
+  const snapshot = priorSnapshot && typeof priorSnapshot === "object" && !Array.isArray(priorSnapshot)
+    ? priorSnapshot
+    : { sourceSnapshot: priorSnapshot ?? null };
+  copy.slug = generatedSlug(source.title, "learner-" + String(userId).slice(-8));
+  copy.isPublished = false;
+  copy.status = "draft";
+  copy.deletedAt = null;
+  copy.visibility = "private";
+  copy.createdForUser = userId;
+  copy.aiReviewStatus = "pending";
+  copy.aiReviewedBy = null;
+  copy.aiReviewedAt = null;
+  copy.aiReviewNote = "";
+  copy.generation = {
+    ...(source.generation || {}),
+    mode: "ai",
+    sourceCourse: source._id || null,
+    sourceResourceType: null,
+    sourceResourceId: "",
+    snapshot: { ...snapshot, baseCourseId: baseId, privateForUser: String(userId), ...sourceMeta }
+  };
+  return Course.create(copy);
 }
 
 function courseToSearchSnapshot(course, fallbackQuery = "") {
@@ -265,19 +317,23 @@ async function createNormalCourseFromAi(aiCourse, query) {
 }
 
 async function searchCourseBySkillsFresh(query) {
+  const adminConfig = await getDiscoveryAdminConfig();
   const spec = await generateSearchSpecification(query);
+  const maxSkills = Math.max(1, Math.min(30, Number(adminConfig.discovery_max_skills_per_course) || 12));
+  const selectedSkills = spec.skills.slice(0, maxSkills);
   const modules = [];
 
-  for (let index = 0; index < spec.skills.length; index += 1) {
-    const skill = spec.skills[index];
-    const policy = normalizePolicy(skill.searchPolicy);
+  for (let index = 0; index < selectedSkills.length; index += 1) {
+    const skill = selectedSkills[index];
+    const policy = normalizePolicy(skill.searchPolicy, adminConfig);
     const selected = await searchBestYouTubeCourse({
       skill: skill.name,
       searchQueries: skill.searchQueries,
       searchPolicy: {
         ...policy,
         requiredTopics: skill.requiredTopics
-      }
+      },
+      maxResultsPerQuery: Math.max(5, Math.min(50, Number(adminConfig.discovery_search_results_per_query) || 20))
     });
 
     modules.push({
@@ -322,12 +378,12 @@ export async function getOrCreateNormalCourse(query) {
   const normalized = query.trim();
   const topicKeys = buildTopicKeys(normalized);
 
-  const existingNormal = await findRecentGeneratedCourse({ mode: "normal", topicKeys });
+  const existingNormal = await findRecentGeneratedCourse({ mode: "normal", topicKeys, exactQuery: normalized, includeUnpublished: true });
   if (existingNormal) {
     return { course: existingNormal, result: courseToSearchSnapshot(existingNormal, normalized), cached: true };
   }
 
-  const existingAi = await findRecentGeneratedCourse({ mode: "ai", topicKeys });
+  const existingAi = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: normalized });
   if (existingAi) {
     const derived = await createNormalCourseFromAi(existingAi, normalized);
     if (derived) {
@@ -351,9 +407,10 @@ export async function getOrCreateNormalCourse(query) {
 export async function getOrCreateYouTubeResourceCourse({
   query,
   resourceType,
-  resourceId
+  resourceId,
+  userId = null
 }) {
-  const type = resourceType === "playlist" ? "playlist" : "video";
+  const type = resourceType === "playlist" ? "playlist" : resourceType === "series" ? "series" : "video";
   const id = String(resourceId || "").trim();
   if (!id) {
     const error = new Error("YouTube resourceId is required");
@@ -365,10 +422,13 @@ export async function getOrCreateYouTubeResourceCourse({
     "generation.mode": "discovery",
     "generation.sourceResourceType": type,
     "generation.sourceResourceId": id,
-    isPublished: true
+    deletedAt: null
   }).lean();
 
-  if (existing) return existing;
+  if (existing) {
+    if (existing.isPublished && existing.aiReviewStatus === "approved" && (existing.aiReviewedBy || existing.aiReviewSource === "automatic")) return existing;
+    return userId ? createPrivateCourseForUser(existing, userId, { resourceType: type, resourceId: id }) : existing;
+  }
 
   let title = query || "YouTube Course";
   let description = "";
@@ -406,6 +466,43 @@ export async function getOrCreateYouTubeResourceCourse({
       (sum, lesson) => sum + Number(lesson.durationSeconds || 0),
       0
     );
+  } else if (type === "series") {
+    const videoIds = [...new Set(id.split(",").map((value) => value.trim()).filter(Boolean))];
+    if (videoIds.length < 2 || videoIds.length > 12) {
+      const error = new Error("A curated series must contain between 2 and 12 ordered videos.");
+      error.status = 400;
+      throw error;
+    }
+    const videos = await Promise.all(videoIds.map((videoId) => getYouTubeVideoResource(videoId)));
+    if (videos.some((video) => !video.embeddable || video.isShort || video.privacyStatus === "private")) {
+      const error = new Error("This curated series includes a video that is unavailable, short-form, or cannot be embedded.");
+      error.status = 409;
+      throw error;
+    }
+    title = query || videos[0]?.title || "Curated learning series";
+    description = "A multi-part learning series assembled from ordered videos by " + (videos[0]?.channelTitle || "the original creators") + ".";
+    thumbnail = videos[0]?.thumbnail || "";
+    channelTitle = videos[0]?.channelTitle || "";
+    lessons = videos.map((video, index) => ({
+      title: video.title || ("Lesson " + (index + 1)),
+      description: video.description || "",
+      type: "tutorial",
+      order: index + 1,
+      tutorial: {
+        content: video.description || "",
+        resources: video.url ? [video.url] : [],
+        videos: [{
+          videoId: video.videoId,
+          title: video.title || ("Lesson " + (index + 1)),
+          description: video.description || "",
+          channelTitle: video.channelTitle || channelTitle,
+          publishedAt: video.publishedAt || null,
+          url: video.url || "",
+          thumbnail: video.thumbnail || ""
+        }]
+      }
+    }));
+    durationSeconds = videos.reduce((sum, video) => sum + Number(video.durationSeconds || 0), 0);
   } else {
     const video = await getYouTubeVideoResource(id);
     if (!video.embeddable) {
@@ -490,16 +587,20 @@ export async function getOrCreateYouTubeResourceCourse({
   };
 
   try {
-    return await Course.create(payload);
+    const created = await Course.create(payload);
+    return userId ? createPrivateCourseForUser(created, userId, { resourceType: type, resourceId: id }) : created;
   } catch (error) {
     if (error?.code === 11000) {
       const retry = await Course.findOne({
         "generation.mode": "discovery",
         "generation.sourceResourceType": type,
         "generation.sourceResourceId": id,
-        isPublished: true
+        deletedAt: null
       }).lean();
-      if (retry) return retry;
+      if (retry) {
+        if (retry.isPublished && retry.aiReviewStatus === "approved" && (retry.aiReviewedBy || retry.aiReviewSource === "automatic")) return retry;
+        return userId ? createPrivateCourseForUser(retry, userId, { resourceType: type, resourceId: id }) : retry;
+      }
     }
     throw error;
   }
@@ -509,12 +610,29 @@ export async function searchCourseBySkills(query) {
   return (await getOrCreateNormalCourse(query)).result;
 }
 
-export async function createCourseFromSearch(query) {
-  return (await getOrCreateNormalCourse(query)).course;
+export async function createCourseFromSearch(query, userId = null) {
+  const baseCourse = (await getOrCreateNormalCourse(query)).course;
+  return userId ? createPrivateCourseForUser(baseCourse, userId, { query: String(query || "") }) : baseCourse;
 }
 
 // Legacy playlist discovery remains available for direct playlist browsing.
+// Refresh YouTube metadata periodically rather than caching it indefinitely.
 const playlistCache = new Map();
+const PLAYLIST_SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
+const PLAYLIST_DETAIL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getPlaylistCache(key) {
+  const entry = playlistCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    playlistCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setPlaylistCache(key, value, ttlMs = PLAYLIST_SEARCH_CACHE_TTL_MS) {
+  playlistCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
 
 async function youtubeRequest(endpoint, params) {
   if (!env.youtubeApiKey) {
@@ -557,24 +675,37 @@ function formatDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
-export async function searchStructuredPlaylists(query, maxResults = 12) {
-  const key = `search:${query.trim().toLowerCase()}`;
-  if (playlistCache.has(key)) return playlistCache.get(key);
+export async function searchStructuredPlaylists(query, maxResults, searchOptions = {}) {
+  const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+  const requestedCount = Math.max(1, Math.min(Number(maxResults ?? setting?.value) || 30, 30));
+  const normalizedQuery = String(query || "").trim();
+  const key = `search:${normalizedQuery.toLowerCase()}:${requestedCount}:${String(searchOptions.relevanceLanguage || "en")}:${String(searchOptions.regionCode || "IN")}`;
+  const cached = getPlaylistCache(key);
+  if (cached !== null) return cached;
 
-  const data = await youtubeRequest("search", {
-    part: "snippet",
-    type: "playlist",
-    order: "relevance",
-    q: query,
-    maxResults: Math.min(maxResults, 25),
-    relevanceLanguage: "en",
-    regionCode: "IN",
-    safeSearch: "moderate"
-  });
+  const searchItems = [];
+  let pageToken = "";
+  while (searchItems.length < requestedCount) {
+    const pageSize = Math.min(25, requestedCount - searchItems.length);
+    const data = await youtubeRequest("search", {
+      part: "snippet",
+      type: "playlist",
+      order: "relevance",
+      q: normalizedQuery,
+      maxResults: pageSize,
+      ...(pageToken ? { pageToken } : {}),
+      relevanceLanguage: searchOptions.relevanceLanguage || "en",
+      regionCode: searchOptions.regionCode || "IN",
+      safeSearch: "moderate"
+    });
+    searchItems.push(...(data.items || []));
+    pageToken = data.nextPageToken || "";
+    if (!pageToken || !(data.items || []).length) break;
+  }
 
-  const ids = (data.items || []).map((item) => item.id?.playlistId).filter(Boolean);
+  const ids = searchItems.map((item) => item.id?.playlistId).filter(Boolean);
   if (!ids.length) {
-    playlistCache.set(key, []);
+    setPlaylistCache(key, []);
     return [];
   }
 
@@ -593,7 +724,7 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
 
   const rawResults = (details.items || [])
     .filter((playlist) =>
-      playlist.status?.privacyStatus !== "private" &&
+      playlist.status?.privacyStatus === "public" &&
       Number(playlist.contentDetails?.itemCount || 0) > 0
     )
     .map((playlist) => ({
@@ -618,6 +749,7 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
     .map((playlist) => {
       const searchable = `${playlist.title} ${playlist.description} ${playlist.channelTitle}`.toLowerCase();
       const matchedTerms = queryTerms.filter((term) => searchable.includes(term)).length;
+      const titleMatchedTerms = queryTerms.filter((term) => playlist.title.toLowerCase().includes(term)).length;
       const relevance = queryTerms.length ? (matchedTerms / queryTerms.length) * 100 : 50;
       const depth = Math.min(
         100,
@@ -628,30 +760,88 @@ export async function searchStructuredPlaylists(query, maxResults = 12) {
         (Date.now() - new Date(playlist.publishedAt || Date.now()).getTime()) / 86400000
       );
       const recency = Math.max(0, 100 - (ageDays / 3650) * 100);
+      // Rank by topical relevance and learning depth first; avoid popularity-only ranking.
+      const titleRelevance = queryTerms.length ? (titleMatchedTerms / queryTerms.length) * 100 : 50;
       const score = Number(
-        (relevance * 0.60 + depth * 0.25 + recency * 0.15).toFixed(2)
+        (relevance * 0.45 + depth * 0.30 + titleRelevance * 0.20 + recency * 0.05).toFixed(2)
       );
 
       return {
         ...playlist,
         score,
+        queryRelevance: {
+          matchedTerms,
+          totalTerms: queryTerms.length,
+          titleMatchedTerms
+        },
         ranking: {
-          algorithm: "youtube-playlist-fallback-v1",
+          algorithm: "youtube-playlist-quality-relevance-v2",
           relevance: Math.round(relevance),
           contentDepth: Math.round(depth),
           recency: Math.round(recency)
         }
       };
     })
+    .filter((playlist) =>
+      queryTerms.length === 0 ||
+      playlist.queryRelevance.titleMatchedTerms > 0 ||
+      playlist.queryRelevance.matchedTerms / queryTerms.length >= 0.6
+    )
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.min(maxResults, 6));
+    .slice(0, requestedCount);
 
-  playlistCache.set(key, results);
+  setPlaylistCache(key, results);
   return results;
 }
+export async function searchChannelCoursePlaylists(channelIds, maxPerChannel = 5) {
+  if (!env.youtubeApiKey) return [];
+  const ids = [...new Set((channelIds || []).map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 6);
+  if (!ids.length) return [];
+  const count = Math.max(1, Math.min(10, Number(maxPerChannel) || 5));
+  const key = "channel-playlists:" + ids.slice().sort().join(",") + ":" + count;
+  const cached = getPlaylistCache(key);
+  if (cached !== null) return cached;
+
+  const groups = await Promise.all(ids.map(async (channelId) => {
+    try {
+      const data = await youtubeRequest("playlists", {
+        part: "snippet,contentDetails,status",
+        channelId,
+        maxResults: count
+      });
+      return (data?.items || [])
+        .filter((playlist) =>
+          playlist.status?.privacyStatus === "public" &&
+          Number(playlist.contentDetails?.itemCount || 0) > 0
+        )
+        .map((playlist) => ({
+          playlistId: playlist.id,
+          title: playlist.snippet?.title || "Untitled course playlist",
+          description: playlist.snippet?.description || "",
+          channelTitle: playlist.snippet?.channelTitle || "",
+          channelId: playlist.snippet?.channelId || channelId,
+          publishedAt: playlist.snippet?.publishedAt || null,
+          itemCount: Number(playlist.contentDetails?.itemCount || 0),
+          thumbnail: playlist.snippet?.thumbnails?.high?.url ||
+            playlist.snippet?.thumbnails?.medium?.url ||
+            playlist.snippet?.thumbnails?.default?.url || "",
+          url: "https://www.youtube.com/playlist?list=" + playlist.id,
+          discoverySource: "creator-channel-playlist"
+        }));
+    } catch (error) {
+      console.warn("YouTube channel playlist expansion failed", { channelId, message: error?.message || error });
+      return [];
+    }
+  }));
+  const result = [...new Map(groups.flat().map((playlist) => [playlist.playlistId, playlist])).values()];
+  setPlaylistCache(key, result);
+  return result;
+}
+
 export async function getPlaylistCourse(playlistId) {
   const key = `playlist:${playlistId}`;
-  if (playlistCache.has(key)) return playlistCache.get(key);
+  const cached = getPlaylistCache(key);
+  if (cached !== null) return cached;
 
   const playlistData = await youtubeRequest("playlists", {
     part: "snippet,contentDetails,status",
@@ -676,7 +866,7 @@ export async function getPlaylistCourse(playlistId) {
     const page = await youtubeRequest("playlistItems", params);
     items.push(...(page.items || []));
     pageToken = page.nextPageToken || "";
-  } while (pageToken && items.length < 100);
+  } while (pageToken && items.length < 300);
 
   const videoIds = items
     .filter((item) => item.status?.privacyStatus !== "private")
@@ -688,7 +878,7 @@ export async function getPlaylistCourse(playlistId) {
     const chunk = videoIds.slice(i, i + 50);
     if (!chunk.length) continue;
     const data = await youtubeRequest("videos", {
-      part: "snippet,contentDetails,status",
+      part: "snippet,contentDetails,status,statistics",
       id: chunk.join(",")
     });
     videos.push(...(data.items || []));
@@ -701,19 +891,30 @@ export async function getPlaylistCourse(playlistId) {
       const video = videoMap.get(videoId);
       if (!video || video.status?.embeddable === false) return null;
       const seconds = parseDuration(video.contentDetails?.duration);
+      const title = video.snippet?.title || item.snippet?.title || "Lesson " + (index + 1);
+      const description = video.snippet?.description || "";
       return {
         id: video.id,
         order: index + 1,
-        title: video.snippet?.title || item.snippet?.title || `Lesson ${index + 1}`,
-        description: video.snippet?.description || "",
+        title,
+        description,
         videoId: video.id,
         channelTitle: video.snippet?.channelTitle || playlist.snippet?.channelTitle || "",
+        channelId: video.snippet?.channelId || playlist.snippet?.channelId || "",
         thumbnail: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.default?.url || "",
         publishedAt: video.snippet?.publishedAt || null,
+        defaultAudioLanguage: video.snippet?.defaultAudioLanguage || video.snippet?.defaultLanguage || "",
         durationSeconds: seconds,
         duration: formatDuration(seconds),
-        url: `https://www.youtube.com/watch?v=${video.id}`,
-        embedUrl: `https://www.youtube.com/embed/${video.id}`
+        viewCount: Number(video.statistics?.viewCount || 0),
+        likeCount: Number(video.statistics?.likeCount || 0),
+        commentCount: Number(video.statistics?.commentCount || 0),
+        privacyStatus: video.status?.privacyStatus || "unknown",
+        embeddable: video.status?.embeddable !== false,
+        regionRestriction: video.contentDetails?.regionRestriction || {},
+        isShort: seconds <= 180 && /(?:#shorts?\b|\byoutube shorts?\b|\bshort-form video\b)/i.test(title + " " + description),
+        url: "https://www.youtube.com/watch?v=" + video.id,
+        embedUrl: "https://www.youtube.com/embed/" + video.id
       };
     })
     .filter(Boolean);
@@ -725,10 +926,13 @@ export async function getPlaylistCourse(playlistId) {
     channelTitle: playlist.snippet?.channelTitle || "",
     channelId: playlist.snippet?.channelId || "",
     thumbnail: playlist.snippet?.thumbnails?.high?.url || playlist.snippet?.thumbnails?.medium?.url || playlist.snippet?.thumbnails?.default?.url || "",
-    itemCount: lessons.length,
+    itemCount: Number(playlist.contentDetails?.itemCount || items.length),
+    totalItemCount: Number(playlist.contentDetails?.itemCount || items.length),
+    observedItemCount: items.length,
+    accessibleLessonCount: lessons.length,
     lessons
   };
 
-  playlistCache.set(key, result);
+  setPlaylistCache(key, result, PLAYLIST_DETAIL_CACHE_TTL_MS);
   return result;
 }

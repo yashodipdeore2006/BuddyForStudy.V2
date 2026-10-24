@@ -4,7 +4,77 @@ import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
-import { searchYouTubeCourseRecommendations } from "./youtube.service.js";
+import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
+import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+
+const COURSE_RATING_LOOKUP_STAGE = {
+  $lookup: {
+    from: "course_reviews",
+    let: { courseId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: { $eq: ["$course", "$$courseId"] },
+          isHidden: { $ne: true },
+          moderationStatus: "approved"
+        }
+      },
+      { $group: { _id: null, average: { $avg: "$rating" }, count: { $sum: 1 } } },
+      { $project: { _id: 0, average: { $round: ["$average", 1] }, count: 1 } }
+    ],
+    as: "courseRatingStats"
+  }
+};
+const COURSE_RATING_FIELDS_STAGE = {
+  $addFields: {
+    ratingAverage: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.average", 0] }, 0] },
+    ratingCount: { $ifNull: [{ $arrayElemAt: ["$courseRatingStats.count", 0] }, 0] }
+  }
+};
+const GENERATED_COURSE_MODES = ["normal", "ai", "module", "discovery"];
+const PUBLICATION_APPROVAL_FILTER = {
+  $or: [
+    { "generation.mode": { $nin: GENERATED_COURSE_MODES } },
+    {
+      aiReviewStatus: "approved",
+      $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+    }
+  ]
+};
+function isApprovedForPublication(course) {
+  return !GENERATED_COURSE_MODES.includes(course?.generation?.mode) ||
+    (course?.aiReviewStatus === "approved" && (Boolean(course?.aiReviewedBy) || course?.aiReviewSource === "automatic"));
+}
+
+async function applyGeneratedCourseApprovalPolicy(course) {
+  const setting = await PlatformSetting.findOne({ key: "content_approval_ai_courses" }).select("value").lean();
+  if (setting?.value !== "automatic") {
+    course.isPublished = false;
+    course.status = "draft";
+    course.aiReviewStatus = "pending";
+    course.aiReviewSource = "manual";
+    course.aiReviewedBy = null;
+    course.aiReviewedAt = null;
+    course.aiReviewNote = "";
+    return course;
+  }
+
+  course.aiReviewStatus = "approved";
+  course.aiReviewSource = "automatic";
+  course.aiReviewedBy = null;
+  course.aiReviewedAt = new Date();
+  course.aiReviewNote = "Automatically approved by the platform content policy.";
+  if (evaluateCourseReadiness(course).ready) {
+    course.isPublished = true;
+    course.status = "published";
+    course.visibility = "public";
+  } else {
+    course.isPublished = false;
+    course.status = "draft";
+  }
+  return course;
+}
 
 function normalizeSlug(value) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -57,7 +127,7 @@ function normalizeSearchTokens(value) {
   return String(value || "")
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^a-z0-9+#.]+/g, " ")
+    .replace(/[^\p{L}\p{M}\p{N}+#.]+/gu, " ")
     .split(/\s+/)
     .map((token) => token.trim())
     .filter(Boolean);
@@ -136,7 +206,7 @@ function standaloneCourseFromModule(parent, module) {
       order: 1,
       lessons
     }],
-    isPublished: true,
+    isPublished: false,
     pricing: parent.pricing || { mode: "free", price: 0, currency: "INR" },
     enrollmentEnabled: parent.enrollmentEnabled !== false,
     certificateEnabled: parent.certificateEnabled !== false,
@@ -172,7 +242,9 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
 
   const candidateFilter = {
     isPublished: true,
+    deletedAt: null,
     "generation.mode": { $ne: "module" },
+    $and: [PUBLICATION_APPROVAL_FILTER],
     ...(category ? { category } : {}),
     ...(level ? { level } : {}),
     $or: [
@@ -214,16 +286,16 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
       "generation.mode": "module",
       "generation.sourceCourse": parent._id,
       "generation.sourceModuleId": module._id,
-      isPublished: true
+      deletedAt: null
     };
 
     const existing = await Course.findOne(matchFilter).lean();
     if (existing) {
-      courses.push(existing);
+      if (existing.isPublished && isApprovedForPublication(existing)) courses.push(existing);
       continue;
     }
 
-    const payload = standaloneCourseFromModule(parent, module);
+    const payload = await applyGeneratedCourseApprovalPolicy(standaloneCourseFromModule(parent, module));
 
     try {
       const created = await Course.findOneAndUpdate(
@@ -236,11 +308,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
 
-      if (created) courses.push(created);
+      if (created?.isPublished && !created.deletedAt && isApprovedForPublication(created)) courses.push(created);
     } catch (error) {
       if (error?.code === 11000) {
         const duplicate = await Course.findOne(matchFilter).lean();
-        if (duplicate) courses.push(duplicate);
+        if (duplicate?.isPublished && !duplicate.deletedAt && isApprovedForPublication(duplicate)) courses.push(duplicate);
         else throw error;
       } else {
         throw error;
@@ -367,8 +439,25 @@ function courseSummary(course) {
 }
 
 
+function courseContentCountsStage() {
+  return {
+    $addFields: {
+      moduleCount: { $size: { $ifNull: ["$modules", []] } },
+      lessonCount: {
+        $sum: {
+          $map: {
+            input: { $ifNull: ["$modules", []] },
+            as: "module",
+            in: { $size: { $ifNull: ["$module.lessons", []] } }
+          }
+        }
+      }
+    }
+  };
+}
+
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
-  const filter = { isPublished: true };
+  const filter = { isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
   if (level) filter.level = level;
 
@@ -377,10 +466,15 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   if (normalizedSearch) {
     const directFilter = buildDirectCourseSearchFilter(normalizedSearch);
     const directCandidates = directFilter
-      ? await Course.find({ ...filter, ...directFilter })
-          .select("-modules")
-          .sort({ createdAt: -1 })
-          .lean()
+      ? await Course.aggregate([
+          { $match: { ...filter, ...directFilter } },
+          courseContentCountsStage(),
+          { $project: { modules: 0 } },
+          COURSE_RATING_LOOKUP_STAGE,
+          COURSE_RATING_FIELDS_STAGE,
+          { $project: { courseRatingStats: 0 } },
+          { $sort: { createdAt: -1 } }
+        ])
       : [];
 
     const nonModuleDirectCourses = directCandidates.filter(
@@ -403,23 +497,26 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       );
     }
 
-    let youtubeCourseRecommendations = [];
+    let curation = { resources: [], meta: { version: "course-curation-decision-engine-v1", resultsShown: 0 } };
     let youtubeError = "";
 
     try {
-      youtubeCourseRecommendations = await searchYouTubeCourseRecommendations(
-        normalizedSearch,
-        3
-      );
+      curation = await curateNormalSearch(normalizedSearch, { category, level });
+      youtubeError = String(curation?.meta?.youtubeError || "");
     } catch (error) {
-      youtubeError =
-        error instanceof Error
-          ? error.message
-          : "YouTube course search is unavailable";
-      console.error("YouTube supplementary search failed", {
+      youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";
+      console.error("Course Curation Decision Engine failed", {
         query: normalizedSearch,
         message: youtubeError
       });
+      curation = {
+        resources: [],
+        meta: {
+          version: "course-curation-decision-engine-v1",
+          resultsShown: 0,
+          error: youtubeError
+        }
+      };
     }
 
     const localTotal = nonModuleDirectCourses.length || localCourses.length;
@@ -436,7 +533,9 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       discovery: {
         mode: "youtube_supplementary",
         query: normalizedSearch,
-        courseRecommendations: youtubeCourseRecommendations,
+        courseRecommendations: [],
+        curatedResources: curation.resources || [],
+        curationMeta: curation.meta || null,
         youtubeError,
         hasLocalResults
       }
@@ -474,7 +573,11 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
             }
           }
         },
+        courseContentCountsStage(),
         { $project: { modules: 0, enrollmentStats: 0 } },
+        COURSE_RATING_LOOKUP_STAGE,
+        COURSE_RATING_FIELDS_STAGE,
+        { $project: { courseRatingStats: 0 } },
         { $sort: { enrollmentCount: -1, featured: -1, createdAt: -1 } },
         { $skip: (page - 1) * limit },
         { $limit: limit }
@@ -489,12 +592,17 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
   }
 
   const [courses, total] = await Promise.all([
-    Course.find(filter)
-      .select("-modules")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
+    Course.aggregate([
+      { $match: filter },
+      courseContentCountsStage(),
+      { $project: { modules: 0 } },
+      COURSE_RATING_LOOKUP_STAGE,
+      COURSE_RATING_FIELDS_STAGE,
+      { $project: { courseRatingStats: 0 } },
+      { $sort: { createdAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit }
+    ]),
     Course.countDocuments(filter)
   ]);
 
@@ -503,27 +611,87 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
     pagination: { page, limit, total, pages: Math.ceil(total / limit) }
   };
 }
-export async function getPublished(courseId) {
+export async function getPublished(courseId, userId = null) {
   const key = `course:${courseId}`;
   const cached = await cacheGet(key);
   if (cached) {
-    if (!hasMultipleTutorialVideos(cached)) return cached;
-
-    const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
-    if (!courseDoc) return null;
-    if (normalizeMultiVideoLessons(courseDoc)) {
-      await courseDoc.save();
-      await cacheDelete(key);
+    if (cached.deletedAt || cached.status === "archived") return null;
+    if (cached.visibility === "private") {
+      const owner = userId && String(cached.createdForUser) === String(userId);
+      if (!owner || !isApprovedForPublication(cached) || cached.aiReviewStatus !== "approved") return null;
+      const enrollment = await Enrollment.exists({
+        user: userId,
+        course: cached._id,
+        status: { $in: ["active", "completed"] },
+        revokedBy: null
+      });
+      return enrollment ? cached : null;
     }
-    const normalized = courseDoc.toObject();
-    void cacheSet(key, normalized, 120);
-    return normalized;
+    // Existing enrolled learners retain access to non-archived courses even
+    // when a course is no longer listed publicly. Explicit moderation holds,
+    // rejections, soft deletion and revoked enrollments still block access.
+    if (userId && !["pending", "rejected"].includes(cached.aiReviewStatus)) {
+      const enrollment = await Enrollment.exists({
+        user: userId,
+        course: cached._id,
+        status: { $in: ["active", "completed"] },
+        revokedBy: null
+      });
+      if (enrollment) return cached;
+    }
+    if (!cached.isPublished) {
+      await cacheDelete(key);
+      return null;
+    }
+    if (isApprovedForPublication(cached) && !hasMultipleTutorialVideos(cached)) return cached;
+    await cacheDelete(key);
+    return null;
   }
 
-  const courseDoc = await Course.findOne({ _id: courseId, isPublished: true });
-  if (!courseDoc) return null;
+  const accessBranches = [{ isPublished: true, $and: [PUBLICATION_APPROVAL_FILTER] }];
+  if (userId) accessBranches.push({
+    visibility: "private",
+    createdForUser: userId,
+    aiReviewStatus: "approved",
+    $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+  });
+  let courseDoc = await Course.findOne({
+    _id: courseId,
+    deletedAt: null,
+    status: { $ne: "archived" },
+    $or: accessBranches
+  });
 
-  if (normalizeMultiVideoLessons(courseDoc)) {
+  if (!courseDoc && userId) {
+    const existingEnrollment = await Enrollment.exists({
+      user: userId,
+      course: courseId,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (existingEnrollment) {
+      courseDoc = await Course.findOne({
+        _id: courseId,
+        deletedAt: null,
+        status: { $ne: "archived" },
+        visibility: { $ne: "private" },
+        aiReviewStatus: { $nin: ["pending", "rejected"] }
+      });
+    }
+  }
+  if (!courseDoc) return null;
+  if (courseDoc.visibility === "private") {
+    const enrollment = await Enrollment.exists({
+      user: userId,
+      course: courseDoc._id,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (!enrollment) return null;
+  }
+
+  if (courseDoc.visibility !== "private" && normalizeMultiVideoLessons(courseDoc)) {
+    courseDoc.$locals.revisionContext = { source: "system", summary: "Video resource normalization", reason: "" };
     await courseDoc.save();
   }
 
@@ -538,26 +706,54 @@ export async function getAny(courseId) {
 
 export async function createCourse(input) {
   const slug = input.slug ? normalizeSlug(input.slug) : normalizeSlug(input.title);
-  const course = await Course.create({ ...input, slug });
+  const generated = ["normal", "ai", "module", "discovery"].includes(input.generation?.mode);
+  const course = await Course.create({
+    ...input, slug, isPublished: false, status: "draft",
+    ...(generated ? { aiReviewStatus: "pending", aiReviewedBy: null, aiReviewedAt: null } : {})
+  });
   await cacheDelete(`course:${course._id}`);
   return course;
 }
 
-export async function updateCourse(courseId, input) {
+export async function updateCourse(courseId, input, context = {}) {
   if (input.slug) input.slug = normalizeSlug(input.slug);
-  const course = await Course.findByIdAndUpdate(courseId, input, { new: true, runValidators: true });
+  if (input.isPublished === true) {
+    const error = new Error("Use the readiness-gated publish action to publish a course.");
+    error.status = 400;
+    throw error;
+  }
+  const course = await Course.findById(courseId);
+  if (!course || course.deletedAt) return null;
+  for (const [key, value] of Object.entries(input)) {
+    if (key === "isPublished" && value === true) continue;
+    if (key === "reason" || key === "deletedAt" || key === "status" || key === "aiReviewStatus" || key === "aiReviewedBy" || key === "aiReviewedAt") continue;
+    course.set(key, value);
+  }
+  if (input.isPublished === false) course.isPublished = false;
+  course.$locals.revisionContext = {
+    actor: context.actor || null, source: "admin",
+    reason: String(context.reason || "Admin course update").trim().slice(0, 500),
+    summary: "Course updated through course API"
+  };
+  await course.save();
   await cacheDelete(`course:${courseId}`);
   return course;
 }
 
-export async function deleteCourse(courseId) {
-  const course = await Course.findByIdAndDelete(courseId);
+export async function deleteCourse(courseId, context = {}) {
+  const course = await Course.findById(courseId);
   if (!course) return null;
+  if (course.deletedAt) return course;
+  course.deletedAt = new Date();
+  course.isPublished = false;
+  course.status = "draft";
+  course.$locals.revisionContext = {
+    actor: context.actor || null, source: "admin",
+    reason: String(context.reason || "Admin soft delete").trim().slice(0, 500),
+    summary: "Course soft-deleted through course API"
+  };
+  await course.save();
   await cacheDelete(`course:${courseId}`);
-  await Promise.all([
-    Enrollment.deleteMany({ course: courseId }),
-    Progress.deleteMany({ course: courseId })
-  ]);
   return course;
 }
 

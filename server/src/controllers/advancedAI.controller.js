@@ -7,6 +7,7 @@ import {
 } from "../services/advancedAI.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
+import { getEntitlement } from "../services/subscriptionEntitlement.service.js";
 
 async function requireEnrollment(userId, courseId) {
   if (!isValidObjectId(courseId)) return false;
@@ -30,6 +31,16 @@ export async function usage(req, res, next) {
     const input = schema.parse(req.query);
     if (!validateIds(input.courseId, input.lessonId)) return failure(res, "Invalid course or lesson ID", 400);
     if (!await requireEnrollment(req.user.userId, input.courseId)) return failure(res, "Active or completed enrollment required", 403);
+
+    const entitlement = await getEntitlement(req.user.userId, "advanced_ai_paths");
+    if (!entitlement.allowed) {
+      return success(res, {
+        enabled: false,
+        plan: { id: entitlement.plan?._id ? String(entitlement.plan._id) : "", name: entitlement.plan?.name || "Free" },
+        questions: null,
+        recentQuestions: []
+      });
+    }
 
     const result = await getAdvancedAIUsage({
       userId: req.user.userId,

@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Mail, RotateCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
+import { routes } from "@/lib/routes";
 
 const RESEND_SECONDS = 60;
 
@@ -12,7 +13,7 @@ export default function VerifyLogin() {
   const navigate = useNavigate();
   const { verifyLogin } = useAuth();
   const state = location.state as { email?: string; from?: string } | null;
-  const [email, setEmail] = useState(state?.email || "");
+  const email = state?.email || "";
   const [otp, setOtp] = useState("");
   const [seconds, setSeconds] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function VerifyLogin() {
   }, [seconds]);
 
   useEffect(() => {
-    if (!email) navigate("/login", { replace: true });
+    if (!email) navigate(routes.login(), { replace: true });
   }, [email, navigate]);
 
   const submit = async (event: React.FormEvent) => {
@@ -71,7 +72,7 @@ export default function VerifyLogin() {
       footer={
         <>
           Need another account?{" "}
-          <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
             Back to sign in
           </Link>
         </>

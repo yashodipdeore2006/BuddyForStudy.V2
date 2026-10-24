@@ -1,9 +1,22 @@
-import { useEffect, useState } from "react";
-import { RefreshCcw, Save, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCcw, Save, Settings2, Share2, Trash2 } from "lucide-react";
+import { DEFAULT_PUBLIC_SOCIAL_LINKS, normalizeHttpsSocialUrl, PUBLIC_SOCIAL_PLATFORMS, type SocialPlatformId } from "@/lib/socialLinks";
 import { adminFetch } from "@/lib/adminApi";
+import { AdminPageHeader, AdminTabs } from "@/components/admin/AdminUI";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
-function formatValue(value: any) {
-  return typeof value === "string" ? value : JSON.stringify(value ?? "");
+type PlatformSetting = {
+  _id: string;
+  key: string;
+  value: unknown;
+  description?: string;
+  isPublic?: boolean;
+};
+
+function formatValue(value: unknown) {
+  if (typeof value === "string") return value;
+  const serialized = JSON.stringify(value ?? "");
+  return serialized ?? "";
 }
 
 function parseValue(value: string) {
@@ -19,7 +32,7 @@ function parseValue(value: string) {
 }
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState<any[]>([]);
+  const [settings, setSettings] = useState<PlatformSetting[]>([]);
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
   const [description, setDescription] = useState("");
@@ -28,7 +41,12 @@ export default function AdminSettings() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [activeSection, setActiveSection] = useState<"ai" | "notifications" | "social" | "configuration">("configuration");
+  const [socialLinks, setSocialLinks] = useState<Record<SocialPlatformId, string>>(DEFAULT_PUBLIC_SOCIAL_LINKS);
+  const [socialReason, setSocialReason] = useState("");
+  const [savingSocialLinks, setSavingSocialLinks] = useState(false);
   const [advancedAI, setAdvancedAI] = useState({
     questionsPerHourVideo: 10,
     unknownDurationQuestions: 10,
@@ -37,14 +55,40 @@ export default function AdminSettings() {
     qaEnabled: true,
   });
   const [savingAdvancedAI, setSavingAdvancedAI] = useState(false);
+  const [advancedAIReason, setAdvancedAIReason] = useState("");
+  const [notificationConfig, setNotificationConfig] = useState({
+    emailEnabled: true,
+    inAppEnabled: true,
+    pushEnabled: true,
+    learningRemindersEnabled: true,
+    inactiveDays: 3,
+    subscriptionExpiryRemindersEnabled: true,
+    subscriptionExpiryReminderDays: 3,
+    emailRetryAttempts: 5,
+    pushRetryAttempts: 3,
+  });
+  const [savingNotificationConfig, setSavingNotificationConfig] = useState(false);
+  const [notificationReason, setNotificationReason] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<PlatformSetting | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await adminFetch("/api/admin/settings");
+      const [data, accessData] = await Promise.all([adminFetch("/api/admin/settings"), adminFetch("/api/admin/access")]);
       setSettings(data.settings || []);
-      const values = Object.fromEntries((data.settings || []).map((item: any) => [item.key, item.value]));
+      setPermissions(accessData.access?.permissions || []);
+      const loadedSettings = (data.settings as PlatformSetting[] | undefined) || [];
+      const values = Object.fromEntries(loadedSettings.map((item) => [item.key, item.value]));
+      const settingsByKey = Object.fromEntries(loadedSettings.map((item) => [item.key, item])) as Record<string, PlatformSetting>;
+      setSocialLinks(Object.fromEntries(PUBLIC_SOCIAL_PLATFORMS.map((platform) => {
+        const setting = settingsByKey[platform.settingKey];
+        return [platform.id, setting ? (typeof setting.value === "string" ? setting.value : "") : platform.envUrl];
+      })) as Record<SocialPlatformId, string>);
       setAdvancedAI({
         questionsPerHourVideo: Number(values.advanced_ai_questions_per_hour_video ?? 10),
         unknownDurationQuestions: Number(values.advanced_ai_questions_unknown_duration ?? 10),
@@ -52,16 +96,31 @@ export default function AdminSettings() {
         summaryEnabled: values.advanced_ai_summary_enabled === undefined ? true : Boolean(values.advanced_ai_summary_enabled),
         qaEnabled: values.advanced_ai_qa_enabled === undefined ? true : Boolean(values.advanced_ai_qa_enabled),
       });
+      setNotificationConfig({
+        emailEnabled: values.notification_email_enabled === undefined ? true : Boolean(values.notification_email_enabled),
+        inAppEnabled: values.notification_in_app_enabled === undefined ? true : Boolean(values.notification_in_app_enabled),
+        pushEnabled: values.notification_push_enabled === undefined ? true : Boolean(values.notification_push_enabled),
+        learningRemindersEnabled: values.learning_reminders_enabled === undefined ? true : Boolean(values.learning_reminders_enabled),
+        inactiveDays: Math.max(1, Math.min(30, Number(values.learning_reminder_inactive_days ?? 3))),
+        subscriptionExpiryRemindersEnabled: values.subscription_expiry_reminders_enabled === undefined ? true : Boolean(values.subscription_expiry_reminders_enabled),
+        subscriptionExpiryReminderDays: Math.max(1, Math.min(14, Number(values.subscription_expiry_reminder_days ?? 3))),
+        emailRetryAttempts: Math.max(1, Math.min(10, Number(values.notification_email_retry_attempts ?? 5))),
+        pushRetryAttempts: Math.max(1, Math.min(6, Number(values.notification_push_retry_attempts ?? 3))),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load settings");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   async function saveAdvancedAI() {
+    if (advancedAIReason.trim().length < 10 || advancedAIReason.trim().length > 500) {
+      setError("Enter an AI settings change reason between 10 and 500 characters.");
+      return;
+    }
     setSavingAdvancedAI(true);
     setError("");
     setStatus("");
@@ -81,11 +140,12 @@ export default function AdminSettings() {
             value: settingValue,
             description: "Advanced AI assistant platform control",
             isPublic: false,
-            reason: "Admin updated Advanced AI configuration",
+            reason: advancedAIReason.trim(),
           }),
         })
       ));
       setStatus("Advanced AI configuration saved.");
+      setAdvancedAIReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save Advanced AI configuration");
@@ -94,17 +154,143 @@ export default function AdminSettings() {
     }
   }
 
-  function edit(setting: any) {
+  async function saveNotificationConfig() {
+    if (notificationReason.trim().length < 10 || notificationReason.trim().length > 500) {
+      setError("Enter a notification settings change reason between 10 and 500 characters.");
+      return;
+    }
+    setSavingNotificationConfig(true);
+    setError("");
+    setStatus("");
+    try {
+      const entries: Array<[string, boolean | number, string]> = [
+        ["notification_email_enabled", Boolean(notificationConfig.emailEnabled), "Globally pause or enable email delivery, including transactional email."],
+        ["notification_in_app_enabled", Boolean(notificationConfig.inAppEnabled), "Global in-app notification delivery control."],
+        ["notification_push_enabled", Boolean(notificationConfig.pushEnabled), "Global browser Web Push delivery control."],
+        ["learning_reminders_enabled", Boolean(notificationConfig.learningRemindersEnabled), "Enable or pause scheduled learning reminders."],
+        ["learning_reminder_inactive_days", Math.max(1, Math.min(30, Math.trunc(notificationConfig.inactiveDays))), "Days without learning activity before a reminder is eligible."],
+        ["subscription_expiry_reminders_enabled", Boolean(notificationConfig.subscriptionExpiryRemindersEnabled), "Enable or pause scheduled subscription expiry reminders."],
+        ["subscription_expiry_reminder_days", Math.max(1, Math.min(14, Math.trunc(notificationConfig.subscriptionExpiryReminderDays))), "Lead time in days for subscription expiry reminder."],
+        ["notification_email_retry_attempts", Math.max(1, Math.min(10, Math.trunc(notificationConfig.emailRetryAttempts))), "Maximum email delivery attempts per notification."],
+        ["notification_push_retry_attempts", Math.max(1, Math.min(6, Math.trunc(notificationConfig.pushRetryAttempts))), "Maximum push delivery attempts per notification."]
+      ];
+      await Promise.all(entries.map(([settingKey, settingValue, description]) =>
+        adminFetch("/api/admin/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            key: settingKey,
+            value: settingValue,
+            description,
+            isPublic: false,
+            reason: notificationReason.trim()
+          })
+        })
+      ));
+      setStatus("Notification delivery settings saved.");
+      setNotificationReason("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save notification settings");
+    } finally {
+      setSavingNotificationConfig(false);
+    }
+  }
+
+  async function saveSocialLinks() {
+    if (socialReason.trim().length < 10 || socialReason.trim().length > 500) {
+      setError("Enter a social-links change reason between 10 and 500 characters.");
+      return;
+    }
+
+    const normalized = PUBLIC_SOCIAL_PLATFORMS.map((platform) => ({
+      platform,
+      url: normalizeHttpsSocialUrl(socialLinks[platform.id] || "")
+    }));
+    if (normalized.some((entry) => entry.url === null)) {
+      setError("Each social link must be a valid HTTPS URL. Leave a field empty to hide that social icon.");
+      return;
+    }
+
+    setSavingSocialLinks(true);
+    setError("");
+    setStatus("");
+    try {
+      await Promise.all(normalized.map(({ platform, url }) =>
+        adminFetch("/api/admin/settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            key: platform.settingKey,
+            value: url,
+            description: `Official BuddyForStudy ${platform.label} profile URL. An empty value hides the link.`,
+            isPublic: true,
+            reason: socialReason.trim()
+          })
+        })
+      ));
+      setStatus("Social media links saved. Public pages now use the centralized settings.");
+      setSocialReason("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save social media links");
+    } finally {
+      setSavingSocialLinks(false);
+    }
+  }
+
+  async function removeSetting(setting: PlatformSetting, reason?: string) {
+    if (!permissions.includes("settings.manage")) {
+      setError("You do not have permission to delete platform settings.");
+      return;
+    }
+    if (reason === undefined) {
+      setDeleteError("");
+      setDeleteConfirmText("");
+      setDeleteReason("");
+      setPendingDelete(setting);
+      return;
+    }
+    if (reason.trim().length < 10 || reason.trim().length > 500) {
+      setDeleteError("A reason of 10–500 characters is required.");
+      return;
+    }
+    setDeletingId(setting._id);
+    setError("");
+    setStatus("");
+    try {
+      await adminFetch(`/api/admin/settings/${setting._id}`, { method: "DELETE", body: JSON.stringify({ reason: reason.trim() }) });
+      setPendingDelete(null);
+      if (key === setting.key) {
+        setKey("");
+        setValue("");
+        setDescription("");
+        setIsPublic(false);
+        setReason("");
+      }
+      setStatus(`Setting "${setting.key}" deleted.`);
+      await load();
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Unable to delete setting");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+  function edit(setting: PlatformSetting) {
     setKey(setting.key);
     setValue(formatValue(setting.value));
     setDescription(setting.description || "");
     setIsPublic(Boolean(setting.isPublic));
     setStatus("");
+    setError("");
+    setReason("");
   }
 
   async function save() {
     if (!key.trim()) {
       setError("Setting key is required.");
+      return;
+    }
+    if (reason.trim().length < 10 || reason.trim().length > 500) {
+      setError("Enter a change reason between 10 and 500 characters.");
       return;
     }
     setSavingKey(key);
@@ -122,6 +308,7 @@ export default function AdminSettings() {
         }),
       });
       setStatus("Setting saved.");
+      setReason("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save setting");
@@ -130,20 +317,53 @@ export default function AdminSettings() {
     }
   }
 
+  const configurationSettings = settings.filter((setting) => !PUBLIC_SOCIAL_PLATFORMS.some((platform) => platform.settingKey === setting.key) && !["ai_prompt_active_version_build_with_ai", "ai_prompt_active_version_lesson_summary"].includes(setting.key));
+
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Operations</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-950">Platform Settings</h1>
-          <p className="mt-2 text-slate-500">Control operational configuration without a deployment, with typed values and an audit reason.</p>
-        </div>
-        <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCcw className="h-4 w-4" /> Refresh</button>
+      <AdminPageHeader
+        eyebrow="Operations"
+        title="Platform settings"
+        description="Control operational configuration without a deployment, with typed values and an audit reason."
+        actions={<button type="button" aria-label="Refresh platform settings" className="btn-secondary" onClick={() => void load()} disabled={loading}><RefreshCcw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Refresh</button>}
+      />
+
+      {pendingDelete && <TypedConfirmDialog
+        open
+        title="Delete platform setting"
+        description={`You are about to permanently delete the "${pendingDelete.key}" configuration setting.`}
+        consequence={deleteError || "This may change platform behavior. Delete only if the setting is no longer required; the action cannot be undone."}
+        requiredText={String(pendingDelete.key || "")}
+        confirmLabel="Delete setting"
+        value={deleteConfirmText}
+        onValueChange={setDeleteConfirmText}
+        reason={deleteReason}
+        onReasonChange={setDeleteReason}
+        loading={deletingId === pendingDelete._id}
+        onClose={() => { if (deletingId !== pendingDelete._id) setPendingDelete(null); }}
+        onConfirm={() => { if (pendingDelete) void removeSetting(pendingDelete, deleteReason.trim()); }}
+      />}
+      {error && <div role="alert" className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
+      {!permissions.includes("settings.manage") && <div role="status" className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">View-only access: your administrator role can inspect platform setting metadata but cannot change operational controls.</div>}
+
+      <div className="mt-6">
+        <AdminTabs
+          ariaLabel="Platform settings areas"
+          value={activeSection}
+          onChange={setActiveSection}
+          items={[
+            ...(permissions.includes("settings.manage") ? [
+              { value: "ai" as const, label: "AI controls" },
+              { value: "notifications" as const, label: "Notifications" },
+              { value: "social" as const, label: "Social links" },
+            ] : []),
+            { value: "configuration" as const, label: `Configuration (${configurationSettings.length})` },
+          ]}
+        />
       </div>
 
-      {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
-
-      <section className="card mt-6 p-6">
+{activeSection === "ai" && permissions.includes("settings.manage") && (
+      <section className="card mt-4 p-6">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">AI control plane</p>
@@ -170,45 +390,128 @@ export default function AdminSettings() {
           Example: with <strong>10 questions/hour</strong> and a <strong>2-hour video</strong>, a learner can ask up to <strong>20 unique questions</strong> for that lesson (subject to the hard maximum and their plan's monthly Advanced AI limit).
         </div>
 
-        <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI}>
+        <label className="mt-4 block text-xs font-semibold text-slate-600">Change reason (required)<input className="input-field mt-2" value={advancedAIReason} onChange={(e) => setAdvancedAIReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="advanced-ai-reason-help" placeholder="Why are these AI controls changing?" /><span id="advanced-ai-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {advancedAIReason.trim().length}/500</span></label>
+        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveAdvancedAI()} disabled={savingAdvancedAI || advancedAIReason.trim().length < 10 || advancedAIReason.trim().length > 500}>
           <Save className="h-4 w-4" /> {savingAdvancedAI ? "Saving..." : "Save Advanced AI settings"}
-        </button>
+        </button>}
       </section>
+)}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      {activeSection === "notifications" && permissions.includes("settings.manage") && (
+      <section className="card mt-4 p-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-600">Notification control plane</p>
+          <h2 className="mt-1 text-xl font-extrabold text-slate-950">Automated delivery & learning reminders</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">Pause channels during an incident, set the inactivity threshold, and control retry attempts. User preferences still determine their optional channels.</p>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.emailEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Email delivery enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Includes purchase and billing emails; use only as a temporary global kill switch.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.inAppEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, inAppEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">In-app notifications enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Global control for optional in-app updates. Billing and security alerts remain visible.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.pushEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Push delivery enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Requires server VAPID configuration and user opt-in.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.learningRemindersEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, learningRemindersEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Learning reminders enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Global switch; each learner can also control personal reminder preferences.</span></span></label>
+          <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4"><input className="mt-1 h-4 w-4" type="checkbox" checked={notificationConfig.subscriptionExpiryRemindersEnabled} onChange={(e) => setNotificationConfig({ ...notificationConfig, subscriptionExpiryRemindersEnabled: e.target.checked })} /><span><span className="block text-sm font-semibold text-slate-900">Subscription expiry reminders enabled</span><span className="mt-1 block text-xs leading-5 text-slate-500">Notify active or trialing subscriptions before the current billing period ends; scheduled cancellations are handled separately.</span></span></label>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
+          <label className="block text-xs font-semibold text-slate-500">Inactive days before reminder<input className="input-field mt-2" type="number" min="1" max="30" value={notificationConfig.inactiveDays} onChange={(e) => setNotificationConfig({ ...notificationConfig, inactiveDays: Number(e.target.value) })} /></label>
+          <label className="block text-xs font-semibold text-slate-500">Subscription expiry lead days<input className="input-field mt-2" type="number" min="1" max="14" value={notificationConfig.subscriptionExpiryReminderDays} onChange={(e) => setNotificationConfig({ ...notificationConfig, subscriptionExpiryReminderDays: Number(e.target.value) })} disabled={!notificationConfig.subscriptionExpiryRemindersEnabled} /></label>
+          <label className="block text-xs font-semibold text-slate-500">Email retry attempts<input className="input-field mt-2" type="number" min="1" max="10" value={notificationConfig.emailRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, emailRetryAttempts: Number(e.target.value) })} /></label>
+          <label className="block text-xs font-semibold text-slate-500">Push retry attempts<input className="input-field mt-2" type="number" min="1" max="6" value={notificationConfig.pushRetryAttempts} onChange={(e) => setNotificationConfig({ ...notificationConfig, pushRetryAttempts: Number(e.target.value) })} /></label>
+        </div>
+        <label className="mt-4 block text-xs font-semibold text-slate-600">Change reason (required)<input className="input-field mt-2" value={notificationReason} onChange={(e) => setNotificationReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="notification-settings-reason-help" placeholder="Why are notification controls changing?" /><span id="notification-settings-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {notificationReason.trim().length}/500</span></label>
+        {permissions.includes("settings.manage") && <button type="button" className="btn-primary mt-4" onClick={() => void saveNotificationConfig()} disabled={savingNotificationConfig || notificationReason.trim().length < 10 || notificationReason.trim().length > 500}>
+          <Save className="h-4 w-4" /> {savingNotificationConfig ? "Saving..." : "Save notification controls"}
+        </button>}
+      </section>
+      )}
+
+      {activeSection === "social" && permissions.includes("settings.manage") && (
+      <section className="card mt-4 p-6" aria-labelledby="social-links-heading">
+        <div className="flex items-start gap-3">
+          <span className="rounded-xl bg-violet-50 p-3 text-violet-700"><Share2 className="h-5 w-5" aria-hidden="true" /></span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.16em] text-violet-700">Public presence</p>
+            <h2 id="social-links-heading" className="mt-1 text-xl font-extrabold text-slate-950">Social media links</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Manage the official profile URLs in one place. The footer and Contact page use these same saved links. Only HTTPS URLs are accepted; leave any platform empty to hide its icon.</p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {PUBLIC_SOCIAL_PLATFORMS.map((platform) => (
+            <label key={platform.id} className="block">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">{platform.label} URL</span>
+              <input
+                className="input-field mt-2"
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                maxLength={500}
+                value={socialLinks[platform.id] || ""}
+                onChange={(event) => setSocialLinks((current) => ({ ...current, [platform.id]: event.target.value }))}
+                placeholder={`https://www.${platform.id === "x" ? "x.com" : platform.id === "github" ? "github.com" : platform.id + ".com"}/your-profile`}
+                aria-label={`${platform.label} profile URL`}
+              />
+              <span className="mt-1 block text-xs text-slate-500">Public link shown wherever BuddyForStudy social icons are displayed.</span>
+            </label>
+          ))}
+        </div>
+
+        <label className="mt-5 block text-xs font-semibold text-slate-600">
+          Change reason (required)
+          <input className="input-field mt-2" value={socialReason} onChange={(event) => setSocialReason(event.target.value)} minLength={10} maxLength={500} aria-describedby="social-links-reason-help" placeholder="Why are the social profile URLs changing?" />
+          <span id="social-links-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {socialReason.trim().length}/500. Every link change is audit logged.</span>
+        </label>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button type="button" className="btn-primary" onClick={() => void saveSocialLinks()} disabled={savingSocialLinks || socialReason.trim().length < 10 || socialReason.trim().length > 500}>
+            <Save className="h-4 w-4" /> {savingSocialLinks ? "Saving links..." : "Save social links"}
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => { setSocialLinks(DEFAULT_PUBLIC_SOCIAL_LINKS); setSocialReason(""); setError(""); setStatus(""); }} disabled={savingSocialLinks}>Reset form</button>
+        </div>
+        {status && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
+      </section>
+      )}
+
+      {activeSection === "configuration" && <div className="mt-4 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+{permissions.includes("settings.manage") && (
         <section className="card p-6">
           <div className="flex items-center gap-2"><Settings2 className="h-5 w-5 text-blue-600" /><h2 className="font-bold">{settings.some((item) => item.key === key) ? "Edit setting" : "Create setting"}</h2></div>
           <label className="mt-5 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Key</span><input className="input-field mt-2" value={key} onChange={(e) => setKey(e.target.value)} placeholder="maintenance_mode" /></label>
           <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Value</span><textarea className="input-field mt-2 min-h-28 font-mono text-sm" value={value} onChange={(e) => setValue(e.target.value)} placeholder='false, 25, "text", or JSON object' /></label>
           <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Description</span><input className="input-field mt-2" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this setting control?" /></label>
           <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} /> Public setting</label>
-          <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Change reason (recommended)</span><input className="input-field mt-2" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this setting changing?" /></label>
+          <label className="mt-4 block"><span className="text-xs font-bold uppercase tracking-wide text-slate-500">Change reason (required)</span><input className="input-field mt-2" value={reason} onChange={(e) => setReason(e.target.value)} minLength={10} maxLength={500} aria-describedby="admin-setting-reason-help" placeholder="Why is this setting changing?" /><span id="admin-setting-reason-help" className="mt-1 block text-xs text-slate-500">Use 10–500 characters. {reason.trim().length}/500</span></label>
           <div className="mt-5 flex gap-2">
-            <button type="button" className="btn-primary" onClick={() => void save()} disabled={savingKey !== null}><Save className="h-4 w-4" /> {savingKey ? "Saving..." : "Save setting"}</button>
-            <button type="button" className="btn-secondary" onClick={() => { setKey(""); setValue(""); setDescription(""); setIsPublic(false); setStatus(""); }}>Clear</button>
+            <button type="button" className="btn-primary" onClick={() => void save()} disabled={savingKey !== null || reason.trim().length < 10 || reason.trim().length > 500}><Save className="h-4 w-4" /> {savingKey ? "Saving..." : "Save setting"}</button>
+            <button type="button" className="btn-secondary" onClick={() => { setKey(""); setValue(""); setDescription(""); setIsPublic(false); setReason(""); setError(""); setStatus(""); }}>Clear</button>
           </div>
-          {status && <p className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
+          {status && <p role="status" aria-live="polite" className="mt-3 text-sm font-semibold text-green-600">{status}</p>}
         </section>
+)}
 
         <section className="card overflow-hidden">
-          <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Current settings</h2><p className="mt-1 text-xs text-slate-500">{settings.length} configuration entries</p></div>
-          {loading ? <div className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /></div> : (
+          <div className="border-b border-slate-100 p-5"><h2 className="font-bold">Current settings</h2><p className="mt-1 text-xs text-slate-500">{configurationSettings.length} configuration entries</p></div>
+          {loading ? <div role="status" aria-live="polite" aria-label="Loading platform settings" className="p-10 text-center"><RefreshCcw className="mx-auto animate-spin text-blue-600" /><span className="sr-only">Loading platform settings</span></div> : (
             <div className="divide-y divide-slate-100">
-              {!settings.length && <p className="p-8 text-center text-sm text-slate-500">No platform settings yet.</p>}
-              {settings.map((setting) => (
-                <button key={setting._id} type="button" onClick={() => edit(setting)} className="block w-full p-4 text-left transition hover:bg-slate-50">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-mono text-sm font-bold text-slate-800">{setting.key}</p>
-                    <span className="badge bg-slate-100 text-slate-600">{setting.isPublic ? "Public" : "Private"}</span>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{formatValue(setting.value)}</p>
-                  <p className="mt-1 text-xs text-slate-400">{setting.description || "No description"} · click to edit</p>
-                </button>
+              {!configurationSettings.length && <p className="p-8 text-center text-sm text-slate-500">No general platform settings yet.</p>}
+              {configurationSettings.map((setting) => (
+                <div key={setting._id} className="flex items-start gap-2 p-4 transition hover:bg-slate-50">
+                  {permissions.includes("settings.manage") ? <button type="button" onClick={() => edit(setting)} className="min-w-0 flex-1 text-left">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-mono text-sm font-bold text-slate-800">{setting.key}</p>
+                      <span className="badge bg-slate-100 text-slate-600">{setting.isPublic ? "Public" : "Private"}</span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-600">{formatValue(setting.value)}</p>
+                    <p className="mt-1 text-xs text-slate-400">{setting.description || "No description"} · click to edit</p>
+                  </button> : <div className="min-w-0 flex-1 text-left"><p className="truncate font-semibold text-slate-800">{setting.key}</p><p className="text-xs text-slate-500">{setting.description || "No description"}</p></div>}
+                  {permissions.includes("settings.manage") && <button type="button" className="btn-secondary shrink-0 text-xs" onClick={() => void removeSetting(setting)} disabled={deletingId === setting._id} aria-label={`Delete ${setting.key} setting`}>
+                    <Trash2 className="h-4 w-4" /> {deletingId === setting._id ? "Deleting..." : "Delete"}
+                  </button>}
+                </div>
               ))}
             </div>
           )}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }

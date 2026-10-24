@@ -16,11 +16,44 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Frontend lint (advisory until legacy lint debt is resolved)
+        run: npm run lint
+        continue-on-error: true
       - run: npm run typecheck
+      - name: Course navigation unit tests
+        run: npm run test:unit
       - run: npm run build
+      - name: Install Playwright for browser smoke tests
+        run: |
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+      - name: Start production preview
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/buddy-preview.log 2>&1 &
+          echo $! > /tmp/buddy-preview.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/buddy-preview.log
+          exit 1
+      - name: Browser navigation smoke tests
+        run: npx playwright test tests/navigation.e2e.spec.ts tests/admin-access.e2e.spec.ts
 
   backend:
     runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: server
@@ -28,6 +61,7 @@ jobs:
       NODE_ENV: test
       MONGO_URI: mongodb://127.0.0.1:27017/buddyforstudy_test
       JWT_SECRET: ci-test-secret
+      RAZORPAY_KEY_ID: rzp_test_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

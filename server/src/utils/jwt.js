@@ -9,6 +9,7 @@ export function signAccessToken(user, accessType = user.role === "admin" ? "admi
       accessType
     },
     env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn }
+    // JWT_EXPIRES_IN defaults to 7d in env.js for every authentication flow.
+    { expiresIn: env.jwtExpiresIn || "7d" }
   );
 }

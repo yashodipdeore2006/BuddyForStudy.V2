@@ -1,16 +1,34 @@
+import crypto from "crypto";
+import { lookup } from "node:dns/promises";
 import mongoose from "mongoose";
+import { z } from "zod";
 import nodemailer from "nodemailer";
 import { User } from "../models/User.js";
+import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
 import { Course } from "../models/Course.js";
+import { CourseRevision } from "../models/CourseRevision.js";
+import { Review } from "../models/Review.js";
+import { QuizBank } from "../models/QuizBank.js";
+import { AILessonInsight } from "../models/AILessonInsight.js";
+import { AIQuestionAnswer } from "../models/AIQuestionAnswer.js";
+import { LearningRoadmap } from "../models/LearningRoadmap.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { Payment } from "../models/Payment.js";
 import { RefundRequest } from "../models/RefundRequest.js";
+import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Notification } from "../models/Notification.js";
+import { NotificationPreference } from "../models/NotificationPreference.js";
+import { PushSubscription } from "../models/PushSubscription.js";
 import { Announcement } from "../models/Announcement.js";
 import { AuditLog } from "../models/AuditLog.js";
+import { recordAuditEvent } from "../services/auditOutbox.service.js";
+import { getRemainingRefundableAmount, matchesProviderRefund, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
+import { validateTypedSetting } from "../utils/typedSettingsRegistry.js";
+import { isPublicSocialSettingKey, validateSocialSettingValue } from "../utils/publicSocialLinks.js";
+import { isAIPromptActiveSettingKey } from "../services/aiPrompt.service.js";
 import { Coupon } from "../models/Coupon.js";
 import { Progress } from "../models/Progress.js";
 import { env } from "../config/env.js";
@@ -20,12 +38,56 @@ import * as razorpay from "../services/razorpay.service.js";
 import { cacheDelete } from "../config/cache.js";
 import { getPlaylistCourse } from "../services/discovery.service.js";
 import { SUBSCRIPTION_FEATURES, normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
+import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
+import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+import { getCoursePublishBlock } from "../utils/coursePublishing.js";
+import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
+import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
+import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
+import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
+import { createNotificationEvent, retryNotificationDelivery } from "../services/notification.service.js";
+import { isWebPushConfigured } from "../services/webPush.service.js";
+import { refreshAnnouncementStats } from "../services/announcement.service.js";
+import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
+import { parseAnnouncementChannels } from "../utils/announcementChannels.js";
+import { getAdminPermissions, hasAdminPermission } from "../utils/adminRbac.js";
+import { GROSS_COLLECTION_PAYMENT_STATUSES, calculateNetRevenue } from "../services/billingMetrics.service.js";
+import { resolveAdminAudience, validateAdminAudienceInput, createAdminAudiencePreviewToken, verifyAdminAudiencePreviewToken } from "../services/adminAudience.service.js";
+import { CONTENT_APPROVAL_MODES, CONTENT_APPROVAL_POLICIES, getContentApprovalPolicies } from "../services/contentApprovalPolicy.service.js";
 
 async function audit(req, action, targetType, targetId = "", before = null, after = null, reason = "") {
-  await AuditLog.create({
-    actor: req.user.user._id, action, targetType, targetId: String(targetId || ""), before, after, reason,
-    ip: req.ip || "", userAgent: req.get("user-agent") || ""
+  // Centralize redaction and durable fallback for every admin-pro mutation.
+  // The business mutation has already committed at most call sites, so audit
+  // storage failure must not turn a successful mutation into a misleading 500.
+  const safeReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
+  const actor = req.user?.user?._id || req.user?.userId;
+  if (!actor) {
+    console.error("[admin-audit] Missing actor identity; audit event was not submitted.");
+    return { recorded: false, queued: false };
+  }
+  return recordAuditEvent({
+    actor,
+    action: String(action || "").slice(0, 160),
+    targetType: String(targetType || "").slice(0, 120),
+    targetId: String(targetId || "").slice(0, 200),
+    before: sanitizeAuditSnapshot(before),
+    after: sanitizeAuditSnapshot(after),
+    reason: safeReason,
+    ip: String(req.ip || "").slice(0, 100),
+    userAgent: String(req.get("user-agent") || "").slice(0, 500)
   });
+}
+
+function maskEmail(email) {
+  const value = String(email || "");
+  const separator = value.indexOf("@");
+  if (separator <= 0 || separator === value.length - 1) return value ? value[0] + "***" : "";
+  return value[0] + "***@" + value.slice(separator + 1);
+}
+
+function safeDeliveryError(value) {
+  return String(value || "").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[masked email]").replace(/https?:\/\/[^\s]+/gi, "[provider URL]").slice(0, 240);
 }
 
 function mailer() {
@@ -42,11 +104,21 @@ async function audienceUsers(audience) {
   return User.find({}).select("_id email name");
 }
 
+async function mapWithConcurrency(items, worker, batchSize = 50) {
+  const results = [];
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    results.push(...await Promise.all(batch.map(worker)));
+  }
+  return results;
+}
+
 async function notificationAudienceUsers(audience) {
   if (audience === "active") return User.find({ isActive: true }).select("_id");
   if (audience === "subscribers") {
     const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
-    return User.find({ _id: { $in: subs.map(s => s.user) }, isActive: true }).select("_id");
+    // Subscription audiences include inactive accounts too: account activity must not suppress admin communications.
+    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id");
   }
   return User.find({}).select("_id");
 }
@@ -64,7 +136,7 @@ export async function overview(req, res, next) {
       Enrollment.countDocuments(),
       UserSubscription.countDocuments({ status: { $in: ["trialing", "active"] } }),
       UserSubscription.countDocuments({ status: "past_due" }),
-      Payment.aggregate([{ $match: { status: { $in: ["paid", "partially_refunded"] } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
+      Payment.aggregate([{ $match: { status: { $in: GROSS_COLLECTION_PAYMENT_STATUSES } } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       RefundRequest.aggregate([{ $match: { status: "processed" } }, { $group: { _id: null, total: { $sum: "$amount" } } }]),
       Payment.countDocuments({ status: "failed" }),
       RefundRequest.countDocuments({ status: "pending" }),
@@ -85,36 +157,213 @@ export async function overview(req, res, next) {
       ])
     ]);
 
+    const permissions = new Set(getAdminPermissions(req.user?.adminRole || "platform_admin", req.user?.adminPermissionOverrides || []));
+    const canUsers = permissions.has("users.read");
+    const canCourses = permissions.has("courses.read");
+    const canBilling = permissions.has("billing.read");
+    const canRefunds = permissions.has("refunds.manage");
+    const canAudit = permissions.has("audit.read");
+    const canRoles = permissions.has("admin_roles.manage");
+    const canOperations = permissions.has("operations.read");
+    const stats = {};
+    if (canUsers) Object.assign(stats, { users, activeUsers });
+    if (canRoles) Object.assign(stats, { admins });
+    if (canCourses) Object.assign(stats, { courses, published, unpublished, emptyCourses, enrollments });
+    if (canBilling) {
+      const grossRevenueTotal = Number(grossRevenue[0]?.total || 0);
+      const processedRefundsTotal = Number(processedRefunds[0]?.total || 0);
+      const netRevenue = calculateNetRevenue(grossRevenueTotal, processedRefundsTotal);
+      Object.assign(stats, {
+        activeSubscribers,
+        pastDueSubscribers,
+        grossRevenue: grossRevenueTotal,
+        processedRefunds: processedRefundsTotal,
+        netRevenue,
+        // Keep the legacy field so existing dashboard clients remain compatible.
+        revenue: netRevenue,
+        failedPayments
+      });
+    }
+    if (canRefunds) Object.assign(stats, { pendingRefunds });
+    if (canOperations) Object.assign(stats, { unread });
+
     return success(res, {
-      stats: {
-        users, activeUsers, admins, courses, published, unpublished, emptyCourses,
-        enrollments, activeSubscribers, pastDueSubscribers,
-        revenue: Math.max(0, (grossRevenue[0]?.total || 0) - (processedRefunds[0]?.total || 0)),
-        failedPayments, pendingRefunds, unread
-      },
-      recentUsers, recentPayments, recentAudit, topCourses
+      stats,
+      recentUsers: canUsers ? recentUsers : [],
+      recentPayments: canBilling ? recentPayments : [],
+      recentAudit: canAudit ? recentAudit : [],
+      topCourses: canCourses ? topCourses : [],
     });
   } catch (e) { next(e); }
 }
 
+export async function exportUsers(req, res, next) {
+  try {
+    const input = req.body && Object.keys(req.body).length ? req.body : req.query || {};
+    const rawIds = Array.isArray(input.ids) ? input.ids : String(input.ids || "").split(",");
+    const ids = rawIds.map((value) => String(value || "").trim()).filter(Boolean);
+    if (!ids.length || ids.length > 100) return failure(res, "Select between 1 and 100 users to export.", 400);
+    if (ids.some((id) => !isValidObjectId(id))) return failure(res, "One or more selected user IDs are invalid.", 400);
+    const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) {
+      return failure(res, "A reason between 10 and 500 characters is required to export user records.", 400);
+    }
+
+    const filter = { _id: { $in: ids } };
+    const sortFields = {
+      createdAt: "createdAt",
+      name: "name",
+      email: "email",
+      role: "role",
+      status: "isActive",
+      verification: "emailVerified",
+      authProvider: "authProvider",
+    };
+    const requestedSort = String(input.sortBy || "name");
+    const sortField = Object.hasOwn(sortFields, requestedSort) ? sortFields[requestedSort] : "name";
+    const sortOrder = input.sortOrder === "desc" ? -1 : 1;
+    const users = await User.find(filter)
+      .select("_id name email role isActive emailVerified authProvider createdAt")
+      .sort({ [sortField]: sortOrder, _id: -1 })
+      .limit(100)
+      .lean();
+
+    await audit(req, "admin.users.exported", "User", "", null, {
+      count: users.length,
+      selectedCount: ids.length,
+      fields: ["name", "email", "role", "isActive", "emailVerified", "authProvider", "createdAt"],
+    }, reason);
+
+    return success(res, { users, count: users.length });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const piiRevealSchema = z.object({ reason: z.string().trim().min(10).max(500) }).strict();
+
 export async function users(req, res, next) {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1), limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
-    const q = String(req.query.q || "").trim();
+    const q = String(req.query.q || "").trim().slice(0, 100);
     const filter = {};
-    if (q) filter.$or = [{ name: new RegExp(q, "i") }, { email: new RegExp(q, "i") }];
+    if (q) {
+      const searchPattern = new RegExp(escapeRegex(q), "i");
+      filter.$or = [{ name: searchPattern }, { email: searchPattern }];
+    }
     if (req.query.status === "active") filter.isActive = true;
     if (req.query.status === "disabled") filter.isActive = false;
     if (req.query.role === "admin" || req.query.role === "user") filter.role = req.query.role;
     if (["local", "google", "local_google"].includes(String(req.query.authProvider || ""))) {
       filter.authProvider = req.query.authProvider;
     }
+    const sortFields = {
+      createdAt: "createdAt",
+      name: "name",
+      email: "email",
+      role: "role",
+      status: "isActive",
+      verification: "emailVerified",
+      authProvider: "authProvider",
+    };
+    const requestedSort = String(req.query.sortBy || "createdAt");
+    const sortField = Object.hasOwn(sortFields, requestedSort) ? sortFields[requestedSort] : "createdAt";
+    const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+    const sort = { [sortField]: sortOrder, _id: -1 };
     const [items, total] = await Promise.all([
-      User.find(filter).select("-password").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      User.find(filter).select("-password").sort(sort).skip((page - 1) * limit).limit(limit).lean(),
       User.countDocuments(filter)
     ]);
-    return success(res, { users: items, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    const safeUsers = items.map(({ email, ...user }) => ({ ...user, emailMasked: maskEmail(email) }));
+    return success(res, { users: safeUsers, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
   } catch (e) { next(e); }
+}
+
+export async function userFeatureOverrides(req, res, next) {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const user = await User.findById(userId).select("_id role name email").lean();
+    if (!user) return failure(res, "User not found", 404);
+    const overrides = await UserFeatureOverride.find({ user: userId }).sort({ featureKey: 1 }).lean();
+    const features = SUBSCRIPTION_FEATURES.map((feature) => ({
+      ...feature,
+      override: overrides.find((item) => item.featureKey === feature.key) || null
+    }));
+    return success(res, { user: { id: String(user._id), name: user.name }, features });
+  } catch (error) { next(error); }
+}
+
+export async function upsertUserFeatureOverride(req, res, next) {
+  try {
+    const { userId, featureKey } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const feature = SUBSCRIPTION_FEATURES.find((item) => item.key === featureKey);
+    if (!feature) return failure(res, "Unknown subscription feature.", 400);
+    if (typeof req.body?.allowed !== "boolean") return failure(res, "allowed must be a boolean.", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for audit.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    const user = await User.findById(userId).select("_id role");
+    if (!user) return failure(res, "User not found", 404);
+    if (user.role === "admin") return failure(res, "Feature overrides are only available for learner accounts.", 403);
+
+    let expiresAt = null;
+    if (req.body?.expiresAt !== undefined && req.body.expiresAt !== null && String(req.body.expiresAt).trim() !== "") {
+      expiresAt = new Date(req.body.expiresAt);
+      if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+        return failure(res, "expiresAt must be a valid future date, or null for no expiry.", 400);
+      }
+    }
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey }).lean();
+    const before = existing ? {
+      allowed: existing.allowed,
+      expiresAt: existing.expiresAt || null,
+      reason: existing.reason
+    } : null;
+    const actor = req.user?.user?._id || req.user?.userId;
+    const override = await UserFeatureOverride.findOneAndUpdate(
+      { user: userId, featureKey },
+      {
+        $set: { allowed: req.body.allowed, expiresAt, reason, updatedBy: actor },
+        $setOnInsert: { user: userId, featureKey, createdBy: actor }
+      },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+    const auditResult = await audit(req, "user.feature_override.updated", "UserFeatureOverride", override._id, before, {
+      userId: String(userId), featureKey, allowed: override.allowed, expiresAt: override.expiresAt || null
+    }, reason);
+    return success(res, {
+      override: { ...override, feature: { key: feature.key, label: feature.label } },
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "User feature override saved.");
+  } catch (error) {
+    if (error?.code === 11000) return failure(res, "This feature override changed concurrently. Refresh and try again.", 409);
+    next(error);
+  }
+}
+
+export async function deleteUserFeatureOverride(req, res, next) {
+  try {
+    const { userId, featureKey } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    if (!SUBSCRIPTION_FEATURES.some((item) => item.key === featureKey)) return failure(res, "Unknown subscription feature.", 400);
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for audit.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey });
+    if (!existing) return failure(res, "No override exists for this feature.", 404);
+    await existing.deleteOne();
+    const auditResult = await audit(req, "user.feature_override.removed", "UserFeatureOverride", existing._id, {
+      userId: String(userId), featureKey, allowed: existing.allowed, expiresAt: existing.expiresAt || null
+    }, null, reason);
+    return success(res, {
+      removed: true,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "User feature override removed. The user's plan entitlement now applies.");
+  } catch (error) { next(error); }
 }
 
 export async function userDetail(req, res, next) {
@@ -128,32 +377,541 @@ export async function userDetail(req, res, next) {
       Enrollment.find({ user: user._id }).populate("course", "title pricing").sort({ createdAt: -1 }).lean(),
       Notification.find({ user: user._id }).sort({ createdAt: -1 }).limit(20).lean()
     ]);
-    return success(res, { user, subscription, payments, enrollments, notifications });
+    const { email, ...safeUser } = user;
+    return success(res, { user: { ...safeUser, emailMasked: maskEmail(email) }, subscription, payments, enrollments, notifications });
   } catch (e) { next(e); }
+}
+
+
+export async function revealUserPii(req, res, next) {
+  try {
+    const { userId } = req.params;
+    if (!isValidObjectId(userId)) return failure(res, "Invalid userId", 400);
+    const parsed = piiRevealSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return failure(res, "A reason between 10 and 500 characters is required to reveal personal information.", 400, parsed.error.flatten());
+    }
+    const reason = parsed.data.reason;
+    const user = await User.findById(userId).select("_id email").lean();
+    if (!user) return failure(res, "User not found", 404);
+
+    const auditResult = await audit(req, "admin.users.pii_revealed", "User", user._id, null, {
+      field: "email",
+      revealed: true
+    }, reason);
+    if (!auditResult.recorded && !auditResult.queued) {
+      return failure(res, "The reveal audit could not be recorded. Personal information was not disclosed; please retry.", 503);
+    }
+    return success(res, {
+      email: user.email,
+      auditLogRecorded: auditResult.recorded,
+      auditQueued: auditResult.queued
+    }, "Email revealed and access audited.");
+  } catch (error) { next(error); }
 }
 
 export async function updateUser(req, res, next) {
   try {
     if (!isValidObjectId(req.params.userId)) return failure(res, "Invalid userId", 400);
-    if (String(req.params.userId) === String(req.user.user._id)) return failure(res, "Admin cannot deactivate the current account", 400);
+    if (Object.hasOwn(req.body || {}, "role")) {
+      return failure(res, "Top-level account roles cannot be changed through user management.", 403);
+    }
+    if (typeof req.body?.isActive !== "boolean") {
+      return failure(res, "isActive must be a boolean.", 400);
+    }
+    const reason = String(req.body?.reason || "").trim();
+    if (!reason) return failure(res, "A reason is required for account status changes.", 400);
+    if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
+    if (String(req.params.userId) === String(req.user.userId)) {
+      return failure(res, "Admin cannot deactivate the current account.", 400);
+    }
     const user = await User.findById(req.params.userId);
     if (!user) return failure(res, "User not found", 404);
-    const before = { isActive: user.isActive, role: user.role };
-    if (typeof req.body.isActive === "boolean") user.isActive = req.body.isActive;
-    if (req.body.role === "user" || req.body.role === "admin") user.role = req.body.role;
+    if (user.role === "admin") {
+      return failure(res, "Administrator accounts must be managed through the administrator access console.", 403);
+    }
+    const before = { isActive: user.isActive };
+    user.isActive = req.body.isActive;
     await user.save();
-    await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive, role: user.role }, req.body.reason);
-    return success(res, { user: user.toJSON() }, "User updated");
+    await audit(req, "user.updated", "User", user._id, before, { isActive: user.isActive }, reason);
+    return success(res, { user: { id: String(user._id), name: user.name, emailMasked: maskEmail(user.email), isActive: user.isActive } }, "User updated");
   } catch (e) { next(e); }
+}
+
+export async function contentApprovalPolicies(req, res, next) {
+  try {
+    return success(res, { policies: await getContentApprovalPolicies() });
+  } catch (error) { next(error); }
+}
+
+export async function updateContentApprovalPolicies(req, res, next) {
+  try {
+    const reason = requireContentReason(req, res, "content approval policy update");
+    if (!reason) return;
+    const input = req.body?.policies;
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+      return failure(res, "policies must be an object containing approval modes.", 400);
+    }
+    const allowedIds = new Set(Object.keys(CONTENT_APPROVAL_POLICIES));
+    const entries = Object.entries(input);
+    if (!entries.length) return failure(res, "At least one approval policy is required.", 400);
+    for (const [id, mode] of entries) {
+      if (!allowedIds.has(id)) return failure(res, "Unknown content approval policy: " + id, 400);
+      if (!CONTENT_APPROVAL_MODES.includes(mode)) return failure(res, "Approval mode for " + id + " must be manual or automatic.", 400);
+    }
+
+    for (const [id, mode] of entries) {
+      const definition = CONTENT_APPROVAL_POLICIES[id];
+      const current = await PlatformSetting.findOne({ key: definition.key });
+      const before = current?.value ?? "manual";
+      if (before === mode) continue;
+      const setting = await PlatformSetting.findOneAndUpdate(
+        { key: definition.key },
+        { $set: {
+          value: mode,
+          description: definition.description,
+          isPublic: false,
+          updatedBy: req.user?.user?._id || req.user?.userId || null
+        } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      await audit(req, "content_approval_policy.updated", "PlatformSetting", setting._id,
+        { policy: id, mode: before }, { policy: id, mode }, reason);
+    }
+    return success(res, { policies: await getContentApprovalPolicies() }, "Content approval policies saved");
+  } catch (error) { next(error); }
 }
 
 export async function courses(req, res, next) {
   try {
-    const q = String(req.query.q || "").trim();
-    const filter = q ? { $or: [{ title: new RegExp(q, "i") }, { category: new RegExp(q, "i") }] } : {};
-    const courses = await Course.find(filter).select("title slug category level isPublished pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt").sort({ createdAt: -1 }).lean();
-    return success(res, { courses });
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const searchPattern = q ? new RegExp(escapeRegex(q), "i") : null;
+    const includeDeleted = String(req.query.includeDeleted || "") === "true";
+    const filter = {
+      ...(includeDeleted ? {} : { deletedAt: null }),
+      ...(searchPattern ? { $or: [{ title: searchPattern }, { category: searchPattern }] } : {})
+    };
+    const [courses, total] = await Promise.all([
+      Course.find(filter)
+        .select("title slug category level isPublished status deletedAt visibility createdForUser aiReviewStatus aiReviewSource aiReviewedBy aiReviewedAt aiReviewNote generation pricing enrollmentEnabled certificateEnabled featured createdAt updatedAt")
+        .populate("aiReviewedBy", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Course.countDocuments(filter)
+    ]);
+    return success(res, { courses, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
+}
+
+function adminActorId(req) {
+  return req.user?.user?._id || req.user?.userId || null;
+}
+function requireContentReason(req, res, label) {
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+  if (reason.length < 10 || reason.length > 500) {
+    failure(res, "A reason of 10–500 characters is required for " + label + ".", 400);
+    return null;
+  }
+  return reason;
+}
+function isAiGeneratedCourse(course) {
+  return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
+}
+
+export async function courseRevisions(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const exists = await Course.exists({ _id: req.params.courseId });
+    if (!exists) return failure(res, "Course not found", 404);
+    const revisions = await CourseRevision.find({ course: req.params.courseId })
+      .select("revisionNumber changedBy changeSource reason summary createdAt")
+      .populate("changedBy", "name email").sort({ revisionNumber: -1 }).limit(100).lean();
+    return success(res, { revisions });
+  } catch (e) { next(e); }
+}
+
+export async function rollbackCourseRevision(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId) || !isValidObjectId(req.params.revisionId)) return failure(res, "Invalid course or revision ID", 400);
+    const reason = requireContentReason(req, res, "course rollback");
+    if (!reason) return;
+    const [course, revision] = await Promise.all([
+      Course.findById(req.params.courseId),
+      CourseRevision.findOne({ _id: req.params.revisionId, course: req.params.courseId })
+    ]);
+    if (!course) return failure(res, "Course not found", 404);
+    if (!revision) return failure(res, "Course revision not found", 404);
+    const snapshot = revision.snapshot || {};
+    const { _id, __v, createdAt, updatedAt, ...restorable } = snapshot;
+    course.set(restorable);
+    course.isPublished = false;
+    course.status = "draft";
+    course.deletedAt = null;
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "rollback", reason, summary: "Rolled back to revision " + revision.revisionNumber };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.revision.rolled_back", "Course", course._id, { revisionNumber: "current" }, { restoredRevisionId: String(revision._id), restoredRevisionNumber: revision.revisionNumber, isPublished: false }, reason);
+    return success(res, { course, restoredRevision: revision.revisionNumber }, "Course restored as a draft. Re-check readiness before publishing.");
+  } catch (e) { next(e); }
+}
+
+export async function reviewAiCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "AI course review");
+    if (!reason) return;
+    const decision = String(req.body?.decision || "").trim();
+    if (!["approved", "rejected", "pending"].includes(decision)) return failure(res, "Decision must be approved, rejected or pending.", 400);
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    if (course.deletedAt) return failure(res, "Restore a deleted course before reviewing it.", 409);
+    if (!isAiGeneratedCourse(course)) return failure(res, "Human AI review is only required for AI-generated or derived courses.", 400);
+
+    const before = {
+      aiReviewStatus: course.aiReviewStatus,
+      aiReviewSource: course.aiReviewSource || "manual",
+      aiReviewNote: course.aiReviewNote || "",
+      status: course.status,
+      isPublished: course.isPublished,
+      visibility: course.visibility || "public"
+    };
+    course.aiReviewStatus = decision;
+    course.aiReviewSource = "manual";
+    course.aiReviewedBy = adminActorId(req);
+    course.aiReviewedAt = new Date();
+    course.aiReviewNote = String(req.body?.note || reason).trim().slice(0, 2000);
+
+    let readiness = null;
+    let publishedByApproval = false;
+    const isLearnerPrivateCourse = Boolean(course.createdForUser && course.visibility === "private");
+
+    if (decision !== "approved") {
+      course.isPublished = false;
+      course.status = "draft";
+      if (course.createdForUser) course.visibility = "private";
+    } else if (isLearnerPrivateCourse) {
+      // A learner-specific course stays private. Approval enables its owner's
+      // access below; it must never become part of the public catalog.
+      course.isPublished = false;
+      course.status = "draft";
+    } else if (course.status === "archived") {
+      course.isPublished = false;
+      course.status = "archived";
+      readiness = evaluateCourseReadiness(course);
+    } else {
+      readiness = evaluateCourseReadiness(course);
+      if (readiness.ready) {
+        // The human review action also publishes when all readiness gates pass.
+        // If not ready, preserve the approval but keep public access disabled.
+        course.isPublished = true;
+        course.status = "published";
+        course.visibility = "public";
+        publishedByApproval = true;
+      } else {
+        course.isPublished = false;
+        course.status = "draft";
+      }
+    }
+
+    course.$locals.revisionContext = {
+      actor: adminActorId(req),
+      source: "admin",
+      reason,
+      summary: "AI review decision: " + decision
+    };
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+
+    if (publishedByApproval) {
+      await audit(req, "course.published", "Course", course._id,
+        { isPublished: before.isPublished, visibility: before.visibility, status: before.status },
+        { isPublished: true, visibility: "public", status: "published", publishedAfterHumanReview: true, readinessPassed: readiness?.passedCount || 0, readinessChecks: readiness?.totalChecks || 0 },
+        reason);
+    }
+
+    let learnerEnrollmentStatus = null;
+    if (isLearnerPrivateCourse) {
+      const enrollment = await Enrollment.findOne({ user: course.createdForUser, course: course._id });
+      if (decision === "approved") {
+        if (enrollment?.revokedBy) {
+          learnerEnrollmentStatus = "revoked_by_admin";
+        } else if (enrollment && ["active", "completed"].includes(enrollment.status)) {
+          learnerEnrollmentStatus = enrollment.status;
+        } else if (enrollment) {
+          enrollment.status = "active";
+          enrollment.accessSource = "admin";
+          enrollment.grantedBy = adminActorId(req);
+          enrollment.accessReason = reason;
+          enrollment.revokedBy = null;
+          enrollment.revokedAt = null;
+          enrollment.enrolledAt = new Date();
+          await enrollment.save();
+          learnerEnrollmentStatus = "active";
+        } else {
+          await Enrollment.create({
+            user: course.createdForUser,
+            course: course._id,
+            status: "active",
+            accessSource: "admin",
+            grantedBy: adminActorId(req),
+            accessReason: reason
+          });
+          learnerEnrollmentStatus = "active";
+        }
+      } else if (enrollment && ["active", "completed"].includes(enrollment.status)) {
+        // Content rejection suspends this course enrollment, but is not a permanent
+        // enrollment revocation. A later approval may restore the learner's access.
+        enrollment.status = "cancelled";
+        enrollment.accessReason = reason;
+        await enrollment.save();
+        learnerEnrollmentStatus = "cancelled";
+      } else {
+        learnerEnrollmentStatus = enrollment?.status || "not_enrolled";
+      }
+    }
+
+    await audit(req, "course.ai_review." + decision, "Course", course._id, before, {
+      aiReviewStatus: course.aiReviewStatus,
+      aiReviewSource: course.aiReviewSource,
+      aiReviewNote: course.aiReviewNote,
+      status: course.status,
+      isPublished: course.isPublished,
+      visibility: course.visibility,
+      learnerEnrollmentStatus,
+      publishedByApproval,
+      readiness: readiness ? { ready: readiness.ready, passedCount: readiness.passedCount, totalChecks: readiness.totalChecks, failedChecks: readiness.failedChecks } : null
+    }, reason);
+
+    let message = "AI course review recorded";
+    if (decision === "approved" && isLearnerPrivateCourse) {
+      message = learnerEnrollmentStatus === "revoked_by_admin"
+        ? "AI course approved, but an existing administrator enrollment revocation still blocks access."
+        : "AI course approved and learner access enabled";
+    } else if (decision === "approved" && publishedByApproval) {
+      message = "AI course approved and published. Learners can now enroll.";
+    } else if (decision === "approved" && course.status === "archived") {
+      message = "AI course approved; it remains archived until an administrator restores it.";
+    } else if (decision === "approved" && readiness && !readiness.ready) {
+      message = "AI content approved, but publication is blocked until course-readiness checks pass.";
+    }
+    return success(res, { course, learnerEnrollmentStatus, readiness, publishedByApproval }, message);
+  } catch (e) { next(e); }
+}
+export async function setCourseLifecycle(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "course lifecycle change");
+    if (!reason) return;
+    const status = String(req.body?.status || "").trim();
+    if (!["draft", "archived"].includes(status)) return failure(res, "Status must be draft or archived; publish through the readiness-gated publish action.", 400);
+    const course = await Course.findById(req.params.courseId);
+    if (!course || course.deletedAt) return failure(res, "Active course not found", 404);
+    const before = { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled };
+    course.status = status;
+    course.isPublished = false;
+    if (status === "archived") course.enrollmentEnabled = false;
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course status changed to " + status };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.status.updated", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, enrollmentEnabled: course.enrollmentEnabled }, reason);
+    return success(res, { course }, "Course status updated");
+  } catch (e) { next(e); }
+}
+
+export async function softDeleteCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "course soft delete");
+    if (!reason) return;
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    if (course.deletedAt) return success(res, { course }, "Course is already in the trash");
+    const before = { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt };
+    course.deletedAt = new Date();
+    course.isPublished = false;
+    course.status = "draft";
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course soft-deleted" };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.soft_deleted", "Course", course._id, before, { status: course.status, isPublished: course.isPublished, deletedAt: course.deletedAt }, reason);
+    return success(res, { course }, "Course moved to trash");
+  } catch (e) { next(e); }
+}
+
+export async function restoreCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const reason = requireContentReason(req, res, "course restore");
+    if (!reason) return;
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const before = { deletedAt: course.deletedAt, status: course.status, isPublished: course.isPublished };
+    course.deletedAt = null;
+    course.isPublished = false;
+    course.status = "draft";
+    course.$locals.revisionContext = { actor: adminActorId(req), source: "admin", reason, summary: "Course restored from trash as draft" };
+    await course.save();
+    await cacheDelete("course:" + course._id);
+    await audit(req, "course.restored", "Course", course._id, before, { deletedAt: null, status: course.status, isPublished: false }, reason);
+    return success(res, { course }, "Course restored as a draft");
+  } catch (e) { next(e); }
+}
+
+const MODERATED_MODELS = {
+  review: { model: Review, fields: "course user rating comment moderationStatus moderationNote moderatedBy moderatedAt isHidden createdAt updatedAt", populate: [{ path: "course", select: "title" }, { path: "user", select: "name email" }] },
+  quiz: { model: QuizBank, fields: "course lesson title questions moderationStatus moderationNote moderatedBy moderatedAt isHidden generatedBy generatedAt createdAt", populate: [{ path: "course", select: "title" }] },
+  insight: { model: AILessonInsight, fields: "course lesson summary keyNotes model moderationStatus moderationNote moderatedBy moderatedAt isHidden generatedAt createdAt", populate: [{ path: "course", select: "title" }] },
+  qa: { model: AIQuestionAnswer, fields: "course lesson question answer model moderationStatus moderationNote moderatedBy moderatedAt isHidden hitCount lastAskedAt createdAt", populate: [{ path: "course", select: "title" }] }
+};
+
+export async function contentModerationList(req, res, next) {
+  try {
+    const type = String(req.params.contentType || "");
+    const config = MODERATED_MODELS[type];
+    if (!config) return failure(res, "Unknown content type. Use review, quiz, insight or qa.", 400);
+    const status = String(req.query.status || "pending");
+    const filter = status === "all" ? {} : status === "pending"
+      ? { $or: [{ moderationStatus: "pending" }, { moderationStatus: { $exists: false } }] }
+      : { moderationStatus: status };
+    const items = await config.model.find(filter).select(config.fields).populate(config.populate).sort({ createdAt: -1 }).limit(200).lean();
+    return success(res, { contentType: type, items });
+  } catch (e) { next(e); }
+}
+
+export async function moderateContent(req, res, next) {
+  try {
+    const type = String(req.params.contentType || "");
+    const config = MODERATED_MODELS[type];
+    if (!config) return failure(res, "Unknown content type. Use review, quiz, insight or qa.", 400);
+    if (!isValidObjectId(req.params.contentId)) return failure(res, "Invalid content ID", 400);
+    const reason = requireContentReason(req, res, "content moderation");
+    if (!reason) return;
+    const status = String(req.body?.status || "").trim();
+    if (!["pending", "approved", "rejected"].includes(status)) return failure(res, "Invalid moderation status", 400);
+    const item = await config.model.findById(req.params.contentId);
+    if (!item) return failure(res, "Content record not found", 404);
+    const before = { moderationStatus: item.moderationStatus || "pending", isHidden: Boolean(item.isHidden), moderationNote: item.moderationNote || "" };
+    item.moderationStatus = status;
+    item.moderationNote = String(req.body?.note || reason).trim().slice(0, 2000);
+    item.moderatedBy = adminActorId(req);
+    item.moderatedAt = new Date();
+    item.isHidden = typeof req.body?.isHidden === "boolean" ? req.body.isHidden : status === "rejected";
+    await item.save();
+    await audit(req, "content." + type + ".moderated", type, item._id, before, { moderationStatus: item.moderationStatus, isHidden: item.isHidden, moderationNote: item.moderationNote }, reason);
+    return success(res, { item }, "Content moderation saved");
+  } catch (e) { next(e); }
+}
+
+export async function contentRoadmaps(req, res, next) {
+  try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const status = String(req.query.status || "");
+    const filter = status && ["active", "completed"].includes(status) ? { status } : {};
+    const [items, total] = await Promise.all([
+      LearningRoadmap.find(filter).populate("user", "name email").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      LearningRoadmap.countDocuments(filter)
+    ]);
+    return success(res, { roadmaps: items, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+  } catch (e) { next(e); }
+}
+
+function collectCourseLinks(course) {
+  const links = [];
+  const add = (url, path) => { if (typeof url === "string" && /^https?:\/\//i.test(url.trim())) links.push({ url: url.trim(), path }); };
+  (course.modules || []).forEach((module, mi) => {
+    (module.resources || []).forEach((resource, ri) => add(typeof resource === "string" ? resource : resource?.url, "modules[" + mi + "].resources[" + ri + "].url"));
+    (module.lessons || []).forEach((lesson, li) => {
+      (lesson.tutorial?.resources || []).forEach((url, ri) => add(url, "modules[" + mi + "].lessons[" + li + "].tutorial.resources[" + ri + "]"));
+      (lesson.tutorial?.videos || []).forEach((video, vi) => add(video.url, "modules[" + mi + "].lessons[" + li + "].tutorial.videos[" + vi + "].url"));
+      (lesson.project?.resources || []).forEach((url, ri) => add(url, "modules[" + mi + "].lessons[" + li + "].project.resources[" + ri + "]"));
+      (lesson.project?.videos || []).forEach((video, vi) => add(video.url, "modules[" + mi + "].lessons[" + li + "].project.videos[" + vi + "].url"));
+    });
+  });
+  return links;
+}
+function isUnsafeLinkHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return true;
+  if (host.startsWith("::ffff:")) return isUnsafeLinkHost(host.slice(7));
+  if (host === "::1" || host === "::" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:")) return true;
+  const parts = host.split(".").map(Number);
+  if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+    return parts[0] === 10 || parts[0] === 127 || (parts[0] === 169 && parts[1] === 254) ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) || (parts[0] === 192 && parts[1] === 168) || parts[0] === 0;
+  }
+  return false;
+}
+async function resolvesToUnsafeLinkHost(hostname) {
+  if (isUnsafeLinkHost(hostname)) return true;
+  try {
+    const addresses = await lookup(hostname, { all: true, verbatim: true });
+    return !addresses.length || addresses.some((entry) => isUnsafeLinkHost(entry.address));
+  } catch {
+    return false;
+  }
+}
+async function checkContentLink(link) {
+  let parsed;
+  try { parsed = new URL(link.url); } catch { return { ...link, status: "invalid", httpStatus: null }; }
+  if (!["http:", "https:"].includes(parsed.protocol) || await resolvesToUnsafeLinkHost(parsed.hostname)) return { ...link, status: "skipped_unsafe", httpStatus: null };
+  try {
+    const response = await fetch(parsed.toString(), { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(5000), headers: { "user-agent": "BuddyForStudy-LinkHealth/1.0" } });
+    return { ...link, status: response.status >= 400 ? "broken" : response.status >= 300 ? "redirect" : "ok", httpStatus: response.status };
+  } catch (error) {
+    return { ...link, status: error?.name === "TimeoutError" ? "timeout" : "unreachable", httpStatus: null };
+  }
+}
+export async function brokenCourseLinks(req, res, next) {
+  try {
+    const courses = await Course.find({ deletedAt: null }).select("title slug modules").sort({ updatedAt: -1 }).limit(100).lean();
+    const links = courses.flatMap((course) => collectCourseLinks(course).map((link) => ({ ...link, courseId: String(course._id), courseTitle: course.title, slug: course.slug }))).slice(0, 500);
+    const results = [];
+    for (let i = 0; i < links.length; i += 10) results.push(...await Promise.all(links.slice(i, i + 10).map(checkContentLink)));
+    return success(res, { checked: results.length, brokenCount: results.filter((item) => ["broken", "invalid", "unreachable", "timeout"].includes(item.status)).length, links: results });
+  } catch (e) { next(e); }
+}
+
+export async function courseReadiness(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const course = await Course.findById(req.params.courseId).select("title description category duration learningOutcomes modules pricing").lean();
+    if (!course) return failure(res, "Course not found", 404);
+    return success(res, { courseId: String(course._id), readiness: evaluateCourseReadiness(course) });
+  } catch (error) { next(error); }
+}
+
+export async function publishCourse(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const course = await Course.findById(req.params.courseId);
+    if (!course) return failure(res, "Course not found", 404);
+
+    if (course.deletedAt) return failure(res, "Deleted courses must be restored before publishing.", 409);
+    if (course.visibility === "private" && course.createdForUser) return failure(res, "Learner-specific courses remain private. Approval grants access to the owner; create a separate public course to publish it to the catalog.", 409);
+    if (isAiGeneratedCourse(course) && (course.aiReviewStatus !== "approved" || (!course.aiReviewedBy && course.aiReviewSource !== "automatic"))) {
+      return res.status(409).json({ success: false, message: "Human review is required before publishing an AI-generated course.", reviewRequired: true, aiReviewStatus: course.aiReviewStatus || "pending" });
+    }
+    const blockedReadiness = getCoursePublishBlock(course, Boolean(course.isPublished));
+    if (blockedReadiness) {
+      return res.status(409).json({
+        success: false,
+        message: "Course is not ready to publish. Resolve the failed readiness checks first.",
+        readiness: blockedReadiness
+      });
+    }
+    const readiness = evaluateCourseReadiness(course);
+    if (course.isPublished) return success(res, { course, readiness }, "Course is already published");
+
+    const before = { isPublished: course.isPublished, visibility: course.visibility || "public" };
+    course.isPublished = true;
+    course.visibility = "public";
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    await course.save();
+    await cacheDelete(`course:${course._id}`);
+    await audit(req, "course.published", "Course", course._id, before, { isPublished: true, visibility: course.visibility, readinessPassed: readiness.passedCount, readinessChecks: readiness.totalChecks }, req.body?.reason || "Published after readiness validation");
+    return success(res, { course, readiness }, "Course published");
+  } catch (error) { next(error); }
 }
 
 export async function courseDetail(req, res, next) {
@@ -236,6 +994,7 @@ export async function addCourseModule(req, res, next) {
     });
     course.modules.push(module);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.created", "Course", course._id, null, {
@@ -252,7 +1011,13 @@ export async function updateCourseModule(req, res, next) {
     const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
     if (!module) return failure(res, "Course module not found", 404);
 
-    const before = { title: module.title, description: module.description, resources: module.resources };
+    const summarizeModuleForAudit = (item) => ({
+      moduleId: String(item._id),
+      title: item.title,
+      descriptionLength: String(item.description || "").length,
+      resourceCount: Array.isArray(item.resources) ? item.resources.length : 0
+    });
+    const before = summarizeModuleForAudit(module);
     if (req.body.title !== undefined) {
       const title = String(req.body.title).trim();
       if (!title) return failure(res, "Module title cannot be empty", 400);
@@ -260,11 +1025,10 @@ export async function updateCourseModule(req, res, next) {
     }
     if (req.body.description !== undefined) module.description = String(req.body.description || "").trim();
 
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
-    await audit(req, "course.module.updated", "Course", course._id, before, {
-      moduleId: String(module._id), title: module.title, description: module.description
-    }, req.body.reason || "");
+    await audit(req, "course.module.updated", "Course", course._id, before, summarizeModuleForAudit(module), req.body.reason || "");
     return success(res, { course, module }, "Module updated");
   } catch (e) { next(e); }
 }
@@ -280,6 +1044,7 @@ export async function deleteCourseModule(req, res, next) {
     course.modules.splice(index, 1);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.deleted", "Course", course._id, {
@@ -332,7 +1097,8 @@ export async function addCourseVideo(req, res, next) {
       module.lessons.push(...imported);
       renumberModules(course);
       course.markModified("modules");
-      await course.save();
+      course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    await course.save();
       await cacheDelete(`course:${course._id}`);
       await audit(req, "course.videos.playlist.imported", "Course", course._id, null, {
         moduleId: String(module._id), playlistId, count: imported.length
@@ -369,6 +1135,7 @@ export async function addCourseVideo(req, res, next) {
     module.lessons.push(lesson);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.video.added", "Course", course._id, null, {
@@ -389,13 +1156,13 @@ export async function addCourseLesson(req, res, next) {
     const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
     if (!module) return failure(res, "Course module not found", 404);
 
-    const title = String(req.body.title || "").trim();
-    const type = ["tutorial", "project", "quiz"].includes(req.body.type) ? req.body.type : "tutorial";
-    if (!title) return failure(res, "Learning item title is required", 400);
+    const lessonValidation = validateNewLessonInput(req.body);
+    if (!lessonValidation.valid) return failure(res, lessonValidation.error, 400);
+    const { title, type } = lessonValidation.value;
 
     const lessonInput = {
       title,
-      description: String(req.body.description || "").trim(),
+      description: lessonValidation.value.description,
       type,
       order: (module.lessons || []).length + 1
     };
@@ -425,6 +1192,7 @@ export async function addCourseLesson(req, res, next) {
     module.lessons.push(lesson);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.lesson.created", "Course", course._id, null, {
@@ -447,6 +1215,7 @@ export async function deleteCourseLesson(req, res, next) {
     module.lessons.splice(index, 1);
     renumberModules(course);
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.lesson.deleted", "Course", course._id, {
@@ -474,11 +1243,19 @@ export async function addModuleResource(req, res, next) {
 
     const resource = module.resources.create({ title, url: resourceUrl, type });
     module.resources.push(resource);
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
+    let resourceHost = "";
+    try { resourceHost = new URL(resourceUrl).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* URL validation is handled by the resource endpoint. */ }
     await audit(req, "course.module.resource.added", "Course", course._id, null, {
-      moduleId: String(module._id), resourceId: String(resource._id), title, type, url: resourceUrl
-    });
+      moduleId: String(module._id),
+      resourceId: String(resource._id),
+      title,
+      type,
+      hasUrl: Boolean(resourceUrl),
+      urlHost: resourceHost
+    }, req.body.reason || "");
     return success(res, { course, module, resource }, "Module resource added", 201);
   } catch (e) { next(e); }
 }
@@ -493,12 +1270,20 @@ export async function deleteModuleResource(req, res, next) {
     if (index < 0) return failure(res, "Module resource not found", 404);
 
     const removed = module.resources[index].toObject();
+    let removedResourceHost = "";
+    try { removedResourceHost = new URL(removed.url).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* Legacy resources may contain invalid URLs. */ }
     module.resources.splice(index, 1);
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
-      moduleId: String(module._id), resourceId: String(removed._id), title: removed.title
-    }, null);
+      moduleId: String(module._id),
+      resourceId: String(removed._id),
+      title: removed.title,
+      type: removed.type,
+      hasUrl: Boolean(removed.url),
+      urlHost: removedResourceHost
+    }, null, req.body?.reason || "");
     return success(res, { course, module }, "Module resource removed");
   } catch (e) { next(e); }
 }
@@ -532,11 +1317,17 @@ export async function updateCourseTutorial(req, res, next) {
       return failure(res, "lessonId or moduleId is required", 400);
     }
 
+    const summarizeLessonsForAudit = (lessons = []) => lessons.map((lesson) => ({
+      id: String(lesson._id),
+      title: lesson.title,
+      type: lesson.type,
+      videoCount: Array.isArray(lesson.tutorial?.videos) ? lesson.tutorial.videos.length : 0,
+      videoIds: (lesson.tutorial?.videos || []).map((video) => String(video.videoId || "")).filter(Boolean),
+      playlistId: lesson.tutorial?.playlistId || ""
+    }));
     const before = {
       moduleTitle: targetModule.title,
-      lessons: (targetModule.lessons || []).map((lesson) => ({
-        id: String(lesson._id), title: lesson.title, type: lesson.type, videos: lesson.tutorial?.videos || []
-      }))
+      lessons: summarizeLessonsForAudit(targetModule.lessons || [])
     };
 
     const url = new URL(resourceUrl);
@@ -610,6 +1401,7 @@ export async function updateCourseTutorial(req, res, next) {
     }
 
     course.markModified("modules");
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
 
@@ -620,9 +1412,7 @@ export async function updateCourseTutorial(req, res, next) {
       "Course",
       course._id,
       before,
-      { moduleTitle: targetModule.title, lessons: targetModule.lessons.map((lesson) => ({
-        id: String(lesson._id), title: lesson.title, type: lesson.type, videos: lesson.tutorial?.videos || []
-      })) },
+      { moduleTitle: targetModule.title, lessons: summarizeLessonsForAudit(targetModule.lessons || []) },
       req.body.reason || ""
     );
 
@@ -643,24 +1433,46 @@ export async function updateCourseTutorial(req, res, next) {
 
 export async function updateCourse(req, res, next) {
   try {
+    const requestedReason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    const reason = (requestedReason || "Admin course content change").slice(0, 500);
+    const validation = validateCourseAdminPatch(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ success: false, message: "Course update contains invalid fields", errors: validation.errors });
+    }
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
-    const before = {
-      title: course.title,
-      description: course.description,
-      category: course.category,
-      level: course.level,
-      duration: course.duration,
-      thumbnail: course.thumbnail,
-      learningOutcomes: course.learningOutcomes,
-      isPublished: course.isPublished,
-      pricing: course.pricing,
-      enrollmentEnabled: course.enrollmentEnabled,
-      certificateEnabled: course.certificateEnabled,
-      featured: course.featured
-    };
+    const summarizeCourseForAudit = (item) => ({
+      title: item.title,
+      descriptionLength: String(item.description || "").length,
+      category: item.category,
+      level: item.level,
+      duration: item.duration,
+      hasThumbnail: Boolean(item.thumbnail),
+      learningOutcomeCount: Array.isArray(item.learningOutcomes) ? item.learningOutcomes.length : 0,
+      status: item.status || (item.isPublished ? "published" : "draft"),
+      visibility: item.visibility || "public",
+      aiReviewStatus: item.aiReviewStatus || "not_required",
+      deletedAt: item.deletedAt || null,
+      isPublished: item.isPublished,
+      pricing: {
+        mode: item.pricing?.mode,
+        price: item.pricing?.price,
+        compareAtPrice: item.pricing?.compareAtPrice,
+        currency: item.pricing?.currency,
+        saleEnabled: item.pricing?.saleEnabled,
+        salePrice: item.pricing?.salePrice
+      },
+      enrollmentEnabled: item.enrollmentEnabled,
+      certificateEnabled: item.certificateEnabled,
+      featured: item.featured
+    });
+    const before = summarizeCourseForAudit(course);
 
+    // Publishing is deliberately available only through the readiness-gated endpoint.
+    if (req.body.isPublished === true) {
+      return failure(res, "Use the readiness-gated publish action to publish a course.", 400);
+    }
     if (req.body.title !== undefined) {
       const value = String(req.body.title).trim();
       if (!value) return failure(res, "Course title cannot be empty", 400);
@@ -688,21 +1500,16 @@ export async function updateCourse(req, res, next) {
       if (typeof p.saleEnabled === "boolean") course.pricing.saleEnabled = p.saleEnabled;
       if (p.salePrice !== undefined) course.pricing.salePrice = Math.max(Number(p.salePrice) || 0, 0);
     }
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
-    await audit(req, "course.updated", "Course", course._id, before, {
-      title: course.title,
-      description: course.description,
-      category: course.category,
-      level: course.level,
-      duration: course.duration,
-      thumbnail: course.thumbnail,
-      learningOutcomes: course.learningOutcomes,
-      isPublished: course.isPublished,
-      pricing: course.pricing,
-      enrollmentEnabled: course.enrollmentEnabled,
-      certificateEnabled: course.certificateEnabled,
-      featured: course.featured
-    }, req.body.reason);
+    // Course catalogue caches must not retain stale publish state or metadata.
+    await cacheDelete(`course:${course._id}`);
+    const after = summarizeCourseForAudit(course);
+    const publishTransition = before.isPublished !== after.isPublished;
+    const action = publishTransition
+      ? (after.isPublished ? "course.published" : "course.unpublished")
+      : "course.updated";
+    await audit(req, action, "Course", course._id, before, after, reason);
     return success(res, { course }, "Course controls updated");
   } catch (e) { next(e); }
 }
@@ -828,6 +1635,10 @@ export async function plans(req, res, next) {
 
 export async function createPlan(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for subscription plan creation.", 400);
+    const validation = validateSubscriptionPlanAdminInput({ ...req.body, billingInterval: req.body.billingInterval || "monthly", currency: req.body.currency || "INR" });
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
     const plan = await SubscriptionPlan.create({
       name: req.body.name, slug: req.body.slug, description: req.body.description || "", price: Number(req.body.price) || 0,
       currency: req.body.currency || "INR", billingInterval: req.body.billingInterval || "monthly",
@@ -836,16 +1647,48 @@ export async function createPlan(req, res, next) {
       isActive: req.body.isActive !== false,
       isPopular: Boolean(req.body.isPopular), trialDays: Number(req.body.trialDays) || 0, sortOrder: Number(req.body.sortOrder) || 0
     });
-    await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, plan.toObject());
+    await audit(req, "subscription_plan.created", "SubscriptionPlan", plan._id, null, {
+      name: plan.name,
+      slug: plan.slug,
+      price: plan.price,
+      currency: plan.currency,
+      billingInterval: plan.billingInterval,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      trialDays: plan.trialDays,
+      sortOrder: plan.sortOrder,
+      featuresCount: plan.features.length,
+      limitKeys: [...plan.limits.keys()]
+    }, reason);
     return success(res, { plan }, "Plan created", 201);
   } catch (e) { next(e); }
 }
 
 export async function updatePlan(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for subscription plan changes.", 400);
     if (!isValidObjectId(req.params.planId)) return failure(res, "Invalid planId", 400);
     const plan = await SubscriptionPlan.findById(req.params.planId); if (!plan) return failure(res, "Plan not found", 404);
-    const before = plan.toObject();
+    const validation = validateSubscriptionPlanAdminInput(req.body, {
+      name: plan.name, slug: plan.slug, price: plan.price, currency: plan.currency,
+      billingInterval: plan.billingInterval, trialDays: plan.trialDays, sortOrder: plan.sortOrder,
+      isActive: plan.isActive, isPopular: plan.isPopular
+    });
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
+    const before = {
+      name: plan.name,
+      slug: plan.slug,
+      price: plan.price,
+      currency: plan.currency,
+      billingInterval: plan.billingInterval,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      trialDays: plan.trialDays,
+      sortOrder: plan.sortOrder,
+      featuresCount: plan.features.length,
+      limitKeys: [...plan.limits.keys()]
+    };
     const allowed = ["name", "slug", "description", "price", "currency", "billingInterval", "features", "limits", "isActive", "isPopular", "trialDays", "sortOrder"];
     for (const key of allowed) {
       if (req.body[key] === undefined) continue;
@@ -853,120 +1696,994 @@ export async function updatePlan(req, res, next) {
       else if (key === "limits") plan[key] = normalizePlanLimits(req.body[key]);
       else plan[key] = req.body[key];
     }
-    await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, plan.toObject(), req.body.reason);
+    await plan.save(); await audit(req, "subscription_plan.updated", "SubscriptionPlan", plan._id, before, {
+      name: plan.name,
+      slug: plan.slug,
+      price: plan.price,
+      currency: plan.currency,
+      billingInterval: plan.billingInterval,
+      isActive: plan.isActive,
+      isPopular: plan.isPopular,
+      trialDays: plan.trialDays,
+      sortOrder: plan.sortOrder,
+      featuresCount: plan.features.length,
+      limitKeys: [...plan.limits.keys()]
+    }, reason);
     return success(res, { plan }, "Plan updated");
   } catch (e) { next(e); }
 }
 
+export async function retryNotificationDeliveryAdmin(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.notificationId)) return failure(res, "Invalid notificationId", 400);
+    const channel = String(req.body?.channel || "");
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const existing = await Notification.findById(req.params.notificationId).select("emailStatus pushStatus").lean();
+    if (!existing) return failure(res, "Notification delivery not found", 404);
+    if (existing[channel === "email" ? "emailStatus" : "pushStatus"] !== "failed") return failure(res, "Only failed deliveries can be retried from the delivery log", 409);
+
+    const result = await retryNotificationDelivery(req.params.notificationId, channel, { reason, actorId: req.user?.user?._id || req.user?.userId || null });
+    await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, {
+      channel: result.channel,
+      status: result.status,
+      attempts: result.attempts,
+      retryCount: result.retryCount
+    }, reason);
+    return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry queued for background delivery`);
+  } catch (e) {
+    if (e?.status) return failure(res, e.message, e.status);
+    next(e);
+  }
+}
+
+export async function notificationDeliveries(req, res, next) {
+  try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const filter = {
+      $or: [
+        { emailStatus: { $in: ["pending", "sent", "failed"] } },
+        { pushStatus: { $in: ["pending", "sent", "failed"] } },
+        { emailError: { $exists: true, $nin: ["", null] } },
+        { pushError: { $exists: true, $nin: ["", null] } }
+      ]
+    };
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const users = await User.find({ $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(1000).lean();
+      const matches = [
+        { title: pattern }, { message: pattern }, { type: pattern }, { link: pattern },
+        { eventKey: pattern }, { emailError: pattern }, { pushError: pattern },
+        { user: { $in: users.map((user) => user._id) } }
+      ];
+      if (isValidObjectId(q)) matches.push({ _id: new mongoose.Types.ObjectId(q) });
+      filter.$and = [{ $or: matches }];
+    }
+    const [deliveries, total] = await Promise.all([
+      Notification.find(filter).populate("user", "name email").sort({ updatedAt: -1, _id: -1 })
+        .skip((page - 1) * limit).limit(limit).lean(),
+      Notification.countDocuments(filter)
+    ]);
+    return success(res, {
+      deliveries: deliveries.map((item) => ({
+        id: String(item._id),
+        user: item.user ? { name: item.user.name, email: maskEmail(item.user.email) } : null,
+        title: item.title,
+        message: item.message,
+        type: item.type,
+        link: item.link,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        emailStatus: item.emailStatus,
+        emailAttempts: item.emailAttempts,
+        emailSentAt: item.emailSentAt,
+        emailError: safeDeliveryError(item.emailError),
+        pushStatus: item.pushStatus,
+        pushAttempts: item.pushAttempts,
+        pushSentAt: item.pushSentAt,
+        pushError: safeDeliveryError(item.pushError)
+      })),
+      page, limit, total, pages: Math.max(1, Math.ceil(total / limit))
+    });
+  } catch (e) { next(e); }
+}
+
+export async function deliveryLog(req, res, next) {
+  try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const filter = {};
+    const status = String(req.query.status || "");
+    const channel = String(req.query.channel || "");
+    const type = String(req.query.type || "");
+    if (channel === "in_app") {
+      if (status === "sent") filter.$or = [{ showInApp: true, "metadata.requestedChannels": "in_app" }, { showInApp: true, "metadata.requestedChannels": { $exists: false } }];
+      else if (status === "skipped") { filter.showInApp = false; filter["metadata.requestedChannels"] = "in_app"; }
+      else if (status && status !== "sent" && status !== "skipped") filter._id = { $exists: false };
+      else filter.$or = [{ "metadata.requestedChannels": "in_app" }, { showInApp: true, "metadata.requestedChannels": { $exists: false } }];
+    } else if (channel === "email" || channel === "push") {
+      const field = channel === "email" ? "emailStatus" : "pushStatus";
+      if (status && ["pending", "sent", "failed", "skipped"].includes(status)) filter[field] = status;
+      else filter[field] = { $in: ["pending", "sent", "failed", "skipped"] };
+      filter.$and = [...(filter.$and || []), { $or: [{ ["metadata.requestedChannels"]: channel }, { "metadata.requestedChannels": { $exists: false } }] }];
+    } else if (status && ["pending", "sent", "failed", "skipped"].includes(status)) {
+      const channelClauses = [];
+      channelClauses.push({ emailStatus: status, $or: [{ "metadata.requestedChannels": "email" }, { "metadata.requestedChannels": { $exists: false } }] });
+      channelClauses.push({ pushStatus: status, $or: [{ "metadata.requestedChannels": "push" }, { "metadata.requestedChannels": { $exists: false } }] });
+      if (status === "sent") channelClauses.push({ showInApp: true });
+      if (status === "skipped") channelClauses.push({ showInApp: false, "metadata.requestedChannels": "in_app" });
+      filter.$or = channelClauses;
+    }
+    if (type && ["system", "course", "billing", "promotion", "security", "learning"].includes(type)) filter.type = type;
+    const from = req.query.from ? new Date(String(req.query.from)) : null;
+    const to = req.query.to ? new Date(String(req.query.to)) : null;
+    if (from && Number.isNaN(from.getTime())) return failure(res, "Invalid from date", 400);
+    if (to && Number.isNaN(to.getTime())) return failure(res, "Invalid to date", 400);
+    if (from && to && from > to) return failure(res, "from date cannot be later than to date", 400);
+    if (from || to) { filter.createdAt = {}; if (from) filter.createdAt.$gte = from; if (to) filter.createdAt.$lte = to; }
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const userIds = await User.find({ $or: [{ email: new RegExp(escapeRegex(q), "i") }, { name: new RegExp(escapeRegex(q), "i") }] }).select("_id").limit(500).lean();
+      filter.$and = [...(filter.$and || []), { $or: [{ user: { $in: userIds.map((item) => item._id) } }, { eventKey: new RegExp(escapeRegex(q), "i") }] }];
+    }
+    const [items, total] = await Promise.all([
+      Notification.find(filter).populate("user", "name email").sort({ updatedAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Notification.countDocuments(filter)
+    ]);
+    return success(res, { page, limit, total, pages: Math.ceil(total / limit), sentMeans: "Provider accepted the request; this does not confirm inbox delivery, browser display, or that the learner read it.",
+      deliveries: items.map((item) => {
+        const requested = Array.isArray(item.metadata?.requestedChannels) ? item.metadata.requestedChannels : null;
+        return {
+          id: String(item._id), time: item.updatedAt || item.createdAt, recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null,
+          type: item.type, eventKey: item.eventKey || "", title: item.title,
+          retryHistory: (item.retryHistory || []).map((entry) => ({ channel: entry.channel, priorAttempts: Number(entry.priorAttempts || 0), previousError: safeDeliveryError(entry.previousError), previousLastAttemptAt: entry.previousLastAttemptAt, retriedAt: entry.retriedAt, reason: String(entry.reason || "").slice(0, 500) })),
+          channels: {
+            in_app: { status: requested ? (requested.includes("in_app") ? (item.showInApp ? "sent" : "skipped") : "not_requested") : (item.showInApp ? "sent" : "not_requested") },
+            email: { status: requested && !requested.includes("email") ? "not_requested" : item.emailStatus, attempts: item.emailAttempts || 0, lastAttemptAt: item.emailLastAttemptAt, sentAt: item.emailSentAt, error: safeDeliveryError(item.emailError) },
+            push: { status: requested && !requested.includes("push") ? "not_requested" : item.pushStatus, attempts: item.pushAttempts || 0, lastAttemptAt: item.pushLastAttemptAt, sentAt: item.pushSentAt, error: safeDeliveryError(item.pushError) }
+          }
+        };
+      })
+    });
+  } catch (error) { next(error); }
+}
+export async function retryDeliveryLog(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.notificationId)) return failure(res, "Invalid notificationId", 400);
+    const channel = String(req.body?.channel || "");
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (!["email", "push"].includes(channel)) return failure(res, "Channel must be email or push", 400);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const existing = await Notification.findById(req.params.notificationId).select("emailStatus pushStatus").lean();
+    if (!existing) return failure(res, "Notification delivery not found", 404);
+    if (existing[channel === "email" ? "emailStatus" : "pushStatus"] !== "failed") return failure(res, "Only failed deliveries can be retried from the delivery log", 409);
+    const result = await retryNotificationDelivery(req.params.notificationId, channel);
+    await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, { channel: result.channel, status: result.status, attempts: result.attempts }, reason);
+    return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry queued for background delivery`);
+  } catch (error) { if (error?.status) return failure(res, error.message, error.status); next(error); }
+}
 export async function payments(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-    const items = await Payment.find().populate("user", "name email").populate("course", "title").populate("plan", "name price billingInterval").sort({ createdAt: -1 }).limit(limit).lean();
-    return success(res, { payments: items });
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const requestedStatus = String(req.query.status || "").trim();
+    const allowedStatuses = ["created", "pending", "paid", "failed", "refunded", "partially_refunded", "cancelled"];
+    const filter = requestedStatus && allowedStatuses.includes(requestedStatus) ? { status: requestedStatus } : {};
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const [users, courses, plans] = await Promise.all([
+        User.find({ $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(500).lean(),
+        Course.find({ title: pattern }).select("_id").limit(500).lean(),
+        SubscriptionPlan.find({ name: pattern }).select("_id").limit(500).lean()
+      ]);
+      filter.$or = [
+        { provider: pattern },
+        { providerPaymentId: pattern },
+        { providerOrderId: pattern },
+        { user: { $in: users.map((user) => user._id) } },
+        { course: { $in: courses.map((course) => course._id) } },
+        { plan: { $in: plans.map((plan) => plan._id) } }
+      ];
+      if (isValidObjectId(q)) filter.$or.push({ _id: new mongoose.Types.ObjectId(q) });
+    }
+    const [items, total, totalPayments, paidValue] = await Promise.all([
+      Payment.find(filter)
+        .populate("user", "name email")
+        .populate("course", "title")
+        .populate("plan", "name price billingInterval")
+        .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Payment.countDocuments(filter),
+      Payment.countDocuments({}),
+      Payment.aggregate([
+        { $match: { status: { $in: ["paid", "partially_refunded"] } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } }
+      ])
+    ]);
+    return success(res, {
+      payments: items,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      limit,
+      summary: { totalPayments, paidTotal: Number(paidValue[0]?.total || 0) }
+    });
+  } catch (e) { next(e); }
+}
+
+export async function subscriptions(req, res, next) {
+  try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const status = String(req.query.status || "").trim();
+    const allowed = ["trialing", "active", "past_due", "cancelled", "expired"];
+    const filter = status && allowed.includes(status) ? { status } : {};
+    const [items, total] = await Promise.all([
+      UserSubscription.find(filter)
+        .populate("user", "name email")
+        .populate("plan", "name price currency billingInterval features")
+        .sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      UserSubscription.countDocuments(filter)
+    ]);
+    return success(res, { subscriptions: items, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 
 export async function refunds(req, res, next) {
   try {
-    const items = await RefundRequest.find().populate("user", "name email").populate("payment").populate("processedBy", "name email").sort({ createdAt: -1 }).limit(200).lean();
-    return success(res, { refunds: items });
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const requestedStatus = String(req.query.status || "").trim();
+    const allowedStatuses = ["pending", "approved", "rejected", "processed"];
+    const filter = requestedStatus && allowedStatuses.includes(requestedStatus) ? { status: requestedStatus } : {};
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const [users, matchingPayments] = await Promise.all([
+        User.find({ $or: [{ name: pattern }, { email: pattern }] }).select("_id").limit(500).lean(),
+        Payment.find({ $or: [{ providerPaymentId: pattern }, { providerOrderId: pattern }] }).select("_id").limit(500).lean()
+      ]);
+      filter.$or = [
+        { reason: pattern },
+        { decisionReason: pattern },
+        { adminNote: pattern },
+        { providerRefundId: pattern },
+        { user: { $in: users.map((user) => user._id) } },
+        { payment: { $in: matchingPayments.map((payment) => payment._id) } }
+      ];
+      if (isValidObjectId(q)) filter.$or.push({ _id: new mongoose.Types.ObjectId(q) });
+    }
+    const [items, total, statusCounts] = await Promise.all([
+      RefundRequest.find(filter)
+        .populate("user", "name email")
+        .populate({ path: "payment", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name price billingInterval" }] })
+        .populate("processedBy", "name email")
+        .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      RefundRequest.countDocuments(filter),
+      RefundRequest.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
+    ]);
+    const summary = { pending: 0, approved: 0, rejected: 0, processed: 0 };
+    for (const row of statusCounts) if (Object.prototype.hasOwnProperty.call(summary, row._id)) summary[row._id] = row.count;
+    const now = Date.now();
+    const refunds = items.map((item) => {
+      const dueAt = item.slaDueAt || new Date(new Date(item.createdAt).getTime() + 24 * 60 * 60 * 1000);
+      return { ...item, sla: { dueAt, breached: dueAt.getTime() < now && ["pending", "approved"].includes(item.status), hoursRemaining: Math.ceil((dueAt.getTime() - now) / 3600000) } };
+    });
+    return success(res, { refunds, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit, summary });
   } catch (e) { next(e); }
 }
 
 export async function updateRefund(req, res, next) {
   try {
     if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A decision reason of 10–500 characters is required for every finance action.", 400);
     const refund = await RefundRequest.findById(req.params.refundId); if (!refund) return failure(res, "Refund request not found", 404);
     if (!["approved", "rejected", "processed"].includes(req.body.status)) return failure(res, "Invalid refund status", 400);
     const payment = await Payment.findById(refund.payment);
     if (!payment) return failure(res, "Payment record not found", 404);
+    if (refund.status === "processed") {
+      return failure(res, "A processed refund is final and cannot be changed.", 409);
+    }
+    if (refund.status === "approved") {
+      return failure(res, "This refund is being processed or requires provider reconciliation and cannot be changed.", 409);
+    }
+    if (refund.status === "rejected" && req.body.status !== "rejected") {
+      return failure(res, "A rejected refund request cannot be reopened. Submit a new request if eligible.", 409);
+    }
 
-    const before = refund.toObject();
+    const before = {
+      status: refund.status,
+      amount: refund.amount,
+      hasAdminNote: Boolean(refund.adminNote),
+      processedAt: refund.processedAt
+    };
     refund.adminNote = req.body.adminNote || refund.adminNote;
+    refund.decisionReason = reason;
     refund.processedBy = req.user.user._id;
 
     if (req.body.status === "rejected") {
-      refund.status = "rejected";
-      refund.processedAt = new Date();
+      // Rejection and provider processing race on the same pending state. Claim
+      // the transition atomically so only one admin action can win.
+      const rejectedRefund = await RefundRequest.findOneAndUpdate(
+        { _id: refund._id, status: "pending" },
+        {
+          $set: {
+            status: "rejected",
+            decisionReason: reason,
+            adminNote: typeof req.body.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : refund.adminNote,
+            processedBy: req.user.user._id,
+            processedAt: new Date()
+          },
+          $unset: { activePaymentKey: "" }
+        },
+        { new: true }
+      );
+      if (!rejectedRefund) {
+        return failure(res, "This refund request is no longer pending. Refresh the queue before taking action.", 409);
+      }
+      refund.status = rejectedRefund.status;
+      refund.adminNote = rejectedRefund.adminNote;
+      refund.processedBy = rejectedRefund.processedBy;
+      refund.processedAt = rejectedRefund.processedAt;
+      refund.set("activePaymentKey", undefined);
     } else if (req.body.status === "approved" || req.body.status === "processed") {
       if (refund.status === "processed") return failure(res, "Refund is already processed", 409);
+      if (refund.status === "rejected") return failure(res, "Rejected refund requests cannot be processed", 409);
+      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
+      if (refund.amount > remainingAmount || remainingAmount <= 0) {
+        return failure(res, "Refund exceeds the remaining refundable balance for this payment.", 409);
+      }
       if (payment.provider !== "razorpay" || !payment.providerPaymentId) {
         return failure(res, "Refund cannot be processed because the payment provider reference is missing", 400);
       }
+      if (refund.status !== "pending") {
+        return failure(res, "This refund is already being processed or requires reconciliation.", 409);
+      }
 
-      const providerRefund = await razorpay.refundPayment({
-        paymentId: payment.providerPaymentId,
-        amount: refund.amount
-      });
+      // Atomically claim the pending request before calling the payment provider.
+      // This prevents two concurrent admin requests from issuing duplicate refunds.
+      const claimedRefund = await RefundRequest.findOneAndUpdate(
+        { _id: refund._id, status: "pending" },
+        { $set: { status: "approved", adminNote: refund.adminNote, decisionReason: reason, processedBy: req.user.user._id } },
+        { new: true }
+      );
+      if (!claimedRefund) {
+        return failure(res, "This refund request is no longer pending. Refresh the queue before taking action.", 409);
+      }
+      refund.status = claimedRefund.status;
+      refund.adminNote = claimedRefund.adminNote;
+      refund.processedBy = claimedRefund.processedBy;
 
-      refund.status = "processed";
-      refund.providerRefundId = providerRefund.id || "";
-      refund.processedAt = new Date();
+      let providerRefund;
+      try {
+        providerRefund = await razorpay.refundPayment({
+          paymentId: payment.providerPaymentId,
+          amount: refund.amount
+        });
+      } catch (providerError) {
+        // Missing credentials are detected before any provider request is made,
+        // so that case is safe to return to pending. Other failures may be
+        // timeouts after acceptance and must be reconciled before retrying.
+        const providerNotConfigured =
+          providerError?.status === 503 &&
+          String(providerError?.message || "").startsWith("Razorpay is not configured");
+        if (providerNotConfigured) {
+          refund.status = "pending";
+          refund.adminNote = [refund.adminNote, "Razorpay is not configured. Configure the provider before retrying this refund."].filter(Boolean).join("\n").slice(0, 2000);
+        } else {
+          refund.adminNote = [refund.adminNote, "Refund attempt needs provider reconciliation before retrying."].filter(Boolean).join("\n").slice(0, 2000);
+        }
+        await refund.save();
+        await audit(req, "refund.provider_attempt_failed", "RefundRequest", refund._id, before, {
+          status: refund.status,
+          providerRefundId: refund.providerRefundId || "",
+          hasAdminNote: Boolean(refund.adminNote)
+        }, reason);
+        throw providerError;
+      }
 
-      const isFullRefund = refund.amount >= payment.amount;
-      payment.status = isFullRefund ? "refunded" : "partially_refunded";
-      await payment.save();
+      const providerStatus = String(providerRefund?.status || "").toLowerCase();
+      const providerOutcome = classifyProviderRefundStatus(providerStatus);
+      refund.providerRefundId = String(providerRefund?.id || "");
+      if (providerOutcome === "processed") {
+        refund.status = "processed";
+        refund.set("activePaymentKey", undefined);
+        refund.processedAt = new Date();
+
+        const isFullRefund = refund.amount >= remainingAmount;
+        payment.status = isFullRefund ? "refunded" : "partially_refunded";
+        // Persist the provider-confirmed refund record first. If the payment
+        // write fails afterward, reconciliation can repair the derived status.
+      } else if (providerOutcome === "retryable") {
+        // An explicit provider failure is safe to retry; an uncertain or pending
+        // response must keep the active claim and be reconciled first.
+        refund.status = "pending";
+        refund.providerRefundId = "";
+        refund.processedAt = null;
+        refund.adminNote = [
+          refund.adminNote,
+          `Razorpay returned refund status '${providerStatus}'. The request is available for a safe retry.`
+        ].filter(Boolean).join("\\n").slice(0, 2000);
+      } else {
+        refund.status = "approved";
+        refund.processedAt = null;
+        refund.adminNote = [
+          refund.adminNote,
+          `Razorpay refund ${refund.providerRefundId || "(ID unavailable)"} has status '${providerStatus || "unknown"}'. Reconcile with the provider before retrying.`
+        ].filter(Boolean).join("\\n").slice(0, 2000);
+      }
     }
     await refund.save();
-    await audit(req, "refund.updated", "RefundRequest", refund._id, before, refund.toObject(), req.body.adminNote);
+    await audit(req, "refund.updated", "RefundRequest", refund._id, before, {
+      status: refund.status,
+      amount: refund.amount,
+      hasAdminNote: Boolean(refund.adminNote),
+      decisionReason: refund.decisionReason || "",
+      processedAt: refund.processedAt
+    }, reason);
+    if (refund.status === "processed") {
+      await payment.save();
+    }
+    try {
+      await createNotificationEvent({
+        userId: String(refund.user),
+        title: refund.status === "processed" ? "Your refund has been processed" : refund.status === "rejected" ? "Your refund request was declined" : "Your refund request was updated",
+        message: refund.status === "processed"
+          ? `Your refund of ${payment.currency || "INR"} ${refund.amount} has been processed. Your payment provider may take additional time to reflect the funds.`
+          : refund.status === "rejected"
+            ? `Your refund request for ${payment.currency || "INR"} ${refund.amount} was declined. Contact support if you need help understanding the decision.`
+            : `Your refund request for ${payment.currency || "INR"} ${refund.amount} has been updated to ${refund.status}.`,
+        type: "billing",
+        link: "/billing",
+        eventKey: `refund-status:${refund._id}:${refund.status}`,
+        emailSubject: refund.status === "processed" ? "Your BuddyForStudy refund has been processed" : "Your BuddyForStudy refund request update",
+        metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(refund.amount), currency: payment.currency || "INR", status: refund.status },
+        templateKeys: { notification: "refund-status-in-app", email: "refund-status-email" }
+      });
+    } catch (notificationError) {
+      console.error("[notifications] refund status notification failed", {
+        refundId: String(refund._id),
+        message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+      });
+    }
     return success(res, { refund }, "Refund updated");
   } catch (e) { next(e); }
 }
 
+export async function reconcileRefund(req, res, next) {
+  let reconciliationToken = "";
+  let reconciliationRefundId = "";
+  try {
+    if (!isValidObjectId(req.params.refundId)) return failure(res, "Invalid refundId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reconciliation reason of 10–500 characters is required.", 400);
+    const providerRefundId = String(req.body?.providerRefundId || "").trim();
+    if (!/^rfnd_[A-Za-z0-9]+$/.test(providerRefundId)) {
+      return failure(res, "Enter a valid Razorpay refund ID from the provider dashboard.", 400);
+    }
+
+    let refund = await RefundRequest.findById(req.params.refundId);
+    if (!refund) return failure(res, "Refund request not found", 404);
+    const alreadyProcessed = refund.status === "processed";
+    if (!alreadyProcessed && refund.status !== "approved") {
+      return failure(res, "Only refunds awaiting provider reconciliation can use this action.", 409);
+    }
+
+    const payment = await Payment.findById(refund.payment);
+    if (!payment) return failure(res, "Payment record not found", 404);
+    if (payment.provider !== "razorpay" || !payment.providerPaymentId) {
+      return failure(res, "Refund cannot be reconciled because the payment provider reference is missing.", 400);
+    }
+
+    const providerRefund = await razorpay.fetchRefund({
+      refundId: providerRefundId,
+      paymentId: payment.providerPaymentId
+    });
+    if (!matchesProviderRefund({
+      providerRefund,
+      providerRefundId,
+      paymentId: payment.providerPaymentId,
+      amount: refund.amount,
+      currency: payment.currency || "INR"
+    })) {
+      return failure(res, "Provider refund does not match this payment, amount, and currency. Internal status was not changed.", 409);
+    }
+
+    const providerStatus = String(providerRefund?.status || "").toLowerCase();
+
+    // If the refund record was committed but the subsequent payment update
+    // failed, allow the same verified provider refund to repair the payment
+    // status instead of leaving an irreversible partial write stuck forever.
+    if (alreadyProcessed) {
+      if (refund.providerRefundId !== providerRefundId || providerStatus !== "processed") {
+        return failure(res, "This refund is already processed. Its provider reference cannot be changed.", 409);
+      }
+      const remainingAfterAllRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
+      const expectedPaymentStatus = paymentStatusForRemainingBalance(remainingAfterAllRefunds);
+      if (payment.status !== expectedPaymentStatus) {
+        const beforePaymentStatus = payment.status;
+        payment.status = expectedPaymentStatus;
+        await payment.save();
+        await audit(req, "refund.payment_status_reconciled", "Payment", payment._id, { status: beforePaymentStatus }, { status: payment.status, refundId: String(refund._id), providerRefundId }, reason);
+      } else {
+        await audit(req, "refund.reconciliation_verified", "RefundRequest", refund._id, { status: refund.status, providerRefundId: refund.providerRefundId }, { status: refund.status, providerRefundId, providerStatus }, reason);
+      }
+      return success(res, { refund, payment, providerStatus, paymentStatusRepaired: true }, "Previously processed refund verified; payment status reconciled");
+    }
+
+    reconciliationToken = crypto.randomUUID();
+    reconciliationRefundId = String(refund._id);
+    const leaseCutoff = new Date(Date.now() - 10 * 60 * 1000);
+    const claimedRefund = await RefundRequest.findOneAndUpdate(
+      {
+        _id: refund._id,
+        status: "approved",
+        $or: [
+          { reconciliationToken: { $exists: false } },
+          { reconciliationToken: null },
+          { reconciliationStartedAt: { $exists: false } },
+          { reconciliationStartedAt: { $lte: leaseCutoff } }
+        ]
+      },
+      { $set: { reconciliationToken, reconciliationStartedAt: new Date() } },
+      { new: true }
+    );
+    if (!claimedRefund) {
+      reconciliationToken = "";
+      reconciliationRefundId = "";
+      return failure(res, "Another administrator is already reconciling this refund. Refresh the request before retrying.", 409);
+    }
+    refund = claimedRefund;
+    const before = { status: refund.status, providerRefundId: refund.providerRefundId || "", decisionReason: refund.decisionReason || "" };
+    refund.decisionReason = reason;
+    if (providerStatus === "processed") {
+      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
+      if (refund.amount > remainingAmount || remainingAmount <= 0) {
+        await RefundRequest.updateOne(
+          { _id: refund._id, reconciliationToken },
+          { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+        );
+        reconciliationToken = "";
+        reconciliationRefundId = "";
+        return failure(res, "Provider confirms a refund, but the local refundable balance is inconsistent. Escalate for finance review.", 409);
+      }
+      refund.status = "processed";
+      refund.set("activePaymentKey", undefined);
+      refund.set("reconciliationToken", undefined);
+      refund.set("reconciliationStartedAt", undefined);
+      refund.providerRefundId = providerRefundId;
+      refund.processedAt = new Date();
+      refund.processedBy = req.user.user?._id || req.user.userId;
+      refund.adminNote = [refund.adminNote, "Provider refund verified during reconciliation."].filter(Boolean).join("\n").slice(0, 2000);
+      payment.status = paymentStatusForRemainingBalance(remainingAmount - refund.amount);
+      // Persist the provider-confirmed refund first. If the payment write fails,
+      // the idempotent processed-refund path above repairs payment status on retry.
+      await refund.save();
+      await audit(req, "refund.reconciled", "RefundRequest", refund._id, before, {
+        status: refund.status,
+        providerRefundId,
+        providerStatus
+      }, reason);
+      await RefundRequest.updateOne(
+        { _id: refund._id, reconciliationToken },
+        { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+      );
+      reconciliationToken = "";
+      reconciliationRefundId = "";
+      await payment.save();
+
+      try {
+        await createNotificationEvent({
+          userId: String(refund.user),
+          title: "Your refund has been processed",
+          message: `Your refund of ${payment.currency || "INR"} ${refund.amount} has been verified with the payment provider and marked as processed.`,
+          type: "billing",
+          link: "/billing",
+          eventKey: `refund-status:${refund._id}:processed`,
+          emailSubject: "Your BuddyForStudy refund has been processed",
+          metadata: { refundId: String(refund._id), paymentId: String(payment._id), amount: String(refund.amount), currency: payment.currency || "INR", status: "processed" },
+          templateKeys: { notification: "refund-status-in-app", email: "refund-status-email" }
+        });
+      } catch (notificationError) {
+        console.error("[notifications] reconciled refund notice failed", {
+          refundId: String(refund._id),
+          message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+        });
+      }
+      return success(res, { refund, providerStatus }, "Provider refund verified and reconciled");
+    }
+
+    if (["failed", "rejected"].includes(providerStatus)) {
+      refund.status = "pending";
+      refund.set("reconciliationToken", undefined);
+      refund.set("reconciliationStartedAt", undefined);
+      refund.providerRefundId = "";
+      refund.processedAt = null;
+      refund.adminNote = [refund.adminNote, `Provider reports refund status '${providerStatus}'. Retry is now allowed.`].filter(Boolean).join("\n").slice(0, 2000);
+      await refund.save();
+      await RefundRequest.updateOne(
+        { _id: refund._id, reconciliationToken },
+        { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+      );
+      reconciliationToken = "";
+      reconciliationRefundId = "";
+      await audit(req, "refund.reconciliation_failed", "RefundRequest", refund._id, before, {
+        status: refund.status,
+        providerRefundId,
+        providerStatus
+      }, reason);
+      return success(res, { refund, providerStatus }, "Provider confirmed the refund did not complete; the request is available for retry");
+    }
+
+    refund.set("reconciliationToken", undefined);
+    refund.set("reconciliationStartedAt", undefined);
+    refund.adminNote = [refund.adminNote, `Provider reconciliation checked refund ${providerRefundId}; current provider status is '${providerStatus || "unknown"}'.`].filter(Boolean).join("\n").slice(0, 2000);
+    await refund.save();
+    await RefundRequest.updateOne(
+      { _id: refund._id, reconciliationToken },
+      { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+    );
+    reconciliationToken = "";
+    reconciliationRefundId = "";
+    await audit(req, "refund.reconciliation_pending", "RefundRequest", refund._id, before, {
+      status: refund.status,
+      providerRefundId,
+      providerStatus
+    }, reason);
+    return success(res, { refund, providerStatus }, "Provider refund is not final yet; internal refund remains on hold");
+  } catch (e) {
+    if (reconciliationToken && reconciliationRefundId) {
+      await RefundRequest.updateOne(
+        { _id: reconciliationRefundId, reconciliationToken },
+        { $unset: { reconciliationToken: "", reconciliationStartedAt: "" } }
+      ).catch(() => {});
+    }
+    next(e);
+  }
+}
+
+export async function notificationAudienceOptions(req, res, next) {
+  try {
+    const [plans, courses] = await Promise.all([
+      SubscriptionPlan.find({}).select("name price currency billingInterval isActive isPopular sortOrder").sort({ sortOrder: 1, price: 1 }).limit(500).lean(),
+      Course.find({}).select("title category level isPublished pricing featured").sort({ title: 1 }).limit(1000).lean()
+    ]);
+    const popularCourseRows = await Enrollment.aggregate([
+      { $match: { status: { $in: ["active", "completed"] } } },
+      { $group: { _id: "$course", enrollmentCount: { $sum: 1 } } },
+      { $sort: { enrollmentCount: -1, _id: 1 } },
+      { $limit: 5 }
+    ]);
+    return success(res, {
+      plans: plans.map((plan) => ({
+        id: String(plan._id), name: plan.name, price: plan.price, currency: plan.currency,
+        billingInterval: plan.billingInterval, isActive: plan.isActive, isPopular: plan.isPopular
+      })),
+      courses: courses.map((course) => ({
+        id: String(course._id), title: course.title, category: course.category, level: course.level,
+        isPublished: course.isPublished, pricingMode: course.pricing?.mode || "free",
+        price: Number(course.pricing?.price || 0), featured: Boolean(course.featured)
+      })),
+      popularCourseIds: popularCourseRows.map((item) => String(item._id))
+    });
+  } catch (error) { next(error); }
+}
+
+export async function previewNotificationAudience(req, res, next) {
+  try {
+    let audienceInput = req.body || {};
+    if (audienceInput.email !== undefined) {
+      const email = String(audienceInput.email || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return failure(res, "Enter a valid recipient email address", 400);
+      audienceInput = { ...audienceInput, emails: [email] };
+    }
+    validateAdminAudienceInput(audienceInput);
+    let selectedChannels = null;
+    if (audienceInput.channels !== undefined) {
+      selectedChannels = parseAnnouncementChannels(audienceInput.channels);
+      if (!selectedChannels) return failure(res, "Choose one or more valid announcement channels", 400);
+    }
+    const users = await resolveAdminAudience(audienceInput, { select: "_id name email role isActive emailVerified authProvider createdAt", limit: 5001 });
+    const truncated = users.length > 5000;
+    const countedUsers = users.slice(0, 5000);
+    const ids = countedUsers.map((user) => user._id);
+    const [preferenceRows, settingRows, activePushUsers] = await Promise.all([
+      NotificationPreference.find({ user: { $in: ids } }).select("user inAppAnnouncements emailAnnouncements emailAnnouncementsConsentAt pushEnabled").lean(),
+      PlatformSetting.find({ key: { $in: ["notification_in_app_enabled", "notification_email_enabled", "notification_push_enabled"] } }).select("key value").lean(),
+      PushSubscription.distinct("user", { user: { $in: ids }, active: true })
+    ]);
+    const preferenceMap = new Map(preferenceRows.map((item) => [String(item.user), item]));
+    const settings = Object.fromEntries(settingRows.map((item) => [item.key, item.value]));
+    const inAppEnabled = settings.notification_in_app_enabled === undefined ? true : Boolean(settings.notification_in_app_enabled);
+    const emailEnabled = settings.notification_email_enabled === undefined ? true : Boolean(settings.notification_email_enabled);
+    const pushEnabled = settings.notification_push_enabled === undefined ? true : Boolean(settings.notification_push_enabled);
+    const emailConfigured = Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
+    const pushConfigured = isWebPushConfigured();
+    const inAppConsent = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.inAppAnnouncements !== false).length;
+    const emailConsent = countedUsers.filter((user) => { const p = preferenceMap.get(String(user._id)); return p?.emailAnnouncements === true && Boolean(p.emailAnnouncementsConsentAt); }).length;
+    const pushConsent = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.pushEnabled === true).length;
+    const activePushSet = new Set(activePushUsers.map(String));
+    const pushReachable = countedUsers.filter((user) => preferenceMap.get(String(user._id))?.pushEnabled === true && activePushSet.has(String(user._id))).length;
+    const channelCounts = {
+      in_app: { selected: !selectedChannels || selectedChannels.includes("in_app"), consentEligible: inAppConsent, willReach: (!selectedChannels || selectedChannels.includes("in_app")) && inAppEnabled ? inAppConsent : 0, platformEnabled: inAppEnabled },
+      email: { selected: !selectedChannels || selectedChannels.includes("email"), consentEligible: emailConsent, willReach: (!selectedChannels || selectedChannels.includes("email")) && emailEnabled && emailConfigured ? emailConsent : 0, platformEnabled: emailEnabled, providerConfigured: emailConfigured },
+      push: { selected: !selectedChannels || selectedChannels.includes("push"), consentEligible: pushConsent, activeSubscriptions: pushReachable, willReach: (!selectedChannels || selectedChannels.includes("push")) && pushEnabled && pushConfigured ? pushReachable : 0, platformEnabled: pushEnabled, providerConfigured: pushConfigured }
+    };
+    return success(res, {
+      recipientCount: truncated ? 5000 : users.length, truncated, channelCounts,
+      previewToken: createAdminAudiencePreviewToken(audienceInput, users),
+      sample: countedUsers.slice(0, 10).map((user) => ({ id: String(user._id), name: user.name, email: maskEmail(user.email), role: user.role, isActive: user.isActive, emailVerified: user.emailVerified, authProvider: user.authProvider, createdAt: user.createdAt }))
+    }, truncated ? "Audience preview capped at 5,000 recipients; narrow the filters before sending." : "Audience preview ready");
+  } catch (error) {
+    if (error instanceof Error && /invalid|must be|cannot|choose|select|filters|audience|exceed|later than/i.test(error.message)) return failure(res, error.message, 400);
+    next(error);
+  }
+}
 export async function sendNotification(req, res, next) {
   try {
-    const ids = Array.isArray(req.body.userIds) ? req.body.userIds.filter(isValidObjectId) : [];
-    const users = ids.length ? await User.find({ _id: { $in: ids } }).select("_id") : await notificationAudienceUsers(req.body.audience || "all");
-    if (!req.body.title || !req.body.message) return failure(res, "title and message are required", 400);
-    const docs = users.map(u => ({ user: u._id, title: req.body.title, message: req.body.message, type: req.body.type || "system", link: req.body.link || "", sentBy: req.user.user._id }));
-    if (docs.length) await Notification.insertMany(docs);
-    await audit(req, "notification.sent", "Notification", "", null, { recipients: docs.length, title: req.body.title });
-    return success(res, { sent: docs.length }, "Notification sent");
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to send a notification campaign.", 400);
+    const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+    const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
+    const type = req.body.type || "system";
+    const link = typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "";
+    if (!title || !message) return failure(res, "title and message are required", 400);
+    if (title.length > 200) return failure(res, "title must be 200 characters or fewer", 400);
+    if (message.length > 5000) return failure(res, "message must be 5000 characters or fewer", 400);
+    if (!["system", "course", "billing", "promotion", "security"].includes(type)) {
+      return failure(res, "Invalid notification type", 400);
+    }
+    try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
+    let users;
+    try {
+      users = await resolveAdminAudience(req.body, { select: "_id", limit: 5001 });
+    } catch (error) { return failure(res, error.message, 400); }
+    if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) {
+      return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    }
+    const broadcastId = new mongoose.Types.ObjectId().toString();
+    await mapWithConcurrency(users, (user) => createNotificationEvent({
+      userId: String(user._id),
+      title,
+      message,
+      type,
+      link,
+      eventKey: `admin-notification:${broadcastId}:${user._id}`,
+      email: false,
+      push: false,
+      metadata: { source: "admin-broadcast", broadcastId, initiatedBy: String(req.user.user._id) }
+    }));
+    await audit(req, "notification.sent", "Notification", broadcastId, null, { recipients: users.length, title, type }, reason);
+    return success(res, { sent: users.length }, "Notification queued");
   } catch (e) { next(e); }
 }
 
 export async function sendEmail(req, res, next) {
   try {
-    const transport = mailer(); if (!transport) return failure(res, "SMTP is not configured", 503);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to send an email campaign.", 400);
+    const subject = typeof req.body.subject === "string" ? req.body.subject.trim() : "";
+    const html = typeof req.body.html === "string" ? req.body.html : "";
+    if (!subject || !html) return failure(res, "subject and html are required", 400);
+    if (subject.length > 200 || html.length > 20000) return failure(res, "Email subject or HTML body is too long", 400);
+    if (hasUnsafeEmailMarkup(html)) return failure(res, "Email HTML contains unsafe tags, attributes, or URL schemes", 400);
+
+    try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
     let users = [];
-    if (Array.isArray(req.body.userIds) && req.body.userIds.length) users = await User.find({ _id: { $in: req.body.userIds.filter(isValidObjectId) } }).select("email name");
-    else if (req.body.email) users = [{ email: req.body.email, name: "" }];
-    else users = await audienceUsers(req.body.audience || "all");
-    if (!req.body.subject || !req.body.html) return failure(res, "subject and html are required", 400);
-    const info = await transport.sendMail({ from: env.mailFrom, to: users.map(u => u.email).join(","), subject: req.body.subject, html: req.body.html });
-    await audit(req, "email.sent", "EmailCampaign", info.messageId || "", null, { recipients: users.length, subject: req.body.subject });
-    return success(res, { sent: users.length, messageId: info.messageId }, "Email sent");
+    let externalEmail = "";
+    if (req.body.email) {
+      externalEmail = String(req.body.email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(externalEmail)) return failure(res, "Enter a valid recipient email address", 400);
+      const knownUser = await User.findOne({ email: externalEmail }).select("_id email name");
+      if (knownUser) users = [knownUser];
+    } else {
+      try {
+        users = await resolveAdminAudience(req.body, { select: "_id email name", limit: 5001 });
+      } catch (error) { return failure(res, error.message, 400); }
+    }
+
+    if (externalEmail && users.length === 0) {
+      return failure(res, "Campaign email can only be sent to registered users so their notification preferences and consent can be checked.", 400);
+    }
+
+    if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
+    const audienceInput = externalEmail ? { ...req.body, emails: [externalEmail] } : req.body;
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, audienceInput, users)) {
+      return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    }
+    if (!users.length) return success(res, { queued: 0, skipped: 0, recipients: 0 }, "No recipients matched the selected audience");
+    const broadcastId = new mongoose.Types.ObjectId().toString();
+    const results = await mapWithConcurrency(users, (user) => createNotificationEvent({
+      userId: String(user._id),
+      title: subject,
+      message: "A message from BuddyForStudy has arrived in your email.",
+      type: "promotion",
+      link: "/notifications",
+      eventKey: `admin-email-campaign:${broadcastId}:${user._id}`,
+      emailSubject: subject,
+      emailHtmlOverride: html,
+      email: true,
+      inApp: false,
+      push: false,
+      metadata: { source: "admin-email-campaign", broadcastId, initiatedBy: String(req.user.user._id) }
+    }));
+    const queued = results.filter((item) => item?.emailStatus === "pending").length;
+    const skipped = results.filter((item) => item?.emailStatus === "skipped").length;
+    await audit(req, "email.queued", "EmailCampaign", broadcastId, null, {
+      recipients: users.length,
+      queued,
+      skipped,
+      subject
+    }, reason);
+    return success(res, { queued, sent: queued, skipped, recipients: users.length, broadcastId }, "Email campaign queued");
   } catch (e) { next(e); }
 }
 
 export async function sendAnnouncement(req, res, next) {
   try {
-    if (!req.body.title || !req.body.message) return failure(res, "title and message are required", 400);
-    const announcement = await Announcement.create({ title: req.body.title, message: req.body.message, audience: req.body.audience || "all", channel: req.body.channel || ["in_app"], link: req.body.link || "", status: "sent", sentAt: new Date(), createdBy: req.user.user._id });
-    const users = await audienceUsers(announcement.audience);
-    if (announcement.channel.includes("in_app")) {
-      await Notification.insertMany(users.map(u => ({ user: u._id, title: announcement.title, message: announcement.message, type: "system", link: announcement.link, sentBy: req.user.user._id })));
+    const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+    const message = typeof req.body.message === "string" ? req.body.message.trim() : "";
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+    if (!title || !message) return failure(res, "title and message are required", 400);
+    if (title.length > 200 || message.length > 5000) return failure(res, "Announcement title or message is too long", 400);
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const channel = parseAnnouncementChannels(req.body.channel);
+    if (!channel) return failure(res, "Choose one or more valid announcement channels", 400);
+    try { validateAdminAudienceInput(req.body); } catch (error) { return failure(res, error.message, 400); }
+    const targetMode = (Array.isArray(req.body.userIds) && req.body.userIds.length) || (Array.isArray(req.body.emails) && req.body.emails.length)
+      ? "selected" : req.body.filters && Object.keys(req.body.filters).length ? "filtered" : "audience";
+    let users;
+    try { users = await resolveAdminAudience(req.body, { select: "_id", limit: 5001 }); }
+    catch (error) { return failure(res, error.message, 400); }
+    if (users.length > 5000) return failure(res, "This audience exceeds 5,000 recipients. Narrow the filters and preview again before sending.", 400);
+    if (!verifyAdminAudiencePreviewToken(req.body.previewToken, req.body, users)) return failure(res, "Audience preview is missing, expired, or no longer matches these recipients. Preview the audience again before sending.", 409);
+    let scheduledAt = null;
+    if (req.body.scheduledAt !== undefined && req.body.scheduledAt !== null && req.body.scheduledAt !== "") {
+      scheduledAt = new Date(req.body.scheduledAt);
+      if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) return failure(res, "Scheduled time must be a valid future date and time", 400);
     }
-    if (announcement.channel.includes("email") && env.smtpHost) {
-      const transport = mailer(); if (transport && users.length) await transport.sendMail({ from: env.mailFrom, to: users.map(u => u.email).join(","), subject: announcement.title, html: announcement.message });
+    const timezone = typeof req.body.timezone === "string" ? req.body.timezone.trim().slice(0, 64) : "Asia/Kolkata";
+    try { new Intl.DateTimeFormat("en-US", { timeZone: timezone }); } catch { return failure(res, "Choose a valid IANA timezone", 400); }
+    const status = scheduledAt ? "scheduled" : "sending";
+    const announcement = await Announcement.create({
+      title, message, audience: req.body.audience || "all", targetMode,
+      targetUserIds: targetMode === "selected" ? users.map((user) => user._id) : [],
+      targetFilters: targetMode === "filtered" ? req.body.filters : {},
+      recipientIds: users.map((user) => user._id), channel,
+      link: typeof req.body.link === "string" ? req.body.link.trim().slice(0, 1000) : "",
+      status, scheduledAt, timezone, stats: { total: users.length },
+      reason, createdBy: req.user.user._id
+    });
+    const auditResult = await audit(req, scheduledAt ? "announcement.scheduled" : "announcement.send", "Announcement", announcement._id, null, {
+      status, audience: announcement.audience, targetMode, filterKeys: targetMode === "filtered" ? Object.keys(req.body.filters || {}) : [],
+      recipients: users.length, requestedChannels: channel, scheduledAt, timezone
+    }, reason);
+    return success(res, { announcement: { id: String(announcement._id), title: announcement.title, status: announcement.status, scheduledAt: announcement.scheduledAt, timezone: announcement.timezone, stats: announcement.stats }, recipients: users.length, auditRecorded: auditResult.recorded || auditResult.queued }, scheduledAt ? "Announcement scheduled" : "Announcement queued for background delivery", 201);
+  } catch (error) { next(error); }
+}
+
+export async function listAnnouncements(req, res, next) {
+  try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "25"), 10) || 25));
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const allowed = ["draft", "scheduled", "sending", "sent", "failed", "cancelled"];
+    const filter = {};
+    if (req.query.status && allowed.includes(String(req.query.status))) filter.status = String(req.query.status);
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    if (q) {
+      const pattern = new RegExp(escapeRegex(q), "i");
+      const creators = await User.find({ name: pattern }).select("_id").limit(500).lean();
+      const matches = [{ title: pattern }, { createdBy: { $in: creators.map((user) => user._id) } }];
+      if (isValidObjectId(q)) matches.push({ _id: new mongoose.Types.ObjectId(q) });
+      filter.$and = [{ $or: matches }];
     }
-    await audit(req, "announcement.sent", "Announcement", announcement._id, null, { audience: announcement.audience, recipients: users.length });
-    return success(res, { announcement, recipients: users.length }, "Announcement sent", 201);
+    const [items, total] = await Promise.all([
+      Announcement.find(filter).select("title status audience targetMode channel scheduledAt timezone startedAt sentAt completedAt cancelledAt stats lastError createdBy createdAt updatedAt").populate("createdBy", "name").sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Announcement.countDocuments(filter)
+    ]);
+    return success(res, { announcements: items.map((item) => ({ ...item, lastError: safeDeliveryError(item.lastError) })), page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (error) { next(error); }
+}
+
+export async function cancelAnnouncement(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.announcementId)) return failure(res, "Invalid announcementId", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required", 400);
+    const before = await Announcement.findById(req.params.announcementId).select("status scheduledAt stats").lean();
+    if (!before) return failure(res, "Announcement not found", 404);
+    if (before.status !== "scheduled" && before.status !== "draft") return failure(res, "Only draft or scheduled announcements can be cancelled before sending starts", 409);
+    const cancelled = await Announcement.findOneAndUpdate({ _id: req.params.announcementId, status: { $in: ["draft", "scheduled"] } }, { $set: { status: "cancelled", cancelledAt: new Date(), cancelledBy: req.user.user._id } }, { new: true });
+    if (!cancelled) return failure(res, "Announcement started processing before cancellation completed", 409);
+    await audit(req, "announcement.cancelled", "Announcement", cancelled._id, before, { status: cancelled.status, cancelledAt: cancelled.cancelledAt }, reason);
+    return success(res, { announcement: { id: String(cancelled._id), status: cancelled.status, cancelledAt: cancelled.cancelledAt } }, "Announcement cancelled");
+  } catch (error) { next(error); }
+}
+
+export async function announcementReport(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.announcementId)) return failure(res, "Invalid announcementId", 400);
+    const announcement = await Announcement.findById(req.params.announcementId).lean();
+    if (!announcement) return failure(res, "Announcement not found", 404);
+    const stats = await refreshAnnouncementStats(announcement);
+    const failed = await Notification.find({ "metadata.announcementId": String(announcement._id), $or: [{ emailStatus: "failed" }, { pushStatus: "failed" }] })
+      .populate("user", "name email").sort({ updatedAt: -1 }).limit(20).select("user emailStatus emailError pushStatus pushError updatedAt").lean();
+    return success(res, { announcement: { id: String(announcement._id), title: announcement.title, status: announcement.status, channel: announcement.channel, scheduledAt: announcement.scheduledAt, startedAt: announcement.startedAt, sentAt: announcement.sentAt, completedAt: announcement.completedAt, stats, lastError: safeDeliveryError(announcement.lastError) },
+      channels: { in_app: stats.in_app, email: stats.email, push: stats.push },
+      topErrors: failed.map((item) => ({ recipient: item.user ? { name: item.user.name || "Learner", email: maskEmail(item.user.email) } : null, emailStatus: item.emailStatus, emailError: safeDeliveryError(item.emailError), pushStatus: item.pushStatus, pushError: safeDeliveryError(item.pushError), updatedAt: item.updatedAt }))
+    });
+  } catch (error) { next(error); }
+}
+export async function settings(req, res, next) {
+  try {
+    const settings = await PlatformSetting.find().sort({ key: 1 }).lean();
+    const permissions = new Set(getAdminPermissions(req.user?.adminRole || "platform_admin", req.user?.adminPermissionOverrides || []));
+    if (!permissions.has("settings.manage")) {
+      return success(res, { settings: settings.map(({ _id, key, description, isPublic, updatedAt }) => ({ _id, key, description, isPublic, updatedAt, value: undefined })) });
+    }
+    return success(res, { settings });
   } catch (e) { next(e); }
 }
 
-export async function settings(req, res, next) {
-  try { return success(res, { settings: await PlatformSetting.find().sort({ key: 1 }).lean() }); }
-  catch (e) { next(e); }
-}
+export async function deleteSetting(req, res, next) {
+  try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required to delete a platform setting.", 400);
+    if (!isValidObjectId(req.params.settingId)) return failure(res, "Invalid settingId", 400);
+    const setting = await PlatformSetting.findById(req.params.settingId);
+    if (!setting) return failure(res, "Setting not found", 404);
+    if (isPublicSocialSettingKey(setting.key)) return failure(res, "Social links are managed in the Social links panel. Clear a profile URL there instead of deleting its setting.", 400);
+    if (isAIPromptActiveSettingKey(setting.key)) return failure(res, "Active AI prompt pointers are managed in the Prompt versions panel and cannot be deleted from general settings.", 400);
 
+    const metadata = {
+      key: setting.key,
+      valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
+      isPublic: setting.isPublic
+    };
+    await setting.deleteOne();
+    await audit(req, "setting.deleted", "PlatformSetting", setting._id, metadata, null, reason);
+    return success(res, { deleted: true, key: setting.key }, "Setting deleted");
+  } catch (e) { next(e); }
+}
 export async function upsertSetting(req, res, next) {
   try {
-    if (!req.body.key) return failure(res, "key is required", 400);
-    const current = await PlatformSetting.findOne({ key: req.body.key });
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason between 10 and 500 characters is required to change platform settings.", 400);
+    const settingKey = String(req.body?.key || "").trim();
+    if (!settingKey) return failure(res, "key is required", 400);
+    if (isAIPromptActiveSettingKey(settingKey)) return failure(res, "Active AI prompt pointers are managed in the Prompt versions panel and cannot be edited from general settings.", 400);
+
+    const typedValidation = validateTypedSetting(settingKey, req.body.value);
+    if (!typedValidation.valid) return failure(res, typedValidation.message, 400);
+
+    const socialValidation = validateSocialSettingValue(settingKey, req.body.value);
+    if (!socialValidation.valid) return failure(res, socialValidation.message, 400);
+    if (socialValidation.isSocialSetting && req.body.isPublic !== true) {
+      return failure(res, "Social media links must remain public so the footer and Contact page can display them.", 400);
+    }
+
+    const value = socialValidation.isSocialSetting ? socialValidation.value : req.body.value;
+    const isPublic = socialValidation.isSocialSetting ? true : Boolean(req.body.isPublic);
+    const current = await PlatformSetting.findOne({ key: settingKey });
     const before = current?.value ?? null;
-    const setting = await PlatformSetting.findOneAndUpdate({ key: req.body.key }, { $set: { value: req.body.value, description: req.body.description || "", isPublic: Boolean(req.body.isPublic), updatedBy: req.user.user._id } }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    await audit(req, "setting.updated", "PlatformSetting", setting._id, { value: before }, { value: setting.value }, req.body.reason);
+    const setting = await PlatformSetting.findOneAndUpdate(
+      { key: settingKey },
+      { $set: { value, description: req.body.description || "", isPublic, updatedBy: req.user.user._id } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    await audit(req, "setting.updated", "PlatformSetting", setting._id, {
+      valueChanged: true,
+      valueType: before === null ? "null" : Array.isArray(before) ? "array" : typeof before
+    }, {
+      valueChanged: true,
+      valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
+      isPublic: setting.isPublic
+    }, reason);
     return success(res, { setting }, "Setting updated");
   } catch (e) { next(e); }
 }
@@ -976,45 +2693,101 @@ export async function coupons(req, res, next) {
   catch (e) { next(e); }
 }
 
+export async function bulkCreateCoupons(req, res, next) {
+  try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for bulk coupon generation.", 400);
+    const count = Number(req.body?.count);
+    if (!Number.isInteger(count) || count < 1 || count > 100) return failure(res, "Bulk coupon count must be an integer from 1 to 100.", 400);
+    const prefix = String(req.body?.prefix || "BFS").trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{1,20}$/.test(prefix)) return failure(res, "Coupon prefix must contain 1–20 letters, numbers, underscores or hyphens.", 400);
+    const template = { ...req.body, code: prefix + "-TEMP", type: req.body.type || "percentage", isActive: true };
+    const validation = validateCouponAdminInput(template);
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon template contains invalid fields", errors: validation.errors });
+    const created = [];
+    for (let index = 0; index < count; index += 1) {
+      const code = prefix + "-" + crypto.randomBytes(5).toString("hex").toUpperCase();
+      const coupon = await Coupon.create({
+        code, type: template.type, value: Number(template.value),
+        maxDiscount: template.maxDiscount == null || template.maxDiscount === "" ? null : Number(template.maxDiscount),
+        minOrderAmount: Number(template.minOrderAmount) || 0,
+        usageLimit: template.usageLimit == null || template.usageLimit === "" ? null : Number(template.usageLimit),
+        expiresAt: template.expiresAt || null,
+        course: isValidObjectId(template.course) ? template.course : null,
+        isActive: true
+      });
+      await audit(req, "coupon.bulk_created", "Coupon", coupon._id, null, {
+        code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount,
+        minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt,
+        course: coupon.course, isActive: coupon.isActive, batchPrefix: prefix, batchSize: count
+      }, reason);
+      created.push(coupon);
+    }
+    return success(res, { coupons: created, count: created.length, prefix }, "Bulk coupons generated", 201);
+  } catch (e) { next(e); }
+}
+
 export async function createCoupon(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for coupon creation.", 400);
+    const couponInput = { ...req.body, type: req.body.type || "percentage" };
+    const validation = validateCouponAdminInput(couponInput);
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon contains invalid fields", errors: validation.errors });
     const coupon = await Coupon.create({
       code: req.body.code, type: req.body.type || "percentage", value: Number(req.body.value) || 0,
       maxDiscount: req.body.maxDiscount == null ? null : Number(req.body.maxDiscount), minOrderAmount: Number(req.body.minOrderAmount) || 0,
       usageLimit: req.body.usageLimit == null ? null : Number(req.body.usageLimit), expiresAt: req.body.expiresAt || null,
       course: isValidObjectId(req.body.course) ? req.body.course : null, isActive: req.body.isActive !== false
     });
-    await audit(req, "coupon.created", "Coupon", coupon._id, null, coupon.toObject());
+    await audit(req, "coupon.created", "Coupon", coupon._id, null, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, reason);
     return success(res, { coupon }, "Coupon created", 201);
   } catch (e) { next(e); }
 }
 
 export async function updateCoupon(req, res, next) {
   try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for coupon changes.", 400);
     if (!isValidObjectId(req.params.couponId)) return failure(res, "Invalid couponId", 400);
     const coupon = await Coupon.findById(req.params.couponId); if (!coupon) return failure(res, "Coupon not found", 404);
-    const before = coupon.toObject();
+    const validation = validateCouponAdminInput(req.body, {
+      code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount,
+      minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt,
+      isActive: coupon.isActive
+    });
+    if (!validation.valid) return res.status(400).json({ success: false, message: "Coupon contains invalid fields", errors: validation.errors });
+    const before = { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive };
     for (const key of ["type","value","maxDiscount","minOrderAmount","usageLimit","expiresAt","isActive"]) if (req.body[key] !== undefined) coupon[key] = req.body[key];
-    await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, coupon.toObject(), req.body.reason);
+    await coupon.save(); await audit(req, "coupon.updated", "Coupon", coupon._id, before, { code: coupon.code, type: coupon.type, value: coupon.value, maxDiscount: coupon.maxDiscount, minOrderAmount: coupon.minOrderAmount, usageLimit: coupon.usageLimit, expiresAt: coupon.expiresAt, course: coupon.course, isActive: coupon.isActive }, reason);
     return success(res, { coupon }, "Coupon updated");
   } catch (e) { next(e); }
 }
 
 export async function auditLogs(req, res, next) {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
-    const q = String(req.query.q || "").trim();
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    // Treat search input as literal text, not a user-supplied regular expression.
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const filter = {};
-    if (q) filter.$or = [
-      { action: new RegExp(q, "i") },
-      { targetType: new RegExp(q, "i") },
-      { targetId: new RegExp(q, "i") },
-      { reason: new RegExp(q, "i") }
-    ];
+    if (escapedQuery) {
+      const searchPattern = new RegExp(escapedQuery, "i");
+      filter.$or = [
+        { action: searchPattern },
+        { targetType: searchPattern },
+        { targetId: searchPattern },
+        { reason: searchPattern }
+      ];
+    }
     if (req.query.action) filter.action = String(req.query.action);
     if (req.query.targetType) filter.targetType = String(req.query.targetType);
-    const logs = await AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).limit(limit).lean();
-    return success(res, { logs });
+    const [logs, total] = await Promise.all([
+      AuditLog.find(filter).populate("actor", "name email").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      AuditLog.countDocuments(filter)
+    ]);
+    return success(res, { logs, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
   } catch (e) { next(e); }
 }
 
@@ -1025,16 +2798,28 @@ export async function analytics(req, res, next) {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
     since.setDate(since.getDate() - (days - 1));
+    const now = new Date();
 
-    const [enrollmentsDaily, revenueDaily, coursePerformance, subscriptionBreakdown, completionBreakdown] = await Promise.all([
+    const [enrollmentsDaily, paymentsDaily, refundsDaily, coursePerformance, subscriptionBreakdown, completionBreakdown, newUsers, payingUsers, failedPayments] = await Promise.all([
       Enrollment.aggregate([
-        { $match: { createdAt: { $gte: since } } },
+        { $match: { createdAt: { $gte: since, $lte: now } } },
         { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
       Payment.aggregate([
-        { $match: { createdAt: { $gte: since }, status: { $in: ["paid", "partially_refunded"] } } },
-        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
+        { $match: { status: { $in: GROSS_COLLECTION_PAYMENT_STATUSES }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] } },
+        { $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: { $ifNull: ["$paidAt", "$createdAt"] } } },
+          amount: { $sum: "$amount" },
+          count: { $sum: 1 },
+          users: { $addToSet: "$user" }
+        } },
+        { $project: { _id: 1, amount: 1, count: 1, payingUsers: { $size: "$users" } } },
+        { $sort: { _id: 1 } }
+      ]),
+      RefundRequest.aggregate([
+        { $match: { status: "processed", processedAt: { $gte: since, $lte: now } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$processedAt" } }, amount: { $sum: "$amount" }, count: { $sum: 1 } } },
         { $sort: { _id: 1 } }
       ]),
       Enrollment.aggregate([
@@ -1051,22 +2836,44 @@ export async function analytics(req, res, next) {
       ]),
       Progress.aggregate([
         { $bucket: { groupBy: "$percentage", boundaries: [0, 25, 50, 75, 100, 101], default: "other", output: { count: { $sum: 1 } } } }
-      ])
+      ]),
+      User.countDocuments({ createdAt: { $gte: since, $lte: now } }),
+      Payment.distinct("user", { status: { $in: ["paid", "partially_refunded"] }, $or: [{ paidAt: { $gte: since, $lte: now } }, { paidAt: null, createdAt: { $gte: since, $lte: now } }] }),
+      Payment.countDocuments({ status: "failed", updatedAt: { $gte: since, $lte: now } })
     ]);
 
-    const totalEnrollmentPeriod = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
-    const totalRevenuePeriod = revenueDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const daily = new Map();
+    for (const item of paymentsDaily) {
+      daily.set(item._id, { _id: item._id, amount: Number(item.amount || 0), grossPayments: Number(item.amount || 0), refunds: 0, paymentCount: Number(item.count || 0), refundCount: 0 });
+    }
+    for (const item of refundsDaily) {
+      const current = daily.get(item._id) || { _id: item._id, amount: 0, grossPayments: 0, refunds: 0, paymentCount: 0, refundCount: 0 };
+      current.refunds += Number(item.amount || 0);
+      current.amount = calculateNetRevenue(current.grossPayments, current.refunds);
+      current.refundCount += Number(item.count || 0);
+      daily.set(item._id, current);
+    }
+    const revenueDaily = [...daily.values()].sort((a, b) => a._id.localeCompare(b._id));
+    const totalEnrollments = enrollmentsDaily.reduce((sum, item) => sum + Number(item.count || 0), 0);
+    const grossRevenue = paymentsDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalRefunds = refundsDaily.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
     return success(res, {
-      period: { days, since, until: new Date() },
+      period: { days, since, until: now },
       enrollmentsDaily,
       revenueDaily,
       coursePerformance,
       subscriptionBreakdown,
       completionBreakdown,
       totals: {
-        enrollments: totalEnrollmentPeriod,
-        recordedRevenue: totalRevenuePeriod
+        enrollments: totalEnrollments,
+        newUsers,
+        payingUsers: payingUsers.length,
+        failedPayments,
+        grossRevenue,
+        processedRefunds: totalRefunds,
+        netRevenue: calculateNetRevenue(grossRevenue, totalRefunds),
+        recordedRevenue: calculateNetRevenue(grossRevenue, totalRefunds)
       }
     });
   } catch (e) { next(e); }
@@ -1076,5 +2883,122 @@ export async function health(req, res, next) {
   try {
     const dbState = mongoose.connection.readyState === 1;
     return success(res, { service: "BuddyForStudy API", database: dbState ? "connected" : "disconnected", uptimeSeconds: Math.round(process.uptime()), node: process.version, environment: env.nodeEnv });
+  } catch (e) { next(e); }
+}
+
+
+export async function paymentIssueAssignees(req, res, next) {
+  try {
+    const users = await User.find({ role: "admin", isActive: true }).select("name email adminRole").sort({ name: 1 }).limit(200).lean();
+    return success(res, { assignees: users.map((user) => ({ id: String(user._id), name: user.name, email: user.email, role: user.adminRole || "platform_admin" })) });
+  } catch (e) { next(e); }
+}
+
+export async function paymentIssues(req, res, next) {
+  try {
+    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
+    const status = String(req.query.status || "").trim();
+    const allowedStatuses = ["open", "in_review", "resolved", "closed"];
+    const filter = {};
+    if (status && allowedStatuses.includes(status)) filter.status = status;
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const escapedQuery = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (escapedQuery) {
+      const searchPattern = new RegExp(escapedQuery, "i");
+      const matchingUsers = await User.find({ $or: [{ name: searchPattern }, { email: searchPattern }] }).select("_id").limit(1000).lean();
+      filter.$or = [
+        { description: searchPattern },
+        { category: searchPattern },
+        { user: { $in: matchingUsers.map((user) => user._id) } }
+      ];
+    }
+    const canReadSupportPrivate = hasAdminPermission(req.user?.adminRole, "payment_issues.manage", req.user?.adminPermissionOverrides);
+    let query = PaymentIssue.find(filter)
+      .populate("user", "name email")
+      .populate({ path: "payment", select: "amount currency status provider providerPaymentId providerOrderId createdAt course plan", populate: [{ path: "course", select: "title" }, { path: "plan", select: "name" }] });
+    if (canReadSupportPrivate) {
+      query = query.populate("assignedTo", "name email adminRole").populate("internalNotes.author", "name email");
+    }
+    const [issues, total] = await Promise.all([
+      query.sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      PaymentIssue.countDocuments(filter)
+    ]);
+    return success(res, {
+      issues: canReadSupportPrivate ? issues : issues.map(({ assignedTo, internalNotes, ...issue }) => issue),
+      total, page, pages: Math.max(1, Math.ceil(total / limit)), limit
+    });
+  } catch (e) { next(e); }
+}
+
+export async function updatePaymentIssue(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.issueId)) return failure(res, "Invalid issue ID", 400);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "A reason of 10–500 characters is required for support case changes.", 400);
+    const status = String(req.body?.status || "").trim();
+    const allowedStatuses = ["open", "in_review", "resolved", "closed"];
+    if (!allowedStatuses.includes(status)) return failure(res, "Invalid issue status", 400);
+    const adminNote = typeof req.body?.adminNote === "string" ? req.body.adminNote.trim().slice(0, 2000) : "";
+    const internalNote = typeof req.body?.internalNote === "string" ? req.body.internalNote.trim().slice(0, 2000) : "";
+    const assignmentProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "assignedTo");
+    const assignedTo = !assignmentProvided ? undefined : (req.body.assignedTo === null || req.body.assignedTo === "" ? null : req.body.assignedTo);
+    if (assignedTo && !isValidObjectId(assignedTo)) return failure(res, "Invalid assignee ID", 400);
+    if (assignedTo) {
+      const assignee = await User.findOne({ _id: assignedTo, role: "admin", isActive: true }).select("_id");
+      if (!assignee) return failure(res, "Assignee must be an active administrator.", 400);
+    }
+    const currentIssue = await PaymentIssue.findById(req.params.issueId);
+    if (!currentIssue) return failure(res, "Payment issue not found", 404);
+    if (["resolved", "closed"].includes(currentIssue.status) && status !== currentIssue.status) {
+      return failure(res, "Resolved or closed payment issues cannot be reopened. Create a new report if further help is needed.", 409);
+    }
+    const before = { status: currentIssue.status, adminNote: currentIssue.adminNote, assignedTo: currentIssue.assignedTo ? String(currentIssue.assignedTo) : null, internalNoteCount: currentIssue.internalNotes?.length || 0 };
+    const nowResolved = ["resolved", "closed"].includes(status);
+    let issue;
+    try {
+      issue = await PaymentIssue.findOneAndUpdate(
+        { _id: currentIssue._id, status: currentIssue.status },
+        {
+          $set: {
+            status,
+            adminNote,
+            ...(assignmentProvided ? { assignedTo } : {}),
+            resolvedAt: nowResolved ? (currentIssue.resolvedAt || new Date()) : null,
+            resolvedBy: nowResolved ? (currentIssue.resolvedBy || req.user.user?._id || req.user.userId) : null,
+            ...(nowResolved ? {} : { activePaymentKey: currentIssue.payment })
+          },
+          ...(internalNote ? { $push: { internalNotes: { author: req.user.user?._id || req.user.userId, note: internalNote, reason, createdAt: new Date() } } } : {}),
+          ...(nowResolved ? { $unset: { activePaymentKey: "" } } : {})
+        },
+        { new: true, runValidators: true }
+      );
+    } catch (updateError) {
+      if (updateError?.code === 11000) {
+        return failure(res, "Another active report already exists for this payment.", 409);
+      }
+      throw updateError;
+    }
+    if (!issue) return failure(res, "This payment issue was updated by another administrator. Refresh and try again.", 409);
+    await audit(req, "payment_issue.updated", "PaymentIssue", String(issue._id), before, { status: issue.status, adminNote: issue.adminNote, assignedTo: issue.assignedTo ? String(issue.assignedTo) : null, internalNoteCount: issue.internalNotes?.length || 0 }, reason);
+    try {
+      if (status !== before.status || adminNote !== before.adminNote) await createNotificationEvent({
+        userId: String(issue.user),
+        title: status === "resolved" ? "Payment issue resolved" : "Payment report updated",
+        message: adminNote || (status === "resolved" ? "Your payment issue has been marked as resolved." : `Your payment issue status is now ${status.replace(/_/g, " ")}.`),
+        type: "billing",
+        link: "/billing",
+        eventKey: `payment-issue-status:${issue._id}:${status}:${issue.updatedAt.getTime()}`,
+        emailSubject: "Update on your BuddyForStudy payment issue",
+        metadata: { issueId: String(issue._id), status },
+        templateKeys: { notification: "payment-issue-status-updated-in-app", email: "payment-issue-status-updated-email" }
+      });
+    } catch (notificationError) {
+      console.error("[notifications] payment issue status notice failed", {
+        issueId: String(issue._id),
+        message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+      });
+    }
+    return success(res, { issue }, "Payment issue updated");
   } catch (e) { next(e); }
 }

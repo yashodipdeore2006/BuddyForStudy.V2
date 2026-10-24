@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+
+// Playlist responses vary between provider and normalized course shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PlaylistApiRecord = any;
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, PlayCircle } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { routes } from "@/lib/routes";
 
 export default function PlaylistCourse() {
   const { playlistId } = useParams<{ playlistId: string }>();
   const navigate = useNavigate();
-  const [course, setCourse] = useState<any>(null);
+  const [course, setCourse] = useState<PlaylistApiRecord>(null);
   const [loading, setLoading] = useState(true);
   const [auditing, setAuditing] = useState(false);
   const [showAudit, setShowAudit] = useState(true);
@@ -21,7 +26,7 @@ export default function PlaylistCourse() {
   }, [playlistId]);
 
   const totalSeconds = useMemo(
-    () => (course?.lessons || []).reduce((sum: number, lesson: any) => sum + (lesson.durationSeconds || 0), 0),
+    () => (course?.lessons || []).reduce((sum: number, lesson: PlaylistApiRecord) => sum + (lesson.durationSeconds || 0), 0),
     [course]
   );
 
@@ -62,7 +67,7 @@ export default function PlaylistCourse() {
               skillIds: [],
               order: 1,
               quiz: null,
-              lessons: course.lessons.map((lesson: any) => ({
+              lessons: course.lessons.map((lesson: PlaylistApiRecord) => ({
                 id: lesson.id,
                 title: lesson.title,
                 description: lesson.description,
@@ -96,9 +101,9 @@ export default function PlaylistCourse() {
       const id = data.roadmap?._id || data.roadmap?.id;
       if (!id) throw new Error("Course could not be saved");
 
-      navigate(`/roadmaps/${id}`);
-    } catch (err: any) {
-      setError(err.message || "Unable to add course");
+      navigate(routes.savedRoadmap(id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to add course");
     } finally {
       setAuditing(false);
     }
@@ -124,7 +129,7 @@ export default function PlaylistCourse() {
     <div className="min-h-screen bg-white">
       <header className="border-b border-slate-200 px-5 py-4">
         <div className="mx-auto flex max-w-6xl items-center gap-4">
-          <Link to="/courses" className="text-slate-500 hover:text-slate-900">
+          <Link to={routes.explore()} className="text-slate-500 hover:text-slate-900">
             <ArrowLeft className="h-5 w-5" />
           </Link>
 
@@ -176,7 +181,7 @@ export default function PlaylistCourse() {
             </p>
 
             <div className="mt-4 space-y-2">
-              {course.lessons.slice(0, 13).map((lesson: any) => (
+              {course.lessons.slice(0, 13).map((lesson: PlaylistApiRecord) => (
                 <div key={lesson.id} className="flex gap-3 rounded-xl bg-white p-3">
                   <PlayCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
                   <div className="min-w-0">

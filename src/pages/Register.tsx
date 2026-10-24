@@ -4,6 +4,7 @@ import { Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle } from 'lucide-r
 import { useAuth } from '@/context/AuthContext';
 import AuthLayout from '@/components/AuthLayout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
+import { routes } from "@/lib/routes";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -15,13 +16,14 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [marketingEmailConsent, setMarketingEmailConsent] = useState(false);
 
   useEffect(() => {
     if (session && profile) {
       if (profile.role === 'admin') {
-        navigate('/admin', { replace: true });
+        navigate(routes.adminHome(), { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate(routes.home(), { replace: true });
       }
     }
   }, [session, profile, navigate]);
@@ -30,7 +32,11 @@ export default function Register() {
     setError(null);
     setLoading(true);
     try {
-      await signInWithGoogle(credential);
+      await signInWithGoogle(credential, {
+        termsAccepted: true,
+        privacyAcknowledged: true,
+        marketingEmailConsent
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
@@ -45,9 +51,13 @@ export default function Register() {
     if (password.length < 8) { setError('Password must be at least 8 characters long'); return; }
     setLoading(true);
     try {
-      const result = await signUp(name, email, password);
+      const result = await signUp(name, email, password, {
+        termsAccepted: true,
+        privacyAcknowledged: true,
+        marketingEmailConsent
+      });
       if ("requiresVerification" in result) {
-        navigate("/verify-email", { state: { email: result.email } });
+        navigate(routes.verifyEmail(), { state: { email: result.email } });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
@@ -63,13 +73,13 @@ export default function Register() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+          <Link to={routes.login()} className="font-semibold text-blue-600 hover:text-blue-700">
             Sign in
           </Link>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         {error && (
           <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -118,7 +128,7 @@ export default function Register() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="input-field pl-10 pr-10"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
               required
               autoComplete="new-password"
             />
@@ -151,20 +161,32 @@ export default function Register() {
           </div>
         </div>
 
+        <div className="space-y-3">
+          <label className="flex items-start gap-2.5 rounded-lg border border-slate-200 p-3 text-xs leading-5 text-slate-600">
+            <input
+              type="checkbox"
+              checked={marketingEmailConsent}
+              onChange={(event) => setMarketingEmailConsent(event.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0 accent-violet-600"
+            />
+            <span>Send me optional product news, learning tips, and offers by email. This is optional, and I can unsubscribe or change this preference later.</span>
+          </label>
+          <p className="text-center text-xs leading-5 text-slate-500">
+            By continuing, you agree to our <Link to="/legal/terms-of-service" target="_blank" rel="noopener noreferrer" className="font-semibold text-violet-700 underline underline-offset-2">Terms of Service</Link> and acknowledge our <Link to="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="font-semibold text-violet-700 underline underline-offset-2">Privacy Policy</Link>.
+          </p>
+        </div>
+
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? 'Creating account...' : 'Create Account'}
         </button>
 
-        <div className="relative py-1">
+        <div className="relative py-0.5">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
           <div className="relative flex justify-center"><span className="bg-white px-3 text-xs text-slate-400">OR</span></div>
         </div>
 
         <GoogleSignInButton onCredential={handleGoogle} disabled={loading} />
 
-        <p className="text-center text-xs text-slate-400">
-          By signing up, you agree to our Terms of Service and Privacy Policy.
-        </p>
       </form>
     </AuthLayout>
   );

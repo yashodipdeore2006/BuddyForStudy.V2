@@ -6,7 +6,10 @@ import { success, failure } from "../utils/response.js";
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(100),
   email: z.string().trim().email(),
-  password: z.string().min(8).max(128)
+  password: z.string().min(8).max(128),
+  termsAccepted: z.literal(true, { error: "You must agree to the Terms of Service." }),
+  privacyAcknowledged: z.literal(true, { error: "Please acknowledge the Privacy Policy." }),
+  marketingEmailConsent: z.boolean().default(false)
 });
 
 const loginSchema = z.object({
@@ -20,7 +23,10 @@ const loginOtpSchema = z.object({
 });
 
 const googleSchema = z.object({
-  credential: z.string().min(1)
+  credential: z.string().min(1),
+  termsAccepted: z.literal(true).optional(),
+  privacyAcknowledged: z.literal(true).optional(),
+  marketingEmailConsent: z.boolean().optional()
 });
 
 const otpSchema = z.object({
@@ -80,8 +86,15 @@ export function googleConfig(_req, res) {
 
 export async function googleLogin(req, res) {
   try {
-    const { credential } = googleSchema.parse(req.body);
-    const result = await authService.googleLogin(credential);
+    const input = googleSchema.parse(req.body);
+    const consent = input.termsAccepted === true && input.privacyAcknowledged === true
+      ? {
+          termsAccepted: true,
+          privacyAcknowledged: true,
+          marketingEmailConsent: input.marketingEmailConsent === true
+        }
+      : null;
+    const result = await authService.googleLogin(input.credential, consent);
     return success(res, result, "Google authentication successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
@@ -186,7 +199,27 @@ export async function me(req, res) {
       role: req.user.user.role,
       isActive: req.user.user.isActive,
       profileImage: req.user.user.profileImage || "",
-      authProvider: req.user.user.authProvider
+      authProvider: req.user.user.authProvider,
+      phoneNumber: req.user.user.phoneNumber || "",
+      phoneNumberVerified: req.user.user.phoneNumberVerified === true,
+      city: req.user.user.city || "",
+      learningGoal: req.user.user.learningGoal || "",
+      profileSetupSkippedAt: req.user.user.profileSetupSkippedAt || null,
+      termsAcceptedVersion: req.user.user.termsAcceptedVersion || "",
+      privacyAcknowledgedVersion: req.user.user.privacyAcknowledgedVersion || "",
+      marketingEmailConsent: req.user.user.marketingEmailConsent === true
     }
   });
+}
+
+export async function updateLearningPace(req, res) {
+  try {
+    const input = z.object({ hoursPerDay: z.number().int().min(1).max(4) }).parse(req.body);
+    const { User } = await import("../models/User.js");
+    const user = await User.findByIdAndUpdate(req.user.user._id, { $set: { learningPaceHoursPerDay: input.hoursPerDay } }, { new: true, runValidators: true }).select("learningPaceHoursPerDay");
+    return success(res, { hoursPerDay: user?.learningPaceHoursPerDay || input.hoursPerDay }, "Learning pace updated");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    return failure(res, error.message, error.status || 500);
+  }
 }

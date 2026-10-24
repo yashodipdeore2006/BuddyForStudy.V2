@@ -3,6 +3,22 @@ import { env } from "../config/env.js";
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
 const CHANNEL_CACHE = new Map();
+const SEARCH_CACHE_TTL_MS = 60 * 60 * 1000;
+const VIDEO_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CHANNEL_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function getExpiringCache(map, key) {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    map.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+function setExpiringCache(map, key, value, ttlMs) {
+  map.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
 
 function parseIsoDuration(value) {
   const match = String(value || "").match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
@@ -84,48 +100,96 @@ async function youtubeRequest(endpoint,params){
   return data;
 }
 
-async function searchVideos(query,maxResults=10){
-  const key=query.trim().toLowerCase();
-  if(SEARCH_CACHE.has(key))return SEARCH_CACHE.get(key);
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:"en",regionCode:"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)});
-  SEARCH_CACHE.set(key,promise);
+const YOUTUBE_LOCALES_BY_LANGUAGE = {
+  en: { relevanceLanguage: "en", regionCode: "IN" },
+  hi: { relevanceLanguage: "hi", regionCode: "IN" },
+  es: { relevanceLanguage: "es", regionCode: "ES" },
+  fr: { relevanceLanguage: "fr", regionCode: "FR" },
+  de: { relevanceLanguage: "de", regionCode: "DE" },
+  pt: { relevanceLanguage: "pt", regionCode: "BR" },
+  ja: { relevanceLanguage: "ja", regionCode: "JP" },
+  ko: { relevanceLanguage: "ko", regionCode: "KR" },
+  ar: { relevanceLanguage: "ar", regionCode: "SA" },
+  bn: { relevanceLanguage: "bn", regionCode: "IN" },
+  mr: { relevanceLanguage: "mr", regionCode: "IN" },
+  ta: { relevanceLanguage: "ta", regionCode: "IN" },
+  te: { relevanceLanguage: "te", regionCode: "IN" }
+};
+
+export function getYouTubeSearchOptions(language = "en", languageExplicit = false) {
+  const code = String(language || "en").trim().toLowerCase();
+  if (!languageExplicit) return { ...YOUTUBE_LOCALES_BY_LANGUAGE.en };
+  return { ...(YOUTUBE_LOCALES_BY_LANGUAGE[code] || { relevanceLanguage: code, regionCode: "IN" }) };
+}
+
+async function searchVideos(query,maxResults=10,searchOptions={}){
+  const key=String(maxResults)+":"+query.trim().toLowerCase()+":"+String(searchOptions.relevanceLanguage||"en")+":"+String(searchOptions.regionCode||"IN");
+  const cached=getExpiringCache(SEARCH_CACHE,key);
+  if(cached)return cached;
+  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+    .catch((error)=>{SEARCH_CACHE.delete(key);throw error;});
+  setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);
   return promise;
 }
 async function getVideoDetails(videoIds){
-  const missing=videoIds.filter((id)=>!VIDEO_CACHE.has(id));
+  const uniqueIds=[...new Set(videoIds)];
+  const missing=uniqueIds.filter((id)=>!getExpiringCache(VIDEO_CACHE,id));
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
     const data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")});
-    for(const item of data?.items||[]) VIDEO_CACHE.set(item.id,item);
+    for(const item of data?.items||[]) setExpiringCache(VIDEO_CACHE,item.id,item,VIDEO_CACHE_TTL_MS);
   }
-  return videoIds.map((id)=>VIDEO_CACHE.get(id)).filter(Boolean);
+  return uniqueIds.map((id)=>getExpiringCache(VIDEO_CACHE,id)).filter(Boolean);
 }
 async function getChannelDetails(channelIds){
-  const missing=channelIds.filter((id)=>!CHANNEL_CACHE.has(id));
+  const uniqueIds=[...new Set(channelIds)];
+  const missing=uniqueIds.filter((id)=>!getExpiringCache(CHANNEL_CACHE,id));
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
-    const data=await youtubeRequest("channels",{part:"statistics",id:batch.join(",")});
-    for(const item of data?.items||[]) CHANNEL_CACHE.set(item.id,item);
+    const data=await youtubeRequest("channels",{part:"snippet,statistics,contentDetails",id:batch.join(",")});
+    for(const item of data?.items||[]) setExpiringCache(CHANNEL_CACHE,item.id,item,CHANNEL_CACHE_TTL_MS);
   }
-  return channelIds.map((id)=>CHANNEL_CACHE.get(id)).filter(Boolean);
+  return uniqueIds.map((id)=>getExpiringCache(CHANNEL_CACHE,id)).filter(Boolean);
 }
+function detectVideoStructure(description = "") {
+  const text = String(description || "");
+  const chapters = [...text.matchAll(/(?:^|\s)(?:[0-5]?\d:)?[0-5]?\d:[0-5]\d\s+[^\n]{2,}/gm)];
+  const hasChapterLabel = /\b(chapters?|timestamps?|timeline)\b/i.test(text);
+  const hasSyllabus = /\b(what do you learn|what you(?:'|’)ll learn|course content|curriculum|syllabus|topics covered|learning objectives|course outline)\b/i.test(text);
+  const handsOnCues = /\b(project|hands[- ]on|practice|dataset|exercise|lab|build|demo|workshop|assignment|case study|capstone)\b/i.test(text);
+  const resourceLinks = /https?:\/\//i.test(text) && /\b(github|dataset|download|repository|notebook|source code|resources)\b/i.test(text);
+  return {
+    chapterCount: Math.max(chapters.length, hasChapterLabel ? 1 : 0),
+    hasChapters: chapters.length >= 3 || hasChapterLabel,
+    hasSyllabus,
+    hasHandsOn: handsOnCues,
+    hasResourceLinks: resourceLinks
+  };
+}
+
 function toCandidate(video,channel){
   if(!video)return null;
   const durationSeconds=parseIsoDuration(video.contentDetails?.duration);
   const title=video.snippet?.title||"";
   const description=video.snippet?.description||"";
+  const structure=detectVideoStructure(description);
   return {
     videoId:video.id,title,description,tags:video.snippet?.tags||[],channelId:video.snippet?.channelId||"",
     channelTitle:video.snippet?.channelTitle||"",publishedAt:video.snippet?.publishedAt||null,
+    defaultAudioLanguage:video.snippet?.defaultAudioLanguage||video.snippet?.defaultLanguage||"",
     durationSeconds,duration:video.contentDetails?.duration||"",
     viewCount:Number(video.statistics?.viewCount||0),likeCount:Number(video.statistics?.likeCount||0),
+    commentCount:Number(video.statistics?.commentCount||0),
     subscriberCount:Number(channel?.statistics?.subscriberCount||0),
     embeddable:video.status?.embeddable!==false,
-    url:`https://www.youtube.com/watch?v=${video.id}`,embedUrl:`https://www.youtube.com/embed/${video.id}`,
+    privacyStatus:video.status?.privacyStatus||"unknown",
+    regionRestriction:video.contentDetails?.regionRestriction||{},
+    url: `https://www.youtube.com/watch?v=${video.id}`, embedUrl: `https://www.youtube.com/embed/${video.id}`,
     thumbnail:video.snippet?.thumbnails?.high?.url||video.snippet?.thumbnails?.medium?.url||video.snippet?.thumbnails?.default?.url||"",
-    isShort:/(^|[\s#])shorts?([\s#]|$)/i.test(title)||durationSeconds<=60
+    isShort:durationSeconds<=180 && /(?:#shorts?\b|\byoutube shorts?\b|\bshort-form video\b)/i.test(title + " " + description),
+    ...structure
   };
 }
 
@@ -150,14 +214,15 @@ export async function getYouTubeVideoResource(videoId) {
   return toCandidate(video, channel);
 }
 
-export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy }) {
+export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy, maxResultsPerQuery = 20 }) {
   if (!env.youtubeApiKey) return null;
 
   const queries = (searchQueries || []).slice(0, 3);
+  const boundedMaxResults = Math.max(5, Math.min(50, Number(maxResultsPerQuery) || 20));
   const items = [];
   for (const query of queries) {
     try {
-      const data = await searchVideos(query, 20);
+      const data = await searchVideos(query, boundedMaxResults);
       items.push(...(data?.items || []));
     } catch (error) {
       console.error("YouTube course search failed", { skill, query, message: error.message });
@@ -211,6 +276,111 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
   };
 }
 
+/**
+ * Broad, quota-bounded candidate collection for the normal-search curation engine.
+ * Callers cache by normalized topic and intent before invoking fan-out again.
+ */
+async function searchRecentCreatorUploads(channelIds, knownVideoIds, maxUploadsPerChannel = 10) {
+  const channels = await getChannelDetails(channelIds);
+  const uploadsLists = channels
+    .map((channel) => ({
+      channelId: channel.id,
+      uploadsPlaylistId: channel.contentDetails?.relatedPlaylists?.uploads
+    }))
+    .filter((channel) => channel.uploadsPlaylistId);
+  if (!uploadsLists.length) return [];
+
+  const pages = await Promise.all(uploadsLists.map(async (channel) => {
+    try {
+      const page = await youtubeRequest("playlistItems", {
+        part: "snippet,contentDetails,status",
+        playlistId: channel.uploadsPlaylistId,
+        maxResults: Math.max(1, Math.min(15, Number(maxUploadsPerChannel) || 10))
+      });
+      return (page?.items || [])
+        .filter((item) => item.status?.privacyStatus !== "private")
+        .map((item) => item.contentDetails?.videoId)
+        .filter(Boolean);
+    } catch (error) {
+      console.warn("YouTube creator upload expansion failed", { channelId: channel.channelId, message: error?.message || error });
+      return [];
+    }
+  }));
+  const known = new Set(knownVideoIds);
+  const newIds = [...new Set(pages.flat())].filter((id) => !known.has(id));
+  if (!newIds.length) return [];
+
+  const videos = await getVideoDetails(newIds);
+  const expandedChannelIds = [...new Set(videos.map((video) => video.snippet?.channelId).filter(Boolean))];
+  const expandedChannels = await getChannelDetails(expandedChannelIds);
+  const expandedChannelMap = new Map(expandedChannels.map((channel) => [channel.id, channel]));
+  return videos
+    .map((video) => ({
+      ...toCandidate(video, expandedChannelMap.get(video.snippet?.channelId)),
+      matchedSearchQueries: ["creator-upload-expansion"],
+      searchMatchCount: 0,
+      expandedFromChannel: true
+    }))
+    .filter((candidate) => candidate && candidate.privacyStatus === "public" && candidate.embeddable);
+}
+
+export async function searchYouTubeCurationCandidates(searchQueries, maxResultsPerQuery = 30, searchOptions = {}) {
+  if (!env.youtubeApiKey) return [];
+  const queries = [...new Set((searchQueries || []).map((query) => String(query || "").trim()).filter(Boolean))].slice(0, 8);
+  if (!queries.length) return [];
+  const boundedResults = Math.max(5, Math.min(50, Number(maxResultsPerQuery) || 30));
+  const batches = await Promise.all(queries.map(async (query) => {
+    try {
+      const data = await searchVideos(query, boundedResults, searchOptions);
+      return { query, items: data?.items || [] };
+    } catch (error) {
+      console.error("YouTube curation candidate search failed", { query, message: error?.message || error });
+      return { query, items: [] };
+    }
+  }));
+
+  const matchesById = new Map();
+  for (const batch of batches) {
+    for (const item of batch.items) {
+      const videoId = item.id?.videoId;
+      if (!videoId) continue;
+      if (!matchesById.has(videoId)) matchesById.set(videoId, { queries: [], searchItems: [] });
+      const match = matchesById.get(videoId);
+      if (!match.queries.includes(batch.query)) match.queries.push(batch.query);
+      match.searchItems.push(item);
+    }
+  }
+
+  const videoIds = [...matchesById.keys()];
+  if (!videoIds.length) return [];
+  const videoDetails = await getVideoDetails(videoIds);
+  const channelIds = [...new Set(videoDetails.map((video) => video.snippet?.channelId).filter(Boolean))];
+  const channels = await getChannelDetails(channelIds);
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+  const detailMap = new Map(videoDetails.map((video) => [video.id, video]));
+
+  const directCandidates = videoIds.map((videoId) => {
+    const video = detailMap.get(videoId);
+    if (!video) return null;
+    return {
+      ...toCandidate(video, channelMap.get(video.snippet?.channelId)),
+      matchedSearchQueries: matchesById.get(videoId).queries,
+      searchMatchCount: matchesById.get(videoId).queries.length
+    };
+  }).filter(Boolean);
+
+  // Expand a small number of relevant creators through their uploads playlists.
+  // These playlistItems/videos calls are substantially cheaper than search.list calls.
+  const expansionChannelIds = [];
+  for (const videoId of videoIds.slice(0, 80)) {
+    const channelId = detailMap.get(videoId)?.snippet?.channelId;
+    if (channelId && !expansionChannelIds.includes(channelId)) expansionChannelIds.push(channelId);
+    if (expansionChannelIds.length >= 6) break;
+  }
+  const expandedCandidates = await searchRecentCreatorUploads(expansionChannelIds, videoIds, 10);
+  return [...directCandidates, ...expandedCandidates];
+}
+
 export async function searchYouTubeCourseRecommendations(query, maxResults = 3) {
   if (!env.youtubeApiKey) return [];
 
@@ -218,7 +388,8 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
   if (!normalizedQuery) return [];
 
   const searchQuery = normalizedQuery + " complete course tutorial";
-  const data = await searchVideos(searchQuery, 20);
+  const requestedResults = Math.max(1, Math.min(Number(maxResults) || 30, 50));
+  const data = await searchVideos(searchQuery, requestedResults);
   const items = data?.items || [];
 
   const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];
@@ -229,12 +400,13 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
   const byId = new Map(videoDetails.map((video) => [video.id, video]));
 
   const searchPolicy = {
-    minDurationMinutes: 45,
-    targetDurationMinutes: 360,
+    // Normal search is discovery, not a strict long-form course builder.
+    minDurationMinutes: 1,
+    targetDurationMinutes: 60,
     maxDurationMinutes: 1440,
     excludeShorts: true,
     requireEmbeddable: true,
-    preferProjectBased: true,
+    preferProjectBased: false,
     preferredLanguage: "en",
     requiredTopics: [normalizedQuery]
   };
@@ -270,7 +442,7 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
       }
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(1, Math.min(Number(maxResults) || 3, 5)));
+    .slice(0, Math.max(1, Math.min(Number(maxResults) || 30, 50)));
 }
 async function attachProjectYouTubeVideos(project) {
   const queries = (project.videoSearchQueries || []).filter(Boolean).slice(0, 2);

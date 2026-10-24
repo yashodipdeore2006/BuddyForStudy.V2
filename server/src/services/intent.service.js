@@ -102,21 +102,21 @@ export function normalizeIntentInput(input = {}) {
 }
 function intentResponseSchema() {
   return {
-    type: "OBJECT",
+    type: "object",
     properties: {
-      valid: { type: "BOOLEAN" },
-      profile: { type: "OBJECT", properties: {
-        topic: { type: "STRING" }, domain: { type: "STRING" }, scope: { type: "STRING", enum: ["narrow", "broad"] },
-        goal: { type: "STRING", nullable: true, enum: ["job_ready", "exam", "project", "learn"] },
-        level: { type: "STRING", enum: ["Beginner", "Intermediate", "Advanced"] },
-        knownSkills: { type: "ARRAY", items: { type: "STRING" } }, minutesPerDay: { type: "INTEGER" },
-        deadline: { type: "STRING", nullable: true }, language: { type: "STRING" }, targetRole: { type: "STRING", nullable: true },
-        targetCompany: { type: "STRING", nullable: true }, examName: { type: "STRING", nullable: true }, examDate: { type: "STRING", nullable: true },
-        syllabusText: { type: "STRING", nullable: true }, projectIdea: { type: "STRING", nullable: true }
+      valid: { type: "boolean" },
+      profile: { type: "object", properties: {
+        topic: { type: "string" }, domain: { type: "string" }, scope: { type: "string", enum: ["narrow", "broad"] },
+        goal: { type: "string", nullable: true, enum: ["job_ready", "exam", "project", "learn"] },
+        level: { type: "string", enum: ["Beginner", "Intermediate", "Advanced"] },
+        knownSkills: { type: "array", items: { type: "string" } }, minutesPerDay: { type: "integer" },
+        deadline: { type: "string", nullable: true }, language: { type: "string" }, targetRole: { type: "string", nullable: true },
+        targetCompany: { type: "string", nullable: true }, examName: { type: "string", nullable: true }, examDate: { type: "string", nullable: true },
+        syllabusText: { type: "string", nullable: true }, projectIdea: { type: "string", nullable: true }
       }, required: ["topic", "domain", "scope", "goal", "level", "knownSkills", "minutesPerDay", "language"] },
-      confidences: { type: "OBJECT", properties: Object.fromEntries(["topic","domain","scope","goal","level","knownSkills","minutesPerDay","deadline","language","targetRole","targetCompany","examName","examDate","syllabusText","projectIdea"].map((key) => [key, { type: "NUMBER" }])) },
-      domain: { type: "STRING" }, scope: { type: "STRING", enum: ["narrow", "broad"] },
-      options: { type: "OBJECT", properties: { roles: { type: "ARRAY", items: { type: "STRING" } }, exams: { type: "ARRAY", items: { type: "STRING" } }, projectIdeas: { type: "ARRAY", items: { type: "STRING" } } } }
+      confidences: { type: "object", properties: Object.fromEntries(["topic","domain","scope","goal","level","knownSkills","minutesPerDay","deadline","language","targetRole","targetCompany","examName","examDate","syllabusText","projectIdea"].map((key) => [key, { type: "number" }])) },
+      domain: { type: "string" }, scope: { type: "string", enum: ["narrow", "broad"] },
+      options: { type: "object", properties: { roles: { type: "array", items: { type: "string" } }, exams: { type: "array", items: { type: "string" } }, projectIdeas: { type: "array", items: { type: "string" } } } }
     }, required: ["valid", "profile", "confidences", "domain", "scope", "options"]
   };
 }

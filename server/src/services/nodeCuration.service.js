@@ -117,8 +117,8 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
   let widened = false;
   try {
     result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(bounds));
-    searchCalls = Number(result?.meta?.searchCalls || requestMetrics.searchCalls || 0);
-    quotaUnits = Number(result?.meta?.quotaUnits || requestMetrics.quotaUnits || 0);
+    searchCalls = Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);
+    quotaUnits = Number(result?.meta?.quotaUnits ?? requestMetrics.quotaUnits ?? 0);
     let resources = Array.isArray(result?.resources) ? result.resources : [];
     if (!resources.length) {
       widened = true;
@@ -129,8 +129,8 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
         minPlaylistSeconds: Math.floor(bounds.minPlaylistSeconds * 0.5)
       };
       result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(widenedBounds));
-      searchCalls += Number(result?.meta?.searchCalls || requestMetrics.searchCalls || 0);
-      quotaUnits += Number(result?.meta?.quotaUnits || requestMetrics.quotaUnits || 0);
+      searchCalls += Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);
+      quotaUnits += Number(result?.meta?.quotaUnits ?? requestMetrics.quotaUnits ?? 0);
       resources = Array.isArray(result?.resources) ? result.resources : [];
     }
     const ranked = resources.map((resource) => ({ raw: resource, score: scoreOf(resource) })).sort((a, b) => b.score - a.score);

@@ -6,10 +6,12 @@ const courseCurationFeedbackSchema = new mongoose.Schema({
   normalizedQuery: { type: String, required: true, trim: true, maxlength: 200, index: true },
   event: {
     type: String,
-    enum: ["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report"],
+    enum: ["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report", "helpful", "wrong_level", "completed", "abandoned"],
     required: true,
     index: true
   },
+  skillId: { type: String, default: null, trim: true, maxlength: 160, index: true },
+  courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null, index: true },
   resourceType: { type: String, enum: ["video", "playlist", "series"], required: true },
   resourceId: { type: String, required: true, trim: true, maxlength: 200, index: true },
   engineVersion: { type: String, required: true, trim: true, maxlength: 100 },

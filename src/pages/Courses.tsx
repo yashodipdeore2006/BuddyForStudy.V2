@@ -556,7 +556,7 @@ export default function Courses() {
           method: 'POST', body: JSON.stringify({ profile }), showFeatureUpgrade: true
         });
         window.localStorage.setItem('bfs_async_roadmap_draft', draft.draftId);
-        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: unknown[]; course?: unknown }>('/api/ai/roadmap', {
+        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown }>('/api/ai/roadmap', {
           method: 'POST', body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
         });
         setAiRoadmap({
@@ -569,7 +569,7 @@ export default function Courses() {
         while (current.status !== 'ready') {
           if (current.status === 'failed') throw new Error('Roadmap build failed. Please retry.');
           await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          const polled = await apiFetch<{ status: string; result?: unknown }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
+          const polled = await apiFetch<{ draftId: string; status: string; result?: any }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
           current = polled;
           if (polled.result) setAiRoadmap(polled.result);
           if (polled.status === 'ready' && polled.result) {

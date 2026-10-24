@@ -18,6 +18,13 @@ const DEFAULT_MAX_QUERIES = 8;
 const NORMAL_SEARCH_DEFAULTS = Object.freeze({ mode: "full_course", minVideoSeconds: 10800, maxVideoSeconds: Number.MAX_SAFE_INTEGER, minPlaylistSeconds: 18000, minPlaylistItems: 8 });
 const memoryCache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
+let curationTestAdapters = null;
+
+/** Test-only dependency seam: keeps the real curation/ranking pipeline under deterministic fixtures. */
+export function __setCurationDecisionEngineAdaptersForTests(adapters = null) {
+  curationTestAdapters = adapters;
+  memoryCache.clear();
+}
 
 const SIGNAL_WEIGHTS = {
   coverage: 0.30,
@@ -146,6 +153,7 @@ function trimMemoryCache() {
   }
 }
 async function getCachedValue(key) {
+  if (curationTestAdapters?.getCache) return curationTestAdapters.getCache(key);
   const local = readMemory(key);
   if (local !== null) return local;
   try {
@@ -162,6 +170,7 @@ async function getCachedValue(key) {
   return null;
 }
 async function setCachedValue(key, kind, payload, ttlMs) {
+  if (curationTestAdapters?.setCache) return curationTestAdapters.setCache(key, kind, payload, ttlMs);
   const expiresAt = new Date(Date.now() + ttlMs);
   trimMemoryCache();
   memoryCache.set(key, { payload, expiresAt: expiresAt.getTime() });
@@ -304,6 +313,7 @@ async function getTopicSyllabus(profile) {
 }
 
 async function evaluateCandidatesWithMetadataRubric(candidates, profile, syllabus) {
+  if (curationTestAdapters?.evaluateMetadata) return curationTestAdapters.evaluateMetadata(candidates, profile, syllabus);
   if (!aiClient || !candidates.length) {
     return { byCandidateId: new Map(), source: aiClient ? "not-needed" : "not-configured", judgedCount: 0 };
   }
@@ -1330,7 +1340,9 @@ async function enrichPlaylists(candidates, profile) {
     const batch = playlists.slice(offset, offset + batchSize);
     const details = await Promise.all(batch.map(async (candidate) => {
       try {
-        const detail = await getPlaylistCourse(candidate.sourceId);
+        const detail = curationTestAdapters?.getPlaylistCourse
+          ? await curationTestAdapters.getPlaylistCourse(candidate.sourceId)
+          : await getPlaylistCourse(candidate.sourceId);
         return { id: candidate.id, detail, originalCount: candidate.itemCount };
       } catch (error) {
         console.warn("Curation playlist enrichment failed", { playlistId: candidate.sourceId, message: error?.message || error });
@@ -1361,6 +1373,7 @@ function hardGateEnriched(candidates, profile) {
   return { accepted, rejected };
 }
 async function loadLearnerFeedbackSignals(profile, candidates) {
+  if (curationTestAdapters?.loadLearnerFeedback) return curationTestAdapters.loadLearnerFeedback(profile, candidates);
   const resourceIds = [...new Set(candidates.map((candidate) => String(candidate.sourceId || "")).filter(Boolean))];
   const result = new Map();
   if (!resourceIds.length || CourseCurationFeedback.db?.readyState !== 1) return result;
@@ -1476,7 +1489,9 @@ export async function invalidateNormalSearchCurationCache(query, options = {}) {
   const profile = classifyCurationIntent(query, options);
   let settingCount = 30;
   try {
-    const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+    const setting = curationTestAdapters?.getSearchResultCount
+      ? await curationTestAdapters.getSearchResultCount()
+      : await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
     settingCount = Math.max(5, Math.min(50, Number(setting?.value) || 30));
   } catch {}
   const key = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
@@ -1573,8 +1588,12 @@ export async function curateNormalSearch(query, options = {}) {
   if (!pool) {
     const searchOptions = getYouTubeSearchOptions(profile.language, profile.languageExplicit);
     const [videoResult, playlistResult] = await withYouTubeRequestMetrics(requestMetrics, () => Promise.allSettled([
-      searchYouTubeCurationCandidates(queries, settingCount, searchOptions),
-      searchStructuredPlaylists(profile.query, Math.min(30, settingCount), searchOptions)
+      (curationTestAdapters?.searchVideos
+        ? curationTestAdapters.searchVideos(queries, settingCount, searchOptions)
+        : searchYouTubeCurationCandidates(queries, settingCount, searchOptions)),
+      (curationTestAdapters?.searchPlaylists
+        ? curationTestAdapters.searchPlaylists(profile.query, Math.min(30, settingCount), searchOptions)
+        : searchStructuredPlaylists(profile.query, Math.min(30, settingCount), searchOptions))
     ]));
     const videos = videoResult.status === "fulfilled" ? videoResult.value : [];
     let playlists = playlistResult.status === "fulfilled" ? playlistResult.value : [];
@@ -1588,7 +1607,9 @@ export async function curateNormalSearch(query, options = {}) {
     try {
       channelPlaylists = await withYouTubeRequestMetrics(
         requestMetrics,
-        () => searchChannelCoursePlaylists(topChannelIds, 5)
+        () => curationTestAdapters?.searchChannelPlaylists
+          ? curationTestAdapters.searchChannelPlaylists(topChannelIds, 5)
+          : searchChannelCoursePlaylists(topChannelIds, 5)
       );
     } catch (error) {
       console.warn("Curation channel playlist expansion unavailable", { query: profile.normalizedQuery, message: error?.message || error });

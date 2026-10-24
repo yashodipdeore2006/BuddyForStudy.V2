@@ -3,6 +3,7 @@ import { cacheGetNumber, cacheIncrementWithExpiry, cacheSetRaw } from "../config
 import { YouTubeQuotaUsage } from "../models/YouTubeQuotaUsage.js";
 
 export const YOUTUBE_API_COST = Object.freeze({ search: 100, default: 1 });
+let testAdapters = null;
 
 export class QuotaBudgetError extends Error {
   constructor(state, message = "YouTube quota budget refused this request") {
@@ -61,6 +62,7 @@ async function readState() {
 }
 
 export async function getState() {
+  if (testAdapters?.getState) return testAdapters.getState();
   try {
     const current = await readState();
     return { state: stateFor(current.units, current.exhausted), units: current.units,
@@ -83,6 +85,7 @@ async function incrementMongo(dayKey, cost) {
 }
 
 export async function markQuotaExceeded() {
+  if (testAdapters?.markQuotaExceeded) return testAdapters.markQuotaExceeded();
   const dayKey = getPacificQuotaDay();
   const redisKey = `youtube:quota:${dayKey}:exhausted`;
   const ttl = secondsUntilPacificReset();
@@ -104,6 +107,13 @@ export async function tryConsume(cost) {
   }
   if (before.units + amount > before.budget) throw new QuotaBudgetError("exhausted");
 
+  if (testAdapters?.increment) {
+    const units = await testAdapters.increment(amount);
+    const state = stateFor(units);
+    if (units > before.budget) throw new QuotaBudgetError("exhausted");
+    return { allowed: true, cost: amount, units, state, resetDay: getPacificQuotaDay() };
+  }
+
   const dayKey = getPacificQuotaDay();
   let units;
   const redisKey = `youtube:quota:${dayKey}:units`;
@@ -119,7 +129,6 @@ export async function tryConsume(cost) {
   return { allowed: true, cost: amount, units, state, resetDay: dayKey };
 }
 
-export const __quotaTestHooks = Object.freeze({
-  stateFor,
-  secondsUntilPacificReset
-});
+export function __setQuotaTestAdapters(adapters = null) { testAdapters = adapters; }
+
+export const __quotaTestHooks = Object.freeze({ stateFor, secondsUntilPacificReset });

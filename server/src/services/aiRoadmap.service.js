@@ -10,6 +10,9 @@ import { normalizeMultiVideoLessons } from "./course.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
 import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
+import { domainPlaybooks, resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
+import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
+import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -636,10 +639,31 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
   return result;
 }
 
-export function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
+export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language }, { resolveSkill = resolveCanonicalSkill, logger = console } = {}) {
   const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
   const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
-  const orderedSkills = topoSort(enrichedSkills.map((skill) => ({
+  const graph = validateSkillGraph(enrichedSkills, { logger });
+  const domainId = resolveRoadmapDomain({ domain, topic });
+  const resolved = [];
+  const canonicalByAlias = new Map();
+  for (const skill of graph.skills) {
+    const canonical = await resolveSkill(skill.name || skill.id, {
+      domain: domainId,
+      aliases: [skill.id, ...(skill.aliases || [])]
+    });
+    resolved.push({ ...skill, id: canonical.id, canonicalSkillId: canonical.id, name: canonical.name || skill.name });
+    canonicalByAlias.set(normalizeSkillSlug(skill.id), canonical.id);
+    canonicalByAlias.set(normalizeSkillSlug(skill.name), canonical.id);
+    canonicalByAlias.set(normalizeSkillSlug(canonical.id), canonical.id);
+  }
+  const canonicalGraph = resolved.map((skill) => ({
+    ...skill,
+    prerequisites: (skill.prerequisites || []).map((prerequisite) =>
+      canonicalByAlias.get(normalizeSkillSlug(prerequisite)) || normalizeSkillSlug(prerequisite)
+    )
+  }));
+  const repairedGraph = validateSkillGraph(canonicalGraph, { logger });
+  const orderedSkills = topoSort(repairedGraph.skills.map((skill) => ({
     ...skill,
     id: normalizeId(skill.id || skill.name),
     prerequisites: (skill.prerequisites || []).map(normalizeId),
@@ -881,20 +905,27 @@ const quizResponseSchema = {
 };
 
 
-async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills }, activePrompt) {
-  if (!client) {
-    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to build a personalized roadmap.");
-    error.status = 503;
-    throw error;
-  }
-
-  const prompt = renderActivePrompt(activePrompt, {
+export async function buildRoadmapPrompt({ topic, level, goals, studyTimeMinutesPerDay, knownSkills, domain }, activePrompt, relevantSkills = []) {
+  const basePrompt = renderActivePrompt(activePrompt, {
     topic: String(topic || "").trim(),
     level: String(level || "Beginner"),
     goals: JSON.stringify(Array.isArray(goals) ? goals : []),
     studyTimeMinutesPerDay: String(studyTimeMinutesPerDay || 60),
     knownSkills: JSON.stringify(Array.isArray(knownSkills) ? knownSkills : [])
   });
+  const selectedDomain = resolveRoadmapDomain({ domain, topic });
+  return composeRoadmapPrompt({ basePrompt, domain: selectedDomain, topic, skills: relevantSkills });
+}
+
+async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills, domain }, activePrompt) {
+  if (!client) {
+    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to build a personalized roadmap.");
+    error.status = 503;
+    throw error;
+  }
+
+  const relevantSkills = await getRelevantCanonicalSkills(topic, 40);
+  const prompt = await buildRoadmapPrompt({ topic, level, goals, studyTimeMinutesPerDay, knownSkills, domain }, activePrompt, relevantSkills);
   const finalPrompt = prompt + "\n\nPLATFORM OUTPUT CONTRACT: Return one valid JSON object matching the supplied response schema, with no markdown fences or surrounding commentary. Do not invent URLs or claim a resource has been found; resource retrieval is handled by the platform after the curriculum is generated.";
 
   const response = await client.models.generateContent({

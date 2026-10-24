@@ -169,6 +169,27 @@ export default function CoursePlayer() {
   const [notesSortOrder, setNotesSortOrder] = useState<"recent" | "oldest">("recent");
   const noteEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
+  const activeLessonCompletedRef = useRef(false);
+  const sendPlayerCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
+    if (!video?.videoId || !courseId || !currentLesson) return;
+    const moduleMeta = currentLesson.module as typeof currentLesson.module & { canonicalSkillId?: string; skillIds?: string[] };
+    try {
+      await apiFetch("/api/ai/curation-feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          event,
+          query: course?.title || currentLesson.module.title || "Course lesson",
+          resourceId: video.videoId,
+          resourceType: "video",
+          skillId: moduleMeta.canonicalSkillId || moduleMeta.skillIds?.[0] || currentLesson.module.title,
+          courseId
+        })
+      });
+    } catch {
+      // Feedback is best-effort and must never block lesson progress.
+    }
+  };
+
 
 
   useEffect(() => {
@@ -350,6 +371,14 @@ export default function CoursePlayer() {
     setSidebarOpen(false);
   };
 
+  useEffect(() => {
+    const video = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] : null;
+    activeLessonCompletedRef.current = currentCompleted;
+    return () => {
+      if (video?.videoId && !activeLessonCompletedRef.current) void sendPlayerCurationFeedback("abandoned", video);
+    };
+  }, [courseId, lessonId]);
+
   const handleComplete = async () => {
     if (!courseId || !lessonId || !currentLesson || isLessonCompleted(progress?.completed_lessons || [], lessonId)) return;
     setCompleting(true);
@@ -357,6 +386,9 @@ export default function CoursePlayer() {
     try {
       const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
       setProgress(mapProgress(data.progress));
+      activeLessonCompletedRef.current = true;
+      const completedVideo = currentLesson.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] : null;
+      if (completedVideo?.videoId) void sendPlayerCurationFeedback("completed", completedVideo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to mark lesson complete.");
     } finally {
@@ -834,6 +866,16 @@ export default function CoursePlayer() {
                           No video is available for this lesson.
                         </div>
                       )}
+                    {currentLesson.lesson.type === "tutorial" && currentLesson.lesson.tutorial?.videos?.[0]?.videoId && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-300">
+                        <span>Is this resource useful?</span>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => void sendPlayerCurationFeedback("helpful", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Helpful</button>
+                          <button type="button" onClick={() => void sendPlayerCurationFeedback("outdated", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Outdated</button>
+                          <button type="button" onClick={() => void sendPlayerCurationFeedback("wrong_level", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Wrong level</button>
+                        </div>
+                      </div>
+                    )}
                     <div aria-hidden="true" className="h-3 w-full bg-[#1c1d1f]" />
                   </div>
                 )}

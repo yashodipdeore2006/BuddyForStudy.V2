@@ -16,6 +16,7 @@ const videoResourceSchema = new mongoose.Schema({
   playlistId: { type: String, default: "" },
   chapters: { type: [{ title: { type: String, default: "" }, timestampSeconds: { type: Number, min: 0 }, timestampLabel: { type: String, default: "" } }], default: [] },
   fetchedAt: { type: Date, default: null },
+  state: { type: String, enum: ["ready", "unavailable", "queued", "low_confidence", "failed"], default: "ready" },
   reason: { type: String, default: "", maxlength: 500 },
   alternatives: { type: [{ videoId: { type: String, default: "" }, playlistId: { type: String, default: "" }, title: { type: String, default: "" }, channelTitle: { type: String, default: "" }, durationSeconds: { type: Number, default: 0, min: 0 }, thumbnail: { type: String, default: "" }, fetchedAt: { type: Date, default: null }, reason: { type: String, default: "", maxlength: 500 } }], default: [] },
   startSeconds: { type: Number, min: 0 },
@@ -135,6 +136,22 @@ const courseSchema = new mongoose.Schema({
   }
 }, { timestamps: true, collection: "courses" });
 
+
+function sanitizePersistedYouTubeData(value, now = new Date()) {
+  if (Array.isArray(value)) return value.map((item) => sanitizePersistedYouTubeData(item, now));
+  if (!value || typeof value !== "object" || value instanceof Date) return value;
+  const plain = typeof value.toObject === "function" ? value.toObject() : value;
+  const output = {};
+  for (const [key, child] of Object.entries(plain)) {
+    if (/^(viewCount|views|likeCount|likes|subscriberCount|subscribers|commentCount|statistics)$/i.test(key)) continue;
+    output[key] = sanitizePersistedYouTubeData(child, now);
+  }
+  if (output.videoId || output.playlistId) {
+    output.fetchedAt = output.fetchedAt ? new Date(output.fetchedAt) : now;
+  }
+  return output;
+}
+
 async function getCourseApprovalMode() {
   const setting = await PlatformSetting.findOne({ key: "content_approval_ai_courses" }).select("value").lean();
   return setting?.value === "automatic" ? "automatic" : "manual";
@@ -164,6 +181,14 @@ async function applyAutomaticCourseApproval(course) {
 }
 
 courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
+  const now = new Date();
+  for (const module of this.modules || []) {
+    for (const lesson of module.lessons || []) {
+      if (lesson.tutorial) lesson.tutorial = sanitizePersistedYouTubeData(lesson.tutorial, now);
+      if (lesson.project) lesson.project = sanitizePersistedYouTubeData(lesson.project, now);
+    }
+  }
+  if (this.generation?.snapshot) this.generation.snapshot = sanitizePersistedYouTubeData(this.generation.snapshot, now);
   if (!this.isNew || !isGeneratedCourse(this)) return;
   if (await getCourseApprovalMode() === "automatic") {
     await applyAutomaticCourseApproval(this);

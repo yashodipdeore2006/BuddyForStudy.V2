@@ -9,6 +9,8 @@ import { recordOperationalAlert, resolveOperationalAlert } from "../models/Opera
 import { heartbeatWorker, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed } from "../services/jobHeartbeat.service.js";
 import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
 import { processScheduledAnnouncements } from "../services/announcement.service.js";
+import { refreshStaleVideos } from "../services/youtubeCompliance.service.js";
+import { rebuildSkillPriors } from "../services/skillResourcePrior.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -17,6 +19,33 @@ let intervalHandle;
 let heartbeatHandle;
 let announcementHandle;
 let announcementRunInProgress = false;
+let nightlyRunInProgress = false;
+let lastNightlyRunDate = "";
+
+async function runNightlyCurationJobs(now = new Date()) {
+  const day = now.toISOString().slice(0, 10);
+  if (!env.enableCurationComplianceWorkers || now.getUTCHours() < 2 || lastNightlyRunDate === day || nightlyRunInProgress || stopping) return;
+  nightlyRunInProgress = true;
+  try {
+    const results = await Promise.allSettled([
+      refreshStaleVideos(),
+      rebuildSkillPriors()
+    ]);
+    const failed = results.some((result) => result.status === "rejected");
+    for (let index = 0; index < results.length; index += 1) {
+      const name = index === 0 ? "youtube-stale-refresh" : "skill-resource-priors";
+      const result = results[index];
+      if (result.status === "fulfilled") {
+        console.info("[worker] nightly curation job completed", { job: name, ...result.value });
+      } else {
+        console.error("[worker] nightly curation job failed", { job: name, name: result.reason?.name || "Error", code: result.reason?.code || null, message: String(result.reason?.message || "Job failed").slice(0, 300) });
+      }
+    }
+    if (!failed) lastNightlyRunDate = day;
+  } finally {
+    nightlyRunInProgress = false;
+  }
+}
 
 async function runMaintenance() {
   if (maintenanceInProgress || stopping) {
@@ -30,6 +59,7 @@ async function runMaintenance() {
 
   try {
     const now = new Date();
+    await runNightlyCurationJobs(now);
     const [subscriptions, payments] = await Promise.all([
       UserSubscription.updateMany(
         { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lt: now } },
@@ -144,7 +174,7 @@ async function shutdown(signal) {
   if (heartbeatHandle) clearInterval(heartbeatHandle);
   if (announcementHandle) clearInterval(announcementHandle);
   try {
-    while (maintenanceInProgress || announcementRunInProgress) {
+    while (maintenanceInProgress || announcementRunInProgress || nightlyRunInProgress) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     await heartbeatWorker("stopped").catch((error) => console.error("[worker] unable to record shutdown heartbeat", { code: error?.code }));

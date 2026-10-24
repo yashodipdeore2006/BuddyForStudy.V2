@@ -1552,7 +1552,9 @@ export async function curateNormalSearch(query, options = {}) {
   const maxQueries = Math.max(1, Math.min(8, Math.floor(Number(options.maxQueries) || DEFAULT_MAX_QUERIES)));
   let settingCount = 30;
   try {
-    const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
+    const resultSetting = curationTestAdapters?.getSearchResultCount
+      ? await curationTestAdapters.getSearchResultCount()
+      : await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
     settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
   } catch {}
   const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + (profile.nodeType || "normal") + "|" + settingCount + "|" + cacheScope + "|" + overridesHash);

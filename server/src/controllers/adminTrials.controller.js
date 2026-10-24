@@ -12,9 +12,13 @@ const filterSchema = z.object({
   createdBefore: z.string().datetime().optional().or(z.literal("")),
   authProvider: z.enum(["local", "google", "local_google", "any"]).default("any"),
   emailVerified: z.enum(["yes", "no", "any"]).default("yes"),
+  phoneVerified: z.enum(["yes", "no", "any"]).default("any"),
+  marketingConsent: z.enum(["yes", "no", "any"]).default("any"),
+  profileSetup: z.enum(["complete", "skipped", "incomplete", "any"]).default("any"),
+  city: z.string().trim().max(100).optional().or(z.literal("")),
+  learningGoal: z.string().trim().max(240).optional().or(z.literal("")),
   priorTrial: z.enum(["never", "any"]).default("never"),
-  subscriptionStatus: z.enum(["none", "expired_or_cancelled", "any"]).default("none"),
-  limit: z.coerce.number().int().min(1).max(200).default(100)
+  subscriptionStatus: z.enum(["none", "expired_or_cancelled", "any"]).default("none")
 }).strict();
 
 const previewSchema = z.object({
@@ -33,12 +37,19 @@ async function resolveAudience(rawFilters) {
   const userFilter = { role: "user", isActive: true };
   if (filters.emailVerified !== "any") userFilter.emailVerified = filters.emailVerified === "yes";
   if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;
+  if (filters.phoneVerified !== "any") userFilter.phoneNumberVerified = filters.phoneVerified === "yes";
+  if (filters.marketingConsent !== "any") userFilter.marketingEmailConsent = filters.marketingConsent === "yes";
+  if (filters.city) userFilter.city = { $regex: filters.city.replace(/[.*+?^${}()|[\\]\\]/g, "\\  if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;"), $options: "i" };
+  if (filters.learningGoal) userFilter.learningGoal = { $regex: filters.learningGoal.replace(/[.*+?^${}()|[\\]\\]/g, "\\  if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;"), $options: "i" };
+  if (filters.profileSetup === "complete") userFilter.profileSetupSkippedAt = null;
+  if (filters.profileSetup === "skipped") userFilter.profileSetupSkippedAt = { $ne: null };
+  if (filters.profileSetup === "incomplete") userFilter.$or = [{ profileSetupSkippedAt: { $ne: null } }, { city: "" }, { learningGoal: "" }];
   if (filters.createdAfter || filters.createdBefore) {
     userFilter.createdAt = {};
     if (filters.createdAfter) userFilter.createdAt.$gte = new Date(filters.createdAfter);
     if (filters.createdBefore) userFilter.createdAt.$lte = new Date(filters.createdBefore);
   }
-  const users = await User.find(userFilter).select("_id name email createdAt authProvider emailVerified").sort({ createdAt: -1 }).limit(filters.limit * 5).lean();
+  const users = await User.find(userFilter).select("_id name email createdAt authProvider emailVerified").sort({ createdAt: -1 }).lean();
   const ids = users.map((user) => user._id);
   const [subs, previousTrials] = await Promise.all([
     UserSubscription.find({ user: { $in: ids } }).select("user status currentPeriodEnd").lean(),
@@ -53,13 +64,13 @@ async function resolveAudience(rawFilters) {
     const active = sub && ["trialing", "active", "past_due"].includes(sub.status) && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > new Date());
     const existingGrant = priorSet.has(id);
     const skipReason = filters.priorTrial === "never" && existingGrant ? "Previously received a trial"
-      : filters.subscriptionStatus === "none" && active ? "Has an active subscription"
-      : filters.subscriptionStatus === "expired_or_cancelled" && (!sub || !["expired", "cancelled"].includes(sub.status)) ? "No expired/cancelled subscription"
+      : active ? "Has an active subscription"
+      : filters.subscriptionStatus === "expired_or_cancelled" && (!sub || !["expired", "cancelled", "expired_or_cancelled"].includes(sub.status)) ? "No expired/cancelled subscription"
       : "";
     if (skipReason) skipped.push({ id, name: user.name, email: user.email, reason: skipReason });
     else eligible.push({ id, name: user.name, email: user.email, createdAt: user.createdAt, authProvider: user.authProvider, emailVerified: user.emailVerified });
   }
-  return { filters, eligible: eligible.slice(0, filters.limit), skipped, totalEligibleBeforeLimit: eligible.length };
+  return { filters, eligible, skipped, totalEligibleBeforeLimit: eligible.length };
 }
 
 export async function preview(req, res, next) {

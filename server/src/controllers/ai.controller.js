@@ -6,6 +6,7 @@ import { getActivePlanForUser } from "../services/subscriptionEntitlement.servic
 import { createHash } from "node:crypto";
 import { QuizBank } from "../models/QuizBank.js";
 import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
+import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";
 
 const quizGenerationJobs = new Set();
 
@@ -67,12 +68,25 @@ async function queueNextLessonQuiz(courseId, lessonId) {
   });
 }
 
-const schema = z.object({
+const legacySchema = z.object({
   topic: z.string().trim().min(2).max(200),
   level: z.enum(["Beginner", "Intermediate", "Advanced"]).default("Beginner"),
   goals: z.array(z.string().trim().min(1)).max(20).default([]),
   studyTimeMinutesPerDay: z.number().int().min(15).max(720).default(60),
   knownSkills: z.array(z.string().trim().min(1)).max(50).default([])
+});
+const schema = legacySchema.extend({ intentProfile: IntentProfile.optional() }).transform((input) => {
+  const profile = input.intentProfile ? normalizeIntentInput(input) : null;
+  if (!profile) return input;
+  return {
+    ...input,
+    topic: profile.topic,
+    level: profile.level,
+    goals: [({ job_ready: "Career or work growth", exam: "Exam or certification", project: "Create something", learn: "Build practical skills" })[profile.goal || "learn"]],
+    studyTimeMinutesPerDay: profile.minutesPerDay,
+    knownSkills: profile.knownSkills,
+    intentProfile: profile
+  };
 });
 
 export async function usage(req, res, next) {

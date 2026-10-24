@@ -73,10 +73,7 @@ export default function Footer() {
             <Brand />
             <p>© {new Date().getFullYear()} BuddyForStudy. All rights reserved.</p>
           </div>
-          <nav aria-label="Footer legal links">
-            <Link to="/legal/privacy-policy">Privacy</Link>
-            <Link to="/legal/terms-of-service">Terms</Link>
-            <Link to="/legal">Policies</Link>
+          <nav aria-label="Footer preferences">
             <a href="#cookie-settings" onClick={(event) => { event.preventDefault(); window.dispatchEvent(new Event("bfs:open-cookie-settings")); }}>Cookie settings</a>
           </nav>
           <a className="bfs-footer-back-top" href="#root">Back to top <ArrowUpRight size={13} aria-hidden="true" /></a>

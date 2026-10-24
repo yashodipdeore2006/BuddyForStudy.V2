@@ -630,11 +630,13 @@ export async function attachYouTubeResources(course, options = {}) {
       })).filter((item) => item.videoId || item.playlistId);
       if (!items.length) items.push(sourceVideo);
       group.lessons.forEach((lesson, index) => {
-        const picked = items[index % items.length];
-        lesson.tutorial.videos = [{ ...picked, alternatives: sourceVideo.alternatives }];
-        lesson.tutorial.resources = picked.url ? [picked.url] : [];
-        lesson.tutorial.resourceStatus = "ready";
-        lesson.tutorial.selection = { algorithm: "shared-node-curation", selectedVideoId: picked.videoId, selectedVideoTitle: picked.title, cacheHit: Boolean(entry.result?.meta?.cacheHit) };
+        const start = Math.floor(index * items.length / group.lessons.length);
+        const end = Math.floor((index + 1) * items.length / group.lessons.length);
+        const assigned = items.slice(start, Math.max(start + 1, end));
+        lesson.tutorial.videos = assigned.map((picked) => ({ ...picked, alternatives: sourceVideo.alternatives }));
+        lesson.tutorial.resources = assigned.map((picked) => picked.url).filter(Boolean);
+        lesson.tutorial.resourceStatus = assigned.length ? "ready" : "unavailable";
+        lesson.tutorial.selection = assigned[0] ? { algorithm: "shared-node-curation", selectedVideoId: assigned[0].videoId, selectedVideoTitle: assigned[0].title, cacheHit: Boolean(entry.result?.meta?.cacheHit) } : null;
       });
     } else if (chapters.length >= 2) {
       const totalSeconds = Math.max(1, sourceVideo.durationSeconds);

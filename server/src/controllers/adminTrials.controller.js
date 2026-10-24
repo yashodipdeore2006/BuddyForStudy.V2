@@ -31,6 +31,7 @@ const previewSchema = z.object({
 }).strict();
 
 function actorId(req) { return req.user?.user?._id || req.user?.userId; }
+function escapeRegex(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\function actorId(req) { return req.user?.user?._id || req.user?.userId; }"); }
 
 async function resolveAudience(rawFilters) {
   const filters = filterSchema.parse(rawFilters || {});
@@ -39,8 +40,8 @@ async function resolveAudience(rawFilters) {
   if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;
   if (filters.phoneVerified !== "any") userFilter.phoneNumberVerified = filters.phoneVerified === "yes";
   if (filters.marketingConsent !== "any") userFilter.marketingEmailConsent = filters.marketingConsent === "yes";
-  if (filters.city) userFilter.city = { $regex: filters.city.replace(/[.*+?^${}()|[\\]\\]/g, "\\  if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;"), $options: "i" };
-  if (filters.learningGoal) userFilter.learningGoal = { $regex: filters.learningGoal.replace(/[.*+?^${}()|[\\]\\]/g, "\\  if (filters.authProvider !== "any") userFilter.authProvider = filters.authProvider;"), $options: "i" };
+  if (filters.city) userFilter.city = { $regex: escapeRegex(filters.city), $options: "i" };
+  if (filters.learningGoal) userFilter.learningGoal = { $regex: escapeRegex(filters.learningGoal), $options: "i" };
   if (filters.profileSetup === "complete") userFilter.profileSetupSkippedAt = null;
   if (filters.profileSetup === "skipped") userFilter.profileSetupSkippedAt = { $ne: null };
   if (filters.profileSetup === "incomplete") userFilter.$or = [{ profileSetupSkippedAt: { $ne: null } }, { city: "" }, { learningGoal: "" }];

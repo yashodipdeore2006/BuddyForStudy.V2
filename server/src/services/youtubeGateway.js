@@ -14,24 +14,23 @@ export async function youtubeRequest(endpoint, params = {}) {
     throw error;
   }
 
-  let budget;
-  try {
-    budget = await tryConsume(cost);
-    recordYouTubeRequest(endpoint, budget.state);
-  } catch (error) {
-    if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
-      recordYouTubeRequest(endpoint, error.state);
-      console.info("YouTube request refused", { endpoint, quotaState: error.state, quotaCost: cost });
-    }
-    throw error;
-  }
-
   const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
   Object.entries({ ...params, key: env.youtubeApiKey }).forEach(([key, value]) => {
     if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
   });
 
   for (let attempt = 0; ; attempt += 1) {
+    let budget;
+    try {
+      budget = await tryConsume(cost);
+      recordYouTubeRequest(endpoint, budget.state);
+    } catch (error) {
+      if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
+        recordYouTubeRequest(endpoint, error.state);
+        console.info("YouTube request refused", { endpoint, quotaState: error.state, quotaCost: cost });
+      }
+      throw error;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new Error("YouTube request timed out after 8000ms")), 8000);
     try {

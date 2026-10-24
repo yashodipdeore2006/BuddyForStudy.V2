@@ -1439,7 +1439,7 @@ export async function generateAIRoadmap(input, options = {}) {
       } catch (knowledgeBaseError) {
         if (knowledgeBaseError?.status !== 404) throw knowledgeBaseError;
         fallback = buildTopicFallback(input.topic, input.level);
-        fallback.sources = await attachYouTubeResources(fallback.course, { topic: input.topic, level: input.level, language: input.language || "en" });
+        fallback.sources = await attachYouTubeResources(fallback.course);
       }
 
       const fallbackPersonalization = {

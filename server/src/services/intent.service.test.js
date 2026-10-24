@@ -18,7 +18,7 @@ function parsed({ goal = null, confidences = {}, profile = {}, options = {} } = 
   result.questionPlan = buildQuestionPlan(result);
   return result;
 }
-const ids = (value) => value.questionPlan.map((item) => item.id);
+const ids = (value, goal = value.profile.goal || value.inferredGoal || "learn") => value.questionPlan.filter((item) => !item.when || item.when === "goal=" + goal).map((item) => item.id);
 
 test("Python for everything, then job-ready asks role and company in order", () => {
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 0 } });

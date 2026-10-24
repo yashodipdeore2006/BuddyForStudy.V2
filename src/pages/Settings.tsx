@@ -4,7 +4,7 @@ import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, ArrowUpRight, Pencil, X } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 import { routes } from "@/lib/routes";
 
@@ -98,7 +98,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [contactPhone, setContactPhone] = useState(profile?.phone_number || "");
+  const [editingPersonalInfo, setEditingPersonalInfo] = useState(false);\n  const [contactPhone, setContactPhone] = useState(profile?.phone_number || "");
   const [contactCity, setContactCity] = useState(profile?.city || "");
   const [contactLearningGoal, setContactLearningGoal] = useState(profile?.learning_goal || "");
   const [savingContact, setSavingContact] = useState(false);
@@ -433,7 +433,35 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         <a href={routes.billing()} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
       </nav>}
       <section id="account" className={embedded ? "grid gap-5" : "mt-8 scroll-mt-28 grid gap-5"}>
-        {!embedded && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] transition hover:shadow-md sm:p-7"><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Account overview</h2><p className="mt-1 text-sm text-slate-500">Your sign-in identity and learner profile.</p></div></div><div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div><div className="flex items-center justify-between gap-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div></div><a href={routes.profile()} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">Edit profile <ArrowUpRight className="h-4 w-4" /></a></div>}
+        {!embedded && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] transition hover:shadow-md sm:p-7">
+          <div className="flex items-start gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div><div className="min-w-0 flex-1"><h2 className="font-extrabold text-slate-950">Personal information</h2><p className="mt-1 text-sm text-slate-500">Your account identity and personal learning details.</p></div></div>
+          <div className="mt-5 space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div>
+          </div>
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <div className="flex items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900">Contact & learning details</h3><p className="mt-1 text-xs text-slate-500">Optional details used to personalize your learning experience.</p></div>
+              <button type="button" onClick={() => setEditingPersonalInfo((value) => !value)} aria-expanded={editingPersonalInfo} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-200 px-3.5 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-50">{editingPersonalInfo ? <><X className="h-4 w-4" />Cancel</> : <><Pencil className="h-4 w-4" />Edit</>}</button>
+            </div>
+            {contactError && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{contactError}</p>}
+            {contactSuccess && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">Personal information saved.</p>}
+            {editingPersonalInfo ? (
+              <form onSubmit={saveContactDetails} className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-semibold text-slate-700">Contact number <span className="font-normal text-slate-400">(optional)</span><input type="tel" inputMode="tel" autoComplete="tel" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} maxLength={32} className="input-field mt-1.5" placeholder="+91 98765 43210" /></label>
+                <label className="block text-sm font-semibold text-slate-700">City <span className="font-normal text-slate-400">(optional)</span><input value={contactCity} onChange={(event) => setContactCity(event.target.value)} maxLength={100} autoComplete="address-level2" className="input-field mt-1.5" placeholder="Your city" /></label>
+                <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">Learning goal <span className="font-normal text-slate-400">(optional)</span><input value={contactLearningGoal} onChange={(event) => setContactLearningGoal(event.target.value)} maxLength={240} className="input-field mt-1.5" placeholder="e.g. Become a backend developer" /></label>
+                <div className="sm:col-span-2 flex justify-end"><button type="submit" disabled={savingContact} className="btn-primary">{savingContact ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Save personal information"}</button></div>
+              </form>
+            ) : (
+              <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl bg-slate-50 p-3.5"><dt className="text-xs font-medium text-slate-500">Contact number</dt><dd className="mt-1 break-words font-semibold text-slate-900">{contactPhone || "Not added"}</dd></div>
+                <div className="rounded-xl bg-slate-50 p-3.5"><dt className="text-xs font-medium text-slate-500">City</dt><dd className="mt-1 font-semibold text-slate-900">{contactCity || "Not added"}</dd></div>
+                <div className="rounded-xl bg-slate-50 p-3.5 sm:col-span-2"><dt className="text-xs font-medium text-slate-500">Learning goal</dt><dd className="mt-1 font-semibold text-slate-900">{contactLearningGoal || "Not added"}</dd></div>
+              </dl>
+            )}
+          </div>
+        </div>}
         <div id="appearance" className="scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] transition hover:shadow-md sm:p-7"><div className="flex items-start gap-3"><div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><Sun className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Appearance</h2><p className="mt-1 text-sm text-slate-500">Choose how the interface looks on this browser.</p></div></div><div className="mt-5 grid grid-cols-3 gap-3">{(["light", "dark", "system"] as const).map((mode) => <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => setTheme(mode)} className={theme === mode ? "rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-left text-[var(--text)]" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}>{mode === "light" ? <Sun className="h-5 w-5" /> : mode === "dark" ? <Moon className="h-5 w-5" /> : <Activity className="h-5 w-5" />}<span className="mt-3 block text-sm font-bold">{mode === "system" ? "System" : mode[0].toUpperCase() + mode.slice(1)}</span></button>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">Theme preference is saved in this browser.</p></div>
       </section>
 
@@ -576,40 +604,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
               <div className="flex items-start gap-3">
                 <Smartphone className="mt-0.5 h-5 w-5 text-slate-400" />
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-900">Desktop notifications</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">Get important learning updates and reminders from BuddyForStudy on this browser.</p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 p-4">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900">Browser push notifications</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    {pushActiveOnThisBrowser
-                      ? "Enabled for this account and subscribed on this browser."
-                      : notifPrefs.pushEnabled
-                        ? "Your account preference is on, but this browser still needs to be connected."
-                        : "Turn on to receive browser notifications on this device."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={notifPrefs.pushEnabled}
-                  aria-label="Browser push notifications"
-                  disabled={savingPush || (!notifPrefs.pushEnabled && !browserPushCanRequest)}
-                  onClick={() => void handlePushToggle(!notifPrefs.pushEnabled)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed ${notifPrefs.pushEnabled ? "bg-violet-600" : "bg-slate-300"}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${notifPrefs.pushEnabled ? "translate-x-6" : "translate-x-1"}`} />
-                </button>
-                {savingPush && <Loader2 className="h-4 w-4 animate-spin text-violet-600" aria-label="Updating push notifications" />}
-              </div>
-              {notifPrefs.pushEnabled && !browserPushSubscribed && browserPushCanRequest && (
-                <button type="button" disabled={savingPush} onClick={() => void handlePushToggle(true)} className="btn-primary mt-3">
-                  {savingPush ? "Connecting this browser…" : "Connect this browser"}
-                </button>
-              )}
-              <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">
+                  <h3 className="font-semibold text-slate-             <p role="status" className="mt-3 rounded-xl border border-[var(--bfs-line-soft)] bg-[var(--bfs-surface-soft)] px-3.5 py-3 text-xs leading-5 text-[var(--bfs-muted)]">
                 {getBrowserPushStatusMessage(browserPushPermission, pushAvailable)}
               </p>
             </div>

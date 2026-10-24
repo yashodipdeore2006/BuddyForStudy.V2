@@ -67,6 +67,7 @@ test("roadmap syllabus injection builds equal-weight modules without calling Gem
   assert.deepEqual(syllabus.modules.map((item) => item.name), ["Runtime", "Modules"]);
   assert.deepEqual(syllabus.modules.map((item) => item.weight), [1, 1]);
   assert.equal(syllabus.source, "roadmap-skill");
+  assert.ok(syllabus.modules.every((module) => module.keyConcepts.length > 0), "each injected topic becomes a bounded syllabus module");
 });
 
 test("node cache is isolated from normal search and a second call uses zero search quota", async () => {

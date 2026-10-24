@@ -377,7 +377,7 @@ export default function CoursePlayer() {
     return () => {
       if (video?.videoId && !activeLessonCompletedRef.current) void sendPlayerCurationFeedback("abandoned", video);
     };
-  }, [courseId, lessonId, currentLesson, progress?.completed_lessons]);
+  }, [courseId, lessonId]);
 
   const handleComplete = async () => {
     if (!courseId || !lessonId || !currentLesson || isLessonCompleted(progress?.completed_lessons || [], lessonId)) return;

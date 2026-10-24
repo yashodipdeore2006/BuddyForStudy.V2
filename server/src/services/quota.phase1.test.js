@@ -110,6 +110,9 @@ test("direct YouTube fetch is centralized in the gateway", async () => {
 });
 
 test("combined search stays off by default and can be exercised with mocks when enabled", async () => {
+  quotaUnits = 0;
+  quotaState = "ok";
+  exhausted = false;
   const { env } = await import("../config/env.js");
   assert.equal(env.ytCombinedSearch, false);
   const youtube = await import("./youtube.service.js");

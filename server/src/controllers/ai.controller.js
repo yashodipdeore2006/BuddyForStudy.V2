@@ -75,9 +75,16 @@ const legacySchema = z.object({
   studyTimeMinutesPerDay: z.number().int().min(15).max(720).default(60),
   knownSkills: z.array(z.string().trim().min(1)).max(50).default([])
 });
-const schema = legacySchema.extend({ intentProfile: IntentProfile.optional() }).transform((input) => {
-  const profile = input.intentProfile ? normalizeIntentInput(input) : null;
-  if (!profile) return input;
+const schema = z.object({
+  topic: z.string().trim().min(2).max(200).optional(),
+  level: z.enum(["Beginner", "Intermediate", "Advanced"]).optional(),
+  goals: z.array(z.string().trim().min(1)).max(20).optional(),
+  studyTimeMinutesPerDay: z.number().int().min(15).max(720).optional(),
+  knownSkills: z.array(z.string().trim().min(1)).max(50).optional(),
+  intentProfile: IntentProfile.optional()
+}).transform((input) => {
+  if (!input.intentProfile) return legacySchema.parse(input);
+  const profile = normalizeIntentInput(input);
   return {
     ...input,
     topic: profile.topic,

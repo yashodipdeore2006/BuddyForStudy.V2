@@ -14,6 +14,7 @@ export function getYouTubeEmbedUrl(videoId: string, options: { autoplay?: boolea
     controls: "0",
     disablekb: "1",
     fs: "0",
+    enablejsapi: "1",
     iv_load_policy: "3",
     modestbranding: "1",
     rel: "0",

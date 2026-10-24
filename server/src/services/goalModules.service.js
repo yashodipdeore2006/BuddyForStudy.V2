@@ -188,7 +188,8 @@ export function buildSchedule(modules = [], { minutesPerDay = 60, deadline = nul
   const endDate = deadline || examDate;
   const lessons = modules.flatMap((module) => module.lessons || []);
   const estimatedMinutes = lessons.reduce((sum, lesson) => sum + Math.max(15, Number(lesson.durationMinutes || lesson.tutorial?.durationMinutes?.targetMinutes || lesson.project?.estimatedMinutes || (lesson.type === "quiz" ? 20 : 45))), 0);
-  const nowMs = now instanceof Date ? now.getTime() : Date.parse(now);\n  const availableDays = endDate ? Math.max(0, Math.ceil((Date.parse(endDate) - nowMs) / 86400000)) : null;
+  const nowMs = now instanceof Date ? now.getTime() : Date.parse(now);
+  const availableDays = endDate ? Math.max(0, Math.ceil((Date.parse(endDate) - nowMs) / 86400000)) : null;
   const availableStudyDays = availableDays === null ? null : Math.floor(availableDays / 7) * daysPerWeek + Math.min(daysPerWeek, availableDays % 7);
   const requiredDailyMinutes = availableStudyDays > 0 ? Math.ceil(estimatedMinutes / availableStudyDays) : null;
   const scheduleWarning = requiredDailyMinutes !== null && requiredDailyMinutes > dailyMinutes * 1.5

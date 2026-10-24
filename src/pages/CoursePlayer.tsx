@@ -373,7 +373,7 @@ export default function CoursePlayer() {
 
   useEffect(() => {
     const video = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] : null;
-    activeLessonCompletedRef.current = currentCompleted;
+    activeLessonCompletedRef.current = lessonId ? isLessonCompleted(progress?.completed_lessons || [], lessonId) : false;
     return () => {
       if (video?.videoId && !activeLessonCompletedRef.current) void sendPlayerCurationFeedback("abandoned", video);
     };

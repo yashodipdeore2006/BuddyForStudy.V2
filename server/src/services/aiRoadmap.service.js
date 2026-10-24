@@ -636,7 +636,7 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
   return result;
 }
 
-function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
+export function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills }) {
   const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
   const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
   const orderedSkills = topoSort(enrichedSkills.map((skill) => ({

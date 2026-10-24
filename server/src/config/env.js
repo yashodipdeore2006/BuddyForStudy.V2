@@ -41,5 +41,17 @@ export const env = {
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
   redisUrl: process.env.REDIS_URL || "",
   sentryDsn: process.env.SENTRY_DSN || "",
-  sentryTracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1)
+  sentryTracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0.1),
+
+  // Build with AI v2 rollout controls. All feature flags are opt-in.
+  useCurationEngineForAi: process.env.USE_CURATION_ENGINE_FOR_AI === "true",
+  intentV2: process.env.INTENT_V2 === "true",
+  asyncRoadmap: process.env.ASYNC_ROADMAP === "true",
+  ytCombinedSearch: process.env.YT_COMBINED_SEARCH === "true",
+  enableTrustedChannels: process.env.ENABLE_TRUSTED_CHANNELS === "true",
+  aiPrivateCoursesSkipReview: process.env.AI_PRIVATE_COURSES_SKIP_REVIEW === "true",
+  ytDailyQuotaBudget: Math.max(1, Number(process.env.YT_DAILY_QUOTA_BUDGET || 9000)),
+  ytSoftLimitPct: Math.max(1, Math.min(100, Number(process.env.YT_SOFT_LIMIT_PCT || 80))),
+  nodeCacheTtlDays: Math.max(1, Math.min(25, Number(process.env.NODE_CACHE_TTL_DAYS || 14))),
+  nodeConcurrency: Math.max(1, Number(process.env.NODE_CONCURRENCY || 3))
 };

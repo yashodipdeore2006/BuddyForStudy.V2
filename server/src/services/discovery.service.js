@@ -5,6 +5,7 @@ import { getYouTubeVideoResource, searchBestYouTubeCourse } from "./youtube.serv
 import { Course } from "../models/Course.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
+import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
 
 const cache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
@@ -642,6 +643,7 @@ async function youtubeRequest(endpoint, params) {
   }
   const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
   Object.entries({ ...params, key: env.youtubeApiKey }).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+  recordYouTubeRequest(endpoint);
   const response = await fetch(url, {
     headers: {
       "x-goog-api-key": env.youtubeApiKey

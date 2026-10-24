@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
@@ -6,6 +6,7 @@ import { PlatformSetting } from "../models/PlatformSetting.js";
 import { CourseCurationCache } from "../models/CourseCurationCache.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./youtube.service.js";
+import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
 const ENGINE_VERSION = "course-curation-decision-engine-v1.7";
@@ -1483,7 +1484,25 @@ export async function invalidateNormalSearchCurationCache(query, options = {}) {
  */
 export async function curateNormalSearch(query, options = {}) {
   const normalizedQuery = String(query || "").trim();
-  if (normalizedQuery.length < 2) return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
+  const requestId = typeof options.requestId === "string" && options.requestId.trim()
+    ? options.requestId.trim().slice(0, 128)
+    : randomUUID();
+  const skillId = typeof options.skillId === "string" && options.skillId.trim()
+    ? options.skillId.trim().slice(0, 120)
+    : null;
+  if (normalizedQuery.length < 2) {
+    console.info("Course curation completed", {
+      requestId,
+      skillId,
+      cacheHit: false,
+      resultCacheHit: false,
+      poolCacheHit: false,
+      searchCalls: 0,
+      quotaUnits: 0,
+      results: 0
+    });
+    return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
+  }
   const profile = classifyCurationIntent(normalizedQuery, options);
   let settingCount = 30;
   try {
@@ -1492,9 +1511,26 @@ export async function curateNormalSearch(query, options = {}) {
   } catch {}
   const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   const cached = await getCachedValue(resultKey);
-  if (cached?.resources) return { ...cached, meta: { ...(cached.meta || {}), cacheHit: true } };
+  if (cached?.resources) {
+    console.info("Course curation completed", {
+      requestId,
+      skillId,
+      query: profile.normalizedQuery,
+      version: ENGINE_VERSION,
+      candidates: cached.meta?.poolCandidates || 0,
+      results: cached.resources.length,
+      cacheHit: true,
+      resultCacheHit: true,
+      poolCacheHit: null,
+      searchCalls: 0,
+      quotaUnits: 0,
+      elapsedMs: 0
+    });
+    return { ...cached, meta: { ...(cached.meta || {}), cacheHit: true } };
+  }
 
   const startedAt = Date.now();
+  const requestMetrics = { searchCalls: 0, quotaUnits: 0 };
   const syllabus = await getTopicSyllabus(profile);
   const queries = buildCandidateQueries(profile, syllabus);
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + queries.join("|") + "|" + settingCount);
@@ -1503,10 +1539,10 @@ export async function curateNormalSearch(query, options = {}) {
   let youtubeError = "";
   if (!pool) {
     const searchOptions = getYouTubeSearchOptions(profile.language, profile.languageExplicit);
-    const [videoResult, playlistResult] = await Promise.allSettled([
+    const [videoResult, playlistResult] = await withYouTubeRequestMetrics(requestMetrics, () => Promise.allSettled([
       searchYouTubeCurationCandidates(queries, settingCount, searchOptions),
       searchStructuredPlaylists(profile.query, Math.min(30, settingCount), searchOptions)
-    ]);
+    ]));
     const videos = videoResult.status === "fulfilled" ? videoResult.value : [];
     let playlists = playlistResult.status === "fulfilled" ? playlistResult.value : [];
     if (videoResult.status === "rejected") youtubeError = videoResult.reason?.message || "YouTube video candidate search failed";
@@ -1517,7 +1553,10 @@ export async function curateNormalSearch(query, options = {}) {
     )].slice(0, 6);
     let channelPlaylists = [];
     try {
-      channelPlaylists = await searchChannelCoursePlaylists(topChannelIds, 5);
+      channelPlaylists = await withYouTubeRequestMetrics(
+        requestMetrics,
+        () => searchChannelCoursePlaylists(topChannelIds, 5)
+      );
     } catch (error) {
       console.warn("Curation channel playlist expansion unavailable", { query: profile.normalizedQuery, message: error?.message || error });
     }
@@ -1539,7 +1578,7 @@ export async function curateNormalSearch(query, options = {}) {
   }
 
   const initial = selectInitialShortlist(pool.videos || [], pool.playlists || [], profile);
-  const enriched = await enrichPlaylists(initial.shortlist, profile);
+  const enriched = await withYouTubeRequestMetrics(requestMetrics, () => enrichPlaylists(initial.shortlist, profile));
   const gates = hardGateEnriched(enriched, profile);
   const deduplicated = dedupeCandidates(gates.accepted);
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
@@ -1584,13 +1623,19 @@ export async function curateNormalSearch(query, options = {}) {
   const response = { query: normalizedQuery, resources, meta };
   await setCachedValue(resultKey, "curated-results", response, resources.length ? RESULT_TTL_MS : EMPTY_RESULT_TTL_MS);
   console.info("Course curation completed", {
+    requestId,
+    skillId,
     query: profile.normalizedQuery,
     version: ENGINE_VERSION,
     candidates: meta.poolCandidates,
     shortlisted: meta.tierBShortlist,
     eligible: meta.tierCEligible,
     results: meta.resultsShown,
+    cacheHit: Boolean(poolCacheHit),
+    resultCacheHit: false,
     poolCacheHit,
+    searchCalls: requestMetrics.searchCalls,
+    quotaUnits: requestMetrics.quotaUnits,
     elapsedMs: meta.elapsedMs
   });
   return response;

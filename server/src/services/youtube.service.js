@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
 
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
@@ -88,6 +89,7 @@ async function youtubeRequest(endpoint,params){
   if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return null;}
   const url=new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
   Object.entries({...params,key:env.youtubeApiKey}).forEach(([k,v])=>url.searchParams.set(k,String(v)));
+  recordYouTubeRequest(endpoint);
   const response=await fetch(url,{headers:{"x-goog-api-key":env.youtubeApiKey}});
   const data=await response.json();
   if(!response.ok){

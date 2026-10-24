@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Course } from "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { UserSubscription } from "../models/UserSubscription.js";
+import { TrialGrant } from "../models/TrialGrant.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -112,8 +113,8 @@ export async function verifyCoursePayment(req, res, next) {
 
 export async function createSubscriptionOrder(req, res, next) {
   try {
-    const schema = z.object({ planId: z.string().min(1) });
-    const { planId } = schema.parse(req.body);
+    const schema = z.object({ planId: z.string().min(1), trialConversionGrantId: z.string().optional(), recurringConsent: z.literal(true).optional() });
+    const { planId, trialConversionGrantId, recurringConsent } = schema.parse(req.body);
     if (!isValidObjectId(planId)) return failure(res, "Invalid planId", 400);
 
     const { SubscriptionPlan } = await import("../models/SubscriptionPlan.js");
@@ -130,7 +131,19 @@ export async function createSubscriptionOrder(req, res, next) {
         { currentPeriodEnd: { $gt: new Date() } }
       ]
     });
-    if (existingSubscription) return failure(res, "An active subscription already exists", 409);
+    let conversionGrant = null;
+    if (trialConversionGrantId) {
+      if (!isValidObjectId(trialConversionGrantId) || recurringConsent !== true) return failure(res, "Explicit recurring-payment consent is required for trial conversion.", 400);
+      conversionGrant = await TrialGrant.findOne({
+        _id: trialConversionGrantId, user: req.user.userId, status: "trialing",
+        endsAt: { $gt: new Date() }, conversionPlan: plan._id,
+        conversionConsentStatus: "pending_user_consent"
+      });
+      if (!conversionGrant) return failure(res, "This trial conversion offer is no longer eligible.", 409);
+      if (existingSubscription && !(existingSubscription.status === "trialing" && existingSubscription.provider === "manual")) return failure(res, "An active paid subscription already exists.", 409);
+    } else if (existingSubscription) {
+      return failure(res, "An active subscription or trial already exists. Use the trial conversion offer if one is available.", 409);
+    }
 
     // Do not create another provider subscription when a previous checkout is
     // still pending. This also makes retries after a page refresh idempotent
@@ -139,7 +152,8 @@ export async function createSubscriptionOrder(req, res, next) {
       user: req.user.userId,
       provider: "razorpay",
       status: "pending",
-      "metadata.checkoutType": "subscription"
+      "metadata.checkoutType": "subscription",
+      ...(conversionGrant ? { "metadata.trialConversionGrantId": String(conversionGrant._id) } : {})
     }).select("_id providerOrderId plan").populate("plan", "name price currency billingInterval").lean();
     if (pendingCheckout) {
       if (pendingCheckout.providerOrderId && pendingCheckout.plan) {
@@ -200,7 +214,7 @@ export async function createSubscriptionOrder(req, res, next) {
       provider: "razorpay",
       providerOrderId: subscription.id,
       status: "pending",
-      metadata: { checkoutType: "subscription", subscriptionId: subscription.id }
+      metadata: { checkoutType: "subscription", subscriptionId: subscription.id, ...(conversionGrant ? { trialConversionGrantId: String(conversionGrant._id), recurringConsentAt: new Date().toISOString() } : {}) }
     });
 
     return success(res, {

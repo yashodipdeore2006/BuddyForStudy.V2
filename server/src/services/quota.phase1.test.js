@@ -115,18 +115,27 @@ test("combined search stays off by default and can be exercised with mocks when 
   const youtube = await import("./youtube.service.js");
   const originalCombined = env.ytCombinedSearch;
   env.ytCombinedSearch = true;
-  let requestedType = "";
+  const requestedTypes = [];
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
-    requestedType = url.searchParams.get("type");
-    return jsonResponse({ items: [
-      { id: { videoId: "mock-video" }, snippet: { title: "Mock video" } },
+    const endpoint = url.pathname.split("/").at(-1);
+    requestedTypes.push({ endpoint, type: url.searchParams.get("type") });
+    if (endpoint === "search") return jsonResponse({ items: [
+      { id: { videoId: "mock-video" }, snippet: { title: "Mock video", channelId: "mock-channel" } },
       { id: { playlistId: "mock-playlist" }, snippet: { title: "Mock playlist" } }
     ] });
+    if (endpoint === "videos") return jsonResponse({ items: [{
+      id: "mock-video", snippet: { title: "Mock video", description: "MERN project tutorial", channelId: "mock-channel", channelTitle: "Mock channel", publishedAt: "2026-01-01T00:00:00Z", thumbnails: { high: { url: "https://mock.invalid/video.jpg" } } },
+      contentDetails: { duration: "PT45M" }, statistics: { viewCount: "1000", likeCount: "100" }, status: { embeddable: true, privacyStatus: "public" }
+    }] });
+    if (endpoint === "channels") return jsonResponse({ items: [{
+      id: "mock-channel", snippet: { title: "Mock channel" }, statistics: { subscriberCount: "100" }, contentDetails: { relatedPlaylists: { uploads: "" } }
+    }] });
+    return jsonResponse({ items: [] });
   };
   try {
     const results = await youtube.searchYouTubeCurationCandidates(["phase1 combined search test"], 5);
-    assert.equal(requestedType, "video,playlist");
+    assert.equal(requestedTypes.find((item) => item.endpoint === "search")?.type, "video,playlist");
     assert.ok(results.every((item) => item.videoId !== undefined));
   } finally {
     env.ytCombinedSearch = originalCombined;

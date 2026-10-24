@@ -421,10 +421,10 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   ];
 
   return (
-    <div className={embedded ? "space-y-6" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"}>
+    <div className={embedded ? "space-y-8" : "mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"}>
       {!embedded && <PageHeader title="Settings" subtitle="Personalize BuddyForStudy, protect your account, and control how we contact you." />}
-      {!embedded && <nav aria-label="Settings sections" className="mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-        <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><UserRound className="h-4 w-4" />Account</a>
+      {!embedded && <nav aria-label="Settings sections" className="sticky top-3 z-20 mt-6 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-lg shadow-slate-900/[0.04] backdrop-blur-xl">
+        <a href="#account" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-transparent px-4 py-3 text-sm font-semibold text-slate-600 transition hover:border-violet-100 hover:bg-violet-50 hover:text-violet-800"><UserRound className="h-4 w-4" />Account</a>
         <a href="#security" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Security</a>
         <a href="#appearance" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><Sun className="h-4 w-4" />Appearance</a>
         <a href="#privacy-consent" className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><ShieldCheck className="h-4 w-4" />Privacy & consent</a>
@@ -433,11 +433,11 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         <a href={routes.billing()} className="inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"><CreditCard className="h-4 w-4" />Billing</a>
       </nav>}
       <section id="account" className={embedded ? "grid gap-4" : "mt-6 grid gap-4"}>
-        {!embedded && <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Account overview</h2><p className="mt-1 text-sm text-slate-500">Your sign-in identity and learner profile.</p></div></div><div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div><div className="flex items-center justify-between gap-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div></div><a href={routes.profile()} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">Edit profile <ArrowUpRight className="h-4 w-4" /></a></div>}
+        {!embedded && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] transition hover:shadow-md sm:p-7"><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-50 p-2.5 text-blue-700"><UserRound className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Account overview</h2><p className="mt-1 text-sm text-slate-500">Your sign-in identity and learner profile.</p></div></div><div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Name</span><span className="font-semibold text-slate-900">{profile?.name || "—"}</span></div><div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-500">Email</span><span className="max-w-[65%] truncate font-semibold text-slate-900">{session?.user.email || "—"}</span></div><div className="flex items-center justify-between gap-3"><span className="text-slate-500">Sign-in method</span><span className="font-semibold capitalize text-slate-900">{profile?.auth_provider?.replace("_", " + ") || "—"}</span></div></div><a href={routes.profile()} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-blue-700">Edit profile <ArrowUpRight className="h-4 w-4" /></a></div>}
         <div id="appearance" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><div className="flex items-start gap-3"><div className="rounded-xl bg-violet-50 p-2.5 text-violet-700"><Sun className="h-5 w-5" /></div><div><h2 className="font-extrabold text-slate-950">Appearance</h2><p className="mt-1 text-sm text-slate-500">Choose how the interface looks on this browser.</p></div></div><div className="mt-5 grid grid-cols-3 gap-3">{(["light", "dark", "system"] as const).map((mode) => <button key={mode} type="button" aria-pressed={theme === mode} onClick={() => setTheme(mode)} className={theme === mode ? "rounded-xl border border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-left text-[var(--text)]" : "rounded-xl border border-slate-200 p-4 text-left hover:bg-slate-50"}>{mode === "light" ? <Sun className="h-5 w-5" /> : mode === "dark" ? <Moon className="h-5 w-5" /> : <Activity className="h-5 w-5" />}<span className="mt-3 block text-sm font-bold">{mode === "system" ? "System" : mode[0].toUpperCase() + mode.slice(1)}</span></button>)}</div><p className="mt-3 text-xs leading-5 text-slate-500">Theme preference is saved in this browser.</p></div>
       </section>
 
-      <section id="learning-goals" className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" aria-labelledby="learning-goal-title">
+      <section id="learning-goals" className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8" aria-labelledby="learning-goal-title">
         <div className="flex items-start gap-3">
           <div className="rounded-xl bg-[var(--accent-soft)] p-2.5 text-[var(--accent)]"><Target className="h-5 w-5" aria-hidden="true" /></div>
           <div className="min-w-0 flex-1">
@@ -469,7 +469,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       </section>
 
       {canChangePassword ? (
-        <form id="security" onSubmit={handlePasswordChange} className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form id="security" onSubmit={handlePasswordChange} className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-slate-400" />
             <h2 className="text-lg font-semibold text-slate-900">Change Password</h2>
@@ -522,7 +522,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         </div>
       )}
 
-      <section id="notifications" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+      <section id="notifications" className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8">
         <div className="flex items-start gap-3">
           <Bell className="mt-0.5 h-5 w-5 text-slate-400" />
           <div>
@@ -624,7 +624,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         </div>
       </section>
 
-      <section id="contact-details" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+      <section id="contact-details" className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8">
         <div className="flex items-start gap-3">
           <UserRound className="mt-0.5 h-5 w-5 text-slate-400" />
           <div>
@@ -650,7 +650,7 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
         </form>
       </section>
 
-      <section id="privacy-consent" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+      <section id="privacy-consent" className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 h-5 w-5 text-slate-400" />
           <div>

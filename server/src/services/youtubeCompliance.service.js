@@ -17,7 +17,11 @@ function stripStatistics(value) {
   }
   return output;
 }
-function chooseReplacement(video, apiItem, now) {
+function parseDurationSeconds(value) {
+  const match = String(value || "").match(/^PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?$/);
+  return match ? Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0) : 0;
+}
+function chooseReplacement(video, apiItem, now, byId = new Map()) {
   if (isUsable(apiItem)) {
     return {
       ...video,
@@ -25,12 +29,14 @@ function chooseReplacement(video, apiItem, now) {
       title: String(apiItem.snippet?.title || video.title || ""),
       channelTitle: String(apiItem.snippet?.channelTitle || video.channelTitle || ""),
       thumbnail: String(apiItem.snippet?.thumbnails?.high?.url || apiItem.snippet?.thumbnails?.medium?.url || apiItem.snippet?.thumbnails?.default?.url || video.thumbnail || ""),
+      durationSeconds: parseDurationSeconds(apiItem.contentDetails?.duration) || Number(video.durationSeconds) || 0,
+      publishedAt: apiItem.snippet?.publishedAt || video.publishedAt || null,
       fetchedAt: now,
       state: "ready"
     };
   }
   const replacement = (video.alternatives || []).find((item) => item.videoId && item.videoId !== video.videoId && item.state !== "unavailable");
-  if (replacement) return { ...replacement, alternatives: (video.alternatives || []).filter((item) => item.videoId !== replacement.videoId).slice(0, 2), fetchedAt: now, reason: "Swapped after the selected YouTube video became unavailable", state: "ready" };
+  if (replacement) return { ...chooseReplacement({ ...replacement, alternatives: (video.alternatives || []).filter((item) => item.videoId !== replacement.videoId).slice(0, 2) }, byId.get(String(replacement.videoId)), now, byId), reason: "Swapped after the selected YouTube video became unavailable", state: "ready" };
   return { ...video, fetchedAt: now, state: "unavailable", alternatives: [] };
 }
 function transformTree(value, byId, now) {
@@ -38,7 +44,7 @@ function transformTree(value, byId, now) {
   if (!value || typeof value !== "object" || value instanceof Date) return value;
   const plain = typeof value.toObject === "function" ? value.toObject() : value;
   if (isVideoObject(plain) && videoIdOf(plain) && byId.has(videoIdOf(plain))) {
-    const result = chooseReplacement(plain, byId.get(videoIdOf(plain)), now);
+    const result = chooseReplacement(plain, byId.get(videoIdOf(plain)), now, byId);
     return stripStatistics(result);
   }
   const output = {};

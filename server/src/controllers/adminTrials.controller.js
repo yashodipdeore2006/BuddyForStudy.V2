@@ -31,7 +31,7 @@ const previewSchema = z.object({
 }).strict();
 
 function actorId(req) { return req.user?.user?._id || req.user?.userId; }
-function escapeRegex(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\function actorId(req) { return req.user?.user?._id || req.user?.userId; }"); }
+function escapeRegex(value) { return value.split("").map((char) => ".+?^${}()|[]\\\\".includes(char) ? "\\" + char : char).join(""); }
 
 async function resolveAudience(rawFilters) {
   const filters = filterSchema.parse(rawFilters || {});

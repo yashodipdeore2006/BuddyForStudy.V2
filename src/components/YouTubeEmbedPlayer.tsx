@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
-import { Play, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 declare global {
   interface Window {
@@ -26,18 +26,31 @@ let youtubeApiPromise: Promise<void> | null = null;
 function loadYouTubeIframeApi(): Promise<void> {
   if (window.YT?.Player) return Promise.resolve();
   if (!youtubeApiPromise) {
-    youtubeApiPromise = new Promise((resolve) => {
+    youtubeApiPromise = new Promise((resolve, reject) => {
       const previous = window.onYouTubeIframeAPIReady;
+      const timeout = window.setTimeout(() => {
+        youtubeApiPromise = null;
+        reject(new Error("Timed out loading the YouTube player API"));
+      }, 15000);
+
       window.onYouTubeIframeAPIReady = () => {
         previous?.();
+        window.clearTimeout(timeout);
         resolve();
       };
-      if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
-        const script = document.createElement("script");
+
+      let script = document.querySelector<HTMLScriptElement>('script[src="https://www.youtube.com/iframe_api"]');
+      if (!script) {
+        script = document.createElement("script");
         script.src = "https://www.youtube.com/iframe_api";
         script.async = true;
         document.head.appendChild(script);
       }
+      script.addEventListener("error", () => {
+        window.clearTimeout(timeout);
+        youtubeApiPromise = null;
+        reject(new Error("Unable to load the YouTube player API"));
+      }, { once: true });
     });
   }
   return youtubeApiPromise;
@@ -57,30 +70,47 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
 
   useEffect(() => {
     setEnded(false);
+    playerRef.current = null;
     let cancelled = false;
     let player: YouTubePlayerInstance | null = null;
+    const mount = mountRef.current;
+    if (!mount || !String(videoId || "").trim()) {
+      mount?.replaceChildren();
+      return;
+    }
+
+    // Render the normal iframe immediately. Playback must still work if the
+    // optional IFrame API is blocked by an extension, network policy, or CSP.
+    const iframe = document.createElement("iframe");
+    iframe.title = title;
+    iframe.src = getYouTubeEmbedUrl(videoId, { autoplay });
+    iframe.className = "absolute inset-0 h-full w-full border-0";
+    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+    iframe.referrerPolicy = "strict-origin-when-cross-origin";
+    iframe.allowFullscreen = true;
+    iframe.id = "youtube-player-" + Math.random().toString(36).slice(2);
+    mount.replaceChildren(iframe);
+
     void loadYouTubeIframeApi().then(() => {
       if (cancelled || !mountRef.current || !window.YT) return;
-      const iframe = document.createElement("iframe");
-      iframe.title = title;
-      iframe.src = getYouTubeEmbedUrl(videoId, { autoplay });
-      iframe.className = "absolute inset-0 h-full w-full border-0";
-      iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-      iframe.referrerPolicy = "strict-origin-when-cross-origin";
-      iframe.allowFullscreen = true;
-      iframe.id = "youtube-player-" + Math.random().toString(36).slice(2);
-      mountRef.current.replaceChildren(iframe);
       player = new window.YT.Player(iframe, {
         events: {
-          onReady: () => { playerRef.current = player; },
-          onStateChange: (event) => setEnded(event.data === window.YT?.PlayerState.ENDED),
+          onReady: (event) => {
+            if (!cancelled) playerRef.current = event.target;
+          },
+          onStateChange: (event) => {
+            if (!cancelled && window.YT) setEnded(event.data === window.YT.PlayerState.ENDED);
+          },
         },
       });
       playerRef.current = player;
+    }).catch(() => {
+      // The iframe itself remains usable; only the custom end screen is unavailable.
     });
+
     return () => {
       cancelled = true;
-      try { player?.destroy(); } catch { /* player may not have initialized */ }
+      try { player?.destroy(); } catch { /* Player may not have initialized. */ }
       playerRef.current = null;
     };
   }, [videoId, title, autoplay]);

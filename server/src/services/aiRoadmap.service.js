@@ -1531,10 +1531,15 @@ export async function generateAIRoadmap(input, options = {}) {
         lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
       }));
     }
-    const sources = await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
-    await curateInterviewEvidence(built.course, { ...input, level: input.level, language: input.language || "en" });
-    applyInterviewEvidence(built.course);
-    normalizeMultiVideoLessons(built.course);
+    // Async mode persists the complete lesson skeleton first; independent node jobs attach resources later.
+    const sources = options.asyncBuild
+      ? []
+      : await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
+    if (!options.asyncBuild) {
+      await curateInterviewEvidence(built.course, { ...input, level: input.level, language: input.language || "en" });
+      applyInterviewEvidence(built.course);
+      normalizeMultiVideoLessons(built.course);
+    }
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 
     const course = await Course.create({

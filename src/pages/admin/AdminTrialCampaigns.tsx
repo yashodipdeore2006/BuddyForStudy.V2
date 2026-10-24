@@ -6,7 +6,7 @@ import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 type Plan = { _id: string; name: string; price: number; currency: string; billingInterval: string; isActive: boolean };
 type AudienceUser = { id: string; name: string; email: string; createdAt?: string; authProvider?: string; emailVerified?: boolean; reason?: string };
 type Grant = { _id: string; user?: { name?: string; email?: string }; plan?: { name?: string }; conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string }; campaignName: string; status: string; startsAt: string; endsAt: string; conversionConsentStatus: string; reason: string };
-const defaultFilters = { createdAfter: "", createdBefore: "", authProvider: "any", emailVerified: "yes", phoneVerified: "any", marketingConsent: "any", profileSetup: "any", city: "", learningGoal: "", priorTrial: "never", subscriptionStatus: "none" };
+const defaultFilters = { q: "", status: "active", role: "user", createdAfter: "", createdBefore: "", registeredAfter: "", registeredBefore: "", authProvider: "any", emailVerified: "yes", planId: "", expiresWithinDays: "", courseId: "", enrollmentStatus: "", progressMin: "", progressMax: "", inactiveDays: "", totalSpendMin: "", courseCountMin: "", planSegment: "", courseSegment: "", phoneVerified: "any", marketingConsent: "any", profileSetup: "any", city: "", learningGoal: "", priorTrial: "never", subscriptionStatus: "none" };
 const date = (value?: string) => value ? new Date(value).toLocaleString() : "—";
 
 export default function AdminTrialCampaigns() {
@@ -40,14 +40,20 @@ export default function AdminTrialCampaigns() {
   }, [planId]);
   useEffect(() => { void load(); }, [load]);
 
-  const payload = () => ({
-    campaignName, reason, trialDays, planId, conversionPlanId,
-    filters: {
-      ...filters,
-      createdAfter: filters.createdAfter ? new Date(filters.createdAfter).toISOString() : "",
-      createdBefore: filters.createdBefore ? new Date(filters.createdBefore).toISOString() : ""
+  const payload = () => {
+    const next: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(filters)) {
+      if (value === "" || value === "any") continue;
+      if (key === "emailVerified") next[key] = value === "yes" ? "yes" : value === "no" ? "no" : "any";
+      else if (["expiresWithinDays", "progressMin", "progressMax", "inactiveDays", "totalSpendMin", "courseCountMin"].includes(key)) next[key] = Number(value);
+      else if (key === "createdAfter" || key === "createdBefore") next[key] = value ? new Date(value).toISOString() : "";
+      else next[key] = value;
     }
-  });
+    // Keep trial-only safety and eligibility rules separate from email audience filters.
+    next.priorTrial = filters.priorTrial;
+    next.subscriptionStatus = filters.subscriptionStatus;
+    return { campaignName, reason, trialDays, planId, conversionPlanId, filters: next };
+  };
   async function runPreview() {
     setError(""); setMessage(""); setConfirmGrant(false); setLoading(true);
     try { setPreview(await adminFetch("/api/admin/trials/preview", { method: "POST", body: JSON.stringify(payload()) })); }
@@ -86,6 +92,20 @@ export default function AdminTrialCampaigns() {
       <section className="card p-5">
         <div className="flex items-center gap-3"><span className="rounded-xl bg-slate-100 p-2 text-slate-700"><Users className="h-5 w-5" /></span><div><h2 className="font-bold">Audience filters</h2><p className="text-xs text-slate-500">Admin accounts are always excluded.</p></div></div>
         <div className="mt-5 space-y-4">
+          <label className="block text-xs font-semibold text-slate-600">Name or email contains<input className="input-field mt-1" maxLength={100} value={filters.q} onChange={e=>changeFilter("q",e.target.value)} placeholder="Search learner name or email" /></label>
+          <label className="block text-xs font-semibold text-slate-600">Account status<select className="input-field mt-1" value={filters.status} onChange={e=>changeFilter("status",e.target.value)}><option value="active">Active accounts only</option><option value="disabled">Disabled accounts</option></select><span className="mt-1 block font-normal text-slate-400">Trial grants are restricted to active learner accounts.</span></label>
+          <label className="block text-xs font-semibold text-slate-600">Subscription status<select className="input-field mt-1" value={filters.subscriptionStatus} onChange={e=>changeFilter("subscriptionStatus",e.target.value)}><option value="none">No active subscription</option><option value="expired_or_cancelled">Expired or cancelled</option><option value="trialing">Trialing</option><option value="active">Active</option><option value="past_due">Past due</option><option value="cancelled">Cancelled</option><option value="expired">Expired</option><option value="any">Any subscription</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Specific subscription plan<select className="input-field mt-1" value={filters.planId} onChange={e=>changeFilter("planId",e.target.value)}><option value="">Any plan</option>{plans.map(p=><option key={p._id} value={p._id}>{p.name} · {p.currency} {p.price}</option>)}</select></label>
+          <label className="block text-xs font-semibold text-slate-600">Plan segment<select className="input-field mt-1" value={filters.planSegment} onChange={e=>changeFilter("planSegment",e.target.value)}><option value="">Any plan type</option><option value="premium">Highest-priced active plan</option><option value="popular">Popular plan</option><option value="paid">Paid plan</option><option value="free">Free plan</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Expires within<select className="input-field mt-1" value={filters.expiresWithinDays} onChange={e=>changeFilter("expiresWithinDays",e.target.value)}><option value="">Any expiry</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Inactive for<select className="input-field mt-1" value={filters.inactiveDays} onChange={e=>changeFilter("inactiveDays",e.target.value)}><option value="">Any activity</option><option value="7">7+ days</option><option value="14">14+ days</option><option value="30">30+ days</option><option value="60">60+ days</option><option value="90">90+ days</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Specific course ID<input className="input-field mt-1" value={filters.courseId} onChange={e=>changeFilter("courseId",e.target.value)} placeholder="Paste course ID" /></label>
+          <label className="block text-xs font-semibold text-slate-600">Enrollment status<select className="input-field mt-1" value={filters.enrollmentStatus} onChange={e=>changeFilter("enrollmentStatus",e.target.value)}><option value="">Any enrollment</option><option value="active">Active</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Minimum course progress<select className="input-field mt-1" value={filters.progressMin} onChange={e=>changeFilter("progressMin",e.target.value)}><option value="">Any progress</option><option value="25">25%+</option><option value="50">50%+</option><option value="75">75%+</option><option value="90">90%+</option><option value="100">100% complete</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Maximum course progress<select className="input-field mt-1" value={filters.progressMax} onChange={e=>changeFilter("progressMax",e.target.value)}><option value="">Any progress</option><option value="25">Up to 25%</option><option value="50">Up to 50%</option><option value="75">Up to 75%</option><option value="90">Up to 90%</option><option value="100">Up to 100%</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Total paid spend<select className="input-field mt-1" value={filters.totalSpendMin} onChange={e=>changeFilter("totalSpendMin",e.target.value)}><option value="">Any spend</option><option value="500">₹500+</option><option value="1000">₹1,000+</option><option value="2500">₹2,500+</option><option value="5000">₹5,000+</option><option value="10000">₹10,000+</option><option value="25000">₹25,000+</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Courses enrolled<select className="input-field mt-1" value={filters.courseCountMin} onChange={e=>changeFilter("courseCountMin",e.target.value)}><option value="">Any course count</option><option value="1">1+ courses</option><option value="2">2+ courses</option><option value="3">3+ courses</option><option value="4">4+ courses</option><option value="5">5+ courses</option><option value="10">10+ courses</option></select></label>
+          <label className="block text-xs font-semibold text-slate-600">Course segment<select className="input-field mt-1" value={filters.courseSegment} onChange={e=>changeFilter("courseSegment",e.target.value)}><option value="">Any course</option><option value="popular">Top 5 popular courses</option><option value="paid">Paid courses</option><option value="free">Free courses</option><option value="featured">Featured courses</option></select></label>
           <label className="block text-xs font-semibold text-slate-600">Authentication provider<select className="input-field mt-1" value={filters.authProvider} onChange={e=>changeFilter("authProvider",e.target.value)}><option value="any">Any provider</option><option value="local">Email/password</option><option value="google">Google</option><option value="local_google">Linked local + Google</option></select></label>
           <label className="block text-xs font-semibold text-slate-600">Email verification<select className="input-field mt-1" value={filters.emailVerified} onChange={e=>changeFilter("emailVerified",e.target.value)}><option value="yes">Verified only</option><option value="no">Unverified only</option><option value="any">Any</option></select></label>
           <label className="block text-xs font-semibold text-slate-600">Phone verification<select className="input-field mt-1" value={filters.phoneVerified} onChange={e=>changeFilter("phoneVerified",e.target.value)}><option value="any">Any</option><option value="yes">Verified phone only</option><option value="no">Unverified phone only</option></select></label>

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
 import {
   BookOpen,
   Bookmark,
@@ -136,10 +137,6 @@ function formatCount(value: number) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   return String(value || 0);
-}
-
-function toEmbedUrl(videoId: string) {
-  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(videoId)}?rel=0&playsinline=1`;
 }
 
 function formatMinutes(seconds: number) {
@@ -898,7 +895,7 @@ export default function YouTubeSearchFallback({
                   <div className="aspect-video w-full">
                     <iframe
                       title={currentLesson?.title || viewer.course.title}
-                      src={currentLesson?.embedUrl || ""}
+                      src={getYouTubeEmbedUrl(currentLesson?.videoId || "")}
                       className="h-full w-full"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen

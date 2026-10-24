@@ -142,11 +142,19 @@ async function runMock() {
     __setNodeCurationSelectorForTests(null);
     __setNodeCurationCacheForTests(null);
   }
-  console.log("Mode: MOCK (production selector functions; provider and persistence dependencies mocked)");
+  console.log("Mode: MOCK (INVALID AS ACCEPTANCE EVIDENCE: the new-selector decision engine is replaced by a fixture selector)");
   console.table(rows.map((row) => ({ skill: row.skill, oldPick: row.oldSelector.title || "none",
     newPick: row.newSelector.title || "none", samePick: row.sameSelectedFixture })));
-  console.log(JSON.stringify({ mode: "mock", skills: rows.length,
-    selectorAgreement: rows.filter((row) => row.sameSelectedFixture).length, rows }, null, 2));
+  const report = {
+    mode: "mock",
+    comparisonValid: false,
+    selectorAgreement: null,
+    skillsExercised: rows.length,
+    reason: "The new-selector ranking engine is replaced by __setNodeCurationSelectorForTests, so these rows do not compare the real curation algorithms. Do not use this output as Phase 8 acceptance evidence.",
+    rows
+  };
+  console.log(JSON.stringify(report, null, 2));
+  process.exitCode = 2;
 }
 async function runLive() {
   const [{ searchBestYouTubeCourse }, { curateForNode }, { getState }] = await Promise.all([

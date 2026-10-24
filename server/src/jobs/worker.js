@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { connectDatabase } from "../config/db.js";
 import { env } from "../config/env.js";
 import { UserSubscription } from "../models/UserSubscription.js";
+import { TrialGrant } from "../models/TrialGrant.js";
 import { processPendingAuditOutbox } from "../services/auditOutbox.service.js";
 import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
@@ -60,7 +61,7 @@ async function runMaintenance() {
   try {
     const now = new Date();
     await runNightlyCurationJobs(now);
-    const [subscriptions, payments] = await Promise.all([
+    const [subscriptions, payments, trialGrants] = await Promise.all([
       UserSubscription.updateMany(
         { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lt: now } },
         { $set: { status: "expired" } }
@@ -68,6 +69,10 @@ async function runMaintenance() {
       Payment.updateMany(
         { status: { $in: ["created", "pending"] }, createdAt: { $lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
         { $set: { status: "cancelled" } }
+      ),
+      TrialGrant.updateMany(
+        { status: "trialing", endsAt: { $lte: now } },
+        { $set: { status: "expired" } }
       )
     ]);
     const notificationJobs = await Promise.allSettled([
@@ -118,7 +123,7 @@ async function runMaintenance() {
     }
     await resolveOperationalAlert("background-maintenance-failure");
     await markMaintenanceCompleted().catch((error) => console.error("[worker] unable to record maintenance completion", { code: error?.code }));
-    console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);
+    console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; trial grants expired=${trialGrants.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);
   } catch (error) {
     await markMaintenanceFailed(error).catch((heartbeatError) => console.error("[worker] unable to record maintenance failure", { code: heartbeatError?.code }));
     // Do not dump provider payloads or raw objects into logs; the message is bounded.

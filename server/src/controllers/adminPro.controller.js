@@ -2087,7 +2087,7 @@ export async function updateRefund(req, res, next) {
           title: "Refund provider operation needs attention",
           message: `Refund ${String(refund._id)} could not be conclusively processed by the payment provider. Current status: ${refund.status}. Reconcile with the provider before retrying.`,
           type: "security",
-          link: "/admin/refunds",
+          link: "/admin/billing",
           eventKey: `refund-provider-attempt-failed:${refund._id}:${refund.updatedAt?.getTime?.() || Date.now()}`,
           emailSubject: "BuddyForStudy: refund provider operation needs attention",
           metadata: { refundId: String(refund._id), paymentId: String(payment._id), status: refund.status }

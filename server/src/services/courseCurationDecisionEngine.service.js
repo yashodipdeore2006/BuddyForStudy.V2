@@ -1507,7 +1507,6 @@ export async function curateNormalSearch(query, options = {}) {
   }
   const profile = classifyCurationIntent(normalizedQuery, options);
   const hasExplicitSelectionOptions = ["syllabus", "overrides", "maxQueries", "extraQueries", "cacheScope"].some((key) => Object.hasOwn(options, key));
-  const effectiveOptions = { ...options, _hasExplicitSelectionOptions: hasExplicitSelectionOptions };
   const hasInjectedSyllabus = options.syllabus && Array.isArray(options.syllabus.modules);
   if (options.overrides && typeof options.overrides === "object") {
     if (options.overrides.mode) profile.mode = options.overrides.mode;

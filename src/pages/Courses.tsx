@@ -215,6 +215,33 @@ export default function Courses() {
 
 
   useEffect(() => {
+    if (!ASYNC_ROADMAP || !session) return;
+    const draftId = window.localStorage.getItem('bfs_async_roadmap_draft');
+    if (!draftId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const resumeBuild = async () => {
+      try {
+        while (!cancelled) {
+          const status = await apiFetch<{ status: string; result?: any }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=\${Date.now()}`);
+          if (cancelled) return;
+          if (status.result) setAiRoadmap(status.result);
+          if (status.status === 'ready' || status.status === 'failed') {
+            window.localStorage.removeItem('bfs_async_roadmap_draft');
+            if (status.status === 'failed') setAiError('The roadmap build failed. Please try again.');
+            return;
+          }
+          await new Promise<void>((resolve) => { timer = window.setTimeout(resolve, 1200); });
+        }
+      } catch {
+        if (!cancelled) setAiError('Could not resume the roadmap build. You can retry from Build with AI.');
+      }
+    };
+    void resumeBuild();
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  }, [session]);
+
+  useEffect(() => {
     async function fetchCourses() {
       setLoading(true);
       try {

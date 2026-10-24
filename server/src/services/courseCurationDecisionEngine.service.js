@@ -558,7 +558,7 @@ function passesHardGates(candidate, profile) {
     if (!candidate.hasStructure) return { passed: false, reason: "no_structure_evidence" };
   } else {
     if (runtime < profile.minVideoSeconds || runtime > profile.maxVideoSeconds) return { passed: false, reason: "runtime_outside_mode" };
-    if (!hasStructureEvidence(candidate)) return { passed: false, reason: "no_structure_evidence" };
+    if (!hasStructureEvidence(candidate) && profile.nodeType !== "interview") return { passed: false, reason: "no_structure_evidence" };
   }
   const relevance = candidate.queryTermStats?.relevance ?? queryTermStats(profile.query, candidate).relevance;
   const titleRelevance = candidate.queryTermStats?.titleRelevance ?? queryTermStats(profile.query, candidate).titleRelevance;
@@ -1514,6 +1514,9 @@ export async function curateNormalSearch(query, options = {}) {
     return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
   }
   const profile = classifyCurationIntent(normalizedQuery, options);
+  // Interview resources may be short experience/question videos without playlist or chapter structure.
+  // All other hard gates remain unchanged, and the relaxation is opt-in per interview node only.
+  profile.nodeType = options.nodeType === "interview" ? "interview" : null;
   const hasExplicitSelectionOptions = ["syllabus", "overrides", "maxQueries", "extraQueries", "cacheScope"].some((key) => Object.hasOwn(options, key));
   const hasInjectedSyllabus = options.syllabus && Array.isArray(options.syllabus.modules);
   if (options.overrides && typeof options.overrides === "object") {
@@ -1537,7 +1540,7 @@ export async function curateNormalSearch(query, options = {}) {
     const resultSetting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
     settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
   } catch {}
-  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + settingCount + "|" + cacheScope + "|" + overridesHash);
+  const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + (profile.nodeType || "normal") + "|" + settingCount + "|" + cacheScope + "|" + overridesHash);
   const cached = await getCachedValue(resultKey);
   if (cached?.resources) {
     console.info("Course curation completed", {

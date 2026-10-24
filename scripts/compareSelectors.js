@@ -110,7 +110,7 @@ async function runMock() {
     channelId: video.snippet.channelId,
     channelTitle: video.snippet.channelTitle,
     publishedAt: video.snippet.publishedAt,
-    durationSeconds: Number(video.contentDetails.duration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/)[1] || 0) * 3600 + Number(video.contentDetails.duration.match(/PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?/)[2] || 0) * 60,
+    durationSeconds: Number(video.contentDetails.duration.match(/PT(\\d+)M/)?.[1] || 0) * 60,
     viewCount: Number(video.statistics.viewCount),
     likeCount: Number(video.statistics.likeCount),
     thumbnail: video.snippet.thumbnails.high.url,

@@ -18,7 +18,7 @@ function parsed({ goal = null, confidences = {}, profile = {}, options = {} } = 
   result.questionPlan = buildQuestionPlan(result);
   return result;
 }
-const ids = (value) => value.questionPlan.filter((item) => !item.when || item.when === "goal=" + (value.profile.goal || value.inferredGoal || "learn")).map((item) => item.id);
+const ids = (value) => value.questionPlan.map((item) => item.id);
 
 test("Python for everything, then job-ready asks role and company in order", () => {
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 0 } });
@@ -72,7 +72,15 @@ test("all questions can be skipped and legacy goal mapping stays compatible", ()
 test("parseIntent caches valid LLM output for normalized queries and timeout returns static plan", async () => {
   const model = memoryCache();
   let calls = 0;
-  const generate = async () => { calls += 1; return { ...parsed({ goal: "learn", confidences: { goal: 1 } }), options: { roles: [], exams: [], projectIdeas: [] } }; };
+  const generate = async () => {
+    calls += 1;
+    return {
+      valid: true,
+      profile: { topic: "Python", domain: "software_web", scope: "broad", goal: "learn", level: "Beginner", knownSkills: [], minutesPerDay: 60, language: "en", targetRole: null, targetCompany: null, examName: null, examDate: null, syllabusText: null, projectIdea: null, deadline: null },
+      confidences: { topic: 1, goal: 1 }, domain: "software_web", scope: "broad",
+      options: { roles: [], exams: [], projectIdeas: [] }
+    };
+  };
   const one = await parseIntent(" Python   ", { model, generate });
   const two = await parseIntent("python", { model, generate });
   assert.equal(one.valid, true);

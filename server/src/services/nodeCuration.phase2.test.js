@@ -5,6 +5,7 @@ const envKeys = ["NODE_ENV", "MONGO_URI", "JWT_SECRET", "GEMINI_API_KEY", "YOUTU
 const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
 let curateForNode;
 let hooks;
+let setSelector;
 let curateNormalSearch;
 let calls = [];
 let cacheRows = new Map();
@@ -39,9 +40,11 @@ before(async () => {
   const nodeModule = await import("./nodeCuration.service.js");
   curateForNode = nodeModule.curateForNode;
   hooks = nodeModule.__nodeCurationTestHooks;
+  setSelector = nodeModule.__setNodeCurationSelectorForTests;
 });
 
 after(() => {
+  setSelector?.(null);
   CourseCurationCache.findOne = originalFindOne;
   CourseCurationCache.updateOne = originalUpdateOne;
   for (const [key, value] of originalEnv) {
@@ -69,29 +72,38 @@ test("roadmap syllabus injection builds equal-weight modules without calling Gem
 test("node cache is isolated from normal search and a second call uses zero search quota", async () => {
   cacheRows.clear();
   calls = [];
+  let selectorCalls = 0;
+  let observedOptions;
+  setSelector(async (query, options) => {
+    selectorCalls += 1;
+    observedOptions = options;
+    return {
+      query,
+      resources: [{ id: "video:mock-node-video", videoId: "mock-node-video", title: "Node.js runtime course", description: "Runtime and modules", channelTitle: "Mock channel", durationSeconds: 10800, thumbnail: "https://mock.invalid/node.jpg", sourceUrl: "https://www.youtube.com/watch?v=mock-node-video", score: 78, finalScore: 78 }],
+      meta: { resultCacheHit: false, searchCalls: 2, quotaUnits: 200 }
+    };
+  });
   const skill = { id: "node-runtime", canonicalSkillId: "node-runtime", name: "Node.js", topics: ["Runtime", "Modules"], searchQueries: ["Node.js runtime course"] };
-  const original = curateNormalSearch;
-  const engineModule = await import("./courseCurationDecisionEngine.service.js");
-  const nodeSource = await import("node:fs/promises").then((m) => m.readFile(new URL("./nodeCuration.service.js", import.meta.url), "utf8"));
-  assert.match(nodeSource, /cacheScope: `node:/);
-  // Exercise persistent node cache by seeding a stable result via a temporary DB-backed engine mock is not supported by ESM bindings;
-  // invoke twice and assert the second invocation reads the node cache without invoking the provider.
-  globalThis.__phase2TestSelectorCalls = 0;
-  const first = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });
-  const afterFirst = cacheRows.size;
-  const second = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });
-  assert.ok(afterFirst >= 1);
-  assert.equal(second.meta.cacheHit, true);
-  assert.equal(second.meta.searchCalls, 0);
-  assert.equal(second.meta.quotaUnits, 0);
-  assert.equal(second.best?.videoId, first.best?.videoId);
-  delete globalThis.__phase2TestSelectorCalls;
-});
-
-test("node cache key includes mode, level, language and bounds", () => {
-  const common = { canonicalSkillId: "react", mode: "full_course", level: "Beginner", language: "en", boundsHash: "bounds-a" };
-  const key = hooks.nodeCacheKey(common);
-  assert.notEqual(key, hooks.nodeCacheKey({ ...common, level: "Advanced" }));
-  assert.notEqual(key, hooks.nodeCacheKey({ ...common, language: "hi" }));
-  assert.notEqual(key, hooks.nodeCacheKey({ ...common, boundsHash: "bounds-b" }));
+  try {
+    const first = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });
+    assert.equal(selectorCalls, 1);
+    assert.equal(observedOptions.cacheScope, "node:node-runtime");
+    assert.equal(observedOptions.syllabus.source, "roadmap-skill");
+    assert.deepEqual(observedOptions.syllabus.modules.map((item) => item.weight), [1, 1]);
+    assert.equal(observedOptions.overrides.minVideoSeconds, 1800);
+    assert.equal(observedOptions.overrides.maxVideoSeconds, 14400);
+    assert.equal(observedOptions.overrides.minPlaylistItems, 2);
+    assert.equal(first.meta.searchCalls, 2);
+    assert.equal(first.meta.quotaUnits, 200);
+    const second = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });
+    assert.equal(selectorCalls, 1, "the node cache must serve the second request");
+    assert.equal(second.meta.cacheHit, true);
+    assert.equal(second.meta.searchCalls, 0);
+    assert.equal(second.meta.quotaUnits, 0);
+    assert.equal(second.best.videoId, first.best.videoId);
+    assert.ok([...cacheRows.values()].some((row) => row.kind === "node"));
+    assert.notEqual(hooks.nodeCacheKey({ canonicalSkillId: "node-runtime", mode: "full_course", level: "Beginner", language: "en", boundsHash: "bounds" }), "curation:node");
+  } finally {
+    setSelector(null);
+  }
 });

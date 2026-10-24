@@ -85,3 +85,40 @@ export async function cacheDelete(key) {
     return false;
   }
 }
+
+/** Return null when Redis is not configured or unavailable. */
+export async function cacheIncrementWithExpiry(key, amount, ttlSeconds) {
+  const client = getClient();
+  if (!client || !client.isReady) return null;
+  try {
+    return await withTimeout((async () => {
+      const script = "local v = redis.call('INCRBY', KEYS[1], ARGV[1]); if v == tonumber(ARGV[1]) then redis.call('EXPIRE', KEYS[1], ARGV[2]); end; return v";
+      return Number(await client.eval(script, { keys: [key], arguments: [String(amount), String(ttlSeconds)] }));
+    })(), null);
+  } catch {
+    return null;
+  }
+}
+
+export async function cacheGetNumber(key) {
+  const client = getClient();
+  if (!client || !client.isReady) return null;
+  try {
+    const value = await withTimeout(client.get(key), null);
+    if (value === null) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function cacheSetRaw(key, value, ttlSeconds) {
+  const client = getClient();
+  if (!client || !client.isReady) return false;
+  try {
+    return await withTimeout(client.set(key, String(value), { EX: ttlSeconds }), false) !== false;
+  } catch {
+    return false;
+  }
+}

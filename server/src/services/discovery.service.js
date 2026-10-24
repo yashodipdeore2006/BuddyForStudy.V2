@@ -2,10 +2,10 @@ import { GoogleGenAI } from "@google/genai";
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { getYouTubeVideoResource, searchBestYouTubeCourse } from "./youtube.service.js";
+import { youtubeRequest } from "./youtubeGateway.js";
 import { Course } from "../models/Course.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
-import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
 
 const cache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
@@ -440,6 +440,7 @@ export async function getOrCreateYouTubeResourceCourse({
 
   if (type === "playlist") {
     const playlist = await getPlaylistCourse(id);
+    if (!playlist) return null;
     title = playlist.title || title;
     description = playlist.description || `A BuddyForStudy course built from the YouTube playlist “${title}”.`;
     thumbnail = playlist.thumbnail || "";
@@ -475,6 +476,7 @@ export async function getOrCreateYouTubeResourceCourse({
       throw error;
     }
     const videos = await Promise.all(videoIds.map((videoId) => getYouTubeVideoResource(videoId)));
+    if (videos.some((video) => !video)) return null;
     if (videos.some((video) => !video.embeddable || video.isShort || video.privacyStatus === "private")) {
       const error = new Error("This curated series includes a video that is unavailable, short-form, or cannot be embedded.");
       error.status = 409;
@@ -506,6 +508,7 @@ export async function getOrCreateYouTubeResourceCourse({
     durationSeconds = videos.reduce((sum, video) => sum + Number(video.durationSeconds || 0), 0);
   } else {
     const video = await getYouTubeVideoResource(id);
+    if (!video) return null;
     if (!video.embeddable) {
       const error = new Error("This YouTube video cannot be played inside BuddyForStudy");
       error.status = 409;
@@ -635,35 +638,6 @@ function setPlaylistCache(key, value, ttlMs = PLAYLIST_SEARCH_CACHE_TTL_MS) {
   playlistCache.set(key, { value, expiresAt: Date.now() + ttlMs });
 }
 
-async function youtubeRequest(endpoint, params) {
-  if (!env.youtubeApiKey) {
-    const error = new Error("YOUTUBE_API_KEY is missing");
-    error.status = 503;
-    throw error;
-  }
-  const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
-  Object.entries({ ...params, key: env.youtubeApiKey }).forEach(([key, value]) => url.searchParams.set(key, String(value)));
-  recordYouTubeRequest(endpoint);
-  const response = await fetch(url, {
-    headers: {
-      "x-goog-api-key": env.youtubeApiKey
-    }
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    const reason =
-      data?.error?.errors?.[0]?.reason ||
-      data?.error?.status ||
-      data?.error?.message ||
-      "unknown error";
-    const error = new Error(`YouTube ${endpoint} failed: ${reason}`);
-    error.status = response.status === 403 ? 503 : response.status;
-    error.code = reason;
-    throw error;
-  }
-  return data;
-}
-
 function parseDuration(value) {
   const match = String(value || "").match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
   if (!match) return 0;
@@ -677,7 +651,7 @@ function formatDuration(seconds) {
   return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(s).padStart(2, "0")}s`;
 }
 
-export async function searchStructuredPlaylists(query, maxResults, searchOptions = {}) {
+async function searchStructuredPlaylistsUnsafe(query, maxResults, searchOptions = {}) {
   const setting = await PlatformSetting.findOne({ key: "discovery_search_results_per_query" }).select("value").lean();
   const requestedCount = Math.max(1, Math.min(Number(maxResults ?? setting?.value) || 30, 30));
   const normalizedQuery = String(query || "").trim();
@@ -691,7 +665,7 @@ export async function searchStructuredPlaylists(query, maxResults, searchOptions
     const pageSize = Math.min(25, requestedCount - searchItems.length);
     const data = await youtubeRequest("search", {
       part: "snippet",
-      type: "playlist",
+      type: env.ytCombinedSearch ? "video,playlist" : "playlist",
       order: "relevance",
       q: normalizedQuery,
       maxResults: pageSize,
@@ -700,7 +674,7 @@ export async function searchStructuredPlaylists(query, maxResults, searchOptions
       regionCode: searchOptions.regionCode || "IN",
       safeSearch: "moderate"
     });
-    searchItems.push(...(data.items || []));
+    searchItems.push(...(data.items || []).filter((item) => item.id?.playlistId));
     pageToken = data.nextPageToken || "";
     if (!pageToken || !(data.items || []).length) break;
   }
@@ -795,6 +769,17 @@ export async function searchStructuredPlaylists(query, maxResults, searchOptions
   setPlaylistCache(key, results);
   return results;
 }
+export async function searchStructuredPlaylists(query, maxResults, searchOptions = {}) {
+  try { return await searchStructuredPlaylistsUnsafe(query, maxResults, searchOptions); }
+  catch (error) {
+    if (error?.name === "QuotaBudgetError") {
+      console.warn("YouTube playlist search degraded by quota guard", { quotaState: error.state });
+      return [];
+    }
+    throw error;
+  }
+}
+
 export async function searchChannelCoursePlaylists(channelIds, maxPerChannel = 5) {
   if (!env.youtubeApiKey) return [];
   const ids = [...new Set((channelIds || []).map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 6);
@@ -840,7 +825,7 @@ export async function searchChannelCoursePlaylists(channelIds, maxPerChannel = 5
   return result;
 }
 
-export async function getPlaylistCourse(playlistId) {
+async function getPlaylistCourseUnsafe(playlistId) {
   const key = `playlist:${playlistId}`;
   const cached = getPlaylistCache(key);
   if (cached !== null) return cached;
@@ -937,4 +922,15 @@ export async function getPlaylistCourse(playlistId) {
 
   setPlaylistCache(key, result, PLAYLIST_DETAIL_CACHE_TTL_MS);
   return result;
+}
+
+export async function getPlaylistCourse(playlistId) {
+  try { return await getPlaylistCourseUnsafe(playlistId); }
+  catch (error) {
+    if (error?.name === "QuotaBudgetError") {
+      console.warn("YouTube playlist detail degraded by quota guard", { quotaState: error.state });
+      return null;
+    }
+    throw error;
+  }
 }

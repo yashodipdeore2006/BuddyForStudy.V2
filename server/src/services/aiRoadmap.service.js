@@ -1383,7 +1383,7 @@ export async function generateAIRoadmap(input, options = {}) {
         lessons: (module.lessons || []).filter((lesson) => lesson.type !== "project")
       }));
     }
-    const sources = await attachYouTubeResources(built.course);
+    const sources = await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
     normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 

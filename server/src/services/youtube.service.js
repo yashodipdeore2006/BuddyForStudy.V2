@@ -1,5 +1,9 @@
 import { env } from "../config/env.js";
-import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
+import { youtubeRequest } from "./youtubeGateway.js";
+import { QuotaBudgetError } from "./quota.service.js";
+import { curateForNode } from "./nodeCuration.service.js";
+import { normalizeMultiVideoLessons } from "./course.service.js";
+import { extractCurationChapters } from "./courseCurationDecisionEngine.service.js";
 
 const SEARCH_CACHE = new Map();
 const VIDEO_CACHE = new Map();
@@ -85,23 +89,6 @@ function scoreCandidate(video,lesson,pool) {
   return {score:Number(score.toFixed(2)),relevance:Math.round(relevance),coverage:Math.round(coverage),duration:Math.round(duration),views:Math.round(views),likeRatio:Math.round(likeRatio),subscribers:Math.round(subscribers),recency:Math.round(recency)};
 }
 
-async function youtubeRequest(endpoint,params){
-  if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return null;}
-  const url=new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
-  Object.entries({...params,key:env.youtubeApiKey}).forEach(([k,v])=>url.searchParams.set(k,String(v)));
-  recordYouTubeRequest(endpoint);
-  const response=await fetch(url,{headers:{"x-goog-api-key":env.youtubeApiKey}});
-  const data=await response.json();
-  if(!response.ok){
-    const reason=data?.error?.errors?.[0]?.reason||data?.error?.status||data?.error?.message||"unknown error";
-    const error=new Error(`YouTube ${endpoint} failed: ${reason}`);
-    error.status=response.status===403?503:response.status;
-    error.code=reason;
-    throw error;
-  }
-  return data;
-}
-
 const YOUTUBE_LOCALES_BY_LANGUAGE = {
   en: { relevanceLanguage: "en", regionCode: "IN" },
   hi: { relevanceLanguage: "hi", regionCode: "IN" },
@@ -128,8 +115,9 @@ async function searchVideos(query,maxResults=10,searchOptions={}){
   const key=String(maxResults)+":"+query.trim().toLowerCase()+":"+String(searchOptions.relevanceLanguage||"en")+":"+String(searchOptions.regionCode||"IN");
   const cached=getExpiringCache(SEARCH_CACHE,key);
   if(cached)return cached;
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
-    .catch((error)=>{SEARCH_CACHE.delete(key);throw error;});
+  const promise=youtubeRequest("search",{part:"snippet",type:env.ytCombinedSearch ? "video,playlist" : "video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+    .then((data) => env.ytCombinedSearch ? { ...data, items: (data?.items || []).filter((item) => item.id?.videoId) } : data)
+    .catch((error)=>{SEARCH_CACHE.delete(key);if(error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return null;throw error;});
   setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);
   return promise;
 }
@@ -139,7 +127,9 @@ async function getVideoDetails(videoIds){
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
-    const data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")});
+    let data;
+    try { data=await youtubeRequest("videos",{part:"snippet,contentDetails,statistics,status",id:batch.join(",")}); }
+    catch (error) { if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return []; throw error; }
     for(const item of data?.items||[]) setExpiringCache(VIDEO_CACHE,item.id,item,VIDEO_CACHE_TTL_MS);
   }
   return uniqueIds.map((id)=>getExpiringCache(VIDEO_CACHE,id)).filter(Boolean);
@@ -150,7 +140,9 @@ async function getChannelDetails(channelIds){
   for(let index=0;index<missing.length;index+=50){
     const batch=missing.slice(index,index+50);
     if(!batch.length) continue;
-    const data=await youtubeRequest("channels",{part:"snippet,statistics,contentDetails",id:batch.join(",")});
+    let data;
+    try { data=await youtubeRequest("channels",{part:"snippet,statistics,contentDetails",id:batch.join(",")}); }
+    catch (error) { if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return []; throw error; }
     for(const item of data?.items||[]) setExpiringCache(CHANNEL_CACHE,item.id,item,CHANNEL_CACHE_TTL_MS);
   }
   return uniqueIds.map((id)=>getExpiringCache(CHANNEL_CACHE,id)).filter(Boolean);
@@ -199,10 +191,9 @@ export async function getYouTubeVideoResource(videoId) {
   const id = String(videoId || "").trim();
   if (!id) throw new Error("YouTube videoId is required");
 
-  const data = await youtubeRequest("videos", {
-    part: "snippet,contentDetails,statistics,status",
-    id
-  });
+  let data;
+  try { data = await youtubeRequest("videos", { part: "snippet,contentDetails,statistics,status", id }); }
+  catch (error) { if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") { console.warn("YouTube resource lookup degraded by quota guard", { quotaState: error.state }); return null; } throw error; }
   const video = data?.items?.[0];
   if (!video) {
     const error = new Error("YouTube video not found");
@@ -510,90 +501,186 @@ async function attachProjectYouTubeVideos(project) {
     .slice(0, 1);
 }
 
-export async function attachYouTubeResources(course){
-  if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return [];}
-  const lessonRequests=[];
-  const projectRequests=[];
-  for(const module of course.modules||[]) {
-    for(const lesson of module.lessons||[]) {
-      if(lesson.type==="tutorial"){
-        lessonRequests.push({
-          lesson,
-          queries:(lesson.tutorial?.searchQueries||[lesson.tutorial?.searchQuery||course.title+" "+lesson.title+" tutorial"]).slice(0,2)
-        });
-      } else if(lesson.type==="project" && lesson.project?.videoSearchQueries?.length) {
-        projectRequests.push({lesson});
+export async function attachYouTubeResources(course, options = {}) {
+  if (!env.youtubeApiKey) {
+    console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");
+    return [];
+  }
+  const allSources = [];
+  const tutorialGroups = new Map();
+  const projectRequests = [];
+  for (const module of course.modules || []) {
+    for (const lesson of module.lessons || []) {
+      if (lesson.type === "tutorial") {
+        const skillId = String(module.skillIds?.[0] || module.canonicalSkillId || module.title || lesson.skillId || lesson.title);
+        if (!tutorialGroups.has(skillId)) tutorialGroups.set(skillId, { skill: {
+          id: skillId,
+          canonicalSkillId: skillId,
+          name: String(module.title || lesson.skillName || lesson.title),
+          topics: [...new Set((module.lessons || []).filter((item) => item.type === "tutorial").flatMap((item) => item.tutorial?.requiredTopics || []))],
+          searchQueries: [...new Set((module.lessons || []).filter((item) => item.type === "tutorial").flatMap((item) => item.tutorial?.searchQueries || []))].slice(0, 2)
+        }, module, lessons: [] });
+        tutorialGroups.get(skillId).lessons.push(lesson);
+      } else if (lesson.type === "project" && lesson.project?.videoSearchQueries?.length) {
+        projectRequests.push({ lesson });
       }
     }
   }
 
-  const queryResults=await Promise.all(lessonRequests.map(async({lesson,queries})=>{
-    const items=[];
-    for(const query of queries){try{const data=await searchVideos(query,10);items.push(...(data?.items||[]));}catch(error){console.error("YouTube search failed",{lesson:lesson.title,query,message:error.message});}}
-    return {lesson,items};
-  }));
+  const useSharedEngine = options.useCurationEngineForAi ?? env.useCurationEngineForAi;
+  const groups = [...tutorialGroups.values()];
+  let cursor = 0;
+  const selectedGroups = new Array(groups.length);
+  async function worker() {
+    while (cursor < groups.length) {
+      const index = cursor++;
+      const group = groups[index];
+      if (useSharedEngine) {
+        try {
+          const targetMinutes = Math.max(...group.lessons.map((lesson) => Number(lesson.tutorial?.durationMinutes?.targetMinutes || lesson.tutorial?.searchPolicy?.targetDurationMinutes || 60)));
+          const minMinutes = Math.min(...group.lessons.map((lesson) => Number(lesson.tutorial?.durationMinutes?.minMinutes || lesson.tutorial?.searchPolicy?.minDurationMinutes || 30)));
+          const maxMinutes = Math.max(...group.lessons.map((lesson) => Number(lesson.tutorial?.durationMinutes?.maxMinutes || lesson.tutorial?.searchPolicy?.maxDurationMinutes || 120)));
+          const result = await curateForNode({
+            skill: group.skill,
+            profile: { topic: options.topic || course.title || "", level: options.level || course.level || "Beginner", language: options.language || "en" },
+            durationPolicy: { minMinutes, targetMinutes, maxMinutes }
+          });
+          if (result.best) {
+            selectedGroups[index] = { group, result, selected: result.best, alternatives: result.alternatives || [], engine: "shared" };
+            return;
+          }
+          console.info("AI node curation fallback", { skillId: group.skill.canonicalSkillId, state: result.meta?.state || "empty", cacheHit: result.meta?.cacheHit || false, searchCalls: result.meta?.searchCalls || 0, quotaUnits: result.meta?.quotaUnits || 0 });
+        } catch (error) {
+          console.warn("AI node curation failed; using legacy selector", { skillId: group.skill.canonicalSkillId, message: error?.message || String(error) });
+        }
+      }
 
-  const uniqueIds=[...new Set(queryResults.flatMap(({items})=>items.map((item)=>item.id?.videoId).filter(Boolean)))];
-  const videoDetails=await getVideoDetails(uniqueIds);
-  const channelIds=[...new Set(videoDetails.map((video)=>video.snippet?.channelId).filter(Boolean))];
-  const channels=await getChannelDetails(channelIds);
-  const channelMap=new Map(channels.map((channel)=>[channel.id,channel]));
-  const byId=new Map(videoDetails.map((video)=>[video.id,video]));
-  const allSources=[];
-
-  for(const {lesson,items} of queryResults){
-    const policy = lesson.tutorial?.searchPolicy || {};
-    const minDuration = Number(policy.minDurationMinutes || 0);
-    const maxDuration = Number(policy.maxDurationMinutes || Number.MAX_SAFE_INTEGER);
-    const allCandidates=[...new Set(items.map((item)=>item.id?.videoId).filter(Boolean))]
-      .map((id)=>toCandidate(byId.get(id),channelMap.get(byId.get(id)?.snippet?.channelId)))
-      .filter((video)=>video
-        && (!policy.excludeShorts || !video.isShort)
-        && (!policy.requireEmbeddable || video.embeddable)
-      );
-    const durationMatched=allCandidates.filter((video)=>
-      video.durationSeconds >= minDuration * 60
-      && video.durationSeconds <= maxDuration * 60
-    );
-
-    // Prefer duration-matched videos, but use relevant eligible videos as a fallback
-    // instead of leaving an entire tutorial lesson without a resource.
-    const candidates=durationMatched.length ? durationMatched : allCandidates;
-    const ranked=candidates.map((video)=>({...video,...scoreCandidate(video,lesson,candidates)})).sort((a,b)=>b.score-a.score).slice(0,3);
-    lesson.tutorial.videos=ranked;
-    lesson.tutorial.resources=ranked.map((video)=>video.url);
-    lesson.tutorial.resourceStatus=ranked.length?(durationMatched.length?"ready":"fallback-duration"):"unavailable";
-    lesson.tutorial.selection=ranked[0]?{
-      algorithm:"metadata-v2-hard-duration",
-      weights:{relevance:.30,coverage:.30,duration:.10,views:.08,likeRatio:.08,subscribers:.05,recency:.05,embeddable:.04},
-      durationPolicy: lesson.tutorial?.searchPolicy || null
-    }:null;
-    delete lesson.tutorial.searchQuery;
-    allSources.push(...ranked);
-    console.log("YouTube resources ranked",{lesson:lesson.title,candidates:candidates.length,durationMatched:durationMatched.length,selected:ranked.length,resourceStatus:lesson.tutorial.resourceStatus,topScore:ranked[0]?.score||0,topVideo:ranked[0]?.title||null});
+      const legacy = await searchBestYouTubeCourse({
+        skill: group.skill.name,
+        searchQueries: group.skill.searchQueries.length ? group.skill.searchQueries : [group.skill.name + " complete course tutorial"],
+        searchPolicy: {
+          minDurationMinutes: Math.min(...group.lessons.map((lesson) => Number(lesson.tutorial?.searchPolicy?.minDurationMinutes || 30))),
+          maxDurationMinutes: Math.max(...group.lessons.map((lesson) => Number(lesson.tutorial?.searchPolicy?.maxDurationMinutes || 120))),
+          requireEmbeddable: true,
+          excludeShorts: true,
+          requiredTopics: group.skill.topics
+        }
+      }).catch((error) => {
+        console.warn("Legacy AI node selector failed", { skillId: group.skill.canonicalSkillId, message: error?.message || String(error) });
+        return null;
+      });
+      selectedGroups[index] = { group, selected: legacy ? {
+        ...legacy,
+        videoId: legacy.videoId,
+        title: legacy.title,
+        channelTitle: legacy.channelTitle,
+        durationSeconds: legacy.durationSeconds,
+        thumbnail: legacy.thumbnail,
+        url: legacy.url,
+        fetchedAt: new Date(),
+        reason: "Legacy searchBestYouTubeCourse fallback"
+      } : null, alternatives: [], engine: "legacy" };
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(env.nodeConcurrency, Math.max(1, groups.length)) }, () => worker()));
+
+  for (const entry of selectedGroups.filter(Boolean)) {
+    const { group, selected, alternatives, engine } = entry;
+    if (!selected) {
+      for (const lesson of group.lessons) {
+        lesson.tutorial.videos = [];
+        lesson.tutorial.resources = [];
+        lesson.tutorial.resourceStatus = "queued";
+      }
+      continue;
+    }
+    const sourceVideo = {
+      videoId: selected.videoId || "",
+      playlistId: selected.playlistId || "",
+      title: selected.title || "",
+      channelTitle: selected.channelTitle || "",
+      durationSeconds: Number(selected.durationSeconds || 0),
+      thumbnail: selected.thumbnail || "",
+      chapters: selected.chapters || [],
+      fetchedAt: selected.fetchedAt || new Date(),
+      reason: selected.reason || (engine === "shared" ? "Shared course curation engine" : "Legacy selector fallback"),
+      url: selected.url || "",
+      alternatives: alternatives.slice(0, 2).map((item) => ({
+        videoId: item.videoId || "", playlistId: item.playlistId || "", title: item.title || "",
+        channelTitle: item.channelTitle || "", durationSeconds: Number(item.durationSeconds || 0),
+        thumbnail: item.thumbnail || "", fetchedAt: item.fetchedAt || new Date(),
+        reason: item.reason || "Alternative selected by curation engine"
+      }))
+    };
+    allSources.push(sourceVideo);
+
+    const chapters = Array.isArray(sourceVideo.chapters) && sourceVideo.chapters.length >= 2 ? sourceVideo.chapters : extractCurationChapters(selected.description || "");
+    if (sourceVideo.playlistId || (Array.isArray(selected.items) && selected.items.length > 1)) {
+      const items = (selected.items || []).map((item) => ({
+        videoId: item.videoId || item.id || "",
+        playlistId: selected.playlistId || "",
+        title: item.title || "",
+        channelTitle: item.channelTitle || selected.channelTitle || "",
+        durationSeconds: Number(item.durationSeconds || 0),
+        thumbnail: item.thumbnail || selected.thumbnail || "",
+        chapters: extractCurationChapters(item.description || ""),
+        fetchedAt: new Date(),
+        reason: "Ordered item from selected learning path",
+        url: item.url || ""
+      })).filter((item) => item.videoId || item.playlistId);
+      if (!items.length) items.push(sourceVideo);
+      group.lessons.forEach((lesson, index) => {
+        const start = Math.floor(index * items.length / group.lessons.length);
+        const end = Math.floor((index + 1) * items.length / group.lessons.length);
+        const assigned = items.slice(start, Math.max(start + 1, end));
+        lesson.tutorial.videos = assigned.map((picked) => ({ ...picked, alternatives: sourceVideo.alternatives }));
+        lesson.tutorial.resources = assigned.map((picked) => picked.url).filter(Boolean);
+        lesson.tutorial.resourceStatus = assigned.length ? "ready" : "unavailable";
+        lesson.tutorial.selection = assigned[0] ? { algorithm: "shared-node-curation", selectedVideoId: assigned[0].videoId, selectedVideoTitle: assigned[0].title, cacheHit: Boolean(entry.result?.meta?.cacheHit) } : null;
+      });
+    } else if (chapters.length >= 2) {
+      const totalSeconds = Math.max(1, sourceVideo.durationSeconds);
+      const lessonTokens = (lesson) => new Set(String([lesson.title, lesson.description, ...(lesson.tutorial?.requiredTopics || [])].join(" ")).toLowerCase().match(/[a-z0-9+#.]+/g) || []);
+      const chapterTokens = (chapter) => new Set(String(chapter.title || "").toLowerCase().match(/[a-z0-9+#.]+/g) || []);
+      const overlaps = (a, b) => { let count = 0; for (const token of a) if (b.has(token)) count += 1; return count; };
+      group.lessons.forEach((lesson, index) => {
+        const lessonWordSet = lessonTokens(lesson);
+        let bestChapter = chapters.map((chapter) => ({ chapter, overlap: overlaps(lessonWordSet, chapterTokens(chapter)) })).sort((a, b) => b.overlap - a.overlap)[0];
+        const chapter = bestChapter?.overlap > 0 ? bestChapter.chapter : chapters[Math.min(chapters.length - 1, Math.floor(index * chapters.length / group.lessons.length))];
+        const startSeconds = Math.max(0, Number(chapter.timestampSeconds || 0));
+        const later = chapters.find((item) => Number(item.timestampSeconds || 0) > startSeconds);
+        const endSeconds = later ? Number(later.timestampSeconds) : totalSeconds;
+        const video = { ...sourceVideo, chapters, startSeconds, endSeconds, url: sourceVideo.url ? sourceVideo.url + (sourceVideo.url.includes("?") ? "&" : "?") + "t=" + startSeconds + "s" : "" };
+        lesson.tutorial.videos = [video];
+        lesson.tutorial.resources = video.url ? [video.url] : [];
+        lesson.tutorial.resourceStatus = "ready";
+        lesson.tutorial.selection = { algorithm: "shared-node-chapters", selectedVideoId: video.videoId, selectedVideoTitle: video.title, startSeconds, endSeconds };
+      });
+    } else {
+      // Conservative single-video/no-chapters policy: attach to the first lesson only;
+      // do not imply that the same unsegmented video covers every other lesson.
+      group.lessons.forEach((lesson, index) => {
+        lesson.tutorial.videos = index === 0 ? [sourceVideo] : [];
+        lesson.tutorial.resources = index === 0 && sourceVideo.url ? [sourceVideo.url] : [];
+        lesson.tutorial.resourceStatus = index === 0 ? "ready" : "unavailable";
+        lesson.tutorial.selection = index === 0 ? { algorithm: "shared-node-single-video", selectedVideoId: sourceVideo.videoId, selectedVideoTitle: sourceVideo.title } : null;
+      });
+    }
+  }
+
+  // The legacy path for project lessons is intentionally unchanged.
   for (const { lesson } of projectRequests) {
     try {
-      const ranked = await attachProjectYouTubeVideos({
-        ...lesson.project,
-        title: lesson.title
-      });
+      const ranked = await attachProjectYouTubeVideos({ ...lesson.project, title: lesson.title });
       lesson.project.videos = ranked;
       lesson.project.resources = ranked.map((video) => video.url);
       if (ranked.length) allSources.push(...ranked);
-      console.log("Project tutorial resources ranked", {
-        lesson: lesson.title,
-        selected: ranked.length,
-        topVideo: ranked[0]?.title || null
-      });
     } catch (error) {
-      console.error("YouTube project resource attachment failed", {
-        project: lesson.title,
-        message: error instanceof Error ? error.message : String(error)
-      });
+      console.error("YouTube project resource attachment failed", { project: lesson.title, message: error instanceof Error ? error.message : String(error) });
       lesson.project.videos = [];
     }
   }
 
+  if (typeof normalizeMultiVideoLessons === "function") normalizeMultiVideoLessons(course);
   return allSources;
 }

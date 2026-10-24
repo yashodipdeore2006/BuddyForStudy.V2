@@ -12,7 +12,14 @@ const videoResourceSchema = new mongoose.Schema({
   url: { type: String, default: "" },
   thumbnail: { type: String, default: "" },
   durationSeconds: { type: Number, default: 0, min: 0 },
-  duration: { type: String, default: "" }
+  duration: { type: String, default: "" },
+  playlistId: { type: String, default: "" },
+  chapters: { type: [{ title: { type: String, default: "" }, timestampSeconds: { type: Number, min: 0 }, timestampLabel: { type: String, default: "" } }], default: [] },
+  fetchedAt: { type: Date, default: null },
+  reason: { type: String, default: "", maxlength: 500 },
+  alternatives: { type: [{ videoId: { type: String, default: "" }, playlistId: { type: String, default: "" }, title: { type: String, default: "" }, channelTitle: { type: String, default: "" }, durationSeconds: { type: Number, default: 0, min: 0 }, thumbnail: { type: String, default: "" }, fetchedAt: { type: Date, default: null }, reason: { type: String, default: "", maxlength: 500 } }], default: [] },
+  startSeconds: { type: Number, min: 0 },
+  endSeconds: { type: Number, min: 0 }
 }, { _id: false });
 const tutorialSchema = new mongoose.Schema({
   content: { type: String, default: "" },

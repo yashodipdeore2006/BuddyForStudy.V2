@@ -83,3 +83,33 @@ test("refreshing a course snapshot strips statistics while preserving fetchedAt"
   assert.equal("likeCount" in resource, false);
   assert.equal("subscriberCount" in resource, false);
 });
+
+test("refreshStaleVideos refreshes stale node-cache best resources and strips statistics", async () => {
+  const cacheEntry = {
+    _id: "node-cache-1",
+    payload: {
+      best: { videoId: "cached-video", title: "Old cached title", fetchedAt: stale, viewCount: 99, likeCount: 5 },
+      alternatives: [{ videoId: "cached-alternative", title: "Alternative", fetchedAt: now, subscriberCount: 12 }]
+    }
+  };
+  let updatedPayload;
+  const { courseModel } = modelFor([]);
+  const cacheModel = {
+    find: async () => [cacheEntry],
+    updateOne: async (_filter, update) => { updatedPayload = update.$set.payload; return { modifiedCount: 1 }; }
+  };
+  const result = await refreshStaleVideos({
+    courseModel, cacheModel, now,
+    request: async (endpoint, params) => {
+      assert.equal(endpoint, "videos");
+      assert.deepEqual(params.id.split(","), ["cached-video"]);
+      return { items: [apiVideo("cached-video", "Fresh cached title")] };
+    }
+  });
+  assert.equal(result.updatedCacheEntries, 1);
+  assert.equal(updatedPayload.best.title, "Fresh cached title");
+  assert.equal(new Date(updatedPayload.best.fetchedAt).toISOString(), now.toISOString());
+  assert.equal("viewCount" in updatedPayload.best, false);
+  assert.equal("likeCount" in updatedPayload.best, false);
+  assert.equal("subscriberCount" in updatedPayload.alternatives[0], false);
+});

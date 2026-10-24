@@ -88,11 +88,13 @@ These are candidates, not an assertion that every listed symbol is unused. Confi
 
 ## Selector comparison
 
-Run the deterministic mock comparison:
+Run the mock harness:
 
 ```sh
 node scripts/compareSelectors.js
 ```
+
+**Important limitation:** this harness currently injects a fixture selector for the new-selector path. Its output is explicitly marked `comparisonValid: false` and `selectorAgreement: null`. It is useful only for checking the legacy provider adapter and report shape; it does **not** satisfy Phase 8 selector-agreement acceptance and must not be cited as proof that the real ranking algorithms agree. The real-algorithm comparison remains outstanding and must be completed with deterministic provider/dependency adapters before the Phase 8 acceptance item can be marked done.
 
 Optional live mode is explicitly capped at five skills and makes real provider calls:
 

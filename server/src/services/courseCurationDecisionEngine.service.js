@@ -1553,8 +1553,8 @@ export async function curateNormalSearch(query, options = {}) {
   const requestMetrics = { requestId, skillId, searchCalls: 0, quotaUnits: 0 };
   
   const syllabus = hasInjectedSyllabus ? { ...options.syllabus, source: options.syllabus.source || "injected", confidence: Number(options.syllabus.confidence ?? 1), modules: options.syllabus.modules.map((item) => ({ name: String(item.name || "").trim(), weight: Number(item.weight ?? 1), keyConcepts: (item.keyConcepts || []).map(String), prerequisites: (item.prerequisites || []).map(String) })).filter((item) => item.name) } : await getTopicSyllabus(profile);
-  let queries = (hasInjectedSyllabus ? [profile.query + " full course", profile.query + " bootcamp course", profile.query + " complete course for beginners", profile.query + " course chapters syllabus", profile.query + " course " + new Date().getFullYear(), ...syllabus.modules.slice(0, 2).map((item) => profile.query + " " + item.name + " tutorial")] : buildCandidateQueries(profile, syllabus)).slice(0, maxQueries);
-  if (extraQueries.length) queries = [...new Set([...queries, ...extraQueries])].slice(0, maxQueries);
+  const generatedQueries = hasInjectedSyllabus ? [profile.query + " full course", profile.query + " bootcamp course", profile.query + " complete course for beginners", profile.query + " course chapters syllabus", profile.query + " course " + new Date().getFullYear(), ...syllabus.modules.slice(0, 2).map((item) => profile.query + " " + item.name + " tutorial")] : buildCandidateQueries(profile, syllabus);
+  let queries = [...new Set([...generatedQueries.slice(0, Math.max(1, maxQueries - extraQueries.length)), ...extraQueries])].slice(0, maxQueries);
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   let pool = await getCachedValue(poolKey);
   const poolCacheHit = Boolean(pool);

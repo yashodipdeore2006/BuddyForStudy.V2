@@ -23,7 +23,7 @@ test("Super Admin has all catalogued permissions", () => {
 test("Platform Administrator can operate users and courses but not finance or roles", () => {
   assert.equal(hasAdminPermission("platform_admin", "users.manage"), true);
   assert.equal(hasAdminPermission("platform_admin", "courses.publish"), true);
-  assert.equal(hasAdminPermission("platform_admin", "refunds.manage"), true);
+  assert.equal(hasAdminPermission("platform_admin", "refunds.manage"), false);
   assert.equal(hasAdminPermission("platform_admin", "payment_issues.manage"), true);
   assert.equal(hasAdminPermission("platform_admin", "plans.manage"), false);
   assert.equal(hasAdminPermission("platform_admin", "admin_roles.manage"), false);

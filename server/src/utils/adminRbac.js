@@ -10,7 +10,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     permissions: [
       "dashboard.read", "saved_views.manage", "users.read", "users.manage", "users.pii.reveal",
       "courses.read", "courses.manage", "courses.publish", "pricing.manage", "operations.manage",
-      "analytics.read", "plans.read", "billing.read", "refunds.manage", "payment_issues.manage", "trials.manage",
+      "analytics.read", "plans.read", "billing.read", "payment_issues.manage", "trials.manage",
       "communications.send", "communications.manage", "notifications.read", "notifications.retry", "coupons.read",
       "settings.read", "legal.manage", "audit.read", "operations.read",
     ],

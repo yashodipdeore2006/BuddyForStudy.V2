@@ -60,9 +60,19 @@ async function resolveAudience(rawFilters) {
   // Use the same audience resolver as email campaigns so filter semantics stay aligned.
   const users = await resolveAdminAudience(
     { audience: "all", filters: sharedFilters },
-    { select: "_id name email createdAt authProvider emailVerified", limit: null }
+    { select: "_id name email createdAt authProvider emailVerified phoneNumberVerified marketingEmailConsent profileSetupSkippedAt city learningGoal", limit: null }
   );
-  const ids = users.map((user) => user._id);
+  const matchingUsers = users.filter((user) => {
+    if (filters.phoneVerified !== "any" && Boolean(user.phoneNumberVerified) !== (filters.phoneVerified === "yes")) return false;
+    if (filters.marketingConsent !== "any" && Boolean(user.marketingEmailConsent) !== (filters.marketingConsent === "yes")) return false;
+    if (filters.city && !String(user.city || "").toLowerCase().includes(filters.city.toLowerCase())) return false;
+    if (filters.learningGoal && !String(user.learningGoal || "").toLowerCase().includes(filters.learningGoal.toLowerCase())) return false;
+    if (filters.profileSetup === "complete" && user.profileSetupSkippedAt) return false;
+    if (filters.profileSetup === "skipped" && !user.profileSetupSkippedAt) return false;
+    if (filters.profileSetup === "incomplete" && !user.profileSetupSkippedAt && user.city && user.learningGoal) return false;
+    return true;
+  });
+  const ids = matchingUsers.map((user) => user._id);
   const [subs, previousTrials] = await Promise.all([
     UserSubscription.find({ user: { $in: ids } }).select("user status currentPeriodEnd").lean(),
     filters.priorTrial === "never" ? TrialGrant.find({ user: { $in: ids } }).select("user").lean() : Promise.resolve([])
@@ -77,7 +87,7 @@ async function resolveAudience(rawFilters) {
   const priorSet = new Set(previousTrials.map((grant) => String(grant.user)));
   const now = new Date();
   const eligible = [], skipped = [];
-  for (const user of users) {
+  for (const user of matchingUsers) {
     const id = String(user._id);
     const userSubs = subsByUser.get(id) || [];
     const active = userSubs.some((sub) => ["trialing", "active", "past_due"].includes(sub.status) && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > now));

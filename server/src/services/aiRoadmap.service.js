@@ -1370,7 +1370,14 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? JSON.stringify(input.knownSkills || []) : "",
     personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
   );
-  const existing = await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
+  const templateProfile = personalized
+    ? { ...input, canonicalTopic: input.topic, language: input.language || "en" }
+    : { ...input, canonicalTopic: input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: input.language || "en" };
+  const templatePromptVersion = activePrompt.versionId || activePrompt.version || "builtin-v1";
+  // Check the user-independent template before legacy course reuse. A template hit must be
+  // personalized afresh so one learner never receives another learner's saved course.
+  const cachedTemplate = await findRoadmapTemplate({ profile: templateProfile, promptVersion: templatePromptVersion });
+  const existing = cachedTemplate ? null : await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
   if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {
@@ -1406,8 +1413,19 @@ export async function generateAIRoadmap(input, options = {}) {
     : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60 };
 
   try {
-    const ai = await generateWithGemini(generationInput, activePrompt);
-    const built = buildCourse(ai, generationInput);
+    const templateResult = await getOrCreateRoadmapTemplate({
+      profile: generationInput,
+      promptVersion: templatePromptVersion,
+      generate: () => generateWithGemini({
+        ...generationInput,
+        // Known skills and schedule belong to personalization, not the cached Gemini template.
+        knownSkills: [],
+        studyTimeMinutesPerDay: 60
+      }, activePrompt)
+    });
+    const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
+    const ai = personalizedTemplate.roadmap;
+    const built = await buildCourse(ai, personalizedTemplate.profile);
     if (!projectsEnabled) {
       built.course.modules = (built.course.modules || []).map((module) => ({
         ...module,
@@ -1453,7 +1471,7 @@ export async function generateAIRoadmap(input, options = {}) {
       course: toPublicCourse(course),
       sources,
       personalization: built.personalization,
-      cached: false
+      cached: templateResult.cached
     };
   } catch (error) {
     if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) {

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { resolveCanonicalSkill, getRelevantCanonicalSkills, validateSkillGraph } from "./skillRegistry.service.js";
 import { composeRoadmapPrompt, domainPlaybooks } from "./domainPlaybooks.js";
+import { AI_PROMPT_FEATURES } from "../config/aiPromptTemplates.js";
 import { buildRoadmapTemplateKey, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
 import { buildCourse } from "./aiRoadmap.service.js";
 
@@ -91,7 +92,8 @@ test("software final prompt includes moved web/full-stack/MERN paragraphs verbat
   assert.ok(prompt.includes('"id":"javascript"'));
 });
 
-test("Data Analytics playbook is selected only for data topics", () => {
+test("Data Analytics playbook is selected only for data topics and base prompt stays neutral", () => {
+  assert.ok(!AI_PROMPT_FEATURES.build_with_ai.defaultPrompt.includes("Data Analytics"));
   const dataPrompt = composeRoadmapPrompt({ basePrompt: "Neutral base", topic: "Data Analytics" });
   const webPrompt = composeRoadmapPrompt({ basePrompt: "Neutral base", topic: "MERN stack" });
   assert.ok(dataPrompt.includes("For Data Analytics requests, generate a complete Data Analytics curriculum"));

@@ -11,6 +11,7 @@ import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
 
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
+const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string };
 type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null };
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; inferredGoal?: string; fallback?: boolean };
@@ -514,18 +515,45 @@ export default function Courses() {
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50)
       } : undefined;
-      const data = await apiFetch('/api/ai/roadmap', {
-        method: 'POST',
-        body: JSON.stringify({
-          topic,
-          level: intentProfile?.level || aiLevel,
-          goals: INTENT_V2 ? [legacyGoal, aiCustomGoal.trim()].filter(Boolean) : [aiGoal, aiCustomGoal.trim()].filter(Boolean),
-          studyTimeMinutesPerDay: intentProfile?.minutesPerDay || aiStudyTime,
-          knownSkills: intentProfile?.knownSkills || aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
-          ...(intentProfile ? { intentProfile } : {})
-        }),
-        showFeatureUpgrade: true,
-      });
+      const profile = {
+        topic,
+        level: intentProfile?.level || aiLevel,
+        goals: INTENT_V2 ? [legacyGoal, aiCustomGoal.trim()].filter(Boolean) : [aiGoal, aiCustomGoal.trim()].filter(Boolean),
+        studyTimeMinutesPerDay: intentProfile?.minutesPerDay || aiStudyTime,
+        knownSkills: intentProfile?.knownSkills || aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
+        ...(intentProfile ? { intentProfile } : {})
+      };
+      let data;
+      if (ASYNC_ROADMAP) {
+        const draft = await apiFetch<{ draftId: string }>('/api/ai/roadmap/draft', {
+          method: 'POST', body: JSON.stringify({ profile }), showFeatureUpgrade: true
+        });
+        const started = await apiFetch<{ draftId: string; status: string; roadmapId?: string | null; modules?: unknown[] }>('/api/ai/roadmap', {
+          method: 'POST', body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
+        });
+        setAiRoadmap({
+          status: started.status || 'building',
+          query: topic,
+          course: { title: topic + ' learning roadmap', modules: started.modules || [] },
+          draftId: draft.draftId
+        });
+        let current = started;
+        while (current.status !== 'ready') {
+          if (current.status === 'failed') throw new Error('Roadmap build failed. Please retry.');
+          await new Promise((resolve) => window.setTimeout(resolve, 1200));
+          const polled = await apiFetch<{ status: string; result?: unknown }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
+          current = polled;
+          if (polled.status === 'ready' && polled.result) {
+            data = polled.result;
+            break;
+          }
+        }
+        if (!data) throw new Error('Roadmap build ended without a result. Please retry.');
+      } else {
+        data = await apiFetch('/api/ai/roadmap', {
+          method: 'POST', body: JSON.stringify(profile), showFeatureUpgrade: true
+        });
+      }
       setAiRoadmap(data);
       setExpandedAiModules(new Set([0]));
       setAiEnrollError(null);

@@ -8,7 +8,7 @@ declare global {
       Player: new (element: HTMLElement | string, options: {
         events?: {
           onReady?: (event: { target: YouTubePlayerInstance }) => void;
-          onStateChange?: (event: { data: number }) => void;
+          onStateChange?: (event: { data: number; target?: YouTubePlayerInstance }) => void;
         };
       }) => YouTubePlayerInstance;
       PlayerState: { ENDED: number; PLAYING: number; PAUSED: number };
@@ -19,6 +19,7 @@ declare global {
 type YouTubePlayerInstance = {
   playVideo: () => void;
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  getCurrentTime: () => number;
   destroy: () => void;
 };
 
@@ -61,12 +62,16 @@ type Props = {
   title?: string;
   autoplay?: boolean;
   className?: string;
+  onPausedAt?: (seconds: number) => void;
+  seekRequest?: { seconds: number; id: number } | null;
 };
 
-export default function YouTubeEmbedPlayer({ videoId, title = "Course video", autoplay = false, className = "" }: Props) {
+export default function YouTubeEmbedPlayer({ videoId, title = "Course video", autoplay = false, className = "", onPausedAt, seekRequest }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
   const [ended, setEnded] = useState(false);
+  const onPausedAtRef = useRef(onPausedAt);
+  useEffect(() => { onPausedAtRef.current = onPausedAt; }, [onPausedAt]);
 
   useEffect(() => {
     setEnded(false);
@@ -99,7 +104,12 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
             if (!cancelled) playerRef.current = event.target;
           },
           onStateChange: (event) => {
-            if (!cancelled && window.YT) setEnded(event.data === window.YT.PlayerState.ENDED);
+            if (cancelled || !window.YT) return;
+            setEnded(event.data === window.YT.PlayerState.ENDED);
+            if (event.data === window.YT.PlayerState.PAUSED) {
+              const seconds = Number(event.target?.getCurrentTime?.());
+              if (Number.isFinite(seconds)) onPausedAtRef.current?.(Math.floor(seconds));
+            }
           },
         },
       });
@@ -114,6 +124,11 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
       playerRef.current = null;
     };
   }, [videoId, title, autoplay]);
+
+  useEffect(() => {
+    if (!seekRequest || !Number.isFinite(seekRequest.seconds)) return;
+    playerRef.current?.seekTo(Math.max(0, seekRequest.seconds), true);
+  }, [seekRequest?.id]);
 
   const replay = () => {
     setEnded(false);

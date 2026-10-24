@@ -109,7 +109,26 @@ test("direct YouTube fetch is centralized in the gateway", async () => {
   assert.match(gatewaySource, /await fetch\(/);
 });
 
-test("combined search remains disabled by default", async () => {
+test("combined search stays off by default and can be exercised with mocks when enabled", async () => {
   const { env } = await import("../config/env.js");
   assert.equal(env.ytCombinedSearch, false);
+  const youtube = await import("./youtube.service.js");
+  const originalCombined = env.ytCombinedSearch;
+  env.ytCombinedSearch = true;
+  let requestedType = "";
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    requestedType = url.searchParams.get("type");
+    return jsonResponse({ items: [
+      { id: { videoId: "mock-video" }, snippet: { title: "Mock video" } },
+      { id: { playlistId: "mock-playlist" }, snippet: { title: "Mock playlist" } }
+    ] });
+  };
+  try {
+    const results = await youtube.searchYouTubeCurationCandidates(["phase1 combined search test"], 5);
+    assert.equal(requestedType, "video,playlist");
+    assert.ok(results.every((item) => item.videoId !== undefined));
+  } finally {
+    env.ytCombinedSearch = originalCombined;
+  }
 });

@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { getYouTubeVideoResource, searchBestYouTubeCourse } from "./youtube.service.js";
+import { youtubeRequest } from "./youtubeGateway.js";
 import { Course } from "../models/Course.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
@@ -633,35 +634,6 @@ function getPlaylistCache(key) {
 }
 function setPlaylistCache(key, value, ttlMs = PLAYLIST_SEARCH_CACHE_TTL_MS) {
   playlistCache.set(key, { value, expiresAt: Date.now() + ttlMs });
-}
-
-async function youtubeRequest(endpoint, params) {
-  if (!env.youtubeApiKey) {
-    const error = new Error("YOUTUBE_API_KEY is missing");
-    error.status = 503;
-    throw error;
-  }
-  const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
-  Object.entries({ ...params, key: env.youtubeApiKey }).forEach(([key, value]) => url.searchParams.set(key, String(value)));
-  recordYouTubeRequest(endpoint);
-  const response = await fetch(url, {
-    headers: {
-      "x-goog-api-key": env.youtubeApiKey
-    }
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    const reason =
-      data?.error?.errors?.[0]?.reason ||
-      data?.error?.status ||
-      data?.error?.message ||
-      "unknown error";
-    const error = new Error(`YouTube ${endpoint} failed: ${reason}`);
-    error.status = response.status === 403 ? 503 : response.status;
-    error.code = reason;
-    throw error;
-  }
-  return data;
 }
 
 function parseDuration(value) {

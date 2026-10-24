@@ -1474,7 +1474,7 @@ export async function generateAIRoadmap(input, options = {}) {
   // personalized afresh so one learner never receives another learner's saved course.
   const cachedTemplate = await findRoadmapTemplate({ profile: templateProfile, promptVersion: templatePromptVersion });
   const existing = cachedTemplate ? null : await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
-  if (existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
+  if (!options.asyncBuild && existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {
       cached.course.modules = (cached.course.modules || []).map((module) => ({
@@ -1595,7 +1595,7 @@ export async function generateAIRoadmap(input, options = {}) {
       } catch (knowledgeBaseError) {
         if (knowledgeBaseError?.status !== 404) throw knowledgeBaseError;
         fallback = buildTopicFallback(input.topic, input.level);
-        fallback.sources = await attachYouTubeResources(fallback.course);
+        fallback.sources = options.asyncBuild ? [] : await attachYouTubeResources(fallback.course);
       }
 
       const fallbackPersonalization = {
@@ -1630,7 +1630,8 @@ export async function generateAIRoadmap(input, options = {}) {
             normalSearchSnapshot: buildNormalSearchSnapshot(fallback.course, input.topic)
           }
         },
-        isPublished: true,
+        isPublished: options.asyncBuild ? false : true,
+        ...(options.asyncBuild ? { visibility: "private", createdForUser: userId } : {}),
         pricing: { mode: "free", price: 0, currency: "INR" },
         enrollmentEnabled: true,
         certificateEnabled: true

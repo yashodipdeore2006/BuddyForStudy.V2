@@ -425,7 +425,7 @@ export default function Courses() {
 
   const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
-    !(question.id === 'goal' && Object.prototype.hasOwnProperty.call(intentAnswers, 'goal')) &&
+    !(question.id === 'goal' && Boolean(intentAnswers.goal)) &&
     (!question.when || question.when === 'goal=' + intentGoal)
   );
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
@@ -472,7 +472,7 @@ export default function Courses() {
         examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,
         syllabusText: String(intentAnswers.syllabus ?? intentResult.profile?.syllabusText ?? '') || null,
         projectIdea: String(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea ?? '') || null,
-        scope: intentAnswers.depth ? (intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
+        scope: intentAnswers.depth ? (intentAnswers.depth === 'broad' || intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
         minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50)

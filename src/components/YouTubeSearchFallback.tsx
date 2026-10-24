@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import YouTubeEmbedPlayer from "@/components/YouTubeEmbedPlayer";
+import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
 import {
   BookOpen,
   Bookmark,
@@ -14,6 +15,10 @@ import {
   PlayCircle,
   X,
 } from "lucide-react";
+
+function toEmbedUrl(videoId: string): string {
+  return getYouTubeEmbedUrl(videoId);
+}
 
 type YouTubeCourse = {
   videoId: string;

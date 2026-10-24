@@ -39,7 +39,6 @@ function transformTree(value, byId, now) {
   const plain = typeof value.toObject === "function" ? value.toObject() : value;
   if (isVideoObject(plain) && videoIdOf(plain) && byId.has(videoIdOf(plain))) {
     const result = chooseReplacement(plain, byId.get(videoIdOf(plain)), now);
-    delete result.state;
     return stripStatistics(result);
   }
   const output = {};
@@ -92,7 +91,19 @@ export async function refreshStaleVideos({
       snapshot: course.generation?.snapshot
     });
     course.modules = transformTree(course.modules || [], byId, now);
-    if (course.generation?.snapshot) course.generation.snapshot = stripStatistics(transformTree(course.generation.snapshot, byId, now));
+    for (const module of course.modules || []) for (const lesson of module.lessons || []) {
+      if (lesson.tutorial?.videos?.some((video) => video.state === "unavailable")) lesson.tutorial.resourceStatus = "unavailable";
+      if (lesson.project?.videos?.some((video) => video.state === "unavailable")) lesson.project.resourceStatus = "unavailable";
+    }
+    const stripTransientState = (value) => {
+      if (Array.isArray(value)) return value.map(stripTransientState);
+      if (!value || typeof value !== "object" || value instanceof Date) return value;
+      const output = {};
+      for (const [key, child] of Object.entries(value)) if (key !== "state") output[key] = stripTransientState(child);
+      return output;
+    };
+    course.modules = stripStatistics(stripTransientState(course.modules));
+    if (course.generation?.snapshot) course.generation.snapshot = stripStatistics(stripTransientState(transformTree(course.generation.snapshot, byId, now)));
     const after = JSON.stringify({ modules: course.modules, snapshot: course.generation?.snapshot });
     if (before !== after) {
       await course.save();

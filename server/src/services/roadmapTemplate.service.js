@@ -13,14 +13,23 @@ export function buildRoadmapTemplateKey({ canonicalTopic, goal, level, language,
   });
   return createHash("sha256").update(stable).digest("hex");
 }
-export async function getOrCreateRoadmapTemplate({ profile, promptVersion, generate, model = RoadmapTemplate, now = new Date() }) {
+export async function findRoadmapTemplate({ profile, promptVersion, model = RoadmapTemplate, now = new Date() }) {
   const canonicalTopic = normalizeTemplateTopic(profile.canonicalTopic || profile.topic);
   const goal = profile.goal || (Array.isArray(profile.goals) && profile.goals.length ? profile.goals.join(",") : "learn");
   const level = profile.level || "Beginner", language = profile.language || "en";
   const version = String(promptVersion || "builtin-v1");
   const key = buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion: version });
   const cached = await model.findOne({ key, expiresAt: { $gt: now } }).lean();
-  if (cached?.roadmap && typeof cached.roadmap === "object") return { roadmap: cached.roadmap, cached: true, key };
+  return cached?.roadmap && typeof cached.roadmap === "object" ? { roadmap: cached.roadmap, cached: true, key } : null;
+}
+export async function getOrCreateRoadmapTemplate({ profile, promptVersion, generate, model = RoadmapTemplate, now = new Date() }) {
+  const canonicalTopic = normalizeTemplateTopic(profile.canonicalTopic || profile.topic);
+  const goal = profile.goal || (Array.isArray(profile.goals) && profile.goals.length ? profile.goals.join(",") : "learn");
+  const level = profile.level || "Beginner", language = profile.language || "en";
+  const version = String(promptVersion || "builtin-v1");
+  const key = buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion: version });
+  const cached = await findRoadmapTemplate({ profile, promptVersion: version, model, now });
+  if (cached) return cached;
   const roadmap = await generate();
   if (!roadmap || typeof roadmap !== "object" || !Array.isArray(roadmap.skills)) throw new TypeError("Roadmap template generator must return Gemini roadmap JSON");
   const expiresAt = new Date(now.getTime() + ROADMAP_TEMPLATE_TTL_DAYS * DAY_MS);

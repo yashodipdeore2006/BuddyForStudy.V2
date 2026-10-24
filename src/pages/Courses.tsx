@@ -704,6 +704,67 @@ export default function Courses() {
             )}
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+              {INTENT_V2 && intentResult ? (
+                <div className="space-y-5">
+                  {!intentResult.valid ? (
+                    <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Try a learnable topic such as Python, Data Analytics, an exam name, or a project idea.
+                      <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentResult(null); setAiError(null); }}>Change topic</button>
+                    </div>
+                  ) : (
+                    <>
+                      {intentResult.assumed && (
+                        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+                          We assumed: {intentResult.inferredGoal === 'job_ready' ? 'job-ready' : intentResult.inferredGoal || intentGoal}{intentResult.profile?.targetCompany ? ', ' + intentResult.profile.targetCompany : ''}. Change?
+                          <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentAnswers((previous) => ({ ...previous, goal: '' })); setIntentQuestionIndex(0); }}>Change</button>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                          <span>{Math.min(intentQuestionIndex + 1, activeIntentQuestions.length)} of {activeIntentQuestions.length || 1}</span>
+                          <span>{activeIntentQuestions.length ? Math.round(Math.min(intentQuestionIndex, activeIntentQuestions.length) / activeIntentQuestions.length * 100) : 100}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={activeIntentQuestions.length || 1} aria-valuenow={Math.min(intentQuestionIndex, activeIntentQuestions.length)}>
+                          <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: (activeIntentQuestions.length ? Math.min(intentQuestionIndex, activeIntentQuestions.length) / activeIntentQuestions.length * 100 : 100) + '%' }} />
+                        </div>
+                      </div>
+                      {currentIntentQuestion ? (
+                        <section className="space-y-3" aria-live="polite">
+                          <h3 className="text-base font-bold text-slate-950">{currentIntentQuestion.text}</h3>
+                          {currentIntentQuestion.options?.length ? (
+                            <div className="flex flex-wrap gap-2">
+                              {currentIntentQuestion.options.map((option) => (
+                                <button key={option} type="button" onClick={() => chooseIntentOption(currentIntentQuestion, option)} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-violet-500 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30">{option}</button>
+                              ))}
+                            </div>
+                          ) : null}
+                          {currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' || currentIntentQuestion.type === 'checklist' ? (
+                            <textarea rows={currentIntentQuestion.type === 'paste' ? 5 : 2} maxLength={currentIntentQuestion.id === 'syllabus' ? 20000 : 1200} value={String(intentAnswers[currentIntentQuestion.id] || '')} onChange={(event) => setIntentAnswers((previous) => ({ ...previous, [currentIntentQuestion.id]: event.target.value }))} placeholder={currentIntentQuestion.id === 'syllabus' ? 'Paste syllabus units here…' : 'Type your answer (optional)…'} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
+                          ) : null}
+                          <div className="flex flex-wrap justify-between gap-2 pt-2">
+                            <button type="button" onClick={skipIntentQuestion} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Skip</button>
+                            {(currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' || currentIntentQuestion.type === 'checklist') && (
+                              <button type="button" onClick={() => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length))} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Next</button>
+                            )}
+                          </div>
+                        </section>
+                      ) : (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">You can build your plan now. Any skipped answers will use the defaults.</div>
+                      )}
+                      {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
+                    </>
+                  )}
+                </div>
+              ) : INTENT_V2 ? (
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">What do you want to learn or achieve?</label>
+                    <input id="ai-topic" autoFocus maxLength={200} value={aiTopic} onChange={(event) => setAiTopic(event.target.value)} placeholder="e.g. Python for a TCS interview, Data Analytics, or a project idea…" className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
+                    <p className="mt-1 text-xs text-slate-500">Start with a topic or outcome. We will ask only the questions that are still needed.</p>
+                  </div>
+                  {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
+                </div>
+              ) : (
               <div>
                 <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">
                   What do you want to learn or achieve?
@@ -821,6 +882,9 @@ export default function Courses() {
               )}
             </div>
 
+
+              )}
+            </div>
             <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <button
                 type="button"
@@ -832,11 +896,17 @@ export default function Courses() {
               </button>
               <button
                 type="button"
-                onClick={generateAiRoadmap}
-                disabled={aiLoading || !aiTopic.trim()}
+                onClick={() => {
+                  if (INTENT_V2 && intentResult?.valid && intentQuestionIndex < activeIntentQuestions.length) {
+                    setIntentQuestionIndex(activeIntentQuestions.length);
+                    return;
+                  }
+                  void generateAiRoadmap();
+                }}
+                disabled={aiLoading || intentLoading || !aiTopic.trim()}
                 className="btn-primary h-11 justify-center rounded-lg px-5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {aiLoading ? (
+                {aiLoading || intentLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Building your plan…
@@ -844,7 +914,7 @@ export default function Courses() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    Build personalized plan
+                    {INTENT_V2 && !intentResult ? "Continue" : INTENT_V2 && intentResult?.valid && intentQuestionIndex < activeIntentQuestions.length ? "Review answers" : "Build personalized plan"}
                   </>
                 )}
               </button>

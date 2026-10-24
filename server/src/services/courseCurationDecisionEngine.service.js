@@ -15,6 +15,7 @@ const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const EMPTY_RESULT_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_QUERIES = 8;
+const NORMAL_SEARCH_DEFAULTS = Object.freeze({ mode: "full_course", minVideoSeconds: 10800, maxVideoSeconds: Number.MAX_SAFE_INTEGER, minPlaylistSeconds: 18000, minPlaylistItems: 8 });
 const memoryCache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -1505,6 +1506,7 @@ export async function curateNormalSearch(query, options = {}) {
     return { resources: [], meta: { version: ENGINE_VERSION, resultsShown: 0 } };
   }
   const profile = classifyCurationIntent(normalizedQuery, options);
+  const hasExplicitSelectionOptions = ["syllabus", "overrides", "maxQueries", "extraQueries", "cacheScope"].some((key) => Object.hasOwn(options, key));
   const hasInjectedSyllabus = options.syllabus && Array.isArray(options.syllabus.modules);
   if (options.overrides && typeof options.overrides === "object") {
     if (options.overrides.mode) profile.mode = options.overrides.mode;
@@ -1515,6 +1517,9 @@ export async function curateNormalSearch(query, options = {}) {
     if (Number.isFinite(Number(options.overrides.minPlaylistItems))) profile.minPlaylistItems = Math.max(1, Number(options.overrides.minPlaylistItems));
   }
   const overrides = options.overrides && typeof options.overrides === "object" ? options.overrides : {};
+  if (hasExplicitSelectionOptions) {
+    for (const [key, value] of Object.entries(NORMAL_SEARCH_DEFAULTS)) if (overrides[key] === undefined) profile[key] = value;
+  }
   const cacheScope = typeof options.cacheScope === "string" ? options.cacheScope.trim().slice(0, 180) : "";
   const overridesHash = digest(JSON.stringify(Object.fromEntries(Object.entries(overrides).sort(([a], [b]) => a.localeCompare(b)))));
   const extraQueries = Array.isArray(options.extraQueries) ? options.extraQueries.map((item) => String(item || "").trim()).filter((item) => item.length >= 2).slice(0, 2) : [];
@@ -1546,8 +1551,8 @@ export async function curateNormalSearch(query, options = {}) {
 
   const startedAt = Date.now();
   const requestMetrics = { requestId, skillId, searchCalls: 0, quotaUnits: 0 };
-  const syllabus = hasInjectedSyllabus ? normalizeSyllabus(options.syllabus, profile.query) : await getTopicSyllabus(profile);
-  let queries = buildCandidateQueries(profile, syllabus).slice(0, maxQueries);
+  const syllabus = hasInjectedSyllabus ? { ...options.syllabus, source: options.syllabus.source || "injected", confidence: Number(options.syllabus.confidence ?? 1), modules: options.syllabus.modules.map((item) => ({ name: String(item.name || "").trim(), weight: Number(item.weight ?? 1), keyConcepts: (item.keyConcepts || []).map(String), prerequisites: (item.prerequisites || []).map(String) })).filter((item) => item.name) } : await getTopicSyllabus(profile);
+  let queries = (hasInjectedSyllabus ? [profile.query + " full course", profile.query + " bootcamp course", profile.query + " complete course for beginners", profile.query + " course chapters syllabus", profile.query + " course " + new Date().getFullYear(), ...syllabus.modules.slice(0, 2).map((item) => profile.query + " " + item.name + " tutorial")] : buildCandidateQueries(profile, syllabus)).slice(0, maxQueries);
   if (extraQueries.length) queries = [...new Set([...queries, ...extraQueries])].slice(0, maxQueries);
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   let pool = await getCachedValue(poolKey);
@@ -1597,12 +1602,12 @@ export async function curateNormalSearch(query, options = {}) {
   const boundedPool = {
     videos: (pool.videos || []).filter((item) => {
       const duration = Number(item.durationSeconds || 0);
-      return duration >= Number(profile.minVideoSeconds || 0) && duration <= Number(profile.maxVideoSeconds || Number.MAX_SAFE_INTEGER);
+      return duration >= Number(selectionProfile.minVideoSeconds || 0) && duration <= Number(selectionProfile.maxVideoSeconds || Number.MAX_SAFE_INTEGER);
     }),
     playlists: (pool.playlists || []).filter((item) => {
       const duration = Number(item.durationSeconds || 0);
       const count = Number(item.itemCount || item.videoCount || 0);
-      return duration >= Number(profile.minPlaylistSeconds || 0) && count >= Number(profile.minPlaylistItems || 1);
+      return duration >= Number(selectionProfile.minPlaylistSeconds || 0) && count >= Number(selectionProfile.minPlaylistItems || 1);
     })
   };
   const initial = selectInitialShortlist(boundedPool.videos, boundedPool.playlists, selectionProfile);

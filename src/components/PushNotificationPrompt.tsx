@@ -5,8 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
 import { enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 
-const DISMISS_KEY_PREFIX = "bfs-push-prompt-dismissed:";
-const REMIND_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+const DISMISS_KEY_PREFIX = "bfs-notification-prompt-dismissed:";
 
 type PushPreferences = Record<string, unknown> & {
   pushEnabled?: boolean;
@@ -25,8 +24,7 @@ function hasCookieChoice(): boolean {
 
 function wasRecentlyDismissed(userId: string): boolean {
   try {
-    const dismissedAt = Number(localStorage.getItem(DISMISS_KEY_PREFIX + userId));
-    return Number.isFinite(dismissedAt) && dismissedAt > 0 && Date.now() - dismissedAt < REMIND_AFTER_MS;
+    return sessionStorage.getItem(DISMISS_KEY_PREFIX + userId) === "1";
   } catch {
     return false;
   }
@@ -34,7 +32,7 @@ function wasRecentlyDismissed(userId: string): boolean {
 
 function rememberDismissal(userId: string): void {
   try {
-    localStorage.setItem(DISMISS_KEY_PREFIX + userId, String(Date.now()));
+    sessionStorage.setItem(DISMISS_KEY_PREFIX + userId, "1");
   } catch {
     // The prompt can still be dismissed for this render if browser storage is unavailable.
   }
@@ -133,7 +131,14 @@ export default function PushNotificationPrompt() {
 
         const currentPreferences = (notificationData.preferences || {}) as PushPreferences;
         setPreferences(currentPreferences);
-        if (!isPermissionBlocked && currentPreferences.pushEnabled === true && subscribed) {
+        const accountChannels = [
+          "emailCourseUpdates", "inAppCourseUpdates", "emailProjectUpdates", "inAppProjectUpdates",
+          "emailAnnouncements", "inAppAnnouncements", "emailLearningReminders", "inAppLearningReminders",
+          "learningRemindersEnabled",
+        ];
+        const allChannelsEnabled = accountChannels.every((key) => currentPreferences[key] === true);
+        const pushReady = currentPreferences.pushEnabled === true && subscribed;
+        if (!isPermissionBlocked && allChannelsEnabled && pushReady) {
           setVisible(false);
           return;
         }
@@ -200,7 +205,19 @@ export default function PushNotificationPrompt() {
     try {
       // The native browser permission prompt is requested only from this click.
       await enableBrowserPush();
-      const nextPreferences = { ...preferences, pushEnabled: true };
+      const nextPreferences = {
+        ...preferences,
+        emailCourseUpdates: true,
+        inAppCourseUpdates: true,
+        emailProjectUpdates: true,
+        inAppProjectUpdates: true,
+        emailAnnouncements: true,
+        inAppAnnouncements: true,
+        emailLearningReminders: true,
+        inAppLearningReminders: true,
+        learningRemindersEnabled: true,
+        pushEnabled: true,
+      };
       const saved = await apiFetch("/api/notifications/preferences", {
         method: "PUT",
         body: JSON.stringify(nextPreferences),
@@ -234,12 +251,12 @@ export default function PushNotificationPrompt() {
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[.14em] text-violet-700">Stay on track</p>
           <h2 id="push-notification-prompt-title" className="mt-1 text-lg font-extrabold text-slate-950">
-            {permissionBlocked ? "Notifications are blocked in your browser" : "Keep your learning moving"}
+            {permissionBlocked ? "Notifications are blocked in your browser" : "Enable all notifications"}
           </h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
             {permissionBlocked
               ? "Your browser will not show the permission popup again until you change this site's permission."
-              : "Get useful course updates and learning reminders, even when BuddyForStudy isn’t open."}
+              : "Turn on course updates, project updates, learning reminders, in-app alerts, and browser notifications. You can change any switch later in Settings."}
           </p>
           {permissionBlocked && (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
@@ -291,7 +308,7 @@ export default function PushNotificationPrompt() {
       <p className="px-5 pb-3 text-center text-[11px] leading-4 text-slate-500">
         {permissionBlocked
           ? "After allowing notifications in browser settings, return here and check again. This prompt will appear again the next time you open BuddyForStudy until access is restored."
-          : "Optional — choose Enable to open your browser’s permission prompt. You can change this anytime in Settings."}
+          : "Your choice is saved to your account and stays the same after you sign in again. You can change individual switches anytime in Settings."}
       </p>
     </aside>
   );

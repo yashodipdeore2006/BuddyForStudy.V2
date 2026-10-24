@@ -11,9 +11,9 @@ export function getYouTubeEmbedUrl(videoId: string, options: { autoplay?: boolea
 
   const params = new URLSearchParams({
     autoplay: options.autoplay ? "1" : "0",
-    controls: "0",
-    disablekb: "1",
-    fs: "0",
+    controls: "1",
+    disablekb: "0",
+    fs: "1",
     enablejsapi: "1",
     iv_load_policy: "3",
     modestbranding: "1",

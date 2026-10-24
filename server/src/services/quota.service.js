@@ -4,6 +4,7 @@ import { YouTubeQuotaUsage } from "../models/YouTubeQuotaUsage.js";
 
 export const YOUTUBE_API_COST = Object.freeze({ search: 100, default: 1 });
 let testAdapters = null;
+let exhaustedInProcessDay = null;
 
 export class QuotaBudgetError extends Error {
   constructor(state, message = "YouTube quota budget refused this request") {
@@ -50,6 +51,7 @@ async function readMongo(dayKey) {
 
 async function readState() {
   const dayKey = getPacificQuotaDay();
+  if (exhaustedInProcessDay === dayKey) return { dayKey, units: env.ytDailyQuotaBudget, exhausted: true, store: "process" };
   const redisKey = `youtube:quota:${dayKey}:units`;
   const exhaustedKey = `youtube:quota:${dayKey}:exhausted`;
   const redisUnits = await cacheGetNumber(redisKey);
@@ -87,13 +89,15 @@ async function incrementMongo(dayKey, cost) {
 export async function markQuotaExceeded() {
   if (testAdapters?.markQuotaExceeded) return testAdapters.markQuotaExceeded();
   const dayKey = getPacificQuotaDay();
+  exhaustedInProcessDay = dayKey;
   const redisKey = `youtube:quota:${dayKey}:exhausted`;
   const ttl = secondsUntilPacificReset();
   const redisStored = await cacheSetRaw(redisKey, 1, ttl);
   try {
     await YouTubeQuotaUsage.updateOne({ dayKey }, { $set: { exhausted: true }, $setOnInsert: { units: 0 } }, { upsert: true });
   } catch {
-    if (!redisStored) throw new Error("Unable to persist YouTube quota exhaustion state");
+    // The in-process latch still blocks calls until the Pacific reset if both stores fail.
+    if (!redisStored) console.error("YouTube quota exhaustion could not be persisted; process-local guard remains active");
   }
 }
 
@@ -101,6 +105,7 @@ export async function tryConsume(cost) {
   const amount = Number(cost);
   if (!Number.isFinite(amount) || amount <= 0) throw new TypeError("Quota cost must be a positive number");
   const before = await getState();
+  if (before.store === "unavailable") throw new QuotaBudgetError("degraded", "Quota storage unavailable; refusing provider request");
   if (before.state === "exhausted") throw new QuotaBudgetError("exhausted");
   if (before.state === "degraded" && amount >= YOUTUBE_API_COST.search) {
     throw new QuotaBudgetError("degraded", "Search requests are disabled above the soft quota limit");

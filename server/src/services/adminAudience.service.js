@@ -32,6 +32,11 @@ export function parseAdminAudienceDate(value, field) {
 function normalizeFilters(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("filters must be an object");
   const filters = {};
+  if (input.emailExact !== undefined && input.emailExact !== "") {
+    const emailExact = String(input.emailExact).trim().toLowerCase();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(emailExact)) throw new Error("Invalid exact email filter");
+    filters.emailExact = emailExact;
+  }
   if (input.q !== undefined) {
     const q = String(input.q).trim().slice(0, 100);
     if (q) filters.q = q;
@@ -146,6 +151,7 @@ export async function resolveAdminAudience({ audience = "all", userIds, emails, 
   if (normalized.role) query.role = normalized.role;
   if (normalized.emailVerified !== undefined) query.emailVerified = normalized.emailVerified;
   if (normalized.authProvider) query.authProvider = normalized.authProvider;
+  if (normalized.emailExact) query.email = normalized.emailExact;
   if (normalized.q) {
     const pattern = new RegExp(escapeRegex(normalized.q), "i");
     query.$or = [{ name: pattern }, { email: pattern }];

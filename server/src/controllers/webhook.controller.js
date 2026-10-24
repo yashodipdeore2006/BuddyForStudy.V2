@@ -6,7 +6,7 @@ import { WebhookEvent } from "../models/WebhookEvent.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
-import { createNotificationEvent } from "../services/notification.service.js";
+import { createNotificationEvent, notifyActiveAdmins } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES, buildCapturedPaymentUpdate, buildFailedPaymentUpdate } from "../services/paymentWebhookTransitions.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
@@ -348,6 +348,17 @@ export async function razorpayWebhook(req, res, next) {
             metadata: { subscriptionId: String(subscriptionEntity.id), planName: subscription.plan?.name || "BuddyForStudy", status: event.event },
             templateKeys: { notification: "subscription-payment-action-in-app", email: "subscription-payment-action-email" }
           });
+          await notifyActiveAdmins({
+            title: "Subscription requires billing attention",
+            message: `A subscription entered ${event.event === "subscription.halted" ? "halted" : "pending"} status. Review the subscription and payment records.`,
+            type: "billing",
+            link: "/admin/billing",
+            eventKey: `subscription-billing-attention:${subscriptionEntity.id}:${event.event}:${claimedEventId}`,
+            emailSubject: "BuddyForStudy: subscription billing attention required",
+            metadata: { subscriptionId: String(subscriptionEntity.id), status: event.event, planName: subscription.plan?.name || "BuddyForStudy" }
+          }).catch((alertError) => console.error("[notifications] admin subscription alert failed", {
+            subscriptionId: String(subscriptionEntity.id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+          }));
         }
       }
     } else if (event.event === "subscription.cancelled" || event.event === "subscription.completed") {
@@ -400,6 +411,17 @@ export async function razorpayWebhook(req, res, next) {
           metadata: { paymentId: String(failedPayment._id) },
           templateKeys: { notification: "payment-failed-in-app", email: "payment-failed-email" }
         });
+        await notifyActiveAdmins({
+          title: "Payment failed",
+          message: `A payment attempt failed for payment record ${String(failedPayment._id)}. Review the billing record if follow-up is required.`,
+          type: "billing",
+          link: "/admin/billing",
+          eventKey: `payment-failed:${failedPayment._id}:${paymentEntity?.id || "attempt"}`,
+          emailSubject: "BuddyForStudy: payment failure",
+          metadata: { paymentId: String(failedPayment._id), learnerId: String(failedPayment.user), providerPaymentId: String(paymentEntity?.id || "") }
+        }).catch((alertError) => console.error("[notifications] admin payment failure alert failed", {
+          paymentId: String(failedPayment._id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+        }));
       }
     }
 

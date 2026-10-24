@@ -1530,7 +1530,7 @@ export async function curateNormalSearch(query, options = {}) {
   }
 
   const startedAt = Date.now();
-  const requestMetrics = { searchCalls: 0, quotaUnits: 0 };
+  const requestMetrics = { requestId, skillId, searchCalls: 0, quotaUnits: 0 };
   const syllabus = await getTopicSyllabus(profile);
   const queries = buildCandidateQueries(profile, syllabus);
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + queries.join("|") + "|" + settingCount);
@@ -1636,6 +1636,7 @@ export async function curateNormalSearch(query, options = {}) {
     poolCacheHit,
     searchCalls: requestMetrics.searchCalls,
     quotaUnits: requestMetrics.quotaUnits,
+    quotaState: requestMetrics.quotaState || "unknown",
     elapsedMs: meta.elapsedMs
   });
   return response;

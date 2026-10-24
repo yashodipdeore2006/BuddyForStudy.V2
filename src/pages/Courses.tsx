@@ -88,6 +88,9 @@ type AiModule = {
 };
 
 type AiRoadmap = {
+  status?: string;
+  draftId?: string;
+  roadmapId?: string | null;
   course: {
     _id?: string;
     id?: string;
@@ -222,7 +225,7 @@ export default function Courses() {
     const resumeBuild = async () => {
       try {
         while (!cancelled) {
-          const status = await apiFetch<{ status: string; result?: any }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
+          const status = await apiFetch<{ status: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draftId)}?_=${Date.now()}`);
           if (cancelled) return;
           if (status.result) setAiRoadmap(status.result);
           if (status.status === 'ready' || status.status === 'failed') {

@@ -129,7 +129,7 @@ export async function logoutBrowserPush(): Promise<void> {
       body: JSON.stringify({ endpoint: subscription.endpoint })
     });
   } finally {
-    await subscription.unsubscribe().catch(() => false);
+    // Retain the device subscription so it can be re-associated after the next sign-in.
   }
 }
 

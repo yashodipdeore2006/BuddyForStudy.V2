@@ -278,6 +278,16 @@ test("buildCourse output for the fixed Gemini response matches the Phase 0 snaps
     knownSkills: []
   });
   const actual = JSON.parse(JSON.stringify(built.course));
+  // Later roadmap phases add goal-specific modules to the original Phase 0 output.
+  // Keep this snapshot focused on the Phase 0 baseline while explicitly checking
+  // that the additive interview module is present and well-formed.
+  const goalModules = actual.modules.filter((module) => module.goalModule);
+  assert.ok(goalModules.some((module) => module.goalModule === "interview"));
+  for (const module of goalModules) {
+    assert.ok(Array.isArray(module.lessons));
+    assert.ok(module.lessons.length > 0);
+  }
+  actual.modules = actual.modules.filter((module) => !module.goalModule);
 
   assert.deepEqual(actual, phase0ExpectedSnapshots.builtCourse);
 });

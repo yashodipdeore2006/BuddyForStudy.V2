@@ -87,7 +87,7 @@ function getStatusMessage(status: GoogleSetupStatus): string {
     case "client_mismatch":
       return "The frontend and backend Google OAuth client IDs do not match. Use the same Web client ID in VITE_GOOGLE_CLIENT_ID and GOOGLE_CLIENT_ID.";
     case "credential_error":
-      return "Google did not return a sign-in credential. Check the authorized JavaScript origin and browser sign-in/privacy settings, then try again. If this repeats, open Google Sign-In troubleshooting below.";
+      return "Google did not return a sign-in credential. Check the authorized JavaScript origin and browser sign-in/privacy settings, then try again. If this repeats, open the Google Sign-In troubleshooting guide linked from the README.";
     default:
       return "";
   }

@@ -52,7 +52,7 @@ export default function AdminTrialCampaigns() {
       next.emailVerified = "any";
     } else {
       for (const [key, value] of Object.entries(filters)) {
-        if (value === "" || value === "any" || key === "emailExact" || key === "q") continue;
+        if (value === "" || (value === "any" && key !== "emailVerified") || key === "emailExact" || key === "q") continue;
         if (key === "emailVerified") next[key] = value;
         else if (["expiresWithinDays", "progressMin", "progressMax", "inactiveDays", "totalSpendMin", "courseCountMin"].includes(key)) next[key] = Number(value);
         else if (key === "createdAfter" || key === "createdBefore") next[key] = value ? new Date(value).toISOString() : "";
@@ -115,7 +115,7 @@ export default function AdminTrialCampaigns() {
         </div>
         <button type="button" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900" onClick={()=>setShowAdvanced(v=>!v)}><SlidersHorizontal className="h-4 w-4"/>{showAdvanced ? "Hide advanced filters" : "More audience filters"}<span className="text-slate-400">{showAdvanced ? "−" : "+"}</span></button>
         {showAdvanced && <div className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
-          {selectField("Account status","status",[["active","Active accounts"],["disabled","Disabled accounts"]])}
+          <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600"><strong>Account eligibility</strong><p className="mt-1">Active learner accounts only. Disabled accounts and administrators are always excluded.</p></div>
           <label className={labelClass}>Specific subscription plan<select className={selectClass} value={filters.planId} onChange={e=>changeFilter("planId",e.target.value)}><option value="">Any plan</option>{plans.map(p=><option key={p._id} value={p._id}>{p.name} · {p.currency} {p.price}</option>)}</select></label>
           {selectField("Plan segment","planSegment",[["","Any plan type"],["premium","Highest-priced"],["popular","Popular"],["paid","Paid"],["free","Free"]])}
           {selectField("Subscription expires within","expiresWithinDays",[["","Any expiry"],["7","7 days"],["14","14 days"],["30","30 days"],["60","60 days"],["90","90 days"]])}

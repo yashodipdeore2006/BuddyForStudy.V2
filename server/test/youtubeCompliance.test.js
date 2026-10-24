@@ -35,6 +35,7 @@ test("refreshStaleVideos refreshes stale metadata in videos.list batches of 50",
   assert.equal(result.videosChecked, 51);
   assert.equal(result.batches, 2);
   assert.equal(course.modules[0].lessons[0].tutorial.videos[0].title, "Fresh video-0");
+  assert.equal(course.modules[0].lessons[0].tutorial.videos[0].durationSeconds, 600);
   assert.equal(new Date(course.modules[0].lessons[0].tutorial.videos[0].fetchedAt).toISOString(), now.toISOString());
   assert.equal("viewCount" in course.modules[0].lessons[0].tutorial.videos[0], false);
   assert.equal("likeCount" in course.modules[0].lessons[0].tutorial.videos[0], false);
@@ -60,6 +61,7 @@ test("removed video swaps to an alternative or marks its lesson unavailable", as
   assert.equal(swapped.videos[0].videoId, "alternative-1");
   assert.equal(swapped.videos[0].reason, "Swapped after the selected YouTube video became unavailable");
   assert.equal(unavailable.resourceStatus, "unavailable");
+  assert.equal(unavailable.videos[0].state, "unavailable");
   assert.equal(unavailable.videos[0].fetchedAt.toISOString(), now.toISOString());
 });
 

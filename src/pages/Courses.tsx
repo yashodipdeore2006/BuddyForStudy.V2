@@ -423,15 +423,24 @@ export default function Courses() {
     }
   };
 
-  const intentGoal = String(intentAnswers.goal || intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn');
+  const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
-    !question.when || question.when === 'goal=' + intentGoal
+    !(question.id === 'goal' && Object.prototype.hasOwnProperty.call(intentAnswers, 'goal')) &&
+    (!question.when || question.when === 'goal=' + intentGoal)
   );
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
   const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   const chooseIntentOption = (question: IntentQuestion, value: string) => {
-    setIntentAnswers((previous) => ({ ...previous, [question.id]: value }));
-    setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+    const mapped = question.id === 'goal'
+      ? ({ 'Job-ready': 'job_ready', 'Exam or certification': 'exam', 'Build a project': 'project', 'Learn a skill': 'learn' } as Record<string, string>)[value] || value
+      : question.id === 'depth'
+        ? (value === 'Complete learning path' ? 'broad' : 'narrow')
+        : question.id === 'language'
+          ? ({ English: 'en', Hindi: 'hi', Marathi: 'mr' } as Record<string, string>)[value] || value
+          : value;
+    setIntentAnswers((previous) => ({ ...previous, [question.id]: mapped }));
+    if (question.id === 'goal') setIntentQuestionIndex(0);
+    else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   };
 
   const generateAiRoadmap = async () => {

@@ -34,7 +34,7 @@ function normalizeFilters(input = {}) {
   const filters = {};
   if (input.emailExact !== undefined && input.emailExact !== "") {
     const emailExact = String(input.emailExact).trim().toLowerCase();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(emailExact)) throw new Error("Invalid exact email filter");
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailExact)) throw new Error("Invalid exact email filter");
     filters.emailExact = emailExact;
   }
   if (input.q !== undefined) {

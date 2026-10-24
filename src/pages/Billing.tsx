@@ -57,6 +57,8 @@ function statusClass(status: string) {
   return styles[status] || "bg-slate-100 text-slate-700 ring-slate-500/15";
 }
 
+type TrialSummary = { _id: string; campaignName: string; startsAt: string; endsAt: string; conversionConsentStatus: string; plan?: { name?: string } | null; conversionPlan?: { name?: string; price?: number; currency?: string; billingInterval?: string } | null };
+
 type SubscriptionSummary = {
   status: string;
   plan?: { name?: string; billingInterval?: string } | null;
@@ -69,6 +71,8 @@ export default function Billing() {
   const [refunds, setRefunds] = useState<RefundRequest[]>([]);
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
+  const [trial, setTrial] = useState<TrialSummary | null>(null);
+  const [decliningConversion, setDecliningConversion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
@@ -85,9 +89,10 @@ export default function Billing() {
   async function loadBilling() {
     setLoading(true);
     try {
-      const [paymentData, subscriptionData, refundData, issueData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds"), apiFetch("/api/billing/issues")]);
+      const [paymentData, subscriptionData, refundData, issueData, trialData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds"), apiFetch("/api/billing/issues"), apiFetch("/api/billing/trial")]);
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
       setSubscription(subscriptionData.subscription || null);
+      setTrial(trialData.trial || null);
       setRefunds(Array.isArray(refundData.refunds) ? refundData.refunds : []);
       setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
       setRefundMessage("");
@@ -162,6 +167,20 @@ export default function Billing() {
       </div>
 
       {refundMessage && <div role="status" className="mt-5 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{refundMessage}</div>}
+
+      {trial && <section className="mt-6 rounded-2xl border border-violet-200 bg-violet-50 p-5 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><p className="text-xs font-bold uppercase tracking-wider text-violet-700">Free trial</p><h2 className="mt-1 text-lg font-extrabold text-slate-950">{trial.plan?.name || "Premium trial"}</h2><p className="mt-1 text-sm text-slate-700">Your trial ends {date(trial.endsAt)}. You will not be charged automatically unless you separately authorize recurring payments.</p></div>
+          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-violet-700">Trial active</span>
+        </div>
+        {trial.conversionPlan && trial.conversionConsentStatus === "pending_user_consent" && <div className="mt-4 rounded-xl border border-violet-200 bg-white p-4">
+          <p className="font-bold text-slate-900">Optional renewal offer: {trial.conversionPlan.name}</p>
+          <p className="mt-1 text-sm text-slate-600">{money(Number(trial.conversionPlan.price || 0), trial.conversionPlan.currency || "INR")} / {trial.conversionPlan.billingInterval || "billing period"}. This offer does not authorize payment.</p>
+          <p className="mt-2 text-xs text-slate-500">To enable renewal, choose this plan on Pricing and complete the payment provider's subscription authorization. If you do nothing, this trial does not initiate a charge.</p>
+          <div className="mt-3 flex flex-wrap gap-2"><Link to={routes.pricing()} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800">Review plans and authorize</Link><button type="button" disabled={decliningConversion} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" onClick={async()=>{setDecliningConversion(true);try{await apiFetch("/api/billing/trial/decline-conversion",{method:"POST",body:JSON.stringify({})});setTrial({...trial,conversionConsentStatus:"declined"});setRefundMessage("You declined the paid conversion offer. No recurring payment has been authorized.");}catch(error){setRefundMessage(error instanceof Error?error.message:"Unable to decline the offer.");}finally{setDecliningConversion(false);}}}>{decliningConversion?"Saving…":"Decline offer"}</button></div>
+        </div>}
+        {trial.conversionConsentStatus === "declined" && <p className="mt-3 text-sm font-semibold text-slate-700">You declined the paid conversion offer. No recurring payment has been authorized.</p>}
+      </section>}
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</span><CreditCard className="h-5 w-5 text-blue-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{subscription?.plan?.name || "Free"}</p><p className="mt-1 text-xs capitalize text-slate-500">{subscription?.status ? subscription.status.replace(/_/g, " ") : "No paid subscription"}</p></div>

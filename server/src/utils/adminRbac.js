@@ -10,7 +10,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     permissions: [
       "dashboard.read", "saved_views.manage", "users.read", "users.manage", "users.pii.reveal",
       "courses.read", "courses.manage", "courses.publish", "pricing.manage", "operations.manage",
-      "analytics.read", "plans.read", "billing.read",
+      "analytics.read", "plans.read", "billing.read", "trials.manage",
       "communications.send", "communications.manage", "notifications.read", "notifications.retry", "coupons.read",
       "settings.read", "legal.manage", "audit.read", "operations.read",
     ],
@@ -27,7 +27,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Finance & Subscription Manager",
     description: "Plans, coupons, payment reporting and refund decisions.",
     permissions: [
-      "dashboard.read", "saved_views.manage", "plans.read", "plans.manage", "billing.read",
+      "dashboard.read", "saved_views.manage", "plans.read", "plans.manage", "trials.manage", "billing.read",
       "refunds.manage", "coupons.read", "coupons.manage", "pricing.manage", "analytics.read",
       "operations.read",
     ],
@@ -56,7 +56,7 @@ export const ADMIN_PERMISSION_CATALOG = Object.freeze([
   "courses.read", "courses.manage", "courses.publish", "pricing.manage",
   "ai.manage", "resources.manage",
   "analytics.read",
-  "plans.read", "plans.manage",
+  "plans.read", "plans.manage", "trials.manage",
   "billing.read", "refunds.manage",
   "payment_issues.manage",
   "communications.send", "communications.manage", "notifications.read", "notifications.retry",

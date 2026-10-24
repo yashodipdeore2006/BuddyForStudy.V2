@@ -37,6 +37,7 @@ import AdminCoursesPro from '@/pages/admin/AdminCoursesPro';
 import AdminContentQuality from '@/pages/admin/AdminContentQuality';
 import AdminRoadmaps from '@/pages/admin/AdminRoadmaps';
 import AdminPlans from '@/pages/admin/AdminPlans';
+import AdminTrialCampaigns from '@/pages/admin/AdminTrialCampaigns';
 import AdminBilling from '@/pages/admin/AdminBilling';
 import AdminSubscriptions from '@/pages/admin/AdminSubscriptions';
 import AdminCommunications from '@/pages/admin/AdminCommunications';
@@ -101,6 +102,7 @@ function App() {
     <Route path="/admin/content-quality" element={<AdminPage><AdminContentQuality /></AdminPage>} />
     <Route path="/admin/roadmaps" element={<AdminPage><AdminRoadmaps /></AdminPage>} />
     <Route path="/admin/plans" element={<AdminPage><AdminPlans /></AdminPage>} />
+    <Route path="/admin/trials" element={<AdminPage><AdminTrialCampaigns /></AdminPage>} />
     <Route path="/admin/pricing" element={<AdminPage><AdminPricingStudio /></AdminPage>} />
     <Route path="/admin/billing" element={<AdminPage><AdminBilling /></AdminPage>} />
     <Route path="/admin/subscriptions" element={<AdminPage><AdminSubscriptions /></AdminPage>} />

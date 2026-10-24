@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
+import { TrialGrant } from "../models/TrialGrant.js";
 import { RefundRequest } from "../models/RefundRequest.js";
 import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Payment } from "../models/Payment.js";
@@ -102,6 +103,16 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).populate("plan");
+
+  const trialConversionGrantId = payment.metadata?.get
+    ? payment.metadata.get("trialConversionGrantId")
+    : payment.metadata?.trialConversionGrantId;
+  if (trialConversionGrantId) {
+    await TrialGrant.updateOne(
+      { _id: trialConversionGrantId, user: req.user.userId, status: "trialing" },
+      { $set: { status: "converted", conversionConsentStatus: "authorized", providerSubscriptionId: subscriptionId } }
+    );
+  }
 
   const notification = await sendNotificationSafely(buildSubscriptionActivatedNotificationPayload({
     userId: String(req.user.userId),
@@ -241,4 +252,33 @@ router.post("/refunds", async (req,res,next)=>{ try {
   }
   return success(res, { refund }, "Refund request submitted", 201);
 } catch(e){next(e)} });
+
+router.get("/trial", async (req, res, next) => {
+  try {
+    const now = new Date();
+    const trial = await TrialGrant.findOne({
+      user: req.user.userId,
+      status: "trialing",
+      startsAt: { $lte: now },
+      endsAt: { $gt: now }
+    }).populate("plan", "name features limits").populate("conversionPlan", "name price currency billingInterval").sort({ endsAt: -1 }).lean();
+    return success(res, { trial });
+  } catch (error) { next(error); }
+});
+
+router.post("/trial/decline-conversion", async (req, res, next) => {
+  try {
+    const trial = await TrialGrant.findOne({
+      user: req.user.userId,
+      status: "trialing",
+      endsAt: { $gt: new Date() },
+      conversionConsentStatus: "pending_user_consent"
+    });
+    if (!trial) return failure(res, "No pending trial conversion offer was found.", 404);
+    trial.conversionConsentStatus = "declined";
+    await trial.save();
+    return success(res, { declined: true, endsAt: trial.endsAt }, "Paid conversion declined. No recurring payment has been authorized.");
+  } catch (error) { next(error); }
+});
+
 export default router;

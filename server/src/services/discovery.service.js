@@ -6,7 +6,6 @@ import { youtubeRequest } from "./youtubeGateway.js";
 import { Course } from "../models/Course.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
-import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
 
 const cache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;

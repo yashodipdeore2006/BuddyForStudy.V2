@@ -175,6 +175,7 @@ async function runMock() {
     reason: validRows ? "Both selectors ran against deterministic fixtures. This compares selector outcomes without contacting YouTube or Gemini." : "One or more selectors returned no selection; inspect row-level results before treating this run as acceptance evidence.",
     rows
   }, null, 2));
+  if (!validRows) process.exitCode = 2;
 }
 async function runLive() {
   const [{ searchBestYouTubeCourse }, { curateForNode }, { getState }] = await Promise.all([

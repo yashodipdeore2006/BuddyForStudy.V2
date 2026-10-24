@@ -24,6 +24,11 @@ test("Python for everything, then job-ready asks role and company in order", () 
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 0 } });
   assert.deepEqual(ids(result), ["role", "company", "depth", "knownSkills", "time", "language"]);
 });
+test("default profile values do not suppress low-confidence questions", () => {
+  const result = parsed({ goal: "learn", confidences: { goal: 1, scope: 0, knownSkills: 0, minutesPerDay: 0, language: 0 } });
+  assert.deepEqual(ids(result), ["depth", "knownSkills", "time", "language"]);
+});
+
 test("job-ready with company already known asks role but not company again", () => {
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 1 }, profile: { targetCompany: "TCS" } });
   assert.deepEqual(ids(result), ["role", "depth", "knownSkills", "time", "language"]);

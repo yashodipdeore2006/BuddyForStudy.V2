@@ -104,6 +104,16 @@ router.post("/subscription/sync", async (req,res,next)=>{ try {
     { upsert: true, new: true, setDefaultsOnInsert: true }
   ).populate("plan");
 
+  const trialConversionGrantId = payment.metadata?.get
+    ? payment.metadata.get("trialConversionGrantId")
+    : payment.metadata?.trialConversionGrantId;
+  if (trialConversionGrantId) {
+    await TrialGrant.updateOne(
+      { _id: trialConversionGrantId, user: req.user.userId, status: "trialing" },
+      { $set: { status: "converted", conversionConsentStatus: "authorized", providerSubscriptionId: subscriptionId } }
+    );
+  }
+
   const notification = await sendNotificationSafely(buildSubscriptionActivatedNotificationPayload({
     userId: String(req.user.userId),
     payment,

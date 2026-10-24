@@ -4,7 +4,7 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Course, Enrollment, Progress } from '@/types';
 import { countAllLessons, getAllLessonsFlat } from '@/lib/courseUtils';
-import { getYouTubeEmbedUrl } from '@/lib/youtubeEmbed';
+import YouTubeEmbedPlayer from "@/components/YouTubeEmbedPlayer";
 import { loadRazorpay } from '@/lib/razorpay';
 import {
   BookOpen,
@@ -1377,7 +1377,7 @@ export default function CourseDetails() {
             </div>
             {previewVideoId ? (
               <div className="aspect-video bg-black">
-                <iframe title={'Preview: ' + course.title} src={getYouTubeEmbedUrl(previewVideoId, { autoplay: true })} className="h-full w-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+                <YouTubeEmbedPlayer videoId={previewVideoId} title={'Preview: ' + course.title} autoplay />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">

@@ -62,7 +62,7 @@ export async function createRoadmapDraft({ userId, profile, options = {} }) {
     try {
       // The existing worker is a scheduled maintenance runner, not an on-demand job consumer.
       // Keep the new queue in-process and cap active builds using NODE_CONCURRENCY.
-      const result = await generateAIRoadmap(profile, { ...options, userId: String(userId) });
+      const result = await generateAIRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
       const courseId = result?.course?._id || result?.course?.id || null;
       await RoadmapDraft.updateOne({ _id: draft._id }, {
         $set: { status: "ready", roadmapId: courseId, result, updatedAt: new Date() }

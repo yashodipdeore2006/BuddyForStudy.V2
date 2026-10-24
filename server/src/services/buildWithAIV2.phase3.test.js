@@ -49,6 +49,9 @@ test("canonical skill resolution prefers exact aliases and reuses normalized IDs
   assert.equal(alias.id, "javascript");
   const normalized = await resolveCanonicalSkill("javascript", { model });
   assert.equal(normalized.id, "javascript");
+  const tokenModel = memorySkillModel([{ _id: "javascript-fundamentals", name: "JavaScript Fundamentals", aliases: [], domain: "software_web" }]);
+  const tokenMatch = await resolveCanonicalSkill("Fundamentals JavaScript", { model: tokenModel });
+  assert.equal(tokenMatch.id, "javascript-fundamentals");
   const created = await resolveCanonicalSkill("Data Modeling", { model, domain: "data" });
   assert.equal(created.id, "data-modeling");
   assert.ok(model.docs.some((item) => item._id === "data-modeling"));
@@ -125,6 +128,9 @@ test("two learners personalize one cached Gemini template independently", async 
   assert.equal(secondTemplate.cached, true);
   assert.equal(generationCalls, 1);
   assert.equal(buildRoadmapTemplateKey({ ...profile, promptVersion: "v3" }), buildRoadmapTemplateKey({ ...profile, knownSkills: ["SQL"], studyTimeMinutesPerDay: 180, promptVersion: "v3" }));
+  const stored = model.records.values().next().value;
+  assert.equal(stored.expiresAt.getTime() - stored.createdAt.getTime(), 30 * 24 * 60 * 60 * 1000);
+  assert.ok(!JSON.stringify(stored.roadmap).includes("viewCount"));
 
   const resolver = async (name, options = {}) => ({
     id: String(options.aliases?.[0] || name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),

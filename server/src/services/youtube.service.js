@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { youtubeRequest } from "./youtubeGateway.js";
 import { recordYouTubeRequest } from "./youtubeRequestMetrics.js";
 
 const SEARCH_CACHE = new Map();
@@ -83,23 +84,6 @@ function scoreCandidate(video,lesson,pool) {
   const likeRatio=normalizedMetric(ratioPool,ratio);
   const score=relevance*.30+coverage*.30+duration*.10+views*.08+likeRatio*.08+subscribers*.05+recency*.05+(video.isShort?0:100)*.04;
   return {score:Number(score.toFixed(2)),relevance:Math.round(relevance),coverage:Math.round(coverage),duration:Math.round(duration),views:Math.round(views),likeRatio:Math.round(likeRatio),subscribers:Math.round(subscribers),recency:Math.round(recency)};
-}
-
-async function youtubeRequest(endpoint,params){
-  if(!env.youtubeApiKey){console.warn("YouTube resources disabled: YOUTUBE_API_KEY is missing");return null;}
-  const url=new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
-  Object.entries({...params,key:env.youtubeApiKey}).forEach(([k,v])=>url.searchParams.set(k,String(v)));
-  recordYouTubeRequest(endpoint);
-  const response=await fetch(url,{headers:{"x-goog-api-key":env.youtubeApiKey}});
-  const data=await response.json();
-  if(!response.ok){
-    const reason=data?.error?.errors?.[0]?.reason||data?.error?.status||data?.error?.message||"unknown error";
-    const error=new Error(`YouTube ${endpoint} failed: ${reason}`);
-    error.status=response.status===403?503:response.status;
-    error.code=reason;
-    throw error;
-  }
-  return data;
 }
 
 const YOUTUBE_LOCALES_BY_LANGUAGE = {

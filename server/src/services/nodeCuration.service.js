@@ -7,6 +7,7 @@ import { QuotaBudgetError } from "./quota.service.js";
 
 const ENGINE_VERSION = "node-curation-v1";
 const LOW_CONFIDENCE_THRESHOLD = 45;
+let selectorForNode = curateNormalSearch;
 const GENERIC_SKILL = /\b(basics|fundamentals|introduction|overview|intermediate|advanced|projects)\b/i;
 
 function digest(value) {

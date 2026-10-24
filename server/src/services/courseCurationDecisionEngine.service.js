@@ -1425,7 +1425,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
   return result;
 }
 
-function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new Map(), metadataJudgeMap = new Map()) {
+function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new Map(), metadataJudgeMap = new Map(), skillPriors = new Map()) {
   const preliminaryFeatures = candidates.map((candidate) => ({ candidate, features: makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap, metadataJudgeMap) }));
   const prior = median(preliminaryFeatures.map((item) => item.features.rawQuality));
   for (const { candidate, features } of preliminaryFeatures) {
@@ -1440,10 +1440,17 @@ function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new M
     candidate.confidence = features.confidence;
     candidate.isHiddenGem = gem > 0;
     candidate.gemBonus = gem;
+    const resourceVideoId = String(candidate.videoId || candidate.sourceId || String(candidate.id || "").replace(/^video:/, ""));
+    const learnedPrior = resourceVideoId ? skillPriors.get(resourceVideoId) : null;
+    const skillPriorAdjustment = learnedPrior && Number(learnedPrior.n) >= 5
+      ? Math.max(-5, Math.min(5, Number(learnedPrior.score) * 5))
+      : 0;
+    candidate.skillPriorAdjustment = skillPriorAdjustment;
     candidate.finalScore = clamp(
       features.confidence * quality * (1 - features.penalty.value) +
       (1 - features.confidence) * prior +
-      gem
+      gem +
+      skillPriorAdjustment
     );
     const qFit = durationFit(candidate, profile);
     candidate.beginnerFit = profile.level === "Beginner"
@@ -1458,6 +1465,7 @@ function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new M
       penalty: Number(features.penalty.value.toFixed(3)),
       penaltyReasons: features.penalty.reasons,
       hiddenGemBonus: Number(gem.toFixed(2)),
+      skillPriorAdjustment: Number(skillPriorAdjustment.toFixed(2)),
       syllabusSource: syllabus.source
     };
   }
@@ -1616,10 +1624,20 @@ export async function curateNormalSearch(query, options = {}) {
   const gates = hardGateEnriched(enriched, selectionProfile);
   const deduplicated = dedupeCandidates(gates.accepted);
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
+  let skillPriors = new Map();
+  if (skillId) {
+    try {
+      const { loadSkillResourcePriors } = await import("./skillResourcePrior.service.js");
+      const videoIds = deduplicated.map((candidate) => String(candidate.videoId || candidate.sourceId || String(candidate.id || "").replace(/^video:/, ""))).filter(Boolean);
+      skillPriors = await loadSkillResourcePriors(skillId, videoIds);
+    } catch (error) {
+      console.warn("Skill resource priors unavailable", { skillId, message: error?.message || String(error) });
+    }
+  }
   const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, selectionProfile, syllabus);
   const scored = hasExplicitSelectionOptions
-    ? scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId)
-    : scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId);
+    ? scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId, skillPriors)
+    : scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId, skillPriors);
   const resources = setRankingSlots(scored, settingCount).map((resource) => ({ ...resource, finalScore: Number(resource.finalScore ?? resource.score ?? 0) }));
   const composedPath = buildComposedLearningPath(scored, syllabus);
   const meta = {

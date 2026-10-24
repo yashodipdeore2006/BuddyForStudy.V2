@@ -52,6 +52,8 @@ async function resolveAudience(rawFilters) {
     emailVerified: filters.emailVerified === "any" ? undefined : filters.emailVerified === "yes",
     authProvider: filters.authProvider === "any" ? undefined : filters.authProvider,
     subscriptionStatus: undefined,
+    registeredAfter: filters.registeredAfter || (filters.createdAfter ? new Date(filters.createdAfter).toISOString().slice(0, 10) : undefined),
+    registeredBefore: filters.registeredBefore || (filters.createdBefore ? new Date(filters.createdBefore).toISOString().slice(0, 10) : undefined),
     createdAfter: undefined,
     createdBefore: undefined
   };
@@ -81,7 +83,7 @@ async function resolveAudience(rawFilters) {
     const active = userSubs.some((sub) => ["trialing", "active", "past_due"].includes(sub.status) && (!sub.currentPeriodEnd || new Date(sub.currentPeriodEnd) > now));
     const hasExpiredOrCancelled = userSubs.some((sub) => ["expired", "cancelled", "expired_or_cancelled"].includes(sub.status));
     const hasRequestedSubscription = filters.subscriptionStatus === "any" ||
-      (filters.subscriptionStatus === "none" && userSubs.length === 0) ||
+      (filters.subscriptionStatus === "none") ||
       (filters.subscriptionStatus === "expired_or_cancelled" && hasExpiredOrCancelled) ||
       (["trialing", "active", "past_due", "cancelled", "expired"].includes(filters.subscriptionStatus) && userSubs.some((sub) => sub.status === filters.subscriptionStatus));
     const existingGrant = priorSet.has(id);

@@ -177,6 +177,29 @@ export default function Courses() {
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
   const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
+  const [curationFeedbackSent, setCurationFeedbackSent] = useState<Record<string, string>>({});
+  const sendCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level", module: AiModule, video: NonNullable<TutorialContent["videos"]>[number]) => {
+    const resourceId = String(video.videoId || "");
+    if (!resourceId) return;
+    const key = `${resourceId}:${event}`;
+    try {
+      await apiFetch("/api/ai/curation-feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          event,
+          query: aiTopic.trim() || aiRoadmap?.course.title || "AI learning roadmap",
+          resourceId,
+          resourceType: "video",
+          skillId: module.canonicalSkillId || module.skillIds?.[0] || module.title,
+          courseId: aiRoadmap?.course._id || aiRoadmap?.course.id || undefined
+        })
+      });
+      setCurationFeedbackSent((previous) => ({ ...previous, [resourceId]: event }));
+    } catch {
+      setAiError("Your resource feedback could not be saved. You can keep using the roadmap.");
+    }
+  };
+
 
   useEffect(() => {
     async function fetchCourses() {
@@ -880,7 +903,18 @@ export default function Courses() {
                                 </div>
                                 {isTutorial && videos.length > 0 && (
                                   <div className="mt-3 space-y-2">
-                                    {videos.slice(0, 3).map((video) => <a key={video.videoId || video.url || video.title} href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>)}
+                                    {videos.slice(0, 3).map((video) => (
+                                      <div key={video.videoId || video.url || video.title} className="rounded-xl bg-slate-50 p-2.5">
+                                        <a href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>
+                                        {video.videoId && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                                          {(["helpful", "outdated", "wrong_level"] as const).map((event) => (
+                                            <button key={event} type="button" disabled={Boolean(curationFeedbackSent[video.videoId!])} onClick={() => void sendCurationFeedback(event, module, video)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 disabled:opacity-60">
+                                              {curationFeedbackSent[video.videoId!] ? (curationFeedbackSent[video.videoId!] === event ? "Thanks for feedback" : "Feedback saved") : event === "wrong_level" ? "Wrong level" : event === "outdated" ? "Outdated" : "Helpful"}
+                                            </button>
+                                          ))}
+                                        </div>}
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>

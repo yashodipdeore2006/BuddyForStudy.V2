@@ -3,6 +3,10 @@
 [![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-bydm9yrw)
 
 
+## Google Sign-In troubleshooting
+
+If Google Sign-In shows `FedCM get() rejects with NetworkError: Error retrieving a token`, follow the [Google Sign-In troubleshooting guide](docs/GOOGLE_SIGN_IN_TROUBLESHOOTING.md). Verify the exact Vite origin and matching OAuth Web Client ID in Google Cloud Console before changing security headers.
+
 ## Notifications
 
 See [Notification events, channel configuration, worker deployment, and smoke tests](docs/NOTIFICATIONS.md).

@@ -1636,8 +1636,12 @@ export async function curateNormalSearch(query, options = {}) {
   }
   const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, selectionProfile, syllabus);
   const scored = hasExplicitSelectionOptions
-    ? scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId, skillPriors)
-    : scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId, skillPriors);
+    ? (skillPriors.size
+      ? scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId, skillPriors)
+      : scoreFinalCandidates(deduplicated, selectionProfile, syllabus, feedbackSignals, metadataJudgment.byCandidateId))
+    : (skillPriors.size
+      ? scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId, skillPriors)
+      : scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId));
   const resources = setRankingSlots(scored, settingCount).map((resource) => ({ ...resource, finalScore: Number(resource.finalScore ?? resource.score ?? 0) }));
   const composedPath = buildComposedLearningPath(scored, syllabus);
   const meta = {

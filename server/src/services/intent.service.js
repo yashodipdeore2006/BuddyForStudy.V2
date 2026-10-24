@@ -64,7 +64,7 @@ export function buildQuestionPlan(parsed) {
   const addUnlessKnown = (field, item) => {
     if ((confidence[field] ?? 0) < 0.8) plan.push(item);
   };
-  if (!profile.goal || (confidence.goal ?? 0) < 0.8) {
+  if (!profile.goal && !parsed.inferredGoal) {
     plan.push(question("goal", "single", "What are you working toward?", ["Job-ready", "Exam or certification", "Build a project", "Learn a skill"], null));
   }
   addUnlessKnown("targetRole", question("role", "text", "Which role are you targeting?", parsed.options?.roles, "goal=job_ready", true));

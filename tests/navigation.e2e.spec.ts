@@ -694,3 +694,60 @@ test.describe("push notification prompt", () => {
     expect(await page.evaluate(() => (window as unknown as { __nativePermissionPromptCalls?: number }).__nativePermissionPromptCalls || 0)).toBe(0);
   });
 });
+
+
+test.describe("Google Sign-In popup compatibility", () => {
+  test("uses the popup callback flow and keeps FedCM button UX disabled", async ({ page }) => {
+    await mockAppApi(page);
+
+    await page.route("**/api/auth/google/config", async (route) => json(route, {
+      enabled: true,
+      clientId: "test-web-client.apps.googleusercontent.com",
+    }));
+
+    await page.route("https://accounts.google.com/gsi/client", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/javascript",
+        body: `
+          window.google = {
+            accounts: {
+              id: {
+                initialize(config) {
+                  window.__bfsGoogleInitConfig = {
+                    client_id: config.client_id,
+                    ux_mode: config.ux_mode,
+                    use_fedcm_for_button: config.use_fedcm_for_button
+                  };
+                },
+                renderButton(container) {
+                  const button = document.createElement("button");
+                  button.type = "button";
+                  button.textContent = "Mock Continue with Google";
+                  container.appendChild(button);
+                }
+              }
+            }
+          };
+        `,
+      });
+    });
+
+    await page.goto(baseURL + "/login");
+
+    await expect.poll(() => page.evaluate(() => {
+      return (window as Window & {
+        __bfsGoogleInitConfig?: {
+          client_id?: string;
+          ux_mode?: string;
+          use_fedcm_for_button?: boolean;
+        };
+      }).__bfsGoogleInitConfig || null;
+    })).toEqual({
+      client_id: "test-web-client.apps.googleusercontent.com",
+      ux_mode: "popup",
+      use_fedcm_for_button: false,
+    });
+    await expect(page.getByRole("button", { name: "Mock Continue with Google" })).toBeVisible();
+  });
+});

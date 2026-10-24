@@ -187,8 +187,8 @@ export async function getRoadmapPoll(draftId, userId) {
     (module.lessons || []).map((lesson, lessonIndex) => ({
       nodeId: String(lesson._id || lesson.id || `${moduleIndex}-${lessonIndex}`),
       title: lesson.title,
-      state: lesson.tutorial?.videos?.length ? (lesson.tutorial.videos.some((video) => video.state === "low_confidence") ? "low_confidence" : "ready") : (["failed", "ready"].includes(draft.status) ? "failed" : "queued")
+      state: lesson.buildState || (lesson.tutorial?.videos?.length ? (lesson.tutorial.videos.some((video) => video.state === "low_confidence") ? "low_confidence" : "ready") : "pending")
     }))
   );
-  return { draftId, roadmapId: draft.roadmapId ? String(draft.roadmapId) : null, status: draft.status, nodes, result: draft.status === "ready" ? draft.result : null, events: draft.events || [] };
+  return { draftId, roadmapId: draft.roadmapId ? String(draft.roadmapId) : null, status: draft.status, nodes, result: draft.result || null, events: draft.events || [] };
 }

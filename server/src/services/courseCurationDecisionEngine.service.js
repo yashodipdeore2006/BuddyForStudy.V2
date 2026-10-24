@@ -1578,7 +1578,7 @@ export async function curateNormalSearch(query, options = {}) {
   }
 
   const initial = selectInitialShortlist(pool.videos || [], pool.playlists || [], profile);
-  const enriched = await enrichPlaylists(initial.shortlist, profile);
+  const enriched = await withYouTubeRequestMetrics(requestMetrics, () => enrichPlaylists(initial.shortlist, profile));
   const gates = hardGateEnriched(enriched, profile);
   const deduplicated = dedupeCandidates(gates.accepted);
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);

@@ -1445,7 +1445,7 @@ function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new M
     const skillPriorAdjustment = learnedPrior && Number(learnedPrior.n) >= 5
       ? Math.max(-5, Math.min(5, Number(learnedPrior.score) * 5))
       : 0;
-    candidate.skillPriorAdjustment = skillPriorAdjustment;
+    if (learnedPrior && Number(learnedPrior.n) >= 5) candidate.skillPriorAdjustment = skillPriorAdjustment;
     candidate.finalScore = clamp(
       features.confidence * quality * (1 - features.penalty.value) +
       (1 - features.confidence) * prior +
@@ -1465,7 +1465,7 @@ function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new M
       penalty: Number(features.penalty.value.toFixed(3)),
       penaltyReasons: features.penalty.reasons,
       hiddenGemBonus: Number(gem.toFixed(2)),
-      skillPriorAdjustment: Number(skillPriorAdjustment.toFixed(2)),
+      ...(learnedPrior && Number(learnedPrior.n) >= 5 ? { skillPriorAdjustment: Number(skillPriorAdjustment.toFixed(2)) } : {}),
       syllabusSource: syllabus.source
     };
   }
@@ -1625,7 +1625,7 @@ export async function curateNormalSearch(query, options = {}) {
   const deduplicated = dedupeCandidates(gates.accepted);
   const feedbackSignals = await loadLearnerFeedbackSignals(profile, deduplicated);
   let skillPriors = new Map();
-  if (skillId) {
+  if (skillId && env.enableCurationComplianceWorkers) {
     try {
       const { loadSkillResourcePriors } = await import("./skillResourcePrior.service.js");
       const videoIds = deduplicated.map((candidate) => String(candidate.videoId || candidate.sourceId || String(candidate.id || "").replace(/^video:/, ""))).filter(Boolean);

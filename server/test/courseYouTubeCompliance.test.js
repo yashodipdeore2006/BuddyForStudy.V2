@@ -10,6 +10,7 @@ test("Course validation adds fetchedAt and strips YouTube statistics from lesson
     category: "Engineering",
     level: "Beginner",
     duration: "1 hour",
+    generation: { snapshot: { video: { videoId: "snapshot-video", title: "Snapshot video", viewCount: 88, likeCount: 7, subscriberCount: 3, statistics: { viewCount: "88" } } } },
     modules: [{
       title: "Module one",
       order: 1,
@@ -40,4 +41,10 @@ test("Course validation adds fetchedAt and strips YouTube statistics from lesson
   assert.equal("statistics" in video.toObject(), false);
   assert.equal("viewCount" in video.alternatives[0].toObject(), false);
   assert.equal("likeCount" in video.alternatives[0].toObject(), false);
+  const snapshotVideo = course.generation.snapshot.video;
+  assert.ok(snapshotVideo.fetchedAt instanceof Date);
+  assert.equal("viewCount" in snapshotVideo, false);
+  assert.equal("likeCount" in snapshotVideo, false);
+  assert.equal("subscriberCount" in snapshotVideo, false);
+  assert.equal("statistics" in snapshotVideo, false);
 });

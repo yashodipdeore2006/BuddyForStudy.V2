@@ -100,7 +100,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
   const cached = await readNodeCache(key);
   if (cached) return { ...cached, meta: { ...cached.meta, cacheHit: true, searchCalls: 0, quotaUnits: 0 } };
 
-  const callSelector = async (overrides) => curateNormalSearch(query, {
+  const callSelector = async (overrides) => selectorForNode(query, {
     level,
     language,
     syllabus,
@@ -157,6 +157,8 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
     throw error;
   }
 }
+
+export function __setNodeCurationSelectorForTests(selector = null) { selectorForNode = selector || curateNormalSearch; }
 
 export const __nodeCurationTestHooks = Object.freeze({
   buildInjectedSyllabus,

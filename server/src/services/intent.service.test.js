@@ -20,15 +20,13 @@ function parsed({ goal = null, confidences = {}, profile = {}, options = {} } = 
 }
 const ids = (value) => value.questionPlan.filter((item) => !item.when || item.when === "goal=" + (value.profile.goal || value.inferredGoal || "learn")).map((item) => item.id);
 
-test("Python for everything, then job-ready, role and company asks role and company", () => {
+test("Python for everything, then job-ready asks role and company in order", () => {
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 0 } });
-  assert.ok(ids(result).includes("role"));
-  assert.ok(ids(result).includes("company"));
+  assert.deepEqual(ids(result), ["role", "company", "depth", "knownSkills", "time", "language"]);
 });
-test("job-ready with company skipped still asks role only", () => {
+test("job-ready with company already known asks role but not company again", () => {
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 1 }, profile: { targetCompany: "TCS" } });
-  assert.ok(ids(result).includes("role"));
-  assert.ok(!ids(result).includes("company"));
+  assert.deepEqual(ids(result), ["role", "depth", "knownSkills", "time", "language"]);
 });
 test("job-ready with free-text role asks company and keeps role editable", () => {
   const result = parsed({ goal: "job_ready", profile: { targetRole: "Backend Developer" }, confidences: { goal: 1, targetRole: 1, targetCompany: 0 } });
@@ -56,12 +54,11 @@ test("learn uses fundamentals flow without interview or exam questions", () => {
   const result = parsed({ goal: "learn", confidences: { goal: 1 } });
   assert.deepEqual(ids(result), ["depth", "knownSkills", "time", "language"]);
 });
-test("Python for TCS interview has assumed banner and skips known goal/company", () => {
+test("Python for TCS interview skips goal and company and keeps assumed banner", () => {
   const result = parsed({ goal: "job_ready", profile: { targetCompany: "TCS" }, confidences: { goal: 0.6, targetCompany: 0.95, targetRole: 0.3 } });
   result.assumed = true;
   assert.ok(result.assumed);
-  assert.ok(!ids(result).includes("goal"));
-  assert.ok(!ids(result).includes("company"));
+  assert.deepEqual(ids(result), ["role", "depth", "knownSkills", "time", "language"]);
 });
 test("all questions can be skipped and legacy goal mapping stays compatible", () => {
   assert.equal(mapLegacyGoal(["Career or work growth"]), "job_ready");
@@ -85,10 +82,11 @@ test("parseIntent caches valid LLM output for normalized queries and timeout ret
   assert.equal(fallback.fallback, true);
   assert.ok(fallback.questionPlan.some((item) => item.id === "goal"));
 });
-test("invalid intent returns no questions and never persists as a valid template", async () => {
+test("invalid intent returns no questions, no profile, and is not cached", async () => {
   const model = memoryCache();
-  const result = await parseIntent("???", { model, generate: async () => ({ valid: false }) });
+  const result = await parseIntent("Python", { model, generate: async () => ({ valid: false }) });
   assert.equal(result.valid, false);
+  assert.equal(result.profile, null);
   assert.deepEqual(result.questionPlan, []);
   assert.equal(model.entries.size, 0);
   assert.equal(normalizeIntentQuery("  PYTHON   for   everything "), "python for everything");

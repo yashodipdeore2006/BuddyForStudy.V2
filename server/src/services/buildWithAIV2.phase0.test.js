@@ -211,14 +211,51 @@ test("Phase 0 feature flags stay off under the baseline configuration", () => {
   assert.equal(env.nodeConcurrency, 3);
 });
 
-test("MERN stack normal-search ranked IDs and scores match the Phase 0 snapshot", async () => {
-  const response = await curateNormalSearch("MERN stack", { level: "Beginner", language: "en" });
+test("MERN stack normal-search snapshot and structured request telemetry remain stable", async () => {
+  const originalInfo = console.info;
+  let missLog;
+  console.info = (message, fields) => {
+    if (message === "Course curation completed") missLog = fields;
+    else originalInfo(message, fields);
+  };
+
+  let response;
+  try {
+    response = await curateNormalSearch("MERN stack", { level: "Beginner", language: "en" });
+  } finally {
+    console.info = originalInfo;
+  }
+
   const actual = response.resources.map((resource) => ({
     id: resource.id,
     score: Number(Number(resource.score).toFixed(2))
   }));
-
   assert.deepEqual(actual, phase0ExpectedSnapshots.normalSearchRanked);
+  assert.equal(typeof missLog.requestId, "string");
+  assert.ok(missLog.requestId.length > 0);
+  assert.equal(missLog.skillId, null);
+  assert.equal(typeof missLog.cacheHit, "boolean");
+  assert.equal(missLog.resultCacheHit, false);
+  assert.ok(Number.isInteger(missLog.searchCalls));
+  assert.ok(Number.isInteger(missLog.quotaUnits));
+  assert.ok(missLog.searchCalls > 0, "the mocked cold query should issue YouTube search requests");
+  assert.ok(missLog.quotaUnits >= missLog.searchCalls * 100, "search.list calls should contribute 100 estimated units each");
+
+  let hitLog;
+  console.info = (message, fields) => {
+    if (message === "Course curation completed") hitLog = fields;
+    else originalInfo(message, fields);
+  };
+  try {
+    const cached = await curateNormalSearch("MERN stack", { level: "Beginner", language: "en" });
+    assert.deepEqual(cached.resources.map((item) => ({ id: item.id, score: Number(Number(item.score).toFixed(2)) })), actual);
+  } finally {
+    console.info = originalInfo;
+  }
+  assert.equal(hitLog.cacheHit, true);
+  assert.equal(hitLog.resultCacheHit, true);
+  assert.equal(hitLog.searchCalls, 0);
+  assert.equal(hitLog.quotaUnits, 0);
 });
 
 test("buildCourse output for the fixed Gemini response matches the Phase 0 snapshot", () => {

@@ -11,21 +11,34 @@ function parseOrigin(value) {
   }
 }
 
+
 /**
  * Production accepts only the configured client origin. Development also
  * accepts loopback origins on ephemeral ports because Vite may select 5174,
  * 5175, etc. when its preferred port is occupied.
  */
-export function isAllowedClientOrigin(origin, { nodeEnv = "development", clientUrl = "" } = {}) {
+export function isAllowedClientOrigin(
+  origin,
+  { nodeEnv = "development", clientUrl = "" } = {}
+) {
+  // Requests without Origin are usually server-to-server or command-line checks.
   if (!origin) return true;
 
   const requestOrigin = parseOrigin(origin);
   if (!requestOrigin) return false;
 
   const configuredOrigin = parseOrigin(clientUrl);
-  if (configuredOrigin && requestOrigin.origin === configuredOrigin.origin) return true;
+  if (configuredOrigin && requestOrigin.origin === configuredOrigin.origin) {
+    return true;
+  }
 
-  return nodeEnv !== "production"
-    && requestOrigin.protocol === "http:"
-    && LOCAL_DEVELOPMENT_HOSTS.has(requestOrigin.hostname);
+  if (
+    nodeEnv !== "production" &&
+    requestOrigin.protocol === "http:" &&
+    LOCAL_DEVELOPMENT_HOSTS.has(requestOrigin.hostname)
+  ) {
+    return true;
+  }
+
+  return false;
 }

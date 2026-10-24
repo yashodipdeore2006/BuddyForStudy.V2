@@ -94,14 +94,6 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
   return (
     <div className={`relative aspect-video w-full overflow-hidden bg-slate-950 ${className}`}>
       <div ref={mountRef} className="absolute inset-0" />
-      {/* YouTube renders its own end-card and logo inside a cross-origin iframe.
-          They cannot be styled from the parent page, so mask that corner consistently. */}
-      {!ended && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 right-0 z-[5] h-[18%] w-[36%] bg-slate-950"
-        />
-      )}
       {ended && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-950/95 p-6 text-center text-white">
           <div className="text-lg font-bold">Lesson completed</div>

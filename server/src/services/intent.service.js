@@ -44,7 +44,11 @@ export function staticIntentPlan(query) {
   return {
     valid: true, profile, confidences, domain: "general", scope: "narrow",
     options: { roles: [], exams: [], projectIdeas: [] },
-    questionPlan: buildQuestionPlan({ valid: true, profile, confidences, domain: "general", scope: "narrow" }),
+    questionPlan: [
+      question("goal", "single", "What are you working toward?", ["Job-ready", "Exam or certification", "Build a project", "Learn a skill"], null),
+      question("role", "text", "Which role are you targeting?", [], "goal=job_ready", true),
+      question("examType", "text", "Which exam or certification?", [], "goal=exam", true)
+    ],
     assumed: false, fallback: true
   };
 }
@@ -57,26 +61,21 @@ export function buildQuestionPlan(parsed) {
   const profile = parsed.profile || {};
   const confidence = parsed.confidences || {};
   const plan = [];
-  const addUnlessKnown = (id, item, field) => {
-    if ((confidence[field || id] ?? 0) < 0.8) plan.push(item);
+  const addUnlessKnown = (field, item) => {
+    if ((confidence[field] ?? 0) < 0.8) plan.push(item);
   };
   if (!profile.goal || (confidence.goal ?? 0) < 0.8) {
     plan.push(question("goal", "single", "What are you working toward?", ["Job-ready", "Exam or certification", "Build a project", "Learn a skill"], null));
   }
-  const goal = profile.goal || parsed.inferredGoal || null;
-  if (goal === "job_ready") {
-    addUnlessKnown("role", question("role", "text", "Which role are you targeting?", parsed.options?.roles, "goal=job_ready", true), "targetRole");
-    addUnlessKnown("company", question("company", "text", "Any target company?", [], "goal=job_ready", true), "targetCompany");
-  } else if (goal === "exam") {
-    addUnlessKnown("examType", question("examType", "text", "Which exam or certification?", parsed.options?.exams, "goal=exam", true), "examName");
-    addUnlessKnown("examDate", question("examDate", "text", "When is your exam?", [], "goal=exam", true), "examDate");
-    addUnlessKnown("syllabus", question("syllabus", "paste", "Paste your syllabus if you have it.", [], "goal=exam", true), "syllabusText");
-  } else if (goal === "project") {
-    addUnlessKnown("projectIdea", question("projectIdea", "text", "What would you like to build?", parsed.options?.projectIdeas, "goal=project", true), "projectIdea");
-  }
-  addUnlessKnown("depth", question("depth", "single", "How deep should we go?", ["Quick overview", "Complete learning path"], null), "scope");
-  addUnlessKnown("knownSkills", question("knownSkills", "text", "What do you already know?", [], null, true), "knownSkills");
-  addUnlessKnown("time", question("time", "time", "How much time can you study each day?", ["15 min", "30 min", "1 hour", "2 hours", "3+ hours"], null), "minutesPerDay");
+  addUnlessKnown("targetRole", question("role", "text", "Which role are you targeting?", parsed.options?.roles, "goal=job_ready", true));
+  addUnlessKnown("targetCompany", question("company", "text", "Any target company?", [], "goal=job_ready", true));
+  addUnlessKnown("examName", question("examType", "text", "Which exam or certification?", parsed.options?.exams, "goal=exam", true));
+  addUnlessKnown("examDate", question("examDate", "text", "When is your exam?", [], "goal=exam", true));
+  addUnlessKnown("syllabusText", question("syllabus", "paste", "Paste your syllabus if you have it.", [], "goal=exam", true));
+  addUnlessKnown("projectIdea", question("projectIdea", "text", "What would you like to build?", parsed.options?.projectIdeas, "goal=project", true));
+  addUnlessKnown("scope", question("depth", "single", "How deep should we go?", ["Quick overview", "Complete learning path"], null), "scope");
+  addUnlessKnown("knownSkills", question("knownSkills", "text", "What do you already know?", [], null, true));
+  addUnlessKnown("minutesPerDay", question("time", "time", "How much time can you study each day?", ["15 min", "30 min", "1 hour", "2 hours", "3+ hours"], null), "minutesPerDay");
   addUnlessKnown("language", question("language", "single", "Which language should resources use?", ["English", "Hindi", "Marathi", "Other"], null), "language");
   return plan;
 }
@@ -139,6 +138,12 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
   try {
     const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("intent_timeout")), timeoutMs); });
     const result = await Promise.race([call(normalizedQuery), timeout]);
+    if (result?.valid === false) {
+      return {
+        valid: false, profile: null, confidences: {}, domain: "general", scope: "narrow",
+        options: { roles: [], exams: [], projectIdeas: [] }, questionPlan: [], assumed: false, fallback: false
+      };
+    }
     const profile = IntentProfile.parse({ ...result.profile, topic: result.profile?.topic || normalizedQuery });
     const confidences = Object.fromEntries(Object.entries(result.confidences || {}).map(([key, value]) => [key, Math.max(0, Math.min(1, Number(value) || 0))]));
     const normalized = {

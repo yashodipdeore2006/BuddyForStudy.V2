@@ -23,7 +23,8 @@ const envKeys = [
   "YT_SOFT_LIMIT_PCT",
   "NODE_CACHE_TTL_DAYS",
   "NODE_CONCURRENCY",
-  "AI_PRIVATE_COURSES_SKIP_REVIEW"
+  "AI_PRIVATE_COURSES_SKIP_REVIEW",
+  "NODE_CACHE_TTL_DAYS"
 ];
 const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
 const originalFetch = globalThis.fetch;

@@ -71,6 +71,8 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
   const [ended, setEnded] = useState(false);
   const onPausedAtRef = useRef(onPausedAt);
+  const seekRequestRef = useRef(seekRequest);
+  useEffect(() => { seekRequestRef.current = seekRequest; }, [seekRequest]);
   useEffect(() => { onPausedAtRef.current = onPausedAt; }, [onPausedAt]);
 
   useEffect(() => {
@@ -101,7 +103,11 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
       player = new window.YT.Player(iframe, {
         events: {
           onReady: (event) => {
-            if (!cancelled) playerRef.current = event.target;
+            if (!cancelled) {
+              playerRef.current = event.target;
+              const pendingSeek = seekRequestRef.current;
+              if (pendingSeek && Number.isFinite(pendingSeek.seconds)) event.target.seekTo(Math.max(0, pendingSeek.seconds), true);
+            }
           },
           onStateChange: (event) => {
             if (cancelled || !window.YT) return;

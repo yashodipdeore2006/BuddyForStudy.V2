@@ -269,13 +269,21 @@ test("MERN stack normal-search snapshot and structured request telemetry remain 
   assert.equal(hitLog.quotaUnits, 0);
 });
 
-test("buildCourse output for the fixed Gemini response matches the Phase 0 snapshot", () => {
-  const built = buildCourse(fixedGeminiRoadmapResponse, {
+test("buildCourse output for the fixed Gemini response matches the Phase 0 snapshot", async () => {
+  const built = await buildCourse(fixedGeminiRoadmapResponse, {
     topic: "MERN stack",
     level: "Beginner",
     studyTimeMinutesPerDay: 60,
     goals: ["Career or work growth"],
     knownSkills: []
+  }, {
+    resolveSkill: async (name, options = {}) => ({
+      id: String(options.aliases?.[0] || name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
+      name,
+      aliases: options.aliases || [],
+      domain: options.domain || "general"
+    }),
+    logger: { info() {} }
   });
   const actual = JSON.parse(JSON.stringify(built.course));
 

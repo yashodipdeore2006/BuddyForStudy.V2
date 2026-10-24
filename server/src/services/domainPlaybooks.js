@@ -25,3 +25,15 @@ export function resolveRoadmapDomain({ domain, topic } = {}) {
   if (/mern|mean|full.?stack|web development|frontend|backend|react|node\.js|express|next\.js|java full stack|\.net|web app|software engineering|programming|developer/.test(value)) return "software_web";
   return "general";
 }
+
+export function composeRoadmapPrompt({ basePrompt, domain, topic, skills = [] } = {}) {
+  const selectedDomain = resolveRoadmapDomain({ domain, topic });
+  const relevant = skills.slice(0, 40).map((skill) => ({ id: skill.id, name: skill.name, domain: skill.domain || selectedDomain }));
+  const registryInstruction = [
+    "CANONICAL SKILL REGISTRY: Reuse the listed canonical IDs when a generated skill is the same skill. Set that skill's id to the canonical ID. Do not create a new ID for a synonym or spelling variation.",
+    "Relevant canonical skills (reuse IDs when the skill is the same):",
+    JSON.stringify(relevant)
+  ].join("\n");
+  return [String(basePrompt || "").trim(), "DOMAIN PLAYBOOK (" + selectedDomain + "):\n" + domainPlaybooks[selectedDomain], registryInstruction]
+    .filter(Boolean).join("\n\n");
+}

@@ -70,30 +70,84 @@ function summarize(result) {
 }
 
 async function runMock() {
-  console.log("Mode: MOCK (no provider/network calls)");
-  console.log("Note: mock mode compares deterministic selector-contract fixtures; it does not measure live selector quality.");
-  const rows = SKILLS.map((skill) => {
-    const oldResult = oldMockSelector(skill);
-    const newResult = newMockSelector(skill);
-    return {
-      skill: skill.name,
-      oldSelector: summarize(oldResult),
-      newSelector: summarize(newResult),
-      sameSelectedFixture: oldResult?.id === newResult?.id
-    };
+  // Configure safe test values before importing services. env.js skips dotenv in
+  // this mode, so this path does not read a local .env file.
+  process.env.BUILD_WITH_AI_SELECTOR_MOCK = "true";
+  process.env.NODE_ENV = "test";
+  process.env.MONGO_URI = "mongodb://127.0.0.1:27017/selector_mock_only";
+  process.env.JWT_SECRET = "selector-mock-only-not-a-secret";
+  process.env.YOUTUBE_API_KEY = "selector-mock-provider";
+  const [{ searchBestYouTubeCourse, __setYouTubeSelectorAdaptersForTests }, nodeModule] = await Promise.all([
+    import("../server/src/services/youtube.service.js"),
+    import("../server/src/services/nodeCuration.service.js")
+  ]);
+  const { curateForNode, __setNodeCurationSelectorForTests, __setNodeCurationCacheForTests } = nodeModule;
+  let activeSkill = SKILLS[0];
+  const mockVideo = (skill, index) => ({
+    id: `mock-video-${skill.id}-${index}`,
+    snippet: {
+      title: `${skill.name} complete tutorial ${index}`,
+      description: `Learn ${skill.topics.join(", ")} with examples, projects, practice and course content.`,
+      tags: skill.topics,
+      channelId: `mock-channel-${index}`,
+      channelTitle: `Mock Academy ${index}`,
+      publishedAt: "2025-01-01T00:00:00Z",
+      thumbnails: { high: { url: "https://example.invalid/mock.jpg" } }
+    },
+    contentDetails: { duration: index === 0 ? "PT90M" : "PT120M" },
+    statistics: { viewCount: String(100000 + index * 10000), likeCount: String(5000 + index * 100) },
+    status: { embeddable: true, privacyStatus: "public" }
   });
-  console.table(rows.map((row) => ({
-    skill: row.skill,
-    oldPick: row.oldSelector.title || "none",
-    oldScore: row.oldSelector.score,
-    newPick: row.newSelector.title || "none",
-    newScore: row.newSelector.score,
-    samePick: row.sameSelectedFixture
-  })));
-  const agreement = rows.filter((row) => row.sameSelectedFixture).length;
-  console.log(JSON.stringify({ mode: "mock", skills: rows.length, selectorAgreement: agreement, rows }, null, 2));
+  const mockVideos = () => [mockVideo(activeSkill, 0), mockVideo(activeSkill, 1)];
+  __setYouTubeSelectorAdaptersForTests({
+    searchVideos: async () => ({ items: mockVideos().map((video) => ({ id: { videoId: video.id }, snippet: video.snippet })) }),
+    getVideoDetails: async () => mockVideos(),
+    getChannelDetails: async () => [0, 1].map((i) => ({ id: `mock-channel-${i}`, statistics: { subscriberCount: String(10000 + i * 1000) } }))
+  });
+  __setNodeCurationCacheForTests({ read: async () => null, write: async () => {} });
+  __setNodeCurationSelectorForTests(async () => ({
+    resources: mockVideos().map((video, index) => ({
+      id: `video:${video.id}`, videoId: video.id, title: video.snippet.title,
+      description: video.snippet.description, channelTitle: video.snippet.channelTitle,
+      durationSeconds: index === 0 ? 5400 : 7200, finalScore: index === 0 ? 82 : 78,
+      sourceUrl: `https://www.youtube.com/watch?v=${video.id}`
+    })),
+    meta: { searchCalls: 1, quotaUnits: 100, resultCacheHit: false }
+  }));
+  const rows = [];
+  try {
+    for (const skill of SKILLS) {
+      activeSkill = skill;
+      const searchPolicy = {
+        minDurationMinutes: skill.durationPolicy.minMinutes,
+        maxDurationMinutes: skill.durationPolicy.maxMinutes,
+        excludeShorts: true, requireEmbeddable: true, requiredTopics: skill.topics
+      };
+      const oldResult = await searchBestYouTubeCourse({
+        skill: skill.name, searchQueries: [`${skill.name} full course tutorial`],
+        searchPolicy, maxResultsPerQuery: 10
+      });
+      const newResult = await curateForNode({
+        skill: { ...skill, canonicalSkillId: skill.id, searchQueries: [`${skill.name} practical tutorial`] },
+        profile: { topic: skill.name, level: "Beginner", language: "en" },
+        durationPolicy: skill.durationPolicy
+      });
+      const oldSummary = summarize(oldResult);
+      const newSummary = summarize({ ...newResult.best, meta: newResult.meta });
+      rows.push({ skill: skill.name, oldSelector: oldSummary, newSelector: newSummary,
+        sameSelectedFixture: Boolean(oldSummary.selected && oldSummary.selected === newSummary.selected) });
+    }
+  } finally {
+    __setYouTubeSelectorAdaptersForTests(null);
+    __setNodeCurationSelectorForTests(null);
+    __setNodeCurationCacheForTests(null);
+  }
+  console.log("Mode: MOCK (production selector functions; provider and persistence dependencies mocked)");
+  console.table(rows.map((row) => ({ skill: row.skill, oldPick: row.oldSelector.title || "none",
+    newPick: row.newSelector.title || "none", samePick: row.sameSelectedFixture })));
+  console.log(JSON.stringify({ mode: "mock", skills: rows.length,
+    selectorAgreement: rows.filter((row) => row.sameSelectedFixture).length, rows }, null, 2));
 }
-
 async function runLive() {
   const [{ searchBestYouTubeCourse }, { curateForNode }, { getState }] = await Promise.all([
     import("../server/src/services/youtube.service.js"),

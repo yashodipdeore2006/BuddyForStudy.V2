@@ -603,6 +603,7 @@ export default function Courses() {
                     Building...
                   </>
                 ) : (
+                <>
                   <>
                     <Sparkles className="h-4 w-4 text-violet-600" />
                     Build with AI
@@ -889,8 +890,7 @@ export default function Courses() {
                   {aiError}
                 </div>
               )}
-            </div>
-
+                </>
 
               )}
             </div>

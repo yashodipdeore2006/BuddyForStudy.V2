@@ -461,11 +461,11 @@ export default function Courses() {
     aiLoadingRef.current = true;
     setAiError(null);
     try {
-      const legacyGoal = ({ job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' } as Record<string, string>)[intentGoal] || aiGoal;
+      const legacyGoal = ({ job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' } as Record<string, string>)[intentGoal || 'learn'] || (INTENT_V2 ? 'Build practical skills' : aiGoal);
       const intentProfile = INTENT_V2 && intentResult?.valid ? {
         ...intentResult.profile,
         topic,
-        goal: intentGoal,
+        goal: intentGoal || 'learn',
         targetRole: String(intentAnswers.role ?? intentResult.profile?.targetRole ?? '') || null,
         targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
         examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,

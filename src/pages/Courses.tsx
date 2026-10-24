@@ -10,6 +10,11 @@ import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRig
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
 
+const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
+type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string };
+type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null };
+type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; inferredGoal?: string; fallback?: boolean };
+
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
 const AI_GOAL_OPTIONS = [
@@ -170,6 +175,11 @@ export default function Courses() {
   const aiDialogRef = useRef<HTMLElement | null>(null);
   const aiLoadingRef = useRef(false);
   const [aiTopic, setAiTopic] = useState('');
+  const [intentLoading, setIntentLoading] = useState(false);
+  const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
+  const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
+  const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+
   const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
   const [aiCustomGoal, setAiCustomGoal] = useState('');
   const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
@@ -385,7 +395,73 @@ export default function Courses() {
     };
   }, [aiOpen]);
 
+  const startIntentFlow = async () => {
+    const query = aiTopic.trim();
+    if (query.length < 2) {
+      setAiError('Add a subject, skill, question, or outcome to build a plan.');
+      return;
+    }
+    if (!session) {
+      setAiError('Sign in to generate a personalized AI roadmap.');
+      return;
+    }
+    setIntentLoading(true);
+    setAiError(null);
+    try {
+      const result = await apiFetch('/api/intent/parse', {
+        method: 'POST',
+        body: JSON.stringify({ query }),
+        showFeatureUpgrade: true,
+      }) as IntentParse;
+      setIntentResult(result);
+      setIntentQuestionIndex(0);
+      setIntentAnswers({});
+      if (!result.valid) {
+        setAiError('That does not look like a learning topic yet. Try Python, Data Analytics, an exam name, or a project idea.');
+        return;
+      }
+      const profile = result.profile || {};
+      if (profile.level) setAiLevel(profile.level as CourseLevel);
+      if (profile.minutesPerDay) setAiStudyTime(Number(profile.minutesPerDay));
+      if (Array.isArray(profile.knownSkills)) setAiKnownSkills(profile.knownSkills.join(', '));
+      const goalValues: Record<string, string> = { job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' };
+      if (profile.goal) setAiGoal(goalValues[profile.goal] || 'Build practical skills');
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'Unable to parse this learning intent.');
+    } finally {
+      setIntentLoading(false);
+    }
+  };
+
+  const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
+  const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
+    !(question.id === 'goal' && Boolean(intentAnswers.goal)) &&
+    (!question.when || question.when === 'goal=' + intentGoal)
+  );
+  const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
+  const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  const chooseIntentOption = (question: IntentQuestion, value: string) => {
+    const mapped = question.id === 'goal'
+      ? ({ 'Job-ready': 'job_ready', 'Exam or certification': 'exam', 'Build a project': 'project', 'Learn a skill': 'learn' } as Record<string, string>)[value] || value
+      : question.id === 'depth'
+        ? (value === 'Complete learning path' ? 'broad' : 'narrow')
+        : question.id === 'language'
+          ? ({ English: 'en', Hindi: 'hi', Marathi: 'mr' } as Record<string, string>)[value] || value
+          : value;
+    setIntentAnswers((previous) => ({ ...previous, [question.id]: mapped }));
+    if (question.id === 'goal') setIntentQuestionIndex(0);
+    else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  };
+
   const generateAiRoadmap = async () => {
+    if (INTENT_V2 && intentResult && !intentResult.valid) {
+      setAiError('Change the topic to a learnable subject or outcome before building a roadmap.');
+      return;
+    }
+    if (INTENT_V2 && !intentResult) {
+      await startIntentFlow();
+      return;
+    }
     const topic = aiTopic.trim();
     if (!topic) {
       setAiError('Add a subject, skill, question, or outcome to build a plan.');
@@ -395,19 +471,36 @@ export default function Courses() {
       setAiError('Sign in to generate a personalized AI roadmap.');
       return;
     }
-
     setAiLoading(true);
     aiLoadingRef.current = true;
     setAiError(null);
     try {
+      const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn');
+      const legacyGoal = ({ job_ready: 'Career or work growth', exam: 'Exam or certification', project: 'Create something', learn: 'Build practical skills' } as Record<string, string>)[selectedGoal] || aiGoal;
+      const intentProfile = INTENT_V2 && intentResult?.valid ? {
+        ...intentResult.profile,
+        topic,
+        goal: selectedGoal,
+        targetRole: String(intentAnswers.role ?? intentResult.profile?.targetRole ?? '') || null,
+        targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
+        examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,
+        examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,
+        syllabusText: String(intentAnswers.syllabus ?? intentResult.profile?.syllabusText ?? '') || null,
+        projectIdea: String(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea ?? '') || null,
+        scope: intentAnswers.depth ? (intentAnswers.depth === 'broad' || intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
+        minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
+        language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
+        knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50)
+      } : undefined;
       const data = await apiFetch('/api/ai/roadmap', {
         method: 'POST',
         body: JSON.stringify({
           topic,
-          level: aiLevel,
-          goals: [aiGoal, aiCustomGoal.trim()].filter(Boolean),
-          studyTimeMinutesPerDay: aiStudyTime,
-          knownSkills: aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
+          level: intentProfile?.level || aiLevel,
+          goals: INTENT_V2 ? [legacyGoal, aiCustomGoal.trim()].filter(Boolean) : [aiGoal, aiCustomGoal.trim()].filter(Boolean),
+          studyTimeMinutesPerDay: intentProfile?.minutesPerDay || aiStudyTime,
+          knownSkills: intentProfile?.knownSkills || aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
+          ...(intentProfile ? { intentProfile } : {})
         }),
         showFeatureUpgrade: true,
       });
@@ -635,6 +728,68 @@ export default function Courses() {
             )}
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+              {INTENT_V2 && intentResult ? (
+                <div className="space-y-5">
+                  {!intentResult.valid ? (
+                    <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Try a learnable topic such as Python, Data Analytics, an exam name, or a project idea.
+                      <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentResult(null); setAiError(null); }}>Change topic</button>
+                    </div>
+                  ) : (
+                    <>
+                      {intentResult.assumed && (
+                        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+                          We assumed: {intentResult.inferredGoal === 'job_ready' ? 'job-ready' : intentResult.inferredGoal || intentGoal}{intentResult.profile?.targetCompany ? ', ' + intentResult.profile.targetCompany : ''}. Change?
+                          <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentAnswers((previous) => ({ ...previous, goal: '' })); setIntentQuestionIndex(0); }}>Change</button>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                          <span>{Math.min(intentQuestionIndex + 1, activeIntentQuestions.length)} of {activeIntentQuestions.length || 1}</span>
+                          <span>{activeIntentQuestions.length ? Math.round(Math.min(intentQuestionIndex, activeIntentQuestions.length) / activeIntentQuestions.length * 100) : 100}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={activeIntentQuestions.length || 1} aria-valuenow={Math.min(intentQuestionIndex, activeIntentQuestions.length)}>
+                          <div className="h-full rounded-full bg-violet-600 transition-all" style={{ width: (activeIntentQuestions.length ? Math.min(intentQuestionIndex, activeIntentQuestions.length) / activeIntentQuestions.length * 100 : 100) + '%' }} />
+                        </div>
+                      </div>
+                      {currentIntentQuestion ? (
+                        <section className="space-y-3" aria-live="polite">
+                          <h3 className="text-base font-bold text-slate-950">{currentIntentQuestion.text}</h3>
+                          {currentIntentQuestion.options?.length ? (
+                            <div className="flex flex-wrap gap-2">
+                              {currentIntentQuestion.options.map((option) => (
+                                <button key={option} type="button" onClick={() => chooseIntentOption(currentIntentQuestion, option)} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-violet-500 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30">{option}</button>
+                              ))}
+                            </div>
+                          ) : null}
+                          {currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' || currentIntentQuestion.type === 'checklist' ? (
+                            <textarea rows={currentIntentQuestion.type === 'paste' ? 5 : 2} maxLength={currentIntentQuestion.id === 'syllabus' ? 20000 : 1200} value={String(intentAnswers[currentIntentQuestion.id] || '')} onChange={(event) => setIntentAnswers((previous) => ({ ...previous, [currentIntentQuestion.id]: event.target.value }))} placeholder={currentIntentQuestion.id === 'syllabus' ? 'Paste syllabus units here…' : 'Type your answer (optional)…'} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
+                          ) : null}
+                          <div className="flex flex-wrap justify-between gap-2 pt-2">
+                            <button type="button" onClick={skipIntentQuestion} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Skip</button>
+                            {(currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' || currentIntentQuestion.type === 'checklist') && (
+                              <button type="button" onClick={() => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length))} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Next</button>
+                            )}
+                          </div>
+                        </section>
+                      ) : (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">You can build your plan now. Any skipped answers will use the defaults.</div>
+                      )}
+                      {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
+                    </>
+                  )}
+                </div>
+              ) : INTENT_V2 ? (
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">What do you want to learn or achieve?</label>
+                    <input id="ai-topic" autoFocus maxLength={200} value={aiTopic} onChange={(event) => setAiTopic(event.target.value)} placeholder="e.g. Python for a TCS interview, Data Analytics, or a project idea…" className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
+                    <p className="mt-1 text-xs text-slate-500">Start with a topic or outcome. We will ask only the questions that are still needed.</p>
+                  </div>
+                  {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
+                </div>
+              ) : (
+                <>
               <div>
                 <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">
                   What do you want to learn or achieve?
@@ -750,8 +905,10 @@ export default function Courses() {
                   {aiError}
                 </div>
               )}
-            </div>
+                </>
 
+              )}
+            </div>
             <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <button
                 type="button"
@@ -763,11 +920,17 @@ export default function Courses() {
               </button>
               <button
                 type="button"
-                onClick={generateAiRoadmap}
-                disabled={aiLoading || !aiTopic.trim()}
+                onClick={() => {
+                  if (INTENT_V2 && intentResult?.valid && intentQuestionIndex < activeIntentQuestions.length) {
+                    setIntentQuestionIndex(activeIntentQuestions.length);
+                    return;
+                  }
+                  void generateAiRoadmap();
+                }}
+                disabled={aiLoading || intentLoading || !aiTopic.trim()}
                 className="btn-primary h-11 justify-center rounded-lg px-5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {aiLoading ? (
+                {aiLoading || intentLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Building your plan…
@@ -775,7 +938,7 @@ export default function Courses() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    Build personalized plan
+                    {INTENT_V2 && !intentResult ? "Continue" : INTENT_V2 && intentResult?.valid && intentQuestionIndex < activeIntentQuestions.length ? "Review answers" : "Build personalized plan"}
                   </>
                 )}
               </button>

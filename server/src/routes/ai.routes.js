@@ -4,6 +4,7 @@ import { requireFeature } from "../middleware/subscription.middleware.js";
 import { generateRoadmap, generateAndSaveCourse, generateQuiz, generatePracticeQuiz, submitPracticeQuiz, usage } from "../controllers/ai.controller.js";
 import { recordCurationFeedback } from "../controllers/courseCurationFeedback.controller.js";
 
+
 const router = Router();
 
 router.get("/usage", authMiddleware, usage);

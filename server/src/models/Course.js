@@ -140,8 +140,9 @@ const courseSchema = new mongoose.Schema({
 function sanitizePersistedYouTubeData(value, now = new Date()) {
   if (Array.isArray(value)) return value.map((item) => sanitizePersistedYouTubeData(item, now));
   if (!value || typeof value !== "object" || value instanceof Date) return value;
+  const plain = typeof value.toObject === "function" ? value.toObject() : value;
   const output = {};
-  for (const [key, child] of Object.entries(value)) {
+  for (const [key, child] of Object.entries(plain)) {
     if (/^(viewCount|views|likeCount|likes|subscriberCount|subscribers|commentCount|statistics)$/i.test(key)) continue;
     output[key] = sanitizePersistedYouTubeData(child, now);
   }

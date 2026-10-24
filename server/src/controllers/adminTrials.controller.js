@@ -10,6 +10,7 @@ import { resolveAdminAudience } from "../services/adminAudience.service.js";
 
 const filterSchema = z.object({
   q: z.string().trim().max(100).optional().or(z.literal("")),
+  emailExact: z.string().trim().email().max(254).optional().or(z.literal("")),
   status: z.enum(["active", "disabled", ""]).optional(),
   role: z.enum(["user", "admin", ""]).optional(),
   emailVerified: z.enum(["yes", "no", "any"]).default("yes"),

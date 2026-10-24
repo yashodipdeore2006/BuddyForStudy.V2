@@ -49,6 +49,7 @@ export default function AdminTrialCampaigns() {
     const next: Record<string, unknown> = {};
     if (targetMode === "single") {
       next.emailExact = singleEmail.trim().toLowerCase();
+      next.emailVerified = "any";
     } else {
       for (const [key, value] of Object.entries(filters)) {
         if (value === "" || value === "any" || key === "emailExact" || key === "q") continue;

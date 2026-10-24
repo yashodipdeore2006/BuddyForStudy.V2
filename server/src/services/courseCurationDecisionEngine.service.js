@@ -1649,7 +1649,10 @@ export async function curateNormalSearch(query, options = {}) {
     requestedResultLimit: settingCount,
     resultsShown: resources.length,
     cacheHit: false,
+    resultCacheHit: false,
     poolCacheHit,
+    searchCalls: requestMetrics.searchCalls,
+    quotaUnits: requestMetrics.quotaUnits,
     elapsedMs: Date.now() - startedAt,
     youtubeError
   };

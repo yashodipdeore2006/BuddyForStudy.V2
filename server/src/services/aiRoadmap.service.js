@@ -1557,7 +1557,8 @@ export async function generateAIRoadmap(input, options = {}) {
           normalSearchSnapshot
         }
       },
-      isPublished: true,
+      isPublished: options.asyncBuild ? false : true,
+      ...(options.asyncBuild ? { visibility: "private", createdForUser: userId } : {}),
       pricing: { mode: "free", price: 0, currency: "INR" },
       enrollmentEnabled: true,
       certificateEnabled: true

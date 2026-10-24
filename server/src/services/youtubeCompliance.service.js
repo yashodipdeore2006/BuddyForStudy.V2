@@ -4,7 +4,7 @@ import { youtubeRequest } from "./youtubeGateway.js";
 
 const STALE_MS = 25 * 24 * 60 * 60 * 1000;
 const videoIdOf = (video) => String(video?.videoId || "").trim();
-const isVideoObject = (value) => value && typeof value === "object" && (value.videoId || value.playlistId) && (Object.hasOwn(value, "title") || Object.hasOwn(value, "durationSeconds") || Object.hasOwn(value, "channelTitle"));
+const isVideoObject = (value) => value && typeof value === "object" && Boolean(value.videoId || value.playlistId);
 const isUsable = (item) => Boolean(item && item.status?.privacyStatus === "public" && item.status?.embeddable !== false);
 
 function stripStatistics(value) {

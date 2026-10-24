@@ -13,6 +13,7 @@ import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 import { resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
 import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
 import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
+import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildLearnModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -639,7 +640,7 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
   return result;
 }
 
-export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language }, { resolveSkill = resolveCanonicalSkill, logger = console } = {}) {
+export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language, intentProfile, targetRole, targetCompany, examName, examDate, syllabusText, projectIdea, deadline }, { resolveSkill = resolveCanonicalSkill, logger = console, syllabusUnits = [] } = {}) {
   const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
   const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
   const graph = validateSkillGraph(enrichedSkills, { logger });
@@ -825,6 +826,18 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60))
   );
 
+  const goalProfile = { topic, goal: intentProfile?.goal, goals, level, language, minutesPerDay: studyTimeMinutesPerDay, targetRole: targetRole || intentProfile?.targetRole, targetCompany: targetCompany || intentProfile?.targetCompany, examName: examName || intentProfile?.examName, examDate: examDate || intentProfile?.examDate, syllabusText: syllabusText || intentProfile?.syllabusText, projectIdea: projectIdea || intentProfile?.projectIdea, deadline: deadline || intentProfile?.deadline };
+  const goal = normalizeGoal(goalProfile);
+  let goalModule = null;
+  if (goal === "job_ready") goalModule = buildInterviewModule(goalProfile);
+  else if (goal === "exam") goalModule = buildExamModules(goalProfile, { syllabusUnits });
+  else if (goal === "project") goalModule = buildProjectModule(goalProfile);
+  else goalModule = buildLearnModule(goalProfile, activeSkills);
+  if (goalModule) {
+    goalModule.order = modules.length + 1;
+    modules.push(goalModule);
+  }
+  const schedule = buildSchedule(modules, { minutesPerDay: studyTimeMinutesPerDay || 60, deadline: goal === "exam" ? (goalProfile.examDate || deadline) : deadline, examDate: goalProfile.examDate });
   return {
     course: {
       title: ai.title,
@@ -838,7 +851,8 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
         "Use Git and GitHub with professional collaboration and documentation practices.",
         "Test, debug, secure, and deploy applications instead of stopping at tutorial completion."
       ],
-      modules
+      modules,
+      schedule
     },
     skillGraph: activeSkills.map((skill) => ({
       id: skill.id,
@@ -1425,7 +1439,7 @@ export async function generateAIRoadmap(input, options = {}) {
     });
     const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
     const ai = personalizedTemplate.roadmap;
-    const built = await buildCourse(ai, personalizedTemplate.profile);
+    const built = await buildCourse(ai, { ...personalizedTemplate.profile, intentProfile: input.intentProfile, targetRole: input.targetRole, targetCompany: input.targetCompany, examName: input.examName, examDate: input.examDate, syllabusText: input.syllabusText, projectIdea: input.projectIdea, deadline: input.deadline });
     built.personalization.knownSkills = personalizedTemplate.personalization.knownSkills;
     built.personalization.skippedSkills = personalizedTemplate.personalization.skippedSkills;
     built.personalization.estimatedStudyDays = personalizedTemplate.personalization.estimatedStudyDays;
@@ -1436,6 +1450,7 @@ export async function generateAIRoadmap(input, options = {}) {
       }));
     }
     const sources = await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
+    applyInterviewEvidence(built.course);
     normalizeMultiVideoLessons(built.course);
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 

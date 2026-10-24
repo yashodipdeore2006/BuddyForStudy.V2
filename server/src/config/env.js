@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { getProductionConfigErrors } from "./productionConfigValidation.js";
-dotenv.config();
+if (process.env.BUILD_WITH_AI_SELECTOR_MOCK !== "true") dotenv.config();
 
 const nodeEnv = process.env.NODE_ENV || "development";
 if (nodeEnv === "production") {

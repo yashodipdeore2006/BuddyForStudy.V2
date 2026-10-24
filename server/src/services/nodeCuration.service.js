@@ -8,6 +8,7 @@ import { QuotaBudgetError } from "./quota.service.js";
 const ENGINE_VERSION = "node-curation-v1";
 const LOW_CONFIDENCE_THRESHOLD = 45;
 let selectorForNode = curateNormalSearch;
+let nodeCacheTestAdapters = null;
 const GENERIC_SKILL = /\b(basics|fundamentals|introduction|overview|intermediate|advanced|projects)\b/i;
 
 function digest(value) {
@@ -45,6 +46,7 @@ function nodeCacheKey({ canonicalSkillId, mode, level, language, boundsHash }) {
   return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, mode, level, language, boundsHash].join("|"))}`;
 }
 async function readNodeCache(key) {
+  if (nodeCacheTestAdapters?.read) return nodeCacheTestAdapters.read(key);
   try {
     const cached = await CourseCurationCache.findOne({ key, kind: "node", expiresAt: { $gt: new Date() } }).lean();
     return cached?.payload || null;
@@ -53,6 +55,7 @@ async function readNodeCache(key) {
   }
 }
 async function writeNodeCache(key, payload) {
+  if (nodeCacheTestAdapters?.write) return nodeCacheTestAdapters.write(key, payload);
   const expiresAt = new Date(Date.now() + env.nodeCacheTtlDays * 24 * 60 * 60 * 1000);
   try {
     await CourseCurationCache.updateOne({ key }, { $set: { kind: "node", payload, expiresAt } }, { upsert: true });
@@ -160,6 +163,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
 }
 
 export function __setNodeCurationSelectorForTests(selector = null) { selectorForNode = selector || curateNormalSearch; }
+export function __setNodeCurationCacheForTests(adapters = null) { nodeCacheTestAdapters = adapters; }
 
 export const __nodeCurationTestHooks = Object.freeze({
   buildInjectedSyllabus,

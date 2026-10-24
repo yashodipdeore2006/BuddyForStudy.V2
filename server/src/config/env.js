@@ -49,6 +49,7 @@ export const env = {
   asyncRoadmap: process.env.ASYNC_ROADMAP === "true",
   ytCombinedSearch: process.env.YT_COMBINED_SEARCH === "true",
   enableTrustedChannels: process.env.ENABLE_TRUSTED_CHANNELS === "true",
+  enableCurationComplianceWorkers: process.env.ENABLE_CURATION_COMPLIANCE_WORKERS === "true",
   aiPrivateCoursesSkipReview: process.env.AI_PRIVATE_COURSES_SKIP_REVIEW === "true",
   ytDailyQuotaBudget: Math.max(1, Number(process.env.YT_DAILY_QUOTA_BUDGET || 9000)),
   ytSoftLimitPct: Math.max(1, Math.min(100, Number(process.env.YT_SOFT_LIMIT_PCT || 80))),

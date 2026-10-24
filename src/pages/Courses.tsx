@@ -194,7 +194,6 @@ export default function Courses() {
   const sendCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level", module: AiModule, video: NonNullable<TutorialContent["videos"]>[number]) => {
     const resourceId = String(video.videoId || "");
     if (!resourceId) return;
-    const key = `${resourceId}:${event}`;
     try {
       await apiFetch("/api/ai/curation-feedback", {
         method: "POST",

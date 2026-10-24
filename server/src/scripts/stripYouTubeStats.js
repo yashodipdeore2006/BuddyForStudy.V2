@@ -39,7 +39,7 @@ async function main() {
       if (!changes.length) continue;
       affected += 1;
       changedFields += changes.length;
-      console.info(JSON.stringify({ mode: APPLY ? "apply" : "dry-run", courseId: String(course._id), fieldsToRemove: changes.length, paths: changes.slice(0, 20), truncated: changes.length > 20 }));
+      console.info(JSON.stringify({ mode: APPLY ? "apply" : "dry-run", courseId: String(course._id), fieldsToRemove: changes.length, paths: changes }));
       if (APPLY) {
         await courses.updateOne({ _id: course._id }, { $set: { ...(generation ? { generation } : {}), ...(modules ? { modules } : {}) } });
       }

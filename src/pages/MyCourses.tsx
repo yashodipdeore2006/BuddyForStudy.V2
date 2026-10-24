@@ -274,6 +274,36 @@ function CourseLearningCard({
   );
 }
 
+function CourseStatusPreloader({
+  enrollment,
+  onStateChange,
+}: {
+  enrollment: Enrollment & { course: Course };
+  onStateChange: (courseId: string, status: CourseStatus) => void;
+}) {
+  const course = enrollment.course;
+  const state = useCourseState(course.id, course, true);
+  const lessons = getAllLessonsFlat(course.modules);
+  const totalLessons = state.totalLessons || lessons.length;
+  const status: LearningTab = enrollment.status === "completed" || state.isCompleted
+    ? "completed"
+    : state.progressPct > 0 ? "in-progress" : "not-started";
+
+  useEffect(() => {
+    if (state.loading) return;
+    onStateChange(course.id, {
+      progressPct: state.progressPct,
+      completedLessons: state.completedLessons,
+      totalLessons,
+      nextLessonId: state.nextLessonId,
+      status,
+      loading: false,
+    });
+  }, [course.id, state.progressPct, state.completedLessons, totalLessons, state.nextLessonId, state.loading, status, onStateChange]);
+
+  return null;
+}
+
 export default function MyCourses() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -350,6 +380,13 @@ export default function MyCourses() {
     "not-started": enrollments.filter((item) => statusFor(item) === "not-started").length,
     completed: enrollments.filter((item) => statusFor(item) === "completed").length,
   }), [enrollments, courseStates, statusFor]);
+
+  // Resolve progress for every enrollment before showing status counts. Previously only
+  // cards in the selected tab fetched progress, so every other active enrollment was
+  // temporarily counted as "In progress" until the learner opened another tab.
+  const statusesReady = enrollments.every((item) =>
+    item.status === "completed" || Boolean(courseStates[item.course.id] && !courseStates[item.course.id].loading)
+  );
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -428,6 +465,14 @@ export default function MyCourses() {
         </section>
       )}
 
+      {!loading && !loadError && enrollments.map((enrollment) => (
+        <CourseStatusPreloader
+          key={enrollment.id}
+          enrollment={enrollment}
+          onStateChange={updateCourseState}
+        />
+      ))}
+
       <div className="mt-6 border-b border-[var(--border)]">
         <nav className="flex gap-5 overflow-x-auto" aria-label="Course status">
           {([
@@ -436,7 +481,7 @@ export default function MyCourses() {
             ["completed", "Completed"],
           ] as const).map(([tab, label]) => (
             <button key={tab} type="button" onClick={() => setTab(tab)} aria-current={activeTab === tab ? "page" : undefined} className={`relative min-h-11 whitespace-nowrap border-b-2 px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${activeTab === tab ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--muted)]"}`}>
-              {label} <span className="ml-1 rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs">{tabCounts[tab]}</span>
+              {label} <span className="ml-1 rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs">{statusesReady || loading || loadError ? tabCounts[tab] : "…"}</span>
             </button>
           ))}
         </nav>
@@ -461,7 +506,7 @@ export default function MyCourses() {
       )}
 
       <section className="mt-6" aria-live="polite">
-        {loading ? (
+        {loading || (!loadError && !statusesReady) ? (
           <div className="bfs-course-grid" aria-label="Loading your courses">
             {Array.from({ length: 3 }, (_, index) => <article key={index} className="bfs-course-card animate-pulse" aria-hidden="true"><div className="aspect-video bg-[var(--surface-2)]" /><div className="space-y-3 p-4"><div className="h-4 w-1/3 rounded bg-[var(--surface-2)]" /><div className="h-5 w-4/5 rounded bg-[var(--surface-2)]" /><div className="h-10 rounded bg-[var(--surface-2)]" /></div></article>)}
           </div>

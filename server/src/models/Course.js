@@ -184,8 +184,8 @@ courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
   const now = new Date();
   for (const module of this.modules || []) {
     for (const lesson of module.lessons || []) {
-      if (lesson.tutorial?.videos) lesson.tutorial.videos = sanitizePersistedYouTubeData(lesson.tutorial.videos, now);
-      if (lesson.project?.videos) lesson.project.videos = sanitizePersistedYouTubeData(lesson.project.videos, now);
+      if (lesson.tutorial) lesson.tutorial = sanitizePersistedYouTubeData(lesson.tutorial, now);
+      if (lesson.project) lesson.project = sanitizePersistedYouTubeData(lesson.project, now);
     }
   }
   if (this.generation?.snapshot) this.generation.snapshot = sanitizePersistedYouTubeData(this.generation.snapshot, now);

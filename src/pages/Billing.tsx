@@ -111,7 +111,13 @@ export default function Billing() {
     });
   }, [payments, search, statusFilter]);
 
-  const paidTotal = payments.filter((p) => ["paid", "partially_refunded"].includes(p.status)).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const paidTotalsByCurrency = payments
+    .filter((payment) => ["paid", "partially_refunded"].includes(payment.status))
+    .reduce<Record<string, number>>((totals, payment) => {
+      const currency = String(payment.currency || "INR").trim().toUpperCase() || "INR";
+      totals[currency] = (totals[currency] || 0) + Number(payment.amount || 0);
+      return totals;
+    }, {});
   const pendingCount = payments.filter((p) => ["created", "pending"].includes(p.status)).length;
   const failedCount = payments.filter((p) => ["failed", "cancelled"].includes(p.status)).length;
 
@@ -185,7 +191,7 @@ export default function Billing() {
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Current plan</span><CreditCard className="h-5 w-5 text-blue-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{subscription?.plan?.name || "Free"}</p><p className="mt-1 text-xs capitalize text-slate-500">{subscription?.status ? subscription.status.replace(/_/g, " ") : "No paid subscription"}</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid transactions</span><ReceiptText className="h-5 w-5 text-emerald-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{payments.filter((p) => ["paid", "partially_refunded", "refunded"].includes(p.status)).length}</p><p className="mt-1 text-xs text-slate-500">Recorded successful payments</p></div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid amount</span><ShieldCheck className="h-5 w-5 text-violet-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{money(paidTotal)}</p><p className="mt-1 text-xs text-slate-500">Gross amount on paid records, before refunds</p></div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Paid amount</span><ShieldCheck className="h-5 w-5 text-violet-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{Object.entries(paidTotalsByCurrency).sort(([left], [right]) => left.localeCompare(right)).map(([currency, amount]) => money(amount, currency)).join(" · ") || money(0)}</p><p className="mt-1 text-xs text-slate-500">Gross paid value before refunds, shown separately by currency</p></div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-bold uppercase tracking-wider text-slate-500">Needs attention</span><Clock3 className="h-5 w-5 text-amber-600" /></div><p className="mt-3 text-xl font-extrabold text-slate-950">{pendingCount + failedCount}</p><p className="mt-1 text-xs text-slate-500">{pendingCount} pending · {failedCount} failed/cancelled</p></div>
       </section>
 

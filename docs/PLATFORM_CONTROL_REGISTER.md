@@ -112,6 +112,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-PII-REVEAL-001 | Reveal and re-mask a learner email | Masked by default; reveal needs PII permission and a 10–500 character reason; request sends the reason; returned value can be masked again | Automated pass; [CI run #40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) |
 | ADM-PII-EXPORT-001 | Export selected users to CSV | Requires a reason and exact EXPORT N USERS phrase; sends selected IDs and sorting; downloads CSV with formula-like values prefixed safely | Automated pass; [CI run #40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) |
 | ADM-USER-STATUS-001 | Disable/reactivate user | Valid transitions, reason, audit event and refreshed state | Backend tests exist; browser test pending |
+| ADM-USER-STATUS-FAILURE-001 | Disable user API returns 503 | Reason remains in the confirmation dialog, no optimistic disable occurs, error is announced, and retry can complete the change | Automated pass; [CI run #40184125922](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184125922) |
 | ADM-COURSE-PUBLISH-001 | Readiness then publish | Readiness and publish permission enforced; failure explained; state refreshed | Course readiness/publishing tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
 | ADM-COURSE-DELETE-001 | Soft-delete/restore course | Confirmation/reason, safe lifecycle and audit/revision trail | Backend validation tests exist; browser test pending |
@@ -151,7 +152,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
-- [ ] Add remaining pricing/trial edge cases and user-account status mutation browser coverage. PII reveal/export, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
+- [ ] Add remaining pricing/trial edge cases, account reactivation coverage, and responsive/accessibility checks. PII reveal/export and account-disable failure recovery, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
 - [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
@@ -218,3 +219,10 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - **CI:** [run #40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) passed frontend and backend jobs; **70 Playwright tests passed**.
 - **New passing ID:** `ADM-PII-EXPORT-001`: export is not submitted until the reason and exact typed phrase are valid; request includes selected IDs and sort state; downloaded CSV includes a BOM and prefixes formula-like names to reduce spreadsheet formula execution risk.
 - The API response is mocked. Live authorization/audit persistence and real exported production data remain staging/server-side verification items.
+
+
+### 2026-10-25 — Account disable failure recovery passed
+- **Commit:** `216acad21fb358bb89a98c7d53f0f8396c43ebc6`.
+- **CI:** [run #40184125922](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184125922) passed frontend and backend jobs; **71 Playwright tests passed**.
+- **New passing ID:** `ADM-USER-STATUS-FAILURE-001`: a failed disable request preserves the required operator reason and confirmation, announces the server error and supports retry; success refreshes the visible state to Enable.
+- The API is mocked in the browser test; the server audit record and live account access enforcement still need staging verification.

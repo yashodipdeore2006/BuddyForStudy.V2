@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
@@ -101,6 +102,20 @@ test("provider refund status never treats pending or unknown states as processed
   assert.equal(classifyProviderRefundStatus("created"), "pending");
   assert.equal(classifyProviderRefundStatus(""), "pending");
   assert.equal(classifyProviderRefundStatus(undefined), "pending");
+});
+
+test("admin refund processing validates provider identity and amount before the processed transition", () => {
+  const controller = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
+  const start = controller.indexOf("export async function updateRefund");
+  const end = controller.indexOf("export async function reconcileRefund", start);
+  assert.ok(start >= 0 && end > start, "Expected the admin refund handlers");
+  const handler = controller.slice(start, end);
+  const validation = handler.indexOf("if (!matchesProviderRefund({");
+  const processedTransition = handler.indexOf('if (providerOutcome === "processed")');
+  assert.ok(validation >= 0, "Provider response must be checked against the refund request");
+  assert.ok(processedTransition > validation, "Provider validation must precede marking a refund processed");
+  assert.match(handler, /refund\.provider_response_mismatch/);
+  assert.match(handler, /payment status was not changed/);
 });
 
 test("payment status can be repaired from aggregate confirmed refund balance", () => {

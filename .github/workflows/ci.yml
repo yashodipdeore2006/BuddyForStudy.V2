@@ -16,9 +16,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Frontend lint (advisory until legacy lint debt is resolved)
+      - name: Frontend lint
         run: npm run lint
-        continue-on-error: true
       - run: npm run typecheck
       - name: Course navigation unit tests
         run: npm run test:unit

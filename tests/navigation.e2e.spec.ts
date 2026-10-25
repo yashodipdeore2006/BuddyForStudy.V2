@@ -1246,7 +1246,7 @@ test.describe("session recovery", () => {
     await menu.getByRole("menuitem", { name: "Sign out" }).click();
 
     await expect.poll(() => page.evaluate(() => window.location.pathname)).toBe("/");
-    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
     expect(logoutRequests).toBe(1);
     const token = await page.evaluate(() => localStorage.getItem("bfs_token"));
     expect(token).toBeNull();

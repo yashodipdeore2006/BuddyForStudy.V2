@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { capturedPaymentValidationError } from "../src/services/paymentVerification.js";
 
 const payment = {
@@ -70,4 +71,16 @@ test("failed webhooks cannot overwrite successful or refunded payment states", (
   for (const protectedStatus of ["paid", "failed", "refunded", "partially_refunded", "cancelled"]) {
     assert.equal(FAILED_PAYMENT_SOURCE_STATUSES.includes(protectedStatus), false);
   }
+});
+
+
+test("course payment verification restores enrollment on success and idempotent retry", () => {
+  const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
+  const courseDetails = readFileSync(new URL("../../src/pages/CourseDetails.tsx", import.meta.url), "utf8");
+
+  assert.match(controller, /async function restorePurchasedCourseEnrollment\(payment, userId\)/);
+  assert.match(controller, /Payment already verified; course access restored/);
+  assert.match(controller, /await payment\.save\(\);[\s\S]*?restorePurchasedCourseEnrollment\(payment, req\.user\.userId\)/);
+  assert.match(courseDetails, /const verificationData = await apiFetch\('\/api\/payments\/course\/verify'/);
+  assert.match(courseDetails, /verificationData\?\.enrollment/);
 });

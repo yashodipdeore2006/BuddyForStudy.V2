@@ -124,7 +124,7 @@ test("card and page source use canonical navigation helpers", () => {
   assert.match(card, /getCourseNavTargets\(/);
   assert.doesNotMatch(card, /bfs-course-card__progress/);
   assert.doesNotMatch(myLearning, /bfs-course-card__progress/);
-  assert.match(myLearning, /routes\.learn\(activeEnrollment\.course\.id, courseStates\[activeEnrollment\.course\.id\]\?\.nextLessonId\)/);
+  assert.match(myLearning, /routes\.learn\(activeEnrollment\.course\.id, activeEnrollment\.learningProgress\.nextLessonId\)/);
   assert.match(myLearning, /routes\.roadmap\(course\.id\)/);
   assert.match(myLearning, /routes\.course\(course\.id\)/);
   assert.match(myLearning, /"not-started"/);

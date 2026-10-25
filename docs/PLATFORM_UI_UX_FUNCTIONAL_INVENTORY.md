@@ -1,7 +1,7 @@
 # BuddyForStudy — UI/UX, Functional Controls, Event and Deployment Inventory
 
 **Audit baseline date:** 2026-10-25  
-**Repository:** `yashodip2006/BuddyForStudy.V2`  
+**Repository:** `yashodipdeore2006/BuddyForStudy.V2`  
 **Branch reviewed:** `main`  
 **Runtime source of truth:** `src/App.tsx`  
 **Companion reports:** [UI/UX audit](UI_UX_AUDIT.md), [User flow and element map](../USER_FLOW_AND_ELEMENT_MAP.md), [Build with AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md)

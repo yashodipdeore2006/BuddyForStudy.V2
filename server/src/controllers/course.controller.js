@@ -4,7 +4,7 @@ import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
-import { getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
+import { canAccessCourse, getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
 
 const courseSchema = z.object({
   title: z.string().trim().min(2),
@@ -141,6 +141,9 @@ export async function learn(req, res, next) {
       user: req.user.userId, course: req.params.courseId, status: { $in: ["active", "completed"] }, revokedBy: null
     });
     if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
+    if (!(await canAccessCourse(req.user.userId, req.params.courseId))) {
+      return failure(res, "Course access is no longer available. Check your purchase or subscription status.", 403);
+    }
 
     // Opening the authenticated lesson player is a learning activity. Persist it
     // so reminders do not nudge learners who have recently returned to a course.
@@ -189,9 +192,12 @@ export async function learningItem(req, res, next) {
     const course = await courseService.getPublished(courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
     const enrolled = await (await import("../models/Enrollment.js")).Enrollment.findOne({
-      user: req.user.userId, course: courseId, status: { $in: ["active", "completed"] }
+      user: req.user.userId, course: courseId, status: { $in: ["active", "completed"] }, revokedBy: null
     });
     if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
+    if (!(await canAccessCourse(req.user.userId, courseId))) {
+      return failure(res, "Course access is no longer available. Check your purchase or subscription status.", 403);
+    }
     const located = courseService.findLearningItem(course, itemId);
     if (!located) return failure(res, "Learning item not found", 404);
 

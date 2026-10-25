@@ -28,3 +28,11 @@ export function getEffectiveCoursePrice(pricing?: Partial<CoursePricing> | null)
   if (!Number.isFinite(basePrice) || basePrice <= 0) return null;
   return hasValidActiveCourseSale(pricing) ? Number(pricing.salePrice) : basePrice;
 }
+
+/** Price shown with a strikethrough, if and only if a valid sale is active. */
+export function getCourseCrossedOutPrice(pricing?: Partial<CoursePricing> | null): number | null {
+  if (!hasValidActiveCourseSale(pricing)) return null;
+  const basePrice = Number(pricing?.price);
+  const compareAtPrice = Number(pricing?.compareAtPrice || 0);
+  return Math.max(basePrice, Number.isFinite(compareAtPrice) ? compareAtPrice : 0);
+}

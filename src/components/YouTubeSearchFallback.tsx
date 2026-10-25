@@ -461,7 +461,7 @@ export default function YouTubeSearchFallback({
                 )}
               </div>
               {curatedResources.length ? (
-                <div className="bfs-course-grid bfs-youtube-course-grid mt-4">
+                <div className="bfs-youtube-course-grid mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                   {curatedResources.map((resource, resultIndex) => {
                     const mappedLessons: CourseLesson[] = (resource.items || [])
                       .map((item) => {
@@ -508,7 +508,7 @@ export default function YouTubeSearchFallback({
                           <button type="button" aria-label={`Preview ${resource.title}`} onClick={() => void openCourse(course)} className="absolute inset-0 z-0 h-full w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500"><span className="sr-only">Preview course</span></button>
                           {resource.thumbnail ? <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" /> : <div className="flex h-full items-center justify-center"><PlayCircle className="h-10 w-10 text-slate-300" /></div>}
                           <span className="absolute left-2 top-2 z-10 rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm">{resource.primarySlot || "Recommended"}</span>
-                          {resource.isHiddenGem && <span className="absolute right-2 top-2 z-10 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
+                          {resource.isHiddenGem && <span className="absolute left-2 bottom-2 z-10 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
                           <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-950/85 px-2 py-1 text-[10px] font-bold text-white">{resource.durationEstimated ? "~" : ""}{resource.duration || formatMinutes(resource.durationSeconds || 0)}</span>
                           <div className="absolute right-2 top-2 z-10 flex flex-col gap-1.5">
                             <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-sm transition hover:bg-violet-50 disabled:opacity-60" aria-label={savedIds.has(course.id) ? "Course saved" : "Save course"} title={savedIds.has(course.id) ? "Saved" : "Save course"}>{savedIds.has(course.id) ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}</button>

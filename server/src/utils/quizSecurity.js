@@ -61,3 +61,24 @@ export function gradeQuizSubmission(questions, answers = {}, passingScore = 70) 
     results
   };
 }
+
+export function normalizeQuizAnswers(questions, answers = {}, questionIdPrefix = "") {
+  const list = Array.isArray(questions) ? questions : [];
+  if (!list.length) return { valid: false, questionId: "" };
+  const normalized = {};
+  for (const rawQuestion of list) {
+    const question = plainQuestion(rawQuestion);
+    const questionId = String(question.id || "");
+    if (!questionId) return { valid: false, questionId: "" };
+    const answerKey = questionIdPrefix + questionId;
+    const selectedOptionId = typeof answers?.[answerKey] === "string" ? answers[answerKey] : "";
+    const options = Array.isArray(question.options) ? question.options.map((option) =>
+      option && typeof option.toObject === "function" ? option.toObject() : option
+    ) : [];
+    if (!selectedOptionId || !options.some((option) => String(option?.id || "") === selectedOptionId)) {
+      return { valid: false, questionId: answerKey };
+    }
+    normalized[questionId] = selectedOptionId;
+  }
+  return { valid: true, answers: normalized };
+}

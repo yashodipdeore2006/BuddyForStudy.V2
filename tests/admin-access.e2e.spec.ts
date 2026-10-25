@@ -386,7 +386,7 @@ test.describe("administrator route and permission UX", () => {
       user: analystUser,
       adminRole: "course_publisher",
       roleLabel: "Course Publisher",
-      permissions: ["dashboard.read", "courses.read", "courses.publish"],
+      permissions: ["dashboard.read", "courses.read", "courses.manage", "courses.publish"],
     });
     await page.route("**/api/admin/courses/507f1f77bcf86cd799439011/readiness", async (route) => json(route, {
       readiness: {

@@ -1,6 +1,7 @@
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Progress } from "../models/Progress.js";
+import { canAccessCourse } from "./subscriptionEntitlement.service.js";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 
@@ -193,7 +194,9 @@ export async function getCourseJourney(courseId, userId = null) {
   let progress = null;
   if (userId) {
     const enrollment = await Enrollment.findOne({ user: userId, course: courseId, status: { $in: ["active", "completed"] }, revokedBy: null }).lean();
-    if (enrollment) {
+    if (enrollment && await canAccessCourse(userId, courseId)) {
+      // Roadmap structure can serve as a public preview; private learner progress
+      // must only be returned while current course entitlement remains valid.
       const savedProgress = await Progress.findOne({ user: userId, course: courseId }).lean();
       const completedIds = (savedProgress?.completedLessons || []).map((entry) => String(entry.lessonId));
       const calculated = calculateJourneyProgress(stages, completedIds, lessonDurationById);

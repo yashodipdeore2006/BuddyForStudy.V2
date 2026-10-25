@@ -1,3 +1,4 @@
+import { PlatformSetting } from "../models/PlatformSetting.js";
 import mongoose from "mongoose";
 import { Course } from "../models/Course.js";
 import { PricingBatch } from "../models/PricingBatch.js";
@@ -396,4 +397,65 @@ export async function runEnabledRules(req, res, next) {
     await audit(req, "course.pricing.auto_rules_applied", batch._id, { ruleCount: rules.length }, { appliedCount, skippedCount, rules: rules.map((rule) => rule.name) }, reason);
     return success(res, { batchId: String(batch._id), appliedCount, skippedCount, items }, "Enabled automatic pricing rules executed. Review the audit history for the result.");
   } catch (error) { next(error); }
+}
+
+
+const GENERATED_PRICING_KEY = "generated_course_pricing_policy";
+const DEFAULT_GENERATED_PRICING_POLICY = {
+  enabled: false,
+  mode: "rule_based",
+  fixedPrice: 499,
+  currency: "INR",
+  levelBands: {
+    Beginner: { min: 199, max: 499 },
+    Intermediate: { min: 499, max: 999 },
+    Advanced: { min: 999, max: 1999 }
+  },
+  applyTo: ["ai", "discovery", "module", "normal"]
+};
+
+function validateGeneratedPricingPolicy(input = {}) {
+  const allowed = ["enabled", "mode", "fixedPrice", "currency", "levelBands", "applyTo"];
+  for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported generated pricing setting: " + key);
+  const policy = { ...DEFAULT_GENERATED_PRICING_POLICY, ...input };
+  if (typeof policy.enabled !== "boolean") throw new Error("Enabled must be true or false.");
+  if (!["free", "fixed", "level_bands", "rule_based"].includes(policy.mode)) throw new Error("Choose free, fixed, level bands, or admin pricing rules.");
+  policy.fixedPrice = Number(policy.fixedPrice);
+  if (!Number.isFinite(policy.fixedPrice) || policy.fixedPrice < 0 || policy.fixedPrice > 1000000) throw new Error("Fixed price must be between 0 and 1,000,000.");
+  policy.currency = String(policy.currency || "INR").toUpperCase();
+  if (policy.currency !== "INR") throw new Error("Only INR is currently supported for generated-course pricing.");
+  const bands = {};
+  for (const level of ["Beginner", "Intermediate", "Advanced"]) {
+    const band = policy.levelBands?.[level] || DEFAULT_GENERATED_PRICING_POLICY.levelBands[level];
+    const min = Number(band.min), max = Number(band.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min || max > 1000000) throw new Error("Each level price band must be valid and between 0 and 1,000,000.");
+    bands[level] = { min: Math.round(min), max: Math.round(max) };
+  }
+  if (!Array.isArray(policy.applyTo) || policy.applyTo.some((mode) => !["ai", "discovery", "module", "normal"].includes(mode))) throw new Error("Invalid generated course types.");
+  return { enabled: policy.enabled, mode: policy.mode, fixedPrice: Math.round(policy.fixedPrice), currency: policy.currency, levelBands: bands, applyTo: [...new Set(policy.applyTo)] };
+}
+
+export async function getGeneratedPricingPolicy(req, res, next) {
+  try {
+    const setting = await PlatformSetting.findOne({ key: GENERATED_PRICING_KEY }).lean();
+    return success(res, { policy: { ...DEFAULT_GENERATED_PRICING_POLICY, ...(setting?.value || {}) } });
+  } catch (error) { next(error); }
+}
+
+export async function updateGeneratedPricingPolicy(req, res, next) {
+  try {
+    const actor = actorId(req);
+    if (!actor) return failure(res, "Administrator identity is missing.", 401);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+    if (reason.length < 10 || reason.length > 500) return failure(res, "Provide a reason between 10 and 500 characters.", 400);
+    const policy = validateGeneratedPricingPolicy(req.body?.policy || {});
+    const previous = await PlatformSetting.findOne({ key: GENERATED_PRICING_KEY }).lean();
+    await PlatformSetting.findOneAndUpdate(
+      { key: GENERATED_PRICING_KEY },
+      { $set: { value: policy, description: "Pricing policy for newly generated Build with AI and YouTube-derived courses.", updatedBy: actor, isPublic: false } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    await audit(req, "course.pricing.generated_policy_updated", GENERATED_PRICING_KEY, previous?.value || DEFAULT_GENERATED_PRICING_POLICY, policy, reason);
+    return success(res, { policy }, "Generated-course pricing policy saved.");
+  } catch (error) { return failure(res, safeError(error), 400); }
 }

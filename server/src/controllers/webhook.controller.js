@@ -330,32 +330,65 @@ async function recordProcessedRefund(providerRefund) {
 
   let createdOutsidePlatform = false;
   if (!refund) {
-    // The event may arrive before the API call records its provider refund ID.
-    // Link a single active request only when both payment and amount agree.
-    refund = await RefundRequest.findOne({
-      payment: payment._id,
-      status: { $in: ["pending", "approved"] },
-      amount: normalized.amount,
-      providerRefundId: { $in: ["", null] }
-    }).sort({ createdAt: -1 });
+    // Platform-triggered refunds carry the local request ID in provider notes,
+    // so the webhook can correlate a refund even if it arrives before the API
+    // response is persisted. Never guess by amount alone: a dashboard refund
+    // could coincidentally match an unrelated pending request.
+    const requestedRefundId = String(providerRefund?.notes?.bfs_refund_request_id || "").trim();
+    if (requestedRefundId) {
+      if (!/^[a-f0-9]{24}$/i.test(requestedRefundId)) {
+        await alertRefundWebhookProblem({
+          providerRefundId,
+          providerPaymentId,
+          paymentId: String(payment._id),
+          reason: "invalid-local-refund-reference"
+        });
+        return;
+      }
 
-    if (refund) {
+      const candidate = await RefundRequest.findById(requestedRefundId);
+      if (
+        !candidate ||
+        String(candidate.payment || "") !== String(payment._id) ||
+        Math.round(Number(candidate.amount) * 100) !== Math.round(normalized.amount * 100) ||
+        !["pending", "approved"].includes(candidate.status) ||
+        (candidate.providerRefundId && candidate.providerRefundId !== normalized.providerRefundId)
+      ) {
+        console.error("[billing-webhook] refund request notes did not match a pending local refund", {
+          providerRefundId,
+          providerPaymentId,
+          paymentId: String(payment._id),
+          refundRequestId: requestedRefundId
+        });
+        await alertRefundWebhookProblem({
+          providerRefundId,
+          providerPaymentId,
+          paymentId: String(payment._id),
+          reason: "local-refund-notes-mismatch"
+        });
+        return;
+      }
+
       refund = await RefundRequest.findOneAndUpdate(
-        { _id: refund._id, payment: payment._id, amount: normalized.amount, providerRefundId: { $in: ["", null] } },
+        {
+          _id: candidate._id,
+          payment: payment._id,
+          amount: normalized.amount,
+          status: { $in: ["pending", "approved"] },
+          providerRefundId: { $in: ["", null] }
+        },
         {
           $set: {
             status: "processed",
             providerRefundId: normalized.providerRefundId,
-            processedAt: refund.processedAt || new Date(),
-            decisionReason: refund.decisionReason || "Confirmed by Razorpay refund.processed webhook."
+            processedAt: candidate.processedAt || new Date(),
+            decisionReason: candidate.decisionReason || "Confirmed by Razorpay refund.processed webhook."
           },
           $unset: { activePaymentKey: "" }
         },
         { new: true, runValidators: true }
       );
-      if (!refund) {
-        refund = await RefundRequest.findOne({ providerRefundId: normalized.providerRefundId });
-      }
+      if (!refund) refund = await RefundRequest.findOne({ providerRefundId: normalized.providerRefundId });
     } else {
       createdOutsidePlatform = true;
       try {

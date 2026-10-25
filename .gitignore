@@ -21,3 +21,6 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Vite temporary config bundles generated during dev-server startup
+vite.config.ts.timestamp-*.mjs

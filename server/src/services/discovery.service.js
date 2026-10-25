@@ -414,7 +414,7 @@ async function getDiscoveryCoursePricing(level, category = "YouTube Discovery") 
   const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
   const freePricing = { mode: "free", price: 0, compareAtPrice: 0, currency: "INR", saleEnabled: false, salePrice: 0 };
 
-  if (!policy.enabled || policy.mode === "free") return freePricing;
+  if (!policy.enabled || !policy.applyTo.includes("discovery") || policy.mode === "free") return freePricing;
 
   if (policy.mode === "fixed") {
     const price = Math.round(Number(policy.fixedPrice) || 0);
@@ -440,7 +440,8 @@ async function getDiscoveryCoursePricing(level, category = "YouTube Discovery") 
     // If no eligible auto-apply rule matches, fall back to the configured level band.
   }
 
-  const band = policy.levelBands?.[normalizedLevel] || policy.levelBands?.Beginner;
+  const course = { level: normalizedLevel };
+  const band = policy.levelBands?.[course.level] || policy.levelBands?.Beginner;
   const min = Math.max(20, Math.min(59, Math.round(Number(band?.min) || 20)));
   const max = Math.max(min, Math.min(59, Math.round(Number(band?.max) || min)));
   const price = Math.round((min + max) / 2);

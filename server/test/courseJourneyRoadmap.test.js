@@ -1,4 +1,5 @@
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { buildJourneyStages, calculateJourneyProgress, parseDurationSeconds } from "../src/services/courseJourneyRoadmap.service.js";
 
@@ -39,4 +40,15 @@ test("uses lesson duration weights for partial stage position", () => {
   assert.equal(result.stageProgress[0], 1);
   assert.equal(result.stageProgress[1], 0.75);
   assert.equal(result.position, 1.75);
+});
+
+ 
+test("course journey roadmap progress is gated by current entitlement, not enrollment record alone", () => {
+  const service = readFileSync(new URL("../src/services/courseJourneyRoadmap.service.js", import.meta.url), "utf8");
+  const start = service.indexOf("export async function getCourseJourney");
+  const handler = service.slice(start);
+  assert.match(handler, /Enrollment\.findOne\(\{ user: userId, course: courseId, status: \{ \$in: \["active", "completed"\] \}, revokedBy: null \}\)/);
+  assert.match(handler, /if \(enrollment && await canAccessCourse\(userId, courseId\)\)/);
+  assert.ok(handler.indexOf("canAccessCourse(userId, courseId)") < handler.indexOf("Progress.findOne"),
+    "Must verify current entitlement before reading private progress metadata");
 });

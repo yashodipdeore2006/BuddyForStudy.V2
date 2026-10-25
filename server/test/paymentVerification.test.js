@@ -123,3 +123,18 @@ test("subscription checkout only reuses a pending provider checkout for the same
   assert.match(block, /different plan or trial conversion is already pending/);
   assert.match(block, /pendingPlanId:/);
 });
+
+
+test("billing value summaries keep different currencies separate", () => {
+  const controller = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
+  const learnerBilling = readFileSync(new URL("../../src/pages/Billing.tsx", import.meta.url), "utf8");
+  const adminBilling = readFileSync(new URL("../../src/pages/admin/AdminBilling.tsx", import.meta.url), "utf8");
+
+  assert.match(controller, /paidTotalsByCurrency: Object\.fromEntries\(paidValues\.map/);
+  assert.match(controller, /\$group:[\s\S]*?\$toUpper: \{ \$ifNull: \["\$currency", "INR"\] \}/);
+  assert.match(controller, /paidTotal: Number\(paidValues\.find\(\(item\) => item\._id === "INR"\)/);
+  assert.match(learnerBilling, /paidTotalsByCurrency/);
+  assert.match(learnerBilling, /money\(amount, currency\)/);
+  assert.match(adminBilling, /paidTotalsByCurrency/);
+  assert.match(adminBilling, /money\(amount, currency\)/);
+});

@@ -81,7 +81,7 @@ export default function AdminBilling() {
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [issues, setIssues] = useState<PaymentIssue[]>([]);
   const [refundSummary, setRefundSummary] = useState({ pending: 0, approved: 0, rejected: 0, processed: 0 });
-  const [paymentSummary, setPaymentSummary] = useState({ totalPayments: 0, paidTotal: 0 });
+  const [paymentSummary, setPaymentSummary] = useState({ totalPayments: 0, paidTotalsByCurrency: {} as Record<string, number> });
   const [refundFilter, setRefundFilter] = useState("pending");
   const [refundSearchInput, setRefundSearchInput] = useState("");
   const [refundSearch, setRefundSearch] = useState("");
@@ -150,7 +150,12 @@ export default function AdminBilling() {
       const nextPages = Math.max(1, Number(data.pages || 1));
       setPaymentTotal(Number(data.total || 0));
       setPaymentPages(nextPages);
-      setPaymentSummary({ totalPayments: Number(data.summary?.totalPayments || 0), paidTotal: Number(data.summary?.paidTotal || 0) });
+      setPaymentSummary({
+        totalPayments: Number(data.summary?.totalPayments || 0),
+        paidTotalsByCurrency: data.summary?.paidTotalsByCurrency && typeof data.summary.paidTotalsByCurrency === "object"
+          ? data.summary.paidTotalsByCurrency
+          : { INR: Number(data.summary?.paidTotal || 0) }
+      });
       if (paymentPage > nextPages) { setPaymentPage(nextPages); return; }
       setPayments(data.payments || []);
     } catch (e) { setPaymentError(e instanceof Error ? e.message : "Unable to load payment records."); }
@@ -276,7 +281,7 @@ export default function AdminBilling() {
       {notice && <div role="status" aria-live="polite" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
       {permissionWarning && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{permissionWarning}</div>}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="card p-5"><IndianRupee className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{money(paymentSummary.paidTotal)}</p><p className="text-sm text-slate-500">Recorded paid value · all records</p></div>
+        <div className="card p-5"><IndianRupee className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{Object.entries(paymentSummary.paidTotalsByCurrency).sort(([left], [right]) => left.localeCompare(right)).map(([currency, amount]) => money(amount, currency)).join(" · ") || money(0)}</p><p className="text-sm text-slate-500">Recorded paid value · grouped by currency</p></div>
         <div className="card p-5"><CreditCard className="h-5 w-5 text-blue-600" /><p className="mt-3 text-2xl font-bold">{paymentSummary.totalPayments.toLocaleString()}</p><p className="text-sm text-slate-500">Payment records · all statuses</p></div>
         <div className="card p-5"><CheckCircle2 className="h-5 w-5 text-emerald-600" /><p className="mt-3 text-2xl font-bold">{refundSummary.processed.toLocaleString()}</p><p className="text-sm text-slate-500">Processed refunds · all records</p></div>
         <div className="card p-5"><XCircle className="h-5 w-5 text-amber-600" /><p className="mt-3 text-2xl font-bold">{refundSummary.pending.toLocaleString()}</p><p className="text-sm text-slate-500">Pending refund decisions</p></div>

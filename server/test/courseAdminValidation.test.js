@@ -45,3 +45,14 @@ test("course admin patch rejects inconsistent compare-at and sale prices", () =>
   assert.ok(result.errors.some((error) => error.field === "pricing.compareAtPrice"));
   assert.ok(result.errors.some((error) => error.field === "pricing.salePrice"));
 });
+
+
+test("course admin patch rejects a zero-priced active sale", () => {
+  const result = validateCourseAdminPatch({
+    pricing: { mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) =>
+    error.field === "pricing.salePrice" && /greater than zero/i.test(error.message)
+  ));
+});

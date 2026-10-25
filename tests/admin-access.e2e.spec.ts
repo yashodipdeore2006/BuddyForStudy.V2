@@ -399,7 +399,7 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin/courses");
     const publishToggle = page.getByRole("checkbox", { name: "Publish Course reader fixture" });
     await expect(publishToggle).toBeVisible();
-    await publishToggle.check();
+    await publishToggle.click();
     await expect(page.getByText("Publishing checklist needs attention")).toBeVisible();
     await expect(page.getByText("Every lesson needs a title")).toBeVisible();
     await expect(publishToggle).not.toBeChecked();

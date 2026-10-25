@@ -183,3 +183,13 @@ test("admin refund payment status is recomputed from all confirmed refunds after
   assert.ok(paymentWrite > aggregateBalance, "Set payment status from the aggregate confirmed balance");
   assert.doesNotMatch(handler, /const isFullRefund = refund\.amount >= remainingAmount/);
 });
+
+test("provider refund IDs have a unique index when populated", () => {
+  const index = RefundRequest.schema.indexes().find(([, options]) => options.name === "unique_provider_refund_id");
+  assert.ok(index, "Expected a unique refund provider reference index");
+  assert.deepEqual(index[0], { providerRefundId: 1 });
+  assert.equal(index[1].unique, true);
+  assert.deepEqual(index[1].partialFilterExpression, {
+    providerRefundId: { $type: "string", $gt: "" }
+  });
+});

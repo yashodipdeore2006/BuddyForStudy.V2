@@ -8,6 +8,7 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { verifyPaymentSignature } from "../services/razorpay.service.js";
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
+import { getEffectiveCoursePrice } from "../utils/coursePricing.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
@@ -23,10 +24,8 @@ export async function createCourseOrder(req, res, next) {
     if (!course.enrollmentEnabled) return failure(res, "Enrollment is disabled for this course", 403);
     if (course.pricing?.mode !== "paid") return failure(res, "This course does not require payment", 400);
 
-    const amount = course.pricing.saleEnabled && course.pricing.salePrice > 0
-      ? course.pricing.salePrice
-      : course.pricing.price;
-    if (!Number.isFinite(amount) || amount <= 0) return failure(res, "Course price is invalid", 400);
+    const amount = getEffectiveCoursePrice(course.pricing);
+    if (!Number.isFinite(amount) || amount <= 0) return failure(res, "Course price is invalid. Please contact support before retrying checkout.", 400);
 
     const receipt = "bfs_" + Date.now().toString(36) + "_" + req.user.userId.slice(-8);
     const order = await razorpay.createOrder({

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { LearningRoadmap } from "../src/models/LearningRoadmap.js";
+import { User } from "../src/models/User.js";
+import { Course } from "../src/models/Course.js";
 import { contentRoadmaps } from "../src/controllers/adminPro.controller.js";
 
 function responseRecorder() {
@@ -26,43 +28,60 @@ async function withMocks(mocks, run) {
   }
 }
 
-test("admin roadmap listing is paginated and does not query learner email or quiz-response fields", async () => {
-  const calls = { populate: [], select: "", findFilter: null, countFilter: null, skip: null, limit: null };
-  const query = {
-    populate(path, fields) { calls.populate.push({ path, fields }); return this; },
-    select(fields) { calls.select = fields; return this; },
-    sort() { return this; },
-    skip(value) { calls.skip = value; return this; },
-    limit(value) { calls.limit = value; return this; },
-    lean: async () => [{
-      _id: "roadmap-1",
-      user: { _id: "learner-1", name: "Learner One" },
-      query: "Node.js backend",
-      canonicalTopic: "Node.js backend",
-      level: "Beginner",
-      status: "active",
-      lessons: [{ lessonId: "lesson-1", title: "Intro" }]
-    }]
-  };
+test("admin roadmap inventory unions saved plans with AI-generated course records without exposing learner PII", async () => {
+  let aggregatePipeline;
   const res = responseRecorder();
+  const row = {
+    _id: "roadmap-1",
+    source: "saved",
+    title: "Node.js backend",
+    user: { name: "Learner One" },
+    query: "Node.js backend",
+    canonicalTopic: "Node.js backend",
+    level: "Beginner",
+    status: "active",
+    lessonCount: 13,
+    createdAt: new Date("2026-10-07T05:41:51.000Z"),
+    updatedAt: new Date("2026-10-07T09:01:20.000Z")
+  };
 
   await withMocks([
     [LearningRoadmap, {
-      find: (filter) => { calls.findFilter = filter; return query; },
-      countDocuments: async (filter) => { calls.countFilter = filter; return 26; }
+      aggregate: async (pipeline) => {
+        aggregatePipeline = pipeline;
+        return [{ metadata: [{ total: 26 }], records: [row] }];
+      }
     }]
   ], async () => {
     await contentRoadmaps({ query: { status: "active", page: "2", limit: "25" } }, res, (error) => { throw error; });
   });
 
   assert.equal(res.statusCode, 200);
-  assert.deepEqual(calls.findFilter, { status: "active" });
-  assert.deepEqual(calls.countFilter, { status: "active" });
-  assert.deepEqual(calls.populate, [{ path: "user", fields: "name" }]);
-  assert.ok(!calls.select.split(" ").includes("email"), "list projection must not request learner email");
-  assert.ok(!["quizAttempts", "adaptiveState", "course.modules"].some((field) => calls.select.includes(field)), "list projection must not request quiz responses or adaptive profile");
-  assert.equal(calls.skip, 25);
-  assert.equal(calls.limit, 25);
-  assert.equal(res.body.data?.roadmaps?.length ?? res.body.roadmaps?.length, 1);
-  assert.equal(res.body.data?.total ?? res.body.total, 26);
+  assert.ok(Array.isArray(aggregatePipeline));
+  assert.deepEqual(aggregatePipeline[0].$match, { status: "active" });
+  const union = aggregatePipeline.find((stage) => stage.$unionWith)?.$unionWith;
+  assert.equal(union.coll, Course.collection.name);
+  assert.equal(union.pipeline[0].$match.$expr.$eq[0], 1, "completed/active filter should not include generated courses");
+  assert.equal(aggregatePipeline.at(-1).$facet.records[0].$skip, 25);
+  assert.equal(aggregatePipeline.at(-1).$facet.records[1].$limit, 25);
+  assert.ok(aggregatePipeline.some((stage) => stage.$lookup?.from === User.collection.name));
+  assert.ok(aggregatePipeline.some((stage) => stage.$project?.source?.$literal === "saved"));
+  assert.ok(union.pipeline.some((stage) => stage.$project?.source?.$literal === "generated"));
+  assert.equal(res.body.roadmaps.length, 1);
+  assert.equal(res.body.total, 26);
+  assert.equal(res.body.roadmaps[0].lessonCount, 13);
+  assert.equal(res.body.roadmaps[0].user.email, undefined);
+});
+
+test("admin roadmap inventory rejects unknown status filters", async () => {
+  const res = responseRecorder();
+  let queried = false;
+  await withMocks([
+    [LearningRoadmap, { aggregate: async () => { queried = true; return []; } }]
+  ], async () => {
+    await contentRoadmaps({ query: { status: "pending" } }, res, (error) => { throw error; });
+  });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.success, false);
+  assert.equal(queried, false);
 });

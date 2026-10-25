@@ -377,4 +377,24 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-COMMAND-PERMISSION-001] command palette does not expose routes outside the current permission set", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "analyst_auditor",
+      roleLabel: "Analyst & Auditor",
+      permissions: analystPermissions,
+    });
+    await page.goto(baseURL + "/admin");
+    await expect(page.getByRole("button", { name: "Search pages and actions" })).toBeVisible();
+    await page.evaluate(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true }));
+    });
+
+    const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
+    const search = dialog.getByRole("textbox", { name: "Search pages and actions" });
+    await expect(search).toBeFocused();
+    await search.fill("users");
+    await expect(dialog.getByText(/No pages or actions match/i)).toBeVisible();
+    await expect(dialog.getByRole("option", { name: /Users/i })).toHaveCount(0);
+  });
 });

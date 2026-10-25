@@ -363,6 +363,75 @@ test.describe("administrator route and permission UX", () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test("[ADM-USER-STATUS-FAILURE-001] failed account disable preserves reason and supports retry", async ({ page }) => {
+    const userId = "507f1f77bcf86cd799439012";
+    let active = true;
+    let updateRequests = 0;
+    let updatePayload: Record<string, unknown> | null = null;
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "Account Manager", email: "account-manager@example.test" },
+      adminRole: "custom_user_manager",
+      roleLabel: "User Manager",
+      permissions: ["dashboard.read", "users.read", "users.manage"],
+    });
+    await page.route("**/api/admin/users**", async (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      if (pathname === "/api/admin/users" && request.method() === "GET") {
+        return json(route, {
+          users: [{
+            _id: userId,
+            name: "Read-only learner",
+            emailMasked: "r***@example.test",
+            role: "user",
+            isActive: active,
+            emailVerified: true,
+            authProvider: "local",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          }],
+          pagination: { page: 1, pages: 1, total: 1 },
+        });
+      }
+      if (pathname === "/api/admin/users/" + userId && request.method() === "PUT") {
+        updateRequests += 1;
+        updatePayload = request.postDataJSON() as Record<string, unknown>;
+        if (updateRequests === 1) {
+          return json(route, { message: "Account update is temporarily unavailable." }, 503);
+        }
+        active = false;
+        return json(route, { user: { _id: userId, isActive: false } });
+      }
+      return route.fallback();
+    });
+
+    await page.goto(baseURL + "/admin/users");
+    await expect(page.getByText("Read-only learner")).toBeVisible();
+    await page.getByRole("button", { name: "Disable", exact: true }).click();
+    const dialog = page.getByRole("alertdialog", { name: "Disable user account?" });
+    await expect(dialog).toBeVisible();
+    const reason = dialog.getByLabel("Reason (required)");
+    const confirm = dialog.getByRole("button", { name: "Disable account" });
+    await expect(confirm).toBeDisabled();
+    await reason.fill("Support escalation confirms account abuse for case 1842.");
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+
+    await expect(page.getByRole("alert")).toContainText("Account update is temporarily unavailable.");
+    await expect(dialog).toBeVisible();
+    await expect(reason).toHaveValue("Support escalation confirms account abuse for case 1842.");
+    await expect(confirm).toBeEnabled();
+    expect(updateRequests).toBe(1);
+    expect(updatePayload).toMatchObject({
+      isActive: false,
+      reason: "Support escalation confirms account abuse for case 1842.",
+    });
+
+    await confirm.click();
+    await expect(page.getByRole("button", { name: "Enable", exact: true })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    expect(updateRequests).toBe(2);
+  });
+
   test("changing user page size clears page-scoped bulk selection", async ({ page }) => {
     await mockAdminApi(page, {
       user: { ...analystUser, name: "User Administrator", email: "user-admin@example.test" },

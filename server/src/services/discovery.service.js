@@ -431,13 +431,18 @@ async function getDiscoveryCoursePricing(level, category = "YouTube Discovery") 
         (filters.minPrice === undefined || filters.minPrice === null || 0 >= filters.minPrice) &&
         (filters.maxPrice === undefined || filters.maxPrice === null || 0 <= filters.maxPrice);
     });
-    if (rule) return calculateNextPricing(freePricing, rule.operation);
-    // If no auto-apply rule matches, fall back to the configured level band.
+    if (rule) {
+      const calculated = calculateNextPricing(freePricing, rule.operation);
+      if (calculated.mode === "free") return calculated;
+      if (calculated.mode === "paid" && calculated.price >= 20 && calculated.price <= 59) return calculated;
+      // Never let an auto-apply rule create an out-of-range paid discovery price.
+    }
+    // If no eligible auto-apply rule matches, fall back to the configured level band.
   }
 
   const band = policy.levelBands?.[normalizedLevel] || policy.levelBands?.Beginner;
-  const min = Math.max(20, Math.round(Number(band?.min) || 20));
-  const max = Math.min(59, Math.max(min, Math.round(Number(band?.max) || min)));
+  const min = Math.max(20, Math.min(59, Math.round(Number(band?.min) || 20)));
+  const max = Math.max(min, Math.min(59, Math.round(Number(band?.max) || min)));
   const price = Math.round((min + max) / 2);
   return { ...freePricing, mode: "paid", price };
 }

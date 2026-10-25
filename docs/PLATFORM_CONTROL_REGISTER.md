@@ -37,7 +37,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
-| EXP-SEARCH-001 | Explore / search field and Search submit | Trims submitted query, sends q, shows query-specific results and distinguishes empty results from failure | Test added — CI pending: [EXP-SEARCH-001] |
+| EXP-SEARCH-001 | Explore / search field and Search submit | Trims submitted query, sends q, shows query-specific results and distinguishes empty results from failure | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | EXP-LEVEL-001 | Explore / level selector | Level is reflected in request and result set; reset state remains visible | Included in [EXP-SEARCH-001] |
 | EXP-CATEGORY-001 | Explore / category selector | Category is reflected in request and does not overwrite query | Included in [EXP-SEARCH-001] |
 | EXP-CLEAR-001 | Explore / Clear filters | Clears q, level and category, resets controls and restores unfiltered catalog | Included in [EXP-SEARCH-001] |
@@ -52,7 +52,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
 | DETAIL-TABS-001 | Course Details / Overview, Curriculum, Ratings & Reviews, Notes, About | Active tab and content panel match; URL state is preserved where implemented; focus is visible | Inventory only |
-| DETAIL-REVIEWS-001 | Ratings & Reviews / empty state and Refresh reviews | Empty data is explicit; refresh requests reviews again and preserves the correct empty state | Test added — CI pending: [DETAIL-REVIEWS-001] |
+| DETAIL-REVIEWS-001 | Ratings & Reviews / empty state and Refresh reviews | Empty data is explicit; refresh requests reviews again and preserves the correct empty state | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | DETAIL-RATING-001 | Review form / select rating star | Accessible star labels and pressed state; score updates after selection | Inventory only |
 | DETAIL-REVIEW-SUBMIT-001 | Review form / submit or update review | Eligibility and selection validated; duplicate write prevented; success/failure announced | Inventory only |
 | DETAIL-START-001 | Start, Continue or Review course | Resolves first incomplete lesson or review destination; invalid optional lesson ID cannot crash the card | Existing course-navigation tests |
@@ -63,7 +63,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
-| LEARN-TABS-001 | In progress / Not started / Completed | Uses persisted learningStatus in the batched GET /api/enrollments response; counts and cards align; no per-course progress GET fan-out | Test added — CI pending: [LEARN-TABS-001] |
+| LEARN-TABS-001 | In progress / Not started / Completed | Uses persisted learningStatus in the batched GET /api/enrollments response; counts and cards align; no per-course progress GET fan-out | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | LEARN-CONTINUE-001 | Continue course link | Uses nextLessonId from the batch; missing/malformed optional lesson ID falls back to player root and never crashes render | Included in [LEARN-TABS-001]; route unit tests exist |
 | LEARN-SEARCH-001 | Search your courses | Searches the loaded snapshot; empty result has a clear reset action and causes no new progress requests | Inventory only |
 | LEARN-SORT-001 | Recently active / Progress / A to Z | Changes order only, not enrollment membership or status | Inventory only |
@@ -86,7 +86,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
-| PLAYER-COMPLETE-001 | Mark complete | One POST to the lesson completion endpoint; progress updates; button becomes disabled Completed; duplicate write prevented | Test added — CI pending: [PLAYER-COMPLETE-001] |
+| PLAYER-COMPLETE-001 | Mark complete | One POST to the lesson completion endpoint; progress updates; button becomes disabled Completed; duplicate write prevented | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | PLAYER-LESSON-NAV-001 | Previous/Next/sidebar lesson selection | Uses curriculum order and canonical routes; invalid lesson ID has a safe fallback | Unit/source coverage exists; dedicated E2E pending |
 | PLAYER-QUIZ-001 | Generate/retry quiz | Pending state guards duplicate attempts; empty/provider failure has recovery | Backend AI tests exist; browser test pending |
 | PLAYER-PRACTICE-QUIZ-001 | Answer, check and reattempt practice quiz | Requires an answer per question; submitted state and score/explanation are clear | Browser test pending |
@@ -99,7 +99,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
-| ADM-SHELL-SEARCH-001 | Admin Layout / Ctrl/Cmd+K, search, choose page | Opens and focuses palette; only permitted search results; selected Audit log destination renders | Test added — CI pending: [ADM-SHELL-SEARCH-001] |
+| ADM-SHELL-SEARCH-001 | Admin Layout / Ctrl/Cmd+K, search, choose page | Opens and focuses palette; only permitted search results; selected Audit log destination renders | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | ADM-SHELL-ROLE-NAV-001 | Admin navigation and direct URLs | Links are permission-filtered; direct access denied; protected data/actions remain hidden | Existing admin-access E2E tests |
 | ADM-SHELL-MOBILE-001 | Mobile admin navigation | Drawer/overlay closes correctly; focus and scroll are managed; current item is clear | Inventory only |
 | ADM-USER-PII-001 | Reveal/export PII | Permission/reason checked server-side; masking default; audit event recorded; invalid request never reaches mutation | Backend PII/auth tests exist; browser test pending |
@@ -132,7 +132,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 
 - [x] Create stable IDs for the first global shell, Explore, My Learning, course-details, player and admin-shell control groups.
 - [x] Add browser tests for search/filter/clear, three My Learning status tabs, no per-course progress fan-out, lesson completion, review refresh, and admin command palette.
-- [ ] Confirm CI pass for this batch and fix any failure.
+- [x] Confirm CI pass for the first control-level browser batch and fix initial selector/cache issues (run #40172529048).
 - [ ] Add My Learning save/share/unenroll/cancel/undo failure-path tests.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player lesson navigation, quiz, practice quiz and timestamped notes browser tests.
@@ -146,4 +146,11 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - Added [EXP-SEARCH-001], [LEARN-TABS-001], [PLAYER-COMPLETE-001] and [DETAIL-REVIEWS-001] to navigation.e2e.spec.ts.
 - Added [ADM-SHELL-SEARCH-001] to admin-access.e2e.spec.ts.
 - Extended deterministic fixtures to filter catalog results using query/level/category, return batched learning-status snapshots and simulate lesson completion responses.
-- CI: pending at the moment of documentation creation. Append the exact passing run and SHA when the workflow completes.
+- CI **passed** on commit `883ef448663e40f658b536c0046be855721440e7`: [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048). Frontend typecheck/build/browser navigation smoke and backend tests/syntax/selector checks succeeded.
+
+
+### 2026-10-25 — CI validation and refresh-cache correction
+- **Passing CI:** commit `883ef448663e40f658b536c0046be855721440e7`, [run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048). Both frontend and backend jobs succeeded.
+- **Control IDs passed:** `EXP-SEARCH-001`, `LEARN-TABS-001`, `PLAYER-COMPLETE-001`, `DETAIL-REVIEWS-001`, `ADM-SHELL-SEARCH-001`.
+- **Defect fixed:** review refresh buttons now call `apiFetch(..., { cache: "no-store" })`; `src/lib/api.ts` honors this option by bypassing both the short GET response cache and in-flight request deduplication for the explicit fresh-read request.
+- **Remaining scope:** the tests use deterministic API fixtures; the learner controls still need staging/data-backed verification and the admin mutation suite remains incomplete.

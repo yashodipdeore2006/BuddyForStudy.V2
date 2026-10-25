@@ -53,7 +53,7 @@ export default function AdminPricingStudio() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [generatedPolicy, setGeneratedPolicy] = useState({ enabled: false, mode: "rule_based", fixedPrice: 499, currency: "INR", levelBands: { Beginner: { min: 199, max: 499 }, Intermediate: { min: 499, max: 999 }, Advanced: { min: 999, max: 1999 } }, applyTo: ["ai", "discovery", "module", "normal"] as string[] });
+  const [generatedPolicy, setGeneratedPolicy] = useState({ enabled: true, mode: "level_bands", fixedPrice: 39, currency: "INR", levelBands: { Beginner: { min: 20, max: 39 }, Intermediate: { min: 30, max: 49 }, Advanced: { min: 40, max: 59 } }, applyTo: ["discovery"] as string[] });
   const [policyReason, setPolicyReason] = useState("");
 
 
@@ -201,13 +201,13 @@ export default function AdminPricingStudio() {
             <option value="rule_based">Use enabled admin auto-pricing rules</option><option value="fixed">Fixed price for every new course</option><option value="level_bands">Dynamic price by course level</option><option value="free">Make every new course free</option>
           </select>
         </label>
-        {generatedPolicy.mode === "fixed" && <label className="text-xs font-semibold text-slate-600">Fixed price (INR)<input className={inputClass + " mt-1"} type="number" min="0" max="1000000" value={generatedPolicy.fixedPrice} onChange={e => setGeneratedPolicy(p => ({ ...p, fixedPrice: Number(e.target.value) }))} /></label>}
+        {generatedPolicy.mode === "fixed" && <label className="text-xs font-semibold text-slate-600">Fixed price (INR)<input className={inputClass + " mt-1"} type="number" min="20" max="59" value={generatedPolicy.fixedPrice} onChange={e => setGeneratedPolicy(p => ({ ...p, fixedPrice: Number(e.target.value) }))} /></label>}
       </div>
       {generatedPolicy.mode === "level_bands" && <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["Beginner", "Intermediate", "Advanced"] as const).map(level => <div key={level} className="rounded-xl border border-slate-200 p-3"><p className="mb-2 text-sm font-bold">{level}</p><div className="grid grid-cols-2 gap-2"><label className="text-xs text-slate-500">Minimum<input className={inputClass + " mt-1"} type="number" min="0" value={generatedPolicy.levelBands[level].min} onChange={e => setGeneratedPolicy(p => ({ ...p, levelBands: { ...p.levelBands, [level]: { ...p.levelBands[level], min: Number(e.target.value) } } }))} /></label><label className="text-xs text-slate-500">Maximum<input className={inputClass + " mt-1"} type="number" min="0" value={generatedPolicy.levelBands[level].max} onChange={e => setGeneratedPolicy(p => ({ ...p, levelBands: { ...p.levelBands, [level]: { ...p.levelBands[level], max: Number(e.target.value) } } }))} /></label></div></div>)}</div>}
       <div className="mt-4"><p className="text-xs font-semibold text-slate-600">Apply to generated course types</p><div className="mt-2 flex flex-wrap gap-4">{[{id:"ai",label:"Build with AI"},{id:"discovery",label:"YouTube discovery"},{id:"module",label:"Extracted modules"},{id:"normal",label:"Other generated courses"}].map(item => <label key={item.id} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={generatedPolicy.applyTo.includes(item.id)} onChange={e => setGeneratedPolicy(p => ({ ...p, applyTo: e.target.checked ? [...p.applyTo, item.id] : p.applyTo.filter(x => x !== item.id) }))} />{item.label}</label>)}</div></div>
       <label className="mt-4 block text-xs font-semibold text-slate-600">Reason for policy change (10–500 characters)<textarea className={inputClass + " mt-1 min-h-16"} value={policyReason} onChange={e => setPolicyReason(e.target.value)} maxLength={500} placeholder="e.g. Standardize pricing for all newly generated courses" /></label>
       <button disabled={busy || policyReason.trim().length < 10} onClick={() => void saveGeneratedPolicy()} className="mt-4 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Save new-course pricing policy</button>
-      <p className="mt-3 text-xs leading-5 text-slate-500">New courses receive the policy price before they are saved. “Rule-based” uses only enabled rules marked for automatic application. Disabling this switch leaves generated-course prices unchanged.</p>
+      <p className="mt-3 text-xs leading-5 text-slate-500">YouTube-derived discovery courses default to ₹20–₹59 by level (Beginner ₹20–₹39, Intermediate ₹30–₹49, Advanced ₹40–₹59). Paid courses require payment from the first learner. This policy applies to newly created courses only; disabling it leaves generated-course prices unchanged.</p>
     </section>
 
     <section className="grid gap-5 lg:grid-cols-2">

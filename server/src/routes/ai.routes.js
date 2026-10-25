@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authMiddleware, adminPermissionMiddleware } from "../middleware/auth.js";
 import { requireFeature } from "../middleware/subscription.middleware.js";
-import { generateRoadmap, generateAndSaveCourse, generateQuiz, generatePracticeQuiz, submitPracticeQuiz, usage } from "../controllers/ai.controller.js";
+import { generateRoadmap, generateAndSaveCourse, generateQuiz, generatePracticeQuiz, submitPracticeQuiz, submitCourseQuiz, usage } from "../controllers/ai.controller.js";
 import { recordCurationFeedback } from "../controllers/courseCurationFeedback.controller.js";
 import * as asyncRoadmap from "../controllers/asyncRoadmap.controller.js";
 import { env } from "../config/env.js";
@@ -20,6 +20,7 @@ if (env.asyncRoadmap) {
   router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), generateRoadmap);
 }
 router.post("/quiz", authMiddleware, generateQuiz);
+router.post("/quiz/submit", authMiddleware, submitCourseQuiz);
 router.post("/practice-quiz", authMiddleware, generatePracticeQuiz);
 router.post("/practice-quiz/submit", authMiddleware, submitPracticeQuiz);
 router.post("/course", authMiddleware, adminPermissionMiddleware("courses.manage"), adminPermissionMiddleware("ai.manage"), generateAndSaveCourse);

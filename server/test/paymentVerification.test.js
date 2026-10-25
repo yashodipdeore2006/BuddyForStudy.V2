@@ -104,6 +104,10 @@ test("course checkout reuses the latest pending order instead of creating duplic
   assert.match(controller, /const pendingCourseCheckout = await Payment\.findOne\([\s\S]*?course: course\._id,[\s\S]*?provider: "razorpay",[\s\S]*?status: "pending"[\s\S]*?\)\.sort\(\{ createdAt: -1 \}\)/);
   assert.match(controller, /if \(pendingCourseCheckout\)[\s\S]*?order: \{[\s\S]*?id: pendingCourseCheckout\.providerOrderId,[\s\S]*?Math\.round\(pendingAmount \* 100\)/);
   assert.match(controller, /Existing course checkout reused/);
+  assert.match(controller, /checkoutLockKey\("course", req\.user\.userId, String\(course\._id\)\)/);
+  assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
+  assert.ok(controller.indexOf('acquireCheckoutLock(lockKey)') < controller.indexOf('const priorPurchase = await Payment.findOne'),
+    "The lock must be acquired before querying purchases or creating the provider order");
   assert.match(controller, /previous checkout is pending but its payment reference is incomplete/);
 });
 
@@ -122,6 +126,10 @@ test("subscription checkout only reuses a pending provider checkout for the same
   assert.match(block, /if \(pendingCheckouts\.length\)/);
   assert.match(block, /different plan or trial conversion is already pending/);
   assert.match(block, /pendingPlanId:/);
+  assert.match(block, /checkoutLockKey\("subscription", req\.user\.userId\)/);
+  assert.match(block, /acquireCheckoutLock\(lockKey\)/);
+  assert.ok(block.indexOf('acquireCheckoutLock(lockKey)') < block.indexOf('const existingSubscription = await UserSubscription.findOne'),
+    "The lock must be acquired before subscription eligibility and pending-checkout checks");
 });
 
 

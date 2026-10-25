@@ -106,6 +106,7 @@ async function mockAppApi(page: Page, options: {
   savedMutationFailure?: "save" | "remove";
   practiceQuizFailure?: boolean;
   reviewMutationFailure?: boolean;
+  checkoutOrderFailure?: boolean;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -230,6 +231,9 @@ async function mockAppApi(page: Page, options: {
         return json(route, { message: "The requested item could not be found." }, 404);
       }
       return json(route, { course });
+    }
+    if (pathname === "/api/payments/course/order" && route.request().method() === "POST" && options.checkoutOrderFailure) {
+      return json(route, { message: "Checkout is temporarily unavailable. Please try again." }, 503);
     }
     if (pathname === `/api/reviews/courses/${courseId}`) {
       if (route.request().method() === "POST" && options.reviewMutationFailure) {
@@ -507,6 +511,29 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByRole("button", { name: "Sign in to enroll" })).toBeVisible();
     await expect(page.getByText("Course price", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Your current plan includes this course", { exact: true })).toHaveCount(0);
+  });
+
+  test("[DETAIL-PURCHASE-ORDER-FAILURE-001] checkout order failure is recoverable", async ({ page }) => {
+    let orderRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/payments/course/order") && request.method() === "POST") orderRequests += 1;
+    });
+    await mockAppApi(page, {
+      authenticated: true,
+      course: courseFixture("course-fixture", { pricing: { mode: "paid", price: 499, currency: "INR" } }),
+      checkoutOrderFailure: true,
+    });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
+    await page.getByRole("radio", { name: /Buy individual course/ }).check();
+    const buyButton = page.getByRole("button", { name: /Buy for/ });
+    await expect(buyButton).toBeEnabled();
+    await buyButton.click();
+    await expect(page.getByRole("alert")).toContainText("Checkout is temporarily unavailable. Please try again.");
+    await expect(buyButton).toBeEnabled();
+    await buyButton.click();
+    await expect.poll(() => orderRequests).toBe(2);
+    await expect(buyButton).toBeEnabled();
   });
 
   test("free course offers current-plan enrollment without a duplicate green notice", async ({ page }) => {

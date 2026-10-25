@@ -2086,7 +2086,8 @@ export async function updateRefund(req, res, next) {
       try {
         providerRefund = await razorpay.refundPayment({
           paymentId: payment.providerPaymentId,
-          amount: refund.amount
+          amount: refund.amount,
+          notes: { bfs_refund_request_id: String(refund._id) }
         });
       } catch (providerError) {
         // Missing credentials are detected before any provider request is made,

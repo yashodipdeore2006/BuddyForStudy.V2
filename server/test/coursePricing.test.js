@@ -186,5 +186,5 @@ test("My Learning omits cancelled enrollments after an unenroll or access revoca
   const { fileURLToPath } = await import("node:url");
   const here = path.dirname(fileURLToPath(import.meta.url));
   const enrollmentService = fs.readFileSync(path.join(here, "../src/services/enrollment.service.js"), "utf8");
-  assert.match(enrollmentService, /Enrollment\.find\(\{ user: userId, status: \{ \$ne: "cancelled" \} \}\)/);
+  assert.match(enrollmentService, /Enrollment\.find\(\{[\s\S]*?user: userId,[\s\S]*?status: \{ \$ne: "cancelled" \},[\s\S]*?revokedBy: null[\s\S]*?\}\)/);
 });

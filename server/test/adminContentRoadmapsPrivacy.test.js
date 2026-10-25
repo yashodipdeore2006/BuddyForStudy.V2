@@ -85,3 +85,28 @@ test("admin roadmap inventory rejects unknown status filters", async () => {
   assert.equal(res.body.success, false);
   assert.equal(queried, false);
 });
+
+test("published filter returns only published AI-generated courses, not saved-plan records", async () => {
+  let aggregatePipeline;
+  const res = responseRecorder();
+  await withMocks([
+    [LearningRoadmap, {
+      aggregate: async (pipeline) => {
+        aggregatePipeline = pipeline;
+        return [{ metadata: [{ total: 3 }], records: [] }];
+      }
+    }]
+  ], async () => {
+    await contentRoadmaps({ query: { status: "published", page: "1", limit: "25" } }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(aggregatePipeline[0].$match, { $expr: { $eq: [1, 0] } });
+  const union = aggregatePipeline.find((stage) => stage.$unionWith)?.$unionWith;
+  assert.deepEqual(union.pipeline[0].$match, {
+    "generation.mode": "ai",
+    deletedAt: null,
+    isPublished: true
+  });
+  assert.equal(res.body.total, 3);
+});

@@ -377,6 +377,34 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-COURSE-PUBLISH-READINESS-001] course cannot be published when readiness checks fail", async ({ page }) => {
+    let publishRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/admin/courses/507f1f77bcf86cd799439011/publish") && request.method() === "POST") publishRequests += 1;
+    });
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "course_publisher",
+      roleLabel: "Course Publisher",
+      permissions: ["dashboard.read", "courses.read", "courses.publish"],
+    });
+    await page.route("**/api/admin/courses/507f1f77bcf86cd799439011/readiness", async (route) => json(route, {
+      readiness: {
+        ready: false,
+        passedCount: 2,
+        totalChecks: 3,
+        failedChecks: [{ key: "lessonTitles", label: "Every lesson needs a title", fix: "Add a title to the missing lesson." }],
+      },
+    }));
+    await page.goto(baseURL + "/admin/courses");
+    const publishToggle = page.getByRole("checkbox", { name: "Publish Course reader fixture" });
+    await expect(publishToggle).toBeVisible();
+    await publishToggle.check();
+    await expect(page.getByText("Publishing checklist needs attention")).toBeVisible();
+    await expect(page.getByText("Every lesson needs a title")).toBeVisible();
+    await expect(publishToggle).not.toBeChecked();
+    expect(publishRequests).toBe(0);
+  });
   test("[ADM-COMMAND-PERMISSION-001] command palette does not expose routes outside the current permission set", async ({ page }) => {
     await mockAdminApi(page, {
       user: analystUser,

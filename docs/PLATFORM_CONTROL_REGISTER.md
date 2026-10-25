@@ -116,6 +116,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-PRICING-APPLY-001 | Preview/apply pricing and rollback | Preview bound to selected batch/version; reason required; price/sale/currency invariants enforced | Backend pricing tests exist; browser test pending |
 | ADM-TRIAL-GRANT-001 | Preview audience and grant free trial | Eligibility/exclusion count, permission, reason and idempotency revalidated; no misleading arbitrary recipient cap | Backend validation tests exist; browser test pending |
 | ADM-BILLING-REFUND-001 | Process/reconcile refund | Valid transition, provider identifier, currency/balance and reason/audit are consistent | Backend payment tests exist; staging provider pending |
+| ADM-BILLING-REFUND-PERMISSION-001 | Billing reader views a pending refund | Read-only role can inspect the request but cannot see approve/reject controls or send a refund mutation | E2E added; CI pending |
 | ADM-COMMS-SEND-001 | Preview audience then send | Consent/suppression respected; reason audited; duplicate send guarded; channel outcomes reported | Backend communication tests exist; browser/staging pending |
 | ADM-DELIVERY-RETRY-001 | Retry failed channel delivery | Only eligible channel retried; reason/permission enforced; attempts/backoff visible | Backend delivery tests exist; browser test pending |
 | ADM-ROLE-CHANGE-001 | Change administrator role | Permission/reason enforced; unsafe lockout prevented; role refreshed; audit visible | Backend role tests exist; browser test pending |

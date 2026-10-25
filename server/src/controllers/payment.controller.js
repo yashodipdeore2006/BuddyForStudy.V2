@@ -9,6 +9,7 @@ import { isValidObjectId } from "../utils/ids.js";
 import { verifyPaymentSignature } from "../services/razorpay.service.js";
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getEffectiveCoursePrice } from "../utils/coursePricing.js";
+import { enroll } from "../services/enrollment.service.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
@@ -19,13 +20,45 @@ export async function createCourseOrder(req, res, next) {
     const input = checkoutSchema.parse(req.body);
     if (!isValidObjectId(input.courseId)) return failure(res, "Invalid courseId", 400);
 
-    const course = await Course.findOne({ _id: input.courseId, isPublished: true });
+    const course = await Course.findOne({
+      _id: input.courseId,
+      isPublished: true,
+      deletedAt: null,
+      status: { $ne: "archived" },
+      visibility: { $ne: "private" },
+      $or: [
+        { "generation.mode": { $nin: ["normal", "ai", "module", "discovery"] } },
+        {
+          aiReviewStatus: "approved",
+          $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+        }
+      ]
+    });
     if (!course) return failure(res, "Course not found", 404);
     if (!course.enrollmentEnabled) return failure(res, "Enrollment is disabled for this course", 403);
     if (course.pricing?.mode !== "paid") return failure(res, "This course does not require payment", 400);
 
     const amount = getEffectiveCoursePrice(course.pricing);
     if (!Number.isFinite(amount) || amount <= 0) return failure(res, "Course price is invalid. Please contact support before retrying checkout.", 400);
+
+    // Recover access after a verified purchase if the browser closed or the
+    // enrollment request failed. Never charge a learner twice for the same course.
+    const priorPurchase = await Payment.findOne({
+      user: req.user.userId,
+      course: course._id,
+      provider: "razorpay",
+      status: { $in: ["paid", "partially_refunded"] }
+    }).sort({ paidAt: -1, createdAt: -1 });
+
+    if (priorPurchase) {
+      const enrollment = await enroll(req.user.userId, course._id);
+      return success(res, {
+        alreadyPurchased: true,
+        paymentId: priorPurchase._id,
+        course: { id: course._id, title: course.title, amount: priorPurchase.amount },
+        enrollment
+      }, "This course was already purchased. Your learning access has been restored.", 200);
+    }
 
     const receipt = "bfs_" + Date.now().toString(36) + "_" + req.user.userId.slice(-8);
     const order = await razorpay.createOrder({

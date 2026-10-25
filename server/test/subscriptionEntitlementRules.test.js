@@ -31,6 +31,26 @@ test("an all-published-courses subscription entitlement grants paid-course acces
   assert.equal(isCourseAccessAllowed({ isPaidCourse: false, planEntitled: false, hasIndividualAccess: false }), false);
 });
 
+test("subscription-origin free enrollments require a current published-course entitlement", async () => {
+  const { isEnrollmentCourseAccessAllowed } = await import("../src/services/subscriptionEntitlement.service.js");
+  const enrollment = { status: "active", accessSource: "subscription" };
+  const course = { pricing: { mode: "free" }, isPublished: true };
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment, course, userId: "u1", planEntitled: false }), false);
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment, course, userId: "u1", planEntitled: true }), true);
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment: { ...enrollment, accessSource: "self" }, course, userId: "u1", planEntitled: false }), true);
+});
+
+test("paid-course access accepts current plan entitlement or verified individual payment, but fails closed otherwise", async () => {
+  const { isEnrollmentCourseAccessAllowed } = await import("../src/services/subscriptionEntitlement.service.js");
+  const enrollment = { status: "active", accessSource: "self" };
+  const course = { pricing: { mode: "paid" }, isPublished: true };
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment, course, userId: "u1", planEntitled: true }), true);
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment, course, userId: "u1", hasIndividualPayment: true }), true);
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment, course, userId: "u1" }), false);
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment: { ...enrollment, accessSource: "admin" }, course, userId: "u1" }), true);
+  assert.equal(isEnrollmentCourseAccessAllowed({ enrollment, course: { ...course, pricing: { mode: "missing" } }, userId: "u1", planEntitled: true }), false);
+});
+
 test("plan limits handle maps, plain objects, missing values, and invalid values", () => {
   assert.equal(readPlanLimit({ limits: new Map([["monthly", 5]]) }, "monthly"), 5);
   assert.equal(readPlanLimit({ limits: { monthly: 3 } }, "monthly"), 3);

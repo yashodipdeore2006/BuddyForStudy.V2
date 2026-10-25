@@ -14,7 +14,6 @@ import EmptyState from "@/components/EmptyState";
 import { apiFetch } from "@/lib/api";
 import { routes } from "@/lib/routes";
 import { getAllLessonsFlat } from "@/lib/courseUtils";
-import { useCourseState } from "@/lib/useCourseState";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 
@@ -308,14 +307,13 @@ export default function MyCourses() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab: LearningTab = rawTab === "not-started" || rawTab === "completed" ? rawTab : "in-progress";
-  const [enrollments, setEnrollments] = useState<(Enrollment & { course: Course })[]>([]);
+  const [enrollments, setEnrollments] = useState<LearningEnrollment[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [courseStates, setCourseStates] = useState<Record<string, CourseStatus>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("recent");
-  const [pendingUnenroll, setPendingUnenroll] = useState<(Enrollment & { course: Course }) | null>(null);
+  const [pendingUnenroll, setPendingUnenroll] = useState<LearningEnrollment | null>(null);
   const [unenrolling, setUnenrolling] = useState(false);
   const [actionError, setActionError] = useState("");
   const [undoEnrollment, setUndoEnrollment] = useState<(Enrollment & { course: Course }) | null>(null);
@@ -355,14 +353,6 @@ export default function MyCourses() {
     return () => window.clearTimeout(timeout);
   }, [showToast, notice, undoEnrollment]);
 
-  const updateCourseState = useCallback((courseId: string, state: CourseStatus) => {
-    setCourseStates((previous) => {
-      const current = previous[courseId];
-      if (current && current.progressPct === state.progressPct && current.completedLessons === state.completedLessons && current.totalLessons === state.totalLessons && current.nextLessonId === state.nextLessonId && current.status === state.status && current.loading === state.loading) return previous;
-      return { ...previous, [courseId]: state };
-    });
-  }, []);
-
   const setTab = (tab: LearningTab) => {
     const next = new URLSearchParams(searchParams);
     if (tab === "in-progress") next.delete("tab");
@@ -370,23 +360,17 @@ export default function MyCourses() {
     setSearchParams(next, { replace: true });
   };
 
-  const statusFor = useCallback((item: Enrollment & { course: Course }): LearningTab => {
-    if (item.status === "completed") return "completed";
-    return courseStates[item.course.id]?.status ?? getInitialStatus(item);
-  }, [courseStates]);
+  const statusFor = useCallback((item: LearningEnrollment): LearningTab => item.learningStatus, []);
 
   const tabCounts = useMemo(() => ({
     "in-progress": enrollments.filter((item) => statusFor(item) === "in-progress").length,
     "not-started": enrollments.filter((item) => statusFor(item) === "not-started").length,
     completed: enrollments.filter((item) => statusFor(item) === "completed").length,
-  }), [enrollments, courseStates, statusFor]);
+  }), [enrollments, statusFor]);
 
-  // Resolve progress for every enrollment before showing status counts. Previously only
-  // cards in the selected tab fetched progress, so every other active enrollment was
-  // temporarily counted as "In progress" until the learner opened another tab.
-  const statusesReady = enrollments.every((item) =>
-    item.status === "completed" || Boolean(courseStates[item.course.id] && !courseStates[item.course.id].loading)
-  );
+  // Status is persisted on each enrollment and returned by the batched /api/enrollments
+  // response, so the tabs never need to fetch or calculate status per course.
+  const statusesReady = !loading && !loadError;
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -397,14 +381,14 @@ export default function MyCourses() {
     });
     return items.sort((a, b) => {
       if (sort === "title") return a.course.title.localeCompare(b.course.title);
-      if (sort === "progress") return (courseStates[b.course.id]?.progressPct ?? 0) - (courseStates[a.course.id]?.progressPct ?? 0);
+      if (sort === "progress") return b.learningProgress.percentage - a.learningProgress.percentage;
       return new Date(b.updated_at || b.enrolled_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || a.created_at || 0).getTime();
     });
-  }, [enrollments, activeTab, query, sort, courseStates, statusFor]);
+  }, [enrollments, activeTab, query, sort, statusFor]);
 
   const activeEnrollment = useMemo(() => enrollments
     .filter((item) => statusFor(item) === "in-progress")
-    .sort((a, b) => new Date(b.updated_at || b.enrolled_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || 0).getTime())[0], [enrollments, courseStates, statusFor]);
+    .sort((a, b) => new Date(b.updated_at || b.enrolled_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || 0).getTime())[0], [enrollments, statusFor]);
 
   const handleUnenroll = async () => {
     if (!pendingUnenroll || unenrolling) return;
@@ -456,22 +440,14 @@ export default function MyCourses() {
             <div className="min-w-0">
               <p className="text-sm text-[var(--muted)]">Continue where you left off</p>
               <h2 className="mt-1 text-lg font-semibold text-[var(--text)]">{activeEnrollment.course.title}</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">{courseStates[activeEnrollment.course.id]?.completedLessons ?? 0} of {courseStates[activeEnrollment.course.id]?.totalLessons ?? getAllLessonsFlat(activeEnrollment.course.modules).length} lessons completed</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">{activeEnrollment.learningProgress.completedCount} of {activeEnrollment.learningProgress.totalLessons} lessons completed</p>
             </div>
-            <Link to={routes.learn(activeEnrollment.course.id, courseStates[activeEnrollment.course.id]?.nextLessonId)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2.5 font-medium text-[var(--accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+            <Link to={routes.learn(activeEnrollment.course.id, activeEnrollment.learningProgress.nextLessonId)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2.5 font-medium text-[var(--accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
               <Play size={16} aria-hidden="true" />Continue
             </Link>
           </div>
         </section>
       )}
-
-      {!loading && !loadError && enrollments.map((enrollment) => (
-        <CourseStatusPreloader
-          key={enrollment.id}
-          enrollment={enrollment}
-          onStateChange={updateCourseState}
-        />
-      ))}
 
       <div className="mt-6 border-b border-[var(--border)]">
         <nav className="flex gap-5 overflow-x-auto" aria-label="Course status">
@@ -481,7 +457,7 @@ export default function MyCourses() {
             ["completed", "Completed"],
           ] as const).map(([tab, label]) => (
             <button key={tab} type="button" onClick={() => setTab(tab)} aria-current={activeTab === tab ? "page" : undefined} className={`relative min-h-11 whitespace-nowrap border-b-2 px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${activeTab === tab ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--muted)]"}`}>
-              {label} <span className="ml-1 rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs">{statusesReady || loading || loadError ? tabCounts[tab] : "…"}</span>
+              {label} <span className="ml-1 rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-xs">{statusesReady ? tabCounts[tab] : "…"}</span>
             </button>
           ))}
         </nav>
@@ -522,7 +498,7 @@ export default function MyCourses() {
           )
         ) : (
           <div className="bfs-course-grid">
-            {filtered.map((enrollment) => <CourseLearningCard key={enrollment.id} enrollment={enrollment} saved={savedIds.has(enrollment.course.id.toLowerCase())} onSavedChange={(courseId, nextSaved) => setSavedIds((previous) => { const next = new Set(previous); if (nextSaved) next.add(courseId.toLowerCase()); else next.delete(courseId.toLowerCase()); return next; })} onUnenroll={setPendingUnenroll} onStateChange={updateCourseState} />)}
+            {filtered.map((enrollment) => <CourseLearningCard key={enrollment.id} enrollment={enrollment} saved={savedIds.has(enrollment.course.id.toLowerCase())} onSavedChange={(courseId, nextSaved) => setSavedIds((previous) => { const next = new Set(previous); if (nextSaved) next.add(courseId.toLowerCase()); else next.delete(courseId.toLowerCase()); return next; })} onUnenroll={setPendingUnenroll} />)}
           </div>
         )}
       </section>

@@ -32,3 +32,12 @@ BuddyForStudy sends browser push notifications directly through the standard Web
 5. Open Settings in a supported browser, enable browser push, and grant permission. Use **Send test push** to verify delivery.
 
 `localhost` is supported for local browser testing. Phone testing and production use require an HTTPS origin. This setup is for web/PWA push; native Android/iOS apps need separate native SDK/platform integration.
+
+
+## UI/UX and deployment readiness
+
+- **Functional inventory and release gates:** [Platform UI/UX Functional Inventory](docs/PLATFORM_UI_UX_FUNCTIONAL_INVENTORY.md)
+- **Historical findings and remediation log:** [UI/UX Audit](docs/UI_UX_AUDIT.md)
+- **Navigation and element map:** [User Flow and Element Map](USER_FLOW_AND_ELEMENT_MAP.md)
+
+The functional inventory maps runtime routes, learner/admin control families, API dependencies, existing tests, browser validation scenarios, and production integration gates. Treat it as a source-based audit until each control has browser and staging evidence recorded.

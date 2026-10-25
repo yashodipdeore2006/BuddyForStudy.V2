@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Gift, RefreshCcw, Users, ShieldCheck, UserRound, SlidersHorizontal, CheckCircle2 } from "lucide-react";
+import { RefreshCcw, Users, ShieldCheck, UserRound, SlidersHorizontal, CheckCircle2 } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminBadge } from "@/components/admin/AdminUI";
 

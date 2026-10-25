@@ -4,6 +4,8 @@ import * as controller from "../controllers/adminPricing.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
+router.get("/generated-policy", adminPermissionMiddleware("pricing.manage"), controller.getGeneratedPricingPolicy);
+router.put("/generated-policy", adminPermissionMiddleware("pricing.manage"), controller.updateGeneratedPricingPolicy);
 router.get("/courses", adminPermissionMiddleware("pricing.manage"), controller.listCourses);
 router.post("/preview", adminPermissionMiddleware("pricing.manage"), controller.preview);
 router.post("/apply", adminPermissionMiddleware("pricing.manage"), controller.applyPreview);

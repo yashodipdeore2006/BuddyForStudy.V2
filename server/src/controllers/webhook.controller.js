@@ -11,7 +11,7 @@ import { buildSubscriptionActivatedNotificationPayload } from "../services/billi
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES, buildCapturedPaymentUpdate, buildFailedPaymentUpdate } from "../services/paymentWebhookTransitions.js";
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
-import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
+import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, normalizeSubscriptionCharge, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -152,23 +152,18 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
     eventKey: "subscription-charge:" + providerPaymentId,
     emailSubject: "Your BuddyForStudy subscription payment receipt",
     metadata: { paymentId: String(payment._id), subscriptionId: String(subscriptionId), providerPaymentId, amount: String(payment.amount), currency: payment.currency || "INR" },
-    templateKeys: { notification: "subscription-payment-in-app", email: "subscription-payment-email" }
-  });
-}
-
-async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null, providerEventId = "", providerEventName = "") {
-  if (!subscription?.id) return;
-
-  const providerPaymentId = paymentEntity?.id || "";
-  // Without a stable provider identifier, concurrent deliveries cannot be
-  // deduplicated safely. Do not create an untraceable renewal payment.
-  if (!providerPaymentId) {
-    console.error("[billing-webhook] subscription charge missing provider payment ID", {
-      subscriptionId: String(subscription.id)
+    templateKeys: { notification: "subscription-payment-in-app", email: "subscriptiasync function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null, providerEventId = "", providerEventName = "") {
+  const charge = normalizeSubscriptionCharge(subscription, paymentEntity);
+  if (!charge.valid) {
+    console.error("[billing-webhook] ignored invalid subscription charge", {
+      subscriptionId: String(subscription?.id || ""),
+      providerPaymentId: String(paymentEntity?.id || ""),
+      reason: charge.reason
     });
     return;
   }
 
+  const { providerPaymentId, amount, currency } = charge;
   const duplicate = await Payment.findOne({ provider: "razorpay", providerPaymentId });
   if (duplicate) {
     // A provider payment ID is globally unique. Never bind a duplicate charge
@@ -188,6 +183,16 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
       });
       return;
     }
+
+    // The provider charge is authoritative for what was actually collected.
+    // Repair records left pending by an interrupted delivery, and reconcile
+    // amount/currency on retries instead of retaining the checkout's old quote.
+    duplicate.amount = amount;
+    duplicate.currency = currency;
+    duplicate.status = "paid";
+    duplicate.paidAt = duplicate.paidAt || new Date();
+    await duplicate.save();
+
     const activated = await activateSubscription(subscription, duplicate, eventAt, providerEventId, providerEventName);
     if (activated) await markTrialConversionIfPresent(duplicate, subscription.id);
     // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
@@ -202,14 +207,15 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
   }).sort({ createdAt: 1 });
 
   if (payment) {
-    payment.providerPaymentId = providerPaymentId || payment.providerPaymentId;
+    // A pending subscription checkout is not a reliable record of the final
+    // captured amount. Persist the provider-confirmed amount and currency.
+    payment.providerPaymentId = providerPaymentId;
+    payment.amount = amount;
+    payment.currency = currency;
     payment.status = "paid";
     payment.paidAt = payment.paidAt || new Date();
     await payment.save();
   } else {
-    const amount = Number(paymentEntity?.amount || 0) / 100;
-    if (!Number.isFinite(amount) || amount <= 0) return;
-
     const currentSubscription = await UserSubscription.findOne({
       provider: "razorpay",
       providerSubscriptionId: subscription.id
@@ -221,7 +227,7 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
         user: currentSubscription.user,
         plan: currentSubscription.plan,
         amount,
-        currency: paymentEntity?.currency || "INR",
+        currency,
         provider: "razorpay",
         providerPaymentId,
         providerOrderId: subscription.id,
@@ -241,12 +247,21 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
         });
         return;
       }
+      if (TERMINAL_PAYMENT_STATUSES.includes(payment.status)) return;
+      payment.amount = amount;
+      payment.currency = currency;
+      payment.status = "paid";
+      payment.paidAt = payment.paidAt || new Date();
+      await payment.save();
     }
   }
 
   const activated = await activateSubscription(subscription, payment, eventAt, providerEventId, providerEventName);
   if (activated) await markTrialConversionIfPresent(payment, subscription.id);
   await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);
+}
+
+n.id, providerPaymentId);
 }
 
 export async function razorpayWebhook(req, res, next) {

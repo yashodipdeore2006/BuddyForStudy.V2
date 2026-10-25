@@ -335,10 +335,11 @@ export default function CourseDetails() {
           try {
             const entitlementData = await apiFetch('/api/billing/entitlements');
             const hasPlanAccess = Boolean(entitlementData?.features?.published_courses);
+            const canTrackProgress = Boolean(entitlementData?.features?.learning_progress);
             setPlanCourseAccess(hasPlanAccess);
             setPurchaseChoice(raw.pricing?.mode === "paid" || hasPlanAccess ? "subscription" : "individual");
 
-            let enrollmentData: { enrollment?: Enrollment } | null = null;
+            let enrollmentData: { enrollment?: Enrollment & { accessSource?: string; revokedBy?: string | null } } | null = null;
             // Loading course details is read-only. Never create an enrollment just
             // because the current subscription could cover this course.
             try {
@@ -346,37 +347,54 @@ export default function CourseDetails() {
             } catch {
               // A missing enrollment is expected until the learner explicitly chooses an access option.
             }
-            if (enrollmentData?.enrollment) {
-              const accessSource = (enrollmentData.enrollment as Enrollment & { accessSource?: string }).accessSource;
-              if (accessSource === "subscription" && !hasPlanAccess) setEnrollment(null);
-              else setEnrollment(enrollmentData.enrollment);
-            } else {
-              setEnrollment(null);
-            }
 
-            const pData = await apiFetch(`/api/progress/${courseId}`);
-            const rawProgress = pData.progress;
-            setProgress({
-              ...rawProgress,
-              id: String(rawProgress._id ?? rawProgress.id),
-              user_id: String(rawProgress.user ?? rawProgress.user_id),
-              course_id: String(rawProgress.course ?? rawProgress.course_id),
-              completed_lessons: (rawProgress.completedLessons ?? []).map((item: RawCompletedLesson) => ({
-                lessonId: String(item.lessonId),
-                type: item.type,
-                completedAt: item.completedAt,
-              })),
-              completed_count: rawProgress.completedCount ?? 0,
-              total_lessons: rawProgress.totalLessons ?? 0,
-              last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
-              percentage: rawProgress.percentage ?? 0,
-              last_accessed_at: rawProgress.lastAccessedAt ?? null,
-              created_at: rawProgress.createdAt ?? '',
-              updated_at: rawProgress.updatedAt ?? '',
-            } as Progress);
-          } catch (learningError) {
-            console.warn('Course enrollment/progress unavailable:', learningError);
-          }
+            const candidateEnrollment = enrollmentData?.enrollment;
+            const enrollmentStatus = String(candidateEnrollment?.status || "").toLowerCase();
+            const hasActiveEnrollment = Boolean(
+              candidateEnrollment &&
+              ["active", "completed"].includes(enrollmentStatus) &&
+              !candidateEnrollment.revokedBy &&
+              !(candidateEnrollment.accessSource === "subscription" && !hasPlanAccess)
+            );
+
+            // Progress has two independent access checks: an active enrollment and
+            // the plan's learning_progress feature. Avoid requests that are certain
+            // to be rejected by the API (especially for a never-enrolled visitor).
+            setEnrollment(hasActiveEnrollment ? candidateEnrollment! : null);
+            setProgress(null);
+            if (hasActiveEnrollment && canTrackProgress) {
+              try {
+                const pData = await apiFetch(`/api/progress/${courseId}`);
+                const rawProgress = pData.progress;
+                setProgress({
+                  ...rawProgress,
+                  id: String(rawProgress._id ?? rawProgress.id),
+                  user_id: String(rawProgress.user ?? rawProgress.user_id),
+                  course_id: String(rawProgress.course ?? rawProgress.course_id),
+                  completed_lessons: (rawProgress.completedLessons ?? []).map((item: RawCompletedLesson) => ({
+                    lessonId: String(item.lessonId),
+                    type: item.type,
+                    completedAt: item.completedAt,
+                  })),
+                  completed_count: rawProgress.completedCount ?? 0,
+                  total_lessons: rawProgress.totalLessons ?? 0,
+                  last_lesson_id: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
+                  percentage: rawProgress.percentage ?? 0,
+                  last_accessed_at: rawProgress.lastAccessedAt ?? null,
+                  created_at: rawProgress.createdAt ?? '',
+                  updated_at: rawProgress.updatedAt ?? '',
+                } as Progress);
+              } catch (progressError) {
+                // Permission denials are normal for revoked/stale entitlements;
+                // keep the course page usable and only report unexpected failures.
+                const status = typeof progressError === "object" && progressError !== null && "status" in progressError
+                  ? Number((progressError as { status?: unknown }).status)
+                  : 0;
+                if (status !== 403 && status !== 404) {
+                  console.warn("Course progress could not be loaded:", progressError);
+                }
+              }
+            }
         } else {
           setPlanCourseAccess(false);
         }

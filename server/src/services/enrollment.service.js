@@ -179,14 +179,51 @@ export async function enroll(userId, courseId, { isAdmin = false, accessPreferen
 }
 
 export async function getMine(userId) {
-  const enrollments = await Enrollment.find({ user: userId, status: { $ne: "cancelled" } })
+  const enrollments = await Enrollment.find({
+    user: userId,
+    status: { $ne: "cancelled" },
+    revokedBy: null
+  })
     .populate({
       path: "course",
-      select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled learningOutcomes generation modules createdAt updatedAt"
+      select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled learningOutcomes generation modules createdAt updatedAt visibility createdForUser status deletedAt aiReviewStatus aiReviewSource aiReviewedBy"
     })
     .sort({ enrolledAt: -1 });
 
-  const courseIds = enrollments.map((enrollment) => enrollment.course?._id).filter(Boolean);
+  const paidCourseIds = enrollments
+    .filter((enrollment) => enrollment.course?.pricing?.mode === "paid")
+    .map((enrollment) => enrollment.course?._id)
+    .filter(Boolean);
+  const needsPublishedCourseEntitlement = paidCourseIds.length > 0 ||
+    enrollments.some((enrollment) => enrollment.accessSource === "subscription");
+  const [verifiedPayments, publishedCourseEntitlement] = await Promise.all([
+    paidCourseIds.length
+      ? Payment.find({
+          user: userId,
+          course: { $in: paidCourseIds },
+          provider: "razorpay",
+          status: { $in: ["paid", "partially_refunded"] }
+        }).select("course").lean()
+      : [],
+    needsPublishedCourseEntitlement
+      ? getEntitlement(userId, "published_courses")
+      : Promise.resolve(null)
+  ]);
+  const individuallyPurchasedCourseIds = new Set(verifiedPayments.map((payment) => String(payment.course)));
+  const planEntitled = Boolean(publishedCourseEntitlement?.allowed);
+  const visibleEnrollments = enrollments.filter((enrollment) => {
+    const course = enrollment.course;
+    const courseId = String(course?._id || enrollment.course || "");
+    return isEnrollmentCourseAccessAllowed({
+      enrollment,
+      course,
+      userId,
+      planEntitled,
+      hasIndividualPayment: individuallyPurchasedCourseIds.has(courseId)
+    });
+  });
+
+  const courseIds = visibleEnrollments.map((enrollment) => enrollment.course?._id).filter(Boolean);
   const [ratingRows, progressRows, legacyStatusRows] = await Promise.all([
     courseIds.length ? Review.aggregate([
       { $match: { course: { $in: courseIds }, isHidden: { $ne: true }, moderationStatus: "approved" } },
@@ -197,8 +234,8 @@ export async function getMine(userId) {
       .lean() : [],
     // One-time, lazy migration for legacy enrollments created before learningStatus
     // was persisted. Query the raw collection so schema defaults do not hide missing fields.
-    enrollments.length ? Enrollment.collection.find({
-      user: enrollments[0].user,
+    visibleEnrollments.length ? Enrollment.collection.find({
+      user: visibleEnrollments[0].user,
       learningStatus: { $exists: false }
     }).project({ _id: 1, course: 1, status: 1 }).toArray() : []
   ]);
@@ -211,7 +248,7 @@ export async function getMine(userId) {
   const legacyByEnrollmentId = new Map(legacyStatusRows.map((row) => [String(row._id), row]));
   const statusUpdates = [];
 
-  const resultRows = enrollments.map((enrollment) => {
+  const resultRows = visibleEnrollments.map((enrollment) => {
     const result = enrollment.toObject();
     const course = result.course;
     const courseId = course ? String(course._id || course.id) : String(result.course);

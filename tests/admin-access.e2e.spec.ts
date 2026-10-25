@@ -324,7 +324,16 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin");
     // Wait until AdminLayout has loaded confirmed access and mounted its key handler.
     await expect(page.getByRole("button", { name: "Search pages and actions" })).toBeVisible();
-    await page.keyboard.press("Control+K");
+    // Dispatch the same bubbling browser KeyboardEvent used by the app handler.
+    // Playwright's physical Ctrl+K can be claimed by the browser/runner shortcut.
+    await page.evaluate(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "k",
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
 
     const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
     await expect(dialog).toBeVisible();

@@ -322,7 +322,9 @@ test.describe("administrator route and permission UX", () => {
       permissions: analystPermissions,
     });
     await page.goto(baseURL + "/admin");
-    await page.keyboard.press("Control+k");
+    // Wait until AdminLayout has loaded confirmed access and mounted its key handler.
+    await expect(page.getByRole("button", { name: "Search pages and actions" })).toBeVisible();
+    await page.keyboard.press("Control+K");
 
     const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
     await expect(dialog).toBeVisible();

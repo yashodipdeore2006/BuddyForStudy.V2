@@ -377,6 +377,58 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-BILLING-REFUND-FAILURE-001] refund API failure preserves reason and allows retry", async ({ page }) => {
+    let refundMutations = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/admin/refunds/refund-pending-fixture" && request.method() === "PUT") refundMutations += 1;
+    });
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "finance_operator",
+      roleLabel: "Finance Operator",
+      permissions: ["dashboard.read", "billing.read", "refunds.manage"],
+    });
+    await page.route("**/api/admin/refunds?*", async (route) => json(route, {
+      refunds: [{
+        _id: "refund-pending-fixture",
+        user: { name: "Refund learner fixture", email: "r***@example.test" },
+        payment: { _id: "payment-fixture", amount: 499, currency: "INR", status: "paid", course: { title: "Course fixture" } },
+        amount: 499,
+        reason: "Charged twice for the same course.",
+        status: "pending",
+        createdAt: "2026-10-24T10:00:00.000Z",
+        sla: { dueAt: "2026-10-26T10:00:00.000Z", breached: false, hoursRemaining: 24 },
+      }],
+      pages: 1,
+      total: 1,
+      summary: { pending: 1, approved: 0, rejected: 0, processed: 0 },
+    }));
+    await page.route("**/api/admin/refunds/refund-pending-fixture", async (route) => {
+      if (route.request().method() === "PUT") {
+        return json(route, { message: "Refund service is temporarily unavailable." }, 503);
+      }
+      return route.continue();
+    });
+    await page.goto(baseURL + "/admin/billing");
+    await page.getByRole("button", { name: "Approve & refund", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Approve and process refund" })).toBeVisible();
+    await page.locator("#admin-confirm-text").fill("APPROVE REFUND");
+    await page.locator("#admin-confirm-reason").fill("Need refund"); 
+    await page.getByRole("button", { name: "Approve & refund", exact: true }).last().click();
+    await expect(page.getByRole("alert")).toContainText("Enter a reason between 10 and 500 characters.");
+    expect(refundMutations).toBe(0);
+    await page.locator("#admin-confirm-reason").fill("Duplicate charge confirmed against the payment ledger.");
+    await page.getByRole("button", { name: "Approve & refund", exact: true }).last().click();
+    await expect(page.getByRole("alert")).toContainText("Refund service is temporarily unavailable.");
+    await expect(page.locator("#admin-confirm-text")).toHaveValue("APPROVE REFUND");
+    await expect(page.locator("#admin-confirm-reason")).toHaveValue("Duplicate charge confirmed against the payment ledger.");
+    const confirmButton = page.getByRole("button", { name: "Approve & refund", exact: true }).last();
+    await expect(confirmButton).toBeEnabled();
+    await confirmButton.click();
+    await expect.poll(() => refundMutations).toBe(2);
+    await expect(page.locator("#admin-confirm-reason")).toHaveValue("Duplicate charge confirmed against the payment ledger.");
+  });
+
   test("[ADM-BILLING-REFUND-PERMISSION-001] billing readers cannot make refund decisions", async ({ page }) => {
     let refundMutations = 0;
     page.on("request", (request) => {

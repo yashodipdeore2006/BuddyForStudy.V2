@@ -146,6 +146,7 @@ test("processed refund webhook normalization validates payment identity, amount,
   assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 0, currency: "INR", status: "processed" }, payment).reason, "Invalid provider refund amount");
   assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "USD", status: "processed" }, payment).reason, "Provider refund currency mismatch");
   assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "INR", status: "pending" }, payment).reason, "Provider refund is not processed");
+  assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "INR" }, payment).reason, "Provider refund is not processed");
 });
 
 test("refund.processed webhook reconciles external refunds into payment status and learner notifications", () => {

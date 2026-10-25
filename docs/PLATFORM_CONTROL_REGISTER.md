@@ -55,6 +55,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | DETAIL-REVIEWS-001 | Ratings & Reviews / empty state and Refresh reviews | Empty data is explicit; refresh requests reviews again and preserves the correct empty state | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | DETAIL-RATING-001 | Review form / select rating star | Accessible star labels and pressed state; score updates after selection | Inventory only |
 | DETAIL-REVIEW-SUBMIT-001 | Review form / submit or update review | Eligible enrolled learner can submit rating/comment; payload and success state are verified; update/failure cases remain open | Automated pass on `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`; [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) |
+| DETAIL-REVIEW-FAILURE-001 | Review submit when API fails | Error is announced, comment/rating remain intact and retry remains available | Automated pass on `66bf73e3cd02c6d2714acf6c29a102adfb8676f7`; [CI run #40173675839](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173675839) |
 | DETAIL-START-001 | Start, Continue or Review course | Resolves first incomplete lesson or review destination; invalid optional lesson ID cannot crash the card | Existing course-navigation tests |
 | DETAIL-ROADMAP-001 | Journey Roadmap link | Uses canonical route and handles missing curriculum/roadmap safely | Existing roadmap E2E tests |
 | DETAIL-PURCHASE-001 | Plan choice, enroll, checkout | Correct plan chosen; payment signature/order verified; duplicate action safe; pending and failure states recoverable | Backend payment tests exist; staging pending |
@@ -179,3 +180,10 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - **CI:** [CI run #40173489346](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173489346) passed both frontend and backend jobs; **59 Playwright tests passed**.
 - **New passing IDs:** `PLAYER-LESSON-NAV-001` (Prev/Next follows curriculum order and canonical URL) and `PLAYER-PRACTICE-QUIZ-FAILURE-001` (API 503 announced and Generate Practice Quiz can be retried).
 - Remaining player scope: quiz success/answer/score, practice-quiz submit/reattempt, cross-lesson note jump and lesson/sidebar navigation edge cases.
+
+
+### 2026-10-25 — Course review failure recovery passed
+- **Commit:** `66bf73e3cd02c6d2714acf6c29a102adfb8676f7`.
+- **CI:** [run #40173675839](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173675839) passed frontend and backend jobs; browser suite passed.
+- **New passing ID:** `DETAIL-REVIEW-FAILURE-001`: an HTTP 503 is announced, rating/comment are preserved, submit becomes available again, and retry sends a new request.
+- The test uses a mocked review endpoint. Real persistence/moderation and production API failure behavior still require staging validation.

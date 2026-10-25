@@ -59,6 +59,7 @@ router.post("/courses/:courseId/restore", adminPermissionMiddleware("courses.man
 router.get("/content-moderation/:contentType", adminPermissionMiddleware("courses.read"), controller.contentModerationList);
 router.post("/content-moderation/:contentType/:contentId", adminPermissionMiddleware("courses.manage"), controller.moderateContent);
 router.get("/content-roadmaps", adminPermissionMiddleware("courses.read"), controller.contentRoadmaps);
+router.get("/content-roadmaps/:source/:roadmapId", adminPermissionMiddleware("courses.read"), controller.contentRoadmapDetail);
 router.post("/content/broken-links/check", adminPermissionMiddleware("courses.manage"), controller.brokenCourseLinks);
 router.post("/courses/:courseId/publish", adminPermissionMiddleware("courses.publish"), controller.publishCourse);
 router.put("/courses/:courseId", adminPermissionMiddleware("courses.manage"), controller.updateCourse);

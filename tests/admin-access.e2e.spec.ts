@@ -377,6 +377,42 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-DELIVERY-RETRY-FAILURE-001] retry queue failure preserves reason and permits retry", async ({ page }) => {
+    let retryRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/admin/deliveries/failed-notification-1/retry" && request.method() === "POST") retryRequests += 1;
+    });
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "communications_operator",
+      roleLabel: "Communications Operator",
+      permissions: ["dashboard.read", "notifications.read", "notifications.retry"],
+    });
+    await page.route("**/api/admin/deliveries/failed-notification-1/retry", async (route) => {
+      if (route.request().method() === "POST") {
+        return json(route, { message: "Delivery retry queue is temporarily unavailable." }, 503);
+      }
+      return route.continue();
+    });
+    await page.goto(baseURL + "/admin/deliveries");
+    await expect(page.getByText("Failed notice")).toBeVisible();
+    await page.getByRole("button", { name: "Retry email", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Retry failed notification delivery?" })).toBeVisible();
+    const reason = page.getByLabel("Reason (required)");
+    const confirmation = page.getByLabel(/Type RETRY to confirm/);
+    await reason.fill("The SMTP outage was investigated and it is safe to retry.");
+    await confirmation.fill("RETRY");
+    await page.getByRole("button", { name: "Queue retry", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Delivery retry queue is temporarily unavailable.");
+    await expect(reason).toHaveValue("The SMTP outage was investigated and it is safe to retry.");
+    await expect(confirmation).toHaveValue("RETRY");
+    const queueRetry = page.getByRole("button", { name: "Queue retry", exact: true });
+    await expect(queueRetry).toBeEnabled();
+    await queueRetry.click();
+    await expect.poll(() => retryRequests).toBe(2);
+    await expect(reason).toHaveValue("The SMTP outage was investigated and it is safe to retry.");
+  });
+
   test("[ADM-BILLING-REFUND-FAILURE-001] refund API failure preserves reason and allows retry", async ({ page }) => {
     let refundMutations = 0;
     page.on("request", (request) => {

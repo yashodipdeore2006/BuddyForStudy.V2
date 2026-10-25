@@ -161,7 +161,7 @@ export async function learn(req, res, next) {
 
     // Opening the lesson player is the start signal for My Learning. Avoid
     // downgrading a completed enrollment when the learner opens it to review.
-    await (await import("../models/Enrollment.js")).Enrollment.updateOne(
+    await Enrollment.updateOne(
       { user: req.user.userId, course: req.params.courseId, status: "active" },
       { $set: { learningStatus: "in-progress" } }
     );

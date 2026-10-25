@@ -1,6 +1,7 @@
 import { z } from "zod";
 import * as courseService from "../services/course.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
+import { toPublicQuiz } from "../utils/quizSecurity.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -132,6 +133,24 @@ export async function remove(req, res, next) {
   } catch (e) { next(e); }
 }
 
+
+function sanitizeLearningLesson(lesson) {
+  const value = lesson?.toObject ? lesson.toObject() : lesson;
+  if (!value || value.type !== "quiz" || !value.quiz) return value;
+  return { ...value, quiz: toPublicQuiz(value.quiz) };
+}
+
+function sanitizeLearningCourse(course) {
+  const value = course?.toObject ? course.toObject() : course;
+  return {
+    ...value,
+    modules: (value.modules || []).map((module) => ({
+      ...module,
+      lessons: (module.lessons || []).map(sanitizeLearningLesson)
+    }))
+  };
+}
+
 export async function learn(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
@@ -181,7 +200,7 @@ export async function learn(req, res, next) {
       }));
     }
 
-    return success(res, { course });
+    return success(res, { course: sanitizeLearningCourse(course) });
   } catch (e) { next(e); }
 }
 
@@ -212,6 +231,6 @@ export async function learningItem(req, res, next) {
 
     const progress = await (await import("../models/Progress.js")).Progress.findOne({ user: req.user.userId, course: courseId });
     const completed = !!progress?.completedLessons.some(x => x.lessonId.toString() === itemId);
-    return success(res, { item: located.item, completed });
+    return success(res, { item: sanitizeLearningLesson(located.item), completed });
   } catch (e) { next(e); }
 }

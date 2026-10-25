@@ -178,3 +178,13 @@ test("enrollment fails closed when course pricing is missing or invalid", async 
   assert.match(enrollmentService, /getEffectiveCoursePrice\(course\.pricing\) === null/);
   assert.match(enrollmentService, /error\.status = 409/);
 });
+
+
+test("My Learning omits cancelled enrollments after an unenroll or access revocation", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const enrollmentService = fs.readFileSync(path.join(here, "../src/services/enrollment.service.js"), "utf8");
+  assert.match(enrollmentService, /Enrollment\.find\(\{ user: userId, status: \{ \$ne: "cancelled" \} \}\)/);
+});

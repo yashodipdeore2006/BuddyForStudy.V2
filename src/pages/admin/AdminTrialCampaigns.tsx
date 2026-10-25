@@ -129,7 +129,7 @@ export default function AdminTrialCampaigns() {
           {selectField("Course segment","courseSegment",[["","Any course"],["popular","Top 5 popular"],["paid","Paid courses"],["free","Free courses"],["featured","Featured courses"]])}
           {selectField("Phone verification","phoneVerified",[["any","Any status"],["yes","Verified"],["no","Not verified"]])}
           {selectField("Marketing email consent","marketingConsent",[["any","Any consent"],["yes","Consented"],["no","Not consented"]])}
-          {selectField("Profile setup","profileSetup",[["any","Any profile"],["complete","Not skipped"],["skipped","Skipped"],["incomplete","Incomplete"]])}
+          {selectField("Profile setup","profileSetup",[["any","Any profile"],["complete","Complete (city and learning goal set)"],["skipped","Skipped"],["incomplete","Incomplete (missing city or learning goal)"]])}
           <label className={labelClass}>City contains<input className={inputClass} maxLength={100} value={filters.city} onChange={e=>changeFilter("city",e.target.value)} placeholder="e.g. Nashik"/></label>
           <label className={labelClass}>Learning goal contains<input className={inputClass} maxLength={240} value={filters.learningGoal} onChange={e=>changeFilter("learningGoal",e.target.value)} placeholder="e.g. backend development"/></label>
         </div>}

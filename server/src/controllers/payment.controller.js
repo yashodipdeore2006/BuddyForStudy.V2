@@ -15,6 +15,13 @@ const checkoutSchema = z.object({
   courseId: z.string().min(1)
 });
 
+async function restorePurchasedCourseEnrollment(payment, userId) {
+  if (!payment?.course) return null;
+  // Payment must already be stored as paid before this call. The enrollment
+  // service verifies that purchase before granting individual course access.
+  return enroll(userId, payment.course);
+}
+
 export async function createCourseOrder(req, res, next) {
   try {
     const input = checkoutSchema.parse(req.body);
@@ -115,7 +122,10 @@ export async function verifyCoursePayment(req, res, next) {
 
     if (payment.status === "paid") {
       if (payment.providerPaymentId === input.razorpayPaymentId) {
-        return success(res, { payment }, "Payment already verified");
+        // Make retries recover access if the original request saved the payment
+        // but failed before enrollment was completed.
+        const enrollment = await restorePurchasedCourseEnrollment(payment, req.user.userId);
+        return success(res, { payment, enrollment }, "Payment already verified; course access restored");
       }
       return failure(res, "Payment has already been verified with a different provider payment", 409);
     }
@@ -136,7 +146,11 @@ export async function verifyCoursePayment(req, res, next) {
     }
     await payment.save();
 
-    return success(res, { payment }, "Payment verified successfully");
+    // Complete the paid purchase on the server. If enrollment is temporarily
+    // unavailable, keep the verified payment; a retry of this same verification
+    // will attempt enrollment again without charging the learner twice.
+    const enrollment = await restorePurchasedCourseEnrollment(payment, req.user.userId);
+    return success(res, { payment, enrollment }, "Payment verified and course access granted");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

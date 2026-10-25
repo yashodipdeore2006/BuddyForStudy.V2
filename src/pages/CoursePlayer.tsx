@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -184,7 +184,7 @@ export default function CoursePlayer() {
   const noteCharacterLimit = 1000;
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
   const activeLessonCompletedRef = useRef(false);
-  const sendPlayerCurationFeedback = async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
+  const sendPlayerCurationFeedback = useCallback(async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
     if (!video?.videoId || !courseId || !currentLesson) return;
     const moduleMeta = currentLesson.module as typeof currentLesson.module & { canonicalSkillId?: string; skillIds?: string[] };
     try {
@@ -202,9 +202,23 @@ export default function CoursePlayer() {
     } catch {
       // Feedback is best-effort and must never block lesson progress.
     }
-  };
+  }, [course, currentLesson, courseId]);
 
+  const activeVideo = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] ?? null : null;
+  const activeVideoRef = useRef<typeof activeVideo>(activeVideo);
+  const curationFeedbackRef = useRef(sendPlayerCurationFeedback);
 
+  useEffect(() => {
+    activeVideoRef.current = activeVideo;
+  }, [activeVideo]);
+
+  useEffect(() => {
+    curationFeedbackRef.current = sendPlayerCurationFeedback;
+  }, [sendPlayerCurationFeedback]);
+
+  useEffect(() => {
+    activeLessonCompletedRef.current = lessonId ? isLessonCompleted(progress?.completed_lessons || [], lessonId) : false;
+  }, [lessonId, progress?.completed_lessons]);
 
   useEffect(() => {
     if (!courseId) {
@@ -344,12 +358,6 @@ export default function CoursePlayer() {
       setQuizAnswers({});
       setQuizSubmitted(false);
       setQuizScore(null);
-      if (lessonId) {
-        setQuizPassed(isLessonCompleted(progress?.completed_lessons || [], lessonId));
-      } else {
-        setQuizPassed(false);
-      }
-
       try {
         const data = await apiFetch("/api/ai/quiz", {
           method: "POST",
@@ -386,10 +394,11 @@ export default function CoursePlayer() {
   };
 
   useEffect(() => {
-    const video = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] : null;
-    activeLessonCompletedRef.current = lessonId ? isLessonCompleted(progress?.completed_lessons || [], lessonId) : false;
     return () => {
-      if (video?.videoId && !activeLessonCompletedRef.current) void sendPlayerCurationFeedback("abandoned", video);
+      const video = activeVideoRef.current;
+      if (video?.videoId && !activeLessonCompletedRef.current) {
+        void curationFeedbackRef.current("abandoned", video);
+      }
     };
   }, [courseId, lessonId]);
 
@@ -437,7 +446,7 @@ export default function CoursePlayer() {
   };
 
 
-  const handleGeneratePracticeQuiz = async (mode: "generate" | "reattempt" = "generate") => {
+  const handleGeneratePracticeQuiz = useCallback(async (mode: "generate" | "reattempt" = "generate") => {
     if (!courseId || !lessonId) return;
     setPracticeQuizLoading(true);
     setPracticeQuizError("");
@@ -478,7 +487,7 @@ export default function CoursePlayer() {
     } finally {
       setPracticeQuizLoading(false);
     }
-  };
+  }, [courseId, lessonId]);
 
   useEffect(() => {
     if (lessonTab !== "quiz") {
@@ -490,7 +499,7 @@ export default function CoursePlayer() {
     if (practiceAutoAttemptRef.current === attemptKey) return;
     practiceAutoAttemptRef.current = attemptKey;
     if (!practiceQuizData) void handleGeneratePracticeQuiz("generate");
-  }, [lessonTab, courseId, lessonId, currentLesson?.lesson.type, practiceQuizLoading, practiceQuizData]);
+  }, [lessonTab, courseId, lessonId, currentLesson?.lesson.type, practiceQuizLoading, practiceQuizData, handleGeneratePracticeQuiz]);
 
 
   const handlePracticeQuizSubmit = async () => {

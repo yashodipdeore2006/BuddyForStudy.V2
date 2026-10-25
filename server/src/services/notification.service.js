@@ -13,6 +13,7 @@ import { isWebPushConfigured, sendWebPushNotification } from "./webPush.service.
 import { NotificationPreference } from "../models/NotificationPreference.js";
 import { User } from "../models/User.js";
 import { UserConsentEvent } from "../models/UserConsentEvent.js";
+import { selectAdminNotificationRecipients } from "../utils/adminNotificationRouting.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { MessageTemplate } from "../models/MessageTemplate.js";
 import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminderEventKey, getSubscriptionExpiryReminderWindow, subscriptionExpiryReminderEventKey } from "./reminderScheduling.js";
@@ -1012,10 +1013,7 @@ export async function notifyActiveAdmins({
   const admins = await User.find({ role: "admin", isActive: true })
     .select("_id adminRole adminPermissionOverrides")
     .lean();
-  const { hasAdminPermission } = await import("../utils/adminRbac.js");
-  const eligibleAdmins = admins.filter((admin) =>
-    hasAdminPermission(admin.adminRole || "platform_admin", requiredPermission, admin.adminPermissionOverrides || [])
-  );
+  const eligibleAdmins = selectAdminNotificationRecipients(admins, requiredPermission);
   const results = await Promise.allSettled(eligibleAdmins.map((admin) => createNotificationEvent({
     userId: String(admin._id),
     title,

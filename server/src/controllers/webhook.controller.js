@@ -152,7 +152,11 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
     eventKey: "subscription-charge:" + providerPaymentId,
     emailSubject: "Your BuddyForStudy subscription payment receipt",
     metadata: { paymentId: String(payment._id), subscriptionId: String(subscriptionId), providerPaymentId, amount: String(payment.amount), currency: payment.currency || "INR" },
-    templateKeys: { notification: "subscription-payment-in-app", email: "subscriptiasync function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null, providerEventId = "", providerEventName = "") {
+    templateKeys: { notification: "subscription-payment-in-app", email: "subscription-payment-email" }
+  });
+}
+
+async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = null, providerEventId = "", providerEventName = "") {
   const charge = normalizeSubscriptionCharge(subscription, paymentEntity);
   if (!charge.valid) {
     console.error("[billing-webhook] ignored invalid subscription charge", {
@@ -166,8 +170,6 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
   const { providerPaymentId, amount, currency } = charge;
   const duplicate = await Payment.findOne({ provider: "razorpay", providerPaymentId });
   if (duplicate) {
-    // A provider payment ID is globally unique. Never bind a duplicate charge
-    // to a different subscription merely because a webhook references it.
     if (String(duplicate.providerOrderId || "") !== String(subscription.id)) {
       console.error("[billing-webhook] duplicate provider payment references a different subscription", {
         providerPaymentId,
@@ -184,9 +186,8 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
       return;
     }
 
-    // The provider charge is authoritative for what was actually collected.
-    // Repair records left pending by an interrupted delivery, and reconcile
-    // amount/currency on retries instead of retaining the checkout's old quote.
+    // The provider charge is authoritative for the collected amount/currency.
+    // Repair records left pending by an interrupted delivery before notification.
     duplicate.amount = amount;
     duplicate.currency = currency;
     duplicate.status = "paid";
@@ -195,7 +196,6 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
 
     const activated = await activateSubscription(subscription, duplicate, eventAt, providerEventId, providerEventName);
     if (activated) await markTrialConversionIfPresent(duplicate, subscription.id);
-    // Recover a receipt if an earlier delivery saved the payment but failed before notifying.
     await notifySubscriptionCharge(duplicate, subscription.id, providerPaymentId);
     return;
   }
@@ -207,8 +207,7 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
   }).sort({ createdAt: 1 });
 
   if (payment) {
-    // A pending subscription checkout is not a reliable record of the final
-    // captured amount. Persist the provider-confirmed amount and currency.
+    // The pending checkout amount is a quote. Store the provider-confirmed charge.
     payment.providerPaymentId = providerPaymentId;
     payment.amount = amount;
     payment.currency = currency;
@@ -238,7 +237,6 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
     } catch (error) {
       if (error?.code !== 11000) throw error;
       // A concurrent delivery may have inserted the same provider payment.
-      // Re-read it and continue only if it belongs to this subscription.
       payment = await Payment.findOne({ provider: "razorpay", providerPaymentId });
       if (!payment || String(payment.providerOrderId || "") !== String(subscription.id)) {
         console.error("[billing-webhook] concurrent charge insert conflicted with another subscription", {
@@ -259,9 +257,6 @@ async function notifySubscriptionCharge(payment, subscriptionId, providerPayment
   const activated = await activateSubscription(subscription, payment, eventAt, providerEventId, providerEventName);
   if (activated) await markTrialConversionIfPresent(payment, subscription.id);
   await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);
-}
-
-n.id, providerPaymentId);
 }
 
 export async function razorpayWebhook(req, res, next) {

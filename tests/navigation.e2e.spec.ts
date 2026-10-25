@@ -103,6 +103,7 @@ async function mockAppApi(page: Page, options: {
   roadmapStages?: Array<Record<string, unknown>>;
   roadmapProgress?: Record<string, unknown> | null;
   learningEnrollments?: Array<Record<string, unknown>>;
+  savedMutationFailure?: "save" | "remove";
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -187,9 +188,11 @@ async function mockAppApi(page: Page, options: {
       return json(route, { savedCourses: [] });
     }
     if (pathname === "/api/saved-courses" && route.request().method() === "POST") {
+      if (options.savedMutationFailure === "save") return json(route, { message: "Saving courses is temporarily unavailable." }, 503);
       return json(route, { savedCourse: { course: courseId } });
     }
     if (pathname.startsWith("/api/saved-courses/") && route.request().method() === "DELETE") {
+      if (options.savedMutationFailure === "remove") return json(route, { message: "Removing saved courses is temporarily unavailable." }, 503);
       return json(route, { success: true });
     }
     if (pathname === "/api/courses") {
@@ -823,6 +826,66 @@ test.describe("learner control and state regression", () => {
       rating: 4,
       comment: "Clear explanations and useful practice.",
     });
+  });
+  test("[LEARN-SAVE-FAILURE-001] failed save restores the previous state and exposes a retryable error", async ({ page }) => {
+    const course = courseFixture("save-failure-course", { title: "Save Failure Course" });
+    let saveAttempts = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/saved-courses") && request.method() === "POST") saveAttempts += 1;
+    });
+
+    await mockAppApi(page, {
+      authenticated: true,
+      savedMutationFailure: "save",
+      learningEnrollments: [learningEnrollmentFixture(course, "not-started")],
+    });
+    await page.goto(baseURL + "/my-learning?tab=not-started");
+    const card = page.locator('[data-course-status="not-started"]');
+    const saveButton = card.getByRole("button", { name: "Save course" });
+    await saveButton.click();
+
+    await expect(card.getByRole("alert")).toContainText("Saving courses is temporarily unavailable.");
+    await expect(card.getByRole("button", { name: "Save course" })).toHaveAttribute("aria-pressed", "false");
+    await expect(card.getByRole("button", { name: "Remove from saved courses" })).toHaveCount(0);
+    await expect(card.getByRole("button", { name: "Save course" })).toBeEnabled();
+    expect(saveAttempts).toBe(1);
+  });
+
+  test("[PLAYER-NOTES-001] timestamped notes validate timestamps and persist across reload", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true, enrolled: true });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await page.getByRole("tab", { name: "Notes" }).click();
+
+    const noteEditor = page.getByPlaceholder("Write a note for this moment in the lecture...");
+    await noteEditor.fill("Remember the core concept and revisit the example.");
+    await page.getByRole("button", { name: "Save note" }).click();
+    await expect(page.getByText("Enter a timestamp such as 01:25 or 1:02:15.")).toBeVisible();
+    await expect(page.getByText("No notes yet")).toBeVisible();
+
+    await page.getByLabel("Video timestamp").fill("01:25");
+    await page.getByRole("button", { name: "Save note" }).click();
+    await expect(page.getByText("Timestamped note saved.")).toBeVisible();
+    await expect(page.getByText("Remember the core concept and revisit the example.")).toBeVisible();
+    await expect(page.getByText("01:25", { exact: true }).first()).toBeVisible();
+
+    await page.reload();
+    await page.getByRole("tab", { name: "Notes" }).click();
+    await expect(page.getByText("Remember the core concept and revisit the example.")).toBeVisible();
+    await page.getByRole("button", { name: "Delete note" }).click();
+    await expect(page.getByText("No notes yet")).toBeVisible();
+    await expect(page.getByText("Note removed.")).toBeVisible();
+  });
+
+  test("[PLAYER-NOTES-FILTER-001] note filters and sort controls remain usable when there are no matching notes", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true, enrolled: true });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await page.getByRole("tab", { name: "Notes" }).click();
+    await expect(page.getByLabel("Filter notes by lecture")).toHaveValue("all");
+    await page.getByLabel("Filter notes by lecture").selectOption("lesson-1");
+    await page.getByLabel("Sort notes").selectOption("oldest");
+    await expect(page.getByLabel("Filter notes by lecture")).toHaveValue("lesson-1");
+    await expect(page.getByLabel("Sort notes")).toHaveValue("oldest");
+    await expect(page.getByText("No notes yet")).toBeVisible();
   });
 });
 

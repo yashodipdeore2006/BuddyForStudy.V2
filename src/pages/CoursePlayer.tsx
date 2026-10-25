@@ -183,6 +183,11 @@ export default function CoursePlayer() {
   const noteEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const noteCharacterLimit = 1000;
   const timestampNotesKey = courseId ? courseTimestampNotesKey(String(session?.user?.id || "anonymous"), courseId) : "";
+  const allLessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
+  const currentLesson = useMemo(
+    () => course && lessonId ? findLessonById(course.modules, lessonId) : null,
+    [course, lessonId]
+  );
   const activeLessonCompletedRef = useRef(false);
   const sendPlayerCurationFeedback = useCallback(async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
     if (!video?.videoId || !courseId || !currentLesson) return;
@@ -268,11 +273,6 @@ export default function CoursePlayer() {
     }
   }, [loadedNotesKey, notesStorageReady, timestampNotes, timestampNotesKey]);
 
-  const allLessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
-  const currentLesson = useMemo(
-    () => course && lessonId ? findLessonById(course.modules, lessonId) : null,
-    [course, lessonId]
-  );
   const siblingLessonTitles = allLessons.map((lesson) => lesson.title);
   const visibleCourseNotes = useMemo(() => {
     const filtered = notesLessonFilter === "all" ? timestampNotes : timestampNotes.filter((note) => note.lessonId === notesLessonFilter);

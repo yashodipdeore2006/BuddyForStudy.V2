@@ -150,10 +150,18 @@ test("processed refund webhook normalization validates payment identity, amount,
 
 test("refund.processed webhook reconciles external refunds into payment status and learner notifications", () => {
   const webhook = readFileSync(new URL("../src/controllers/webhook.controller.js", import.meta.url), "utf8");
+  const admin = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
+  const razorpay = readFileSync(new URL("../src/services/razorpay.service.js", import.meta.url), "utf8");
   assert.match(webhook, /event\.event === "refund\.processed"/);
   assert.match(webhook, /normalizeProcessedProviderRefund\(providerRefund, payment\)/);
   assert.match(webhook, /RefundRequest\.findOne\(\{ providerRefundId: normalized\.providerRefundId \}\)/);
   assert.match(webhook, /RefundRequest\.create\([\s\S]*?status: "processed"[\s\S]*?providerRefundId: normalized\.providerRefundId/);
+  assert.match(webhook, /providerRefund\?\.notes\?\.bfs_refund_request_id/);
+  assert.match(webhook, /RefundRequest\.findById\(requestedRefundId\)/);
+  assert.match(webhook, /Never guess by amount alone/);
+  assert.doesNotMatch(webhook, /status: \{ \$in: \["pending", "approved"\] \},\s*amount: normalized\.amount,\s*providerRefundId: \{ \$in: \["", null\] \}\)\.sort/);
+  assert.match(admin, /notes: \{ bfs_refund_request_id: String\(refund\._id\) \}/);
+  assert.match(razorpay, /if \(notes && typeof notes === "object" && !Array\.isArray\(notes\)\) payload\.notes = notes/);
   assert.match(webhook, /getRemainingRefundableAmount\(payment\._id, payment\.amount\)/);
   assert.match(webhook, /payment\.status = paymentStatusForRemainingBalance\(remainingAmount\)/);
   assert.match(webhook, /eventKey: `refund-status:\$\{refund\._id\}:processed`/);

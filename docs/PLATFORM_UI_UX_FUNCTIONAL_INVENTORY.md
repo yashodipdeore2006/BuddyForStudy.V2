@@ -499,3 +499,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Test-fix note:** an initial assertion expected a non-zero-padded timestamp; it was corrected to match the UI's documented `MM:SS` formatting, and the latest run passed.
 - **Boundary:** Playwright uses mocked API responses and browser local storage. This does not prove real database persistence, cross-device note sync, provider configuration, or production authorization for every mutation.
 - **Next priority:** player lesson navigation and quiz/practice-quiz flows, course purchase failure paths, and the admin high-risk mutation suite (PII, publish, pricing/trials, refunds, communications and delivery retry). Then capture responsive/accessibility evidence.
+
+
+## Verification update — player navigation and quiz recovery passed (2026-10-25)
+
+- **Commit:** `841281740a1b5b97936d01b7392d5bc70a29e412`.
+- **CI evidence:** [GitHub Actions run #40173489346](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173489346) passed frontend and backend jobs; the browser suite reported **59 Playwright tests passed**.
+- **Additional passing control IDs:** `PLAYER-LESSON-NAV-001` verifies Previous/Next follows a two-lesson curriculum and updates the canonical URL; `PLAYER-PRACTICE-QUIZ-FAILURE-001` verifies an API 503 is announced and the learner can retry practice-quiz generation.
+- **Control register:** [PLATFORM_CONTROL_REGISTER.md](PLATFORM_CONTROL_REGISTER.md) has been updated with test IDs, expected outcomes and CI evidence.
+- **Remaining:** quiz generation success/answer/score/reattempt, cross-lesson note jump, more admin high-risk mutation E2E tests, responsive/accessibility evidence and real staging/provider validation.

@@ -74,13 +74,13 @@ export default function AdminRoadmaps() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const clearDetail = () => {
+  const clearDetail = useCallback(() => {
     detailRequestRef.current += 1;
     setSelectedKey(null);
     setDetail(null);
     setDetailError("");
     setDetailLoading(false);
-  };
+  }, []);
 
   const toggleDetails = useCallback(async (item: Roadmap) => {
     const key = item.source + "-" + item._id;
@@ -101,7 +101,7 @@ export default function AdminRoadmaps() {
     } finally {
       if (detailRequestRef.current === requestId) setDetailLoading(false);
     }
-  }, [selectedKey]);
+  }, [selectedKey, clearDetail]);
 
   const active = items.filter((item) => item.status === "active").length;
   const completed = items.filter((item) => item.status === "completed").length;

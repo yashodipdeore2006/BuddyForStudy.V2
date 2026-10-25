@@ -45,7 +45,8 @@ test("admin payments are searchable and use bounded server-side pagination with 
   assert.match(section, /escapeRegex\(q\)/);
   assert.match(section, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
   assert.match(section, /Payment\.countDocuments\(filter\)/);
-  assert.match(section, /paidTotal: Number\(paidValue\[0\]\?\.total \|\| 0\)/);
+  assert.match(section, /paidTotalsByCurrency: Object\.fromEntries\(paidValues\.map/);
+  assert.match(section, /paidTotal: Number\(paidValues\.find\(\(item\) => item\._id === "INR"\)\?\.total \|\| 0\)/);
 });
 
 test("admin refunds are searchable and use bounded server-side pagination with status summaries", async () => {

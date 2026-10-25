@@ -59,7 +59,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | DETAIL-START-001 | Start, Continue or Review course | Resolves first incomplete lesson or review destination; invalid optional lesson ID cannot crash the card | Existing course-navigation tests |
 | DETAIL-ROADMAP-001 | Journey Roadmap link | Uses canonical route and handles missing curriculum/roadmap safely | Existing roadmap E2E tests |
 | DETAIL-PURCHASE-001 | Plan choice, enroll, checkout | Correct plan chosen; payment signature/order verified; duplicate action safe; pending and failure states recoverable | Backend payment tests exist; staging pending |
-| DETAIL-PURCHASE-ORDER-FAILURE-001 | Paid course order API returns 503 | Error is announced; checkout action recovers and can retry without losing the selected option | E2E added; CI pending |
+| DETAIL-PURCHASE-ORDER-FAILURE-001 | Paid course order API returns 503 | Error is announced; checkout action recovers and can retry without losing the selected option | E2E passed; [CI run #40175128836]( https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836 ) |
 
 ## 4. My Learning
 
@@ -111,7 +111,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-USER-PII-001 | Reveal/export PII | Permission/reason checked server-side; masking default; audit event recorded; invalid request never reaches mutation | Backend PII/auth tests exist; browser test pending |
 | ADM-USER-STATUS-001 | Disable/reactivate user | Valid transitions, reason, audit event and refreshed state | Backend tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-001 | Readiness then publish | Readiness and publish permission enforced; failure explained; state refreshed | Course readiness/publishing tests exist; browser test pending |
-| ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E added; CI pending |
+| ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
 | ADM-COURSE-DELETE-001 | Soft-delete/restore course | Confirmation/reason, safe lifecycle and audit/revision trail | Backend validation tests exist; browser test pending |
 | ADM-PRICING-APPLY-001 | Preview/apply pricing and rollback | Preview bound to selected batch/version; reason required; price/sale/currency invariants enforced | Backend pricing tests exist; browser test pending |
 | ADM-TRIAL-GRANT-001 | Preview audience and grant free trial | Eligibility/exclusion count, permission, reason and idempotency revalidated; no misleading arbitrary recipient cap | Backend validation tests exist; browser test pending |

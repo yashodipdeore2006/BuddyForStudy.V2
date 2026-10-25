@@ -45,7 +45,7 @@ import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
-import { validateSubscriptionPlanAdminInput } from "../utils/subscriptionPlanAdminValidation.js";
+import { validateSubscriptionPlanAdminInput, hasProviderBillingTermsChanged } from "../utils/subscriptionPlanAdminValidation.js";
 import { createNotificationEvent, notifyActiveAdmins, retryNotificationDelivery } from "../services/notification.service.js";
 import { isWebPushConfigured } from "../services/webPush.service.js";
 import { refreshAnnouncementStats } from "../services/announcement.service.js";
@@ -1676,6 +1676,30 @@ export async function updatePlan(req, res, next) {
       isActive: plan.isActive, isPopular: plan.isPopular
     });
     if (!validation.valid) return res.status(400).json({ success: false, message: "Subscription plan contains invalid fields", errors: validation.errors });
+
+    if (hasProviderBillingTermsChanged(plan, req.body)) {
+      // Razorpay plans are immutable. In-place edits would make the UI show a
+      // new price/interval while newly created subscriptions still use the old
+      // external plan, and would blur the contract terms of existing customers.
+      const hasProviderBillingHistory = Boolean(plan.providerPlanId) || Boolean(await Payment.exists({
+        plan: plan._id,
+        provider: "razorpay",
+        "metadata.checkoutType": "subscription"
+      })) || Boolean(await UserSubscription.exists({
+        plan: plan._id,
+        provider: "razorpay",
+        providerSubscriptionId: { $ne: "" },
+        status: { $in: ["trialing", "active", "past_due", "cancelled", "expired"] }
+      }));
+      if (hasProviderBillingHistory) {
+        return failure(
+          res,
+          "This plan has Razorpay billing history. Create a new subscription plan to change its price, currency, or billing interval; this preserves existing billing terms.",
+          409
+        );
+      }
+    }
+
     const before = {
       name: plan.name,
       slug: plan.slug,

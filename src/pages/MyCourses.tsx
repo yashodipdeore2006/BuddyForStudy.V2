@@ -16,6 +16,7 @@ import { routes } from "@/lib/routes";
 import { getAllLessonsFlat } from "@/lib/courseUtils";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
+import { getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
 
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
@@ -141,10 +142,9 @@ function CourseLearningCard({
       : course.generation?.sourceResourceType === "playlist" || course.generation?.sourceResourceType === "series" || videoCount > 1
         ? "Playlist"
         : "Course");
-  const isFree = course.pricing?.mode !== "paid";
-  const price = course.pricing
-    ? Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)
-    : 0;
+  const isFree = course.pricing?.mode === "free";
+  const effectivePrice = getEffectiveCoursePrice(course.pricing);
+  const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
   const description = getCourseCardDescription(course);
   const category = (course.category || "").toLowerCase();
   const coverPalette = /data|analytics|sql|database/.test(category) ? "data"
@@ -250,8 +250,8 @@ function CourseLearningCard({
 
       <div className="bfs-course-card__action-row">
         <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
-          {isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(price)}
-          {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > price && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
+          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
+          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
         </span>
         <Link to={learnHref} className="bfs-course-action bfs-course-action--outline" aria-label={primaryLabel + " " + course.title}>
           <PrimaryIcon size={16} aria-hidden="true" />{primaryLabel}

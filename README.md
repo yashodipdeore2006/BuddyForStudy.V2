@@ -37,6 +37,7 @@ BuddyForStudy sends browser push notifications directly through the standard Web
 ## UI/UX and deployment readiness
 
 - **Functional inventory and release gates:** [Platform UI/UX Functional Inventory](docs/PLATFORM_UI_UX_FUNCTIONAL_INVENTORY.md)
+- **Stable control IDs and browser-test contracts:** [Platform Control Register](docs/PLATFORM_CONTROL_REGISTER.md)
 - **Historical findings and remediation log:** [UI/UX Audit](docs/UI_UX_AUDIT.md)
 - **Navigation and element map:** [User Flow and Element Map](USER_FLOW_AND_ELEMENT_MAP.md)
 

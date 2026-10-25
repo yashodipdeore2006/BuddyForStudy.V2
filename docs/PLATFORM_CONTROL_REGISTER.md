@@ -266,3 +266,9 @@ The overflow checks verify page width only; they do not replace focus-order, con
 - **CI:** [run #40185807422](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185807422) passed frontend and backend jobs; **75 Playwright tests passed**.
 - **New passing ID:** `NAV-SIGNOUT-FAILURE-001`: when the logout endpoint returns 503, local credentials are still cleared, the app returns to the public landing route, and the primary navigation presents Sign in.
 - The E2E mocks the logout API. Real browser push-subscription cleanup, protected-route behavior across reloads, and server session revocation need staging validation.
+
+### 2026-10-25 — Pricing page and feature upgrade modal consistency passed
+- **Implementation commit:** `0791e03bfee6751b87a551cb6a731e63f8f09f35`.
+- **CI:** [run #40187178516](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40187178516) passed frontend and backend jobs; **77 Playwright tests passed**.
+- **New passing ID:** `PRICING-MODAL-CONSISTENCY-001`: the upgrade modal shows the complete configured feature list and all six AI usage limits for Pro and Premium, renders missing limits as “Not configured,” and labels the Free plan “forever” to match the main pricing page.
+- Both views consume `/api/billing/plans`; this test uses mocked plan data and does not validate production subscription configuration or payment-provider behavior.

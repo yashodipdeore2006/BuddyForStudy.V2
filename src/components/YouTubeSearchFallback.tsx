@@ -549,10 +549,9 @@ export default function YouTubeSearchFallback({
                             <p className="mt-1 truncate text-xs text-slate-500" title={resource.channelTitle}>{resource.channelTitle || "YouTube learning resource"}</p>
                             <button type="button" onClick={() => void openCourseDetails(course)} className="mt-2 block w-full text-left line-clamp-2 min-h-9 text-xs leading-4 text-slate-600 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500" title={resource.description}>{resource.description || `Learn ${query} with this curated YouTube resource.`}</button>
                             <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500"><Star className="h-3 w-3 text-amber-500" aria-hidden="true" /><span>No ratings yet</span><span aria-hidden="true">·</span><Users className="h-3 w-3" aria-hidden="true" /><span>YouTube resource</span></div>
-                  </details>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                            <span className="text-sm font-bold text-emerald-700">Free</span>
+                            <span className="text-xs font-semibold text-slate-500">Pricing on details</span>
                             <button type="button" onClick={() => void openCourseDetails(course)} disabled={openingId === course.id} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
                               {openingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolledIds.has(course.id) ? "Continue learning" : "View course"}
                             </button>

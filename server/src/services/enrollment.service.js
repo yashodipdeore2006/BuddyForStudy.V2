@@ -4,7 +4,7 @@ import { Review } from "../models/Review.js";
 import { Payment } from "../models/Payment.js";
 import { createNotificationEvent } from "./notification.service.js";
 import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
-import { getEntitlement } from "./subscriptionEntitlement.service.js";
+import { getEntitlement, isEnrollmentCourseAccessAllowed } from "./subscriptionEntitlement.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { Progress } from "../models/Progress.js";
 import { deriveLearningStatus, LEARNING_STATUS } from "../utils/learningStatus.js";

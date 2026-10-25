@@ -24,11 +24,18 @@ export type CourseNavTargets = {
   overflow: NavAction[];
 };
 
+function normalizeOptionalLessonId(value: string | null | undefined): string | null {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.toLowerCase() === "undefined" || normalized.toLowerCase() === "null") return null;
+  return normalized;
+}
+
 export function getCourseNavTargets(input: CourseNavInput): CourseNavTargets {
   const courseId = String(input.courseId ?? "").trim();
   if (!courseId || courseId === "undefined" || courseId === "null") {
     throw new Error("getCourseNavTargets requires a valid courseId.");
   }
+  const nextLessonId = normalizeOptionalLessonId(input.nextLessonId);
   const progressPct = Number.isFinite(input.progressPct)
     ? Math.min(100, Math.max(0, input.progressPct))
     : 0;
@@ -51,7 +58,7 @@ export function getCourseNavTargets(input: CourseNavInput): CourseNavTargets {
     : progressPct > 0
       ? "in-progress"
       : "not-started";
-  const href = routes.learn(courseId, isCompleted ? null : input.nextLessonId);
+  const href = routes.learn(courseId, isCompleted ? null : nextLessonId);
   const label = status === "completed" ? "Review" : status === "in-progress" ? "Continue" : "Start";
   const icon = status === "completed" ? "RotateCcw" : "Play";
   const overflow: NavAction[] = [];

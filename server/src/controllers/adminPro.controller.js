@@ -807,6 +807,8 @@ export async function contentRoadmaps(req, res, next) {
     const page = Math.max(Number.parseInt(String(req.query.page || "1"), 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     const status = String(req.query.status || "");
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    const searchPattern = q ? new RegExp(escapeRegex(q), "i") : null;
     const allowedStatuses = ["", "active", "completed", "published", "draft", "archived"];
     if (!allowedStatuses.includes(status)) return failure(res, "Invalid roadmap status filter", 400);
 
@@ -840,6 +842,7 @@ export async function contentRoadmaps(req, res, next) {
         }
       },
       { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+      ...(searchPattern ? [{ $match: { $or: [{ query: searchPattern }, { canonicalTopic: searchPattern }, { intent: searchPattern }, { careerOutcome: searchPattern }, { "owner.name": searchPattern }] } }] : []),
       {
         $project: {
           _id: 1,
@@ -876,6 +879,7 @@ export async function contentRoadmaps(req, res, next) {
               }
             },
             { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+            ...(searchPattern ? [{ $match: { $or: [{ title: searchPattern }, { "generation.query": searchPattern }, { "generation.snapshot.canonicalTopic": searchPattern }, { "generation.snapshot.careerOutcome": searchPattern }, { "owner.name": searchPattern }] } }] : []),
             {
               $project: {
                 _id: 1,
@@ -943,6 +947,135 @@ export async function contentRoadmaps(req, res, next) {
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
       limit
+    });
+  } catch (e) { next(e); }
+}
+
+
+export async function contentRoadmapDetail(req, res, next) {
+  try {
+    const source = String(req.params.source || "");
+    const roadmapId = String(req.params.roadmapId || "");
+    if (!["saved", "generated"].includes(source)) return failure(res, "Invalid roadmap source", 400);
+    if (!isValidObjectId(roadmapId)) return failure(res, "Invalid roadmap ID", 400);
+
+    if (source === "saved") {
+      const record = await LearningRoadmap.findById(roadmapId)
+        .select("user query canonicalTopic intent careerOutcome level status lessons startedAt lastAccessedAt completedAt createdAt updatedAt")
+        .populate("user", "name")
+        .lean();
+      if (!record) return failure(res, "Saved learner roadmap not found", 404);
+
+      const groups = new Map();
+      for (const lesson of record.lessons || []) {
+        const moduleTitle = String(lesson.moduleTitle || "Learning plan");
+        if (!groups.has(moduleTitle)) groups.set(moduleTitle, []);
+        groups.get(moduleTitle).push({
+          lessonId: String(lesson.lessonId || ""),
+          title: String(lesson.title || "Untitled lesson"),
+          type: String(lesson.type || "tutorial"),
+          order: Number(lesson.order || 0)
+        });
+      }
+      const modules = [...groups.entries()].map(([title, lessons], index) => ({
+        title,
+        order: index + 1,
+        lessons: lessons.sort((a, b) => a.order - b.order)
+      }));
+      return success(res, {
+        roadmap: {
+          _id: String(record._id),
+          source: "saved",
+          title: String(record.canonicalTopic || record.query || "Learning roadmap"),
+          query: record.query,
+          canonicalTopic: record.canonicalTopic,
+          intent: record.intent,
+          careerOutcome: record.careerOutcome,
+          level: record.level,
+          status: record.status,
+          user: record.user?.name ? { name: record.user.name } : undefined,
+          modules,
+          lessonCount: modules.reduce((total, module) => total + module.lessons.length, 0),
+          startedAt: record.startedAt,
+          lastAccessedAt: record.lastAccessedAt,
+          completedAt: record.completedAt,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt
+        }
+      });
+    }
+
+    // Project the course outline explicitly. Never return quiz questions, correct
+    // answers, learner attempts, resources, or other hidden curriculum metadata.
+    const [record] = await Course.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(roadmapId), "generation.mode": "ai", deletedAt: null } },
+      {
+        $lookup: {
+          from: User.collection.name,
+          localField: "createdForUser",
+          foreignField: "_id",
+          pipeline: [{ $project: { name: 1 } }],
+          as: "owner"
+        }
+      },
+      { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          query: "$generation.query",
+          canonicalTopic: "$generation.snapshot.canonicalTopic",
+          intent: "$generation.snapshot.intent",
+          careerOutcome: "$generation.snapshot.careerOutcome",
+          level: 1,
+          status: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$isPublished", true] }, then: "published" },
+                { case: { $eq: ["$status", "archived"] }, then: "archived" }
+              ],
+              default: "draft"
+            }
+          },
+          visibility: 1,
+          user: { name: "$owner.name" },
+          createdAt: 1,
+          updatedAt: 1,
+          modules: {
+            $map: {
+              input: { $ifNull: ["$modules", []] },
+              as: "module",
+              in: {
+                title: "$module.title",
+                order: "$module.order",
+                lessons: {
+                  $map: {
+                    input: { $ifNull: ["$module.lessons", []] },
+                    as: "lesson",
+                    in: {
+                      title: "$lesson.title",
+                      description: "$lesson.description",
+                      type: "$lesson.type",
+                      order: "$lesson.order",
+                      buildState: "$lesson.buildState"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]);
+    if (!record) return failure(res, "AI-generated roadmap not found", 404);
+    return success(res, {
+      roadmap: {
+        ...record,
+        _id: String(record._id),
+        lessonCount: (record.modules || []).reduce((total, module) => total + (module.lessons || []).length, 0),
+        user: record.user?.name ? { name: record.user.name } : undefined
+      }
     });
   } catch (e) { next(e); }
 }

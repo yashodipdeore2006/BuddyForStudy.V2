@@ -639,7 +639,7 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
 
     await page.getByRole("textbox", { name: "Search courses" }).fill("linux");
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
     await expect(page.getByRole("heading", { name: "Courses for “linux”" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Python Data Basics" })).toHaveCount(0);
@@ -681,17 +681,17 @@ test.describe("learner control and state regression", () => {
     await page.goto(baseURL + "/my-learning");
     await expect(page.getByRole("heading", { name: "My learning" })).toBeVisible();
     await expect(page.locator('[data-course-status="in-progress"]')).toHaveCount(1);
-    await expect(page.getByRole("heading", { name: "Node API Foundations" })).toBeVisible();
+    await expect(page.locator('[data-course-status="in-progress"] .bfs-course-card__title')).toContainText("Node API Foundations");
     await expect(page.getByRole("link", { name: "Continue Node API Foundations" })).toHaveAttribute("href", "/learn/node-api/lesson-1");
 
     const statusNav = page.getByRole("navigation", { name: "Course status" });
     await statusNav.getByRole("button", { name: /Not started/ }).click();
     await expect(page.locator('[data-course-status="not-started"]')).toHaveCount(1);
-    await expect(page.getByRole("heading", { name: "SQL for Beginners" })).toBeVisible();
+    await expect(page.locator('[data-course-status="not-started"] .bfs-course-card__title')).toContainText("SQL for Beginners");
 
     await statusNav.getByRole("button", { name: /Completed/ }).click();
     await expect(page.locator('[data-course-status="completed"]')).toHaveCount(1);
-    await expect(page.getByRole("heading", { name: "Git Essentials" })).toBeVisible();
+    await expect(page.locator('[data-course-status="completed"] .bfs-course-card__title')).toContainText("Git Essentials");
     await expect(page.getByRole("link", { name: "Review Git Essentials" })).toHaveAttribute("href", "/learn/git-basics");
 
     expect(perCourseRequests, "My Learning should use the single batched enrollment response, not fetch progress once per course").toEqual([]);
@@ -709,7 +709,7 @@ test.describe("learner control and state regression", () => {
     const completeButton = page.getByRole("button", { name: "Mark complete" });
     await expect(completeButton).toBeVisible();
     await completeButton.click();
-    await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Completed", exact: true })).toBeDisabled();
     expect(completionRequests).toBe(1);
   });
 
@@ -721,7 +721,6 @@ test.describe("learner control and state regression", () => {
     });
     await mockAppApi(page, { course: courseFixture("course-fixture") });
     await page.goto(baseURL + "/courses/course-fixture");
-    await page.getByRole("tab", { name: "Ratings & Reviews" }).click();
     await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "No published reviews yet" })).toBeVisible();
     await page.getByRole("button", { name: "Refresh reviews" }).click();

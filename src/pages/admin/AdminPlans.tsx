@@ -22,6 +22,7 @@ type Plan = {
   isPopular: boolean;
   trialDays?: number;
   sortOrder?: number;
+  providerPlanId?: string;
   limits?: Record<string, number>;
 };
 
@@ -440,8 +441,22 @@ export default function AdminPlans() {
                       <div className="mt-3 space-y-2">
                         <textarea className="input-field min-h-20" value={plan.description || ""} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, description: e.target.value } : item))} placeholder="Plan description" />
                         <div className="grid grid-cols-2 gap-2">
-                          <input className="input-field" type="number" min="0" value={plan.price} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, price: Number(e.target.value) } : item))} />
-                          <select className="input-field" value={plan.billingInterval} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, billingInterval: e.target.value } : item))}>
+                          <input
+                            className="input-field"
+                            type="number"
+                            min="0"
+                            value={plan.price}
+                            disabled={Boolean(plan.providerPlanId)}
+                            title={plan.providerPlanId ? "Create a new plan to change provider billing terms" : "Plan price"}
+                            onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, price: Number(e.target.value) } : item))}
+                          />
+                          <select
+                            className="input-field"
+                            value={plan.billingInterval}
+                            disabled={Boolean(plan.providerPlanId)}
+                            title={plan.providerPlanId ? "Create a new plan to change provider billing terms" : "Billing interval"}
+                            onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, billingInterval: e.target.value } : item))}
+                          >
                             <option value="monthly">Monthly</option>
                             <option value="quarterly">Quarterly</option>
                             <option value="yearly">Yearly</option>
@@ -450,6 +465,11 @@ export default function AdminPlans() {
                           <input className="input-field" type="number" min="0" value={plan.trialDays || 0} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, trialDays: Number(e.target.value) } : item))} placeholder="Trial days" />
                           <input className="input-field" type="number" min="0" value={plan.sortOrder || 0} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, sortOrder: Number(e.target.value) } : item))} placeholder="Sort order" />
                         </div>
+                        {plan.providerPlanId && (
+                          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900" role="note">
+                            This plan is linked to Razorpay. Its price and billing interval are locked to protect existing billing terms. Create a new plan to offer a different price or interval; features and usage limits can still be edited here.
+                          </p>
+                        )}
                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><input type="checkbox" checked={Boolean(plan.isPopular)} onChange={(e) => setPlans((items) => items.map((item) => item._id === plan._id ? { ...item, isPopular: e.target.checked } : item))} /> Mark as most popular</label>
                       </div>
                     ) : (

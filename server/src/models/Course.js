@@ -180,6 +180,10 @@ async function applyGeneratedCoursePricing(course) {
   }
   if (mode === "fixed") {
     const price = Math.round(Number(policy.fixedPrice) || 0);
+    if (course.generation?.mode === "discovery" && price > 0 && (price < 20 || price > 59)) {
+      console.warn("[course-pricing] discovery fixed price skipped because paid prices must remain between ₹20 and ₹59", { price });
+      return;
+    }
     course.pricing = { ...(course.pricing?.toObject?.() || course.pricing || {}), mode: price > 0 ? "paid" : "free", price, currency, saleEnabled: false, salePrice: 0 };
     return;
   }
@@ -188,6 +192,10 @@ async function applyGeneratedCoursePricing(course) {
     if (!band) return;
     const min = Number(band.min), max = Number(band.max);
     if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return;
+    if (course.generation?.mode === "discovery" && (min < 20 || max > 59)) {
+      console.warn("[course-pricing] discovery level band skipped because paid prices must remain between ₹20 and ₹59", { level: course.level, min, max });
+      return;
+    }
     const modules = Array.isArray(course.modules) ? course.modules : [];
     const projects = modules.reduce((count, module) => count + (module.lessons || []).filter((lesson) => lesson.type === "project").length, 0);
     const base = Math.round((min + max) / 2);

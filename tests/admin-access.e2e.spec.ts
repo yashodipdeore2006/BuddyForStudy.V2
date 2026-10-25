@@ -436,6 +436,69 @@ test.describe("administrator route and permission UX", () => {
     expect(updateRequests).toBe(2);
   });
 
+  test("[ADM-USER-REACTIVATE-001] reactivation requires an audit reason and restores account access", async ({ page }) => {
+    const userId = "507f1f77bcf86cd799439012";
+    let active = false;
+    let updateRequests = 0;
+    let updatePayload: Record<string, unknown> | null = null;
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "Account Manager", email: "account-manager@example.test" },
+      adminRole: "custom_user_manager",
+      roleLabel: "User Manager",
+      permissions: ["dashboard.read", "users.read", "users.manage"],
+    });
+    await page.route("**/api/admin/users**", async (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      if (pathname === "/api/admin/users" && request.method() === "GET") {
+        return json(route, {
+          users: [{
+            _id: userId,
+            name: "Disabled learner",
+            emailMasked: "d***@example.test",
+            role: "user",
+            isActive: active,
+            emailVerified: true,
+            authProvider: "local",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          }],
+          pagination: { page: 1, pages: 1, total: 1 },
+        });
+      }
+      if (pathname === "/api/admin/users/" + userId && request.method() === "PUT") {
+        updateRequests += 1;
+        updatePayload = request.postDataJSON() as Record<string, unknown>;
+        active = Boolean(updatePayload.isActive);
+        return json(route, { user: { _id: userId, isActive: active } });
+      }
+      return route.fallback();
+    });
+
+    await page.goto(baseURL + "/admin/users");
+    await expect(page.getByText("Disabled learner")).toBeVisible();
+    const enableButton = page.getByRole("button", { name: "Enable", exact: true });
+    await expect(enableButton).toHaveCount(1, { timeout: 5000 });
+    await enableButton.focus();
+    await enableButton.press("Enter", { timeout: 5000 });
+
+    const dialog = page.getByRole("alertdialog", { name: "Re-enable user account?" });
+    await expect(dialog).toBeVisible();
+    const reason = dialog.getByLabel("Reason (required)");
+    const confirm = dialog.getByRole("button", { name: "Re-enable account" });
+    await expect(confirm).toBeDisabled();
+    await reason.fill("Restore access after support verified the appeal.");
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+
+    await expect(page.getByRole("button", { name: "Disable", exact: true })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    expect(updateRequests).toBe(1);
+    expect(updatePayload).toMatchObject({
+      isActive: true,
+      reason: "Restore access after support verified the appeal.",
+    });
+  });
+
   test("changing user page size clears page-scoped bulk selection", async ({ page }) => {
     await mockAdminApi(page, {
       user: { ...analystUser, name: "User Administrator", email: "user-admin@example.test" },

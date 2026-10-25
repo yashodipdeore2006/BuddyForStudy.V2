@@ -104,10 +104,11 @@ export async function fetchRefund({ refundId, paymentId }) {
   }
 }
 
-export async function refundPayment({ paymentId, amount }) {
+export async function refundPayment({ paymentId, amount, notes }) {
   const client = getClient();
   const payload = {};
   if (amount != null) payload.amount = Math.round(amount * 100);
+  if (notes && typeof notes === "object" && !Array.isArray(notes)) payload.notes = notes;
   return client.payments.refund(paymentId, payload);
 }
 

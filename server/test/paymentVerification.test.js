@@ -106,3 +106,20 @@ test("course checkout reuses the latest pending order instead of creating duplic
   assert.match(controller, /Existing course checkout reused/);
   assert.match(controller, /previous checkout is pending but its payment reference is incomplete/);
 });
+
+
+test("subscription checkout only reuses a pending provider checkout for the same plan and conversion intent", () => {
+  const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
+  const start = controller.indexOf("const pendingCheckouts = await Payment.find({");
+  const end = controller.indexOf("const intervalMap", start);
+  assert.ok(start >= 0 && end > start, "Expected pending subscription checkout guard");
+  const block = controller.slice(start, end);
+
+  assert.match(block, /"metadata\.checkoutType": "subscription"/);
+  assert.match(block, /candidatePlanId === String\(plan\._id\)/);
+  assert.match(block, /candidateGrantId === requestedConversionGrantId/);
+  assert.match(block, /if \(matchingPendingCheckout\)/);
+  assert.match(block, /if \(pendingCheckouts\.length\)/);
+  assert.match(block, /different plan or trial conversion is already pending/);
+  assert.match(block, /pendingPlanId:/);
+});

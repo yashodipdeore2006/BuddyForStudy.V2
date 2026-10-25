@@ -52,6 +52,34 @@ function courseFixture(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
+function learningEnrollmentFixture(
+  course: ReturnType<typeof courseFixture>,
+  learningStatus: "in-progress" | "not-started" | "completed",
+  progress: Partial<{ completedCount: number; totalLessons: number; percentage: number; nextLessonId: string | null; lastLessonId: string | null; lastAccessedAt: string | null }> = {},
+) {
+  const courseId = String(course._id);
+  const completedCount = progress.completedCount ?? (learningStatus === "completed" ? 1 : 0);
+  const totalLessons = progress.totalLessons ?? 1;
+  return {
+    _id: "enrollment-" + courseId,
+    user: learner.id,
+    course,
+    status: learningStatus === "completed" ? "completed" : "active",
+    learningStatus,
+    enrolledAt: "2026-10-20T10:00:00.000Z",
+    createdAt: "2026-10-20T10:00:00.000Z",
+    updatedAt: "2026-10-24T10:00:00.000Z",
+    learningProgress: {
+      completedCount,
+      totalLessons,
+      percentage: progress.percentage ?? (totalLessons > 0 ? Math.round(completedCount / totalLessons * 100) : 0),
+      nextLessonId: progress.nextLessonId !== undefined ? progress.nextLessonId : learningStatus === "completed" ? null : "lesson-1",
+      lastLessonId: progress.lastLessonId ?? null,
+      lastAccessedAt: progress.lastAccessedAt ?? (learningStatus === "in-progress" ? "2026-10-24T10:00:00.000Z" : null),
+    },
+  };
+}
+
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({
     status,
@@ -74,9 +102,12 @@ async function mockAppApi(page: Page, options: {
   missingProgress?: boolean;
   roadmapStages?: Array<Record<string, unknown>>;
   roadmapProgress?: Record<string, unknown> | null;
+  learningEnrollments?: Array<Record<string, unknown>>;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
+  let completedLessons: Array<{ lessonId: string; type: "tutorial"; completedAt: string }> = [];
+  const courseLessonCount = (course.modules || []).reduce((count: number, module: { lessons?: unknown[] }) => count + (module.lessons?.length || 0), 0);
   const stages = options.roadmapStages ?? [{
     id: "stage-1",
     order: 1,
@@ -149,7 +180,31 @@ async function mockAppApi(page: Page, options: {
       const body = route.request().postDataJSON() as { enabled?: boolean };
       return json(route, { marketingEmailConsent: body.enabled === true });
     }
-    if (pathname === "/api/courses") return json(route, { courses: options.catalogCourses || [] });
+    if (pathname === "/api/enrollments" && route.request().method() === "GET") {
+      return json(route, { enrollments: options.learningEnrollments || [] });
+    }
+    if (pathname === "/api/saved-courses" && route.request().method() === "GET") {
+      return json(route, { savedCourses: [] });
+    }
+    if (pathname === "/api/saved-courses" && route.request().method() === "POST") {
+      return json(route, { savedCourse: { course: courseId } });
+    }
+    if (pathname.startsWith("/api/saved-courses/") && route.request().method() === "DELETE") {
+      return json(route, { success: true });
+    }
+    if (pathname === "/api/courses") {
+      const params = new URL(route.request().url()).searchParams;
+      const query = String(params.get("q") || "").trim().toLowerCase();
+      const level = String(params.get("level") || "all").toLowerCase();
+      const category = String(params.get("category") || "all").toLowerCase();
+      const rows = (options.catalogCourses || []).filter((item) => {
+        const searchable = [item.title, item.description, item.category].map((value) => String(value || "").toLowerCase()).join(" ");
+        return (!query || searchable.includes(query))
+          && (level === "all" || String(item.level || "").toLowerCase() === level)
+          && (category === "all" || String(item.category || "").toLowerCase() === category);
+      });
+      return json(route, { courses: rows });
+    }
     if (pathname === `/api/courses/${courseId}/roadmap`) {
       return json(route, {
         roadmap: {
@@ -161,6 +216,9 @@ async function mockAppApi(page: Page, options: {
           progress: roadmapProgress,
         },
       });
+    }
+    if (pathname === `/api/courses/${courseId}/learn`) {
+      return json(route, { course });
     }
     if (pathname === `/api/courses/${courseId}`) {
       if (options.missingCourse) {
@@ -182,19 +240,41 @@ async function mockAppApi(page: Page, options: {
       if (process.env.E2E_DEBUG === "1") console.log("[E2E] enrollment route", route.request().url(), "enrolled=", Boolean(options.enrolled));
       return json(route, { enrollment: options.enrolled ? { status: "active" } : null });
     }
-    if (pathname === `/api/progress/${courseId}`) {
-      if (options.missingProgress) return json(route, { message: "Progress not found" }, 404);
+    const completionPrefix = `/api/progress/${courseId}/items/`;
+    if (pathname.startsWith(completionPrefix) && pathname.endsWith("/complete") && route.request().method() === "POST") {
+      const lessonId = decodeURIComponent(pathname.slice(completionPrefix.length).replace(/\/complete$/, ""));
+      if (!completedLessons.some((entry) => entry.lessonId === lessonId)) {
+        completedLessons.push({ lessonId, type: "tutorial", completedAt: new Date().toISOString() });
+      }
+      const totalLessons = Math.max(courseLessonCount, 1);
       return json(route, {
         progress: {
           _id: "progress-1",
           user: learner.id,
           course: courseId,
-          completedLessons: [],
-          completedCount: 0,
-          totalLessons: stages.reduce((count, stage) => count + (Array.isArray(stage.lessonIds) ? stage.lessonIds.length : 0), 0),
-          lastLessonId: null,
-          percentage: 0,
-          lastAccessedAt: null,
+          completedLessons,
+          completedCount: completedLessons.length,
+          totalLessons,
+          lastLessonId: lessonId,
+          percentage: Math.min(100, Math.round(completedLessons.length / totalLessons * 100)),
+          lastAccessedAt: new Date().toISOString(),
+        },
+      });
+    }
+    if (pathname === `/api/progress/${courseId}`) {
+      if (options.missingProgress) return json(route, { message: "Progress not found" }, 404);
+      const totalLessons = courseLessonCount || stages.reduce((count, stage) => count + (Array.isArray(stage.lessonIds) ? stage.lessonIds.length : 0), 0);
+      return json(route, {
+        progress: {
+          _id: "progress-1",
+          user: learner.id,
+          course: courseId,
+          completedLessons,
+          completedCount: completedLessons.length,
+          totalLessons,
+          lastLessonId: completedLessons.at(-1)?.lessonId || null,
+          percentage: totalLessons ? Math.min(100, Math.round(completedLessons.length / totalLessons * 100)) : 0,
+          lastAccessedAt: completedLessons.length ? completedLessons.at(-1)?.completedAt : null,
         },
       });
     }
@@ -539,6 +619,116 @@ test.describe("canonical learner navigation", () => {
   });
 });
 
+
+test.describe("learner control and state regression", () => {
+  test("[EXP-SEARCH-001] search, filters and clear filters synchronize with the catalog request", async ({ page }) => {
+    const catalogCourses = [
+      courseFixture("linux-admin", { title: "Linux Admin Essentials", level: "Advanced", category: "Development", description: "Linux command line administration" }),
+      courseFixture("python-data", { title: "Python Data Basics", level: "Beginner", category: "Data", description: "Beginner data workflows" }),
+    ];
+    const catalogQueries: URLSearchParams[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/courses") catalogQueries.push(url.searchParams);
+    });
+
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("heading", { name: "Find a course" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
+
+    await page.getByRole("textbox", { name: "Search courses" }).fill("linux");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Courses for “linux”" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Python Data Basics" })).toHaveCount(0);
+    await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux")).toBe(true);
+
+    await page.getByRole("combobox", { name: "Filter by level" }).selectOption("Advanced");
+    await page.getByRole("combobox", { name: "Filter by category" }).selectOption("Development");
+    await expect.poll(() => catalogQueries.some((query) => query.get("q") === "linux" && query.get("level") === "Advanced" && query.get("category") === "Development")).toBe(true);
+
+    await page.getByRole("button", { name: /Clear filters/ }).click();
+    await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Linux Admin Essentials" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Python Data Basics" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
+    await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
+    await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
+  });
+
+  test("[LEARN-TABS-001] My Learning uses saved status snapshots for all three tabs without per-course progress requests", async ({ page }) => {
+    const inProgressCourse = courseFixture("node-api", { title: "Node API Foundations" });
+    const notStartedCourse = courseFixture("sql-basics", { title: "SQL for Beginners", category: "Data" });
+    const completedCourse = courseFixture("git-basics", { title: "Git Essentials" });
+    const perCourseRequests: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "GET" && (url.pathname.startsWith("/api/progress/") || url.pathname.startsWith("/api/enrollments/course/"))) {
+        perCourseRequests.push(url.pathname);
+      }
+    });
+
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [
+        learningEnrollmentFixture(inProgressCourse, "in-progress", { completedCount: 0, totalLessons: 1, percentage: 0, nextLessonId: "lesson-1" }),
+        learningEnrollmentFixture(notStartedCourse, "not-started", { completedCount: 0, totalLessons: 1, percentage: 0, nextLessonId: "lesson-1" }),
+        learningEnrollmentFixture(completedCourse, "completed", { completedCount: 1, totalLessons: 1, percentage: 100, nextLessonId: null }),
+      ],
+    });
+    await page.goto(baseURL + "/my-learning");
+    await expect(page.getByRole("heading", { name: "My learning" })).toBeVisible();
+    await expect(page.locator('[data-course-status="in-progress"]')).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "Node API Foundations" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Continue Node API Foundations" })).toHaveAttribute("href", "/learn/node-api/lesson-1");
+
+    const statusNav = page.getByRole("navigation", { name: "Course status" });
+    await statusNav.getByRole("button", { name: /Not started/ }).click();
+    await expect(page.locator('[data-course-status="not-started"]')).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "SQL for Beginners" })).toBeVisible();
+
+    await statusNav.getByRole("button", { name: /Completed/ }).click();
+    await expect(page.locator('[data-course-status="completed"]')).toHaveCount(1);
+    await expect(page.getByRole("heading", { name: "Git Essentials" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Review Git Essentials" })).toHaveAttribute("href", "/learn/git-basics");
+
+    expect(perCourseRequests, "My Learning should use the single batched enrollment response, not fetch progress once per course").toEqual([]);
+  });
+
+  test("[PLAYER-COMPLETE-001] marking a lesson complete persists the result and disables duplicate completion", async ({ page }) => {
+    let completionRequests = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "POST" && url.pathname === "/api/progress/course-fixture/items/lesson-1/complete") completionRequests += 1;
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+
+    const completeButton = page.getByRole("button", { name: "Mark complete" });
+    await expect(completeButton).toBeVisible();
+    await completeButton.click();
+    await expect(page.getByRole("button", { name: "Completed" })).toBeDisabled();
+    expect(completionRequests).toBe(1);
+  });
+
+  test("[DETAIL-REVIEWS-001] course reviews tab exposes a real empty state and refreshes its data", async ({ page }) => {
+    let reviewReads = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/reviews/courses/course-fixture") reviewReads += 1;
+    });
+    await mockAppApi(page, { course: courseFixture("course-fixture") });
+    await page.goto(baseURL + "/courses/course-fixture");
+    await page.getByRole("tab", { name: "Ratings & Reviews" }).click();
+    await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No published reviews yet" })).toBeVisible();
+    await page.getByRole("button", { name: "Refresh reviews" }).click();
+    await expect.poll(() => reviewReads).toBeGreaterThan(1);
+    await expect(page.getByRole("heading", { name: "No published reviews yet" })).toBeVisible();
+  });
+});
 
 test.describe("public platform pages and footer", () => {
   test("public pages render the marketing footer and their main content", async ({ page }) => {

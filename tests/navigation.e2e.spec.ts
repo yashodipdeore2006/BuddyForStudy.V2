@@ -109,7 +109,7 @@ async function mockAppApi(page: Page, options: {
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
-  let completedLessons: Array<{ lessonId: string; type: "tutorial"; completedAt: string }> = [];
+  const completedLessons: Array<{ lessonId: string; type: "tutorial"; completedAt: string }> = [];
   const courseLessonCount = (course.modules || []).reduce((count: number, module: { lessons?: unknown[] }) => count + (module.lessons?.length || 0), 0);
   const stages = options.roadmapStages ?? [{
     id: "stage-1",

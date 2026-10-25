@@ -100,6 +100,7 @@ type CuratedResource = {
   whyThis: string[];
   gaps: string[];
   evidence: Record<string, number | string>;
+  pricingPreview?: { mode: "free" | "paid" | "unknown"; price?: number; currency?: string };
   items: Array<{
     videoId: string;
     title: string;
@@ -153,6 +154,16 @@ function formatMinutes(seconds: number) {
   const minutes = totalMinutes % 60;
   if (hours) return minutes ? `${hours}h ${minutes}m` : `${hours}h`;
   return `${minutes}m`;
+}
+
+function formatResourcePrice(resource: CuratedResource) {
+  if (resource.pricingPreview?.mode === "free") return "Free";
+  if (resource.pricingPreview?.mode !== "paid" || !Number.isFinite(Number(resource.pricingPreview.price))) return "View pricing";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: resource.pricingPreview.currency || "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(resource.pricingPreview.price));
 }
 
 function summarizeDescription(description: string, maxLength = 115) {
@@ -566,7 +577,7 @@ export default function YouTubeSearchFallback({
                             <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500"><Star className="h-3 w-3 text-amber-500" aria-hidden="true" /><span>No ratings yet · Be the first to review</span></div>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-                            <span className="text-xs font-bold text-slate-900">View pricing</span>
+                            <span className="text-sm font-extrabold text-slate-900">{formatResourcePrice(resource)}</span>
                             <button type="button" onClick={() => void openCourseDetails(course)} disabled={openingId === course.id} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
                               {openingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolledIds.has(course.id) ? "Continue learning" : "＋ Enroll"}
                             </button>

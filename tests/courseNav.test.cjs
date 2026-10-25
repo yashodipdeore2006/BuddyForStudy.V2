@@ -204,3 +204,14 @@ test("course pages expose timestamped notes, lesson-state labels, and source dur
   assert.match(preview, /durationSeconds/);
   assert.match(navbar, /bfs:course-enrollment-updated/);
 });
+
+
+test("subscription pricing preserves admin sort order and never ranks plans by incomparable currency amounts", () => {
+  const pricingPage = fs.readFileSync(path.join(root, "src/pages/Pricing.tsx"), "utf8");
+  const billingRoutes = fs.readFileSync(path.join(root, "server/src/routes/billing.routes.js"), "utf8");
+  assert.match(billingRoutes, /SubscriptionPlan\.find\(\{isActive:true\}\)\.sort\(\{sortOrder:1,createdAt:1\}\)/);
+  assert.match(pricingPage, /setPlans\(Array\.isArray\(data\.plans\) \? data\.plans : \[\]\)/);
+  assert.doesNotMatch(pricingPage, /Number\(b\.price \|\| 0\) - Number\(a\.price \|\| 0\)/);
+  assert.doesNotMatch(pricingPage, /Highest access/);
+  assert.match(pricingPage, /const featured = plan\.isPopular === true/);
+});

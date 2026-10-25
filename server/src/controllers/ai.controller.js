@@ -5,6 +5,10 @@ import { getEntitlement, canAccessCourse } from "../services/subscriptionEntitle
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 import { createHash } from "node:crypto";
 import { QuizBank } from "../models/QuizBank.js";
+import { Course } from "../models/Course.js";
+import { CourseQuizAttempt } from "../models/CourseQuizAttempt.js";
+import { isValidObjectId } from "../utils/ids.js";
+import { gradeQuizSubmission, toPublicQuiz, toPublicQuizQuestion } from "../utils/quizSecurity.js";
 import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
 import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";
 
@@ -151,7 +155,7 @@ export async function generateQuiz(req, res, next) {
     if (!access.allowed) return failure(res, access.message, access.status);
 
     const result = await generateCourseQuiz({ ...input, userId: req.user.userId });
-    return success(res, result, "Quiz generated successfully");
+    return success(res, { ...result, quiz: toPublicQuiz(result.quiz) }, "Quiz generated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);
@@ -180,7 +184,7 @@ export async function generatePracticeQuiz(req, res, next) {
       if (!questions.length) return failure(res, "You have not taken a quiz for this lesson yet.", 404);
       return success(res, {
         courseId: input.courseId, lessonId: input.lessonId,
-        quiz: { scope: "lesson", title: "Quiz reattempt", questionCount: questions.length, passingScore: 70, questions, quizBankIds: attempted.map((item) => String(item._id)) },
+        quiz: { scope: "lesson", title: "Quiz reattempt", questionCount: questions.length, passingScore: 70, questions: questions.map(toPublicQuizQuestion), quizBankIds: attempted.map((item) => String(item._id)) },
         reattempt: true
       }, "Previous lesson quiz questions loaded");
     }
@@ -189,7 +193,7 @@ export async function generatePracticeQuiz(req, res, next) {
     if (available) {
       return success(res, {
         courseId: input.courseId, lessonId: input.lessonId,
-        quiz: { scope: "lesson", title: available.title, questionCount: available.questions.length, passingScore: 70, questions: available.questions, quizBankId: String(available._id) },
+        quiz: { scope: "lesson", title: available.title, questionCount: available.questions.length, passingScore: 70, questions: available.questions.map(toPublicQuizQuestion), quizBankId: String(available._id) },
         reused: true
       }, "Lesson quiz loaded from shared question bank");
     }
@@ -247,7 +251,7 @@ export async function generatePracticeQuiz(req, res, next) {
     }
     return success(res, {
       courseId: input.courseId, lessonId: input.lessonId,
-      quiz: { scope: "lesson", title: saved.title, questionCount: saved.questions.length, passingScore: 70, questions: saved.questions, quizBankId: String(saved._id) },
+      quiz: { scope: "lesson", title: saved.title, questionCount: saved.questions.length, passingScore: 70, questions: saved.questions.map(toPublicQuizQuestion), quizBankId: String(saved._id) },
       reused: false
     }, "Lesson practice quiz ready");
   } catch (e) {
@@ -262,15 +266,17 @@ export async function submitPracticeQuiz(req, res, next) {
       courseId: z.string().trim().min(1),
       lessonId: z.string().trim().min(1),
       quizBankId: z.string().trim().min(1).optional(),
-      quizBankIds: z.array(z.string().trim().min(1)).default([]),
-      score: z.number().min(0).max(100).optional(),
+      quizBankIds: z.array(z.string().trim().min(1)).max(20).default([]),
       answers: z.record(z.string(), z.string()).default({})
     });
-    const input = schema.parse(req.body);
+    const input = schema.parse(req.body || {});
+    if (!isValidObjectId(input.courseId) || !isValidObjectId(input.lessonId)) return failure(res, "Invalid course or lesson identifier", 400);
+    if (Object.keys(input.answers).length > 200) return failure(res, "Too many quiz answers were submitted", 400);
     const access = await ensureCourseLearningAccess(req, input.courseId);
     if (!access.allowed) return failure(res, access.message, access.status);
     const ids = [...new Set([...(input.quizBankId ? [input.quizBankId] : []), ...input.quizBankIds])];
     if (!ids.length) return failure(res, "Quiz set reference is required", 400);
+    if (ids.some((id) => !isValidObjectId(id))) return failure(res, "Invalid quiz set reference", 400);
     const bankQuizzes = await QuizBank.find({
       _id: { $in: ids },
       course: input.courseId,
@@ -279,23 +285,110 @@ export async function submitPracticeQuiz(req, res, next) {
       isHidden: { $ne: true }
     });
     if (bankQuizzes.length !== ids.length) return failure(res, "One or more quiz sets are not approved or are no longer available.", 404);
+
+    let correctCount = 0;
+    let questionCount = 0;
+    const results = [];
     for (const bankQuiz of bankQuizzes) {
       const reattempt = input.quizBankIds.includes(String(bankQuiz._id));
       const questions = bankQuiz.questions || [];
-      const correct = questions.filter((question) => {
-        const answerKey = reattempt ? `${bankQuiz._id}-${question.id}` : question.id;
-        return input.answers[answerKey] === question.correctOptionId;
-      }).length;
-      const score = questions.length ? Math.round((correct / questions.length) * 100) : 0;
-      bankQuiz.attempts.push({ user: req.user.userId, score, answers: input.answers, attemptedAt: new Date() });
+      const answerSubset = {};
+      for (const question of questions) {
+        const questionId = String(question.id || "");
+        const answerKey = reattempt ? `${bankQuiz._id}-${questionId}` : questionId;
+        answerSubset[questionId] = input.answers[answerKey] || "";
+      }
+      const graded = gradeQuizSubmission(questions, answerSubset, 70);
+      bankQuiz.attempts.push({
+        user: req.user.userId,
+        score: graded.score,
+        answers: answerSubset,
+        attemptedAt: new Date()
+      });
       await bankQuiz.save();
+      correctCount += graded.correctCount;
+      questionCount += graded.questionCount;
+      results.push(...graded.results.map((result) => ({
+        ...result,
+        questionId: reattempt ? `${bankQuiz._id}-${result.questionId}` : result.questionId
+      })));
     }
+
+    const score = questionCount ? Math.round((correctCount / questionCount) * 100) : 0;
     const allLessonQuizzes = await QuizBank.find({ course: input.courseId, lesson: input.lessonId });
     const userExhaustedBank = allLessonQuizzes.length > 0 && allLessonQuizzes.every((quiz) =>
       quiz.attempts.some((attempt) => String(attempt.user) === String(req.user.userId))
     );
     if (userExhaustedBank) void queueNextLessonQuiz(input.courseId, input.lessonId);
-    return success(res, { saved: true, backgroundGenerationQueued: userExhaustedBank }, "Quiz attempt saved");
+    return success(res, {
+      saved: true,
+      score,
+      passed: questionCount > 0 && score >= 70,
+      correctCount,
+      questionCount,
+      results,
+      backgroundGenerationQueued: userExhaustedBank
+    }, "Quiz attempt graded and saved");
+  } catch (e) {
+    if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    next(e);
+  }
+}
+
+export async function submitCourseQuiz(req, res, next) {
+  try {
+    const schema = z.object({
+      courseId: z.string().trim().min(1),
+      lessonId: z.string().trim().min(1),
+      answers: z.record(z.string(), z.string()).default({})
+    });
+    const input = schema.parse(req.body || {});
+    if (!isValidObjectId(input.courseId) || !isValidObjectId(input.lessonId)) return failure(res, "Invalid course or lesson identifier", 400);
+    if (Object.keys(input.answers).length > 200) return failure(res, "Too many quiz answers were submitted", 400);
+
+    const access = await ensureCourseLearningAccess(req, input.courseId);
+    if (!access.allowed) return failure(res, access.message, access.status);
+
+    const course = await Course.findOne({ _id: input.courseId, deletedAt: null, status: { $ne: "archived" } })
+      .select("modules")
+      .lean();
+    if (!course) return failure(res, "Course not found", 404);
+    let lesson = null;
+    for (const module of course.modules || []) {
+      lesson = (module.lessons || []).find((item) => String(item._id || item.id) === input.lessonId) || null;
+      if (lesson) break;
+    }
+    if (!lesson || lesson.type !== "quiz" || !lesson.quiz) return failure(res, "Quiz lesson not found", 404);
+    const questions = Array.isArray(lesson.quiz.questions) ? lesson.quiz.questions : [];
+    if (!questions.length) return failure(res, "Quiz questions are not available yet. Retry quiz generation.", 409);
+
+    const validAnswers = {};
+    const questionIds = new Set(questions.map((question) => String(question.id || "")));
+    for (const questionId of questionIds) {
+      const selected = input.answers[questionId];
+      if (typeof selected === "string" && String(selected).length <= 200) validAnswers[questionId] = selected;
+    }
+    const graded = gradeQuizSubmission(questions, validAnswers, lesson.quiz.passingScore || 70);
+    const quizFingerprint = createHash("sha256")
+      .update(JSON.stringify(questions.map((question) => ({
+        id: question.id,
+        question: question.question,
+        options: (question.options || []).map((option) => ({ id: option.id, text: option.text }))
+      })))
+      .digest("hex");
+    await CourseQuizAttempt.create({
+      user: req.user.userId,
+      course: input.courseId,
+      lesson: input.lessonId,
+      quizFingerprint,
+      answers: validAnswers,
+      score: graded.score,
+      passed: graded.passed,
+      correctCount: graded.correctCount,
+      questionCount: graded.questionCount,
+      attemptedAt: new Date()
+    });
+    return success(res, { ...graded, passingScore: lesson.quiz.passingScore || 70 }, "Quiz graded and attempt saved");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

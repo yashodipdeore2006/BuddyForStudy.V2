@@ -54,7 +54,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | DETAIL-TABS-001 | Course Details / Overview, Curriculum, Ratings & Reviews, Notes, About | Active tab and content panel match; URL state is preserved where implemented; focus is visible | Inventory only |
 | DETAIL-REVIEWS-001 | Ratings & Reviews / empty state and Refresh reviews | Empty data is explicit; refresh requests reviews again and preserves the correct empty state | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
 | DETAIL-RATING-001 | Review form / select rating star | Accessible star labels and pressed state; score updates after selection | Inventory only |
-| DETAIL-REVIEW-SUBMIT-001 | Review form / submit or update review | Eligibility and selection validated; duplicate write prevented; success/failure announced | Inventory only |
+| DETAIL-REVIEW-SUBMIT-001 | Review form / submit or update review | Eligible enrolled learner can submit rating/comment; payload and success state are verified; update/failure cases remain open | Automated pass on `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`; [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) |
 | DETAIL-START-001 | Start, Continue or Review course | Resolves first incomplete lesson or review destination; invalid optional lesson ID cannot crash the card | Existing course-navigation tests |
 | DETAIL-ROADMAP-001 | Journey Roadmap link | Uses canonical route and handles missing curriculum/roadmap safely | Existing roadmap E2E tests |
 | DETAIL-PURCHASE-001 | Plan choice, enroll, checkout | Correct plan chosen; payment signature/order verified; duplicate action safe; pending and failure states recoverable | Backend payment tests exist; staging pending |
@@ -68,8 +68,8 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | LEARN-SEARCH-001 | Search your courses | Searches the loaded snapshot; empty result has a clear reset action and causes no new progress requests | Inventory only |
 | LEARN-SORT-001 | Recently active / Progress / A to Z | Changes order only, not enrollment membership or status | Inventory only |
 | LEARN-SAVE-001 | Save/remove saved course | API result and icon pressed state remain synchronized; failures are announced | Inventory only |
-| LEARN-UNENROLL-001 | Overflow → Unenroll → confirm/cancel | Course is identified; cancel has no side effect; remove only after success; duplicate submission guarded | Inventory only |
-| LEARN-UNDO-001 | Undo unenroll toast | Restores enrollment only after API success; failure shows a recovery message | Inventory only |
+| LEARN-UNENROLL-001 | Overflow → Unenroll → confirm/cancel | Course is identified; cancel has no side effect; remove only after success; duplicate submission guarded | Automated pass on `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`; [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) |
+| LEARN-UNDO-001 | Undo unenroll toast | Restores enrollment only after API success; failure shows a recovery message | Automated pass on `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`; [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) |
 | LEARN-SHARE-001 | Share course | Native share/clipboard fallback reports result in a status region | Inventory only |
 | LEARN-ROADMAP-001 | Overflow → Roadmap | Available when there is a curriculum; opens the canonical roadmap route | Inventory only |
 | LEARN-COURSE-INFO-001 | Overflow → Course info | Opens details for exactly the selected course | Inventory only |
@@ -133,7 +133,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Create stable IDs for the first global shell, Explore, My Learning, course-details, player and admin-shell control groups.
 - [x] Add browser tests for search/filter/clear, three My Learning status tabs, no per-course progress fan-out, lesson completion, review refresh, and admin command palette.
 - [x] Confirm CI pass for the first control-level browser batch and fix initial selector/cache issues (run #40172529048).
-- [ ] Add My Learning save/share/unenroll/cancel/undo failure-path tests.
+- [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player lesson navigation, quiz, practice quiz and timestamped notes browser tests.
 - [ ] Add admin UI mutation tests for PII, publish, pricing/trials, refunds, communications and delivery retry.
@@ -154,3 +154,10 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - **Control IDs passed:** `EXP-SEARCH-001`, `LEARN-TABS-001`, `PLAYER-COMPLETE-001`, `DETAIL-REVIEWS-001`, `ADM-SHELL-SEARCH-001`.
 - **Defect fixed:** review refresh buttons now call `apiFetch(..., { cache: "no-store" })`; `src/lib/api.ts` honors this option by bypassing both the short GET response cache and in-flight request deduplication for the explicit fresh-read request.
 - **Remaining scope:** the tests use deterministic API fixtures; the learner controls still need staging/data-backed verification and the admin mutation suite remains incomplete.
+
+
+### 2026-10-25 — Second user-control batch passed
+- **CI passed:** [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880); commit `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`.
+- **New automated-pass IDs:** `LEARN-SAVE-001`, `LEARN-UNENROLL-001`, `LEARN-UNDO-001`, `DETAIL-REVIEW-SUBMIT-001`.
+- The My Learning tests verify Save/Unsave network mutations and button state; cancel has no enrollment mutation; confirm sends DELETE and removes the course; Undo sends POST and restores it. The review test verifies the 4-star/comment payload and success feedback.
+- The browser fixtures still mock server writes; persistence across a real database-backed browser session is a staging acceptance test.

@@ -113,14 +113,14 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-COURSE-PUBLISH-001 | Readiness then publish | Readiness and publish permission enforced; failure explained; state refreshed | Course readiness/publishing tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
 | ADM-COURSE-DELETE-001 | Soft-delete/restore course | Confirmation/reason, safe lifecycle and audit/revision trail | Backend validation tests exist; browser test pending |
-| ADM-PRICING-APPLY-FAILURE-001 | Pricing apply API returns 503 after preview | No price changes before preview; the preview and operator reason remain available after the failure, and the same preview can be retried | E2E added; CI pending |
+| ADM-PRICING-APPLY-FAILURE-001 | Pricing apply API returns 503 after preview | No price changes before preview; the preview and operator reason remain available after the failure, and the same preview can be retried | E2E passed; [CI run #40182316415](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40182316415) |
 | ADM-PRICING-APPLY-001 | Preview/apply pricing and rollback | Preview bound to selected batch/version; reason required; price/sale/currency invariants enforced | Backend pricing tests exist; browser test pending |
 | ADM-TRIAL-GRANT-PREVIEW-001 | Preview and confirm filtered trial audience | Preview reports the full eligible count above 200; filters and exclusion totals remain visible; grant requires explicit confirmation, carries an idempotency key and states no autopay | E2E passed; [CI run #40176135648](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40176135648) |
 | ADM-TRIAL-GRANT-001 | Preview audience and grant free trial | Eligibility/exclusion count, permission, reason and idempotency revalidated; no misleading arbitrary recipient cap | Backend validation tests exist; browser test pending |
 | ADM-BILLING-REFUND-001 | Process/reconcile refund | Valid transition, provider identifier, currency/balance and reason/audit are consistent | Backend payment tests exist; staging provider pending |
 | ADM-BILLING-REFUND-FAILURE-001 | Finance operator receives 503 while approving refund | Short reason is rejected before mutation; API failure preserves typed confirmation and reason and allows retry | E2E passed; [CI run #40175485965](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175485965) |
 | ADM-BILLING-REFUND-PERMISSION-001 | Billing reader views a pending refund | Read-only role can inspect the request but cannot see approve/reject controls or send a refund mutation | E2E passed; [CI run #40175201786](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175201786) |
-| ADM-COMMUNICATION-SEND-FAILURE-001 | Notification queue returns 503 after audience preview | Send payload is bound to the preview token; error is announced while message/reason and confirmation remain available for retry | E2E added; CI pending |
+| ADM-COMMUNICATION-SEND-FAILURE-001 | Notification queue returns 503 after audience preview | Send payload is bound to the preview token; error is announced while message/reason and confirmation remain available for retry | E2E passed; [CI run #40182316415](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40182316415) |
 | ADM-COMMS-SEND-001 | Preview audience then send | Consent/suppression respected; reason audited; duplicate send guarded; channel outcomes reported | Backend communication tests exist; browser/staging pending |
 | ADM-DELIVERY-RETRY-001 | Retry failed channel delivery | Only eligible channel retried; reason/permission enforced; attempts/backoff visible | Backend delivery tests exist; browser test pending |
 | ADM-DELIVERY-RETRY-FAILURE-001 | Delivery retry endpoint returns 503 | A retryable failure is announced and the required reason/confirmation remain intact so the operator can retry | E2E passed; [CI run #40175773311](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175773311) |
@@ -149,7 +149,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
-- [ ] Add admin UI mutation tests for PII, pricing/trials, refunds, communications and delivery retry; command palette permission filtering passes CI and course publish-readiness test is pending CI.
+- [ ] Add admin UI mutation tests for PII reveal/export and remaining pricing/trial edge cases; pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
 - [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
@@ -195,3 +195,10 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - **CI:** [run #40173675839](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173675839) passed frontend and backend jobs; browser suite passed.
 - **New passing ID:** `DETAIL-REVIEW-FAILURE-001`: an HTTP 503 is announced, rating/comment are preserved, submit becomes available again, and retry sends a new request.
 - The test uses a mocked review endpoint. Real persistence/moderation and production API failure behavior still require staging validation.
+
+
+### 2026-10-25 — Pricing and communication failure recovery passed
+- **Commit:** `77ee6468a4d0901ae5f0c76aa0b0258f7ec17b6f`.
+- **CI:** [run #40182316415](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40182316415) passed frontend and backend jobs; the Playwright run completed successfully.
+- **New passing IDs:** `ADM-PRICING-APPLY-FAILURE-001` (preview table is targeted by its Proposed column; failed apply keeps preview/reason available and supports retry) and `ADM-COMMUNICATION-SEND-FAILURE-001` (failed queue request preserves the reviewed audience and send confirmation for retry).
+- These tests use mocked API responses; they do not prove live price mutations, notification worker delivery, or provider integration in staging.

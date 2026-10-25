@@ -166,7 +166,7 @@ export default function YouTubeSearchFallback({
   hasLocalResults = false,
 }: Props) {
   const [viewer, setViewer] = useState<Viewer | null>(null);
-  const [, setOpeningId] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [viewerError, setViewerError] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
   const [enrollingId, setEnrollingId] = useState<string | null>(null);
@@ -553,8 +553,8 @@ export default function YouTubeSearchFallback({
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                             <span className="text-sm font-bold text-emerald-700">Free</span>
-                            <button type="button" onClick={() => void openCourseDetails(course)} disabled={Boolean(enrollingId === course.id || false)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
-                              {enrolledIds.has(course.id) ? "Continue learning" : "View course"}
+                            <button type="button" onClick={() => void openCourseDetails(course)} disabled={openingId === course.id} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
+                              {openingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolledIds.has(course.id) ? "Continue learning" : "View course"}
                             </button>
                           </div>
                         </div>

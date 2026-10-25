@@ -53,8 +53,15 @@ test("default generated pricing is consistent with the admin studio even before 
   const here = path.dirname(fileURLToPath(import.meta.url));
   const courseModel = fs.readFileSync(path.join(here, "../src/models/Course.js"), "utf8");
   const pricingController = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
+  const discoveryController = fs.readFileSync(path.join(here, "../src/controllers/discovery.controller.js"), "utf8");
+  const discoveryService = fs.readFileSync(path.join(here, "../src/services/discovery.service.js"), "utf8");
+  const youtubeFallback = fs.readFileSync(path.join(here, "../../src/components/YouTubeSearchFallback.tsx"), "utf8");
   assert.match(courseModel, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
   assert.match(pricingController, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
+  assert.match(discoveryController, /level: z\.enum\(\["Beginner", "Intermediate", "Advanced"\]\)\.optional\(\)/);
+  assert.match(discoveryService, /level: \["Beginner", "Intermediate", "Advanced"\]\.includes\(level\) \? level : "Beginner"/);
+  assert.match(discoveryService, /const band = policy\.levelBands\?\.\[course\.level\]/);
+  assert.match(youtubeFallback, /level: normalizeDiscoveryLevel\(curationMeta\?\.intent\?\.level\)/);
 });
 
 test("pricing filters reject arbitrary Mongo operators and inverted price ranges", () => {

@@ -597,3 +597,10 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - Added `NAV-SIGNOUT-FAILURE-001` to prove client cleanup is not blocked by a failed server logout: the API is mocked to return 503, local `bfs_token` is cleared, the app navigates to the public landing route, and the primary navigation shows Sign in.
 - **CI passed:** commit `7f27ecb25d5edeb88b6354784ede64b489fa5045`, [run #40185807422](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185807422). Frontend and backend jobs passed; **75 Playwright tests passed**.
 - The test does not prove server-side session revocation or push-subscription cleanup on a real browser/device; verify these in staging.
+
+## Verification update — pricing modal consistency (2026-10-25)
+
+- Fixed `FeatureUpgradeModal` so plan cards display the complete feature entitlements and the same six AI usage-limit rows as the main Pricing page; unknown/unconfigured limit values use the same “Not configured” label.
+- Standardized the Free plan price suffix to “forever” in both views instead of showing “/month” in the upgrade modal.
+- Added `PRICING-MODAL-CONSISTENCY-001` to `tests/navigation.e2e.spec.ts`. **CI passed:** implementation commit `0791e03bfee6751b87a551cb6a731e63f8f09f35`, [run #40187178516](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40187178516); frontend and backend jobs succeeded and 77 Playwright tests passed.
+- Scope note: the browser test uses mocked plan data. Verify production plan records and limits in staging before release.

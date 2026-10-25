@@ -11,6 +11,7 @@ import {
   buildCoursePricingFilter, calculateNextPricing, parsePricingFilters,
   recommendBandPrice, validatePricingOperation
 } from "../utils/coursePricing.js";
+import { DEFAULT_GENERATED_PRICING_POLICY, resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 const MAX_PREVIEW_COURSES = 500;
@@ -401,19 +402,6 @@ export async function runEnabledRules(req, res, next) {
 
 
 const GENERATED_PRICING_KEY = "generated_course_pricing_policy";
-const DEFAULT_GENERATED_PRICING_POLICY = {
-  enabled: true,
-  mode: "level_bands",
-  fixedPrice: 39,
-  currency: "INR",
-  levelBands: {
-    Beginner: { min: 20, max: 39 },
-    Intermediate: { min: 30, max: 49 },
-    Advanced: { min: 40, max: 59 }
-  },
-  applyTo: ["ai", "discovery", "module", "normal"]
-};
-
 function validateGeneratedPricingPolicy(input = {}) {
   const allowed = ["enabled", "mode", "fixedPrice", "currency", "levelBands", "applyTo"];
   for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported generated pricing setting: " + key);
@@ -448,7 +436,7 @@ function validateGeneratedPricingPolicy(input = {}) {
 export async function getGeneratedPricingPolicy(req, res, next) {
   try {
     const setting = await PlatformSetting.findOne({ key: GENERATED_PRICING_KEY }).lean();
-    return success(res, { policy: { ...DEFAULT_GENERATED_PRICING_POLICY, ...(setting?.value || {}) } });
+    return success(res, { policy: resolveGeneratedCoursePricingPolicy(setting?.value) });
   } catch (error) { next(error); }
 }
 

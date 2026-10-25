@@ -553,3 +553,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Additional passing control ID:** `ADM-DELIVERY-RETRY-FAILURE-001` verifies that a communications operator with `notifications.retry` can initiate a failed-email retry; when the queue API returns HTTP 503, the UI announces the error, retains `RETRY` plus the reason, and allows another attempt.
 - **Boundary:** the retry endpoint and access data are mocked in Playwright. The test does not send a real email/push message, verify worker queue semantics, or prove the server's audit persistence.
 - **Next:** continue with pricing/trial and communications controls, then complete responsive and keyboard/accessibility verification. Live provider and staging checks remain open.
+
+
+## Verification update — filtered trial audience and idempotent grant UI passed (2026-10-25)
+
+- **Verified commit:** `71d8ec9648b608f7318ada88a7ce0e161f09e7a4`.
+- **CI evidence:** [GitHub Actions run #40176135648](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40176135648) passed frontend and backend jobs; the browser suite reported **66 Playwright tests passed**.
+- **Additional passing control ID:** `ADM-TRIAL-GRANT-PREVIEW-001` verifies a filtered cohort preview showing 241 eligible learners and one skipped example, correct plan/duration/reason filters, no autopay messaging, explicit confirmation, an idempotency key, and a grant payload without an arbitrary 200-recipient cap.
+- **Boundary:** preview/grant APIs are mocked. The test verifies UI and payload contract only; it does not grant real trials, validate database-level duplicate prevention, or prove backend permission/audit persistence in staging.
+- **Next:** test the pricing preview/apply recovery flow, then continue with communications, accessibility/responsive and provider staging checks.

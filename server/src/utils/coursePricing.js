@@ -1,5 +1,53 @@
 const PRICE_LIMIT = 1_000_000;
 
+/**
+ * Returns the price the learner should see and pay for an explicit pricing
+ * configuration. Invalid/zero sale prices are ignored so old records cannot
+ * show a free price while checkout charges the base price.
+ */
+export function getEffectiveCoursePrice(pricing = {}) {
+  if (pricing?.mode === "free") return 0;
+  if (pricing?.mode !== "paid") return null;
+  const basePrice = Number(pricing.price);
+  if (!Number.isFinite(basePrice) || basePrice <= 0) return null;
+  const salePrice = Number(pricing.salePrice);
+  if (pricing.saleEnabled && Number.isFinite(salePrice) && salePrice > 0 && salePrice < basePrice) {
+    return salePrice;
+  }
+  return basePrice;
+}
+
+export function hasValidActiveCourseSale(pricing = {}) {
+  const basePrice = Number(pricing?.price);
+  const salePrice = Number(pricing?.salePrice);
+  return pricing?.mode === "paid" &&
+    pricing?.saleEnabled === true &&
+    Number.isFinite(basePrice) && basePrice > 0 &&
+    Number.isFinite(salePrice) && salePrice > 0 && salePrice < basePrice;
+}
+
+export function getCoursePricingValidationError(pricing = {}) {
+  const basePrice = Number(pricing?.price);
+  if (pricing?.mode === "paid" && (!Number.isFinite(basePrice) || basePrice <= 0)) {
+    return "Paid courses must have a positive base price.";
+  }
+  if (pricing?.saleEnabled) {
+    if (pricing?.mode !== "paid") return "An active sale can only be enabled for a paid course.";
+    const salePrice = Number(pricing.salePrice);
+    if (!Number.isFinite(salePrice) || salePrice <= 0) {
+      return "An active sale must have a sale price greater than zero.";
+    }
+    if (!Number.isFinite(basePrice) || basePrice <= 0 || salePrice >= basePrice) {
+      return "Sale price must be lower than the positive base price.";
+    }
+  }
+  const compareAtPrice = Number(pricing?.compareAtPrice || 0);
+  if (compareAtPrice > 0 && Number.isFinite(basePrice) && compareAtPrice < basePrice) {
+    return "Compare-at price must be greater than or equal to the base price.";
+  }
+  return null;
+}
+
 export function parsePricingFilters(input = {}) {
   const allowed = ["q", "category", "level", "mode", "status", "minPrice", "maxPrice", "page", "limit"];
   for (const key of Object.keys(input)) if (!allowed.includes(key)) throw new Error("Unsupported filter: " + key);
@@ -115,7 +163,7 @@ export function calculateNextPricing(pricing = {}, operation) {
   else if (operation.saleHandling === "adjust" && saleEnabled) {
     salePrice = Math.min(salePrice, Math.max(0, price - 1));
     if (price <= 0 || salePrice <= 0) { saleEnabled = false; salePrice = 0; }
-  } else if (saleEnabled && (price <= 0 || salePrice >= price)) {
+  } else if (saleEnabled && (price <= 0 || salePrice <= 0 || salePrice >= price)) {
     throw new Error("The resulting base price would invalidate an active sale. Choose clear/adjust sale handling or update the sale first.");
   }
   if (compareAtPrice > 0 && compareAtPrice < price) compareAtPrice = price;
@@ -146,7 +194,7 @@ export function recommendBandPrice(course, profile) {
   const adjustmentSummary = depthAdjustment + projectAdjustment > 0 ? " adjusted +" + Math.round((depthAdjustment + projectAdjustment) * 10) / 10 + "% for " + modules.length + " module(s) and " + projectCount + " project(s)" : " with no complexity adjustment";
   return {
     eligible: true,
-    pricing: { mode: recommended === 0 ? "free" : "paid", price: recommended, compareAtPrice: Math.max(recommended, Number(course.pricing?.compareAtPrice) || 0), currency: String(course.pricing?.currency || "INR").toUpperCase(), saleEnabled: Boolean(course.pricing?.saleEnabled) && Number(course.pricing?.salePrice) < recommended, salePrice: Number(course.pricing?.salePrice) || 0 },
+    pricing: { mode: recommended === 0 ? "free" : "paid", price: recommended, compareAtPrice: Math.max(recommended, Number(course.pricing?.compareAtPrice) || 0), currency: String(course.pricing?.currency || "INR").toUpperCase(), saleEnabled: Boolean(course.pricing?.saleEnabled) && Number(course.pricing?.salePrice) > 0 && Number(course.pricing?.salePrice) < recommended, salePrice: Number(course.pricing?.salePrice) || 0 },
     explanation: "Uses " + bandSource + " band " + min + "–" + max + " INR; band-midpoint baseline " + Math.round(baseline) + " INR" + adjustmentSummary + "; final recommendation is clamped to the configured band.",
     factors: { moduleCount: modules.length, projectCount, depthAdjustmentPercent: depthAdjustment, projectAdjustmentPercent: projectAdjustment }
   };

@@ -218,7 +218,17 @@ export async function getMine(userId) {
       : 0;
 
     const isLegacyStatus = legacyByEnrollmentId.has(String(enrollment._id));
-    const learningStatus = isLegacyStatus
+    const storedStatus = result.learningStatus;
+    const validStoredStatus = Object.values(LEARNING_STATUS).includes(storedStatus);
+    const hasStoredProgress = Boolean(progress);
+    const progressDisagreesWithStoredStatus = hasStoredProgress && (
+      (storedStatus === LEARNING_STATUS.COMPLETED && totalLessons > 0 && completedCount < totalLessons) ||
+      (storedStatus === LEARNING_STATUS.NOT_STARTED &&
+        (completedCount > 0 || Boolean(progress?.lastAccessedAt) || Boolean(progress?.lastLessonId))) ||
+      (storedStatus === LEARNING_STATUS.IN_PROGRESS && totalLessons > 0 && completedCount >= totalLessons)
+    );
+    const shouldReconcileStatus = isLegacyStatus || progressDisagreesWithStoredStatus || !validStoredStatus;
+    const learningStatus = shouldReconcileStatus
       ? deriveLearningStatus({
           completedCount,
           totalLessons,
@@ -226,21 +236,21 @@ export async function getMine(userId) {
           lastLessonId: progress?.lastLessonId,
           enrollmentStatus: enrollment.status
         })
-      : (Object.values(LEARNING_STATUS).includes(result.learningStatus)
-          ? result.learningStatus
-          : deriveLearningStatus({
-              completedCount,
-              totalLessons,
-              lastAccessedAt: progress?.lastAccessedAt,
-              lastLessonId: progress?.lastLessonId,
-              enrollmentStatus: enrollment.status
-            }));
+      : storedStatus;
 
-    if (isLegacyStatus) {
+    if (shouldReconcileStatus && (isLegacyStatus || learningStatus !== storedStatus)) {
+      const setFields = { learningStatus };
+      // Keep the separate access status aligned with completed/current curricula,
+      // but never reactivate a deliberately cancelled enrollment.
+      if (enrollment.status !== "cancelled") {
+        setFields.status = learningStatus === LEARNING_STATUS.COMPLETED ? "completed" : "active";
+      }
       statusUpdates.push({
         updateOne: {
-          filter: { _id: enrollment._id, learningStatus: { $exists: false } },
-          update: { $set: { learningStatus } }
+          filter: isLegacyStatus
+            ? { _id: enrollment._id, learningStatus: { $exists: false } }
+            : { _id: enrollment._id, learningStatus: storedStatus },
+          update: { $set: setFields }
         }
       });
     }

@@ -19,7 +19,8 @@ import { shareCourseLink } from "@/lib/shareCourse";
 
 type LearningTab = "in-progress" | "not-started" | "completed";
 type SortMode = "recent" | "progress" | "title";
-type CourseStatus = { progressPct: number; completedLessons: number; totalLessons: number; nextLessonId: string | null; status: LearningTab; loading: boolean };
+type LearningProgress = { completedCount: number; totalLessons: number; percentage: number; nextLessonId: string | null; lastLessonId: string | null; lastAccessedAt: string | null };
+type LearningEnrollment = Enrollment & { course: Course; learningStatus: LearningTab; learningProgress: LearningProgress };
 
 function mapCourse(raw: LearningApiRecord): Course {
   const modules = Array.isArray(raw?.modules) ? raw.modules.map((module: LearningApiRecord) => ({
@@ -66,8 +67,21 @@ function mapCourse(raw: LearningApiRecord): Course {
   };
 }
 
-function mapEnrollment(raw: LearningApiRecord): Enrollment & { course: Course } {
+function mapEnrollment(raw: LearningApiRecord): LearningEnrollment {
   const course = mapCourse(raw?.course ?? {});
+  const rawProgress = raw?.learningProgress ?? {};
+  const lessonList = getAllLessonsFlat(course.modules);
+  const completedCount = Math.max(0, Number(rawProgress.completedCount ?? rawProgress.completed_count ?? 0));
+  const totalLessons = Math.max(0, Number(rawProgress.totalLessons ?? rawProgress.total_lessons ?? lessonList.length));
+  const percentage = Math.min(100, Math.max(0, Number(rawProgress.percentage ?? (totalLessons ? completedCount / totalLessons * 100 : 0))));
+  const statusValue = String(raw?.learningStatus ?? "").toLowerCase();
+  const learningStatus: LearningTab = ["in-progress", "not-started", "completed"].includes(statusValue)
+    ? statusValue as LearningTab
+    : raw?.status === "completed" ? "completed" : "not-started";
+  const nextLessonId = rawProgress.nextLessonId !== undefined
+    ? (rawProgress.nextLessonId ? String(rawProgress.nextLessonId) : null)
+    : lessonList.find((lesson) => lesson.id && !["undefined", "null"].includes(String(lesson.id).toLowerCase()))?.id ?? null;
+
   return {
     id: String(raw?._id ?? raw?.id ?? ""),
     user_id: String(raw?.user?._id ?? raw?.user ?? raw?.user_id ?? ""),
@@ -77,11 +91,16 @@ function mapEnrollment(raw: LearningApiRecord): Enrollment & { course: Course } 
     created_at: raw?.createdAt ?? raw?.created_at ?? "",
     updated_at: raw?.updatedAt ?? raw?.updated_at ?? "",
     course,
+    learningStatus,
+    learningProgress: {
+      completedCount,
+      totalLessons,
+      percentage,
+      nextLessonId,
+      lastLessonId: rawProgress.lastLessonId ? String(rawProgress.lastLessonId) : null,
+      lastAccessedAt: rawProgress.lastAccessedAt ?? null,
+    },
   };
-}
-
-function getInitialStatus(enrollment: Enrollment): LearningTab {
-  return enrollment.status === "completed" ? "completed" : "in-progress";
 }
 
 function CourseLearningCard({
@@ -89,16 +108,14 @@ function CourseLearningCard({
   saved,
   onSavedChange,
   onUnenroll,
-  onStateChange,
 }: {
-  enrollment: Enrollment & { course: Course };
+  enrollment: LearningEnrollment;
   saved: boolean;
   onSavedChange: (courseId: string, nextSaved: boolean) => void;
-  onUnenroll: (enrollment: Enrollment & { course: Course }) => void;
-  onStateChange: (courseId: string, status: CourseStatus) => void;
+  onUnenroll: (enrollment: LearningEnrollment) => void;
 }) {
   const course = enrollment.course;
-  const state = useCourseState(course.id, course, true);
+  const state = enrollment.learningProgress;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [shareNotice, setShareNotice] = useState("");
@@ -107,9 +124,7 @@ function CourseLearningCard({
   const lessons = getAllLessonsFlat(course.modules);
   const totalLessons = state.totalLessons || lessons.length;
   const hasRoadmap = state.hasRoadmap || lessons.length > 0;
-  const status: LearningTab = enrollment.status === "completed" || state.isCompleted
-    ? "completed"
-    : state.progressPct > 0 ? "in-progress" : "not-started";
+  const status = enrollment.learningStatus;
   const primaryLabel = status === "completed" ? "Review" : status === "in-progress" ? "Continue" : "Start";
   const PrimaryIcon = status === "completed" ? RotateCcw : Play;
   const metadata = course.cardMetadata;
@@ -146,22 +161,6 @@ function CourseLearningCard({
   const coverWords = course.title.trim().split(/\s+/).slice(0, 2).join(" ") || "Keep learning";
   const generatedCover = course.generation?.mode === "ai";
   const learnHref = routes.learn(course.id, status === "completed" ? null : state.nextLessonId);
-
-  useEffect(() => {
-    // A tab change remounts its cards. Do not publish the hook's temporary
-    // zero-progress initial state while the real enrollment/progress request
-    // is still loading, or the course can be moved into the wrong tab and
-    // unmount before its authoritative status arrives.
-    if (state.loading) return;
-    onStateChange(course.id, {
-      progressPct: state.progressPct,
-      completedLessons: state.completedLessons,
-      totalLessons,
-      nextLessonId: state.nextLessonId,
-      status,
-      loading: false,
-    });
-  }, [course.id, state.progressPct, state.completedLessons, totalLessons, state.nextLessonId, state.loading, status, onStateChange]);
 
   const handleSave = async () => {
     if (saving) return;
@@ -246,7 +245,6 @@ function CourseLearningCard({
 
       </div>
 
-      {state.error && <p className="bfs-course-card__error" role="status">Progress may be out of date. <button type="button" className="bfs-course-card__undo" style={{ position: "relative", zIndex: 4, pointerEvents: "auto" }} onClick={() => window.location.reload()}>Refresh</button></p>}
       {saveError && <p className="bfs-course-card__error" role="alert">{saveError}</p>}
       {shareNotice && <p className="bfs-course-card__status" role="status">{shareNotice}</p>}
 
@@ -273,36 +271,6 @@ function CourseLearningCard({
   );
 }
 
-function CourseStatusPreloader({
-  enrollment,
-  onStateChange,
-}: {
-  enrollment: Enrollment & { course: Course };
-  onStateChange: (courseId: string, status: CourseStatus) => void;
-}) {
-  const course = enrollment.course;
-  const state = useCourseState(course.id, course, true);
-  const lessons = getAllLessonsFlat(course.modules);
-  const totalLessons = state.totalLessons || lessons.length;
-  const status: LearningTab = enrollment.status === "completed" || state.isCompleted
-    ? "completed"
-    : state.progressPct > 0 ? "in-progress" : "not-started";
-
-  useEffect(() => {
-    if (state.loading) return;
-    onStateChange(course.id, {
-      progressPct: state.progressPct,
-      completedLessons: state.completedLessons,
-      totalLessons,
-      nextLessonId: state.nextLessonId,
-      status,
-      loading: false,
-    });
-  }, [course.id, state.progressPct, state.completedLessons, totalLessons, state.nextLessonId, state.loading, status, onStateChange]);
-
-  return null;
-}
-
 export default function MyCourses() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -316,7 +284,7 @@ export default function MyCourses() {
   const [pendingUnenroll, setPendingUnenroll] = useState<LearningEnrollment | null>(null);
   const [unenrolling, setUnenrolling] = useState(false);
   const [actionError, setActionError] = useState("");
-  const [undoEnrollment, setUndoEnrollment] = useState<(Enrollment & { course: Course }) | null>(null);
+  const [undoEnrollment, setUndoEnrollment] = useState<LearningEnrollment | null>(null);
   const [notice, setNotice] = useState("");
   const [showToast, setShowToast] = useState(false);
 
@@ -330,7 +298,7 @@ export default function MyCourses() {
     if (enrollmentResult.status === "fulfilled") {
       const all = (enrollmentResult.value.enrollments ?? [])
         .map(mapEnrollment)
-        .filter((item: Enrollment & { course: Course }) => item.course.id && item.course.title);
+        .filter((item: LearningEnrollment) => item.course.id && item.course.title);
       setEnrollments(all);
     } else {
       setLoadError(enrollmentResult.reason instanceof Error ? enrollmentResult.reason.message : "Couldn't load your courses.");

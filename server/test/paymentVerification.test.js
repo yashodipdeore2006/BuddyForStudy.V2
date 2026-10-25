@@ -131,6 +131,8 @@ test("billing value summaries keep different currencies separate", () => {
   const adminBilling = readFileSync(new URL("../../src/pages/admin/AdminBilling.tsx", import.meta.url), "utf8");
 
   assert.match(controller, /paidTotalsByCurrency: Object\.fromEntries\(paidValues\.map/);
+  assert.match(controller, /status: \{ \$in: \["paid", "partially_refunded", "refunded"\] \}/);
+  assert.match(learnerBilling, /\["paid", "partially_refunded", "refunded"\]\.includes\(payment\.status\)/);
   assert.match(controller, /\$group:[\s\S]*?\$toUpper: \{ \$ifNull: \["\$currency", "INR"\] \}/);
   assert.match(controller, /paidTotal: Number\(paidValues\.find\(\(item\) => item\._id === "INR"\)/);
   assert.match(learnerBilling, /paidTotalsByCurrency/);

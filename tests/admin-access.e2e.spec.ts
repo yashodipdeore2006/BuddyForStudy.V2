@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 
@@ -294,6 +295,72 @@ test.describe("administrator route and permission UX", () => {
     await maskButton.press("Enter", { timeout: 4000 });
     await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible({ timeout: 4000 });
     await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0, { timeout: 4000 });
+  });
+
+  test("[ADM-PII-EXPORT-001] user export requires reason and exact confirmation and protects CSV formulas", async ({ page }) => {
+    let exportRequests = 0;
+    let exportPayload: Record<string, unknown> | null = null;
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "PII Export Operator", email: "export-operator@example.test" },
+      adminRole: "custom_user_exporter",
+      roleLabel: "User Exporter",
+      permissions: ["dashboard.read", "users.read", "users.manage", "users.pii.reveal"],
+    });
+    await page.route("**/api/admin/users/export", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      exportRequests += 1;
+      exportPayload = route.request().postDataJSON() as Record<string, unknown>;
+      return json(route, {
+        users: [{
+          _id: "507f1f77bcf86cd799439012",
+          name: '=HYPERLINK("https://attacker.test","click")',
+          email: "learner@example.test",
+          role: "user",
+          isActive: true,
+          emailVerified: true,
+          authProvider: "local",
+          createdAt: "2026-01-01T00:00:00.000Z",
+        }],
+      });
+    });
+
+    await page.goto(baseURL + "/admin/users");
+    await expect(page.getByText("Read-only learner")).toBeVisible();
+    await page.getByRole("checkbox", { name: "Select row 507f1f77bcf86cd799439012" }).check();
+    await page.getByRole("button", { name: "Export selected (1)" }).click();
+
+    const dialog = page.getByRole("alertdialog", { name: "Export selected user records?" });
+    await expect(dialog).toBeVisible();
+    const reason = dialog.getByLabel("Reason (required)");
+    const phrase = dialog.getByLabel("Type EXPORT 1 USERS to confirm");
+    const confirm = dialog.getByRole("button", { name: "Export user CSV" });
+    await expect(confirm).toBeDisabled();
+    await reason.fill("Need a verified export for support case 1842.");
+    await phrase.fill("EXPORT 2 USERS");
+    await expect(confirm).toBeDisabled();
+    expect(exportRequests).toBe(0);
+
+    await phrase.fill("EXPORT 1 USERS");
+    await expect(confirm).toBeEnabled();
+    const downloadPromise = page.waitForEvent("download");
+    await confirm.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^buddyforstudy-users-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(exportRequests).toBe(1);
+    expect(exportPayload).toMatchObject({
+      ids: ["507f1f77bcf86cd799439012"],
+      sortBy: "name",
+      sortOrder: "asc",
+      reason: "Need a verified export for support case 1842.",
+    });
+
+    const downloadPath = await download.path();
+    expect(downloadPath).toBeTruthy();
+    const csv = await readFile(downloadPath as string, "utf8");
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).toContain('"learner@example.test"');
+    await expect(dialog).toHaveCount(0);
   });
 
   test("changing user page size clears page-scoped bulk selection", async ({ page }) => {

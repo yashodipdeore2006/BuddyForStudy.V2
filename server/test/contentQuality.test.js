@@ -166,8 +166,9 @@ test("existing enrolled learners can resume unlisted courses while pending or re
   assert.match(service, /status: \{ \$in: \["active", "completed"\] \}/);
   assert.match(service, /!\["pending", "rejected"\]\.includes\(cached\.aiReviewStatus\)/);
   assert.match(entitlement, /course\.aiReviewSource === "automatic"/);
-  assert.match(entitlement, /if \(enrollment\) return true/);
-  assert.match(entitlement, /return await hasPaidCourseAccess\(userId, courseId\)/);
+  assert.match(entitlement, /export function isEnrollmentCourseAccessAllowed/);
+  assert.match(entitlement, /return enrollment\.accessSource === "subscription" \? Boolean\(planEntitled\) : true/);
+  assert.match(entitlement, /hasIndividualPayment: Boolean\(payment\)/);
   assert.match(ai, /const legacyPublishedEnrollment = Boolean\(/);
   assert.match(ai, /revokedBy: null/);
 });

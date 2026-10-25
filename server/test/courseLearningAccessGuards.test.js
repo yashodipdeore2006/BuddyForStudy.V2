@@ -93,3 +93,13 @@ test("first quiz submission completes the quiz lesson and sidebar completion cir
   assert.match(player, /onClick=\{\(\) => void handleToggleLessonCompletion\(lesson\.id\)\}/);
   assert.match(player, /aria-label=\{done \? `Mark \$\{cleanedTitle\} incomplete` : `Mark \$\{cleanedTitle\} complete`\}/);
 });
+
+ 
+test("course completion notification is emitted only by progress service on the completion transition", () => {
+  const progressController = readFileSync(new URL("../src/controllers/progress.controller.js", import.meta.url), "utf8");
+  const progressService = readFileSync(new URL("../src/services/progress.service.js", import.meta.url), "utf8");
+  assert.doesNotMatch(progressController, /createNotificationEvent/);
+  assert.doesNotMatch(progressController, /Course\.findById\(courseId\)/);
+  assert.match(progressService, /if \(courseCompleted\) \{[\s\S]*?createNotificationEvent/);
+  assert.match(progressService, /eventKey: `course-completed:\$\{userId\}:\$\{courseId\}`/);
+});

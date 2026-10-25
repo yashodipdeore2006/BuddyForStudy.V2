@@ -82,15 +82,17 @@ export async function apiFetch<T = ApiResponse>(path: string, options: ApiFetchO
   const key = cacheKey(path, token);
 
   // Deduplicate repeated status/list requests from multiple cards and components.
-  // Cache only safe GET responses for a very short period; mutations invalidate
-  // related entries so save/enroll actions remain immediately consistent.
-  if (isGet) {
+  // Explicit cache: "no-store" means the caller is asking for a fresh read (for
+  // example, Refresh reviews), so bypass both the short response cache and
+  // in-flight request deduplication for this one GET.
+  const bypassGetCache = isGet && requestOptions.cache === "no-store";
+  if (isGet && !bypassGetCache) {
     const cached = getResponseCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.data as T;
     if (cached) getResponseCache.delete(key);
     const pending = getInFlight.get(key);
     if (pending) return pending as Promise<T>;
-  } else {
+  } else if (!isGet) {
     invalidateRelatedGetCache(path);
   }
 
@@ -178,14 +180,14 @@ export async function apiFetch<T = ApiResponse>(path: string, options: ApiFetchO
       throw new ApiError(safeServerMessage || statusMessages[response.status] || "We couldn't complete that request. Please try again.", response.status);
     }
 
-    if (isGet) getResponseCache.set(key, { data, expiresAt: Date.now() + GET_CACHE_TTL_MS });
+    if (isGet && !bypassGetCache) getResponseCache.set(key, { data, expiresAt: Date.now() + GET_CACHE_TTL_MS });
     return data as T;
   })();
 
-  if (isGet) getInFlight.set(key, request);
+  if (isGet && !bypassGetCache) getInFlight.set(key, request);
   try {
     return await request;
   } finally {
-    if (isGet && getInFlight.get(key) === request) getInFlight.delete(key);
+    if (isGet && !bypassGetCache && getInFlight.get(key) === request) getInFlight.delete(key);
   }
 }

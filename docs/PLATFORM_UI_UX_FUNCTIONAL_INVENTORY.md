@@ -489,3 +489,13 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Verified control IDs now passing:** `EXP-SEARCH-001`, `LEARN-TABS-001`, `PLAYER-COMPLETE-001`, `DETAIL-REVIEWS-001`, `ADM-SHELL-SEARCH-001`, `LEARN-SAVE-001`, `LEARN-UNENROLL-001`, `LEARN-UNDO-001`, `DETAIL-REVIEW-SUBMIT-001`.
 - **Important boundary:** Playwright uses controlled API fixtures. These results verify frontend interactions and request contracts; they do not prove real persistence, external provider configuration, or every role's permission boundary.
 - **Next audit slice:** add negative paths (save failure, unenroll failure, failed Undo), player note validation/navigation and admin authorization/mutation E2E tests; then start the responsive/accessibility evidence sweep.
+
+
+## Verification update — negative-path and note controls passed (2026-10-25)
+
+- **Commit:** `bb8463a9687410abe69821a26ba52c9e98398b57`.
+- **CI evidence:** [GitHub Actions run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) passed frontend and backend jobs; the browser job reported **57 Playwright tests passed**.
+- **Additional passing control IDs:** `LEARN-SAVE-FAILURE-001` (HTTP 503 reverts optimistic saved state and exposes a retryable error); `PLAYER-NOTE-SAVE-001` (blank/invalid timestamp is rejected, valid timestamped note persists through reload); `PLAYER-NOTE-DELETE-001` (delete and filter/sort controls); `ADM-COMMAND-PERMISSION-001` (role-inaccessible routes do not appear in command-palette search).
+- **Test-fix note:** an initial assertion expected a non-zero-padded timestamp; it was corrected to match the UI's documented `MM:SS` formatting, and the latest run passed.
+- **Boundary:** Playwright uses mocked API responses and browser local storage. This does not prove real database persistence, cross-device note sync, provider configuration, or production authorization for every mutation.
+- **Next priority:** player lesson navigation and quiz/practice-quiz flows, course purchase failure paths, and the admin high-risk mutation suite (PII, publish, pricing/trials, refunds, communications and delivery retry). Then capture responsive/accessibility evidence.

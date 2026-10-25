@@ -105,6 +105,7 @@ async function mockAppApi(page: Page, options: {
   learningEnrollments?: Array<Record<string, unknown>>;
   savedMutationFailure?: "save" | "remove";
   practiceQuizFailure?: boolean;
+  reviewMutationFailure?: boolean;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -231,6 +232,9 @@ async function mockAppApi(page: Page, options: {
       return json(route, { course });
     }
     if (pathname === `/api/reviews/courses/${courseId}`) {
+      if (route.request().method() === "POST" && options.reviewMutationFailure) {
+        return json(route, { message: "Review service is temporarily unavailable." }, 503);
+      }
       return json(route, { reviews: [], stats: { count: 0, average: 0, distribution: {} } });
     }
     if (pathname === "/api/ai/practice-quiz" && route.request().method() === "POST" && options.practiceQuizFailure) {
@@ -805,6 +809,24 @@ test.describe("learner control and state regression", () => {
     expect(mutations).toEqual(["DELETE", "POST"]);
   });
 
+  test("[DETAIL-REVIEW-FAILURE-001] failed review submission preserves input and permits retry", async ({ page }) => {
+    let submissions = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/reviews/courses/course-fixture") && request.method() === "POST") submissions += 1;
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true, hasPlanAccess: true, reviewMutationFailure: true });
+    await page.goto(baseURL + "/courses/course-fixture?tab=reviews");
+    await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
+    await page.getByRole("button", { name: "Rate 4 out of 5 stars" }).click();
+    const comment = page.getByLabel("Your comment (optional)");
+    await comment.fill("I want to keep this review if the service is temporarily down.");
+    await page.getByRole("button", { name: "Submit review", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("Review service is temporarily unavailable.");
+    await expect(comment).toHaveValue("I want to keep this review if the service is temporarily down.");
+    await expect(page.getByRole("button", { name: "Submit review", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Submit review", exact: true }).click();
+    await expect.poll(() => submissions).toBe(2);
+  });
   test("[DETAIL-REVIEW-SUBMIT-001] enrolled learners can submit a rating and comment", async ({ page }) => {
     let submittedReview: { rating?: number; comment?: string } | null = null;
     page.on("request", (request) => {

@@ -7,6 +7,7 @@ import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -456,6 +457,29 @@ function courseContentCountsStage() {
   };
 }
 
+async function getDiscoveryPricingPreview(level) {
+  const setting = await PlatformSetting.findOne({ key: "generated_course_pricing_policy" }).select("value").lean();
+  const policy = resolveGeneratedCoursePricingPolicy(setting?.value);
+  if (!policy.enabled || !policy.applyTo.includes("discovery") || policy.mode === "free") {
+    return { mode: "free", price: 0, currency: policy.currency || "INR" };
+  }
+  if (policy.mode === "fixed") {
+    const price = Math.round(Number(policy.fixedPrice) || 0);
+    return price > 0 ? { mode: "paid", price, currency: policy.currency || "INR" } : { mode: "free", price: 0, currency: policy.currency || "INR" };
+  }
+  if (policy.mode !== "level_bands") return { mode: "unknown", currency: policy.currency || "INR" };
+
+  const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
+  const band = policy.levelBands?.[normalizedLevel] || policy.levelBands?.Beginner;
+  if (!band) return { mode: "unknown", currency: policy.currency || "INR" };
+  const min = Math.max(20, Math.min(59, Math.round(Number(band.min) || 20)));
+  const max = Math.max(min, Math.min(59, Math.round(Number(band.max) || min)));
+  // Generated YouTube courses currently contain one module and no project lessons.
+  const base = Math.round((min + max) / 2);
+  const price = Math.min(max, Math.max(min, Math.round(base * 1.02)));
+  return { mode: price > 0 ? "paid" : "free", price, currency: policy.currency || "INR" };
+}
+
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
   const filter = { isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
@@ -502,6 +526,8 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
 
     try {
       curation = await curateNormalSearch(normalizedSearch, { category, level });
+      const pricingPreview = await getDiscoveryPricingPreview(level);
+      curation.resources = (curation.resources || []).map((resource) => ({ ...resource, pricingPreview }));
       youtubeError = String(curation?.meta?.youtubeError || "");
     } catch (error) {
       youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";

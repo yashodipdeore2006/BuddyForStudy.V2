@@ -224,30 +224,58 @@ export async function createSubscriptionOrder(req, res, next) {
     // Do not create another provider subscription when a previous checkout is
     // still pending. This also makes retries after a page refresh idempotent
     // instead of creating multiple billable subscriptions for the same user.
-    const pendingCheckout = await Payment.findOne({
+    const pendingCheckouts = await Payment.find({
       user: req.user.userId,
       provider: "razorpay",
       status: "pending",
-      "metadata.checkoutType": "subscription",
-      ...(conversionGrant ? { "metadata.trialConversionGrantId": String(conversionGrant._id) } : {})
-    }).select("_id providerOrderId plan").populate("plan", "name price currency billingInterval").lean();
-    if (pendingCheckout) {
-      if (pendingCheckout.providerOrderId && pendingCheckout.plan) {
+      "metadata.checkoutType": "subscription"
+    })
+      .sort({ createdAt: -1 })
+      .select("_id providerOrderId plan metadata")
+      .populate("plan", "name price currency billingInterval")
+      .lean();
+
+    const requestedConversionGrantId = conversionGrant ? String(conversionGrant._id) : "";
+    const matchingPendingCheckout = pendingCheckouts.find((candidate) => {
+      const candidatePlanId = String(candidate.plan?._id || candidate.plan || "");
+      const candidateGrantId = String(
+        candidate.metadata?.get
+          ? candidate.metadata.get("trialConversionGrantId") || ""
+          : candidate.metadata?.trialConversionGrantId || ""
+      );
+      return candidatePlanId === String(plan._id) && candidateGrantId === requestedConversionGrantId;
+    });
+
+    if (matchingPendingCheckout) {
+      if (matchingPendingCheckout.providerOrderId && matchingPendingCheckout.plan) {
         return success(res, {
-          subscriptionId: pendingCheckout.providerOrderId,
+          subscriptionId: matchingPendingCheckout.providerOrderId,
           keyId: razorpay.getPublicKey(),
           plan: {
-            id: pendingCheckout.plan._id,
-            name: pendingCheckout.plan.name,
-            price: pendingCheckout.plan.price,
-            currency: pendingCheckout.plan.currency,
-            billingInterval: pendingCheckout.plan.billingInterval
+            id: matchingPendingCheckout.plan._id,
+            name: matchingPendingCheckout.plan.name,
+            price: matchingPendingCheckout.plan.price,
+            currency: matchingPendingCheckout.plan.currency,
+            billingInterval: matchingPendingCheckout.plan.billingInterval
           }
         }, "Existing subscription checkout reused");
       }
-      return failure(res, "A subscription checkout is already pending. Contact support before starting another.", 409, {
-        paymentId: String(pendingCheckout._id)
+      return failure(res, "A subscription checkout for this plan is pending but its provider reference is incomplete. Contact support before retrying.", 409, {
+        paymentId: String(matchingPendingCheckout._id)
       });
+    }
+
+    if (pendingCheckouts.length) {
+      const pendingCheckout = pendingCheckouts[0];
+      return failure(
+        res,
+        "A subscription checkout for a different plan or trial conversion is already pending. Complete that checkout or contact support before starting another.",
+        409,
+        {
+          paymentId: String(pendingCheckout._id),
+          pendingPlanId: String(pendingCheckout.plan?._id || pendingCheckout.plan || "")
+        }
+      );
     }
 
     const intervalMap = { monthly: { period: "monthly", interval: 1 }, quarterly: { period: "monthly", interval: 3 }, yearly: { period: "yearly", interval: 1 } };

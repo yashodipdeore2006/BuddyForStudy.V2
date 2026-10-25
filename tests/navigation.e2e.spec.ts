@@ -104,6 +104,7 @@ async function mockAppApi(page: Page, options: {
   roadmapProgress?: Record<string, unknown> | null;
   learningEnrollments?: Array<Record<string, unknown>>;
   savedMutationFailure?: "save" | "remove";
+  practiceQuizFailure?: boolean;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -231,6 +232,9 @@ async function mockAppApi(page: Page, options: {
     }
     if (pathname === `/api/reviews/courses/${courseId}`) {
       return json(route, { reviews: [], stats: { count: 0, average: 0, distribution: {} } });
+    }
+    if (pathname === "/api/ai/practice-quiz" && route.request().method() === "POST" && options.practiceQuizFailure) {
+      return json(route, { message: "Practice quiz generation is temporarily unavailable." }, 503);
     }
     if (pathname === "/api/billing/plans") return json(route, { plans: [] });
     if (pathname === "/api/billing/entitlements") {
@@ -876,6 +880,45 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("Note removed.")).toBeVisible();
   });
 
+  test("[PLAYER-LESSON-NAV-001] previous and next follow curriculum order and update the canonical URL", async ({ page }) => {
+    const course = courseFixture("course-fixture", {
+      modules: [{
+        _id: "module-1",
+        title: "Module one",
+        lessons: [
+          { _id: "lesson-1", title: "Lesson one", type: "tutorial", description: "", duration: "5 min" },
+          { _id: "lesson-2", title: "Lesson two", type: "tutorial", description: "", duration: "7 min" },
+        ],
+      }],
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true, course });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-2$/);
+    await expect(page.getByRole("heading", { name: "Lesson two", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Previous", exact: true }).click();
+    await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-1$/);
+    await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
+  });
+
+  test("[PLAYER-PRACTICE-QUIZ-FAILURE-001] quiz generation failure is announced and can be retried", async ({ page }) => {
+    let attempts = 0;
+    page.on("request", (request) => {
+      if (request.url().includes("/api/ai/practice-quiz") && request.method() === "POST") attempts += 1;
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true, practiceQuizFailure: true });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await page.getByRole("tab", { name: "Quiz" }).click();
+    await expect(page.getByRole("alert")).toContainText("Practice quiz generation is temporarily unavailable.");
+    const retry = page.getByRole("button", { name: "Generate Practice Quiz" });
+    await expect(retry).toBeEnabled();
+    await retry.click();
+    await expect.poll(() => attempts).toBeGreaterThanOrEqual(2);
+    await expect(page.getByRole("alert")).toContainText("Practice quiz generation is temporarily unavailable.");
+  });
   test("[PLAYER-NOTES-FILTER-001] note filters and sort controls remain usable when there are no matching notes", async ({ page }) => {
     await mockAppApi(page, { authenticated: true, enrolled: true });
     await page.goto(baseURL + "/learn/course-fixture/lesson-1");

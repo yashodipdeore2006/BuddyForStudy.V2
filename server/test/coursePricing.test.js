@@ -166,3 +166,15 @@ test("comparison-price updates do not change the base price and must remain abov
   assert.throws(() => calculateNextPricing({ mode: "paid", price: 499 }, validatePricingOperation({ type: "set_compare_at", amount: 450 })), /greater than the base price/);
   assert.equal(calculateNextPricing({ mode: "paid", price: 499, compareAtPrice: 799 }, validatePricingOperation({ type: "set_compare_at", amount: 0 })).compareAtPrice, 0);
 });
+
+
+test("enrollment fails closed when course pricing is missing or invalid", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const enrollmentService = fs.readFileSync(path.join(here, "../src/services/enrollment.service.js"), "utf8");
+  assert.match(enrollmentService, /!\["free", "paid"\]\.includes\(course\.pricing\?\.mode\)/);
+  assert.match(enrollmentService, /getEffectiveCoursePrice\(course\.pricing\) === null/);
+  assert.match(enrollmentService, /error\.status = 409/);
+});

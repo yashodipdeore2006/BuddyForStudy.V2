@@ -83,14 +83,24 @@ export async function markRead(req, res, next) {
     }
 
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.notificationId, user: req.user.userId },
+      { _id: req.params.notificationId, user: req.user.userId, readAt: null },
       { $set: { readAt: new Date() } },
       { new: true }
     ).lean();
 
-    if (!notification) return failure(res, "Notification not found", 404);
+    if (notification) {
+      return success(res, { notification, wasUnread: true }, "Notification marked as read");
+    }
 
-    return success(res, { notification }, "Notification marked as read");
+    // Make retries and concurrent clicks idempotent: only the request that
+    // actually transitions unread -> read should decrement the client counter.
+    const existing = await Notification.findOne({
+      _id: req.params.notificationId,
+      user: req.user.userId
+    }).lean();
+    if (!existing) return failure(res, "Notification not found", 404);
+
+    return success(res, { notification: existing, wasUnread: false }, "Notification was already read");
   } catch (e) {
     next(e);
   }

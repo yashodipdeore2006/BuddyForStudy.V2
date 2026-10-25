@@ -1,5 +1,6 @@
 import { LearningRoadmap } from "../models/LearningRoadmap.js";
 import { generateModuleQuiz } from "./quiz.service.js";
+import { sanitizeLearningRoadmap } from "../utils/roadmapSecurity.js";
 
 function flattenLessons(course) {
   let order = 0;
@@ -15,7 +16,7 @@ function flattenLessons(course) {
 }
 
 function decorate(roadmap) {
-  const data = roadmap.toObject ? roadmap.toObject() : roadmap;
+  const data = sanitizeLearningRoadmap(roadmap);
   const total = data.lessons?.length || 0;
   const completed = data.completedLessonIds?.length || 0;
   return { ...data, progress: { completedCount: completed, totalLessons: total, percentage: total ? Math.round((completed / total) * 100) : 0 } };

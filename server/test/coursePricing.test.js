@@ -67,7 +67,7 @@ test("default generated pricing is consistent with the admin studio even before 
   assert.match(courseService, /function effectiveDiscoveryPricingPreview\(pricing = \{\}\)/);
   assert.match(courseService, /Saved prices win/);
   assert.match(courseService, /pricingPreview: existing \? effectiveDiscoveryPricingPreview\(existing\.pricing\) : configuredPreview/);
-  assert.match(courseService, /saleEnabled === true[\\s\\S]*salePrice < basePrice/);
+  assert.match(courseService, /saleEnabled === true[\s\S]*salePrice < basePrice/);
   assert.match(youtubeFallback, /formatResourcePrice\(resource\)/);
 });
 

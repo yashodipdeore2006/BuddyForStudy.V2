@@ -479,3 +479,13 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Browser tests passed:** Explore search/combined filters/clear, all three My Learning statuses with no per-course request fan-out, lesson completion duplicate guard, reviews empty state/refresh, and admin command palette keyboard event.
 - **Shared API improvement:** explicit `cache: "no-store"` now bypasses the five-second GET response cache and in-flight GET dedupe; Course Details uses it for both review-refresh controls. This makes the refresh action perform a fresh request rather than potentially display a cached response.
 - **Limits:** these are production-preview E2E tests with mocked APIs, not a live authenticated database/browser session. Staging/provider validation and full per-control coverage remain open.
+
+
+## Verification update — second learner control batch passed (2026-10-25)
+
+- **Commit:** `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`.
+- **CI evidence:** [GitHub Actions run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) passed frontend and backend jobs.
+- **Additional browser tests passed:** `LEARN-SAVE-001` (save/unsave mutation and pressed-state consistency), `LEARN-UNENROLL-001` and `LEARN-UNDO-001` (cancel has no side effect, DELETE removes card, POST through Undo restores it), and `DETAIL-REVIEW-SUBMIT-001` (rating/comment payload and success message).
+- **Verified control IDs now passing:** `EXP-SEARCH-001`, `LEARN-TABS-001`, `PLAYER-COMPLETE-001`, `DETAIL-REVIEWS-001`, `ADM-SHELL-SEARCH-001`, `LEARN-SAVE-001`, `LEARN-UNENROLL-001`, `LEARN-UNDO-001`, `DETAIL-REVIEW-SUBMIT-001`.
+- **Important boundary:** Playwright uses controlled API fixtures. These results verify frontend interactions and request contracts; they do not prove real persistence, external provider configuration, or every role's permission boundary.
+- **Next audit slice:** add negative paths (save failure, unenroll failure, failed Undo), player note validation/navigation and admin authorization/mutation E2E tests; then start the responsive/accessibility evidence sweep.

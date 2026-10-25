@@ -34,6 +34,7 @@ import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
+import { getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
 import {
   courseTimestampNotesKey,
   formatMediaTimestamp,
@@ -425,6 +426,10 @@ export default function CourseDetails() {
       return;
     }
     if (!courseId || !course) return;
+    if (course.pricing?.mode !== 'paid' || getEffectiveCoursePrice(course.pricing) === null) {
+      setError('Course pricing is unavailable or invalid. Checkout has been blocked to prevent a mismatched charge.');
+      return;
+    }
     setCheckoutLoading(true);
     setError(null);
     setCheckoutNotice(null);
@@ -481,6 +486,10 @@ export default function CourseDetails() {
   const handleEnroll = async (accessPreference?: "subscription" | "individual") => {
     if (!session) { navigate(routes.login(), { state: { from: { pathname: courseId ? routes.course(courseId) : routes.explore() } } }); return; }
     if (!course || !course.is_published) return;
+    if (getEffectiveCoursePrice(course.pricing) === null) {
+      setError('Course pricing is unavailable or invalid. Enrollment is paused until an administrator fixes it.');
+      return;
+    }
     if (course.pricing?.mode === 'paid' && !planCourseAccess) { await handleCheckout(); return; }
     setEnrolling(true); setError(null);
     try {
@@ -496,6 +505,10 @@ export default function CourseDetails() {
   };
 
   const handleSelectedPurchase = () => {
+    if (!course || getEffectiveCoursePrice(course.pricing) === null) {
+      setError('Course pricing is unavailable or invalid. Enrollment is paused until an administrator fixes it.');
+      return;
+    }
     // Respect the selected access route for free and paid courses.
     if (purchaseChoice === 'individual') {
       if (isPaidCourse) {
@@ -622,14 +635,14 @@ export default function CourseDetails() {
   const isEnrolled = enrollment?.status === 'active' || enrollment?.status === 'completed';
   const isSubscriptionEnrollment = (enrollment as (Enrollment & { accessSource?: string }) | null)?.accessSource === 'subscription';
   const isPaidCourse = course.pricing?.mode === 'paid';
+  const effectivePrice = getEffectiveCoursePrice(course.pricing);
+  const pricingAvailable = effectivePrice !== null;
+  const activeSale = hasValidActiveCourseSale(course.pricing);
   const enrollmentEnabled = (course as Course & { enrollmentEnabled?: boolean }).enrollmentEnabled !== false;
   const currency = course.pricing?.currency || 'INR';
   const basePrice = Math.max(0, Number(course.pricing?.price || 0));
-  const salePrice = course.pricing?.saleEnabled && Number(course.pricing?.salePrice || 0) > 0
-    ? Number(course.pricing?.salePrice)
-    : basePrice;
-  const compareAtPrice = Number(course.pricing?.compareAtPrice || 0);
-  const crossedPrice = compareAtPrice > salePrice ? compareAtPrice : (salePrice < basePrice ? basePrice : 0);
+  const salePrice = effectivePrice ?? basePrice;
+  const crossedPrice = getCourseCrossedOutPrice(course.pricing) ?? 0;
   const discountPercent = crossedPrice > salePrice && crossedPrice > 0
     ? Math.round(((crossedPrice - salePrice) / crossedPrice) * 100)
     : 0;
@@ -996,10 +1009,10 @@ export default function CourseDetails() {
           <div className="mx-auto flex max-w-7xl items-center gap-4">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-900">{course.title}</p>
-              <p className="text-xs text-slate-500">{isPaidCourse ? formatCoursePrice(purchaseChoice === 'individual' ? salePrice : Number(subscriptionPlans[0]?.price || 0), currency) : 'Free'}{course.cardMetadata?.qualityScore != null ? ' · ' + Math.round(course.cardMetadata.qualityScore) + '/100 curated' : ''}</p>
+              <p className="text-xs text-slate-500">{!pricingAvailable ? 'Price unavailable' : isPaidCourse ? formatCoursePrice(purchaseChoice === 'individual' ? salePrice : Number(subscriptionPlans[0]?.price || 0), currency) : 'Free'}{course.cardMetadata?.qualityScore != null ? ' · ' + Math.round(course.cardMetadata.qualityScore) + '/100 curated' : ''}</p>
             </div>
-            <button type="button" onClick={handleSelectedPurchase} disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled} className="btn-primary shrink-0 px-4 py-2 text-sm">
-              {enrolling || checkoutLoading ? 'Please wait…' : purchaseChoice === 'subscription' ? (planCourseAccess ? 'Continue with current plan' : isPaidCourse ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'View plans' : 'Sign in to view plans')) : isPaidCourse ? (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy') : (session ? 'Enroll free' : 'Sign in to enroll')}
+            <button type="button" onClick={handleSelectedPurchase} disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled || !pricingAvailable} className="btn-primary shrink-0 px-4 py-2 text-sm">
+              {!pricingAvailable ? 'Pricing unavailable' : enrolling || checkoutLoading ? 'Please wait…' : purchaseChoice === 'subscription' ? (planCourseAccess ? 'Continue with current plan' : isPaidCourse ? (session ? 'Subscribe' : 'Sign in to subscribe') : (session ? 'View plans' : 'Sign in to view plans')) : isPaidCourse ? (session ? 'Buy for ' + formatCoursePrice(salePrice, currency) : 'Sign in to buy') : (session ? 'Enroll free' : 'Sign in to enroll')}
             </button>
           </div>
         </div>
@@ -1253,8 +1266,8 @@ export default function CourseDetails() {
                     <input type="radio" name="purchase-choice" value="individual" checked={purchaseChoice === 'individual'} onChange={() => setPurchaseChoice('individual')} className="mt-1 h-4 w-4 accent-emerald-600" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm text-slate-600">{isPaidCourse ? 'Buy individual course' : 'Enroll individually'}</span>
-                      <span className="mt-0.5 block text-xl font-bold text-slate-950">{isPaidCourse ? formatCoursePrice(salePrice, currency) : 'Free'}</span>
-                      {isPaidCourse && crossedPrice > salePrice && <span className="ml-1 text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>}
+                      <span className="mt-0.5 block text-xl font-bold text-slate-950">{!pricingAvailable ? 'Price unavailable' : isPaidCourse ? formatCoursePrice(salePrice, currency) : 'Free'}</span>
+                      {activeSale && crossedPrice > salePrice && <span className="ml-1 text-sm text-slate-400 line-through">{formatCoursePrice(crossedPrice, currency)}</span>}
                       <span className="mt-1 block text-xs text-slate-500">{isPaidCourse ? 'One-time payment · full lifetime access' : 'No payment required · add this course to your learning library without a subscription.'}</span>
                       {isPaidCourse && discountPercent > 0 && <span className="mt-2 inline-flex w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Save {discountPercent}%</span>}
                     </span>
@@ -1288,8 +1301,8 @@ export default function CourseDetails() {
                 {isSubscriptionEnrollment && isPaidCourse && (
                   <div className="mt-4 rounded-xl border border-slate-200 p-3">
                     <p className="text-xs leading-5 text-slate-600">Prefer to keep access after your subscription ends?</p>
-                    <button type="button" onClick={() => void handleCheckout()} disabled={checkoutLoading || !enrollmentEnabled} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
-                      {checkoutLoading ? 'Opening checkout…' : 'Optional lifetime access · ' + formatCoursePrice(salePrice, currency)}
+                    <button type="button" onClick={() => void handleCheckout()} disabled={checkoutLoading || !enrollmentEnabled || !pricingAvailable} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                      {!pricingAvailable ? 'Pricing unavailable' : checkoutLoading ? 'Opening checkout…' : 'Optional lifetime access · ' + formatCoursePrice(salePrice, currency)}
                     </button>
                   </div>
                 )}
@@ -1298,10 +1311,10 @@ export default function CourseDetails() {
               <div>
                 <button
                   onClick={handleSelectedPurchase}
-                  disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled}
+                  disabled={enrolling || checkoutLoading || !course.is_published || !enrollmentEnabled || !pricingAvailable}
                   className={classNames("flex w-full items-center justify-center gap-2", isPaidCourse && purchaseChoice === 'individual' ? "btn-buy" : "btn-primary")}
                 >
-                  {enrolling || checkoutLoading ? (
+                  {!pricingAvailable ? 'Pricing unavailable' : enrolling || checkoutLoading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" />{checkoutLoading ? 'Processing checkout...' : 'Enrolling...'}</>
                   ) : purchaseChoice === 'subscription' && planCourseAccess ? (
                     session ? 'Continue with current plan' : 'Sign in to access course'
@@ -1379,7 +1392,7 @@ export default function CourseDetails() {
                   <h3 className="mt-2 line-clamp-2 font-semibold text-slate-950">{item.title}</h3>
                   {item.description && !/^(an ai-assembled|ai-selected|ai-generated|this course covers the following|a comprehensive curriculum designed)/i.test(item.description.trim()) && <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{item.description}</p>}
                   <div className="mt-4 flex items-center justify-between gap-3">
-                    <span className="font-bold text-slate-950">{item.pricing?.mode === 'paid' ? formatCoursePrice(Number(item.pricing.saleEnabled && item.pricing.salePrice != null ? item.pricing.salePrice : item.pricing.price), item.pricing.currency || 'INR') : 'Free'}</span>
+                    <span className="font-bold text-slate-950">{getEffectiveCoursePrice(item.pricing) === null ? 'Price unavailable' : item.pricing?.mode === 'free' ? 'Free' : formatCoursePrice(getEffectiveCoursePrice(item.pricing) ?? 0, item.pricing?.currency || 'INR')}</span>
                     <span className="inline-flex items-center gap-1 text-sm font-semibold text-violet-700">View course <ChevronRight className="h-4 w-4" /></span>
                   </div>
                 </div>

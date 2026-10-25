@@ -413,7 +413,7 @@ test.describe("administrator route and permission UX", () => {
     await page.getByRole("button", { name: "Approve & refund", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Approve and process refund" })).toBeVisible();
     await page.locator("#admin-confirm-text").fill("APPROVE REFUND");
-    await page.locator("#admin-confirm-reason").fill("Need refund"); 
+    await page.locator("#admin-confirm-reason").fill("Too short"); 
     await page.getByRole("button", { name: "Approve & refund", exact: true }).last().click();
     await expect(page.getByRole("alert")).toContainText("Enter a reason between 10 and 500 characters.");
     expect(refundMutations).toBe(0);

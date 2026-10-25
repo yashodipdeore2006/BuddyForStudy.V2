@@ -8,6 +8,7 @@ import { getEntitlement } from "./subscriptionEntitlement.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
 import { Progress } from "../models/Progress.js";
 import { deriveLearningStatus, LEARNING_STATUS } from "../utils/learningStatus.js";
+import { getEffectiveCoursePrice } from "../utils/coursePricing.js";
 
 async function notifyFreeCourseEnrollment(userId, course, enrollment) {
   if (course.pricing?.mode === "paid") return;
@@ -76,6 +77,20 @@ export async function enroll(userId, courseId, { isAdmin = false, accessPreferen
   }
 
   if (course.enrollmentEnabled === false) { const error = new Error("Enrollment is currently disabled for this course"); error.status = 403; throw error; }
+
+  // Fail closed for legacy or corrupted pricing. Treating an unknown mode as
+  // free would allow direct API enrollment to bypass the checkout flow.
+  if (!isAdmin && !["free", "paid"].includes(course.pricing?.mode)) {
+    const error = new Error("Course pricing is not configured correctly. Please contact support.");
+    error.status = 409;
+    throw error;
+  }
+  if (!isAdmin && course.pricing?.mode === "paid" && getEffectiveCoursePrice(course.pricing) === null) {
+    const error = new Error("Course price is invalid. Please contact support before enrolling.");
+    error.status = 409;
+    throw error;
+  }
+
   let paidPayment = null;
   let subscriptionAccess = false;
   if (course.pricing?.mode === "paid") {

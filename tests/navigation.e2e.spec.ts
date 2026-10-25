@@ -824,7 +824,7 @@ test.describe("learner control and state regression", () => {
       comment: "Clear explanations and useful practice.",
     });
   });
-\n});
+});
 
 test.describe("public platform pages and footer", () => {
   test("public pages render the marketing footer and their main content", async ({ page }) => {

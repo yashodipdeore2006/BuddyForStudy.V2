@@ -205,13 +205,15 @@ test("legacy admin course endpoints cannot publish directly or permanently delet
   assert.doesNotMatch(service, /Course\.findByIdAndUpdate\(courseId, input/);
 });
 
-test("admin roadmap listing uses bounded server-side pagination and reports page metadata", async () => {
+test("admin roadmap inventory unions saved plans and AI-generated courses with bounded server-side pagination", async () => {
   const controller = await read("../src/controllers/adminPro.controller.js");
   const roadmaps = controller.slice(controller.indexOf("export async function contentRoadmaps"), controller.indexOf("function collectCourseLinks"));
-  assert.match(roadmaps, /const page = Math\.max\(1,/);
-  assert.match(roadmaps, /const limit = Math\.min\(Math\.max\(/);
-  assert.match(roadmaps, /\.skip\(\(page - 1\) \* limit\)\.limit\(limit\)/);
-  assert.match(roadmaps, /pages: Math\.max\(1, Math\.ceil\(total \/ limit\)\)/);
+  assert.match(roadmaps, /const page = Math\\.max\\(Number\\.parseInt\\(String\\(req\\.query\\.page/);
+  assert.match(roadmaps, /const limit = Math\\.min\\(Math\\.max\\(Number\\.parseInt\\(String\\(req\\.query\\.limit/);
+  assert.match(roadmaps, /\\$unionWith/);
+  assert.match(roadmaps, /\\$facet/);
+  assert.match(roadmaps, /\\$skip: \\(page - 1\\) \\* limit/);
+  assert.match(roadmaps, /pages: Math\\.max\\(1, Math\\.ceil\\(total \\/ limit\\)\\)/);
 });
 
 test("missing AI quiz questions do not block course readiness and can be retried from the player", async () => {

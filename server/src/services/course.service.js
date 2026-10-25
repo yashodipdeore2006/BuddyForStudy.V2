@@ -485,6 +485,7 @@ async function getDiscoveryPricingPreview(level) {
   }
   if (policy.mode === "fixed") {
     const price = Math.round(Number(policy.fixedPrice) || 0);
+    if (price > 0 && (price < 20 || price > 59)) return effectiveDiscoveryPricingPreview(freePricing);
     return effectiveDiscoveryPricingPreview({ ...freePricing, mode: price > 0 ? "paid" : "free", price });
   }
 
@@ -494,6 +495,7 @@ async function getDiscoveryPricingPreview(level) {
     if (!band) return { mode: "unknown", currency };
     const min = Number(band.min), max = Number(band.max);
     if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return { mode: "unknown", currency };
+    if (min < 20 || max > 59) return effectiveDiscoveryPricingPreview(freePricing);
     const base = Math.round((min + max) / 2);
     // One module, no project lessons: this mirrors Course.js.
     const recommended = Math.min(max, Math.max(min, Math.round(base * 1.02)));

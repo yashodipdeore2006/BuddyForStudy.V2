@@ -49,3 +49,19 @@ test("promotional email unsubscribe tokens are signed, user-bound, and expiring"
 test("unsubscribe token creation rejects malformed user IDs", () => {
   assert.throws(() => createEmailUnsubscribeToken("not-an-object-id"), /valid user ID/i);
 });
+
+
+test("mark-read endpoint reports whether it performed the unread transition", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const controller = fs.readFileSync(path.join(here, "../src/controllers/notification.controller.js"), "utf8");
+  const userPage = fs.readFileSync(path.join(here, "../../src/pages/Notifications.tsx"), "utf8");
+  const adminPage = fs.readFileSync(path.join(here, "../../src/pages/admin/AdminNotifications.tsx"), "utf8");
+  assert.match(controller, /user: req\.user\.userId, readAt: null/);
+  assert.match(controller, /wasUnread: true/);
+  assert.match(controller, /wasUnread: false/);
+  assert.match(userPage, /if \(data\.wasUnread === true\) setUnreadCount/);
+  assert.match(adminPage, /if \(data\.wasUnread === true\) setUnreadCount/);
+});

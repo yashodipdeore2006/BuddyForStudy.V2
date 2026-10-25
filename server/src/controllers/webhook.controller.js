@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { Payment } from "../models/Payment.js";
+import { RefundRequest } from "../models/RefundRequest.js";
 import { TrialGrant } from "../models/TrialGrant.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { WebhookEvent } from "../models/WebhookEvent.js";
@@ -12,6 +13,7 @@ import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES, build
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
 import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, normalizeSubscriptionCharge, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
+import { getRemainingRefundableAmount, normalizeProcessedProviderRefund, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -259,6 +261,196 @@ async function recordSubscriptionCharge(subscription, paymentEntity, eventAt = n
   await notifySubscriptionCharge(payment, subscription.id, providerPaymentId);
 }
 
+async function alertRefundWebhookProblem({ providerRefundId = "", providerPaymentId = "", paymentId = "", reason = "" }) {
+  await notifyActiveAdmins({
+    title: "Razorpay refund requires reconciliation",
+    message: `A refund webhook could not be reconciled automatically. Refund: ${providerRefundId || "unknown"}, payment: ${providerPaymentId || "unknown"}. Review the provider record before changing local billing state.`,
+    type: "security",
+    link: "/admin/billing",
+    eventKey: `refund-webhook-reconcile:${providerRefundId || providerPaymentId || "unknown"}:${reason || "mismatch"}`,
+    requiredPermission: "refunds.manage",
+    severity: "critical",
+    emailSubject: "BuddyForStudy: refund webhook requires reconciliation",
+    metadata: { providerRefundId, providerPaymentId, paymentId, reason }
+  }).catch((alertError) => console.error("[notifications] refund webhook reconciliation alert failed", {
+    providerRefundId,
+    providerPaymentId,
+    message: String(alertError?.message || "Unknown error").slice(0, 200)
+  }));
+}
+
+async function recordProcessedRefund(providerRefund) {
+  const providerRefundId = String(providerRefund?.id || "").trim();
+  const providerPaymentId = String(providerRefund?.payment_id || "").trim();
+  const payment = providerPaymentId
+    ? await Payment.findOne({ provider: "razorpay", providerPaymentId })
+    : null;
+
+  if (!payment) {
+    console.error("[billing-webhook] refund references an unknown local payment", { providerRefundId, providerPaymentId });
+    await alertRefundWebhookProblem({ providerRefundId, providerPaymentId, reason: "payment-not-found" });
+    return;
+  }
+
+  const normalized = normalizeProcessedProviderRefund(providerRefund, payment);
+  if (!normalized.valid) {
+    console.error("[billing-webhook] ignored refund with mismatched provider details", {
+      providerRefundId,
+      providerPaymentId,
+      paymentId: String(payment._id),
+      reason: normalized.reason
+    });
+    await alertRefundWebhookProblem({
+      providerRefundId,
+      providerPaymentId,
+      paymentId: String(payment._id),
+      reason: normalized.reason
+    });
+    return;
+  }
+
+  let refund = await RefundRequest.findOne({ providerRefundId: normalized.providerRefundId });
+  if (refund && (
+    String(refund.payment || "") !== String(payment._id) ||
+    Math.round(Number(refund.amount) * 100) !== Math.round(normalized.amount * 100)
+  )) {
+    console.error("[billing-webhook] provider refund ID conflicts with local refund record", {
+      providerRefundId,
+      paymentId: String(payment._id),
+      refundRequestId: String(refund._id)
+    });
+    await alertRefundWebhookProblem({
+      providerRefundId,
+      providerPaymentId,
+      paymentId: String(payment._id),
+      reason: "local-refund-conflict"
+    });
+    return;
+  }
+
+  let createdOutsidePlatform = false;
+  if (!refund) {
+    // The event may arrive before the API call records its provider refund ID.
+    // Link a single active request only when both payment and amount agree.
+    refund = await RefundRequest.findOne({
+      payment: payment._id,
+      status: { $in: ["pending", "approved"] },
+      amount: normalized.amount,
+      providerRefundId: { $in: ["", null] }
+    }).sort({ createdAt: -1 });
+
+    if (refund) {
+      refund = await RefundRequest.findOneAndUpdate(
+        { _id: refund._id, payment: payment._id, amount: normalized.amount, providerRefundId: { $in: ["", null] } },
+        {
+          $set: {
+            status: "processed",
+            providerRefundId: normalized.providerRefundId,
+            processedAt: refund.processedAt || new Date(),
+            decisionReason: refund.decisionReason || "Confirmed by Razorpay refund.processed webhook."
+          },
+          $unset: { activePaymentKey: "" }
+        },
+        { new: true, runValidators: true }
+      );
+      if (!refund) {
+        refund = await RefundRequest.findOne({ providerRefundId: normalized.providerRefundId });
+      }
+    } else {
+      createdOutsidePlatform = true;
+      try {
+        refund = await RefundRequest.create({
+          user: payment.user,
+          payment: payment._id,
+          amount: normalized.amount,
+          reason: "Refund issued outside BuddyForStudy and confirmed by Razorpay.",
+          decisionReason: "Confirmed by Razorpay refund.processed webhook.",
+          providerRefundId: normalized.providerRefundId,
+          status: "processed",
+          processedAt: new Date()
+        });
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+        refund = await RefundRequest.findOne({ providerRefundId: normalized.providerRefundId });
+      }
+    }
+  } else if (refund.status !== "processed") {
+    refund = await RefundRequest.findOneAndUpdate(
+      { _id: refund._id, payment: payment._id, amount: normalized.amount },
+      {
+        $set: {
+          status: "processed",
+          providerRefundId: normalized.providerRefundId,
+          processedAt: refund.processedAt || new Date(),
+          decisionReason: refund.decisionReason || "Confirmed by Razorpay refund.processed webhook."
+        },
+        $unset: { activePaymentKey: "" }
+      },
+      { new: true, runValidators: true }
+    );
+  }
+
+  if (!refund || String(refund.payment || "") !== String(payment._id) ||
+      Number(refund.amount) !== normalized.amount ||
+      refund.providerRefundId !== normalized.providerRefundId) {
+    await alertRefundWebhookProblem({
+      providerRefundId,
+      providerPaymentId,
+      paymentId: String(payment._id),
+      reason: "refund-transition-conflict"
+    });
+    return;
+  }
+
+  const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount);
+  payment.status = paymentStatusForRemainingBalance(remainingAmount);
+  await payment.save();
+
+  await createNotificationEvent({
+    userId: String(refund.user),
+    title: "Your refund has been processed",
+    message: `Your refund of ${payment.currency || "INR"} ${refund.amount} has been processed. Your payment provider may take additional time to reflect the funds.`,
+    type: "billing",
+    link: "/billing",
+    eventKey: `refund-status:${refund._id}:processed`,
+    emailSubject: "Your BuddyForStudy refund has been processed",
+    metadata: {
+      refundId: String(refund._id),
+      paymentId: String(payment._id),
+      amount: String(refund.amount),
+      currency: payment.currency || "INR",
+      status: "processed"
+    },
+    templateKeys: { notification: "refund-status-in-app", email: "refund-status-email" }
+  }).catch((notificationError) => console.error("[notifications] processed refund notice failed", {
+    refundId: String(refund._id),
+    message: String(notificationError?.message || "Unknown notification error").slice(0, 200)
+  }));
+
+  if (createdOutsidePlatform) {
+    await notifyActiveAdmins({
+      title: "External refund reconciled",
+      message: `Razorpay confirmed a refund for local payment ${String(payment._id)} that was not tied to a BuddyForStudy refund request. The payment ledger has been reconciled.`,
+      type: "billing",
+      link: "/admin/billing",
+      eventKey: `external-refund-reconciled:${normalized.providerRefundId}`,
+      requiredPermission: "refunds.manage",
+      severity: "warning",
+      emailSubject: "BuddyForStudy: external refund reconciled",
+      metadata: {
+        refundId: String(refund._id),
+        providerRefundId: normalized.providerRefundId,
+        paymentId: String(payment._id),
+        amount: String(refund.amount),
+        currency: normalized.currency
+      }
+    }).catch((alertError) => console.error("[notifications] external refund reconciliation alert failed", {
+      refundId: String(refund._id),
+      message: String(alertError?.message || "Unknown notification error").slice(0, 200)
+    }));
+  }
+}
+
 export async function razorpayWebhook(req, res, next) {
   let claimedEventId = "";
   let claimToken = "";
@@ -428,6 +620,8 @@ export async function razorpayWebhook(req, res, next) {
           });
         }
       }
+    } else if (event.event === "refund.processed") {
+      await recordProcessedRefund(event?.payload?.refund?.entity);
     } else if (event.event === "payment.failed" && orderId) {
       const failedPayment = await Payment.findOneAndUpdate(
         { provider: "razorpay", providerOrderId: orderId, status: { $in: FAILED_PAYMENT_SOURCE_STATUSES } },

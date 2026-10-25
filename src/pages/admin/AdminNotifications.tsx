@@ -57,7 +57,7 @@ export default function AdminNotifications() {
       const data = await adminFetch("/api/notifications/" + encodeURIComponent(item._id) + "/read", { method: "PATCH" });
       const updated = data.notification as AdminNotification | undefined;
       setNotifications((items) => items.map((entry) => entry._id === item._id ? (updated || { ...entry, readAt: new Date().toISOString() }) : entry));
-      setUnreadCount((value) => Math.max(0, value - 1));
+      if (data.wasUnread === true) setUnreadCount((value) => Math.max(0, value - 1));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to mark notification as read."); }
   };
   const markAllRead = async () => {

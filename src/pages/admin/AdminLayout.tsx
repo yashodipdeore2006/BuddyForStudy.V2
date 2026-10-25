@@ -151,7 +151,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     } catch {
       // Preferences remain active for this session if storage is unavailable.
     }
-  }, [collapsed, theme]);
+  }, [collapsed, theme, userKey]);
 
   useEffect(() => {
     const onOnline = () => setOnline(true);

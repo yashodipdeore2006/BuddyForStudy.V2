@@ -34,6 +34,42 @@ const navModule = loadTs("src/lib/courseNav.ts", { "./routes": routeModule });
 const { routes, resolveNotificationRoute } = routeModule;
 const { getCourseNavTargets } = navModule;
 const notesModule = loadTs("src/lib/courseNotes.ts");
+const coursePricingModule = loadTs("src/lib/coursePricing.ts");
+
+
+test("all course surfaces use a safe effective price and only show valid sale prices", () => {
+  const { getEffectiveCoursePrice, getCourseCrossedOutPrice, hasValidActiveCourseSale } = coursePricingModule;
+  assert.equal(getEffectiveCoursePrice({ mode: "free", price: 0 }), 0);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20 }), 20);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), 35);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 40 }), 35);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 0 }), null);
+  assert.equal(getEffectiveCoursePrice(undefined), null);
+  assert.equal(hasValidActiveCourseSale({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20 }), true);
+  assert.equal(hasValidActiveCourseSale({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), false);
+  assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0, compareAtPrice: 50 }), null);
+  assert.equal(getCourseCrossedOutPrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20, compareAtPrice: 50 }), 50);
+
+  const card = fs.readFileSync(path.join(root, "src/components/CourseCard.tsx"), "utf8");
+  const myLearning = fs.readFileSync(path.join(root, "src/pages/MyCourses.tsx"), "utf8");
+  const details = fs.readFileSync(path.join(root, "src/pages/CourseDetails.tsx"), "utf8");
+  assert.match(card, /getEffectiveCoursePrice\(course\.pricing\)/);
+  assert.match(myLearning, /getEffectiveCoursePrice\(course\.pricing\)/);
+  assert.match(details, /getEffectiveCoursePrice\(course\.pricing\)/);
+  assert.match(details, /Checkout has been blocked to prevent a mismatched charge/);
+});
+
+test("course navigation stays in the same tab while external links open a new tab", () => {
+  const card = fs.readFileSync(path.join(root, "src/components/CourseCard.tsx"), "utf8");
+  const youtubeDiscovery = fs.readFileSync(path.join(root, "src/components/YouTubeSearchFallback.tsx"), "utf8");
+  const details = fs.readFileSync(path.join(root, "src/pages/CourseDetails.tsx"), "utf8");
+  const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
+  assert.match(card, /to=\{navTargets\.cardHref\}/);
+  assert.doesNotMatch(card, /target="_blank"/);
+  assert.ok(youtubeDiscovery.includes("navigate(" + "\u0060" + "/courses/${courseId}" + "\u0060" + ")"));
+  assert.match(details, /target="_blank" rel="noreferrer"/);
+  assert.match(player, /target="_blank"/);
+});
 
 test("route helpers encode ids and reject missing identifiers", () => {
   assert.equal(routes.course("abc/123"), "/courses/abc%2F123");

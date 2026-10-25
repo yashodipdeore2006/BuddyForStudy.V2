@@ -992,7 +992,7 @@ test.describe("admin responsive viewport regressions", () => {
       await page.setViewportSize({ width, height: 900 });
       for (const path of routes) {
         await page.goto(baseURL + path);
-        await expect(page.locator("main")).toBeVisible();
+        await expect(page.locator("main.admin-main")).toBeVisible();
         const dimensions = await page.evaluate(() => ({
           viewport: document.documentElement.clientWidth,
           document: document.documentElement.scrollWidth,

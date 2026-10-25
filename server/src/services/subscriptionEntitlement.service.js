@@ -83,6 +83,50 @@ export function isCourseAccessAllowed({ isPaidCourse, planEntitled, hasIndividua
   return Boolean(planEntitled || hasIndividualAccess);
 }
 
+export function isEnrollmentCourseAccessAllowed({
+  enrollment,
+  course,
+  userId,
+  planEntitled = false,
+  hasIndividualPayment = false
+}) {
+  if (!course || course.deletedAt || course.status === "archived") return false;
+  const generated = ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
+  const explicitlyBlocked = ["pending", "rejected"].includes(course.aiReviewStatus);
+  const approvedGenerated = course.aiReviewStatus === "approved" &&
+    (Boolean(course.aiReviewedBy) || course.aiReviewSource === "automatic");
+
+  if (course.visibility === "private") {
+    return Boolean(
+      enrollment &&
+      String(course.createdForUser || "") === String(userId) &&
+      course.aiReviewStatus === "approved" &&
+      (!generated || approvedGenerated)
+    );
+  }
+  if (explicitlyBlocked) return false;
+  if (generated && !approvedGenerated && !enrollment) return false;
+
+  // Admin grants are explicit per-user exceptions.
+  if (enrollment?.accessSource === "admin") return true;
+
+  // Unknown/corrupt pricing must not make an existing enrollment a free-access bypass.
+  if (!["free", "paid"].includes(course.pricing?.mode)) return false;
+
+  if (course.pricing.mode === "paid") {
+    // Active plans that include published courses grant access to paid course
+    // content as well as individual purchases; individual payments survive plan expiry.
+    return Boolean(enrollment && (planEntitled || hasIndividualPayment));
+  }
+  if (enrollment) {
+    // Subscription-origin free-course enrollments expire with the entitlement.
+    // Learners may deliberately convert them to standalone access via enroll().
+    return enrollment.accessSource === "subscription" ? Boolean(planEntitled) : true;
+  }
+  if (!course.isPublished) return false;
+  return Boolean(planEntitled);
+}
+
 export async function canAccessCourse(userId, courseId) {
   const enrollment = await Enrollment.findOne({
     user: userId,
@@ -104,38 +148,34 @@ export async function canAccessCourse(userId, courseId) {
   }
 
   const course = await Course.findOne(courseFilter)
-    .select("pricing.mode visibility createdForUser isPublished generation.mode aiReviewStatus aiReviewSource aiReviewedBy")
+    .select("pricing.mode visibility createdForUser isPublished deletedAt status generation.mode aiReviewStatus aiReviewSource aiReviewedBy")
     .lean();
   if (!course) return false;
 
-  const generated = ["normal", "ai", "module", "discovery"].includes(course.generation?.mode);
-  const explicitlyBlocked = ["pending", "rejected"].includes(course.aiReviewStatus);
-  const approvedGenerated = course.aiReviewStatus === "approved" &&
-    (Boolean(course.aiReviewedBy) || course.aiReviewSource === "automatic");
+  const needsPlanEntitlement = Boolean(
+    course.pricing?.mode === "paid" ||
+    enrollment?.accessSource === "subscription" ||
+    !enrollment
+  );
+  const [entitlement, payment] = await Promise.all([
+    needsPlanEntitlement ? getEntitlement(userId, "published_courses") : Promise.resolve(null),
+    enrollment && enrollment.accessSource !== "admin" && course.pricing?.mode === "paid"
+      ? Payment.exists({
+          user: userId,
+          course: courseId,
+          provider: "razorpay",
+          status: { $in: ["paid", "partially_refunded"] }
+        })
+      : Promise.resolve(false)
+  ]);
 
-  if (course.visibility === "private") {
-    return Boolean(
-      enrollment &&
-      String(course.createdForUser || "") === String(userId) &&
-      course.aiReviewStatus === "approved" &&
-      (!generated || approvedGenerated)
-    );
-  }
-
-  if (explicitlyBlocked) return false;
-
-  // A previously granted enrollment remains useful if a public course is
-  // later unlisted. New learners still need publication and approval below.
-  if (generated && !approvedGenerated && !enrollment) return false;
-
-  if (course.pricing?.mode === "paid") {
-    return await hasPaidCourseAccess(userId, courseId);
-  }
-  if (enrollment) return true;
-  if (!course.isPublished) return false;
-
-  const entitlement = await getEntitlement(userId, "published_courses");
-  return Boolean(entitlement.allowed);
+  return isEnrollmentCourseAccessAllowed({
+    enrollment,
+    course,
+    userId,
+    planEntitled: Boolean(entitlement?.allowed),
+    hasIndividualPayment: Boolean(payment)
+  });
 }
 
 export function readPlanLimit(plan, key, fallback = -1) {

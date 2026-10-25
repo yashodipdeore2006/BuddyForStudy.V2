@@ -1155,7 +1155,7 @@ export default function CoursePlayer() {
                                     key={"resource-" + (resource.url || resource.title || "item") + "-" + resourceIndex}
                                     href={resource.url}
                                     target="_blank"
-                                    rel="noreferrer"
+                                    rel="noopener noreferrer"
                                     className="block rounded-xl border border-slate-100 px-4 py-3 text-sm font-semibold text-blue-600 transition hover:border-blue-100 hover:bg-blue-50"
                                   >
                                     {resource.title || resource.url}
@@ -1435,7 +1435,7 @@ export default function CoursePlayer() {
                             key={resource.id}
                             href={resource.url}
                             target="_blank"
-                            rel="noreferrer"
+                            rel="noopener noreferrer"
                             className="flex items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
                           >
                             <Icon className="h-3.5 w-3.5 shrink-0" />

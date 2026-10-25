@@ -491,9 +491,8 @@ test.describe("canonical learner navigation", () => {
     await expect(proCard.getByText("AI quiz generations", { exact: true })).toBeVisible();
     await expect(premiumCard.getByText("AI course builds", { exact: true })).toBeVisible();
     await expect(premiumCard.getByText("20 / month", { exact: true })).toBeVisible();
-    await expect(freeCard.getByText("Not included", { exact: true })).toHaveCount(3);
-
     const freeCard = dialog.getByRole("button", { name: "Select Free plan" });
+    await expect(freeCard.getByText("Not included", { exact: true })).toHaveCount(3);
     await expect(freeCard.getByText("forever", { exact: true })).toBeVisible();
   });
 

@@ -45,27 +45,29 @@ test("subscription order creation reuses an existing pending provider checkout",
       findOne: async () => null,
     }],
     [Payment, {
-      findOne: () => ({
-        select() {
-          return {
-            populate() {
-              return {
-                lean: async () => ({
-              _id: "507f1f77bcf86cd799439011",
-              providerOrderId: "sub_pending_123",
-              plan: {
-                _id: "507f1f77bcf86cd799439012",
-                name: "Pro",
-                price: 199,
-                currency: "INR",
-                billingInterval: "monthly",
-              },
-                }),
-              };
-            },
-          };
-        },
-      }),
+      find: () => {
+        const query = {
+          sort() { return query; },
+          select() { return query; },
+          populate() {
+            return {
+              lean: async () => [{
+                _id: "507f1f77bcf86cd799439011",
+                providerOrderId: "sub_pending_123",
+                metadata: { checkoutType: "subscription" },
+                plan: {
+                  _id: "507f1f77bcf86cd799439012",
+                  name: "Pro",
+                  price: 199,
+                  currency: "INR",
+                  billingInterval: "monthly",
+                },
+              }],
+            };
+          },
+        };
+        return query;
+      },
     }],
   ], async () => {
     const res = makeResponse();
@@ -80,5 +82,60 @@ test("subscription order creation reuses an existing pending provider checkout",
     assert.equal(res.result.body.subscriptionId, "sub_pending_123");
     assert.equal(res.result.body.plan.name, "Pro");
     assert.equal(res.result.body.plan.price, 199);
+  });
+});
+
+
+test("subscription order creation refuses to reuse a pending checkout for a different plan", async () => {
+  await withMocks([
+    [SubscriptionPlan, {
+      findOne: async () => ({
+        _id: "507f1f77bcf86cd799439012",
+        name: "Premium",
+        price: 499,
+        currency: "INR",
+        billingInterval: "monthly",
+        providerPlanId: "plan_premium",
+      }),
+    }],
+    [UserSubscription, {
+      findOne: async () => null,
+    }],
+    [Payment, {
+      find: () => {
+        const query = {
+          sort() { return query; },
+          select() { return query; },
+          populate() {
+            return {
+              lean: async () => [{
+                _id: "507f1f77bcf86cd799439011",
+                providerOrderId: "sub_pending_pro",
+                metadata: { checkoutType: "subscription" },
+                plan: {
+                  _id: "507f1f77bcf86cd799439014",
+                  name: "Pro",
+                  price: 199,
+                  currency: "INR",
+                  billingInterval: "monthly",
+                },
+              }],
+            };
+          },
+        };
+        return query;
+      },
+    }],
+  ], async () => {
+    const res = makeResponse();
+    await createSubscriptionOrder({
+      body: { planId: "507f1f77bcf86cd799439012" },
+      user: { userId: "507f1f77bcf86cd799439013" },
+    }, res, (error) => assert.fail(error));
+
+    assert.equal(res.result.statusCode, 409);
+    assert.equal(res.result.body.success, false);
+    assert.match(res.result.body.message, /different plan or trial conversion/i);
+    assert.equal(res.result.body.errors?.pendingPlanId, "507f1f77bcf86cd799439014");
   });
 });

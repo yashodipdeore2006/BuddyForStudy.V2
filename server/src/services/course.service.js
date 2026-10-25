@@ -545,12 +545,20 @@ async function getDiscoveryPricingPreviews(resources, level) {
     String(course.generation?.sourceResourceType || "") + ":" + String(course.generation?.sourceResourceId || ""),
     course
   ]));
+  const enrollmentCounts = existingCourses.length ? await Enrollment.aggregate([
+    { $match: { course: { $in: existingCourses.map((course) => course._id) }, status: { $in: ["active", "completed"] } } },
+    { $group: { _id: "$course", count: { $sum: 1 } } }
+  ]) : [];
+  const learnersByCourseId = new Map(enrollmentCounts.map((row) => [String(row._id), Number(row.count) || 0]));
   const configuredPreview = await getDiscoveryPricingPreview(level);
+  const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
   return items.map((resource) => {
     const key = String(resource?.sourceType || "") + ":" + String(resource?.sourceId || "");
     const existing = existingByKey.get(key);
     return {
       ...resource,
+      learningLevel: existing?.level || normalizedLevel,
+      learnerCount: existing ? (learnersByCourseId.get(String(existing._id)) || 0) : 0,
       // Saved prices win: reusing an existing resource must never display a
       // policy estimate that differs from the persisted course/checkout price.
       pricingPreview: existing ? effectiveDiscoveryPricingPreview(existing.pricing) : configuredPreview

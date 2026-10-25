@@ -377,6 +377,42 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-BILLING-REFUND-PERMISSION-001] billing readers cannot make refund decisions", async ({ page }) => {
+    let refundMutations = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.startsWith("/api/admin/refunds/") && request.method() === "PUT") refundMutations += 1;
+    });
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "billing_auditor",
+      roleLabel: "Billing Auditor",
+      permissions: ["dashboard.read", "billing.read"],
+    });
+    await page.route("**/api/admin/refunds?*", async (route) => json(route, {
+      refunds: [{
+        _id: "refund-pending-fixture",
+        user: { name: "Refund learner fixture", email: "r***@example.test" },
+        payment: { _id: "payment-fixture", amount: 499, currency: "INR", status: "paid", course: { title: "Course fixture" } },
+        amount: 499,
+        reason: "Charged twice for the same course.",
+        status: "pending",
+        createdAt: "2026-10-24T10:00:00.000Z",
+        sla: { dueAt: "2026-10-26T10:00:00.000Z", breached: false, hoursRemaining: 24 },
+      }],
+      pages: 1,
+      total: 1,
+      summary: { pending: 1, approved: 0, rejected: 0, processed: 0 },
+    }));
+    await page.goto(baseURL + "/admin/billing");
+    await expect(page.getByRole("heading", { name: "Billing and refunds" })).toBeVisible();
+    await expect(page.getByText("Refund learner fixture")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve & refund", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Reject", exact: true })).toHaveCount(0);
+    await expect(page.getByText("Charged twice for the same course.")).toBeVisible();
+    expect(refundMutations).toBe(0);
+  });
+
   test("[ADM-COURSE-PUBLISH-READINESS-001] course cannot be published when readiness checks fail", async ({ page }) => {
     let publishRequests = 0;
     page.on("request", (request) => {

@@ -85,9 +85,11 @@ test("first quiz submission completes the quiz lesson and sidebar completion cir
   const submitEnd = player.indexOf("\n\n\n  if (loading)", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "Expected lesson quiz submit handler");
   const submit = player.slice(submitStart, submitEnd);
-  assert.match(submit, /const passed = score >=/);
-  assert.match(submit, /if \(currentCompleted\) return/);
-  assert.doesNotMatch(submit, /if \(!passed \|\| currentCompleted\) return/);
+  assert.match(submit, /setQuizPassed\(Boolean\(graded\.passed\)\)/);
+  assert.match(submit, /if \(!currentCompleted\)/);
+  assert.doesNotMatch(submit, /const passed = score/);
+  assert.match(submit, /\/api\/ai\/quiz\/submit/);
+  assert.match(submit, /\/api\/ai\/practice-quiz\/submit/);
   assert.match(submit, /\/api\/progress\/\$\{courseId\}\/items\/\$\{lessonId\}\/complete/);
   assert.match(player, /method = wasCompleted \? "DELETE" : "POST"/);
   assert.match(player, /onClick=\{\(\) => void handleToggleLessonCompletion\(lesson\.id\)\}/);

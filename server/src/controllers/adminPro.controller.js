@@ -1914,7 +1914,7 @@ export async function payments(req, res, next) {
       ];
       if (isValidObjectId(q)) filter.$or.push({ _id: new mongoose.Types.ObjectId(q) });
     }
-    const [items, total, totalPayments, paidValue] = await Promise.all([
+    const [items, total, totalPayments, paidValues] = await Promise.all([
       Payment.find(filter)
         .populate("user", "name email")
         .populate("course", "title")
@@ -1924,7 +1924,13 @@ export async function payments(req, res, next) {
       Payment.countDocuments({}),
       Payment.aggregate([
         { $match: { status: { $in: ["paid", "partially_refunded"] } } },
-        { $group: { _id: null, total: { $sum: "$amount" } } }
+        {
+          $group: {
+            _id: { $toUpper: { $ifNull: ["$currency", "INR"] } },
+            total: { $sum: "$amount" }
+          }
+        },
+        { $sort: { _id: 1 } }
       ])
     ]);
     return success(res, {
@@ -1933,7 +1939,12 @@ export async function payments(req, res, next) {
       page,
       pages: Math.max(1, Math.ceil(total / limit)),
       limit,
-      summary: { totalPayments, paidTotal: Number(paidValue[0]?.total || 0) }
+      summary: {
+        totalPayments,
+        paidTotalsByCurrency: Object.fromEntries(paidValues.map((item) => [item._id, Number(item.total || 0)])),
+        // Keep the legacy field INR-only so it can never represent a mixed-currency sum.
+        paidTotal: Number(paidValues.find((item) => item._id === "INR")?.total || 0)
+      }
     });
   } catch (e) { next(e); }
 }

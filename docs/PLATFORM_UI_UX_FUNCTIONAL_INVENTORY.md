@@ -535,3 +535,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Additional passing control ID:** `ADM-BILLING-REFUND-PERMISSION-001` verifies that an admin with billing read access but without `refunds.manage` can view a pending refund and the displayed reason, but cannot see approve/reject controls. The test records that no refund PUT mutation occurred.
 - **Boundary:** this is a frontend/route-contract test using mocked admin APIs. The backend must continue enforcing the permission independently; this does not prove real refund-provider behavior or end-to-end authorization against a production database.
 - **Next:** expand negative-path billing mutations for authorized finance roles, then exercise pricing/trial/communications/delivery workflows and perform the responsive/accessibility sweep. Staging and external-provider verification remain open.
+
+
+## Verification update — refund decision validation and failure recovery passed (2026-10-25)
+
+- **Verified commit:** `4cbc8739e94424bc2385fa45276faddf2ac75ca1`.
+- **CI evidence:** [GitHub Actions run #40175485965](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175485965) passed frontend and backend jobs; the browser suite reported **64 Playwright tests passed**.
+- **Additional passing control ID:** `ADM-BILLING-REFUND-FAILURE-001` verifies that a too-short finance decision reason is rejected before any refund mutation; when the refund endpoint returns HTTP 503, the UI preserves the typed confirmation/reason, announces the service error and allows retry.
+- **Boundary:** this confirms the frontend interaction against mocked API responses only. It does not exercise a real payment provider or independently prove backend permission, ledger/idempotency, or audit persistence.
+- **Next:** add delivery-retry recovery coverage and continue high-risk mutation tests; responsive/accessibility and live staging validation remain open.

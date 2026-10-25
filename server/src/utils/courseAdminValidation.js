@@ -61,8 +61,12 @@ export function validateCourseAdminPatch(body = {}) {
       const price = hasOwn(pricing, "price") ? Number(pricing.price) : undefined;
       const compareAtPrice = hasOwn(pricing, "compareAtPrice") ? Number(pricing.compareAtPrice) : undefined;
       const salePrice = hasOwn(pricing, "salePrice") ? Number(pricing.salePrice) : undefined;
+      const saleEnabled = pricing.saleEnabled === true;
       if (price !== undefined && compareAtPrice !== undefined && Number.isFinite(price) && Number.isFinite(compareAtPrice) && compareAtPrice > 0 && compareAtPrice < price) {
         errors.push({ field: "pricing.compareAtPrice", message: "Compare-at price must be greater than or equal to the base price" });
+      }
+      if (saleEnabled && salePrice !== undefined && Number.isFinite(salePrice) && salePrice <= 0) {
+        errors.push({ field: "pricing.salePrice", message: "An active sale price must be greater than zero" });
       }
       if (price !== undefined && salePrice !== undefined && Number.isFinite(price) && Number.isFinite(salePrice) && salePrice > 0 && salePrice >= price) {
         errors.push({ field: "pricing.salePrice", message: "Sale price must be lower than the base price" });

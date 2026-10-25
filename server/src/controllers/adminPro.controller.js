@@ -2099,9 +2099,47 @@ export async function updateRefund(req, res, next) {
         throw providerError;
       }
 
+      // Never trust a provider status alone: reconcile the exact refund ID,
+      // original payment ID, requested amount, and currency before committing
+      // a processed refund or changing the payment's derived status.
+      const responseRefundId = String(providerRefund?.id || "");
+      if (!matchesProviderRefund({
+        providerRefund,
+        providerRefundId: responseRefundId,
+        paymentId: payment.providerPaymentId,
+        amount: refund.amount,
+        currency: payment.currency || "INR"
+      })) {
+        refund.providerRefundId = responseRefundId;
+        refund.adminNote = [
+          refund.adminNote,
+          "Razorpay returned a refund response that did not match the payment, amount, and currency. Reconcile the provider record before retrying."
+        ].filter(Boolean).join("\n").slice(0, 2000);
+        await refund.save();
+        await audit(req, "refund.provider_response_mismatch", "RefundRequest", refund._id, before, {
+          status: refund.status,
+          providerRefundId: responseRefundId,
+          hasAdminNote: Boolean(refund.adminNote)
+        }, reason);
+        await notifyActiveAdmins({
+          title: "Refund response requires reconciliation",
+          message: `Razorpay returned a refund response that did not match the local payment record for refund ${String(refund._id)}. No payment status was changed; reconcile with the provider.`,
+          type: "security",
+          link: "/admin/billing",
+          eventKey: `refund-provider-response-mismatch:${refund._id}`,
+          requiredPermission: "refunds.manage",
+          severity: "critical",
+          emailSubject: "BuddyForStudy: refund response mismatch",
+          metadata: { refundId: String(refund._id), paymentId: String(payment._id), providerRefundId: responseRefundId }
+        }).catch((alertError) => console.error("[notifications] refund response mismatch alert failed", {
+          refundId: String(refund._id), message: String(alertError?.message || "Unknown error").slice(0, 200)
+        }));
+        return failure(res, "Razorpay refund response did not match the payment, amount, and currency. The refund is on hold for reconciliation; payment status was not changed.", 409);
+      }
+
       const providerStatus = String(providerRefund?.status || "").toLowerCase();
       const providerOutcome = classifyProviderRefundStatus(providerStatus);
-      refund.providerRefundId = String(providerRefund?.id || "");
+      refund.providerRefundId = responseRefundId;
       if (providerOutcome === "processed") {
         refund.status = "processed";
         refund.set("activePaymentKey", undefined);

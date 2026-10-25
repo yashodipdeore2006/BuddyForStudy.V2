@@ -341,8 +341,43 @@ export function getOne(userId, enrollmentId) {
   return Enrollment.findOne({ _id: enrollmentId, user: userId }).populate({ path: "course", select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled certificateEnabled featured" });
 }
 
-export function getForCourse(userId, courseId) {
-  return Enrollment.findOne({ user: userId, course: courseId }).populate({ path: "course", select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled certificateEnabled featured" });
+export async function getForCourse(userId, courseId) {
+  const enrollment = await Enrollment.findOne({
+    user: userId,
+    course: courseId,
+    status: { $in: ["active", "completed"] },
+    revokedBy: null
+  }).populate({
+    path: "course",
+    select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled certificateEnabled featured visibility createdForUser status deletedAt generation.mode aiReviewStatus aiReviewSource aiReviewedBy"
+  });
+  if (!enrollment?.course) return null;
+
+  const course = enrollment.course;
+  const needsPlanEntitlement = course.pricing?.mode === "paid" || enrollment.accessSource === "subscription";
+  const [payment, entitlement] = await Promise.all([
+    course.pricing?.mode === "paid" && enrollment.accessSource !== "admin"
+      ? Payment.exists({
+          user: userId,
+          course: course._id,
+          provider: "razorpay",
+          status: { $in: ["paid", "partially_refunded"] }
+        })
+      : Promise.resolve(false),
+    needsPlanEntitlement
+      ? getEntitlement(userId, "published_courses")
+      : Promise.resolve(null)
+  ]);
+
+  if (!isEnrollmentCourseAccessAllowed({
+    enrollment,
+    course,
+    userId,
+    planEntitled: Boolean(entitlement?.allowed),
+    hasIndividualPayment: Boolean(payment)
+  })) return null;
+
+  return enrollment;
 }
 
 export async function cancel(userId, courseId) {

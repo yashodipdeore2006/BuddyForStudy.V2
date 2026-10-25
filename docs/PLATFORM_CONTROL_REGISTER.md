@@ -88,9 +88,10 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
 | PLAYER-COMPLETE-001 | Mark complete | One POST to the lesson completion endpoint; progress updates; button becomes disabled Completed; duplicate write prevented | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
-| PLAYER-LESSON-NAV-001 | Previous/Next/sidebar lesson selection | Uses curriculum order and canonical routes; invalid lesson ID has a safe fallback | Unit/source coverage exists; dedicated E2E pending |
+| PLAYER-LESSON-NAV-001 | Previous/Next/sidebar lesson selection | Uses curriculum order and canonical routes; invalid lesson ID has a safe fallback | Automated pass on `841281740a1b5b97936d01b7392d5bc70a29e412`; [CI run #40173489346](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173489346) (two-lesson Prev/Next route test) |
 | PLAYER-QUIZ-001 | Generate/retry quiz | Pending state guards duplicate attempts; empty/provider failure has recovery | Backend AI tests exist; browser test pending |
 | PLAYER-PRACTICE-QUIZ-001 | Answer, check and reattempt practice quiz | Requires an answer per question; submitted state and score/explanation are clear | Browser test pending |
+| PLAYER-PRACTICE-QUIZ-FAILURE-001 | Generate practice quiz when provider/API fails | Announces failure and keeps a retry path available; retry issues a new request | Automated pass on `841281740a1b5b97936d01b7392d5bc70a29e412`; [CI run #40173489346](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173489346) |
 | PLAYER-NOTE-SAVE-001 | Timestamp, text, formatting, save/clear note | Invalid timestamp or blank note blocked; success visible; storage errors surfaced | Automated pass on `bb8463a9687410abe69821a26ba52c9e98398b57`; [CI run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) |
 | PLAYER-NOTE-DELETE-001 | Delete note or jump to timestamp | Only selected note removed; jump opens correct lesson/second and is keyboard operable | Same-lesson delete/persistence and filter/sort automated; cross-lesson jump pending; [CI run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) |
 | PLAYER-NOTE-DELETE-001 | Delete note or jump to timestamp | Only selected note removed; jump opens correct lesson/second and is keyboard operable | Browser test pending |
@@ -138,7 +139,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Confirm CI pass for the first control-level browser batch and fix initial selector/cache issues (run #40172529048).
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
-- [ ] Add Player lesson navigation, quiz and practice quiz browser tests; timestamped note validation/persistence/delete/filter tests now pass CI.
+- [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
 - [ ] Add admin UI mutation tests for PII, publish, pricing/trials, refunds, communications and delivery retry; permission-filtered command palette test now passes CI.
 - [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
@@ -171,3 +172,10 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - Added `PLAYER-NOTE-SAVE-001` and extended `PLAYER-NOTE-DELETE-001`: blank/invalid timestamp validation, valid timestamped note save, browser-storage persistence across reload, deletion and note filter/sort controls.
 - Added `ADM-COMMAND-PERMISSION-001`: current role must not see inaccessible Users routes in the admin command palette.
 - CI passed on commit `bb8463a9687410abe69821a26ba52c9e98398b57`; [run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) ran 57 Playwright tests successfully and both frontend/backend jobs succeeded. Tests use mocked APIs and browser-local note storage, not live provider/database validation.
+
+
+### 2026-10-25 — Player navigation and quiz recovery passed
+- **Commit:** `841281740a1b5b97936d01b7392d5bc70a29e412`.
+- **CI:** [CI run #40173489346](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173489346) passed both frontend and backend jobs; **59 Playwright tests passed**.
+- **New passing IDs:** `PLAYER-LESSON-NAV-001` (Prev/Next follows curriculum order and canonical URL) and `PLAYER-PRACTICE-QUIZ-FAILURE-001` (API 503 announced and Generate Practice Quiz can be retried).
+- Remaining player scope: quiz success/answer/score, practice-quiz submit/reattempt, cross-lesson note jump and lesson/sidebar navigation edge cases.

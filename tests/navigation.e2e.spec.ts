@@ -880,6 +880,63 @@ test.describe("learner control and state regression", () => {
       comment: "Clear explanations and useful practice.",
     });
   });
+  test("[DETAIL-REVIEW-UPDATE-001] editing a learner review updates the existing review", async ({ page }) => {
+    let updateRequests = 0;
+    let updatePayload: { rating?: number; comment?: string } | null = null;
+    let reviewRecord: Record<string, unknown> = {
+      _id: "existing-review-fixture",
+      rating: 3,
+      comment: "The original course feedback.",
+      moderationStatus: "approved",
+      user: { _id: learner.id, id: learner.id, name: learner.name },
+      createdAt: "2026-10-20T10:00:00.000Z",
+    };
+
+    await mockAppApi(page, {
+      authenticated: true,
+      enrolled: true,
+      hasPlanAccess: true,
+      course: courseFixture("course-fixture"),
+    });
+    await page.route("**/api/reviews/courses/course-fixture", async (route) => {
+      if (route.request().method() === "GET") {
+        const rating = Number(reviewRecord.rating || 0);
+        return json(route, {
+          reviews: [reviewRecord],
+          stats: { count: 1, average: rating, distribution: { [String(rating)]: 1 } },
+        });
+      }
+      if (route.request().method() === "POST") {
+        updateRequests += 1;
+        updatePayload = route.request().postDataJSON() as { rating?: number; comment?: string };
+        reviewRecord = {
+          ...reviewRecord,
+          rating: updatePayload.rating,
+          comment: updatePayload.comment,
+        };
+        return json(route, { review: reviewRecord });
+      }
+      return route.continue();
+    });
+
+    await page.goto(baseURL + "/courses/course-fixture?tab=reviews");
+    await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Update review", exact: true }).first()).toBeVisible();
+    const comment = page.getByLabel("Your comment (optional)");
+    await expect(comment).toHaveValue("The original course feedback.");
+    await page.getByRole("button", { name: "Rate 5 out of 5 stars" }).first().click();
+    await comment.fill("The updated course feedback is clearer and more useful.");
+    await page.getByRole("button", { name: "Update review", exact: true }).first().click();
+
+    await expect(page.getByRole("status").filter({ hasText: "Your review has been saved." }).first()).toBeVisible();
+    await expect(comment).toHaveValue("The updated course feedback is clearer and more useful.");
+    expect(updateRequests).toBe(1);
+    expect(updatePayload).toEqual({
+      rating: 5,
+      comment: "The updated course feedback is clearer and more useful.",
+    });
+  });
+
   test("[LEARN-SAVE-FAILURE-001] failed save restores the previous state and exposes a retryable error", async ({ page }) => {
     const course = courseFixture("save-failure-course", { title: "Save Failure Course" });
     let saveAttempts = 0;

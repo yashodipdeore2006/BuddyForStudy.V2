@@ -518,7 +518,7 @@ test.describe("administrator route and permission UX", () => {
     await page.getByRole("button", { name: "Preview bulk change" }).click();
     await expect(page.getByText("Preview ready. No prices have changed yet.")).toBeVisible();
     await expect(page.getByText("Matched", { exact: true })).toBeVisible();
-    await expect(page.getByRole("row", { name: /Backend Fundamentals/ })).toContainText(/499/);
+    await expect(page.getByRole("row", { name: /Backend Fundamentals/ }).filter({ hasText: "799" })).toContainText(/499/);
     expect(previewRequests).toBe(1);
     expect(applyRequests).toBe(0);
 

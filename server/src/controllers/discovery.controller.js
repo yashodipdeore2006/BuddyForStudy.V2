@@ -154,6 +154,31 @@ export async function enrollCourseSearch(req, res, next) {
 }
 
 
+export async function prepareYouTubeResourceCourse(req, res, next) {
+  let reservation = null;
+  try {
+    const input = resourceSchema.parse(req.body);
+    reservation = await reserveDiscoveryQuota(req, "youtube_discovery_courses_per_month", "youtube_discovery_courses");
+    const course = await getOrCreateYouTubeResourceCourse({ ...input, userId: req.user.userId });
+    const accessHold = pendingCourseAccessState(course);
+    if (reservation) {
+      await releaseUsage({ ...reservation, period: "month", amount: 1 }).catch(() => {});
+      reservation = null;
+    }
+    return success(res, {
+      course: toPublicCoursePreview(course),
+      pendingApproval: accessHold === "review",
+      pendingPublication: accessHold === "publication"
+    }, accessHold ? pendingCourseAccessMessage(accessHold, "YouTube learning course") : "Course details ready", accessHold ? 202 : 200);
+  } catch (e) {
+    if (reservation) await releaseUsage({ ...reservation, period: "month", amount: 1 }).catch(() => {});
+    if (e instanceof z.ZodError) return failure(res, "Invalid YouTube course request", 400);
+    if (e?.status === 429) return failure(res, e.message, 429, e.details || {});
+    next(e);
+  }
+}
+
+
 export async function enrollYouTubeResource(req, res, next) {
   let reservation = null;
   try {
@@ -169,6 +194,16 @@ export async function enrollYouTubeResource(req, res, next) {
         pendingPublication: accessHold === "publication"
       }, pendingCourseAccessMessage(accessHold, "YouTube learning course"), 202);
     }
+    // Paid generated courses must go through the course details checkout flow.
+    // Never create a free enrollment merely because the resource came from YouTube.
+    if (course.pricing?.mode === "paid") {
+      return success(res, {
+        course: toPublicCoursePreview(course),
+        enrollment: null,
+        paymentRequired: true
+      }, "This course requires payment. Review the course details to purchase access.", 402);
+    }
+
     let enrollment;
 
     try {

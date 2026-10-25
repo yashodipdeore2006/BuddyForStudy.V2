@@ -278,8 +278,6 @@ export default function YouTubeSearchFallback({
           score: resource.score,
         }),
       });
-      if (["thumbs_up", "thumbs_down", "outdated"].includes(event)) {
-      }
       return true;
     } catch {
       // Telemetry must never block saving, enrolling or previewing a resource.

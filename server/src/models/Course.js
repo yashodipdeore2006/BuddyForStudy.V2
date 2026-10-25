@@ -4,6 +4,7 @@ import { PlatformSetting } from "./PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { PricingRule } from "./PricingRule.js";
 import { calculateNextPricing, getCoursePricingValidationError } from "../utils/coursePricing.js";
+import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -167,9 +168,10 @@ function isGeneratedCourse(course) {
 
 async function applyGeneratedCoursePricing(course) {
   const setting = await PlatformSetting.findOne({ key: "generated_course_pricing_policy" }).select("value").lean();
-  const policy = setting?.value;
+  const policy = resolveGeneratedCoursePricingPolicy(setting?.value);
   // A disabled policy is a true kill switch: do not change defaults or run rules.
-  if (!policy?.enabled || !policy.applyTo?.includes(course.generation?.mode)) return;
+  // If no policy has ever been persisted, use the same defaults shown in Pricing Studio.
+  if (!policy.enabled || !policy.applyTo.includes(course.generation?.mode)) return;
   const currency = String(policy.currency || "INR").toUpperCase();
   const mode = policy.mode || "rule_based";
   if (mode === "free") {

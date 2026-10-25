@@ -1057,7 +1057,7 @@ export default function CourseDetails() {
           className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"
         />
         <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-300">
-          {creatorName && <span>Created by {course.cardMetadata?.creatorUrl ? <a href={course.cardMetadata.creatorUrl} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">{creatorName}</a> : previewVideoId ? <a href={'https://www.youtube.com/watch?v=' + encodeURIComponent(previewVideoId)} target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">{creatorName}</a> : <strong className="text-white">{creatorName}</strong>}</span>}
+          {creatorName && <span>Created by {course.cardMetadata?.creatorUrl ? <a href={course.cardMetadata.creatorUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">{creatorName}</a> : previewVideoId ? <a href={'https://www.youtube.com/watch?v=' + encodeURIComponent(previewVideoId)} target="_blank" rel="noopener noreferrer" className="font-semibold text-white underline decoration-white/40 underline-offset-4 hover:decoration-white">{creatorName}</a> : <strong className="text-white">{creatorName}</strong>}</span>}
           {course.updated_at && <span>Last updated {formatDate(course.updated_at)}</span>}
           {course.modules.length > 1 && <span>{course.modules.length} modules</span>}
           <span>{lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}</span>
@@ -1371,7 +1371,7 @@ export default function CourseDetails() {
               </div>}
               {creatorName && <div className="flex items-start justify-between gap-4 text-sm">
                 <span className="text-slate-500">Creator</span>
-                {previewVideoId ? <a href={'https://www.youtube.com/watch?v=' + encodeURIComponent(previewVideoId)} target="_blank" rel="noreferrer" className="text-right font-semibold text-violet-700 hover:underline">{creatorName}</a> : <span className="text-right font-medium text-slate-900">{creatorName}</span>}
+                {previewVideoId ? <a href={'https://www.youtube.com/watch?v=' + encodeURIComponent(previewVideoId)} target="_blank" rel="noopener noreferrer" className="text-right font-semibold text-violet-700 hover:underline">{creatorName}</a> : <span className="text-right font-medium text-slate-900">{creatorName}</span>}
               </div>}
             </div>
           </div>

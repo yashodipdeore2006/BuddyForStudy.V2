@@ -30,7 +30,8 @@ function pendingCourseAccessMessage(state, courseType) {
 const resourceSchema = z.object({
   query: z.string().trim().min(2).max(200),
   resourceType: z.enum(["video", "playlist", "series"]),
-  resourceId: z.string().trim().min(2).max(200)
+  resourceId: z.string().trim().min(2).max(200),
+  level: z.enum(["Beginner", "Intermediate", "Advanced"]).optional()
 });
 
 const curationFeedbackSchema = z.object({

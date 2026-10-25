@@ -3,10 +3,30 @@ import assert from "node:assert/strict";
 import {
   buildCoursePricingFilter,
   calculateNextPricing,
+  getCoursePricingValidationError,
+  getEffectiveCoursePrice,
+  hasValidActiveCourseSale,
   parsePricingFilters,
   recommendBandPrice,
   validatePricingOperation
 } from "../src/utils/coursePricing.js";
+
+test("effective course price ignores invalid active sale values and aligns with checkout", () => {
+  assert.equal(getEffectiveCoursePrice({ mode: "free", price: 0 }), 0);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20 }), 20);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), 35);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 35, saleEnabled: true, salePrice: 40 }), 35);
+  assert.equal(getEffectiveCoursePrice({ mode: "paid", price: 0, saleEnabled: false }), null);
+  assert.equal(getEffectiveCoursePrice(undefined), null);
+  assert.equal(hasValidActiveCourseSale({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20 }), true);
+  assert.equal(hasValidActiveCourseSale({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), false);
+  assert.match(getCoursePricingValidationError({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }), /greater than zero/);
+  assert.equal(getCoursePricingValidationError({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20 }), null);
+});
+
+test("pricing operations will not preserve an active zero or invalid sale price", () => {
+  assert.throws(() => calculateNextPricing({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }, validatePricingOperation({ type: "fixed", amount: 30 })), /invalidate an active sale/);
+});
 
 test("pricing filters reject arbitrary Mongo operators and inverted price ranges", () => {
   assert.throws(() => parsePricingFilters({ "$where": "true" }), /Unsupported filter/);

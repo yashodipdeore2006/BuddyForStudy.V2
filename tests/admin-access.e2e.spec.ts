@@ -252,6 +252,44 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("button", { name: "Enable", exact: true })).toHaveCount(0);
   });
 
+  test("[ADM-PII-REVEAL-001] full email reveal requires permission and a reason, then can be masked again", async ({ page }) => {
+    let revealRequests = 0;
+    let revealPayload: Record<string, unknown> | null = null;
+    await mockAdminApi(page, {
+      user: { ...analystUser, name: "PII Operator", email: "pii-operator@example.test" },
+      adminRole: "custom_user_pii_reader",
+      roleLabel: "PII Reader",
+      permissions: ["dashboard.read", "users.read", "users.pii.reveal"],
+    });
+    await page.route("**/api/admin/users/507f1f77bcf86cd799439012/pii-reveal", async (route) => {
+      revealRequests += 1;
+      revealPayload = route.request().postDataJSON() as Record<string, unknown>;
+      return json(route, { email: "learner@example.test" });
+    });
+
+    await page.goto(baseURL + "/admin/users");
+    await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible();
+    await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0);
+
+    const reason = page.getByPlaceholder("Required reason").first();
+    const revealButton = page.getByRole("button", { name: "Reveal personal information" }).first();
+    await expect(revealButton).toBeDisabled();
+    await reason.fill("Need");
+    await expect(revealButton).toBeDisabled();
+    expect(revealRequests).toBe(0);
+
+    await reason.fill("Need to verify account ownership for support case 1842.");
+    await expect(revealButton).toBeEnabled();
+    await revealButton.click();
+    await expect(page.getByText("learner@example.test", { exact: true })).toBeVisible();
+    expect(revealRequests).toBe(1);
+    expect(revealPayload).toEqual({ reason: "Need to verify account ownership for support case 1842." });
+
+    await page.getByRole("button", { name: "Mask personal information" }).first().click();
+    await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible();
+    await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0);
+  });
+
   test("changing user page size clears page-scoped bulk selection", async ({ page }) => {
     await mockAdminApi(page, {
       user: { ...analystUser, name: "User Administrator", email: "user-admin@example.test" },

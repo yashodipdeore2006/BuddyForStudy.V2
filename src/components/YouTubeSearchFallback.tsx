@@ -161,6 +161,13 @@ function summarizeDescription(description: string, maxLength = 115) {
   return concise.length > maxLength ? `${concise.slice(0, maxLength).trimEnd()}…` : concise;
 }
 
+function normalizeDiscoveryLevel(value: unknown): "Beginner" | "Intermediate" | "Advanced" {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "intermediate") return "Intermediate";
+  if (normalized === "advanced") return "Advanced";
+  return "Beginner";
+}
+
 export default function YouTubeSearchFallback({
   query,
   courses,
@@ -283,6 +290,7 @@ export default function YouTubeSearchFallback({
           query,
           resourceType: course.sourceType,
           resourceId: course.sourceId,
+          level: normalizeDiscoveryLevel(curationMeta?.intent?.level),
         }),
       });
       setSavedIds((current) => new Set(current).add(course.id));
@@ -312,6 +320,7 @@ export default function YouTubeSearchFallback({
           query,
           resourceType: course.sourceType,
           resourceId: course.sourceId,
+          level: normalizeDiscoveryLevel(curationMeta?.intent?.level),
         }),
       });
 
@@ -341,7 +350,7 @@ export default function YouTubeSearchFallback({
     try {
       const data = await apiFetch("/api/discovery/youtube-course/prepare", {
         method: "POST",
-        body: JSON.stringify({ query, resourceType: course.sourceType, resourceId: course.sourceId }),
+        body: JSON.stringify({ query, resourceType: course.sourceType, resourceId: course.sourceId, level: normalizeDiscoveryLevel(curationMeta?.intent?.level) }),
       });
       const courseId = data?.course?._id;
       if (!courseId) throw new Error("Course details are not available yet.");

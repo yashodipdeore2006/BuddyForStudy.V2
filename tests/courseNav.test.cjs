@@ -215,3 +215,14 @@ test("subscription pricing preserves admin sort order and never ranks plans by i
   assert.doesNotMatch(pricingPage, /Highest access/);
   assert.match(pricingPage, /const featured = plan\.isPopular === true/);
 });
+
+
+test("route-level code splitting keeps course player and admin pages out of the initial static import graph", () => {
+  const app = fs.readFileSync(path.join(root, "src/App.tsx"), "utf8");
+  assert.match(app, /import \{ lazy, Suspense \} from 'react'/);
+  assert.match(app, /const CoursePlayer = lazy\(\(\) => import\('@\/pages\/CoursePlayer'\)\)/);
+  assert.match(app, /const AdminCoursesPro = lazy\(\(\) => import\('@\/pages\/admin\/AdminCoursesPro'\)\)/);
+  assert.match(app, /const Pricing = lazy\(\(\) => import\('@\/pages\/Pricing'\)\)/);
+  assert.match(app, /<Suspense fallback=/);
+  assert.doesNotMatch(app, /import CoursePlayer from ['"]@\/pages\/CoursePlayer['"]/);
+});

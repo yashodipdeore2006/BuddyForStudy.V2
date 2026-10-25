@@ -29,7 +29,7 @@ import {
 } from "@/lib/courseNotes";
 
 type PlayerQuizOption = { id: string; text: string };
-type PlayerQuizQuestion = { id: string; question: string; correctOptionId: string; options: PlayerQuizOption[]; explanation?: string; topic?: string };
+type PlayerQuizQuestion = { id: string; question: string; correctOptionId?: string; options: PlayerQuizOption[]; explanation?: string; topic?: string };
 type PlayerQuizData = { questions: PlayerQuizQuestion[]; quizBankId?: string; quizBankIds?: string[]; passingScore?: number; title?: string; instructions?: string; };
 type RawPlayerLesson = { _id?: string; id?: string; [key: string]: unknown };
 type RawPlayerModule = { _id?: string; id?: string; lessons?: RawPlayerLesson[]; [key: string]: unknown };
@@ -160,11 +160,14 @@ export default function CoursePlayer() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizScore, setQuizScore] = useState<number | null>(null);
   const [quizPassed, setQuizPassed] = useState(false);
+  const [quizReview, setQuizReview] = useState<Record<string, { correctOptionId: string; explanation: string }>>({});
   const [quizActionLoading, setQuizActionLoading] = useState(false);
   const [quizActionError, setQuizActionError] = useState("");
   const [practiceQuizData, setPracticeQuizData] = useState<PlayerQuizData | null>(null);
   const [practiceQuizAnswers, setPracticeQuizAnswers] = useState<Record<string, string>>({});
   const [practiceQuizSubmitted, setPracticeQuizSubmitted] = useState(false);
+  const [practiceQuizScore, setPracticeQuizScore] = useState<number | null>(null);
+  const [practiceQuizReview, setPracticeQuizReview] = useState<Record<string, { correctOptionId: string; explanation: string }>>({});
   const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
   const [practiceQuizError, setPracticeQuizError] = useState("");
   const practiceAutoAttemptRef = useRef("");
@@ -481,6 +484,10 @@ export default function CoursePlayer() {
         return;
       }
       setPracticeQuizError("");
+      setPracticeQuizAnswers({});
+      setPracticeQuizSubmitted(false);
+      setPracticeQuizScore(null);
+      setPracticeQuizReview({});
       setPracticeQuizData(data.quiz);
     } catch (err) {
       setPracticeQuizError(err instanceof Error ? err.message : "Unable to generate practice questions.");
@@ -506,29 +513,42 @@ export default function CoursePlayer() {
     const quizData = practiceQuizData;
     const questions = quizData?.questions ?? [];
     if (!quizData || !questions.length || questions.some((question: PlayerQuizQuestion) => !practiceQuizAnswers[question.id])) return;
-    setPracticeQuizSubmitted(true);
+    if (!quizData.quizBankId && !quizData.quizBankIds?.length) {
+      setPracticeQuizError("This quiz is missing its server reference. Generate the quiz again before submitting.");
+      return;
+    }
+    setPracticeQuizLoading(true);
+    setPracticeQuizError("");
     try {
-      if (quizData.quizBankId || quizData.quizBankIds?.length) {
-        await apiFetch("/api/ai/practice-quiz/submit", {
-          method: "POST",
-          body: JSON.stringify({
-            courseId,
-            lessonId,
-            quizBankId: quizData.quizBankId,
-            quizBankIds: quizData.quizBankIds || [],
-            score: Math.round((questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / questions.length) * 100),
-            answers: practiceQuizAnswers
-          })
-        });
+      const result = await apiFetch("/api/ai/practice-quiz/submit", {
+        method: "POST",
+        body: JSON.stringify({
+          courseId,
+          lessonId,
+          quizBankId: quizData.quizBankId,
+          quizBankIds: quizData.quizBankIds || [],
+          answers: practiceQuizAnswers
+        })
+      });
+      if (!Number.isFinite(Number(result.score)) || !Array.isArray(result.results)) {
+        throw new Error("The server could not verify this quiz result. Please try again.");
       }
+      const review = Object.fromEntries(result.results.map((entry: { questionId: string; correctOptionId: string; explanation?: string }) => [
+        entry.questionId,
+        { correctOptionId: entry.correctOptionId, explanation: entry.explanation || "" }
+      ]));
+      setPracticeQuizReview(review);
+      setPracticeQuizScore(Number(result.score));
+      setPracticeQuizSubmitted(true);
     } catch (err) {
       setPracticeQuizError(err instanceof Error ? err.message : "Quiz score could not be saved.");
+    } finally {
+      setPracticeQuizLoading(false);
     }
   };
 
-  const practiceQuizScore = practiceQuizData?.questions?.length
-    ? Math.round((practiceQuizData.questions.filter((question: PlayerQuizQuestion) => practiceQuizAnswers[question.id] === question.correctOptionId).length / practiceQuizData.questions.length) * 100)
-    : 0;
+
+
 
   const handleGenerateLessonQuiz = async (mode: "generate" | "reattempt") => {
     if (!courseId || !lessonId || quizActionLoading) return;
@@ -556,6 +576,7 @@ export default function CoursePlayer() {
       setQuizSubmitted(false);
       setQuizScore(null);
       setQuizPassed(false);
+      setQuizReview({});
       setQuizError("");
       setQuizActionError("");
     } catch (err) {
@@ -566,47 +587,56 @@ export default function CoursePlayer() {
   };
 
   const handleQuizSubmit = async () => {
-    if (!courseId || !lessonId || !quizData?.questions?.length) return;
-
-    const questions = quizData.questions || [];
-    const correct = questions.filter(
-      (question: PlayerQuizQuestion) => quizAnswers[question.id] === question.correctOptionId
-    ).length;
-    const score = Math.round((correct / questions.length) * 100);
-    setQuizScore(score);
-    setQuizSubmitted(true);
-
-    const passed = score >= Number(quizData.passingScore || currentLesson?.lesson.quiz?.passingScore || 70);
-    setQuizPassed(passed);
-
-    if (quizData.quizBankId || quizData.quizBankIds?.length) {
-      try {
-        await apiFetch("/api/ai/practice-quiz/submit", {
+    if (!courseId || !lessonId || !quizData?.questions?.length || completing) return;
+    setCompleting(true);
+    setQuizActionError("");
+    setError("");
+    try {
+      let graded;
+      if (quizData.quizBankId || quizData.quizBankIds?.length) {
+        graded = await apiFetch("/api/ai/practice-quiz/submit", {
           method: "POST",
           body: JSON.stringify({
             courseId,
             lessonId,
             quizBankId: quizData.quizBankId,
             quizBankIds: quizData.quizBankIds || [],
-            score,
-            answers: quizAnswers,
-          }),
+            answers: quizAnswers
+          })
         });
-      } catch (err) {
-        setQuizActionError(err instanceof Error ? err.message : "Quiz score could not be saved.");
+      } else {
+        graded = await apiFetch("/api/ai/quiz/submit", {
+          method: "POST",
+          body: JSON.stringify({ courseId, lessonId, answers: quizAnswers })
+        });
       }
-    }
 
-    // A submitted course-module quiz completes on the first attempt; passing controls score feedback, not completion tracking.
-    if (currentCompleted) return;
+      if (!Number.isFinite(Number(graded.score)) || !Array.isArray(graded.results)) {
+        throw new Error("The server could not verify this quiz result. Please try again.");
+      }
+      const review = Object.fromEntries(graded.results.map((entry: { questionId: string; correctOptionId: string; explanation?: string }) => [
+        entry.questionId,
+        { correctOptionId: entry.correctOptionId, explanation: entry.explanation || "" }
+      ]));
+      setQuizReview(review);
+      setQuizScore(Number(graded.score));
+      setQuizPassed(Boolean(graded.passed));
+      setQuizSubmitted(true);
 
-    setCompleting(true);
-    setError("");
-    try {
-      const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
-      setProgress(mapProgress(data.progress));
+      // A submitted course-module quiz completes on the first attempt, regardless of score.
+      if (!currentCompleted) {
+        try {
+          const progressData = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
+          setProgress(mapProgress(progressData.progress));
+          activeLessonCompletedRef.current = true;
+        } catch (progressError) {
+          setError(progressError instanceof Error
+            ? "Quiz graded, but lesson completion could not be saved. Use the lesson completion circle to retry."
+            : "Quiz graded, but lesson completion could not be saved. Use the lesson completion circle to retry.");
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Quiz passed, but progress could not be saved.");
+      setQuizActionError(err instanceof Error ? err.message : "Unable to submit or grade this quiz.");
     } finally {
       setCompleting(false);
     }
@@ -760,7 +790,7 @@ export default function CoursePlayer() {
                               <div className="mt-4 grid gap-2">
                                 {(question.options || []).map((option: PlayerQuizOption, optionIndex: number) => {
                                   const selected = quizAnswers[question.id] === option.id;
-                                  const correctOption = question.correctOptionId === option.id;
+                                  const correctOption = quizSubmitted && quizReview[question.id]?.correctOptionId === option.id;
                                   const showResult = quizSubmitted;
                                   const tone = showResult
                                     ? correctOption
@@ -797,11 +827,11 @@ export default function CoursePlayer() {
                               {quizSubmitted && (
                                 <div className="mt-4 rounded-xl bg-white p-4">
                                   <p className="text-sm font-bold text-slate-900">
-                                    {quizAnswers[question.id] === question.correctOptionId ? "Correct" : "Review this one"}
+                                    {quizAnswers[question.id] === quizReview[question.id]?.correctOptionId ? "Correct" : "Review this one"}
                                   </p>
-                                  {question.explanation && (
+                                  {quizReview[question.id]?.explanation && (
                                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                                      {question.explanation}
+                                      {quizReview[question.id]?.explanation}
                                     </p>
                                   )}
                                 </div>
@@ -1017,7 +1047,7 @@ export default function CoursePlayer() {
                                 <div className="mt-3 grid gap-2">
                                   {(question.options || []).map((option: PlayerQuizOption) => {
                                     const selected = practiceQuizAnswers[question.id] === option.id;
-                                    const correct = question.correctOptionId === option.id;
+                                    const correct = practiceQuizSubmitted && practiceQuizReview[question.id]?.correctOptionId === option.id;
                                     const tone = practiceQuizSubmitted
                                       ? correct ? "border-green-200 bg-green-50 text-green-800" : selected ? "border-red-200 bg-red-50 text-red-800" : "border-slate-200 bg-white text-slate-600"
                                       : selected ? "border-blue-300 bg-blue-50 text-blue-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
@@ -1027,11 +1057,11 @@ export default function CoursePlayer() {
                                     </button>;
                                   })}
                                 </div>
-                                {practiceQuizSubmitted && question.explanation && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{question.explanation}</p>}
+                                {practiceQuizSubmitted && practiceQuizReview[question.id]?.explanation && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm leading-6 text-slate-600">{practiceQuizReview[question.id]?.explanation}</p>}
                               </article>
                             ))}
                             <div className="flex flex-col gap-3 rounded-2xl bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                              {practiceQuizSubmitted ? <p className="text-sm font-bold text-slate-900">Your practice score: {practiceQuizScore}%</p> : <p className="text-sm text-slate-500">{Object.keys(practiceQuizAnswers).length} of {(practiceQuizData?.questions ?? []).length} answered</p>}
+                              {practiceQuizSubmitted ? <p className="text-sm font-bold text-slate-900">Your practice score: {practiceQuizScore ?? 0}%</p> : <p className="text-sm text-slate-500">{Object.keys(practiceQuizAnswers).length} of {(practiceQuizData?.questions ?? []).length} answered</p>}
                               {!practiceQuizSubmitted ? (
                                 <button type="button" onClick={handlePracticeQuizSubmit} disabled={Object.keys(practiceQuizAnswers).length !== (practiceQuizData?.questions ?? []).length} className="btn-primary justify-center">Check answers</button>
                               ) : (

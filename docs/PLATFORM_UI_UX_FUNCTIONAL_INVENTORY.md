@@ -585,3 +585,9 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **CI passed:** commit `5b1465cb816757512e625731c8903ce9b3ae7f69`, [run #40184735235](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184735235). Frontend and backend jobs passed; 72 Playwright tests passed.
 - Added `RESP-ADMIN-OVERFLOW-001` for the admin dashboard, Users and Courses at 360, 768 and 1440 CSS px. The initial ambiguous main-element locator was narrowed to `main.admin-main`. **CI passed:** commit `4b98a64e061b6642b457a64d45c3e4b47569b101`, [run #40185035275](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185035275); frontend/backend succeeded and 73 Playwright tests passed.
 - Scope note: these tests check horizontal overflow, not focus order, color contrast, zoom behavior, or screen-reader support. They use mocked APIs and do not verify production data.
+
+## Verification update — account reactivation flow (2026-10-25)
+
+- Added `ADM-USER-REACTIVATE-001`: a disabled user can be re-enabled through the confirmation dialog only after entering an audit reason; the E2E test asserts the `isActive: true` request and refreshed Disable action.
+- **CI passed:** commit `938d233afc767d2d0aa8aaaff244b6657617e879`, [run #40185351855](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185351855). Frontend and backend jobs passed; **74 Playwright tests passed**.
+- The UI test uses a mocked API. Live authorization, durable audit records, and invalidation/restoration of real user sessions require server-side and staging verification.

@@ -377,6 +377,77 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-COMMUNICATION-SEND-FAILURE-001] notification queue failure preserves confirmation and permits retry", async ({ page }) => {
+    let previewRequests = 0;
+    let sendRequests = 0;
+    let sendPayload: Record<string, unknown> | null = null;
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "communications_operator",
+      roleLabel: "Communications Operator",
+      permissions: ["dashboard.read", "communications.send"],
+    });
+    await page.route("**/api/admin/notifications/audience-options", async (route) => json(route, { plans: [], courses: [] }));
+    await page.route("**/api/admin/notifications/audience-preview", async (route) => {
+      previewRequests += 1;
+      return json(route, {
+        recipientCount: 3,
+        truncated: false,
+        previewToken: "audience-preview-token-fixture",
+        sample: [
+          { id: "learner-1", name: "Learner One", email: "one@example.test" },
+          { id: "learner-2", name: "Learner Two", email: "two@example.test" },
+        ],
+        channelCounts: {
+          in_app: { selected: true, consentEligible: 3, willReach: 3 },
+          email: { selected: false, consentEligible: 2, willReach: 0, providerConfigured: false },
+          push: { selected: false, consentEligible: 1, willReach: 0, activeSubscriptions: 1, providerConfigured: false },
+        },
+      });
+    });
+    await page.route("**/api/admin/notifications/send", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      sendRequests += 1;
+      sendPayload = route.request().postDataJSON() as Record<string, unknown>;
+      if (sendRequests === 1) return json(route, { message: "Notification queue is temporarily unavailable." }, 503);
+      return json(route, { sent: 3, message: "Notification queued." });
+    });
+
+    await page.goto(baseURL + "/admin/communications");
+    await expect(page.getByRole("heading", { name: "Communications" })).toBeVisible();
+    await page.getByLabel("Title").fill("Scheduled maintenance reminder");
+    await page.getByLabel("Message").fill("A short maintenance window is planned. See the status page for updates.");
+    await page.getByRole("button", { name: "Preview recipients" }).click();
+    await expect(page.getByText("3 matching recipient(s)")).toBeVisible();
+    await expect(page.getByText("Learner One")).toBeVisible();
+    expect(previewRequests).toBe(1);
+    expect(sendRequests).toBe(0);
+
+    await page.getByRole("button", { name: "Send now" }).click();
+    const dialog = page.getByRole("alertdialog", { name: "Send in-app notification" });
+    await expect(dialog).toBeVisible();
+    const reason = dialog.getByLabel("Reason (required)");
+    await reason.fill("Send the maintenance notice after reviewing the recipient preview.");
+    await dialog.getByRole("button", { name: "Send communication" }).click();
+
+    await expect(dialog.getByRole("alert")).toContainText("Notification queue is temporarily unavailable.");
+    await expect(reason).toHaveValue("Send the maintenance notice after reviewing the recipient preview.");
+    await expect(dialog.getByRole("button", { name: "Send communication" })).toBeEnabled();
+    expect(sendRequests).toBe(1);
+    expect(sendPayload).toMatchObject({
+      audience: "all",
+      title: "Scheduled maintenance reminder",
+      message: "A short maintenance window is planned. See the status page for updates.",
+      previewToken: "audience-preview-token-fixture",
+      reason: "Send the maintenance notice after reviewing the recipient preview.",
+      channel: ["in_app"],
+    });
+
+    await dialog.getByRole("button", { name: "Send communication" }).click();
+    await expect(page.getByText("Notification queued. — 3 recipient(s)")).toBeVisible();
+    expect(sendRequests).toBe(2);
+  });
+
   test("[ADM-PRICING-APPLY-FAILURE-001] pricing apply failure preserves preview and reason for retry", async ({ page }) => {
     let previewRequests = 0;
     let applyRequests = 0;

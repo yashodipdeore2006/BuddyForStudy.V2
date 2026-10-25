@@ -111,8 +111,9 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-USER-PII-001 | Reveal/export PII | Permission/reason checked server-side; masking default; audit event recorded; invalid request never reaches mutation | Backend PII/auth tests exist; browser test pending |
 | ADM-PII-REVEAL-001 | Reveal and re-mask a learner email | Masked by default; reveal needs PII permission and a 10–500 character reason; request sends the reason; returned value can be masked again | Automated pass; [CI run #40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) |
 | ADM-PII-EXPORT-001 | Export selected users to CSV | Requires a reason and exact EXPORT N USERS phrase; sends selected IDs and sorting; downloads CSV with formula-like values prefixed safely | Automated pass; [CI run #40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) |
-| ADM-USER-STATUS-001 | Disable/reactivate user | Valid transitions, reason, audit event and refreshed state | Backend tests exist; browser test pending |
+| ADM-USER-STATUS-001 | Disable/reactivate user | Valid transitions, reason, audit event and refreshed state | Disable/retry and reactivate UI flows have browser tests; server audit persistence remains a backend/staging concern |
 | ADM-USER-STATUS-FAILURE-001 | Disable user API returns 503 | Reason remains in the confirmation dialog, no optimistic disable occurs, error is announced, and retry can complete the change | Automated pass; [CI run #40184125922](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184125922) |
+| ADM-USER-REACTIVATE-001 | Re-enable a disabled account | Requires an audit reason, sends `isActive: true`, closes confirmation on success and refreshes the row to Disable | Automated pass on `938d233afc767d2d0aa8aaaff244b6657617e879`; [CI run #40185351855](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185351855) |
 | ADM-COURSE-PUBLISH-001 | Readiness then publish | Readiness and publish permission enforced; failure explained; state refreshed | Course readiness/publishing tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
 | ADM-COURSE-DELETE-001 | Soft-delete/restore course | Confirmation/reason, safe lifecycle and audit/revision trail | Backend validation tests exist; browser test pending |
@@ -161,7 +162,7 @@ The overflow checks verify page width only; they do not replace focus-order, con
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
-- [ ] Add remaining pricing/trial edge cases, account reactivation coverage, and responsive/accessibility checks. PII reveal/export and account-disable failure recovery, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
+- [x] Add account reactivation UI coverage and automated horizontal-overflow checks for key learner/admin screens. [ ] Remaining pricing/trial edge cases and keyboard/focus, contrast, zoom and screen-reader checks remain open. PII reveal/export and account-disable failure recovery, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
 - [x] Add responsive horizontal-overflow E2E coverage for primary learner pages at 360, 390, 768, 1024 and 1440px (run #40184735235). Admin dashboard/Users/Courses viewport coverage passed in run #40185035275. [ ] Complete focus-order, contrast, zoom and screen-reader checks at representative breakpoints.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
@@ -250,3 +251,10 @@ The overflow checks verify page width only; they do not replace focus-order, con
 - **CI:** [run #40185035275](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185035275) passed frontend and backend jobs; **73 Playwright tests passed**.
 - **New passing ID:** `RESP-ADMIN-OVERFLOW-001`: checks the admin dashboard, Users and Courses at 360, 768 and 1440 CSS px and asserts that document/body width does not exceed the viewport.
 - Together with `RESP-LEARNER-OVERFLOW-001`, this adds automated horizontal-overflow checks across major learner and admin surfaces. Keyboard/focus, contrast, zoom and assistive-technology checks remain open.
+
+
+### 2026-10-25 — Account reactivation browser control passed
+- **Commit:** `938d233afc767d2d0aa8aaaff244b6657617e879`.
+- **CI:** [run #40185351855](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185351855) passed frontend and backend jobs; **74 Playwright tests passed**.
+- **New passing ID:** `ADM-USER-REACTIVATE-001`: a disabled account can be re-enabled only after entering an audit reason; the test checks the `isActive: true` mutation payload and that the row refreshes to show Disable.
+- The browser uses a mocked API; production role enforcement, audit record persistence and effect on authenticated sessions must still be verified in backend/staging checks.

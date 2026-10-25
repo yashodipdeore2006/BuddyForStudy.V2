@@ -53,6 +53,9 @@ export default function AdminPricingStudio() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [generatedPolicy, setGeneratedPolicy] = useState({ enabled: false, mode: "rule_based", fixedPrice: 499, currency: "INR", levelBands: { Beginner: { min: 199, max: 499 }, Intermediate: { min: 499, max: 999 }, Advanced: { min: 999, max: 1999 } }, applyTo: ["ai", "discovery", "module", "normal"] as string[] });
+  const [policyReason, setPolicyReason] = useState("");
+
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -64,19 +67,31 @@ export default function AdminPricingStudio() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [catalogue, ruleData, historyData] = await Promise.all([
+      const [catalogue, ruleData, historyData, policyData] = await Promise.all([
         adminFetch("/api/admin/pricing/courses?" + query),
         adminFetch("/api/admin/pricing/rules"),
         adminFetch("/api/admin/pricing/history?limit=8")
       ]);
       setCourses(catalogue.courses || []); setMatchedTotal(Number(catalogue.total || 0)); setCategories(catalogue.categories || []);
       setSummary(catalogue.summary || { total: 0, paid: 0, free: 0 });
-      setRules(ruleData.rules || []); setHistory(historyData.batches || []);
+      setRules(ruleData.rules || []); setHistory(historyData.batches || []);\n      if (policyData.policy) setGeneratedPolicy((current) => ({ ...current, ...policyData.policy }));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load pricing data."); }
     finally { setLoading(false); }
   }, [query]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const saveGeneratedPolicy = async () => {
+    if (policyReason.trim().length < 10) { setError("Enter a reason of at least 10 characters."); return; }
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const data = await adminFetch("/api/admin/pricing/generated-policy", { method: "PUT", body: JSON.stringify({ policy: generatedPolicy, reason: policyReason.trim() }) });
+      setGeneratedPolicy((current) => ({ ...current, ...data.policy }));
+      setPolicyReason("");
+      setNotice("New-course pricing policy saved. It applies to newly created courses only.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not save generated-course pricing policy."); }
+    finally { setBusy(false); }
+  };
 
   const makePreview = async (kind: "bulk" | "recommend") => {
     setBusy(true); setError(""); setNotice(""); setPreview(null);
@@ -170,6 +185,27 @@ export default function AdminPricingStudio() {
       <p className="mt-3 text-xs text-slate-500">The preview targets every course matching these filters, up to 500 courses per batch.</p>
       <div className="mt-4 overflow-x-auto rounded-xl border border-slate-100"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Course</th><th className="px-4 py-3">Category / level</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Base price</th></tr></thead><tbody className="divide-y divide-slate-100">{loading ? <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-500"><RefreshCw className="mr-2 inline animate-spin" size={16} />Loading catalogue…</td></tr> : courses.map(course => <tr key={course._id}><td className="px-4 py-3 font-semibold text-slate-900">{course.title}</td><td className="px-4 py-3 text-slate-600">{course.category} · {course.level}</td><td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs">{course.status || (course.isPublished ? "published" : "draft")}</span></td><td className="px-4 py-3 text-right font-semibold">{money(course.pricing?.price, course.pricing?.currency)}</td></tr>)}</tbody></table></div>
       {!loading && <p className="mt-3 text-xs text-slate-500">Showing {courses.length} of {matchedTotal} matching courses in this filter view. The preview targets all matches (maximum 500 per batch).</p>}
+    </section>
+
+    <section className="rounded-2xl border border-violet-200 bg-white p-5 md:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><div className="flex items-center gap-2"><ShieldCheck size={19} className="text-violet-600" /><h2 className="text-lg font-bold text-slate-950">New course pricing policy</h2></div>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Control the default price for newly generated Build with AI and YouTube-derived courses. This does not reprice existing courses. Course publication still follows the separate AI content-approval and readiness settings.</p></div>
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={generatedPolicy.enabled} onChange={e => setGeneratedPolicy(p => ({ ...p, enabled: e.target.checked }))} /> Enable automatic pricing</label>
+      </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <label className="text-xs font-semibold text-slate-600">Pricing strategy
+          <select className={inputClass + " mt-1"} value={generatedPolicy.mode} onChange={e => setGeneratedPolicy(p => ({ ...p, mode: e.target.value }))}>
+            <option value="rule_based">Use enabled admin auto-pricing rules</option><option value="fixed">Fixed price for every new course</option><option value="level_bands">Dynamic price by course level</option><option value="free">Make every new course free</option>
+          </select>
+        </label>
+        {generatedPolicy.mode === "fixed" && <label className="text-xs font-semibold text-slate-600">Fixed price (INR)<input className={inputClass + " mt-1"} type="number" min="0" max="1000000" value={generatedPolicy.fixedPrice} onChange={e => setGeneratedPolicy(p => ({ ...p, fixedPrice: Number(e.target.value) }))} /></label>}
+      </div>
+      {generatedPolicy.mode === "level_bands" && <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["Beginner", "Intermediate", "Advanced"] as const).map(level => <div key={level} className="rounded-xl border border-slate-200 p-3"><p className="mb-2 text-sm font-bold">{level}</p><div className="grid grid-cols-2 gap-2"><label className="text-xs text-slate-500">Minimum<input className={inputClass + " mt-1"} type="number" min="0" value={generatedPolicy.levelBands[level].min} onChange={e => setGeneratedPolicy(p => ({ ...p, levelBands: { ...p.levelBands, [level]: { ...p.levelBands[level], min: Number(e.target.value) } } }))} /></label><label className="text-xs text-slate-500">Maximum<input className={inputClass + " mt-1"} type="number" min="0" value={generatedPolicy.levelBands[level].max} onChange={e => setGeneratedPolicy(p => ({ ...p, levelBands: { ...p.levelBands, [level]: { ...p.levelBands[level], max: Number(e.target.value) } } }))} /></label></div></div>)}</div>}
+      <div className="mt-4"><p className="text-xs font-semibold text-slate-600">Apply to generated course types</p><div className="mt-2 flex flex-wrap gap-4">{[{id:"ai",label:"Build with AI"},{id:"discovery",label:"YouTube discovery"},{id:"module",label:"Extracted modules"},{id:"normal",label:"Other generated courses"}].map(item => <label key={item.id} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={generatedPolicy.applyTo.includes(item.id)} onChange={e => setGeneratedPolicy(p => ({ ...p, applyTo: e.target.checked ? [...p.applyTo, item.id] : p.applyTo.filter(x => x !== item.id) }))} />{item.label}</label>)}</div></div>
+      <label className="mt-4 block text-xs font-semibold text-slate-600">Reason for policy change (10–500 characters)<textarea className={inputClass + " mt-1 min-h-16"} value={policyReason} onChange={e => setPolicyReason(e.target.value)} maxLength={500} placeholder="e.g. Standardize pricing for all newly generated courses" /></label>
+      <button disabled={busy || policyReason.trim().length < 10} onClick={() => void saveGeneratedPolicy()} className="mt-4 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Save new-course pricing policy</button>
+      <p className="mt-3 text-xs leading-5 text-slate-500">New courses receive the policy price before they are saved. “Rule-based” uses only enabled rules marked for automatic application. Disabling this switch leaves generated-course prices unchanged.</p>
     </section>
 
     <section className="grid gap-5 lg:grid-cols-2">

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../src/services/refundBalance.service.js";
+import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, normalizeProcessedProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
 
@@ -124,4 +124,26 @@ test("payment status can be repaired from aggregate confirmed refund balance", (
   assert.equal(paymentStatusForRemainingBalance(-0.001), "refunded");
   assert.equal(paymentStatusForRemainingBalance(0.00000001), "refunded");
   assert.equal(paymentStatusForRemainingBalance("invalid"), "partially_refunded");
+});
+
+
+test("processed refund webhook normalization validates payment identity, amount, and currency", () => {
+  const payment = { providerPaymentId: "pay_123", currency: "INR" };
+  assert.deepEqual(normalizeProcessedProviderRefund({
+    id: "rfnd_123",
+    payment_id: "pay_123",
+    amount: 2550,
+    currency: "inr",
+    status: "processed"
+  }, payment), {
+    valid: true,
+    providerRefundId: "rfnd_123",
+    paymentId: "pay_123",
+    amount: 25.5,
+    currency: "INR"
+  });
+  assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_other", amount: 2550, currency: "INR", status: "processed" }, payment).reason, "Provider refund payment mismatch");
+  assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 0, currency: "INR", status: "processed" }, payment).reason, "Invalid provider refund amount");
+  assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "USD", status: "processed" }, payment).reason, "Provider refund currency mismatch");
+  assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "INR", status: "pending" }, payment).reason, "Provider refund is not processed");
 });

@@ -45,3 +45,14 @@ export function validateSubscriptionPlanAdminInput(body = {}, current = {}) {
   }
   return { valid: errors.length === 0, errors };
 }
+
+/** Determine whether an edit changes the immutable terms of a provider billing plan. */
+export function hasProviderBillingTermsChanged(current = {}, updates = {}) {
+  const priceChanged = updates.price !== undefined &&
+    Number(updates.price) !== Number(current.price);
+  const currencyChanged = updates.currency !== undefined &&
+    String(updates.currency || "").trim().toUpperCase() !== String(current.currency || "").trim().toUpperCase();
+  const intervalChanged = updates.billingInterval !== undefined &&
+    String(updates.billingInterval || "") !== String(current.billingInterval || "");
+  return priceChanged || currencyChanged || intervalChanged;
+}

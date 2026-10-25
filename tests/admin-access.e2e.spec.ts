@@ -377,6 +377,94 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-PRICING-APPLY-FAILURE-001] pricing apply failure preserves preview and reason for retry", async ({ page }) => {
+    let previewRequests = 0;
+    let applyRequests = 0;
+    let applyPayload: Record<string, unknown> | null = null;
+    page.on("dialog", (dialog) => { void dialog.accept(); });
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "pricing_operator",
+      roleLabel: "Pricing Operator",
+      permissions: ["dashboard.read", "pricing.manage"],
+    });
+    await page.route("**/api/admin/pricing/courses**", async (route) => json(route, {
+      courses: [{
+        _id: "pricing-course-fixture",
+        title: "Backend Fundamentals",
+        category: "Development",
+        level: "Beginner",
+        status: "published",
+        isPublished: true,
+        pricing: { mode: "paid", price: 799, compareAtPrice: 999, currency: "INR", saleEnabled: false, salePrice: 0 },
+        updatedAt: "2026-10-24T10:00:00.000Z",
+      }],
+      total: 1,
+      categories: ["Development"],
+      summary: { total: 1, paid: 1, free: 0 },
+    }));
+    await page.route("**/api/admin/pricing/rules", async (route) => json(route, { rules: [] }));
+    await page.route("**/api/admin/pricing/history?*", async (route) => json(route, { batches: [] }));
+    await page.route("**/api/admin/pricing/generated-policy", async (route) => json(route, { policy: {
+      enabled: false,
+      mode: "rule_based",
+      fixedPrice: 499,
+      currency: "INR",
+      levelBands: { Beginner: { min: 199, max: 499 }, Intermediate: { min: 499, max: 999 }, Advanced: { min: 999, max: 1999 } },
+      applyTo: ["ai", "discovery", "module", "normal"],
+    } }));
+    await page.route("**/api/admin/pricing/preview", async (route) => {
+      previewRequests += 1;
+      return json(route, {
+        previewId: "pricing-preview-fixture",
+        kind: "bulk",
+        matchedCount: 1,
+        eligibleCount: 1,
+        skippedCount: 0,
+        expiresAt: "2026-10-26T10:00:00.000Z",
+        items: [{
+          courseId: "pricing-course-fixture",
+          title: "Backend Fundamentals",
+          updatedAt: "2026-10-24T10:00:00.000Z",
+          before: { mode: "paid", price: 799, compareAtPrice: 999, currency: "INR", saleEnabled: false, salePrice: 0 },
+          after: { mode: "paid", price: 499, compareAtPrice: 999, currency: "INR", saleEnabled: false, salePrice: 0 },
+          status: "eligible",
+          note: "Ready to apply",
+        }],
+      });
+    });
+    await page.route("**/api/admin/pricing/apply", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      applyRequests += 1;
+      applyPayload = route.request().postDataJSON() as Record<string, unknown>;
+      if (applyRequests === 1) return json(route, { message: "Pricing service is temporarily unavailable." }, 503);
+      return json(route, { appliedCount: 1, skippedCount: 0, batchId: "pricing-batch-fixture" });
+    });
+
+    await page.goto(baseURL + "/admin/pricing");
+    await expect(page.getByRole("heading", { name: "Course Pricing Studio" })).toBeVisible();
+    await expect(page.getByText("Backend Fundamentals", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Preview bulk change" }).click();
+    await expect(page.getByText("Preview ready. No prices have changed yet.")).toBeVisible();
+    await expect(page.getByText("Matched", { exact: true })).toBeVisible();
+    await expect(page.getByText("499", { exact: true }).first()).toBeVisible();
+    expect(previewRequests).toBe(1);
+    expect(applyRequests).toBe(0);
+
+    const reason = page.getByLabel(/Reason for change/);
+    await reason.fill("Standardize the published beginner course price for the next term.");
+    await page.getByRole("button", { name: "Confirm and apply preview" }).click();
+    await expect(page.getByRole("alert")).toContainText("Pricing service is temporarily unavailable.");
+    await expect(reason).toHaveValue("Standardize the published beginner course price for the next term.");
+    await expect(page.getByRole("button", { name: "Confirm and apply preview" })).toBeEnabled();
+    expect(applyRequests).toBe(1);
+    expect(applyPayload).toMatchObject({ previewId: "pricing-preview-fixture", reason: "Standardize the published beginner course price for the next term." });
+
+    await page.getByRole("button", { name: "Confirm and apply preview" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Batch complete: 1 updated, 0 skipped. Stale courses were left unchanged." })).toBeVisible();
+    expect(applyRequests).toBe(2);
+  });
+
   test("[ADM-TRIAL-GRANT-PREVIEW-001] group trial preview includes all filtered eligible learners", async ({ page }) => {
     let previewPayload: Record<string, unknown> | null = null;
     let grantPayload: Record<string, unknown> | null = null;

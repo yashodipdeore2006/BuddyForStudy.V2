@@ -4,7 +4,7 @@
 **Repository:** `yashodipdeore2006/BuddyForStudy.V2`  
 **Branch reviewed:** `main`  
 **Runtime source of truth:** `src/App.tsx`  
-**Companion reports:** [UI/UX audit](UI_UX_AUDIT.md), [User flow and element map](../USER_FLOW_AND_ELEMENT_MAP.md), [Build with AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md)
+**Companion reports:** [UI/UX audit](UI_UX_AUDIT.md), [Control register](PLATFORM_CONTROL_REGISTER.md), [User flow and element map](../USER_FLOW_AND_ELEMENT_MAP.md), [Build with AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md)
 
 > **Status: source inventory started; browser verification is not complete.** This report maps implementation surfaces and event/API contracts found in the current source. A control being listed here does not mean its appearance, accessible behavior, provider integration, or production behavior has been validated in a live browser. Every item must move through source review → automated test → browser verification → staging/integration validation before it can be called deployment-ready.
 
@@ -402,10 +402,10 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 |---|---|---|---|---|
 | `INV-001` | P1 | `USER_FLOW_AND_ELEMENT_MAP.md` and the route inventory in older `UI_UX_AUDIT.md` do not list every current public route and newer admin routes from `src/App.tsx`. | Treat this inventory/App.tsx as runtime truth; reconcile canonical navigation and page specs. | Compare route table to App.tsx and exercise every entry/redirect. |
 | `INV-002` | P1 | CI workflow marks frontend lint advisory with `continue-on-error: true`. | Triage existing violations and phase lint into a blocking gate. | CI fails on intentional lint regression; existing debt has an explicit baseline. |
-| `INV-003` | P1 | Playwright currently covers navigation/admin access smoke paths, not every visible button or end-to-end task listed in this report. | Add scenario-based tests for high-impact learner flows and representative admin mutations. | Tests verify outcomes/API calls, not just presence of text. |
+| `INV-003` | P1 | Playwright covers navigation/admin-access smoke paths plus an initial control-level regression batch; it still does not cover every visible control or workflow. | Expand scenario-based tests from the control register, prioritizing user outcomes and high-risk admin mutations. | Tests verify outcomes/API calls, not just presence of text. |
 | `INV-004` | P1 | Production-only provider integrations are outside the standard local-Mongo CI test. | Build a staging test checklist and safe sandbox account setup for OAuth, YouTube/Gemini, Razorpay, SMTP and push. | Attach staging results, environment SHA and correlation IDs. |
 | `INV-005` | P1 | Admin mutations involve money, PII, access, bulk messaging, pricing and legal content. UI inspection alone cannot prove API enforcement. | Complete a control-to-permission-to-audit matrix for every mutation. | Authorization tests prove denial before mutation and audit persistence on success. |
-| `INV-006` | P1 | Current UI/source inventory has no single reusable control-level register containing handler, API, failure state and test evidence fields. | Use Section 8 as the required schema and build out the control register route by route. | Every event-bearing file/control cluster has a stable ID and test status. |
+| `INV-006` | P1 | A control register now exists for the first global shell, Explore, My Learning, course detail, player and admin-shell flows; full per-control coverage is not yet complete. | Continue adding stable IDs and map each control to its source handler, API/side effect, permission, failure state and test evidence. | Every event-bearing control has an ID, traceable behavior and test status. |
 | `INV-007` | P1 | The latest My Learning implementation uses persisted `learningStatus` and a batched enrollment/progress snapshot instead of per-course preloader requests. This code path passed CI at the reviewed checkpoint; browser Network verification is still needed. | Test existing data backfill and one-lesson/all-lesson transitions in a signed-in browser. | Verify three tabs, status transitions, no per-course progress requests, and legacy records. |
 | `INV-008` | P2 | Responsive/keyboard/focus/contrast/performance checks are not established by source review. | Capture desktop/mobile screen recordings/screenshots and run keyboard/assistive-technology pass. | Link evidence for route and viewport; log reproducible findings. |
 | `INV-009` | P2 | Shared confirmation/filter/table/drawer components are used across high-density admin workflows. | Add shared component interaction tests before page-by-page refinements. | Keyboard/focus, select all, sorting, clear filters, drawer previous/next, confirm/reason validation. |
@@ -418,8 +418,8 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - [x] Identify shared shell, shared cards, menus, consent, table/filter/drawer/confirmation primitives.
 - [x] Map primary control groups to handlers and API families.
 - [x] Record CI/test surfaces and release gates.
-- [ ] Create the complete control-level register with stable IDs for each event-bearing control.
-- [ ] Map each admin mutation to permission, reason, confirmation, audit event and regression test.
+- [x] Create the control register and stable IDs for initial global shell, Explore, course-detail, player, My Learning and admin-shell workflows.
+- [ ] Extend the register to every interactive control across all routes, including each admin mutation's permission, reason, confirmation, audit event and regression test.
 
 ### Phase 2 — Verify behavior and capture evidence
 - [ ] Run current CI and store exact passing run URL/SHA.
@@ -460,3 +460,13 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 ---
 
 **Next working unit:** complete the event-by-event register for the global shell and Explore/course-detail/player flows first, then the admin shell and high-risk mutation workflows. That creates the shared control and test pattern before expanding to lower-risk pages.
+
+
+## Phase 1 implementation update — 2026-10-25
+
+- **Control register added:** [PLATFORM_CONTROL_REGISTER.md](PLATFORM_CONTROL_REGISTER.md) now gives stable IDs, expected outcomes and test status for the first global learner shell, Explore, Course Details, My Learning, Course Player, admin shell and high-risk admin action families.
+- **Browser regression tests added:** [EXP-SEARCH-001], [LEARN-TABS-001], [PLAYER-COMPLETE-001], [DETAIL-REVIEWS-001] in tests/navigation.e2e.spec.ts; [ADM-SHELL-SEARCH-001] in tests/admin-access.e2e.spec.ts.
+- **Test fixture improvements:** mock catalog API filters by query/level/category; My Learning tests use a batched enrollment response with saved status/progress; player completion fixture returns an updated progress snapshot.
+- **Explicit assertion:** My Learning E2E records requests and asserts that it does not issue per-course GET requests to /api/progress/:courseId or /api/enrollments/course/:courseId during entry/tab changes.
+- **Verification state:** CI must complete for the commit containing the new tests before these test IDs can be marked automated-pass. The tests use mocked API data and do not replace staging checks for real database/backfill or external providers.
+- **Next:** resolve any failures, then add save/share/unenroll flows, review submit/update and purchase failures, lesson navigation/quiz/notes, and admin mutation permission tests.

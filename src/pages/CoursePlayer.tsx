@@ -148,6 +148,7 @@ export default function CoursePlayer() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [togglingLessonIds, setTogglingLessonIds] = useState<Set<string>>(() => new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState("");
   const [progressUnavailable, setProgressUnavailable] = useState(false);
@@ -409,6 +410,33 @@ export default function CoursePlayer() {
     }
   };
 
+
+  const handleToggleLessonCompletion = async (targetLessonId: string) => {
+    if (!courseId || !targetLessonId || progressUnavailable || togglingLessonIds.has(targetLessonId)) return;
+    const wasCompleted = isLessonCompleted(progress?.completed_lessons || [], targetLessonId);
+    setTogglingLessonIds((current) => new Set(current).add(targetLessonId));
+    setError("");
+    try {
+      const method = wasCompleted ? "DELETE" : "POST";
+      const data = await apiFetch(`/api/progress/${courseId}/items/${targetLessonId}/complete`, { method });
+      setProgress(mapProgress(data.progress));
+      if (targetLessonId === lessonId) activeLessonCompletedRef.current = !wasCompleted;
+      if (!wasCompleted && currentLesson?.lesson.id === targetLessonId && currentLesson.lesson.type === "tutorial") {
+        const completedVideo = currentLesson.lesson.tutorial?.videos?.[0];
+        if (completedVideo?.videoId) void sendPlayerCurationFeedback("completed", completedVideo);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update lesson completion.");
+    } finally {
+      setTogglingLessonIds((current) => {
+        const next = new Set(current);
+        next.delete(targetLessonId);
+        return next;
+      });
+    }
+  };
+
+
   const handleGeneratePracticeQuiz = async (mode: "generate" | "reattempt" = "generate") => {
     if (!courseId || !lessonId) return;
     setPracticeQuizLoading(true);
@@ -560,7 +588,8 @@ export default function CoursePlayer() {
       }
     }
 
-    if (!passed || currentCompleted) return;
+    // A submitted course-module quiz completes on the first attempt; passing controls score feedback, not completion tracking.
+    if (currentCompleted) return;
 
     setCompleting(true);
     setError("");
@@ -795,7 +824,7 @@ export default function CoursePlayer() {
                                 </button>
                               ) : (
                                 <>
-                                  {quizPassed && (
+                                  {(quizPassed || currentCompleted) && (
                                     <button
                                       type="button"
                                       onClick={() => navigation.next && handleNavigate(navigation.next.id)}
@@ -805,7 +834,7 @@ export default function CoursePlayer() {
                                       {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
                                     </button>
                                   )}
-                                  {!quizPassed && (
+                                  {!quizPassed && !currentCompleted && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1453,48 +1482,59 @@ export default function CoursePlayer() {
                   const active = lesson.id === lessonId;
                   const durationLabel = formatPlayerDuration(getPlayerLessonDurationSeconds(lesson));
                   const cleanedTitle = cleanPlayerLessonTitle(lesson.title, allLessons.map((item) => item.title));
+                  const toggling = togglingLessonIds.has(lesson.id);
 
                   return (
-                    <button
+                    <div
                       key={lesson.id}
-                      onClick={() => handleNavigate(lesson.id)}
                       className={classNames(
-                        "flex w-full items-start gap-3 border-t border-slate-100 px-4 py-3 text-left transition",
-                        active
-                          ? "bg-slate-100 text-slate-950"
-                          : "text-slate-700 hover:bg-slate-50"
+                        "flex w-full items-start gap-3 border-t border-slate-100 px-3 py-2 transition",
+                        active ? "bg-slate-100 text-slate-950" : "text-slate-700 hover:bg-slate-50"
                       )}
                     >
-                      <span className="mt-0.5 flex-shrink-0">
-                        {done ? (
+                      <button
+                        type="button"
+                        aria-label={done ? `Mark ${cleanedTitle} incomplete` : `Mark ${cleanedTitle} complete`}
+                        title={done ? "Mark incomplete" : "Mark complete"}
+                        disabled={progressUnavailable || toggling}
+                        onClick={() => void handleToggleLessonCompletion(lesson.id)}
+                        className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md transition hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {toggling ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                        ) : done ? (
                           <CheckCircle2 className="h-4 w-4 text-green-600" />
                         ) : (
                           <Circle className="h-4 w-4 text-slate-300" />
                         )}
-                      </span>
+                      </button>
 
-                      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                        {lesson.type === "project" ? (
-                          <ListChecks className="h-3.5 w-3.5" />
-                        ) : lesson.type === "quiz" ? (
-                          <CircleHelp className="h-3.5 w-3.5" />
-                        ) : (
-                          <Play className="h-3.5 w-3.5" />
-                        )}
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block line-clamp-2 text-xs font-semibold leading-5">
-                          {cleanedTitle}
-                          <span className="mt-0.5 block text-[10px] font-medium text-slate-400">{done ? "Completed" : active ? "Currently learning" : lesson.type === "quiz" ? "Quiz" : lesson.type === "project" ? "Project" : "Video lesson"}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleNavigate(lesson.id)}
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                      >
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                          {lesson.type === "project" ? (
+                            <ListChecks className="h-3.5 w-3.5" />
+                          ) : lesson.type === "quiz" ? (
+                            <CircleHelp className="h-3.5 w-3.5" />
+                          ) : (
+                            <Play className="h-3.5 w-3.5" />
+                          )}
                         </span>
-                      </span>
 
-                      {durationLabel && <span className="shrink-0 self-center text-[10px] font-semibold text-slate-500">{durationLabel}</span>}
-                      {active && (
-                        <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-600" />
-                      )}
-                    </button>
+                        <span className="min-w-0 flex-1">
+                          <span className="block line-clamp-2 text-xs font-semibold leading-5">
+                            {cleanedTitle}
+                            <span className="mt-0.5 block text-[10px] font-medium text-slate-400">{done ? "Completed" : active ? "Currently learning" : lesson.type === "quiz" ? "Quiz" : lesson.type === "project" ? "Project" : "Video lesson"}</span>
+                          </span>
+                        </span>
+
+                        {durationLabel && <span className="shrink-0 self-center text-[10px] font-semibold text-slate-500">{durationLabel}</span>}
+                        {active && <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-blue-600" />}
+                      </button>
+                    </div>
                   );
                 })}
               </div>

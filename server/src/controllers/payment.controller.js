@@ -10,6 +10,7 @@ import { verifyPaymentSignature } from "../services/razorpay.service.js";
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getEffectiveCoursePrice } from "../utils/coursePricing.js";
 import { enroll } from "../services/enrollment.service.js";
+import { acquireCheckoutLock, checkoutLockKey, releaseCheckoutLock } from "../services/checkoutLock.service.js";
 
 const checkoutSchema = z.object({
   courseId: z.string().min(1)
@@ -50,6 +51,28 @@ export async function createCourseOrder(req, res, next) {
 
     // Recover access after a verified purchase if the browser closed or the
     // enrollment request failed. Never charge a learner twice for the same course.
+    const lockKey = checkoutLockKey("course", req.user.userId, String(course._id));
+    const lockToken = await acquireCheckoutLock(lockKey);
+    if (!lockToken) {
+      const pending = await Payment.findOne({
+        user: req.user.userId,
+        course: course._id,
+        provider: "razorpay",
+        status: "pending"
+      }).sort({ createdAt: -1 });
+      if (pending?.providerOrderId && Number.isFinite(Number(pending.amount)) && Number(pending.amount) > 0) {
+        const pendingAmount = Number(pending.amount);
+        const pendingCurrency = pending.currency || "INR";
+        return success(res, {
+          paymentId: pending._id,
+          order: { id: pending.providerOrderId, amount: Math.round(pendingAmount * 100), currency: pendingCurrency },
+          keyId: razorpay.getPublicKey(),
+          course: { id: course._id, title: course.title, amount: pendingAmount }
+        }, "Existing course checkout reused", 200);
+      }
+      return failure(res, "A checkout for this course is already being prepared. Retry in a moment.", 409);
+    }
+    try {
     const priorPurchase = await Payment.findOne({
       user: req.user.userId,
       course: course._id,
@@ -122,6 +145,9 @@ export async function createCourseOrder(req, res, next) {
       keyId: razorpay.getPublicKey(),
       course: { id: course._id, title: course.title, amount }
     }, "Checkout order created", 201);
+    } finally {
+      await releaseCheckoutLock(lockKey, lockToken).catch((error) => console.error("[checkout] course lock release failed", { courseId: String(course._id), message: String(error?.message || error).slice(0, 200) }));
+    }
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);
@@ -198,6 +224,12 @@ export async function createSubscriptionOrder(req, res, next) {
     if (!plan) return failure(res, "Subscription plan not found", 404);
     if (plan.billingInterval === "one_time") return failure(res, "Use course checkout for one-time purchases", 400);
 
+    const lockKey = checkoutLockKey("subscription", req.user.userId);
+    const lockToken = await acquireCheckoutLock(lockKey);
+    if (!lockToken) {
+      return failure(res, "A subscription checkout is already being prepared for this account. Retry in a moment.", 409);
+    }
+    try {
     const existingSubscription = await UserSubscription.findOne({
       user: req.user.userId,
       status: { $in: ["trialing", "active", "past_due"] },
@@ -326,6 +358,9 @@ export async function createSubscriptionOrder(req, res, next) {
       keyId: razorpay.getPublicKey(),
       plan: { id: plan._id, name: plan.name, price: plan.price, currency: plan.currency, billingInterval: plan.billingInterval }
     }, "Subscription checkout created", 201);
+    } finally {
+      await releaseCheckoutLock(lockKey, lockToken).catch((error) => console.error("[checkout] subscription lock release failed", { userId: String(req.user.userId), message: String(error?.message || error).slice(0, 200) }));
+    }
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

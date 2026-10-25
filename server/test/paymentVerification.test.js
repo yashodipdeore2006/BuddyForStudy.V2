@@ -98,3 +98,11 @@ test("course payment verification restores enrollment on success and idempotent 
   assert.match(courseDetails, /const verificationData = await apiFetch\('\/api\/payments\/course\/verify'/);
   assert.match(courseDetails, /verificationData\?\.enrollment/);
 });
+
+test("course checkout reuses the latest pending order instead of creating duplicate payable orders", () => {
+  const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
+  assert.match(controller, /const pendingCourseCheckout = await Payment\.findOne\([\s\S]*?course: course\._id,[\s\S]*?provider: "razorpay",[\s\S]*?status: "pending"[\s\S]*?\)\.sort\(\{ createdAt: -1 \}\)/);
+  assert.match(controller, /if \(pendingCourseCheckout\)[\s\S]*?order: \{[\s\S]*?id: pendingCourseCheckout\.providerOrderId,[\s\S]*?Math\.round\(pendingAmount \* 100\)/);
+  assert.match(controller, /Existing course checkout reused/);
+  assert.match(controller, /previous checkout is pending but its payment reference is incomplete/);
+});

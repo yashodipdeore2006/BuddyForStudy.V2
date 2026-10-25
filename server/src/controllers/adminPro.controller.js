@@ -2170,10 +2170,9 @@ export async function updateRefund(req, res, next) {
         refund.set("activePaymentKey", undefined);
         refund.processedAt = new Date();
 
-        const isFullRefund = refund.amount >= remainingAmount;
-        payment.status = isFullRefund ? "refunded" : "partially_refunded";
-        // Persist the provider-confirmed refund record first. If the payment
-        // write fails afterward, reconciliation can repair the derived status.
+        // Persist the provider-confirmed refund record first. The aggregate
+        // payment status is derived after this record is saved, so concurrent
+        // or externally processed refunds are included in the calculation.
       } else if (providerOutcome === "retryable") {
         // An explicit provider failure is safe to retry; an uncertain or pending
         // response must keep the active claim and be reconciled first.
@@ -2202,6 +2201,8 @@ export async function updateRefund(req, res, next) {
       processedAt: refund.processedAt
     }, reason);
     if (refund.status === "processed") {
+      const remainingAfterConfirmedRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
+      payment.status = paymentStatusForRemainingBalance(remainingAfterConfirmedRefunds);
       await payment.save();
     }
     try {

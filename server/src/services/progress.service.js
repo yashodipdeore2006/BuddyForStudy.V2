@@ -4,6 +4,7 @@ import { Course } from "../models/Course.js";
 import { findLearningItem, totalLessons } from "./course.service.js";
 import { recordLearningActivity } from "./achievement.service.js";
 import { createNotificationEvent } from "./notification.service.js";
+import { deriveLearningStatus, LEARNING_STATUS } from "../utils/learningStatus.js";
 
 async function getAuthorizedCourse(userId, courseId) {
   const [course, enrollment] = await Promise.all([
@@ -67,6 +68,17 @@ export async function completeItem(userId, courseId, itemId) {
   progress.lastAccessedAt = new Date();
   progress.lastLessonId = located.item._id;
 
+  // Course content can change after a learner has completed some lessons.
+  // Count only completions that still belong to the current curriculum.
+  const currentLessonIds = new Set(
+    (course.modules || []).flatMap((module) => module.lessons || [])
+      .map((lesson) => String(lesson._id || lesson.id || ""))
+      .filter(Boolean)
+  );
+  progress.completedLessons = progress.completedLessons.filter((entry) =>
+    currentLessonIds.has(String(entry.lessonId))
+  );
+
   const alreadyCompleted = progress.completedLessons.some(
     (entry) => entry.lessonId.toString() === itemId
   );
@@ -81,18 +93,37 @@ export async function completeItem(userId, courseId, itemId) {
 
   progress.completedCount = progress.completedLessons.length;
   progress.percentage = progress.totalLessons
-    ? Math.round((progress.completedCount / progress.totalLessons) * 100)
+    ? Math.min(100, Math.round((progress.completedCount / progress.totalLessons) * 100))
     : 0;
 
+  const learningStatus = deriveLearningStatus({
+    completedCount: progress.completedCount,
+    totalLessons: progress.totalLessons,
+    lastAccessedAt: progress.lastAccessedAt,
+    lastLessonId: progress.lastLessonId
+  });
   await progress.save();
 
   let courseCompleted = false;
-  if (progress.percentage === 100) {
+  if (learningStatus === LEARNING_STATUS.COMPLETED) {
     const enrollmentUpdate = await Enrollment.updateOne(
       { user: userId, course: courseId, status: "active" },
-      { status: "completed" }
+      { $set: { status: "completed", learningStatus: LEARNING_STATUS.COMPLETED } }
     );
     courseCompleted = enrollmentUpdate.modifiedCount > 0;
+    // Keep previously completed enrollments synchronized even if this is a repeat
+    // completion request (the notification only fires on the active -> completed transition).
+    await Enrollment.updateOne(
+      { user: userId, course: courseId, status: "completed", learningStatus: { $ne: LEARNING_STATUS.COMPLETED } },
+      { $set: { learningStatus: LEARNING_STATUS.COMPLETED } }
+    );
+  } else {
+    // If content was added to a previously completed course, it becomes in-progress
+    // again until the new curriculum is completed.
+    await Enrollment.updateOne(
+      { user: userId, course: courseId, status: { $in: ["active", "completed"] } },
+      { $set: { status: "active", learningStatus: LEARNING_STATUS.IN_PROGRESS } }
+    );
   }
 
   if (!alreadyCompleted) {

@@ -395,6 +395,9 @@ export default function CourseDetails() {
                 }
               }
             }
+          } catch (learningError) {
+            console.warn("Course access details unavailable:", learningError);
+          }
         } else {
           setPlanCourseAccess(false);
         }

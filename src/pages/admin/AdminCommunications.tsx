@@ -205,6 +205,16 @@ export default function AdminCommunications() {
     }
   }
 
+  const loadCampaignsRef = useRef(loadCampaigns);
+  const loadDeliveryLogsRef = useRef(loadDeliveryLogs);
+  const loadTemplatesRef = useRef(loadTemplates);
+
+  useEffect(() => {
+    loadCampaignsRef.current = loadCampaigns;
+    loadDeliveryLogsRef.current = loadDeliveryLogs;
+    loadTemplatesRef.current = loadTemplates;
+  });
+
   useEffect(() => {
     if (!deliveryPermissionsLoaded) return;
     const restrictedManagementView = (workspaceView === "templates" || workspaceView === "campaigns") && !canManageCommunications;
@@ -238,10 +248,10 @@ export default function AdminCommunications() {
         }).catch((error) => setAudienceOptionsError(error instanceof Error ? error.message : "Unable to load plan and course filters."));
       }
       if (canManageCommunicationContent) {
-        void loadTemplates();
-        void loadCampaigns();
+        void loadTemplatesRef.current();
+        void loadCampaignsRef.current();
       }
-      if (canReadDeliveryOperations) void loadDeliveryLogs();
+      if (canReadDeliveryOperations) void loadDeliveryLogsRef.current();
     }).catch(() => {
       setCanSendCommunications(false);
       setCanManageCommunications(false);

@@ -50,7 +50,7 @@ async function notifyPaidCoursePurchase(userId, course, payment, enrollment) {
   }
 }
 
-export async function enroll(userId, courseId, { isAdmin = false, accessPreference } = {}) {
+export async function enroll(userId, courseId, { isAdmin = false, accessPreference, retryAfterDuplicate = true } = {}) {
   const course = await Course.findOne({
     _id: courseId,
     deletedAt: null,
@@ -172,7 +172,24 @@ export async function enroll(userId, courseId, { isAdmin = false, accessPreferen
     throw error;
   }
 
-  const enrollment = await Enrollment.create({ user: userId, course: courseId, accessSource: subscriptionAccess ? "subscription" : isAdmin ? "admin" : "self" });
+  let enrollment;
+  try {
+    enrollment = await Enrollment.create({
+      user: userId,
+      course: courseId,
+      accessSource: subscriptionAccess ? "subscription" : isAdmin ? "admin" : "self"
+    });
+  } catch (error) {
+    if (error?.code !== 11000 || !retryAfterDuplicate) throw error;
+
+    // The user/course unique index closes the race where two requests both saw
+    // no enrollment. Re-enter once so the normal existing-enrollment policy
+    // decides whether to reuse, reactivate, upgrade, or reject the winning row.
+    const concurrentEnrollment = await Enrollment.findOne({ user: userId, course: courseId });
+    if (!concurrentEnrollment) throw error;
+    return enroll(userId, courseId, { isAdmin, accessPreference, retryAfterDuplicate: false });
+  }
+
   if (paidPayment) await notifyPaidCoursePurchase(userId, course, paidPayment, enrollment);
   else await notifyFreeCourseEnrollment(userId, course, enrollment);
   return enrollment;

@@ -432,10 +432,17 @@ async function getDiscoveryCoursePricing(level, category = "YouTube Discovery") 
         (filters.maxPrice === undefined || filters.maxPrice === null || 0 <= filters.maxPrice);
     });
     if (rule) {
-      const calculated = calculateNextPricing(freePricing, rule.operation);
-      if (calculated.mode === "free") return calculated;
-      if (calculated.mode === "paid" && calculated.price >= 20 && calculated.price <= 59) return calculated;
-      // Never let an auto-apply rule create an out-of-range paid discovery price.
+      try {
+        const calculated = calculateNextPricing(freePricing, rule.operation);
+        if (calculated.mode === "free") return calculated;
+        if (calculated.mode === "paid" && calculated.price >= 20 && calculated.price <= 59) return calculated;
+        // Never let an auto-apply rule create an out-of-range paid discovery price.
+      } catch (error) {
+        console.warn("[discovery-pricing] invalid rule skipped", {
+          ruleId: String(rule._id),
+          message: String(error?.message || "Invalid pricing rule").slice(0, 200)
+        });
+      }
     }
     // If no eligible auto-apply rule matches, fall back to the configured level band.
   }

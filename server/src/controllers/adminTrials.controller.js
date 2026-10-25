@@ -7,6 +7,7 @@ import { recordAuditEvent } from "../services/auditOutbox.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { resolveAdminAudience } from "../services/adminAudience.service.js";
+import { matchesProfileSetupFilter } from "../utils/adminProfileSetupFilters.js";
 
 const filterSchema = z.object({
   q: z.string().trim().max(100).optional().or(z.literal("")),
@@ -73,9 +74,7 @@ async function resolveAudience(rawFilters) {
     if (filters.marketingConsent !== "any" && Boolean(user.marketingEmailConsent) !== (filters.marketingConsent === "yes")) return false;
     if (filters.city && !String(user.city || "").toLowerCase().includes(filters.city.toLowerCase())) return false;
     if (filters.learningGoal && !String(user.learningGoal || "").toLowerCase().includes(filters.learningGoal.toLowerCase())) return false;
-    if (filters.profileSetup === "complete" && user.profileSetupSkippedAt) return false;
-    if (filters.profileSetup === "skipped" && !user.profileSetupSkippedAt) return false;
-    if (filters.profileSetup === "incomplete" && !user.profileSetupSkippedAt && user.city && user.learningGoal) return false;
+    if (!matchesProfileSetupFilter(user, filters.profileSetup)) return false;
     return true;
   });
   const ids = matchingUsers.map((user) => user._id);

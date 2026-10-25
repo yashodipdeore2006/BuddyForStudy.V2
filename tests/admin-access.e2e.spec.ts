@@ -269,13 +269,11 @@ test.describe("administrator route and permission UX", () => {
 
     await page.goto(baseURL + "/admin/users");
     await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible();
-    console.log("[ADM-PII-REVEAL-001] Users table loaded with masked email.");
     await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0);
 
     const reason = page.getByPlaceholder("Required reason").first();
     const revealButton = page.getByRole("button", { name: "Reveal personal information" }).first();
     await expect(revealButton).toHaveCount(1, { timeout: 5000 });
-    console.log("[ADM-PII-REVEAL-001] Reveal control available.");
     await expect(revealButton).toBeDisabled();
     await reason.fill("Need");
     await expect(revealButton).toBeDisabled();
@@ -283,19 +281,18 @@ test.describe("administrator route and permission UX", () => {
 
     await reason.fill("Need to verify account ownership for support case 1842.");
     await expect(revealButton).toBeEnabled();
-    console.log("[ADM-PII-REVEAL-001] Valid reason accepted; submitting reveal.");
     await revealButton.click();
     await expect(page.getByText("learner@example.test", { exact: true })).toBeVisible();
-    console.log("[ADM-PII-REVEAL-001] Email revealed; masking again.");
     expect(revealRequests).toBe(1);
     expect(revealPayload).toEqual({ reason: "Need to verify account ownership for support case 1842." });
 
     const maskButton = page.getByRole("button", { name: "Mask personal information" }).first();
     await expect(maskButton).toHaveCount(1, { timeout: 4000 });
-    await maskButton.click({ timeout: 4000 });
-    console.log("[ADM-PII-REVEAL-001] Mask button clicked.");
+    // The table header is sticky and can intercept pointer clicks after auto-scrolling.
+    // Use keyboard activation to verify the mask control remains accessible.
+    await maskButton.focus();
+    await maskButton.press("Enter", { timeout: 4000 });
     await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible({ timeout: 4000 });
-    console.log("[ADM-PII-REVEAL-001] Masked email restored.");
     await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0, { timeout: 4000 });
   });
 

@@ -1191,3 +1191,38 @@ test.describe("Google Sign-In popup compatibility", () => {
     await expect(page.getByRole("button", { name: "Mock Continue with Google" })).toBeVisible();
   });
 });
+
+test.describe("learner responsive viewport regressions", () => {
+  test("[RESP-LEARNER-OVERFLOW-001] primary learner routes fit supported viewport widths", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(courseFixture("course-fixture"), "in-progress")],
+    });
+
+    const viewports = [360, 390, 768, 1024, 1440];
+    const routes = [
+      "/home",
+      "/courses",
+      "/courses/course-fixture",
+      "/my-learning",
+      "/learn/course-fixture",
+    ];
+
+    for (const width of viewports) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const path of routes) {
+        await page.goto(baseURL + path);
+        await expect(page.locator("body")).toBeVisible();
+        const dimensions = await page.evaluate(() => ({
+          viewport: document.documentElement.clientWidth,
+          document: document.documentElement.scrollWidth,
+          body: document.body.scrollWidth,
+        }));
+        expect(
+          Math.max(dimensions.document, dimensions.body),
+          `Horizontal overflow at ${path}, viewport ${width}px: ${JSON.stringify(dimensions)}`,
+        ).toBeLessThanOrEqual(dimensions.viewport);
+      }
+    }
+  });
+});

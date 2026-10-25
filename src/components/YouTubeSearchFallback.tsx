@@ -13,6 +13,9 @@ import {
   ListVideo,
   Loader2,
   PlayCircle,
+  Share2,
+  Star,
+  Users,
   X,
 } from "lucide-react";
 
@@ -458,7 +461,7 @@ export default function YouTubeSearchFallback({
                 )}
               </div>
               {curatedResources.length ? (
-                <div className="bfs-course-grid mt-4">
+                <div className="bfs-course-grid bfs-youtube-course-grid mt-4">
                   {curatedResources.map((resource, resultIndex) => {
                     const mappedLessons: CourseLesson[] = (resource.items || [])
                       .map((item) => {
@@ -500,37 +503,34 @@ export default function YouTubeSearchFallback({
                       itemCount: Number(resource.itemCount || lessons.length || 1),
                     };
                     return (
-                      <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md">
-                        <div role="button" tabIndex={0} aria-label={`Preview ${resource.title}`} onClick={() => void openCourse(course)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openCourse(course); } }} className="bfs-course-card__media relative block h-36 shrink-0 cursor-pointer overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500">
-                          {resource.thumbnail ? (
-                            <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
-                          ) : (
-                            <div className="flex h-full items-center justify-center"><PlayCircle className="h-10 w-10 text-white/80" /></div>
-                          )}
-                          <span className="absolute left-3 top-3 rounded-full bg-slate-950/85 px-2.5 py-1 text-[10px] font-bold text-white">{resource.primarySlot || "Recommended"}</span>
-                          {resource.isHiddenGem && <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
-                          <span className="absolute bottom-2 right-2 rounded-md bg-slate-950/85 px-2 py-1 text-[11px] font-bold text-white">{resource.durationEstimated ? "~" : ""}{resource.duration || formatMinutes(resource.durationSeconds || 0)}</span>
+                      <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
+                        <div className="bfs-course-card__media relative shrink-0 overflow-hidden bg-slate-100">
+                          <button type="button" aria-label={`Preview ${resource.title}`} onClick={() => void openCourse(course)} className="absolute inset-0 z-0 h-full w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500"><span className="sr-only">Preview course</span></button>
+                          {resource.thumbnail ? <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" /> : <div className="flex h-full items-center justify-center"><PlayCircle className="h-10 w-10 text-slate-300" /></div>}
+                          <span className="absolute left-2 top-2 z-10 rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm">{resource.primarySlot || "Recommended"}</span>
+                          {resource.isHiddenGem && <span className="absolute right-2 top-2 z-10 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
+                          <span className="absolute bottom-2 left-2 z-10 rounded-md bg-slate-950/85 px-2 py-1 text-[10px] font-bold text-white">{resource.durationEstimated ? "~" : ""}{resource.duration || formatMinutes(resource.durationSeconds || 0)}</span>
+                          <div className="absolute right-2 top-2 z-10 flex flex-col gap-1.5">
+                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-sm transition hover:bg-violet-50 disabled:opacity-60" aria-label={savedIds.has(course.id) ? "Course saved" : "Save course"} title={savedIds.has(course.id) ? "Saved" : "Save course"}>{savedIds.has(course.id) ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}</button>
+                            <button type="button" onClick={() => { const url = resource.sourceUrl || `https://www.youtube.com/watch?v=${encodeURIComponent(resource.sourceId)}`; if (navigator.share) void navigator.share({ title: resource.title, url }).catch(() => undefined); else void navigator.clipboard?.writeText(url); }} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-sm transition hover:bg-violet-50" aria-label={`Share ${resource.title}`} title="Share course"><Share2 className="h-3.5 w-3.5" /></button>
+                          </div>
                         </div>
                         <div className="flex flex-1 flex-col p-3">
                           <div className="flex-1">
-                            <p className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-slate-900" title={resource.title}>{resource.title}</p>
-                            <p className="mt-1 truncate text-xs text-slate-500">{resource.channelTitle || "YouTube learning resource"}</p>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-                              <span>{resource.sourceType === "video" ? "Video" : resource.sourceType === "series" ? "Series" : "Playlist"}</span>
-                              <span>·</span>
+                            <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                              <span className="rounded-full bg-violet-50 px-2 py-1 font-semibold text-violet-700">{resource.sourceType === "video" ? "Single video" : resource.sourceType === "series" ? "Series" : "Course"}</span>
                               <span>{resource.itemCount || 1} {(resource.itemCount || 1) === 1 ? "lesson" : "lessons"}</span>
                             </div>
+                            <p className="line-clamp-2 min-h-[2.6rem] text-sm font-bold leading-5 text-slate-900" title={resource.title}>{resource.title}</p>
+                            <p className="mt-1 truncate text-xs text-slate-500" title={resource.channelTitle}>{resource.channelTitle || "YouTube learning resource"}</p>
+                            <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-4 text-slate-600" title={resource.description}>{resource.description || `Learn ${query} with this curated YouTube resource.`}</p>
+                            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500"><Star className="h-3 w-3 text-amber-500" aria-hidden="true" /><span>No ratings yet</span><span aria-hidden="true">·</span><Users className="h-3 w-3" aria-hidden="true" /><span>YouTube resource</span></div>
                             <details className="mt-2 border-t border-slate-100 pt-2">
-                              <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-indigo-700">Details and feedback</summary>
+                              <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-violet-700">Details and feedback</summary>
                               <div className="mt-2 space-y-2">
-                                {resource.whyThis?.length > 0 && (
-                                  <ul className="space-y-1 text-xs leading-4 text-slate-600">
-                                    {resource.whyThis.slice(0, 2).map((reason, index) => <li key={resource.id + "-why-" + index}>{reason}</li>)}
-                                  </ul>
-                                )}
+                                {resource.whyThis?.length > 0 && <ul className="space-y-1 text-xs leading-4 text-slate-600">{resource.whyThis.slice(0, 2).map((reason, index) => <li key={resource.id + "-why-" + index}>{reason}</li>)}</ul>}
                                 {resource.gaps?.length > 0 && <p className="text-[11px] leading-4 text-slate-500">May not cover: {resource.gaps.slice(0, 2).join(", ")}</p>}
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="mr-auto text-[11px] text-slate-500">Useful?</span>
+                                <div className="flex flex-wrap items-center gap-2"><span className="mr-auto text-[11px] text-slate-500">Useful?</span>
                                   <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_up", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-emerald-50 disabled:opacity-60">Helpful</button>
                                   <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_down", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-red-50 disabled:opacity-60">Not relevant</button>
                                   <button type="button" onClick={() => void recordCurationFeedback(resource.id, "outdated", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-amber-50 disabled:opacity-60">Outdated</button>
@@ -538,15 +538,11 @@ export default function YouTubeSearchFallback({
                                 {curationFeedback[resource.id] && <p role="status" className="text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
                               </div>
                             </details>
-                            {curationFeedback[resource.id] && <p role="status" className="mt-1 text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
                           </div>
-                          <div className="mt-4 grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => void saveCourse(course)} disabled={savingId === course.id} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-60" aria-label={savedIds.has(course.id) ? "Course saved" : "Save course"} title={savingId === course.id ? "Saving course" : savedIds.has(course.id) ? "Saved" : "Save course"}>
-                              {savingId === course.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : savedIds.has(course.id) ? <BookmarkCheck className="h-4 w-4" aria-hidden="true" /> : <Bookmark className="h-4 w-4" aria-hidden="true" />}
-                            </button>
-                            <button type="button" onClick={() => handleCourseAction(course)} disabled={enrollingId === course.id} className="inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1A1B41] px-3 py-2.5 text-xs font-bold text-white transition hover:bg-[#292a55] disabled:opacity-60">
-                              {enrollingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                              {enrolledIds.has(course.id) ? "Start" : "Enroll free"}
+                          <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                            <span className="text-sm font-bold text-emerald-700">Free</span>
+                            <button type="button" onClick={() => handleCourseAction(course)} disabled={enrollingId === course.id} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
+                              {enrollingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolledIds.has(course.id) ? "Start" : "＋ Enroll free"}
                             </button>
                           </div>
                         </div>

@@ -179,7 +179,7 @@ export async function enroll(userId, courseId, { isAdmin = false, accessPreferen
 }
 
 export async function getMine(userId) {
-  const enrollments = await Enrollment.find({ user: userId })
+  const enrollments = await Enrollment.find({ user: userId, status: { $ne: "cancelled" } })
     .populate({
       path: "course",
       select: "title slug description category level duration thumbnail isPublished pricing enrollmentEnabled learningOutcomes generation modules createdAt updatedAt"

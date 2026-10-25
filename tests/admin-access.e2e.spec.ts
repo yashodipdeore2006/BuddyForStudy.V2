@@ -377,6 +377,83 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
   });
+  test("[ADM-TRIAL-GRANT-PREVIEW-001] group trial preview includes all filtered eligible learners", async ({ page }) => {
+    let previewPayload: Record<string, unknown> | null = null;
+    let grantPayload: Record<string, unknown> | null = null;
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "trial_campaign_manager",
+      roleLabel: "Trial Campaign Manager",
+      permissions: ["dashboard.read", "trials.manage"],
+    });
+    await page.route("**/api/admin/plans", async (route) => json(route, {
+      plans: [{ _id: "trial-plan-free", name: "Free learning plan", price: 0, currency: "INR", billingInterval: "month", isActive: true }],
+    }));
+    await page.route("**/api/admin/trials/grants?*", async (route) => json(route, { grants: [] }));
+    await page.route("**/api/admin/trials/preview", async (route) => {
+      previewPayload = route.request().postDataJSON() as Record<string, unknown>;
+      return json(route, {
+        eligibleCount: 241,
+        totalEligibleBeforeLimit: 241,
+        skippedCount: 1,
+        eligible: [
+          { id: "eligible-1", name: "Sample learner one", email: "one@example.test", authProvider: "local", emailVerified: true },
+          { id: "eligible-2", name: "Sample learner two", email: "two@example.test", authProvider: "google", emailVerified: true },
+        ],
+        skipped: [{ id: "skipped-1", name: "Previous recipient", email: "previous@example.test", reason: "Previous trial already granted" }],
+      });
+    });
+    await page.route("**/api/admin/trials/grant", async (route) => {
+      grantPayload = route.request().postDataJSON() as Record<string, unknown>;
+      return json(route, { granted: 241, skipped: 1 });
+    });
+
+    await page.goto(baseURL + "/admin/trials");
+    await expect(page.getByRole("heading", { name: "Grant a free trial" })).toBeVisible();
+    await page.getByRole("button", { name: /A filtered group/ }).click();
+    await page.getByLabel("Name or email contains").fill("cohort");
+    await page.getByLabel(/Trial plan/).selectOption("trial-plan-free");
+    await page.getByLabel("Internal reason (required)").fill("Support approved a seven day trial for this eligible learning cohort.");
+    await page.getByRole("button", { name: "Review eligible learner(s)" }).click();
+
+    await expect(page.getByRole("heading", { name: "3. Review before granting" })).toBeVisible();
+    await expect(page.getByText("241", { exact: true })).toBeVisible();
+    await expect(page.getByText("Sample learner one", { exact: true })).toBeVisible();
+    await expect(page.getByText("No autopay", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm and grant trial" })).toBeDisabled();
+    expect(previewPayload).not.toBeNull();
+    expect(previewPayload).toMatchObject({
+      planId: "trial-plan-free",
+      trialDays: 7,
+      reason: "Support approved a seven day trial for this eligible learning cohort.",
+      filters: {
+        q: "cohort",
+        status: "active",
+        role: "user",
+        emailVerified: "yes",
+        priorTrial: "never",
+        subscriptionStatus: "none",
+      },
+    });
+
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Confirm and grant trial" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Trial grants processed: 241 granted, 1 skipped. No autopay was initiated." })).toBeVisible();
+    expect(grantPayload).toMatchObject({
+      confirm: true,
+      planId: "trial-plan-free",
+      trialDays: 7,
+      filters: {
+        q: "cohort",
+        priorTrial: "never",
+        subscriptionStatus: "none",
+      },
+    });
+    expect(typeof grantPayload?.idempotencyKey).toBe("string");
+    expect(String(grantPayload?.idempotencyKey || "").length).toBeGreaterThanOrEqual(12);
+    expect(grantPayload).not.toHaveProperty("maxRecipients");
+  });
+
   test("[ADM-DELIVERY-RETRY-FAILURE-001] retry queue failure preserves reason and permits retry", async ({ page }) => {
     let retryRequests = 0;
     page.on("request", (request) => {

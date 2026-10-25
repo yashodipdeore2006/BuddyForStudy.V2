@@ -570,3 +570,11 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - CI run [#40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) passed both jobs; 69 Playwright tests passed. The new `ADM-PII-REVEAL-001` check verifies masked-by-default email display, reason-gated reveal, the reason payload, and keyboard-operated re-masking.
 - Tests use mocked browser API responses. They do not establish production database writes, provider delivery, live audit persistence, or deployed authorization configuration.
 - Next: add a dedicated user export E2E (reason + exact typed confirmation + CSV formula-injection safety), then continue the responsive and accessibility evidence at 360, 390, 768, 1024 and 1440px.
+
+
+## Verification update — user PII reveal and CSV export (2026-10-25)
+
+- CI run [#40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) passed frontend and backend jobs; 69 Playwright tests passed. `ADM-PII-REVEAL-001` verifies masked-by-default email display, reason-gated reveal, reason payload and keyboard re-masking.
+- CI run [#40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) passed frontend and backend jobs; 70 Playwright tests passed. `ADM-PII-EXPORT-001` verifies required reason + exact typed confirmation, selected-user payload, CSV download and apostrophe-prefixing for a formula-like name.
+- Both UI tests use mocked API responses. Production audit persistence, database-backed exports and deployed authorization/configuration still require staging evidence.
+- Next: browser-test account enable/disable failure recovery, then continue responsive and keyboard/focus checks at 360, 390, 768, 1024 and 1440px.

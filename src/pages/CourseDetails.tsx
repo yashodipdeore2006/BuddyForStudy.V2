@@ -256,7 +256,7 @@ export default function CourseDetails() {
       })
       .catch(() => { if (active) setRelatedCourses([]); });
     return () => { active = false; };
-  }, [course?.id]);
+  }, [course]);
 
   useEffect(() => {
     const updateStickyHeader = () => {
@@ -620,7 +620,7 @@ export default function CourseDetails() {
       ? course.modules.findIndex((module) => module.lessons.some((lesson) => String(lesson.id) === String(focusLessonId)))
       : 0;
     if (targetIndex >= 0) setExpandedModules(new Set([targetIndex]));
-  }, [course?.id, enrollment?.status, progress?.last_lesson_id, progress?.percentage, progress?.completed_count]);
+  }, [course, enrollment?.status, progress?.last_lesson_id, progress?.percentage, progress?.completed_count, progress?.completed_lessons]);
 
   if (loading) {
     return (

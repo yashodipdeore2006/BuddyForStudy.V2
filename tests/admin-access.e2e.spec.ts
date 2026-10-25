@@ -290,9 +290,13 @@ test.describe("administrator route and permission UX", () => {
     expect(revealRequests).toBe(1);
     expect(revealPayload).toEqual({ reason: "Need to verify account ownership for support case 1842." });
 
-    await page.getByRole("button", { name: "Mask personal information" }).first().click();
-    await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible();
-    await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0);
+    const maskButton = page.getByRole("button", { name: "Mask personal information" }).first();
+    await expect(maskButton).toHaveCount(1, { timeout: 4000 });
+    await maskButton.click({ timeout: 4000 });
+    console.log("[ADM-PII-REVEAL-001] Mask button clicked.");
+    await expect(page.getByText("r***@example.test", { exact: true })).toBeVisible({ timeout: 4000 });
+    console.log("[ADM-PII-REVEAL-001] Masked email restored.");
+    await expect(page.getByText("learner@example.test", { exact: true })).toHaveCount(0, { timeout: 4000 });
   });
 
   test("changing user page size clears page-scoped bulk selection", async ({ page }) => {

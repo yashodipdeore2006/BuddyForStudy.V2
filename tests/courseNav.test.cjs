@@ -67,7 +67,7 @@ test("course navigation stays in the same tab while external links open a new ta
   assert.match(card, /to=\{navTargets\.cardHref\}/);
   assert.doesNotMatch(card, /target="_blank"/);
   assert.ok(youtubeDiscovery.includes("navigate(" + "\u0060" + "/courses/${courseId}" + "\u0060" + ")"));
-  assert.match(details, /target="_blank" rel="noreferrer"/);
+  assert.match(details, /target="_blank" rel="noopener noreferrer"/);
   assert.match(player, /target="_blank"/);
 });
 

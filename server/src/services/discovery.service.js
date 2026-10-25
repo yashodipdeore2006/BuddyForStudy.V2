@@ -6,9 +6,6 @@ import { youtubeRequest } from "./youtubeGateway.js";
 import { Course } from "../models/Course.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
-import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
-import { PricingRule } from "../models/PricingRule.js";
-import { calculateNextPricing } from "../utils/coursePricing.js";
 
 const cache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
@@ -408,53 +405,6 @@ export async function getOrCreateNormalCourse(query) {
   return { course, result, cached: false };
 }
 
-async function getDiscoveryCoursePricing(level, category = "YouTube Discovery") {
-  const setting = await PlatformSetting.findOne({ key: "generated_course_pricing_policy" }).select("value").lean();
-  const policy = resolveGeneratedCoursePricingPolicy(setting?.value);
-  const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
-  const freePricing = { mode: "free", price: 0, compareAtPrice: 0, currency: "INR", saleEnabled: false, salePrice: 0 };
-
-  if (!policy.enabled || !policy.applyTo.includes("discovery") || policy.mode === "free") return freePricing;
-
-  if (policy.mode === "fixed") {
-    const price = Math.round(Number(policy.fixedPrice) || 0);
-    return price > 0 ? { ...freePricing, mode: "paid", price } : freePricing;
-  }
-
-  if (policy.mode === "rule_based") {
-    const rules = await PricingRule.find({ enabled: true, autoApply: true }).sort({ priority: 1, createdAt: 1 }).lean();
-    const rule = rules.find((candidate) => {
-      const filters = candidate.filters || {};
-      return (!filters.category || String(filters.category).toLowerCase() === category.toLowerCase()) &&
-        (!filters.level || filters.level === normalizedLevel) &&
-        (!filters.mode || filters.mode === "free") &&
-        (filters.minPrice === undefined || filters.minPrice === null || 0 >= filters.minPrice) &&
-        (filters.maxPrice === undefined || filters.maxPrice === null || 0 <= filters.maxPrice);
-    });
-    if (rule) {
-      try {
-        const calculated = calculateNextPricing(freePricing, rule.operation);
-        if (calculated.mode === "free") return calculated;
-        if (calculated.mode === "paid" && calculated.price >= 20 && calculated.price <= 59) return calculated;
-        // Never let an auto-apply rule create an out-of-range paid discovery price.
-      } catch (error) {
-        console.warn("[discovery-pricing] invalid rule skipped", {
-          ruleId: String(rule._id),
-          message: String(error?.message || "Invalid pricing rule").slice(0, 200)
-        });
-      }
-    }
-    // If no eligible auto-apply rule matches, fall back to the configured level band.
-  }
-
-  const course = { level: normalizedLevel };
-  const band = policy.levelBands?.[course.level] || policy.levelBands?.Beginner;
-  const min = Math.max(20, Math.min(59, Math.round(Number(band?.min) || 20)));
-  const max = Math.max(min, Math.min(59, Math.round(Number(band?.max) || min)));
-  const price = Math.round((min + max) / 2);
-  return { ...freePricing, mode: "paid", price };
-}
-
 export async function getOrCreateYouTubeResourceCourse({
   query,
   resourceType,
@@ -607,8 +557,6 @@ export async function getOrCreateYouTubeResourceCourse({
     : "Self-paced";
 
   const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
-  const pricing = await getDiscoveryCoursePricing(normalizedLevel, "YouTube Discovery");
-
   const payload = {
     title,
     slug: generatedSlug(title, "discovery"),
@@ -625,7 +573,7 @@ export async function getOrCreateYouTubeResourceCourse({
       lessons
     }],
     isPublished: true,
-    pricing,
+    pricing: { mode: "free", price: 0, currency: "INR" },
     enrollmentEnabled: true,
     certificateEnabled: false,
     featured: false,

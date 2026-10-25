@@ -165,4 +165,53 @@ export async function completeItem(userId, courseId, itemId) {
   return progress;
 }
 
+
+export async function uncompleteItem(userId, courseId, itemId) {
+  const course = await getAuthorizedCourse(userId, courseId);
+  const located = findLearningItem(course, itemId);
+  if (!located) {
+    const error = new Error("Learning item not found");
+    error.status = 404;
+    throw error;
+  }
+
+  let progress = await Progress.findOne({ user: userId, course: courseId });
+  if (!progress) progress = new Progress({ user: userId, course: courseId });
+
+  progress.totalLessons = totalLessons(course);
+  const currentLessonIds = new Set(
+    (course.modules || []).flatMap((module) => module.lessons || [])
+      .map((lesson) => String(lesson._id || lesson.id || ""))
+      .filter(Boolean)
+  );
+  progress.completedLessons = progress.completedLessons.filter((entry) =>
+    currentLessonIds.has(String(entry.lessonId)) && String(entry.lessonId) !== String(itemId)
+  );
+  progress.completedCount = progress.completedLessons.length;
+  progress.percentage = progress.totalLessons
+    ? Math.min(100, Math.round((progress.completedCount / progress.totalLessons) * 100))
+    : 0;
+
+  const learningStatus = deriveLearningStatus({
+    completedCount: progress.completedCount,
+    totalLessons: progress.totalLessons,
+    lastAccessedAt: progress.lastAccessedAt,
+    lastLessonId: progress.lastLessonId
+  });
+  await progress.save();
+
+  // Removing a completion can invalidate the completed status of the enrollment.
+  await Enrollment.updateOne(
+    { user: userId, course: courseId, status: { $in: ["active", "completed"] }, revokedBy: null },
+    {
+      $set: {
+        status: learningStatus === LEARNING_STATUS.COMPLETED ? "completed" : "active",
+        learningStatus
+      }
+    }
+  );
+
+  return progress;
+}
+
 export { getAuthorizedCourse };

@@ -134,7 +134,7 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
   useEffect(() => {
     if (!seekRequest || !Number.isFinite(seekRequest.seconds)) return;
     playerRef.current?.seekTo(Math.max(0, seekRequest.seconds), true);
-  }, [seekRequest?.id]);
+  }, [seekRequest]);
 
   const replay = () => {
     setEnded(false);

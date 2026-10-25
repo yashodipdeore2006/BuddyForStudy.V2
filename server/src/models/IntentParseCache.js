@@ -5,5 +5,4 @@ const intentParseCacheSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, required: true, index: { expires: 0 } }
 }, { versionKey: false, collection: "intent_parse_cache" });
-intentParseCacheSchema.index({ expiresAt: 1 });
 export const IntentParseCache = mongoose.models.IntentParseCache || mongoose.model("IntentParseCache", intentParseCacheSchema);

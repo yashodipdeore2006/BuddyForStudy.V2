@@ -1226,3 +1226,29 @@ test.describe("learner responsive viewport regressions", () => {
     }
   });
 });
+
+test.describe("session recovery", () => {
+  test("[NAV-SIGNOUT-FAILURE-001] sign out clears local credentials when server logout fails", async ({ page }) => {
+    let logoutRequests = 0;
+    await mockAppApi(page, { authenticated: true });
+    await page.route("**/api/auth/logout", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      logoutRequests += 1;
+      return json(route, { message: "Logout service is temporarily unavailable." }, 503);
+    });
+
+    await page.goto(baseURL + "/home");
+    const accountButton = page.getByRole("button", { name: /Open account menu for Learner/ });
+    await expect(accountButton).toBeVisible();
+    await accountButton.click();
+    const menu = page.getByRole("menu", { name: "Account menu" });
+    await expect(menu.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+    await menu.getByRole("menuitem", { name: "Sign out" }).click();
+
+    await expect.poll(() => page.evaluate(() => window.location.pathname)).toBe("/");
+    await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+    expect(logoutRequests).toBe(1);
+    const token = await page.evaluate(() => localStorage.getItem("bfs_token"));
+    expect(token).toBeNull();
+  });
+});

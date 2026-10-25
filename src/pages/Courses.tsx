@@ -1169,7 +1169,7 @@ export default function Courses() {
                                   <div className="mt-3 space-y-2">
                                     {videos.slice(0, 3).map((video) => (
                                       <div key={video.videoId || video.url || video.title} className="rounded-xl bg-slate-50 p-2.5">
-                                        <a href={video.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>
+                                        <a href={video.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>
                                         {video.videoId && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                                           {(["helpful", "outdated", "wrong_level"] as const).map((event) => (
                                             <button key={event} type="button" disabled={Boolean(curationFeedbackSent[video.videoId!])} onClick={() => void sendCurationFeedback(event, module, video)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 disabled:opacity-60">

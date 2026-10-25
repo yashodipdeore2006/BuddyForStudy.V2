@@ -81,3 +81,30 @@ export function classifyProviderRefundStatus(status) {
   if (["failed", "rejected"].includes(normalized)) return "retryable";
   return "pending";
 }
+
+/** Validate a processed refund webhook against its original local payment. */
+export function normalizeProcessedProviderRefund(providerRefund, payment) {
+  const providerRefundId = String(providerRefund?.id || "").trim();
+  const providerPaymentId = String(providerRefund?.payment_id || "").trim();
+  const expectedPaymentId = String(payment?.providerPaymentId || "").trim();
+  const amountMinor = Number(providerRefund?.amount);
+  const currency = String(providerRefund?.currency || "").trim().toUpperCase();
+  const status = String(providerRefund?.status || "").trim().toLowerCase();
+
+  if (!providerRefundId) return { valid: false, reason: "Missing provider refund ID" };
+  if (!expectedPaymentId || providerPaymentId !== expectedPaymentId) {
+    return { valid: false, reason: "Provider refund payment mismatch" };
+  }
+  if (status && status !== "processed") {
+    return { valid: false, reason: "Provider refund is not processed" };
+  }
+  if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+    return { valid: false, reason: "Invalid provider refund amount" };
+  }
+  if (!/^[A-Z]{3}$/.test(currency) ||
+      currency !== String(payment?.currency || "INR").trim().toUpperCase()) {
+    return { valid: false, reason: "Provider refund currency mismatch" };
+  }
+
+  return { valid: true, providerRefundId, paymentId: providerPaymentId, amount: amountMinor / 100, currency };
+}

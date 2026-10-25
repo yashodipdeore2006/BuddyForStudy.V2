@@ -148,16 +148,22 @@ export async function learn(req, res, next) {
     await Progress.findOneAndUpdate(
       { user: req.user.userId, course: req.params.courseId },
       {
-        $set: { lastAccessedAt: new Date() },
+        $set: { lastAccessedAt: new Date(), totalLessons: courseService.totalLessons(course) },
         $setOnInsert: {
           user: req.user.userId,
           course: req.params.courseId,
-          totalLessons: courseService.totalLessons(course),
           completedCount: 0,
           percentage: 0
         }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // Opening the lesson player is the start signal for My Learning. Avoid
+    // downgrading a completed enrollment when the learner opens it to review.
+    await (await import("../models/Enrollment.js")).Enrollment.updateOne(
+      { user: req.user.userId, course: req.params.courseId, status: "active" },
+      { $set: { learningStatus: "in-progress" } }
     );
 
     const projectsAllowed =

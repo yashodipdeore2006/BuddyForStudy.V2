@@ -74,7 +74,8 @@ export default function AdminPricingStudio() {
       ]);
       setCourses(catalogue.courses || []); setMatchedTotal(Number(catalogue.total || 0)); setCategories(catalogue.categories || []);
       setSummary(catalogue.summary || { total: 0, paid: 0, free: 0 });
-      setRules(ruleData.rules || []); setHistory(historyData.batches || []);\n      if (policyData.policy) setGeneratedPolicy((current) => ({ ...current, ...policyData.policy }));
+      setRules(ruleData.rules || []); setHistory(historyData.batches || []);
+      if (policyData.policy) setGeneratedPolicy((current) => ({ ...current, ...policyData.policy }));
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load pricing data."); }
     finally { setLoading(false); }
   }, [query]);

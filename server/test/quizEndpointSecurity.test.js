@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const aiController = readFileSync(new URL("../src/controllers/ai.controller.js", import.meta.url), "utf8");
+const aiRoadmapService = readFileSync(new URL("../src/services/aiRoadmap.service.js", import.meta.url), "utf8");
 const courseController = readFileSync(new URL("../src/controllers/course.controller.js", import.meta.url), "utf8");
 const aiRoutes = readFileSync(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
 const player = readFileSync(new URL("../../src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
@@ -50,4 +51,18 @@ test("learner UI never grades locally from a client-delivered answer key", () =>
   assert.match(player, /setPracticeQuizScore\(Number\(result\.score\)\)/);
   assert.match(player, /setQuizReview\(review\)/);
   assert.match(player, /setPracticeQuizReview\(review\)/);
+});
+
+test("saved course quizzes remain available without Gemini and enrolled learners retain non-public course access", () => {
+  const start = aiRoadmapService.indexOf("export async function generateCourseQuiz");
+  const end = aiRoadmapService.indexOf("function courseHasTutorialVideos", start);
+  assert.ok(start >= 0 && end > start, "Expected course quiz generation service");
+  const handler = aiRoadmapService.slice(start, end);
+  const savedQuizReturn = handler.indexOf("if (!practiceOnly && existingQuestions.length >= requestedCount)");
+  const providerGuard = handler.indexOf('if (!client)');
+  assert.ok(savedQuizReturn >= 0 && providerGuard > savedQuizReturn,
+    "Saved course quiz must be returned before requiring the AI provider");
+  assert.match(handler, /visibility: \{ \$ne: "private" \}/);
+  assert.match(handler, /aiReviewStatus: \{ \$nin: \["pending", "rejected"\] \}/);
+  assert.match(handler, /revokedBy: null/);
 });

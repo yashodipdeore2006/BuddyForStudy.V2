@@ -23,6 +23,12 @@ const initialState: CourseState = {
   hasPreview: false, isPublished: true, error: null,
 };
 
+function normalizeLessonId(value: unknown): string | null {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || normalized.toLowerCase() === "undefined" || normalized.toLowerCase() === "null") return null;
+  return normalized;
+}
+
 export function useCourseState(courseId: string | undefined, course?: Course | null, enabled = true, refreshKey = 0): CourseState {
   const [remote, setRemote] = useState<CourseState>(initialState);
   const lessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
@@ -72,7 +78,7 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
         const entry = item !== null && typeof item === "object" ? item as Record<string, unknown> : {};
         return String(entry.lessonId ?? entry.lesson_id ?? entry.id ?? "");
       }));
-      const nextLesson = lessons.find((lesson) => !completedIds.has(String(lesson.id)));
+      const nextLesson = lessons.find((lesson) => {\n        const lessonId = normalizeLessonId(lesson.id);\n        return lessonId !== null && !completedIds.has(lessonId);\n      });
       const totalLessons = Number(progress?.totalLessons ?? progress?.total_lessons ?? lessons.length);
       const completedLessons = Number(progress?.completedCount ?? progress?.completed_count ?? completedIds.size);
       const progressPct = Math.min(100, Math.max(0, Number(progress?.percentage ?? (totalLessons ? completedLessons / totalLessons * 100 : 0)) || 0));
@@ -80,7 +86,7 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
 
       if (current) setRemote({
         loading: false, isEnrolled, isCompleted, progressPct, completedLessons, totalLessons,
-        nextLessonId: isCompleted ? null : nextLesson ? String(nextLesson.id) : null,
+        nextLessonId: isCompleted || !nextLesson ? null : normalizeLessonId(nextLesson.id),
         hasRoadmap, hasPreview: lessons.some((lesson) => {
           const previewMetadata = lesson as unknown as { isPreview?: boolean; is_preview?: boolean };
           return previewMetadata.isPreview === true || previewMetadata.is_preview === true;

@@ -8,6 +8,8 @@ import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
+import { PricingRule } from "../models/PricingRule.js";
+import { calculateNextPricing } from "../utils/coursePricing.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -457,27 +459,103 @@ function courseContentCountsStage() {
   };
 }
 
+function effectiveDiscoveryPricingPreview(pricing = {}) {
+  const currency = String(pricing.currency || "INR").toUpperCase();
+  if (pricing.mode === "free") return { mode: "free", price: 0, currency };
+  const basePrice = Number(pricing.price);
+  if (pricing.mode !== "paid" || !Number.isFinite(basePrice) || basePrice <= 0) {
+    return { mode: "unknown", currency };
+  }
+  const salePrice = Number(pricing.salePrice);
+  const activeSale = pricing.saleEnabled === true &&
+    Number.isFinite(salePrice) && salePrice > 0 && salePrice < basePrice;
+  return { mode: "paid", price: activeSale ? salePrice : basePrice, currency, ...(activeSale ? { salePrice, basePrice } : {}) };
+}
+
 async function getDiscoveryPricingPreview(level) {
   const setting = await PlatformSetting.findOne({ key: "generated_course_pricing_policy" }).select("value").lean();
   const policy = resolveGeneratedCoursePricingPolicy(setting?.value);
+  const currency = String(policy.currency || "INR").toUpperCase();
+  const freePricing = { mode: "free", price: 0, currency, compareAtPrice: 0, saleEnabled: false, salePrice: 0 };
+
+  // Match the Course model's pre-validation policy: new discovery resources
+  // begin free, then the canonical generated-course policy assigns their price.
   if (!policy.enabled || !policy.applyTo.includes("discovery") || policy.mode === "free") {
-    return { mode: "free", price: 0, currency: policy.currency || "INR" };
+    return effectiveDiscoveryPricingPreview(freePricing);
   }
   if (policy.mode === "fixed") {
     const price = Math.round(Number(policy.fixedPrice) || 0);
-    return price > 0 ? { mode: "paid", price, currency: policy.currency || "INR" } : { mode: "free", price: 0, currency: policy.currency || "INR" };
+    return effectiveDiscoveryPricingPreview({ ...freePricing, mode: price > 0 ? "paid" : "free", price });
   }
-  if (policy.mode !== "level_bands") return { mode: "unknown", currency: policy.currency || "INR" };
 
   const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
-  const band = policy.levelBands?.[normalizedLevel] || policy.levelBands?.Beginner;
-  if (!band) return { mode: "unknown", currency: policy.currency || "INR" };
-  const min = Math.max(20, Math.min(59, Math.round(Number(band.min) || 20)));
-  const max = Math.max(min, Math.min(59, Math.round(Number(band.max) || min)));
-  // Generated YouTube courses currently contain one module and no project lessons.
-  const base = Math.round((min + max) / 2);
-  const price = Math.min(max, Math.max(min, Math.round(base * 1.02)));
-  return { mode: price > 0 ? "paid" : "free", price, currency: policy.currency || "INR" };
+  if (policy.mode === "level_bands") {
+    const band = policy.levelBands?.[normalizedLevel];
+    if (!band) return { mode: "unknown", currency };
+    const min = Number(band.min), max = Number(band.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return { mode: "unknown", currency };
+    const base = Math.round((min + max) / 2);
+    // One module, no project lessons: this mirrors Course.js.
+    const recommended = Math.min(max, Math.max(min, Math.round(base * 1.02)));
+    return effectiveDiscoveryPricingPreview({ ...freePricing, mode: recommended > 0 ? "paid" : "free", price: recommended });
+  }
+
+  if (policy.mode === "rule_based") {
+    const rules = await PricingRule.find({ enabled: true, autoApply: true }).sort({ priority: 1, createdAt: 1 }).lean();
+    const price = 0;
+    const rule = rules.find((candidate) => {
+      const filters = candidate.filters || {};
+      return (!filters.category || String(filters.category).toLowerCase() === "youtube discovery") &&
+        (!filters.level || filters.level === normalizedLevel) &&
+        (!filters.mode || filters.mode === "free") &&
+        (filters.minPrice == null || price >= Number(filters.minPrice)) &&
+        (filters.maxPrice == null || price <= Number(filters.maxPrice));
+    });
+    if (!rule) return effectiveDiscoveryPricingPreview(freePricing);
+    try {
+      const nextPricing = calculateNextPricing(freePricing, rule.operation);
+      if (nextPricing.mode === "paid" && (nextPricing.price < 20 || nextPricing.price > 59)) {
+        return effectiveDiscoveryPricingPreview(freePricing);
+      }
+      return effectiveDiscoveryPricingPreview(nextPricing);
+    } catch {
+      // Course.js fails closed on invalid rules and preserves the initial free price.
+      return effectiveDiscoveryPricingPreview(freePricing);
+    }
+  }
+
+  return { mode: "unknown", currency };
+}
+
+async function getDiscoveryPricingPreviews(resources, level) {
+  const items = Array.isArray(resources) ? resources : [];
+  const pairs = items.filter((resource) => resource?.sourceType && resource?.sourceId).map((resource) => ({
+    resourceType: resource.sourceType,
+    resourceId: String(resource.sourceId)
+  }));
+  const existingCourses = pairs.length ? await Course.find({
+    "generation.mode": "discovery",
+    deletedAt: null,
+    $or: pairs.map(({ resourceType, resourceId }) => ({
+      "generation.sourceResourceType": resourceType,
+      "generation.sourceResourceId": resourceId
+    }))
+  }).select("pricing level generation.sourceResourceType generation.sourceResourceId").lean() : [];
+  const existingByKey = new Map(existingCourses.map((course) => [
+    String(course.generation?.sourceResourceType || "") + ":" + String(course.generation?.sourceResourceId || ""),
+    course
+  ]));
+  const configuredPreview = await getDiscoveryPricingPreview(level);
+  return items.map((resource) => {
+    const key = String(resource?.sourceType || "") + ":" + String(resource?.sourceId || "");
+    const existing = existingByKey.get(key);
+    return {
+      ...resource,
+      // Saved prices win: reusing an existing resource must never display a
+      // policy estimate that differs from the persisted course/checkout price.
+      pricingPreview: existing ? effectiveDiscoveryPricingPreview(existing.pricing) : configuredPreview
+    };
+  });
 }
 
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
@@ -526,8 +604,10 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
 
     try {
       curation = await curateNormalSearch(normalizedSearch, { category, level });
-      const pricingPreview = await getDiscoveryPricingPreview(curation?.meta?.intent?.level || level);
-      curation.resources = (curation.resources || []).map((resource) => ({ ...resource, pricingPreview }));
+      curation.resources = await getDiscoveryPricingPreviews(
+        curation.resources || [],
+        curation?.meta?.intent?.level || level
+      );
       youtubeError = String(curation?.meta?.youtubeError || "");
     } catch (error) {
       youtubeError = error instanceof Error ? error.message : "YouTube course curation is unavailable";

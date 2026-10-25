@@ -578,3 +578,10 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - CI run [#40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) passed frontend and backend jobs; 70 Playwright tests passed. `ADM-PII-EXPORT-001` verifies required reason + exact typed confirmation, selected-user payload, CSV download and apostrophe-prefixing for a formula-like name.
 - Both UI tests use mocked API responses. Production audit persistence, database-backed exports and deployed authorization/configuration still require staging evidence.
 - Next: browser-test account enable/disable failure recovery, then continue responsive and keyboard/focus checks at 360, 390, 768, 1024 and 1440px.
+
+## Verification update — learner responsive viewport coverage (2026-10-25)
+
+- Added `RESP-LEARNER-OVERFLOW-001` in `tests/navigation.e2e.spec.ts`. It checks Home, Explore, course details, My Learning and the course player at 360, 390, 768, 1024 and 1440 CSS px; asserts document and body width do not exceed the viewport.
+- **CI passed:** commit `5b1465cb816757512e625731c8903ce9b3ae7f69`, [run #40184735235](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184735235). Frontend and backend jobs passed; 72 Playwright tests passed.
+- Added `RESP-ADMIN-OVERFLOW-001` for the admin dashboard, Users and Courses at 360, 768 and 1440 CSS px. Its first run exposed an ambiguous main-element locator in the test, now narrowed to `main.admin-main`; verification is pending on the current commit.
+- Scope note: these tests check horizontal overflow, not focus order, color contrast, zoom behavior, or screen-reader support. They use mocked APIs and do not verify production data.

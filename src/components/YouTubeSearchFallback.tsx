@@ -173,7 +173,6 @@ export default function YouTubeSearchFallback({
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<Record<string, string>>({});
-  const [curationFeedback, setCurationFeedback] = useState<Record<string, string>>({});
   const { session } = useAuth();
   const navigate = useNavigate();
 
@@ -254,7 +253,6 @@ export default function YouTubeSearchFallback({
         }),
       });
       if (["thumbs_up", "thumbs_down", "outdated"].includes(event)) {
-        setCurationFeedback((current) => ({ ...current, [resource.id]: event }));
       }
       return true;
     } catch {
@@ -324,6 +322,32 @@ export default function YouTubeSearchFallback({
       );
     } finally {
       setEnrollingId(null);
+    }
+  };
+
+  const openCourseDetails = async (course: BuiltCourse) => {
+    if (!session) {
+      requireSignIn();
+      return;
+    }
+    setOpeningId(course.id);
+    setViewerError("");
+    try {
+      const data = await apiFetch("/api/discovery/youtube-course/prepare", {
+        method: "POST",
+        body: JSON.stringify({ query, resourceType: course.sourceType, resourceId: course.sourceId }),
+      });
+      const courseId = data?.course?._id;
+      if (!courseId) throw new Error("Course details are not available yet.");
+      if (data?.pendingApproval || data?.pendingPublication) {
+        setViewerError(data.message || "This course is awaiting approval or publication.");
+        return;
+      }
+      navigate(`/courses/${courseId}`);
+    } catch (error) {
+      setViewerError(error instanceof Error ? error.message : "Unable to open course details.");
+    } finally {
+      setOpeningId(null);
     }
   };
 
@@ -462,7 +486,7 @@ export default function YouTubeSearchFallback({
               </div>
               {curatedResources.length ? (
                 <div className="bfs-youtube-course-grid mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                  {curatedResources.map((resource, resultIndex) => {
+                  {curatedResources.map((resource) => {
                     const mappedLessons: CourseLesson[] = (resource.items || [])
                       .map((item) => {
                         const videoId = String(item.videoId || "");
@@ -505,7 +529,7 @@ export default function YouTubeSearchFallback({
                     return (
                       <article key={resource.id} className="bfs-course-card group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md">
                         <div className="bfs-course-card__media relative shrink-0 overflow-hidden bg-slate-100">
-                          <button type="button" aria-label={`Preview ${resource.title}`} onClick={() => void openCourse(course)} className="absolute inset-0 z-0 h-full w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500"><span className="sr-only">Preview course</span></button>
+                          <button type="button" aria-label={`View details for ${resource.title}`} onClick={() => void openCourseDetails(course)} className="absolute inset-0 z-0 h-full w-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500"><span className="sr-only">View course details</span></button>
                           {resource.thumbnail ? <img src={resource.thumbnail} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" /> : <div className="flex h-full items-center justify-center"><PlayCircle className="h-10 w-10 text-slate-300" /></div>}
                           <span className="absolute left-2 top-2 z-10 rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-slate-700 shadow-sm">{resource.primarySlot || "Recommended"}</span>
                           {resource.isHiddenGem && <span className="absolute left-2 bottom-2 z-10 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white">Hidden gem</span>}
@@ -525,24 +549,12 @@ export default function YouTubeSearchFallback({
                             <p className="mt-1 truncate text-xs text-slate-500" title={resource.channelTitle}>{resource.channelTitle || "YouTube learning resource"}</p>
                             <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-4 text-slate-600" title={resource.description}>{resource.description || `Learn ${query} with this curated YouTube resource.`}</p>
                             <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500"><Star className="h-3 w-3 text-amber-500" aria-hidden="true" /><span>No ratings yet</span><span aria-hidden="true">·</span><Users className="h-3 w-3" aria-hidden="true" /><span>YouTube resource</span></div>
-                            <details className="mt-2 border-t border-slate-100 pt-2">
-                              <summary className="cursor-pointer text-xs font-semibold text-slate-600 hover:text-violet-700">Details and feedback</summary>
-                              <div className="mt-2 space-y-2">
-                                {resource.whyThis?.length > 0 && <ul className="space-y-1 text-xs leading-4 text-slate-600">{resource.whyThis.slice(0, 2).map((reason, index) => <li key={resource.id + "-why-" + index}>{reason}</li>)}</ul>}
-                                {resource.gaps?.length > 0 && <p className="text-[11px] leading-4 text-slate-500">May not cover: {resource.gaps.slice(0, 2).join(", ")}</p>}
-                                <div className="flex flex-wrap items-center gap-2"><span className="mr-auto text-[11px] text-slate-500">Useful?</span>
-                                  <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_up", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-emerald-50 disabled:opacity-60">Helpful</button>
-                                  <button type="button" onClick={() => void recordCurationFeedback(resource.id, "thumbs_down", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-red-50 disabled:opacity-60">Not relevant</button>
-                                  <button type="button" onClick={() => void recordCurationFeedback(resource.id, "outdated", resultIndex + 1)} disabled={Boolean(curationFeedback[resource.id])} className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-amber-50 disabled:opacity-60">Outdated</button>
-                                </div>
-                                {curationFeedback[resource.id] && <p role="status" className="text-[11px] font-semibold text-emerald-700">Thanks — feedback recorded.</p>}
-                              </div>
-                            </details>
+                  </details>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
                             <span className="text-sm font-bold text-emerald-700">Free</span>
-                            <button type="button" onClick={() => handleCourseAction(course)} disabled={enrollingId === course.id} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
-                              {enrollingId === course.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}{enrolledIds.has(course.id) ? "Start" : "＋ Enroll free"}
+                            <button type="button" onClick={() => void openCourseDetails(course)} disabled={Boolean(enrollingId === course.id || false)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-60">
+                              {enrolledIds.has(course.id) ? "Continue learning" : "View course"}
                             </button>
                           </div>
                         </div>

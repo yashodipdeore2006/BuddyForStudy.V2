@@ -247,7 +247,7 @@ async function createNormalCourseFromSearch(query, result) {
     slug: generatedSlug(result.title, "normal"),
     description: `An AI-assembled ${query} learning course with independently selected, duration-matched YouTube lessons ordered by prerequisite.`,
     category: "AI Course Search",
-    level: "Beginner",
+    level: ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner",
     duration: duration || "Self-paced",
     thumbnail: availableModules[0]?.course?.thumbnail || "",
     learningOutcomes: availableModules.map((module) => `Learn ${module.skill}`),
@@ -409,6 +409,7 @@ export async function getOrCreateYouTubeResourceCourse({
   query,
   resourceType,
   resourceId,
+  level = "Beginner",
   userId = null
 }) {
   const type = resourceType === "playlist" ? "playlist" : resourceType === "series" ? "series" : "video";

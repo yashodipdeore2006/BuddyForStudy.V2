@@ -96,7 +96,7 @@ All listed admin routes are wrapped by `AdminPage`, which uses `AdminGuard` and 
 | `/admin/users` | `AdminUsersPro` | Search/filter/sort/paginate users, saved views, select/export, inspect details, PII reveal with reason, status actions, feature overrides and course access |
 | `/admin/courses` | `AdminCoursesPro` | Search/paginate courses; publish/feature/enrollment/certificate toggles; pricing; edit metadata, module/lesson/video/resource content and roadmap |
 | `/admin/content-quality` | `AdminContentQuality` | Approval policy, AI review, publish/draft/archive/delete/restore, moderation, revisions/rollback, broken-link checks |
-| `/admin/roadmaps` | `AdminRoadmaps` | Inspect generated roadmap records and learning status |
+| `/admin/roadmaps` | `AdminRoadmaps` | Inspect saved learner plans and AI-generated course roadmaps; filter learner completion and course publication status |
 | `/admin/plans` | `AdminPlans` | Create/edit/activate subscription plans, change limits/features/billing intervals with reason where required |
 | `/admin/trials` | `AdminTrialCampaigns` | Target one learner or filtered audience, preview eligibility, select plan/duration, optionally configure conversion offer, grant trial |
 | `/admin/pricing` | `AdminPricingStudio` | Search/filter course prices, generated-course pricing policy, preview/recommend/apply bulk pricing, manage rules and rollback history |

@@ -110,6 +110,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-SHELL-MOBILE-001 | Mobile admin navigation | Drawer/overlay closes correctly; focus and scroll are managed; current item is clear | Inventory only |
 | ADM-USER-PII-001 | Reveal/export PII | Permission/reason checked server-side; masking default; audit event recorded; invalid request never reaches mutation | Backend PII/auth tests exist; browser test pending |
 | ADM-PII-REVEAL-001 | Reveal and re-mask a learner email | Masked by default; reveal needs PII permission and a 10–500 character reason; request sends the reason; returned value can be masked again | Automated pass; [CI run #40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) |
+| ADM-PII-EXPORT-001 | Export selected users to CSV | Requires a reason and exact EXPORT N USERS phrase; sends selected IDs and sorting; downloads CSV with formula-like values prefixed safely | Automated pass; [CI run #40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) |
 | ADM-USER-STATUS-001 | Disable/reactivate user | Valid transitions, reason, audit event and refreshed state | Backend tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-001 | Readiness then publish | Readiness and publish permission enforced; failure explained; state refreshed | Course readiness/publishing tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
@@ -150,7 +151,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
-- [ ] Add export-specific browser coverage and remaining pricing/trial edge cases. PII reveal/re-mask, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
+- [ ] Add remaining pricing/trial edge cases and user-account status mutation browser coverage. PII reveal/export, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
 - [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
@@ -210,3 +211,10 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - **CI:** [run #40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) passed frontend and backend jobs; **69 Playwright tests passed**.
 - **New passing ID:** `ADM-PII-REVEAL-001`: email is masked by default; reveal requires PII permission and a valid reason; the reason is sent to the reveal endpoint; the value can be masked again by keyboard activation.
 - The UI test uses a mocked reveal response; server-side authorization/audit tests and live audit persistence remain separate evidence. Export flow and CSV content are not covered by this control and remain queued.
+
+
+### 2026-10-25 — PII export safeguards passed
+- **Commit:** `247113e4b52aa77a4640628a3d8cd0eb6ee44756`.
+- **CI:** [run #40183668430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183668430) passed frontend and backend jobs; **70 Playwright tests passed**.
+- **New passing ID:** `ADM-PII-EXPORT-001`: export is not submitted until the reason and exact typed phrase are valid; request includes selected IDs and sort state; downloaded CSV includes a BOM and prefixes formula-like names to reduce spreadsheet formula execution risk.
+- The API response is mocked. Live authorization/audit persistence and real exported production data remain staging/server-side verification items.

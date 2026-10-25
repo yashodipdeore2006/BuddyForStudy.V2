@@ -59,6 +59,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | DETAIL-START-001 | Start, Continue or Review course | Resolves first incomplete lesson or review destination; invalid optional lesson ID cannot crash the card | Existing course-navigation tests |
 | DETAIL-ROADMAP-001 | Journey Roadmap link | Uses canonical route and handles missing curriculum/roadmap safely | Existing roadmap E2E tests |
 | DETAIL-PURCHASE-001 | Plan choice, enroll, checkout | Correct plan chosen; payment signature/order verified; duplicate action safe; pending and failure states recoverable | Backend payment tests exist; staging pending |
+| DETAIL-PURCHASE-ORDER-FAILURE-001 | Paid course order API returns 503 | Error is announced; checkout action recovers and can retry without losing the selected option | E2E added; CI pending |
 
 ## 4. My Learning
 

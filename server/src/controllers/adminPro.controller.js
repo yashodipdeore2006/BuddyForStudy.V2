@@ -1923,7 +1923,7 @@ export async function payments(req, res, next) {
       Payment.countDocuments(filter),
       Payment.countDocuments({}),
       Payment.aggregate([
-        { $match: { status: { $in: ["paid", "partially_refunded"] } } },
+        { $match: { status: { $in: ["paid", "partially_refunded", "refunded"] } } },
         {
           $group: {
             _id: { $toUpper: { $ifNull: ["$currency", "INR"] } },

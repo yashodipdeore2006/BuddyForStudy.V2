@@ -131,6 +131,11 @@ test("card and page source use canonical navigation helpers", () => {
   assert.match(myLearning, /Search your courses/);
   assert.match(myLearning, /Recently active/);
   assert.match(myLearning, /api\/enrollments\//);
+  assert.match(myLearning, /learningStatus/);
+  assert.match(myLearning, /learningProgress/);
+  assert.doesNotMatch(myLearning, /useCourseState|CourseStatusPreloader/);
+  assert.doesNotMatch(myLearning, /apiFetch\(`\/api\/progress\//);
+  assert.doesNotMatch(myLearning, /apiFetch\(`\/api\/enrollments\/course\//);
   assert.match(myLearning, /role="dialog"/);
   assert.match(myLearning, /Undo/);
   assert.match(myLearning, /aria-current=\{activeTab === tab \? "page" : undefined\}/);

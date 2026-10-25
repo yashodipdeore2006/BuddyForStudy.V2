@@ -545,9 +545,9 @@ export default function YouTubeSearchFallback({
                               <span className="rounded-full bg-violet-50 px-2 py-1 font-semibold text-violet-700">{resource.sourceType === "video" ? "Single video" : resource.sourceType === "series" ? "Series" : "Course"}</span>
                               <span>{resource.itemCount || 1} {(resource.itemCount || 1) === 1 ? "lesson" : "lessons"}</span>
                             </div>
-                            <p className="line-clamp-2 min-h-[2.6rem] text-sm font-bold leading-5 text-slate-900" title={resource.title}>{resource.title}</p>
+                            <button type="button" onClick={() => void openCourseDetails(course)} className="block w-full text-left line-clamp-2 min-h-[2.6rem] text-sm font-bold leading-5 text-slate-900 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500" title={resource.title}>{resource.title}</button>
                             <p className="mt-1 truncate text-xs text-slate-500" title={resource.channelTitle}>{resource.channelTitle || "YouTube learning resource"}</p>
-                            <p className="mt-2 line-clamp-2 min-h-9 text-xs leading-4 text-slate-600" title={resource.description}>{resource.description || `Learn ${query} with this curated YouTube resource.`}</p>
+                            <button type="button" onClick={() => void openCourseDetails(course)} className="mt-2 block w-full text-left line-clamp-2 min-h-9 text-xs leading-4 text-slate-600 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500" title={resource.description}>{resource.description || `Learn ${query} with this curated YouTube resource.`}</button>
                             <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-500"><Star className="h-3 w-3 text-amber-500" aria-hidden="true" /><span>No ratings yet</span><span aria-hidden="true">·</span><Users className="h-3 w-3" aria-hidden="true" /><span>YouTube resource</span></div>
                   </details>
                           </div>

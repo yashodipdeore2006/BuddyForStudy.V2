@@ -406,7 +406,11 @@ test.describe("administrator route and permission UX", () => {
 
     await page.goto(baseURL + "/admin/users");
     await expect(page.getByText("Read-only learner")).toBeVisible();
-    await page.getByRole("button", { name: "Disable", exact: true }).click();
+    const disableButton = page.getByRole("button", { name: "Disable", exact: true });
+    await expect(disableButton).toHaveCount(1, { timeout: 5000 });
+    // Avoid auto-scroll placing the action beneath the sticky table header; exercise keyboard activation.
+    await disableButton.focus();
+    await disableButton.press("Enter", { timeout: 5000 });
     const dialog = page.getByRole("alertdialog", { name: "Disable user account?" });
     await expect(dialog).toBeVisible();
     const reason = dialog.getByLabel("Reason (required)");

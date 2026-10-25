@@ -65,7 +65,7 @@ test("all state combinations preserve navigation invariants", () => {
       for (const progressPct of progressValues)
         for (const isPaid of booleans)
           for (const hasRoadmap of booleans)
-            for (const nextLessonId of [null, "lesson-2"]) {
+            for (const nextLessonId of [null, "lesson-2", "undefined", "null", "", "   "]) {
               const result = getCourseNavTargets({
                 courseId: "course-1", isEnrolled, isCompleted, progressPct, isPaid,
                 hasRoadmap, hasPreview: true, isPublished: true, nextLessonId,
@@ -91,6 +91,18 @@ test("all state combinations preserve navigation invariants", () => {
                 if (item.href) assert.doesNotMatch(item.href, /undefined|null|\/\//);
               }
             }
+});
+
+test("course navigation treats malformed optional lesson ids as absent", () => {
+  for (const nextLessonId of ["undefined", "null", "", "   "]) {
+    const result = getCourseNavTargets({
+      courseId: "course-1", isEnrolled: true, isCompleted: false, isPaid: false,
+      progressPct: 35, hasRoadmap: true, hasPreview: false, isPublished: true, nextLessonId,
+    });
+    assert.equal(result.primary.href, routes.learn("course-1"));
+    assert.equal(result.cardHref, routes.learn("course-1"));
+    assert.doesNotMatch(result.cardHref, /undefined|null/);
+  }
 });
 
 test("course navigation rejects invalid course ids", () => {

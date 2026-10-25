@@ -147,3 +147,15 @@ test("processed refund webhook normalization validates payment identity, amount,
   assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "USD", status: "processed" }, payment).reason, "Provider refund currency mismatch");
   assert.equal(normalizeProcessedProviderRefund({ id: "rfnd_123", payment_id: "pay_123", amount: 2550, currency: "INR", status: "pending" }, payment).reason, "Provider refund is not processed");
 });
+
+test("refund.processed webhook reconciles external refunds into payment status and learner notifications", () => {
+  const webhook = readFileSync(new URL("../src/controllers/webhook.controller.js", import.meta.url), "utf8");
+  assert.match(webhook, /event\.event === "refund\.processed"/);
+  assert.match(webhook, /normalizeProcessedProviderRefund\(providerRefund, payment\)/);
+  assert.match(webhook, /RefundRequest\.findOne\(\{ providerRefundId: normalized\.providerRefundId \}\)/);
+  assert.match(webhook, /RefundRequest\.create\([\s\S]*?status: "processed"[\s\S]*?providerRefundId: normalized\.providerRefundId/);
+  assert.match(webhook, /getRemainingRefundableAmount\(payment\._id, payment\.amount\)/);
+  assert.match(webhook, /payment\.status = paymentStatusForRemainingBalance\(remainingAmount\)/);
+  assert.match(webhook, /eventKey: `refund-status:\$\{refund\._id\}:processed`/);
+  assert.match(webhook, /external-refund-reconciled:/);
+});

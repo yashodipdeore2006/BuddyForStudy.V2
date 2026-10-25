@@ -468,5 +468,14 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Browser regression tests added:** [EXP-SEARCH-001], [LEARN-TABS-001], [PLAYER-COMPLETE-001], [DETAIL-REVIEWS-001] in tests/navigation.e2e.spec.ts; [ADM-SHELL-SEARCH-001] in tests/admin-access.e2e.spec.ts.
 - **Test fixture improvements:** mock catalog API filters by query/level/category; My Learning tests use a batched enrollment response with saved status/progress; player completion fixture returns an updated progress snapshot.
 - **Explicit assertion:** My Learning E2E records requests and asserts that it does not issue per-course GET requests to /api/progress/:courseId or /api/enrollments/course/:courseId during entry/tab changes.
-- **Verification state:** CI must complete for the commit containing the new tests before these test IDs can be marked automated-pass. The tests use mocked API data and do not replace staging checks for real database/backfill or external providers.
+- **Verification state:** automated tests passed on commit `883ef448663e40f658b536c0046be855721440e7`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048). The tests use mocked API data and do not replace staging checks for real database/backfill or external providers.
 - **Next:** resolve any failures, then add save/share/unenroll flows, review submit/update and purchase failures, lesson navigation/quiz/notes, and admin mutation permission tests.
+
+
+## Verification update — first control batch passed (2026-10-25)
+
+- **Commit:** `883ef448663e40f658b536c0046be855721440e7`.
+- **CI evidence:** [GitHub Actions run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) passed frontend and backend jobs.
+- **Browser tests passed:** Explore search/combined filters/clear, all three My Learning statuses with no per-course request fan-out, lesson completion duplicate guard, reviews empty state/refresh, and admin command palette keyboard event.
+- **Shared API improvement:** explicit `cache: "no-store"` now bypasses the five-second GET response cache and in-flight GET dedupe; Course Details uses it for both review-refresh controls. This makes the refresh action perform a fresh request rather than potentially display a cached response.
+- **Limits:** these are production-preview E2E tests with mocked APIs, not a live authenticated database/browser session. Staging/provider validation and full per-control coverage remain open.

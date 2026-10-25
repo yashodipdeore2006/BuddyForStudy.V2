@@ -23,10 +23,16 @@ export const routes = {
   saved: () => "/saved",
   course: (id: string) => `/courses/${encodeRouteSegment(id, "course id")}`,
   roadmap: (id: string) => `/courses/${encodeRouteSegment(id, "course id")}/roadmap`,
-  learn: (id: string, lessonId?: string | null) =>
-    lessonId
-      ? `/learn/${encodeRouteSegment(id, "course id")}/${encodeRouteSegment(lessonId, "lesson id")}`
-      : `/learn/${encodeRouteSegment(id, "course id")}`,
+  learn: (id: string, lessonId?: string | null) => {
+    const normalizedLessonId = String(lessonId ?? "").trim();
+    const coursePath = `/learn/${encodeRouteSegment(id, "course id")}`;
+    // Missing or malformed optional lesson IDs should open the course player,
+    // not crash cards when legacy course data contains the string "undefined".
+    if (!normalizedLessonId || normalizedLessonId.toLowerCase() === "undefined" || normalizedLessonId.toLowerCase() === "null") {
+      return coursePath;
+    }
+    return coursePath + `/${encodeRouteSegment(normalizedLessonId, "lesson id")}`;
+  },
   playlist: (id: string) => `/playlists/${encodeRouteSegment(id, "playlist id")}`,
   savedRoadmap: (id: string) => `/roadmaps/${encodeRouteSegment(id, "roadmap id")}`,
   login: () => "/login",

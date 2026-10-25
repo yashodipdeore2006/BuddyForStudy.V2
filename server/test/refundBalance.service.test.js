@@ -167,3 +167,18 @@ test("refund.processed webhook reconciles external refunds into payment status a
   assert.match(webhook, /eventKey: `refund-status:\$\{refund\._id\}:processed`/);
   assert.match(webhook, /external-refund-reconciled:/);
 });
+
+
+test("admin refund payment status is recomputed from all confirmed refunds after persisting the refund", () => {
+  const controller = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
+  const start = controller.indexOf("export async function updateRefund");
+  const end = controller.indexOf("export async function reconcileRefund", start);
+  assert.ok(start >= 0 && end > start, "Expected the admin refund handler");
+  const handler = controller.slice(start, end);
+  const refundPersist = handler.indexOf("await refund.save()");
+  const aggregateBalance = handler.indexOf("const remainingAfterConfirmedRefunds = await getRemainingRefundableAmount(payment._id, payment.amount)");
+  const paymentWrite = handler.indexOf("payment.status = paymentStatusForRemainingBalance(remainingAfterConfirmedRefunds)");
+  assert.ok(refundPersist >= 0 && aggregateBalance > refundPersist, "Calculate from processed refunds only after saving the new processed refund");
+  assert.ok(paymentWrite > aggregateBalance, "Set payment status from the aggregate confirmed balance");
+  assert.doesNotMatch(handler, /const isFullRefund = refund\.amount >= remainingAmount/);
+});

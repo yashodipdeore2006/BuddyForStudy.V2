@@ -59,7 +59,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | DETAIL-START-001 | Start, Continue or Review course | Resolves first incomplete lesson or review destination; invalid optional lesson ID cannot crash the card | Existing course-navigation tests |
 | DETAIL-ROADMAP-001 | Journey Roadmap link | Uses canonical route and handles missing curriculum/roadmap safely | Existing roadmap E2E tests |
 | DETAIL-PURCHASE-001 | Plan choice, enroll, checkout | Correct plan chosen; payment signature/order verified; duplicate action safe; pending and failure states recoverable | Backend payment tests exist; staging pending |
-| DETAIL-PURCHASE-ORDER-FAILURE-001 | Paid course order API returns 503 | Error is announced; checkout action recovers and can retry without losing the selected option | E2E passed; [CI run #40175128836]( https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836 ) |
+| DETAIL-PURCHASE-ORDER-FAILURE-001 | Paid course order API returns 503 | Error is announced; checkout action recovers and can retry without losing the selected option | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
 
 ## 4. My Learning
 
@@ -116,7 +116,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-PRICING-APPLY-001 | Preview/apply pricing and rollback | Preview bound to selected batch/version; reason required; price/sale/currency invariants enforced | Backend pricing tests exist; browser test pending |
 | ADM-TRIAL-GRANT-001 | Preview audience and grant free trial | Eligibility/exclusion count, permission, reason and idempotency revalidated; no misleading arbitrary recipient cap | Backend validation tests exist; browser test pending |
 | ADM-BILLING-REFUND-001 | Process/reconcile refund | Valid transition, provider identifier, currency/balance and reason/audit are consistent | Backend payment tests exist; staging provider pending |
-| ADM-BILLING-REFUND-PERMISSION-001 | Billing reader views a pending refund | Read-only role can inspect the request but cannot see approve/reject controls or send a refund mutation | E2E added; CI pending |
+| ADM-BILLING-REFUND-PERMISSION-001 | Billing reader views a pending refund | Read-only role can inspect the request but cannot see approve/reject controls or send a refund mutation | E2E passed; [CI run #40175201786](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175201786) |
 | ADM-COMMS-SEND-001 | Preview audience then send | Consent/suppression respected; reason audited; duplicate send guarded; channel outcomes reported | Backend communication tests exist; browser/staging pending |
 | ADM-DELIVERY-RETRY-001 | Retry failed channel delivery | Only eligible channel retried; reason/permission enforced; attempts/backoff visible | Backend delivery tests exist; browser test pending |
 | ADM-ROLE-CHANGE-001 | Change administrator role | Permission/reason enforced; unsafe lockout prevented; role refreshed; audit visible | Backend role tests exist; browser test pending |

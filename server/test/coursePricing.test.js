@@ -188,3 +188,20 @@ test("My Learning omits cancelled enrollments after an unenroll or access revoca
   const enrollmentService = fs.readFileSync(path.join(here, "../src/services/enrollment.service.js"), "utf8");
   assert.match(enrollmentService, /Enrollment\.find\(\{[\s\S]*?user: userId,[\s\S]*?status: \{ \$ne: "cancelled" \},[\s\S]*?revokedBy: null[\s\S]*?\}\)/);
 });
+
+test("course details enrollment lookup hides inaccessible paid and expired subscription access", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const enrollmentService = fs.readFileSync(path.join(here, "../src/services/enrollment.service.js"), "utf8");
+  const start = enrollmentService.indexOf("export async function getForCourse");
+  const end = enrollmentService.indexOf("export async function cancel", start);
+  assert.ok(start >= 0 && end > start, "Expected the course enrollment lookup");
+  const lookup = enrollmentService.slice(start, end);
+  assert.match(lookup, /status: \{ \$in: \["active", "completed"\] \}/);
+  assert.match(lookup, /revokedBy: null/);
+  assert.match(lookup, /isEnrollmentCourseAccessAllowed\(/);
+  assert.match(lookup, /status: \{ \$in: \["paid", "partially_refunded"\] \}/);
+  assert.match(lookup, /return null/);
+});

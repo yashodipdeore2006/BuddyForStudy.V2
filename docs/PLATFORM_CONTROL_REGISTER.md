@@ -149,7 +149,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 | ID | Control surface | Expected behavior | Status |
 |---|---|---|---|
 | RESP-LEARNER-OVERFLOW-001 | Home, Explore, course details, My Learning, course player | No document/body horizontal overflow at 360, 390, 768, 1024 or 1440 CSS px | Automated pass on commit `5b1465cb816757512e625731c8903ce9b3ae7f69`; [CI run #40184735235](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184735235) |
-| RESP-ADMIN-OVERFLOW-001 | Admin dashboard, Users, Courses | No document/body horizontal overflow at 360, 768 or 1440 CSS px | Test added on commit `82337a948727c23b08b0f8002f9cf30f47d05cf`; [CI run #40184856431](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184856431) pending |
+| RESP-ADMIN-OVERFLOW-001 | Admin dashboard, Users, Courses | No document/body horizontal overflow at 360, 768 or 1440 CSS px | Automated pass on commit `4b98a64e061b6642b457a64d45c3e4b47569b101`; [CI run #40185035275](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185035275) |
 
 The overflow checks verify page width only; they do not replace focus-order, contrast, zoom, or screen-reader audits.
 
@@ -162,7 +162,7 @@ The overflow checks verify page width only; they do not replace focus-order, con
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
 - [ ] Add remaining pricing/trial edge cases, account reactivation coverage, and responsive/accessibility checks. PII reveal/export and account-disable failure recovery, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
-- [x] Add responsive horizontal-overflow E2E coverage for primary learner pages at 360, 390, 768, 1024 and 1440px (run #40184735235). Admin dashboard/Users/Courses viewport coverage is awaiting run #40184856431. [ ] Complete focus-order, contrast, zoom and screen-reader checks at representative breakpoints.
+- [x] Add responsive horizontal-overflow E2E coverage for primary learner pages at 360, 390, 768, 1024 and 1440px (run #40184735235). Admin dashboard/Users/Courses viewport coverage passed in run #40185035275. [ ] Complete focus-order, contrast, zoom and screen-reader checks at representative breakpoints.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
 ## 9. Change log
@@ -241,5 +241,12 @@ The overflow checks verify page width only; they do not replace focus-order, con
 - **Commit:** `5b1465cb816757512e625731c8903ce9b3ae7f69`.
 - **CI:** [run #40184735235](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184735235) passed frontend and backend jobs; **72 Playwright tests passed**.
 - **New passing ID:** `RESP-LEARNER-OVERFLOW-001`: checks Home, Explore, course details, My Learning and course player at 360, 390, 768, 1024 and 1440 CSS px and asserts that document/body width does not exceed the viewport.
-- Admin dashboard/Users/Courses viewport check `RESP-ADMIN-OVERFLOW-001` is added on commit `82337a948727c23b08b0f8002f9cf30f47d05cf`; its CI run is pending at time of this entry.
+- Admin dashboard/Users/Courses viewport check `RESP-ADMIN-OVERFLOW-001` passed on commit `4b98a64e061b6642b457a64d45c3e4b47569b101`; [CI run #40185035275](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185035275) passed both jobs with 73 Playwright tests. The first attempt had a non-unique main locator, which was corrected before the passing run.
 - These tests detect horizontal overflow only; keyboard/focus, contrast, zoom, and assistive-technology verification remain open.
+
+
+### 2026-10-25 — Admin responsive viewport smoke test passed
+- **Commit:** `4b98a64e061b6642b457a64d45c3e4b47569b101`.
+- **CI:** [run #40185035275](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185035275) passed frontend and backend jobs; **73 Playwright tests passed**.
+- **New passing ID:** `RESP-ADMIN-OVERFLOW-001`: checks the admin dashboard, Users and Courses at 360, 768 and 1440 CSS px and asserts that document/body width does not exceed the viewport.
+- Together with `RESP-LEARNER-OVERFLOW-001`, this adds automated horizontal-overflow checks across major learner and admin surfaces. Keyboard/focus, contrast, zoom and assistive-technology checks remain open.

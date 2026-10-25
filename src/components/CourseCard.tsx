@@ -12,6 +12,7 @@ import { getCourseNavTargets } from "@/lib/courseNav";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { useCourseState } from "@/lib/useCourseState";
+import { getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -80,7 +81,9 @@ export default function CourseCard({
   const learnerCount = course.enrollment_count ?? course.enrollmentCount;
   const enrolledLearners = Number.isFinite(learnerCount) ? Number(learnerCount) : 0;
   const typeTag = cardMetadata?.typeTag || (videoCount === 1 ? "Single video" : videoCount > 1 ? "Playlist" : course.generation?.mode === "ai" ? "AI roadmap" : "Course");
-  const isFree = course.pricing?.mode !== "paid";
+  const effectivePrice = getEffectiveCoursePrice(course.pricing);
+  const crossedOutPrice = getCourseCrossedOutPrice(course.pricing);
+  const isFree = course.pricing?.mode === "free";
   const [saved, setSaved] = useState(initiallySaved);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -133,7 +136,8 @@ export default function CourseCard({
     if (courseState.error) setActionError(courseState.error);
   }, [courseState.loading, courseState.isCompleted, courseState.isEnrolled, courseState.progressPct, courseState.nextLessonId, courseState.error, lessonCount]);
 
-  const paid = course.pricing?.mode === "paid";
+  // Missing/unknown pricing must not make a course look free. The card still opens details for review.
+  const paid = course.pricing?.mode !== "free";
   const actionState: CourseActionState = useMemo(() => getCourseActionState({
     enrolled: enrollmentState !== "not-enrolled",
     completed: enrollmentState === "completed",
@@ -338,8 +342,8 @@ export default function CourseCard({
       {shareNotice && <div className="bfs-course-card__status" role="status">{shareNotice}</div>}
       <div className="bfs-course-card__action-row">
         <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
-          {isFree ? "Free" : course.pricing ? new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(Number(course.pricing.saleEnabled && course.pricing.salePrice != null ? course.pricing.salePrice : course.pricing.price)) : ""}
-          {!isFree && course.pricing?.saleEnabled && course.pricing.compareAtPrice && course.pricing.compareAtPrice > Number(course.pricing.salePrice ?? course.pricing.price) && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing.currency || "INR", maximumFractionDigits: 0 }).format(course.pricing.compareAtPrice)}</del>}
+          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
+          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
         </span>
         <CourseActionButton
           state={actionState}

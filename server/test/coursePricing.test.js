@@ -55,6 +55,7 @@ test("default generated pricing is consistent with the admin studio even before 
   const pricingController = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
   const discoveryController = fs.readFileSync(path.join(here, "../src/controllers/discovery.controller.js"), "utf8");
   const discoveryService = fs.readFileSync(path.join(here, "../src/services/discovery.service.js"), "utf8");
+  const courseService = fs.readFileSync(path.join(here, "../src/services/course.service.js"), "utf8");
   const youtubeFallback = fs.readFileSync(path.join(here, "../../src/components/YouTubeSearchFallback.tsx"), "utf8");
   assert.match(courseModel, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
   assert.match(pricingController, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
@@ -63,6 +64,11 @@ test("default generated pricing is consistent with the admin studio even before 
   assert.match(courseModel, /const band = policy\.levelBands\?\.\[course\.level\]/);
   assert.match(discoveryService, /pricing: \{ mode: "free", price: 0, currency: "INR" \}/);
   assert.match(youtubeFallback, /level: normalizeDiscoveryLevel\(curationMeta\?\.intent\?\.level\)/);
+  assert.match(courseService, /function effectiveDiscoveryPricingPreview\(pricing = \{\}\)/);
+  assert.match(courseService, /Saved prices win/);
+  assert.match(courseService, /pricingPreview: existing \? effectiveDiscoveryPricingPreview\(existing\.pricing\) : configuredPreview/);
+  assert.match(courseService, /saleEnabled === true[\\s\\S]*salePrice < basePrice/);
+  assert.match(youtubeFallback, /formatResourcePrice\(resource\)/);
 });
 
 test("pricing filters reject arbitrary Mongo operators and inverted price ranges", () => {

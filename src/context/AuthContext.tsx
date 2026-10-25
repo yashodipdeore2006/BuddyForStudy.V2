@@ -171,4 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={{session,profile,loading,signIn,signUp,verifyEmail,verifyLogin,resetPassword,signInWithGoogle,signOut,refreshProfile}}>{children}</AuthContext.Provider>;
 }
 
+// This hook intentionally lives beside its provider context; Fast Refresh requires this non-component export.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(){const ctx=useContext(AuthContext);if(!ctx)throw new Error('useAuth must be used within AuthProvider');return ctx;}

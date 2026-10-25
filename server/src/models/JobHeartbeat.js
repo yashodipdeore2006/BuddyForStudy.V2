@@ -10,6 +10,5 @@ const jobHeartbeatSchema = new mongoose.Schema({
   consecutiveFailures: { type: Number, default: 0, min: 0 }
 }, { timestamps: true, collection: "job_heartbeats" });
 
-jobHeartbeatSchema.index({ jobName: 1 }, { unique: true });
 
 export const JobHeartbeat = mongoose.model("JobHeartbeat", jobHeartbeatSchema);

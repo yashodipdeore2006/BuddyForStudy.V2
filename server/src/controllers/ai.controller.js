@@ -8,7 +8,7 @@ import { QuizBank } from "../models/QuizBank.js";
 import { Course } from "../models/Course.js";
 import { CourseQuizAttempt } from "../models/CourseQuizAttempt.js";
 import { isValidObjectId } from "../utils/ids.js";
-import { gradeQuizSubmission, toPublicQuiz, toPublicQuizQuestion } from "../utils/quizSecurity.js";
+import { gradeQuizSubmission, normalizeQuizAnswers, toPublicQuiz, toPublicQuizQuestion } from "../utils/quizSecurity.js";
 import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
 import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";
 
@@ -286,23 +286,27 @@ export async function submitPracticeQuiz(req, res, next) {
     });
     if (bankQuizzes.length !== ids.length) return failure(res, "One or more quiz sets are not approved or are no longer available.", 404);
 
-    let correctCount = 0;
-    let questionCount = 0;
-    const results = [];
+    // Validate every selected answer across the whole submission before
+    // writing any quiz attempts, so an invalid set cannot cause partial saves.
+    const submissions = [];
     for (const bankQuiz of bankQuizzes) {
       const reattempt = input.quizBankIds.includes(String(bankQuiz._id));
       const questions = bankQuiz.questions || [];
-      const answerSubset = {};
-      for (const question of questions) {
-        const questionId = String(question.id || "");
-        const answerKey = reattempt ? `${bankQuiz._id}-${questionId}` : questionId;
-        answerSubset[questionId] = input.answers[answerKey] || "";
-      }
-      const graded = gradeQuizSubmission(questions, answerSubset, 70);
+      const normalized = normalizeQuizAnswers(questions, input.answers, reattempt ? `${bankQuiz._id}-` : "");
+      if (!normalized.valid) return failure(res, "Answer every question using one of its available options before submitting.", 400);
+      submissions.push({ bankQuiz, reattempt, questions, answers: normalized.answers });
+    }
+
+    let correctCount = 0;
+    let questionCount = 0;
+    const results = [];
+    for (const submission of submissions) {
+      const { bankQuiz, reattempt, questions, answers } = submission;
+      const graded = gradeQuizSubmission(questions, answers, 70);
       bankQuiz.attempts.push({
         user: req.user.userId,
         score: graded.score,
-        answers: answerSubset,
+        answers,
         attemptedAt: new Date()
       });
       await bankQuiz.save();
@@ -362,12 +366,9 @@ export async function submitCourseQuiz(req, res, next) {
     const questions = Array.isArray(lesson.quiz.questions) ? lesson.quiz.questions : [];
     if (!questions.length) return failure(res, "Quiz questions are not available yet. Retry quiz generation.", 409);
 
-    const validAnswers = {};
-    const questionIds = new Set(questions.map((question) => String(question.id || "")));
-    for (const questionId of questionIds) {
-      const selected = input.answers[questionId];
-      if (typeof selected === "string" && String(selected).length <= 200) validAnswers[questionId] = selected;
-    }
+    const normalized = normalizeQuizAnswers(questions, input.answers);
+    if (!normalized.valid) return failure(res, "Answer every question using one of its available options before submitting.", 400);
+    const validAnswers = normalized.answers;
     const graded = gradeQuizSubmission(questions, validAnswers, lesson.quiz.passingScore || 70);
     const quizFingerprint = createHash("sha256")
       .update(JSON.stringify(questions.map((question) => ({

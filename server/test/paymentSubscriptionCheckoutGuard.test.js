@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Payment } from "../src/models/Payment.js";
 import { UserSubscription } from "../src/models/UserSubscription.js";
 import { SubscriptionPlan } from "../src/models/SubscriptionPlan.js";
+import { PlatformSetting } from "../src/models/PlatformSetting.js";
 import { createSubscriptionOrder } from "../src/controllers/payment.controller.js";
 
 function makeResponse() {
@@ -13,6 +14,11 @@ function makeResponse() {
     json(body) { result.body = body; return this; },
   };
 }
+
+const checkoutLockMocks = [PlatformSetting, {
+  findOneAndUpdate: async (_filter, update) => ({ value: update.$set.value }),
+  updateOne: async () => ({ modifiedCount: 1 })
+}];
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -31,6 +37,7 @@ async function withMocks(mocks, run) {
 
 test("subscription order creation reuses an existing pending provider checkout", async () => {
   await withMocks([
+    checkoutLockMocks,
     [SubscriptionPlan, {
       findOne: async () => ({
         _id: "507f1f77bcf86cd799439012",

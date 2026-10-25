@@ -314,6 +314,29 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByRole("tab", { name: "Delivery log", exact: true })).toHaveCount(0);
   });
 
+  test("[ADM-SHELL-SEARCH-001] Ctrl+K opens the admin command palette and routes to permitted pages", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "analyst_auditor",
+      roleLabel: "Analyst & Auditor",
+      permissions: analystPermissions,
+    });
+    await page.goto(baseURL + "/admin");
+    await page.keyboard.press("Control+k");
+
+    const dialog = page.getByRole("dialog", { name: "Search pages and actions" });
+    await expect(dialog).toBeVisible();
+    const search = dialog.getByRole("textbox", { name: "Search pages and actions" });
+    await expect(search).toBeFocused();
+    await search.fill("audit");
+    const auditResult = dialog.getByRole("option", { name: /Audit log/i });
+    await expect(auditResult).toBeVisible();
+    await auditResult.click();
+
+    await expect(page).toHaveURL(/\/admin\/audit$/);
+    await expect(page.getByRole("heading", { name: "Audit log" })).toBeVisible();
+  });
+
   test("role navigation is permission-filtered and direct access shows a restricted state", async ({ page }) => {
     await mockAdminApi(page, {
       user: analystUser,

@@ -210,7 +210,16 @@ async function applyGeneratedCoursePricing(course) {
   });
   if (!rule) return;
   try {
-    course.pricing = calculateNextPricing(course.pricing, rule.operation);
+    const nextPricing = calculateNextPricing(course.pricing, rule.operation);
+    const isYouTubeDiscovery = course.generation?.mode === "discovery";
+    if (isYouTubeDiscovery && nextPricing.mode === "paid" && (nextPricing.price < 20 || nextPricing.price > 59)) {
+      console.warn("[course-pricing] discovery rule skipped because paid prices must remain between ₹20 and ₹59", {
+        ruleId: String(rule._id),
+        price: nextPricing.price
+      });
+      return;
+    }
+    course.pricing = nextPricing;
     course.$locals.generatedPricingRule = rule.name;
   } catch (error) {
     console.error("[course-pricing] generated-course rule skipped", {

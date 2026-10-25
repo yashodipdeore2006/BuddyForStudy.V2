@@ -68,7 +68,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | LEARN-SEARCH-001 | Search your courses | Searches the loaded snapshot; empty result has a clear reset action and causes no new progress requests | Inventory only |
 | LEARN-SORT-001 | Recently active / Progress / A to Z | Changes order only, not enrollment membership or status | Inventory only |
 | LEARN-SAVE-001 | Save/remove saved course | API result and icon pressed state remain synchronized; failures are announced | Inventory only |
-| LEARN-SAVE-FAILURE-001 | Save course when API returns 503 | Reverts optimistic state, announces server error and leaves control enabled for retry | E2E added; CI pending |
+| LEARN-SAVE-FAILURE-001 | Save course when API returns 503 | Reverts optimistic state, announces server error and leaves control enabled for retry | Automated pass on `bb8463a9687410abe69821a26ba52c9e98398b57`; [CI run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) |
 | LEARN-UNENROLL-001 | Overflow → Unenroll → confirm/cancel | Course is identified; cancel has no side effect; remove only after success; duplicate submission guarded | Automated pass on `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`; [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) |
 | LEARN-UNDO-001 | Undo unenroll toast | Restores enrollment only after API success; failure shows a recovery message | Automated pass on `6a3ff555a914e5b8ce8c37b865680a12c1a647ac`; [CI run #40172832880](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172832880) |
 | LEARN-SHARE-001 | Share course | Native share/clipboard fallback reports result in a status region | Inventory only |
@@ -91,8 +91,8 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | PLAYER-LESSON-NAV-001 | Previous/Next/sidebar lesson selection | Uses curriculum order and canonical routes; invalid lesson ID has a safe fallback | Unit/source coverage exists; dedicated E2E pending |
 | PLAYER-QUIZ-001 | Generate/retry quiz | Pending state guards duplicate attempts; empty/provider failure has recovery | Backend AI tests exist; browser test pending |
 | PLAYER-PRACTICE-QUIZ-001 | Answer, check and reattempt practice quiz | Requires an answer per question; submitted state and score/explanation are clear | Browser test pending |
-| PLAYER-NOTE-SAVE-001 | Timestamp, text, formatting, save/clear note | Invalid timestamp or blank note blocked; success visible; storage errors surfaced | E2E validation/persistence test added; CI pending |
-| PLAYER-NOTE-DELETE-001 | Delete note or jump to timestamp | Only selected note removed; jump opens correct lesson/second and is keyboard operable | Delete/persistence and filter controls covered in new E2E; cross-lesson jump pending |
+| PLAYER-NOTE-SAVE-001 | Timestamp, text, formatting, save/clear note | Invalid timestamp or blank note blocked; success visible; storage errors surfaced | Automated pass on `bb8463a9687410abe69821a26ba52c9e98398b57`; [CI run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) |
+| PLAYER-NOTE-DELETE-001 | Delete note or jump to timestamp | Only selected note removed; jump opens correct lesson/second and is keyboard operable | Same-lesson delete/persistence and filter/sort automated; cross-lesson jump pending; [CI run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) |
 | PLAYER-NOTE-DELETE-001 | Delete note or jump to timestamp | Only selected note removed; jump opens correct lesson/second and is keyboard operable | Browser test pending |
 | PLAYER-RESOURCE-FEEDBACK-001 | Helpful/Outdated/Wrong level | Correct resource payload, duplicate guard, feedback failure never blocks progress | Inventory only |
 | PLAYER-ACCESS-001 | Direct URL or expired entitlement | Safe access-denied/recovery screen and return route; backend remains final authorization boundary | Protected-route E2E exists; entitlement scenario pending |
@@ -102,7 +102,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ID | Component / control | Expected behavior | Status |
 |---|---|---|---|
 | ADM-SHELL-SEARCH-001 | Admin Layout / Ctrl/Cmd+K, search, choose page | Opens and focuses palette; only permitted search results; selected Audit log destination renders | Automated pass on commit `883ef448`; [CI run #40172529048](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40172529048) |
-| ADM-COMMAND-PERMISSION-001 | Admin command palette search | Search results exclude routes the current role cannot access | E2E added; CI pending |
+| ADM-COMMAND-PERMISSION-001 | Admin command palette search | Search results exclude routes the current role cannot access | Automated pass on `bb8463a9687410abe69821a26ba52c9e98398b57`; [CI run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) |
 | ADM-SHELL-ROLE-NAV-001 | Admin navigation and direct URLs | Links are permission-filtered; direct access denied; protected data/actions remain hidden | Existing admin-access E2E tests |
 | ADM-SHELL-MOBILE-001 | Mobile admin navigation | Drawer/overlay closes correctly; focus and scroll are managed; current item is clear | Inventory only |
 | ADM-USER-PII-001 | Reveal/export PII | Permission/reason checked server-side; masking default; audit event recorded; invalid request never reaches mutation | Backend PII/auth tests exist; browser test pending |
@@ -138,8 +138,8 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Confirm CI pass for the first control-level browser batch and fix initial selector/cache issues (run #40172529048).
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
-- [ ] Add Player lesson navigation, quiz and practice quiz browser tests; timestamped note validation/persistence/delete/filter tests have been added and await CI.
-- [ ] Add admin UI mutation tests for PII, publish, pricing/trials, refunds, communications and delivery retry; permission-filtered command palette test added and awaits CI.
+- [ ] Add Player lesson navigation, quiz and practice quiz browser tests; timestamped note validation/persistence/delete/filter tests now pass CI.
+- [ ] Add admin UI mutation tests for PII, publish, pricing/trials, refunds, communications and delivery retry; permission-filtered command palette test now passes CI.
 - [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
@@ -166,8 +166,8 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - The browser fixtures still mock server writes; persistence across a real database-backed browser session is a staging acceptance test.
 
 
-### 2026-10-25 — Negative-path and lesson-note control batch (validation pending)
+### 2026-10-25 — Negative-path and lesson-note control batch (CI passed)
 - Added `LEARN-SAVE-FAILURE-001`: API 503 must revert optimistic saved state, announce the error and keep Save available for retry.
 - Added `PLAYER-NOTE-SAVE-001` and extended `PLAYER-NOTE-DELETE-001`: blank/invalid timestamp validation, valid timestamped note save, browser-storage persistence across reload, deletion and note filter/sort controls.
 - Added `ADM-COMMAND-PERMISSION-001`: current role must not see inaccessible Users routes in the admin command palette.
-- E2E tests are committed; statuses remain **CI pending** until the latest workflow passes. Tests use mocked APIs and browser-local note storage, not live provider/database validation.
+- CI passed on commit `bb8463a9687410abe69821a26ba52c9e98398b57`; [run #40173299948](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173299948) ran 57 Playwright tests successfully and both frontend/backend jobs succeeded. Tests use mocked APIs and browser-local note storage, not live provider/database validation.

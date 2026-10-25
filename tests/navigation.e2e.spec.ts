@@ -107,6 +107,7 @@ async function mockAppApi(page: Page, options: {
   practiceQuizFailure?: boolean;
   reviewMutationFailure?: boolean;
   checkoutOrderFailure?: boolean;
+  billingPlans?: Array<Record<string, unknown>>;
 } = {}) {
   const courseId = options.courseId || "course-fixture";
   const course = options.course || courseFixture(courseId);
@@ -244,7 +245,7 @@ async function mockAppApi(page: Page, options: {
     if (pathname === "/api/ai/practice-quiz" && route.request().method() === "POST" && options.practiceQuizFailure) {
       return json(route, { message: "Practice quiz generation is temporarily unavailable." }, 503);
     }
-    if (pathname === "/api/billing/plans") return json(route, { plans: [] });
+    if (pathname === "/api/billing/plans") return json(route, { plans: options.billingPlans || [] });
     if (pathname === "/api/billing/entitlements") {
       return json(route, {
         plan: options.hasPlanAccess ? { id: "plan-fixture", name: "Current plan" } : null,
@@ -434,6 +435,57 @@ test.describe("privacy and consent controls", () => {
 });
 
 test.describe("canonical learner navigation", () => {
+  test("[PRICING-MODAL-CONSISTENCY-001] upgrade modal shows complete plan features and AI usage limits", async ({ page }) => {
+    const sharedFeatures = [
+      "Access published courses",
+      "Normal course search",
+      "Basic learning progress tracking",
+      "Build with AI",
+      "Personalized learning roadmaps",
+      "Project-based learning",
+    ];
+    await mockAppApi(page, {
+      billingPlans: [
+        {
+          _id: "premium-plan", name: "Premium", price: 399, currency: "INR", billingInterval: "monthly", isActive: true,
+          features: [...sharedFeatures, "Advanced AI learning assistant (summary, notes & lesson Q&A)", "Personalized study planning", "Priority learning recommendations"],
+          limits: { ai_course_builds_per_month: 20, advanced_ai_questions_per_month: 500, advanced_ai_insights_per_month: 100, ai_quiz_generations_per_month: 200 },
+        },
+        {
+          _id: "pro-plan", name: "Pro", price: 199, currency: "INR", billingInterval: "monthly", isActive: true,
+          features: sharedFeatures,
+          limits: { ai_course_builds_per_month: 5, advanced_ai_questions_per_month: 100, advanced_ai_insights_per_month: 30, ai_quiz_generations_per_month: 50 },
+        },
+        {
+          _id: "free-plan", name: "Free", price: 0, currency: "INR", billingInterval: "monthly", isActive: true,
+          features: sharedFeatures.slice(0, 3),
+          limits: { ai_course_builds_per_month: 0, advanced_ai_questions_per_month: 0, advanced_ai_insights_per_month: 0, ai_quiz_generations_per_month: 20 },
+        },
+      ],
+    });
+    await page.goto(baseURL + "/home");
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("bfs:feature-gated", {
+      detail: { feature: "advanced_ai_paths", currentPlan: "Pro" },
+    })));
+
+    const dialog = page.getByRole("dialog", { name: "Take your learning further." });
+    await expect(dialog).toBeVisible();
+    const proCard = dialog.getByRole("button", { name: "Select Pro plan" });
+    await expect(proCard.getByText("AI usage limits", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("Advanced AI questions", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("100 / month", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("AI quiz generations", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("50 / month", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("YouTube discovery courses", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("Not configured", { exact: true })).toHaveCount(2);
+
+    const premiumCard = dialog.getByRole("button", { name: "Select Premium plan" });
+    await expect(premiumCard.getByText("Priority learning recommendations", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("+3 more features", { exact: true })).toHaveCount(0);
+    const freeCard = dialog.getByRole("button", { name: "Select Free plan" });
+    await expect(freeCard.getByText("forever", { exact: true })).toBeVisible();
+  });
+
   test("unknown URLs show a real 404 with a Home destination", async ({ page }) => {
     await page.goto(baseURL + "/does-not-exist");
     await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();

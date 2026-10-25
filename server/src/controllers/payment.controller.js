@@ -67,6 +67,36 @@ export async function createCourseOrder(req, res, next) {
       }, "This course was already purchased. Your learning access has been restored.", 200);
     }
 
+    // Reuse the latest pending order for this learner/course. Repeated checkout
+    // requests (such as refreshes or interrupted modal attempts) must not create
+    // multiple payable Razorpay orders and risk duplicate charges.
+    const pendingCourseCheckout = await Payment.findOne({
+      user: req.user.userId,
+      course: course._id,
+      provider: "razorpay",
+      status: "pending"
+    }).sort({ createdAt: -1 });
+
+    if (pendingCourseCheckout) {
+      if (!pendingCourseCheckout.providerOrderId ||
+          !Number.isFinite(Number(pendingCourseCheckout.amount)) ||
+          Number(pendingCourseCheckout.amount) <= 0) {
+        return failure(res, "A previous checkout is pending but its payment reference is incomplete. Contact support before retrying.", 409);
+      }
+      const pendingAmount = Number(pendingCourseCheckout.amount);
+      const pendingCurrency = pendingCourseCheckout.currency || "INR";
+      return success(res, {
+        paymentId: pendingCourseCheckout._id,
+        order: {
+          id: pendingCourseCheckout.providerOrderId,
+          amount: Math.round(pendingAmount * 100),
+          currency: pendingCurrency
+        },
+        keyId: razorpay.getPublicKey(),
+        course: { id: course._id, title: course.title, amount: pendingAmount }
+      }, "Existing course checkout reused", 200);
+    }
+
     const receipt = "bfs_" + Date.now().toString(36) + "_" + req.user.userId.slice(-8);
     const order = await razorpay.createOrder({
       amount,

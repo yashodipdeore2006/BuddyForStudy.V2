@@ -804,15 +804,146 @@ export async function moderateContent(req, res, next) {
 
 export async function contentRoadmaps(req, res, next) {
   try {
-    const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+    const page = Math.max(Number.parseInt(String(req.query.page || "1"), 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit || "25"), 10) || 25, 1), 100);
     const status = String(req.query.status || "");
-    const filter = status && ["active", "completed"].includes(status) ? { status } : {};
-    const [items, total] = await Promise.all([
-      LearningRoadmap.find(filter).populate("user", "name").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
-      LearningRoadmap.countDocuments(filter)
-    ]);
-    return success(res, { roadmaps: items, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+    const allowedStatuses = ["", "active", "completed", "published", "draft", "archived"];
+    if (!allowedStatuses.includes(status)) return failure(res, "Invalid roadmap status filter", 400);
+
+    const learnerStatus = status === "active" || status === "completed";
+    const generatedStatus = ["published", "draft", "archived"].includes(status);
+    const neverMatch = { $expr: { $eq: [1, 0] } };
+    const savedFilter = generatedStatus ? neverMatch : (status ? { status } : {});
+    const generatedFilter = learnerStatus
+      ? neverMatch
+      : { "generation.mode": "ai", deletedAt: null };
+
+    if (status === "published") generatedFilter.isPublished = true;
+    if (status === "draft") {
+      generatedFilter.isPublished = { $ne: true };
+      generatedFilter.status = { $ne: "archived" };
+    }
+    if (status === "archived") generatedFilter.status = "archived";
+
+    // LearningRoadmap stores a learner's saved plan and completion status.
+    // Build with AI persists its generated roadmap/course in the Course collection.
+    // Union both sources so the admin inventory doesn't silently omit generated courses.
+    const pipeline = [
+      { $match: savedFilter },
+      {
+        $lookup: {
+          from: User.collection.name,
+          localField: "user",
+          foreignField: "_id",
+          pipeline: [{ $project: { name: 1 } }],
+          as: "owner"
+        }
+      },
+      { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          source: { $literal: "saved" },
+          title: { $ifNull: ["$canonicalTopic", "$query"] },
+          query: 1,
+          canonicalTopic: 1,
+          intent: 1,
+          careerOutcome: 1,
+          level: 1,
+          status: 1,
+          lessonCount: { $size: { $ifNull: ["$lessons", []] } },
+          user: { name: "$owner.name" },
+          startedAt: 1,
+          lastAccessedAt: 1,
+          completedAt: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          sortAt: { $ifNull: ["$updatedAt", "$createdAt"] }
+        }
+      },
+      {
+        $unionWith: {
+          coll: Course.collection.name,
+          pipeline: [
+            { $match: generatedFilter },
+            {
+              $lookup: {
+                from: User.collection.name,
+                localField: "createdForUser",
+                foreignField: "_id",
+                pipeline: [{ $project: { name: 1 } }],
+                as: "owner"
+              }
+            },
+            { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+            {
+              $project: {
+                _id: 1,
+                source: { $literal: "generated" },
+                title: 1,
+                query: "$generation.query",
+                canonicalTopic: "$generation.snapshot.canonicalTopic",
+                intent: "$generation.snapshot.intent",
+                careerOutcome: "$generation.snapshot.careerOutcome",
+                level: 1,
+                status: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ["$isPublished", true] }, then: "published" },
+                      { case: { $eq: ["$status", "archived"] }, then: "archived" }
+                    ],
+                    default: "draft"
+                  }
+                },
+                lessonCount: {
+                  $sum: {
+                    $map: {
+                      input: { $ifNull: ["$modules", []] },
+                      as: "module",
+                      in: { $size: { $ifNull: ["$$module.lessons", []] } }
+                    }
+                  }
+                },
+                user: { name: "$owner.name" },
+                startedAt: "$createdAt",
+                lastAccessedAt: null,
+                completedAt: null,
+                createdAt: 1,
+                updatedAt: 1,
+                sortAt: { $ifNull: ["$updatedAt", "$createdAt"] }
+              }
+            }
+          ]
+        }
+      },
+      { $sort: { sortAt: -1, _id: -1 } },
+      {
+        $facet: {
+          metadata: [{ $count: "total" }],
+          records: [
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            { $project: { sortAt: 0 } }
+          ]
+        }
+      }
+    ];
+
+    const [result = {}] = await LearningRoadmap.aggregate(pipeline);
+    const total = Number(result.metadata?.[0]?.total || 0);
+    const roadmaps = (result.records || []).map((item) => ({
+      ...item,
+      _id: String(item._id),
+      lessonCount: Math.max(0, Number(item.lessonCount) || 0),
+      user: item.user?.name ? { name: item.user.name } : undefined
+    }));
+    return success(res, {
+      roadmaps,
+      total,
+      page,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      limit
+    });
   } catch (e) { next(e); }
 }
 

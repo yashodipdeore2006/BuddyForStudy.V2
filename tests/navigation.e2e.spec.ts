@@ -526,7 +526,7 @@ test.describe("canonical learner navigation", () => {
     await page.goto(baseURL + "/courses/course-fixture");
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
     await page.getByRole("radio", { name: /Buy individual course/ }).check();
-    const buyButton = page.getByRole("button", { name: /Buy for/ });
+    const buyButton = page.getByRole("button", { name: /Buy for/ }).last();
     await expect(buyButton).toBeEnabled();
     await buyButton.click();
     await expect(page.getByRole("alert")).toContainText("Checkout is temporarily unavailable. Please try again.");

@@ -517,3 +517,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **New passing control ID:** `DETAIL-REVIEW-FAILURE-001` verifies that a review API 503 displays an error, preserves the learner's rating/comment, restores the submit action and allows a second request.
 - **Control register:** [PLATFORM_CONTROL_REGISTER.md](PLATFORM_CONTROL_REGISTER.md) now includes this negative-path result.
 - **Next:** continue with purchase/payment failure UX and admin mutation scenarios; then responsive/accessibility sweeps. Live persistence and provider checks remain staging-only.
+
+
+## Verification update — checkout failure and publishing guard passed (2026-10-25)
+
+- **Verified commit:** `5809b7298c1fe0cdc90369d493fcec1322cb7c1b`.
+- **CI evidence:** [GitHub Actions run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) passed frontend and backend jobs; the browser suite reported **62 Playwright tests passed**.
+- **Additional passing control IDs:** `DETAIL-PURCHASE-ORDER-FAILURE-001` verifies a paid-course order endpoint returning HTTP 503 presents a recoverable error, leaves the purchase action enabled, and allows retry. `ADM-COURSE-PUBLISH-READINESS-001` verifies an unmet publishing checklist prevents checkbox activation and prevents the publish endpoint call.
+- **Boundary:** browser tests use mocked payment/admin APIs. They do not verify actual Razorpay checkout, payment signature verification, provider settlement/refunds, production persistence, or server-side authorization for every mutation.
+- **Next:** verify billing-reader refund-action isolation, then continue mutation failure/retry and responsive/accessibility coverage. Staging checks for external providers remain open.

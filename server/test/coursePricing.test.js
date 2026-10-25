@@ -10,6 +10,7 @@ import {
   recommendBandPrice,
   validatePricingOperation
 } from "../src/utils/coursePricing.js";
+import { DEFAULT_GENERATED_PRICING_POLICY, resolveGeneratedCoursePricingPolicy } from "../src/utils/generatedCoursePricingPolicy.js";
 
 test("effective course price ignores invalid active sale values and aligns with checkout", () => {
   assert.equal(getEffectiveCoursePrice({ mode: "free", price: 0 }), 0);
@@ -26,6 +27,34 @@ test("effective course price ignores invalid active sale values and aligns with 
 
 test("pricing operations will not preserve an active zero or invalid sale price", () => {
   assert.throws(() => calculateNextPricing({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }, validatePricingOperation({ type: "fixed", amount: 30 })), /invalidate an active sale/);
+});
+
+
+test("default generated pricing is consistent with the admin studio even before its first save", async () => {
+  const policy = resolveGeneratedCoursePricingPolicy(undefined);
+  assert.equal(policy.enabled, true);
+  assert.equal(policy.mode, "level_bands");
+  assert.deepEqual(policy.applyTo, ["discovery"]);
+  assert.deepEqual(policy.levelBands, {
+    Beginner: { min: 20, max: 39 },
+    Intermediate: { min: 30, max: 49 },
+    Advanced: { min: 40, max: 59 }
+  });
+  assert.deepEqual([...DEFAULT_GENERATED_PRICING_POLICY.applyTo], ["discovery"]);
+
+  const disabled = resolveGeneratedCoursePricingPolicy({ enabled: false, applyTo: ["discovery"] });
+  assert.equal(disabled.enabled, false);
+  const emptyApplyTo = resolveGeneratedCoursePricingPolicy({ enabled: true, applyTo: [] });
+  assert.deepEqual(emptyApplyTo.applyTo, []);
+
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const courseModel = fs.readFileSync(path.join(here, "../src/models/Course.js"), "utf8");
+  const pricingController = fs.readFileSync(path.join(here, "../src/controllers/adminPricing.controller.js"), "utf8");
+  assert.match(courseModel, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
+  assert.match(pricingController, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
 });
 
 test("pricing filters reject arbitrary Mongo operators and inverted price ranges", () => {

@@ -482,6 +482,17 @@ test.describe("canonical learner navigation", () => {
     const premiumCard = dialog.getByRole("button", { name: "Select Premium plan" });
     await expect(premiumCard.getByText("Priority learning recommendations", { exact: true })).toBeVisible();
     await expect(dialog.getByText("+3 more features", { exact: true })).toHaveCount(0);
+    // The modal and pricing page must be driven by the same API plan contract.
+    for (const feature of sharedFeatures) {
+      await expect(proCard.getByText(feature, { exact: true })).toBeVisible();
+    }
+    await expect(proCard.getByText("AI course builds", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("5 / month", { exact: true })).toBeVisible();
+    await expect(proCard.getByText("AI quiz generations", { exact: true })).toBeVisible();
+    await expect(premiumCard.getByText("AI course builds", { exact: true })).toBeVisible();
+    await expect(premiumCard.getByText("20 / month", { exact: true })).toBeVisible();
+    await expect(freeCard.getByText("Not included", { exact: true })).toHaveCount(3);
+
     const freeCard = dialog.getByRole("button", { name: "Select Free plan" });
     await expect(freeCard.getByText("forever", { exact: true })).toBeVisible();
   });

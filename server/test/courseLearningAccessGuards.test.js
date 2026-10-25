@@ -43,3 +43,20 @@ test("paid-course access accepts only verified, non-refunded individual payment 
   assert.match(helper, /revokedBy: null/);
   assert.match(helper, /isEnrollmentCourseAccessAllowed\(/);
 });
+
+
+test("progress read and completion APIs enforce current course access and reject revoked enrollments", () => {
+  const progressService = readFileSync(new URL("../src/services/progress.service.js", import.meta.url), "utf8");
+  const start = progressService.indexOf("async function getAuthorizedCourse");
+  const end = progressService.indexOf("export async function getProgress", start);
+  assert.ok(start >= 0 && end > start, "Expected shared progress authorization helper");
+  const guard = progressService.slice(start, end);
+
+  assert.match(guard, /revokedBy: null/);
+  assert.match(guard, /canAccessCourse\(userId, courseId\)/);
+  assert.match(guard, /Course access is no longer available/);
+  assert.ok(
+    guard.indexOf("canAccessCourse(userId, courseId)") > guard.indexOf("if (!enrollment)"),
+    "Current entitlement must be checked after enrollment existence and before progress is returned or mutated"
+  );
+});

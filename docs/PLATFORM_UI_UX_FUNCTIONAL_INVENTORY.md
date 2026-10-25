@@ -508,3 +508,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Additional passing control IDs:** `PLAYER-LESSON-NAV-001` verifies Previous/Next follows a two-lesson curriculum and updates the canonical URL; `PLAYER-PRACTICE-QUIZ-FAILURE-001` verifies an API 503 is announced and the learner can retry practice-quiz generation.
 - **Control register:** [PLATFORM_CONTROL_REGISTER.md](PLATFORM_CONTROL_REGISTER.md) has been updated with test IDs, expected outcomes and CI evidence.
 - **Remaining:** quiz generation success/answer/score/reattempt, cross-lesson note jump, more admin high-risk mutation E2E tests, responsive/accessibility evidence and real staging/provider validation.
+
+
+## Verification update — course review failure recovery passed (2026-10-25)
+
+- **Commit:** `66bf73e3cd02c6d2714acf6c29a102adfb8676f7`.
+- **CI evidence:** [GitHub Actions run #40173675839](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40173675839) completed successfully; frontend and backend jobs passed.
+- **New passing control ID:** `DETAIL-REVIEW-FAILURE-001` verifies that a review API 503 displays an error, preserves the learner's rating/comment, restores the submit action and allows a second request.
+- **Control register:** [PLATFORM_CONTROL_REGISTER.md](PLATFORM_CONTROL_REGISTER.md) now includes this negative-path result.
+- **Next:** continue with purchase/payment failure UX and admin mutation scenarios; then responsive/accessibility sweeps. Live persistence and provider checks remain staging-only.

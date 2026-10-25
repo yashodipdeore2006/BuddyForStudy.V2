@@ -189,7 +189,7 @@ async function applyGeneratedCoursePricing(course) {
     const modules = Array.isArray(course.modules) ? course.modules : [];
     const projects = modules.reduce((count, module) => count + (module.lessons || []).filter((lesson) => lesson.type === "project").length, 0);
     const base = Math.round((min + max) / 2);
-    const recommended = Math.min(max, Math.max(min, Math.round(base * (1 + Math.min(25, modules.length * 2) / 100 + Math.min(50, projects * 5) / 100)));
+    const recommended = Math.min(max, Math.max(min, Math.round(base * (1 + Math.min(25, modules.length * 2) / 100 + Math.min(50, projects * 5) / 100))));
     course.pricing = { mode: recommended > 0 ? "paid" : "free", price: recommended, compareAtPrice: 0, currency, saleEnabled: false, salePrice: 0 };
     return;
   }

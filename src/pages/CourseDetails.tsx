@@ -438,6 +438,16 @@ export default function CourseDetails() {
         method: 'POST',
         body: JSON.stringify({ courseId }),
       });
+      if (data?.alreadyPurchased && data?.enrollment) {
+        setEnrollment(data.enrollment);
+        window.dispatchEvent(new CustomEvent("bfs:course-enrollment-updated", {
+          detail: { courseId: String(courseId), status: String(data.enrollment.status || "active") }
+        }));
+        setCheckoutNotice("This course was already purchased. Your learning access has been restored.");
+        setError(null);
+        setCheckoutLoading(false);
+        return;
+      }
       await loadRazorpay();
       const razorpay = new window.Razorpay({
         key: data.keyId,

@@ -208,12 +208,12 @@ test("legacy admin course endpoints cannot publish directly or permanently delet
 test("admin roadmap inventory unions saved plans and AI-generated courses with bounded server-side pagination", async () => {
   const controller = await read("../src/controllers/adminPro.controller.js");
   const roadmaps = controller.slice(controller.indexOf("export async function contentRoadmaps"), controller.indexOf("function collectCourseLinks"));
-  assert.match(roadmaps, /const page = Math\\.max\\(Number\\.parseInt\\(String\\(req\\.query\\.page/);
-  assert.match(roadmaps, /const limit = Math\\.min\\(Math\\.max\\(Number\\.parseInt\\(String\\(req\\.query\\.limit/);
-  assert.match(roadmaps, /\\$unionWith/);
-  assert.match(roadmaps, /\\$facet/);
-  assert.match(roadmaps, /\\$skip: \\(page - 1\\) \\* limit/);
-  assert.match(roadmaps, /pages: Math\\.max\\(1, Math\\.ceil\\(total \\/ limit\\)\\)/);
+  assert.ok(roadmaps.includes("const page = Math.max(Number.parseInt(String(req.query.page"));
+  assert.ok(roadmaps.includes("const limit = Math.min(Math.max(Number.parseInt(String(req.query.limit"));
+  assert.ok(roadmaps.includes("$unionWith"));
+  assert.ok(roadmaps.includes("$facet"));
+  assert.ok(roadmaps.includes("$skip: (page - 1) * limit"));
+  assert.ok(roadmaps.includes("pages: Math.max(1, Math.ceil(total / limit))"));
 });
 
 test("missing AI quiz questions do not block course readiness and can be retried from the player", async () => {

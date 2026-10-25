@@ -727,7 +727,104 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => reviewReads).toBeGreaterThan(1);
     await expect(page.getByRole("heading", { name: "No published reviews yet" })).toBeVisible();
   });
-});
+
+  test("[LEARN-SAVE-001] save and unsave actions stay synchronized with their API mutations", async ({ page }) => {
+    const course = courseFixture("save-state-course", { title: "Save State Course" });
+    const calls: Array<{ method: string; path: string }> = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.startsWith("/api/saved-courses") && request.method() !== "GET") {
+        calls.push({ method: request.method(), path: url.pathname });
+      }
+    });
+
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(course, "not-started")],
+    });
+    await page.goto(baseURL + "/my-learning?tab=not-started");
+    const card = page.locator('[data-course-status="not-started"]');
+    const saveButton = card.getByRole("button", { name: "Save course" });
+    await expect(saveButton).toHaveAttribute("aria-pressed", "false");
+    await saveButton.click();
+
+    const removeButton = card.getByRole("button", { name: "Remove from saved courses" });
+    await expect(removeButton).toHaveAttribute("aria-pressed", "true");
+    await removeButton.click();
+    await expect(card.getByRole("button", { name: "Save course" })).toHaveAttribute("aria-pressed", "false");
+    expect(calls).toEqual([
+      { method: "POST", path: "/api/saved-courses" },
+      { method: "DELETE", path: "/api/saved-courses/save-state-course" },
+    ]);
+  });
+
+  test("[LEARN-UNENROLL-001] cancel keeps enrollment, confirm removes it, and Undo restores it", async ({ page }) => {
+    const course = courseFixture("unenroll-state-course", { title: "Unenroll State Course" });
+    const mutations: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/enrollments/unenroll-state-course" && ["POST", "DELETE"].includes(request.method())) {
+        mutations.push(request.method());
+      }
+    });
+
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(course, "not-started")],
+    });
+    await page.goto(baseURL + "/my-learning?tab=not-started");
+    const card = page.locator('[data-course-status="not-started"]');
+    await expect(card).toBeVisible();
+
+    const actions = card.locator('summary[aria-label="Course actions for Unenroll State Course"]');
+    await actions.click();
+    await card.getByRole("button", { name: "Unenroll", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Unenroll from this course?" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(card).toBeVisible();
+    expect(mutations).toEqual([]);
+
+    await actions.click();
+    await card.getByRole("button", { name: "Unenroll", exact: true }).click();
+    const confirmDialog = page.getByRole("dialog", { name: "Unenroll from this course?" });
+    await confirmDialog.getByRole("button", { name: "Unenroll", exact: true }).click();
+    await expect(page.locator('[data-course-status="not-started"]')).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "Unenrolled from Unenroll State Course." })).toBeVisible();
+    await expect(mutations).toEqual(["DELETE"]);
+
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(page.locator('[data-course-status="not-started"]')).toContainText("Unenroll State Course");
+    expect(mutations).toEqual(["DELETE", "POST"]);
+  });
+
+  test("[DETAIL-REVIEW-SUBMIT-001] enrolled learners can submit a rating and comment", async ({ page }) => {
+    let submittedReview: { rating?: number; comment?: string } | null = null;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/reviews/courses/course-fixture" && request.method() === "POST") {
+        submittedReview = request.postDataJSON() as { rating?: number; comment?: string };
+      }
+    });
+
+    await mockAppApi(page, {
+      authenticated: true,
+      enrolled: true,
+      hasPlanAccess: true,
+      course: courseFixture("course-fixture"),
+    });
+    await page.goto(baseURL + "/courses/course-fixture?tab=reviews");
+    await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
+    await page.getByRole("button", { name: "Rate 4 out of 5 stars" }).click();
+    await page.getByLabel("Your comment (optional)").fill("Clear explanations and useful practice.");
+    await page.getByRole("button", { name: "Submit review", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Your review has been saved." })).toBeVisible();
+    expect(submittedReview).toEqual({
+      rating: 4,
+      comment: "Clear explanations and useful practice.",
+    });
+  });
+\n});
 
 test.describe("public platform pages and footer", () => {
   test("public pages render the marketing footer and their main content", async ({ page }) => {

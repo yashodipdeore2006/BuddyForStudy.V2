@@ -6,6 +6,8 @@ import { createNotificationEvent } from "./notification.service.js";
 import { buildCoursePurchaseNotificationPayload } from "./billingNotificationPayloads.js";
 import { getEntitlement } from "./subscriptionEntitlement.service.js";
 import { toPublicCoursePreview } from "../utils/coursePreview.js";
+import { Progress } from "../models/Progress.js";
+import { deriveLearningStatus, LEARNING_STATUS } from "../utils/learningStatus.js";
 
 async function notifyFreeCourseEnrollment(userId, course, enrollment) {
   if (course.pricing?.mode === "paid") return;
@@ -169,28 +171,108 @@ export async function getMine(userId) {
     })
     .sort({ enrolledAt: -1 });
 
-  // Keep the enrolled-course response safe, and attach aggregate review stats
-  // so My Learning cards can show genuine ratings without one request per card.
   const courseIds = enrollments.map((enrollment) => enrollment.course?._id).filter(Boolean);
-  const ratingRows = courseIds.length ? await Review.aggregate([
-    { $match: { course: { $in: courseIds }, isHidden: { $ne: true }, moderationStatus: "approved" } },
-    { $group: { _id: "$course", ratingAverage: { $avg: "$rating" }, ratingCount: { $sum: 1 } } }
-  ]) : [];
+  const [ratingRows, progressRows, legacyStatusRows] = await Promise.all([
+    courseIds.length ? Review.aggregate([
+      { $match: { course: { $in: courseIds }, isHidden: { $ne: true }, moderationStatus: "approved" } },
+      { $group: { _id: "$course", ratingAverage: { $avg: "$rating" }, ratingCount: { $sum: 1 } } }
+    ]) : [],
+    courseIds.length ? Progress.find({ user: userId, course: { $in: courseIds } })
+      .select("course completedLessons completedCount totalLessons percentage lastLessonId lastAccessedAt")
+      .lean() : [],
+    // One-time, lazy migration for legacy enrollments created before learningStatus
+    // was persisted. Query the raw collection so schema defaults do not hide missing fields.
+    enrollments.length ? Enrollment.collection.find({
+      user: enrollments[0].user,
+      learningStatus: { $exists: false }
+    }).project({ _id: 1, course: 1, status: 1 }).toArray() : []
+  ]);
+
   const ratingsByCourse = new Map(ratingRows.map((row) => [String(row._id), {
     ratingAverage: Math.round(Number(row.ratingAverage || 0) * 10) / 10,
     ratingCount: Number(row.ratingCount || 0)
   }]));
-  return enrollments.map((enrollment) => {
+  const progressByCourse = new Map(progressRows.map((row) => [String(row.course), row]));
+  const legacyByEnrollmentId = new Map(legacyStatusRows.map((row) => [String(row._id), row]));
+  const statusUpdates = [];
+
+  const resultRows = enrollments.map((enrollment) => {
     const result = enrollment.toObject();
-    if (result.course) {
-      const courseId = String(result.course._id || result.course.id);
+    const course = result.course;
+    const courseId = course ? String(course._id || course.id) : String(result.course);
+    const progress = progressByCourse.get(courseId) || null;
+    const lessonIds = (course?.modules || [])
+      .flatMap((module) => module?.lessons || [])
+      .map((lesson) => String(lesson?._id ?? lesson?.id ?? ""))
+      .filter((id) => id && id !== "undefined" && id !== "null");
+    const availableLessonIds = new Set(lessonIds);
+    const completedIds = new Set((progress?.completedLessons || [])
+      .map((entry) => String(entry?.lessonId ?? ""))
+      .filter((id) => id && (!lessonIds.length || availableLessonIds.has(id))));
+    const totalLessons = lessonIds.length || Math.max(0, Number(progress?.totalLessons || 0));
+    const completedCount = lessonIds.length
+      ? completedIds.size
+      : Math.max(0, Number(progress?.completedCount ?? completedIds.size));
+    const percentage = totalLessons > 0
+      ? Math.min(100, Math.round((completedCount / totalLessons) * 100))
+      : 0;
+
+    const isLegacyStatus = legacyByEnrollmentId.has(String(enrollment._id));
+    const learningStatus = isLegacyStatus
+      ? deriveLearningStatus({
+          completedCount,
+          totalLessons,
+          lastAccessedAt: progress?.lastAccessedAt,
+          lastLessonId: progress?.lastLessonId,
+          enrollmentStatus: enrollment.status
+        })
+      : (Object.values(LEARNING_STATUS).includes(result.learningStatus)
+          ? result.learningStatus
+          : deriveLearningStatus({
+              completedCount,
+              totalLessons,
+              lastAccessedAt: progress?.lastAccessedAt,
+              lastLessonId: progress?.lastLessonId,
+              enrollmentStatus: enrollment.status
+            }));
+
+    if (isLegacyStatus) {
+      statusUpdates.push({
+        updateOne: {
+          filter: { _id: enrollment._id, learningStatus: { $exists: false } },
+          update: { $set: { learningStatus } }
+        }
+      });
+    }
+
+    const nextLessonId = learningStatus === LEARNING_STATUS.COMPLETED
+      ? null
+      : lessonIds.find((id) => !completedIds.has(id)) || null;
+
+    result.learningStatus = learningStatus;
+    result.learningProgress = {
+      completedCount,
+      totalLessons,
+      percentage,
+      nextLessonId,
+      lastLessonId: progress?.lastLessonId ? String(progress.lastLessonId) : null,
+      lastAccessedAt: progress?.lastAccessedAt || null
+    };
+
+    if (course) {
       result.course = {
-        ...toPublicCoursePreview(result.course),
+        ...toPublicCoursePreview(course),
         ...(ratingsByCourse.get(courseId) || { ratingAverage: 0, ratingCount: 0 })
       };
     }
     return result;
   });
+
+  if (statusUpdates.length) {
+    await Enrollment.bulkWrite(statusUpdates, { ordered: false });
+  }
+
+  return resultRows;
 }
 
 export function getOne(userId, enrollmentId) {

@@ -5,11 +5,12 @@ import { findLearningItem, totalLessons } from "./course.service.js";
 import { recordLearningActivity } from "./achievement.service.js";
 import { createNotificationEvent } from "./notification.service.js";
 import { deriveLearningStatus, LEARNING_STATUS } from "../utils/learningStatus.js";
+import { canAccessCourse } from "./subscriptionEntitlement.service.js";
 
 async function getAuthorizedCourse(userId, courseId) {
   const [course, enrollment] = await Promise.all([
     Course.findById(courseId),
-    Enrollment.findOne({ user: userId, course: courseId, status: { $in: ["active", "completed"] } })
+    Enrollment.findOne({ user: userId, course: courseId, status: { $in: ["active", "completed"] }, revokedBy: null })
   ]);
 
   if (!course) {
@@ -20,6 +21,12 @@ async function getAuthorizedCourse(userId, courseId) {
 
   if (!enrollment) {
     const error = new Error("Active or completed enrollment required");
+    error.status = 403;
+    throw error;
+  }
+
+  if (!(await canAccessCourse(userId, courseId))) {
+    const error = new Error("Course access is no longer available. Check your purchase or subscription status.");
     error.status = 403;
     throw error;
   }

@@ -544,3 +544,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Additional passing control ID:** `ADM-BILLING-REFUND-FAILURE-001` verifies that a too-short finance decision reason is rejected before any refund mutation; when the refund endpoint returns HTTP 503, the UI preserves the typed confirmation/reason, announces the service error and allows retry.
 - **Boundary:** this confirms the frontend interaction against mocked API responses only. It does not exercise a real payment provider or independently prove backend permission, ledger/idempotency, or audit persistence.
 - **Next:** add delivery-retry recovery coverage and continue high-risk mutation tests; responsive/accessibility and live staging validation remain open.
+
+
+## Verification update — failed delivery retry recovery passed (2026-10-25)
+
+- **Verified commit:** `c76d835aa2d895bc9bec2294e73ceff58e2ab5a2`.
+- **CI evidence:** [GitHub Actions run #40175773311](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175773311) passed frontend and backend jobs; the browser suite reported **65 Playwright tests passed**.
+- **Additional passing control ID:** `ADM-DELIVERY-RETRY-FAILURE-001` verifies that a communications operator with `notifications.retry` can initiate a failed-email retry; when the queue API returns HTTP 503, the UI announces the error, retains `RETRY` plus the reason, and allows another attempt.
+- **Boundary:** the retry endpoint and access data are mocked in Playwright. The test does not send a real email/push message, verify worker queue semantics, or prove the server's audit persistence.
+- **Next:** continue with pricing/trial and communications controls, then complete responsive and keyboard/accessibility verification. Live provider and staging checks remain open.

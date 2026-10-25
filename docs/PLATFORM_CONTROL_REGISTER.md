@@ -29,6 +29,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | NAV-ACCOUNT-MENU-001 | Avatar account menu | Exposes profile/settings/help/theme/sign-out according to role; menu closes after selection | Inventory only |
 | NAV-THEME-001 | Light/Dark/System theme control | Immediate theme change, persistent preference and correct system mode behavior | Inventory only |
 | NAV-SIGNOUT-001 | Sign out | Clears local credentials even when server logout fails; protected routes respond to the cleared session | Inventory only |
+| NAV-SIGNOUT-FAILURE-001 | Sign out when the logout API fails | Attempts server logout, clears local token regardless of 503, navigates to the public landing route and exposes signed-out navigation | Automated pass on `7f27ecb25d5edeb88b6354784ede64b489fa5045`; [CI run #40185807422](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185807422) |
 | CONSENT-COOKIE-001 | Cookie manager: reject, customize, accept all, reopen settings | Choice persists and syncs; optional services respect consent; footer/settings entry reopens the dialog | Existing consent E2E tests |
 | CONSENT-PUSH-001 | Push prompt: enable, dismiss, recheck permission | Native browser permission only after explicit opt-in; unsupported/denied states have recovery guidance | Existing push E2E tests |
 | NAV-FOOTER-001 | Footer: public links and cookie settings | Internal links resolve; cookie settings opens consent manager; mobile layout has no page overflow | Existing footer E2E tests |
@@ -258,3 +259,10 @@ The overflow checks verify page width only; they do not replace focus-order, con
 - **CI:** [run #40185351855](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185351855) passed frontend and backend jobs; **74 Playwright tests passed**.
 - **New passing ID:** `ADM-USER-REACTIVATE-001`: a disabled account can be re-enabled only after entering an audit reason; the test checks the `isActive: true` mutation payload and that the row refreshes to show Disable.
 - The browser uses a mocked API; production role enforcement, audit record persistence and effect on authenticated sessions must still be verified in backend/staging checks.
+
+
+### 2026-10-25 — Sign-out failure recovery passed
+- **Commit:** `7f27ecb25d5edeb88b6354784ede64b489fa5045`.
+- **CI:** [run #40185807422](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185807422) passed frontend and backend jobs; **75 Playwright tests passed**.
+- **New passing ID:** `NAV-SIGNOUT-FAILURE-001`: when the logout endpoint returns 503, local credentials are still cleared, the app returns to the public landing route, and the primary navigation presents Sign in.
+- The E2E mocks the logout API. Real browser push-subscription cleanup, protected-route behavior across reloads, and server session revocation need staging validation.

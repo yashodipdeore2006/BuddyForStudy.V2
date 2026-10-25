@@ -156,6 +156,9 @@ export default function AdminUsersPro() {
     }
   }
 
+  const loadRef = useRef(load);
+  useEffect(() => { loadRef.current = load; });
+
   useEffect(() => {
     let cancelled = false;
     void adminFetch("/api/admin/access").then((data) => {
@@ -232,8 +235,10 @@ export default function AdminUsersPro() {
     }
   }
 
+  const loadAndImportSavedViewsRef = useRef(loadAndImportSavedViews);
+  useEffect(() => { loadAndImportSavedViewsRef.current = loadAndImportSavedViews; });
   useEffect(() => {
-    if (!permissionsLoading && canManageSavedViews) void loadAndImportSavedViews();
+    if (!permissionsLoading && canManageSavedViews) void loadAndImportSavedViewsRef.current();
   }, [savedViewStorageKey, permissionsLoading, canManageSavedViews]);
 
   async function createSavedView(payload: Omit<SavedViewRecord, "id" | "owner" | "canManage" | "createdAt" | "updatedAt">) {
@@ -297,7 +302,7 @@ export default function AdminUsersPro() {
   }, [q, debouncedQ]);
 
   useEffect(() => {
-    void load(page, { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, pageSize);
+    void loadRef.current(page, { q: debouncedQ, status, role, authProvider, sortBy, sortOrder }, pageSize);
   }, [page, debouncedQ, status, role, authProvider, pageSize, sortBy, sortOrder]);
 
   useEffect(() => {
@@ -449,10 +454,12 @@ export default function AdminUsersPro() {
     }
   }
 
+  const openUserRef = useRef(openUser);
+  useEffect(() => { openUserRef.current = openUser; });
   useEffect(() => {
     const detailId = searchParams.get("id");
     if (detailId && selected?.user?._id !== detailId && !detailLoading) {
-      void openUser(detailId);
+      void openUserRef.current(detailId);
     }
   }, [searchParams, selected?.user?._id, detailLoading]);
 

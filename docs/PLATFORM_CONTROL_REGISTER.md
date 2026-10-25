@@ -144,6 +144,15 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 
 These browser tests use mocked API responses. They prove frontend contracts against controlled fixtures, not production database state or external provider credentials. Do not mark them passing until CI succeeds on the commit containing the tests.
 
+### Responsive viewport regressions
+
+| ID | Control surface | Expected behavior | Status |
+|---|---|---|---|
+| RESP-LEARNER-OVERFLOW-001 | Home, Explore, course details, My Learning, course player | No document/body horizontal overflow at 360, 390, 768, 1024 or 1440 CSS px | Automated pass on commit `5b1465cb816757512e625731c8903ce9b3ae7f69`; [CI run #40184735235](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184735235) |
+| RESP-ADMIN-OVERFLOW-001 | Admin dashboard, Users, Courses | No document/body horizontal overflow at 360, 768 or 1440 CSS px | Test added on commit `82337a948727c23b08b0f8002f9cf30f47d05cf`; [CI run #40184856431](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184856431) pending |
+
+The overflow checks verify page width only; they do not replace focus-order, contrast, zoom, or screen-reader audits.
+
 ## 8. Work queue
 
 - [x] Create stable IDs for the first global shell, Explore, My Learning, course-details, player and admin-shell control groups.
@@ -153,7 +162,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
 - [ ] Add remaining pricing/trial edge cases, account reactivation coverage, and responsive/accessibility checks. PII reveal/export and account-disable failure recovery, pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
-- [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
+- [x] Add responsive horizontal-overflow E2E coverage for primary learner pages at 360, 390, 768, 1024 and 1440px (run #40184735235). Admin dashboard/Users/Courses viewport coverage is awaiting run #40184856431. [ ] Complete focus-order, contrast, zoom and screen-reader checks at representative breakpoints.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 
 ## 9. Change log
@@ -226,3 +235,11 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - **CI:** [run #40184125922](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184125922) passed frontend and backend jobs; **71 Playwright tests passed**.
 - **New passing ID:** `ADM-USER-STATUS-FAILURE-001`: a failed disable request preserves the required operator reason and confirmation, announces the server error and supports retry; success refreshes the visible state to Enable.
 - The API is mocked in the browser test; the server audit record and live account access enforcement still need staging verification.
+
+
+### 2026-10-25 — Learner responsive viewport smoke test passed
+- **Commit:** `5b1465cb816757512e625731c8903ce9b3ae7f69`.
+- **CI:** [run #40184735235](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40184735235) passed frontend and backend jobs; **72 Playwright tests passed**.
+- **New passing ID:** `RESP-LEARNER-OVERFLOW-001`: checks Home, Explore, course details, My Learning and course player at 360, 390, 768, 1024 and 1440 CSS px and asserts that document/body width does not exceed the viewport.
+- Admin dashboard/Users/Courses viewport check `RESP-ADMIN-OVERFLOW-001` is added on commit `82337a948727c23b08b0f8002f9cf30f47d05cf`; its CI run is pending at time of this entry.
+- These tests detect horizontal overflow only; keyboard/focus, contrast, zoom, and assistive-technology verification remain open.

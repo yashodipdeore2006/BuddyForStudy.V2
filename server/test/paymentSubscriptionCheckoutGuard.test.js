@@ -95,6 +95,7 @@ test("subscription order creation reuses an existing pending provider checkout",
 
 test("subscription order creation refuses to reuse a pending checkout for a different plan", async () => {
   await withMocks([
+    checkoutLockMocks,
     [SubscriptionPlan, {
       findOne: async () => ({
         _id: "507f1f77bcf86cd799439012",

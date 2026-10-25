@@ -95,7 +95,7 @@ export function normalizeProcessedProviderRefund(providerRefund, payment) {
   if (!expectedPaymentId || providerPaymentId !== expectedPaymentId) {
     return { valid: false, reason: "Provider refund payment mismatch" };
   }
-  if (status && status !== "processed") {
+  if (status !== "processed") {
     return { valid: false, reason: "Provider refund is not processed" };
   }
   if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {

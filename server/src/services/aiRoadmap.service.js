@@ -1166,12 +1166,6 @@ function validateQuizQuestions(questions, expectedCount) {
 }
 
 export async function generateCourseQuiz({ courseId, lessonId, userId = null, practiceOnly = false, excludeQuestions = [] }) {
-  if (!client) {
-    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
-    error.status = 503;
-    throw error;
-  }
-
   const publicCourseAccess = {
     isPublished: true,
     deletedAt: null,
@@ -1192,10 +1186,19 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     status: { $in: ["active", "completed"] },
     revokedBy: null
   })) {
+    // Match the lesson-player access rule: an enrolled learner may continue a
+    // non-private, non-archived course even when it is no longer listed publicly.
+    accessBranches.push({
+      visibility: { $ne: "private" },
+      deletedAt: null,
+      status: { $ne: "archived" },
+      aiReviewStatus: { $nin: ["pending", "rejected"] }
+    });
     accessBranches.push({
       visibility: "private",
       createdForUser: userId,
       deletedAt: null,
+      status: { $ne: "archived" },
       aiReviewStatus: "approved",
       $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
     });
@@ -1233,6 +1236,14 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
       lessonId: String(located.lesson._id),
       quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
     };
+  }
+
+  // Existing saved quizzes are returned before this check. Only new AI
+  // generation needs the external provider to be configured.
+  if (!client) {
+    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
+    error.status = 503;
+    throw error;
   }
 
   let usageReserved = false;

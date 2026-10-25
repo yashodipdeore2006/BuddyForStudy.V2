@@ -57,6 +57,20 @@ test("provider currency comparison is case-insensitive but must match", () => {
   );
 });
 
+test("course payment webhook reconciles captured payment before marking it paid", () => {
+  const webhook = readFileSync(new URL("../src/controllers/webhook.controller.js", import.meta.url), "utf8");
+  assert.match(webhook, /capturedPaymentValidationError\(pendingCoursePayment, paymentEntity\)/);
+  assert.match(webhook, /if \(validationError\)[\s\S]*?ignored course capture because provider payment did not match checkout/);
+  assert.match(webhook, /_id: pendingCoursePayment\._id,[\s\S]*?status: \{ \$in: CAPTURED_PAYMENT_SOURCE_STATUSES \}/);
+});
+
+test("course webhook validation rejects missing or mismatched capture fields", () => {
+  assert.equal(capturedPaymentValidationError(payment, null), "Provider payment order mismatch");
+  assert.equal(capturedPaymentValidationError(payment, { ...captured, amount: undefined }), "Payment amount mismatch");
+  assert.equal(capturedPaymentValidationError(payment, { ...captured, currency: undefined }), "Payment currency mismatch");
+  assert.equal(capturedPaymentValidationError(payment, { ...captured, order_id: undefined }), "Provider payment order mismatch");
+});
+
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES } from "../src/services/paymentWebhookTransitions.js";
 
 test("captured webhooks can recover failed attempts but never rewrite refunded payments", () => {

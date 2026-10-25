@@ -40,6 +40,9 @@ test("route helpers encode ids and reject missing identifiers", () => {
   assert.equal(routes.roadmap("abc"), "/courses/abc/roadmap");
   assert.equal(routes.learn("abc"), "/learn/abc");
   assert.equal(routes.learn("abc", "lesson 1"), "/learn/abc/lesson%201");
+  assert.equal(routes.learn("abc", "undefined"), "/learn/abc");
+  assert.equal(routes.learn("abc", "null"), "/learn/abc");
+  assert.equal(routes.learn("abc", "   "), "/learn/abc");
   assert.throws(() => routes.course("undefined"), /valid course id/i);
   assert.throws(() => routes.learn("", "lesson"), /valid course id/i);
 });

@@ -109,6 +109,7 @@ Keep a stable ID, route/component, visible and accessible label, event/handler, 
 | ADM-SHELL-ROLE-NAV-001 | Admin navigation and direct URLs | Links are permission-filtered; direct access denied; protected data/actions remain hidden | Existing admin-access E2E tests |
 | ADM-SHELL-MOBILE-001 | Mobile admin navigation | Drawer/overlay closes correctly; focus and scroll are managed; current item is clear | Inventory only |
 | ADM-USER-PII-001 | Reveal/export PII | Permission/reason checked server-side; masking default; audit event recorded; invalid request never reaches mutation | Backend PII/auth tests exist; browser test pending |
+| ADM-PII-REVEAL-001 | Reveal and re-mask a learner email | Masked by default; reveal needs PII permission and a 10–500 character reason; request sends the reason; returned value can be masked again | Test added — CI pending |
 | ADM-USER-STATUS-001 | Disable/reactivate user | Valid transitions, reason, audit event and refreshed state | Backend tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-001 | Readiness then publish | Readiness and publish permission enforced; failure explained; state refreshed | Course readiness/publishing tests exist; browser test pending |
 | ADM-COURSE-PUBLISH-READINESS-001 | Attempt publish when readiness fails | Checklist explains blockers; publish endpoint is not called and published state stays false | E2E passed; [CI run #40175128836](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175128836) |
@@ -149,7 +150,7 @@ These browser tests use mocked API responses. They prove frontend contracts agai
 - [x] Add My Learning save/unsave and unenroll cancel/confirm/undo tests; [ ] Share and API-failure rollback cases remain.
 - [ ] Add course review submit/update, course purchase and payment failure browser tests.
 - [ ] Add Player Prev/Next lesson navigation and practice-quiz API failure/retry tests now pass CI; quiz success/answer/score scenarios remain open. Timestamped note validation/persistence/delete/filter tests also pass CI.
-- [ ] Add admin UI mutation tests for PII reveal/export and remaining pricing/trial edge cases; pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
+- [ ] Verify the new PII reveal/re-mask E2E; then add export-specific browser coverage and remaining pricing/trial edge cases. Pricing apply/communications failure recovery, refund failure/permission, delivery retry and publish-readiness tests have passing CI evidence.
 - [ ] Capture focus/responsive/contrast evidence at 360, 390, 768, 1024 and 1440px.
 - [ ] Validate configured integrations in staging: OAuth, YouTube/Gemini quotas, payment webhooks, SMTP, push and workers.
 

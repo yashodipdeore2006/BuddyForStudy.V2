@@ -112,7 +112,7 @@ export default function Billing() {
   }, [payments, search, statusFilter]);
 
   const paidTotalsByCurrency = payments
-    .filter((payment) => ["paid", "partially_refunded"].includes(payment.status))
+    .filter((payment) => ["paid", "partially_refunded", "refunded"].includes(payment.status))
     .reduce<Record<string, number>>((totals, payment) => {
       const currency = String(payment.currency || "INR").trim().toUpperCase() || "INR";
       totals[currency] = (totals[currency] || 0) + Number(payment.amount || 0);

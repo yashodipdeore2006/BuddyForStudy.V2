@@ -809,7 +809,7 @@ export async function contentRoadmaps(req, res, next) {
     const status = String(req.query.status || "");
     const filter = status && ["active", "completed"].includes(status) ? { status } : {};
     const [items, total] = await Promise.all([
-      LearningRoadmap.find(filter).populate("user", "name email").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      LearningRoadmap.find(filter).populate("user", "name").select("user query canonicalTopic intent careerOutcome level status startedAt lastAccessedAt completedAt createdAt updatedAt lessons").sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       LearningRoadmap.countDocuments(filter)
     ]);
     return success(res, { roadmaps: items, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });

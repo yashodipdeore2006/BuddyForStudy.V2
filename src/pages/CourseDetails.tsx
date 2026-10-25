@@ -462,7 +462,7 @@ export default function CourseDetails() {
           setCheckoutLoading(true);
           setError(null);
           try {
-            await apiFetch('/api/payments/course/verify', {
+            const verificationData = await apiFetch('/api/payments/course/verify', {
               method: 'POST',
               body: JSON.stringify({
                 paymentId: data.paymentId,
@@ -471,7 +471,11 @@ export default function CourseDetails() {
                 razorpaySignature: response.razorpay_signature,
               }),
             });
-            const enrollmentData = await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
+            // Verification now grants access server-side and can restore access
+            // on a retry. Keep the old enrollment call as a compatibility fallback.
+            const enrollmentData = verificationData?.enrollment
+              ? { enrollment: verificationData.enrollment }
+              : await apiFetch(`/api/enrollments/${courseId}`, { method: 'POST' });
             setEnrollment(enrollmentData.enrollment);
             window.dispatchEvent(new CustomEvent("bfs:course-enrollment-updated", { detail: { courseId: String(courseId), status: String(enrollmentData.enrollment?.status || "active") } }));
             setCheckoutNotice('Payment successful. This course is now in your learning library.');

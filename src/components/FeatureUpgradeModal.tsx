@@ -23,6 +23,7 @@ type Plan = {
   billingInterval: string;
   description?: string;
   features?: string[];
+  limits?: Record<string, number>;
   isPopular?: boolean;
 };
 
@@ -85,6 +86,24 @@ function intervalLabel(interval: string) {
     case "one_time": return "one time";
     default: return interval || "billing period";
   }
+}
+
+const planLimitDefinitions = [
+  ["ai_course_builds_per_month", "AI course builds"],
+  ["advanced_ai_questions_per_month", "Advanced AI questions"],
+  ["advanced_ai_insights_per_month", "Advanced AI summaries"],
+  ["ai_quiz_generations_per_month", "AI quiz generations"],
+  ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
+  ["ai_curated_courses_per_month", "AI-curated courses"],
+] as const;
+
+function formatPlanLimit(value: unknown) {
+  if (value === undefined || value === null || value === "") return "Not configured";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Not configured";
+  if (numeric === -1) return "Unlimited";
+  if (numeric === 0) return "Not included";
+  return `${numeric.toLocaleString("en-IN")} / month`;
 }
 
 export default function FeatureUpgradeModal() {
@@ -390,12 +409,26 @@ export default function FeatureUpgradeModal() {
                       <p className="mt-1 min-h-10 text-xs leading-5 text-slate-500">{plan.description || "A focused learning plan to keep you moving forward."}</p>
                       <p className="bfs-plan-price mt-3">
                         {formatMoney(price, plan.currency || "INR")}
-                        <span className="ml-1 text-xs font-medium text-slate-500">/{intervalLabel(plan.billingInterval)}</span>
+                        <span className="ml-1 text-xs font-medium text-slate-500">{price === 0 ? "forever" : `/${intervalLabel(plan.billingInterval)}`}</span>
                       </p>
-                      <ul className="bfs-plan-features mt-4 flex-1 space-y-2 border-t border-slate-200/80 pt-4 text-xs leading-5">
-                        {(plan.features || []).slice(0, 6).map((feature) => <li key={feature} className="flex items-start gap-2"><Check className="bfs-plan-check mt-0.5 h-4 w-4 shrink-0 rounded-full p-0.5" /><span>{feature}</span></li>)}
-                        {(plan.features || []).length > 6 && <li className="pl-5 font-semibold text-violet-700">+{plan.features!.length - 6} more features</li>}
-                      </ul>
+                      <section className="flex-1 border-t border-slate-200/80 pt-4" aria-label={`${plan.name} included features and usage limits`}>
+                        <ul className="bfs-plan-features space-y-2 text-xs leading-5">
+                          {(plan.features || []).map((feature) => <li key={feature} className="flex items-start gap-2"><Check className="bfs-plan-check mt-0.5 h-4 w-4 shrink-0 rounded-full p-0.5" /><span>{feature}</span></li>)}
+                          {!(plan.features || []).length && <li className="text-xs text-slate-500">No feature entitlements are configured for this plan.</li>}
+                        </ul>
+                        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-600">AI usage limits</h4>
+                          <p className="mt-1 text-[10px] leading-4 text-slate-500">Per-month allowances configured for this plan.</p>
+                          <dl className="mt-3 space-y-2">
+                            {planLimitDefinitions.map(([key, label]) => (
+                              <div key={key} className="flex items-start justify-between gap-2 text-[10px] leading-4">
+                                <dt className="min-w-0 text-slate-600">{label}</dt>
+                                <dd className="shrink-0 text-right font-semibold text-slate-900">{formatPlanLimit(plan.limits?.[key])}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </div>
+                      </section>
                       <div className="mt-5 flex items-center justify-between gap-2">
                         <span className={`text-xs font-bold ${isFocused ? "text-violet-700" : "text-slate-500"}`}>{isSelected ? "Selected plan" : isFocused ? "Previewing plan" : "Choose plan"}</span>
                         {isSelected && <span aria-label="Selected" className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-600 text-white"><Check className="h-3.5 w-3.5" /></span>}

@@ -526,3 +526,12 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Additional passing control IDs:** `DETAIL-PURCHASE-ORDER-FAILURE-001` verifies a paid-course order endpoint returning HTTP 503 presents a recoverable error, leaves the purchase action enabled, and allows retry. `ADM-COURSE-PUBLISH-READINESS-001` verifies an unmet publishing checklist prevents checkbox activation and prevents the publish endpoint call.
 - **Boundary:** browser tests use mocked payment/admin APIs. They do not verify actual Razorpay checkout, payment signature verification, provider settlement/refunds, production persistence, or server-side authorization for every mutation.
 - **Next:** verify billing-reader refund-action isolation, then continue mutation failure/retry and responsive/accessibility coverage. Staging checks for external providers remain open.
+
+
+## Verification update — refund permission boundary passed (2026-10-25)
+
+- **Verified commit:** `2f7c39e4f345e36356b18cd8fce303490f341811`.
+- **CI evidence:** [GitHub Actions run #40175201786](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40175201786) passed frontend and backend jobs; the browser suite reported **63 Playwright tests passed**.
+- **Additional passing control ID:** `ADM-BILLING-REFUND-PERMISSION-001` verifies that an admin with billing read access but without `refunds.manage` can view a pending refund and the displayed reason, but cannot see approve/reject controls. The test records that no refund PUT mutation occurred.
+- **Boundary:** this is a frontend/route-contract test using mocked admin APIs. The backend must continue enforcing the permission independently; this does not prove real refund-provider behavior or end-to-end authorization against a production database.
+- **Next:** expand negative-path billing mutations for authorized finance roles, then exercise pricing/trial/communications/delivery workflows and perform the responsive/accessibility sweep. Staging and external-provider verification remain open.

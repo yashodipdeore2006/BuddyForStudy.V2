@@ -9,6 +9,7 @@ import { success, failure } from "../utils/response.js";
 import { createNotificationEvent, notifyActiveAdmins } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
 import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES, buildCapturedPaymentUpdate, buildFailedPaymentUpdate } from "../services/paymentWebhookTransitions.js";
+import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
 import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
 
@@ -274,19 +275,41 @@ export async function razorpayWebhook(req, res, next) {
     const orderId = paymentEntity?.order_id || orderEntity?.id;
 
     if (event.event === "payment.captured" || event.event === "order.paid") {
-      if (orderId) {
-        await Payment.findOneAndUpdate(
-          {
-            provider: "razorpay",
-            providerOrderId: orderId,
-            status: { $in: CAPTURED_PAYMENT_SOURCE_STATUSES },
-            course: { $ne: null }
-          },
-          {
-            $set: buildCapturedPaymentUpdate(paymentEntity)
-          },
-          { new: true }
-        );
+      if (orderId && paymentEntity) {
+        const pendingCoursePayment = await Payment.findOne({
+          provider: "razorpay",
+          providerOrderId: orderId,
+          status: { $in: CAPTURED_PAYMENT_SOURCE_STATUSES },
+          course: { $ne: null }
+        }).sort({ createdAt: -1 });
+
+        if (pendingCoursePayment) {
+          // A signed webhook proves the event came from Razorpay, but it does
+          // not remove the need to reconcile the captured amount and currency
+          // with the exact checkout record before granting paid-course access.
+          const validationError = capturedPaymentValidationError(pendingCoursePayment, paymentEntity);
+          if (validationError) {
+            console.error("[billing-webhook] ignored course capture because provider payment did not match checkout", {
+              paymentId: String(pendingCoursePayment._id),
+              providerOrderId: String(orderId),
+              reason: validationError
+            });
+          } else {
+            await Payment.findOneAndUpdate(
+              {
+                _id: pendingCoursePayment._id,
+                provider: "razorpay",
+                providerOrderId: orderId,
+                status: { $in: CAPTURED_PAYMENT_SOURCE_STATUSES },
+                course: { $ne: null }
+              },
+              {
+                $set: buildCapturedPaymentUpdate(paymentEntity)
+              },
+              { new: true }
+            );
+          }
+        }
       }
     } else if (event.event === "subscription.activated" || event.event === "subscription.resumed") {
       if (subscriptionEntity?.id) {

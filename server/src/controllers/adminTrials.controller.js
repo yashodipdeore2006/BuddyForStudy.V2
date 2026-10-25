@@ -162,14 +162,38 @@ export async function grant(req, res, next) {
           conversionConsentStatus: input.conversionPlanId ? "pending_user_consent" : "not_requested",
           idempotencyKey: key
         });
-        await UserSubscription.findOneAndUpdate(
-          { user: user.id },
-          { $set: {
-            plan: plan._id, status: "trialing", provider: "manual", providerSubscriptionId: "",
-            currentPeriodStart: now, currentPeriodEnd: endsAt, cancelAtPeriodEnd: false, cancelledAt: null
-          } },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+        const subscriptionValues = {
+          plan: plan._id, status: "trialing", provider: "manual", providerSubscriptionId: "",
+          currentPeriodStart: now, currentPeriodEnd: endsAt, cancelAtPeriodEnd: false, cancelledAt: null
+        };
+        // Atomically replace only an absent/expired/cancelled subscription. A paid
+        // subscription created after the eligibility read must never be overwritten.
+        const replaceableFilter = {
+          user: user.id,
+          $or: [
+            { status: { $nin: ["trialing", "active", "past_due"] } },
+            { status: { $in: ["trialing", "active", "past_due"] }, currentPeriodEnd: { $lte: now } }
+          ]
+        };
+        const updatedSubscription = await UserSubscription.findOneAndUpdate(
+          replaceableFilter,
+          { $set: subscriptionValues },
+          { new: true }
         );
+        if (!updatedSubscription) {
+          try {
+            await UserSubscription.create({ user: user.id, ...subscriptionValues });
+          } catch (subscriptionError) {
+            // Another request may have created a currently active subscription after
+            // our initial eligibility check. Remove this unfulfilled grant and skip.
+            await grant.deleteOne();
+            if (subscriptionError?.code === 11000) {
+              skipped++;
+              continue;
+            }
+            throw subscriptionError;
+          }
+        }
         await recordAuditEvent({
           actor: actorId(req), action: "trial.granted", targetType: "TrialGrant", targetId: String(grant._id),
           before: null, after: { userId: String(user.id), planId: String(plan._id), endsAt, conversionPlanId: input.conversionPlanId || null },

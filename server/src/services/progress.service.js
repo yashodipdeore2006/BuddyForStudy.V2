@@ -7,7 +7,7 @@ import { createNotificationEvent } from "./notification.service.js";
 
 async function getAuthorizedCourse(userId, courseId) {
   const [course, enrollment] = await Promise.all([
-    Course.findOne({ _id: courseId, isPublished: true }),
+    Course.findById(courseId),
     Enrollment.findOne({ user: userId, course: courseId, status: { $in: ["active", "completed"] } })
   ]);
 

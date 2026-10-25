@@ -866,7 +866,7 @@ test.describe("learner control and state regression", () => {
     await page.getByRole("button", { name: "Save note" }).click();
     await expect(page.getByText("Timestamped note saved.")).toBeVisible();
     await expect(page.getByText("Remember the core concept and revisit the example.")).toBeVisible();
-    await expect(page.getByText("01:25", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Jump to 1:25" })).toBeVisible();
 
     await page.reload();
     await page.getByRole("tab", { name: "Notes" }).click();

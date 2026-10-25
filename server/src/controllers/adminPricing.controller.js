@@ -402,14 +402,14 @@ export async function runEnabledRules(req, res, next) {
 
 const GENERATED_PRICING_KEY = "generated_course_pricing_policy";
 const DEFAULT_GENERATED_PRICING_POLICY = {
-  enabled: false,
-  mode: "rule_based",
-  fixedPrice: 499,
+  enabled: true,
+  mode: "level_bands",
+  fixedPrice: 39,
   currency: "INR",
   levelBands: {
-    Beginner: { min: 199, max: 499 },
-    Intermediate: { min: 499, max: 999 },
-    Advanced: { min: 999, max: 1999 }
+    Beginner: { min: 20, max: 39 },
+    Intermediate: { min: 30, max: 49 },
+    Advanced: { min: 40, max: 59 }
   },
   applyTo: ["ai", "discovery", "module", "normal"]
 };
@@ -432,7 +432,17 @@ function validateGeneratedPricingPolicy(input = {}) {
     bands[level] = { min: Math.round(min), max: Math.round(max) };
   }
   if (!Array.isArray(policy.applyTo) || policy.applyTo.some((mode) => !["ai", "discovery", "module", "normal"].includes(mode))) throw new Error("Invalid generated course types.");
-  return { enabled: policy.enabled, mode: policy.mode, fixedPrice: Math.round(policy.fixedPrice), currency: policy.currency, levelBands: bands, applyTo: [...new Set(policy.applyTo)] };
+  const applyTo = [...new Set(policy.applyTo)];
+  if (applyTo.includes("discovery") && policy.mode === "fixed" && policy.fixedPrice > 0 && (policy.fixedPrice < 20 || policy.fixedPrice > 59)) {
+    throw new Error("Paid YouTube discovery courses must be priced between ₹20 and ₹59.");
+  }
+  if (applyTo.includes("discovery") && policy.mode === "level_bands") {
+    for (const level of ["Beginner", "Intermediate", "Advanced"]) {
+      const band = bands[level];
+      if (band.min < 20 || band.max > 59) throw new Error("YouTube discovery course price bands must stay between ₹20 and ₹59.");
+    }
+  }
+  return { enabled: policy.enabled, mode: policy.mode, fixedPrice: Math.round(policy.fixedPrice), currency: policy.currency, levelBands: bands, applyTo };
 }
 
 export async function getGeneratedPricingPolicy(req, res, next) {

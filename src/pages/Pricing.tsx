@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, Crown, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
@@ -84,11 +84,9 @@ export default function Pricing() {
   useEffect(() => {
     apiFetch("/api/billing/plans")
       .then((data) => {
-        const sortedPlans = [...(data.plans || [])].sort(
-          (a, b) => Number(b.price || 0) - Number(a.price || 0)
-        );
-
-        setPlans(sortedPlans);
+        // The API is already ordered by admin-configured sortOrder. Do not re-sort
+        // using raw price values: plans may have different currencies/periods.
+        setPlans(Array.isArray(data.plans) ? data.plans : []);
       })
       .catch(() => {
         setMessage({
@@ -293,13 +291,12 @@ export default function Pricing() {
       )}
 
       {!loadingPlans && plans.length > 0 && <div className="mt-10 grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {plans.map((plan, index) => {
-          const featured = index === 0 || plan.isPopular === true;
+        {plans.map((plan) => {
+          const featured = plan.isPopular === true;
           return (
             <article key={plan._id} className={`bfs-plan-card bfs-interactive-card relative flex h-full flex-col p-6 sm:p-7 ${featured ? "bfs-plan-card--featured" : ""}`}>
               <div className="mb-4 flex min-h-7 flex-wrap items-center gap-2">
-                {index === 0 && <span className="bfs-plan-badge bfs-plan-badge--featured"><Crown className="h-3.5 w-3.5" /> Highest access</span>}
-                {index !== 0 && plan.isPopular && <span className="bfs-plan-badge"><Sparkles className="h-3.5 w-3.5" /> Most popular</span>}
+                {plan.isPopular && <span className="bfs-plan-badge bfs-plan-badge--featured"><Sparkles className="h-3.5 w-3.5" /> Most popular</span>}
                 {Number(plan.price) === 0 && <span className="bfs-plan-badge bfs-plan-badge--neutral">Free</span>}
               </div>
               <h2 className="text-xl font-extrabold text-slate-950">{plan.name}</h2>

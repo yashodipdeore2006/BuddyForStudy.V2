@@ -166,12 +166,37 @@ function isGeneratedCourse(course) {
 }
 
 async function applyGeneratedCoursePricing(course) {
-  // Only explicitly enabled auto-apply rules participate in pricing newly generated
-  // YouTube/Build with AI courses. Manual rules and recommendation previews never
-  // change prices implicitly.
-  const rules = await PricingRule.find({ enabled: true, autoApply: true })
-    .sort({ priority: 1, createdAt: 1 })
-    .lean();
+  const setting = await PlatformSetting.findOne({ key: "generated_course_pricing_policy" }).select("value").lean();
+  const policy = setting?.value;
+  // A disabled policy is a true kill switch: do not change defaults or run rules.
+  if (!policy?.enabled || !policy.applyTo?.includes(course.generation?.mode)) return;
+  const currency = String(policy.currency || "INR").toUpperCase();
+  const mode = policy.mode || "rule_based";
+  if (mode === "free") {
+    course.pricing = { ...(course.pricing?.toObject?.() || course.pricing || {}), mode: "free", price: 0, currency, saleEnabled: false, salePrice: 0 };
+    return;
+  }
+  if (mode === "fixed") {
+    const price = Math.round(Number(policy.fixedPrice) || 0);
+    course.pricing = { ...(course.pricing?.toObject?.() || course.pricing || {}), mode: price > 0 ? "paid" : "free", price, currency, saleEnabled: false, salePrice: 0 };
+    return;
+  }
+  if (mode === "level_bands") {
+    const band = policy.levelBands?.[course.level];
+    if (!band) return;
+    const min = Number(band.min), max = Number(band.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return;
+    const modules = Array.isArray(course.modules) ? course.modules : [];
+    const projects = modules.reduce((count, module) => count + (module.lessons || []).filter((lesson) => lesson.type === "project").length, 0);
+    const base = Math.round((min + max) / 2);
+    const recommended = Math.min(max, Math.max(min, Math.round(base * (1 + Math.min(25, modules.length * 2) / 100 + Math.min(50, projects * 5) / 100)));
+    course.pricing = { mode: recommended > 0 ? "paid" : "free", price: recommended, compareAtPrice: 0, currency, saleEnabled: false, salePrice: 0 };
+    return;
+  }
+  // Rule-based mode: use the same admin-configured rules as existing catalogue
+  // pricing. If no rule matches, preserve the course's configured/default price.
+  if (mode !== "rule_based") return;
+  const rules = await PricingRule.find({ enabled: true, autoApply: true }).sort({ priority: 1, createdAt: 1 }).lean();
   const price = Number(course.pricing?.price) || 0;
   const rule = rules.find((candidate) => {
     const filters = candidate.filters || {};
@@ -186,8 +211,6 @@ async function applyGeneratedCoursePricing(course) {
     course.pricing = calculateNextPricing(course.pricing, rule.operation);
     course.$locals.generatedPricingRule = rule.name;
   } catch (error) {
-    // A misconfigured legacy rule must not prevent course generation; keep the
-    // course's existing pricing and log a safe, non-sensitive diagnostic.
     console.error("[course-pricing] generated-course rule skipped", {
       ruleId: String(rule._id),
       message: String(error?.message || "Invalid pricing rule").slice(0, 200)

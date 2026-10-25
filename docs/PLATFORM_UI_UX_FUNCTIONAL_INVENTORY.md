@@ -591,3 +591,9 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - Added `ADM-USER-REACTIVATE-001`: a disabled user can be re-enabled through the confirmation dialog only after entering an audit reason; the E2E test asserts the `isActive: true` request and refreshed Disable action.
 - **CI passed:** commit `938d233afc767d2d0aa8aaaff244b6657617e879`, [run #40185351855](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185351855). Frontend and backend jobs passed; **74 Playwright tests passed**.
 - The UI test uses a mocked API. Live authorization, durable audit records, and invalidation/restoration of real user sessions require server-side and staging verification.
+
+## Verification update — sign-out failure recovery (2026-10-25)
+
+- Added `NAV-SIGNOUT-FAILURE-001` to prove client cleanup is not blocked by a failed server logout: the API is mocked to return 503, local `bfs_token` is cleared, the app navigates to the public landing route, and the primary navigation shows Sign in.
+- **CI passed:** commit `7f27ecb25d5edeb88b6354784ede64b489fa5045`, [run #40185807422](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40185807422). Frontend and backend jobs passed; **75 Playwright tests passed**.
+- The test does not prove server-side session revocation or push-subscription cleanup on a real browser/device; verify these in staging.

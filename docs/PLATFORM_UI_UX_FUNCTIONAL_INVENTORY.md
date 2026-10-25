@@ -562,3 +562,11 @@ Test viewports of 360, 390, 768, 1024 and 1440 CSS pixels, plus browser zoom/ref
 - **Additional passing control ID:** `ADM-TRIAL-GRANT-PREVIEW-001` verifies a filtered cohort preview showing 241 eligible learners and one skipped example, correct plan/duration/reason filters, no autopay messaging, explicit confirmation, an idempotency key, and a grant payload without an arbitrary 200-recipient cap.
 - **Boundary:** preview/grant APIs are mocked. The test verifies UI and payload contract only; it does not grant real trials, validate database-level duplicate prevention, or prove backend permission/audit persistence in staging.
 - **Next:** test the pricing preview/apply recovery flow, then continue with communications, accessibility/responsive and provider staging checks.
+
+
+## Verification update — pricing, communications and PII recovery controls (2026-10-25)
+
+- CI run [#40182316415](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40182316415) passed both jobs. Its Playwright suite verifies pricing apply failure recovery and communications queue failure recovery after preview.
+- CI run [#40183419386](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40183419386) passed both jobs; 69 Playwright tests passed. The new `ADM-PII-REVEAL-001` check verifies masked-by-default email display, reason-gated reveal, the reason payload, and keyboard-operated re-masking.
+- Tests use mocked browser API responses. They do not establish production database writes, provider delivery, live audit persistence, or deployed authorization configuration.
+- Next: add a dedicated user export E2E (reason + exact typed confirmation + CSV formula-injection safety), then continue the responsive and accessibility evidence at 360, 390, 768, 1024 and 1440px.

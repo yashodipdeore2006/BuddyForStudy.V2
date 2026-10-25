@@ -526,7 +526,7 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
 
     try {
       curation = await curateNormalSearch(normalizedSearch, { category, level });
-      const pricingPreview = await getDiscoveryPricingPreview(level);
+      const pricingPreview = await getDiscoveryPricingPreview(curation?.meta?.intent?.level || level);
       curation.resources = (curation.resources || []).map((resource) => ({ ...resource, pricingPreview }));
       youtubeError = String(curation?.meta?.youtubeError || "");
     } catch (error) {

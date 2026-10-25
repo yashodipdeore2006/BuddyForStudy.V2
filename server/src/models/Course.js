@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { CourseRevision } from "./CourseRevision.js";
 import { PlatformSetting } from "./PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
+import { PricingRule } from "./PricingRule.js";
+import { calculateNextPricing } from "../utils/coursePricing.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -163,6 +165,36 @@ function isGeneratedCourse(course) {
   return ["normal", "ai", "module", "discovery"].includes(course?.generation?.mode);
 }
 
+async function applyGeneratedCoursePricing(course) {
+  // Only explicitly enabled auto-apply rules participate in pricing newly generated
+  // YouTube/Build with AI courses. Manual rules and recommendation previews never
+  // change prices implicitly.
+  const rules = await PricingRule.find({ enabled: true, autoApply: true })
+    .sort({ priority: 1, createdAt: 1 })
+    .lean();
+  const price = Number(course.pricing?.price) || 0;
+  const rule = rules.find((candidate) => {
+    const filters = candidate.filters || {};
+    return (!filters.category || String(filters.category).toLowerCase() === String(course.category || "").toLowerCase()) &&
+      (!filters.level || filters.level === course.level) &&
+      (!filters.mode || filters.mode === (course.pricing?.mode || "free")) &&
+      (filters.minPrice == null || price >= Number(filters.minPrice)) &&
+      (filters.maxPrice == null || price <= Number(filters.maxPrice));
+  });
+  if (!rule) return;
+  try {
+    course.pricing = calculateNextPricing(course.pricing, rule.operation);
+    course.$locals.generatedPricingRule = rule.name;
+  } catch (error) {
+    // A misconfigured legacy rule must not prevent course generation; keep the
+    // course's existing pricing and log a safe, non-sensitive diagnostic.
+    console.error("[course-pricing] generated-course rule skipped", {
+      ruleId: String(rule._id),
+      message: String(error?.message || "Invalid pricing rule").slice(0, 200)
+    });
+  }
+}
+
 async function applyAutomaticCourseApproval(course) {
   course.aiReviewStatus = "approved";
   course.aiReviewSource = "automatic";
@@ -192,6 +224,7 @@ courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
   }
   if (this.generation?.snapshot) this.generation.snapshot = sanitizePersistedYouTubeData(this.generation.snapshot, now);
   if (!this.isNew || !isGeneratedCourse(this)) return;
+  await applyGeneratedCoursePricing(this);
   if (await getCourseApprovalMode() === "automatic") {
     await applyAutomaticCourseApproval(this);
     return;

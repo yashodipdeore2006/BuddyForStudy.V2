@@ -123,7 +123,7 @@ function CourseLearningCard({
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const lessons = getAllLessonsFlat(course.modules);
   const totalLessons = state.totalLessons || lessons.length;
-  const hasRoadmap = state.hasRoadmap || lessons.length > 0;
+  const hasRoadmap = lessons.length > 0;
   const status = enrollment.learningStatus;
   const primaryLabel = status === "completed" ? "Review" : status === "in-progress" ? "Continue" : "Start";
   const PrimaryIcon = status === "completed" ? RotateCcw : Play;

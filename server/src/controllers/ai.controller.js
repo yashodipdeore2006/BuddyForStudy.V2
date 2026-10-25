@@ -374,7 +374,7 @@ export async function submitCourseQuiz(req, res, next) {
         id: question.id,
         question: question.question,
         options: (question.options || []).map((option) => ({ id: option.id, text: option.text }))
-      })))
+      }))))
       .digest("hex");
     await CourseQuizAttempt.create({
       user: req.user.userId,

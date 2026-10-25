@@ -46,3 +46,16 @@ test("quiz scoring treats omitted answers as incorrect and invalid passing thres
   assert.equal(graded.passed, false);
   assert.equal(gradeQuizSubmission(questions, { q1: "b", q2: "b" }, 100).passed, true);
 });
+
+ 
+test("all quiz questions require a real selected option before grading", async () => {
+  const { normalizeQuizAnswers } = await import("../src/utils/quizSecurity.js");
+  assert.deepEqual(normalizeQuizAnswers(questions, { q1: "b", q2: "b" }), {
+    valid: true, answers: { q1: "b", q2: "b" }
+  });
+  assert.deepEqual(normalizeQuizAnswers(questions, { q1: "b" }), { valid: false, questionId: "q2" });
+  assert.deepEqual(normalizeQuizAnswers(questions, { q1: "not-an-option", q2: "b" }), { valid: false, questionId: "q1" });
+  assert.deepEqual(normalizeQuizAnswers(questions, { "bank-q1": "b", "bank-q2": "a" }, "bank-"), {
+    valid: true, answers: { q1: "b", q2: "a" }
+  });
+});

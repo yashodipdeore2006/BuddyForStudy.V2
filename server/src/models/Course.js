@@ -3,7 +3,7 @@ import { CourseRevision } from "./CourseRevision.js";
 import { PlatformSetting } from "./PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { PricingRule } from "./PricingRule.js";
-import { calculateNextPricing } from "../utils/coursePricing.js";
+import { calculateNextPricing, getCoursePricingValidationError } from "../utils/coursePricing.js";
 
 const videoResourceSchema = new mongoose.Schema({
   videoId: { type: String, default: "" },
@@ -246,8 +246,13 @@ courseSchema.pre("validate", async function enforceCourseApprovalPolicy() {
     }
   }
   if (this.generation?.snapshot) this.generation.snapshot = sanitizePersistedYouTubeData(this.generation.snapshot, now);
-  if (!this.isNew || !isGeneratedCourse(this)) return;
-  await applyGeneratedCoursePricing(this);
+  const isNewGeneratedCourse = this.isNew && isGeneratedCourse(this);
+  if (isNewGeneratedCourse) await applyGeneratedCoursePricing(this);
+  if (this.isNew || this.isModified("pricing")) {
+    const pricingError = getCoursePricingValidationError(this.pricing);
+    if (pricingError) this.invalidate("pricing", pricingError);
+  }
+  if (!isNewGeneratedCourse) return;
   if (await getCourseApprovalMode() === "automatic") {
     await applyAutomaticCourseApproval(this);
     return;

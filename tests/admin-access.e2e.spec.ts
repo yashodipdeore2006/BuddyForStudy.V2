@@ -971,3 +971,38 @@ test.describe("administrator route and permission UX", () => {
     await expect(dialog.getByRole("option", { name: /Users/i })).toHaveCount(0);
   });
 });
+
+test.describe("admin responsive viewport regressions", () => {
+  test("[RESP-ADMIN-OVERFLOW-001] dashboard, users and courses fit mobile, tablet and desktop widths", async ({ page }) => {
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "platform_admin",
+      roleLabel: "Platform Administrator",
+      permissions: [
+        "dashboard.read", "users.read", "users.manage", "users.pii.reveal",
+        "courses.read", "courses.manage", "courses.publish", "pricing.manage",
+        "billing.read", "refunds.manage", "trials.manage", "communications.manage",
+        "audit.read", "analytics.read", "operations.read", "notifications.read",
+      ],
+    });
+
+    const viewports = [360, 768, 1440];
+    const routes = ["/admin", "/admin/users", "/admin/courses"];
+    for (const width of viewports) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const path of routes) {
+        await page.goto(baseURL + path);
+        await expect(page.locator("main")).toBeVisible();
+        const dimensions = await page.evaluate(() => ({
+          viewport: document.documentElement.clientWidth,
+          document: document.documentElement.scrollWidth,
+          body: document.body.scrollWidth,
+        }));
+        expect(
+          Math.max(dimensions.document, dimensions.body),
+          `Horizontal overflow at ${path}, viewport ${width}px: ${JSON.stringify(dimensions)}`,
+        ).toBeLessThanOrEqual(dimensions.viewport);
+      }
+    }
+  });
+});

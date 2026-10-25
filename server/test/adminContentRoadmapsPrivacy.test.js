@@ -59,8 +59,8 @@ test("admin roadmap listing is paginated and does not query learner email or qui
   assert.deepEqual(calls.findFilter, { status: "active" });
   assert.deepEqual(calls.countFilter, { status: "active" });
   assert.deepEqual(calls.populate, [{ path: "user", fields: "name" }]);
-  assert.ok(!calls.select.split(/\\s+/).includes("email"), "list projection must not request learner email");
-  assert.ok(!calls.select.split(/\\s+/).some((field) => /quizAttempts|adaptiveState|course\\.modules/.test(field)), "list projection must not request quiz responses or adaptive profile");
+  assert.ok(!calls.select.split(" ").includes("email"), "list projection must not request learner email");
+  assert.ok(!["quizAttempts", "adaptiveState", "course.modules"].some((field) => calls.select.includes(field)), "list projection must not request quiz responses or adaptive profile");
   assert.equal(calls.skip, 25);
   assert.equal(calls.limit, 25);
   assert.equal(res.body.data?.roadmaps?.length ?? res.body.roadmaps?.length, 1);

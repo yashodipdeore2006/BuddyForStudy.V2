@@ -65,7 +65,7 @@ export default function Notifications() {
       setNotifications((items) =>
         items.map((item) => (item._id === notificationId ? data.notification : item))
       );
-      setUnreadCount((count) => Math.max(0, count - 1));
+      if (data.wasUnread === true) setUnreadCount((count) => Math.max(0, count - 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to mark notification as read.");
     }

@@ -59,8 +59,9 @@ test("default generated pricing is consistent with the admin studio even before 
   assert.match(courseModel, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
   assert.match(pricingController, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
   assert.match(discoveryController, /level: z\.enum\(\["Beginner", "Intermediate", "Advanced"\]\)\.optional\(\)/);
-  assert.match(discoveryService, /level: \["Beginner", "Intermediate", "Advanced"\]\.includes\(level\) \? level : "Beginner"/);
-  assert.match(discoveryService, /const band = policy\.levelBands\?\.\[course\.level\]/);
+  assert.match(discoveryService, /const normalizedLevel = \["Beginner", "Intermediate", "Advanced"\]\.includes\(level\) \? level : "Beginner"/);
+  assert.match(courseModel, /const band = policy\.levelBands\?\.\[course\.level\]/);
+  assert.match(discoveryService, /pricing: \{ mode: "free", price: 0, currency: "INR" \}/);
   assert.match(youtubeFallback, /level: normalizeDiscoveryLevel\(curationMeta\?\.intent\?\.level\)/);
 });
 

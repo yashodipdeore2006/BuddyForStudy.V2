@@ -172,3 +172,58 @@ test("expired login OTP is rejected at its exact expiry boundary", async () => {
     state.restore();
   }
 });
+
+test("password-reset OTP is purpose-bound and can only be consumed once", async () => {
+  const state = installOtpMocks(makeRecord({ purpose: "password_reset" }));
+  try {
+    const result = await verifyOtp({
+      email: "learner@example.com",
+      purpose: "password_reset",
+      code: validCode
+    });
+    assert.ok(result.usedAt instanceof Date);
+
+    await assert.rejects(
+      verifyOtp({
+        email: "learner@example.com",
+        purpose: "password_reset",
+        code: validCode
+      }),
+      (error) => error.status === 400 && /invalid or expired/i.test(error.message)
+    );
+
+    await assert.rejects(
+      verifyOtp({
+        email: "learner@example.com",
+        purpose: "email_verification",
+        code: validCode
+      }),
+      (error) => error.status === 400 && /invalid or expired/i.test(error.message)
+    );
+  } finally {
+    state.restore();
+  }
+});
+
+test("expired password-reset OTP is rejected at the exact expiry boundary", async () => {
+  const originalNow = Date.now;
+  const fixedNow = 1_900_000_200_000;
+  Date.now = () => fixedNow;
+  const state = installOtpMocks(makeRecord({
+    purpose: "password_reset",
+    expiresAt: new Date(fixedNow)
+  }));
+  try {
+    await assert.rejects(
+      verifyOtp({
+        email: "learner@example.com",
+        purpose: "password_reset",
+        code: validCode
+      }),
+      (error) => error.status === 400 && /invalid or expired/i.test(error.message)
+    );
+  } finally {
+    Date.now = originalNow;
+    state.restore();
+  }
+});

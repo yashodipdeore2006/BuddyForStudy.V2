@@ -61,7 +61,7 @@ function validateSmtp(config, errors) {
   const host = String(config.SMTP_HOST || "").trim();
   if (!host) {
     errors.push("SMTP_HOST is required in production for email-based authentication");
-  } else if (/[\\s/]/.test(host) || host.includes("://") || LOOPBACK_HOSTS.has(host.toLowerCase())) {
+  } else if (/[\s/]/.test(host) || host.includes("://") || LOOPBACK_HOSTS.has(host.toLowerCase())) {
     errors.push("SMTP_HOST must be a remote hostname, not a URL or loopback host");
   }
 
@@ -84,7 +84,7 @@ function validateSmtp(config, errors) {
   }
 
   const sender = String(config.MAIL_FROM || config.SMTP_USER || "").trim();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(sender)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
     errors.push("MAIL_FROM (or SMTP_USER fallback) must be a valid sender email address");
   }
 }
@@ -100,7 +100,7 @@ function validateOptionalWebPush(config, errors) {
     errors.push("WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT must be configured together");
   }
   const subject = String(config.WEB_PUSH_SUBJECT || "").trim();
-  if (subject && !/^mailto:[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(subject) && !/^https:\\/\\//i.test(subject)) {
+  if (subject && !/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subject) && !/^https:\/\//i.test(subject)) {
     errors.push("WEB_PUSH_SUBJECT must be a mailto: address or HTTPS contact URL");
   }
 }

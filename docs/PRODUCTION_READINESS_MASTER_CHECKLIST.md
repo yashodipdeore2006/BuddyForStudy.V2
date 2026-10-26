@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 16 / 239 |
+| Verified done | 18 / 239 |
 | Failed tasks | 2 / 239 |
-| Blocked | 2 / 239 |
-| Not checked | 219 / 239 |
-| Open findings | 2 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog) |
+| Blocked | 8 / 239 |
+| Not checked | 211 / 239 |
+| Open findings | 3 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification) |
 | Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
@@ -89,22 +89,22 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 - [x] **PR-021** inventory frontend and backend environment variables.  
   Status: `DONE` · Evidence: [`docs/ENVIRONMENT_VARIABLES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/ENVIRONMENT_VARIABLES.md) documents public frontend values, backend secrets, production requirements, feature flags, bootstrap-only vars and deployment smoke inputs; `server/.env.example` now includes the runtime flags missing from its prior version. The stale OpenAI variable guidance in `server/README.md` was corrected to Gemini.
-- [ ] **PR-022** run production config validation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-022** run production config validation.  
+  Status: `DONE` · Evidence: [CI run 40282290084](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40282290084) passed the `Validate production config preflight with synthetic values` step; [validator regression tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/productionConfigValidation.test.js) pass in the same run. This validates config rules, not live provider connectivity or real secret values.
 - [ ] **PR-023** verify strong unique non-placeholder JWT secret.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: production validator requires a non-placeholder JWT secret of at least 32 characters; [`productionConfigValidation.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/productionConfigValidation.test.js) covers rejection. Blocker: cannot inspect deployed secret-manager metadata or validate uniqueness/reuse across environments from this session; check without exposing the value.
 - [ ] **PR-024** verify production HTTPS client URL.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-025** verify Razorpay secrets are backend-only.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: validator rejects non-HTTPS and loopback `CLIENT_URL`, with regression coverage. Blocker: the actual staging/production `CLIENT_URL` setting is not available in repository sources; validate it in deployment settings.
+- [x] **PR-025** verify Razorpay secrets are backend-only.  
+  Status: `DONE` · Evidence: server credentials are read by `server/src/config/env.js` and `server/src/services/razorpay.service.js`; root [`.env.example`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.env.example) contains only public `VITE_*` variables, while [`server/.env.example`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/.env.example) keeps Razorpay variables server-side. No live secret values were inspected or recorded.
 - [ ] **PR-026** verify Mongo URI credentials TLS and database.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: the production validator requires a non-loopback MongoDB URI, database path, username/password and TLS; regression tests cover invalid cases. Blocker: the deployed database URI and connection cannot be inspected from this repository session.
 - [ ] **PR-027** verify Google OAuth origins and callbacks.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: frontend/backend examples document matching `VITE_GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_ID`; actual authorised JavaScript origins and redirect settings are managed in Google Cloud Console. Blocker: console access and a successful staging sign-in are required.
 - [ ] **PR-028** verify LLM keys and model configuration.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: the source config uses `GEMINI_API_KEY` and `GEMINI_MODEL`, documented in [`docs/ENVIRONMENT_VARIABLES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/ENVIRONMENT_VARIABLES.md). Blocker: deployed key presence, project quota/billing and live generation response require authorised staging/provider access.
 - [ ] **PR-029** verify YouTube API restrictions and quota.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: `YOUTUBE_API_KEY`, `YT_DAILY_QUOTA_BUDGET` and quota guard settings are documented in [`docs/ENVIRONMENT_VARIABLES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/ENVIRONMENT_VARIABLES.md). Blocker: Google Cloud API restrictions, configured daily quota and live YouTube response need provider-console access and staging verification.
 - [ ] **PR-030** verify SMTP host TLS sender and credentials.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-031** verify Web Push VAPID keys and subject.  
@@ -563,12 +563,13 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | REL-001 | P1 | PR-004, PR-020 | GitHub API: `main.protected=false`; no release workflow enforces candidate checks | Branch protection/ruleset is not enabled, so failing/pending checks do not prevent merges/releases | Manual repository settings required | Enable PR reviews and require frontend/backend jobs; verify red/pending jobs block merge | OPEN — settings write access unavailable through connector |
 | REL-002 | P2 | PR-011 | Initial strict backend lint surfaced 65 errors; discovery course code used undefined `level`; green CI now runs backend lint and syntax checks | Legacy unused symbols and intentionally empty catches caused lint failures; one actual undefined identifier was corrected; remaining unused-symbol findings are warnings | `ef7aacf` (lint policy), `0ca81cb` (undefined level), `fd6fe03` (escape cleanup) | Backend lint + tests + syntax checks | CI PASS in [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); warning cleanup remains OPEN |
 | REL-003 | P1 | PR-014 | Initial `npm ci` rejected the committed peer-dependency tree; install now succeeds with project npm config | Lockfile omitted optional MongoDB peer integrations and npm's default resolution did not match the committed tree | `c22ae9d` (`server/.npmrc`); CI now uses `npm ci` | Run clean installs for frontend/backend, then backend tests | RESOLVED — both clean installs and backend tests passed in [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017) |
+| REL-004 | P1 | PR-023, PR-024, PR-026–PR-029 | Source validator/tests are verifiable, but deployed environment values and provider-console settings are not available in this session | Production secrets, OAuth origins, API restrictions and quotas must be confirmed in deployment/provider consoles without exposing secret values | Pending authorised staging/provider access | Run config preflight and deployment smoke tests; verify OAuth, Razorpay, Gemini, YouTube quota and integration behavior in staging | BLOCKED — do not waive for production release |
 
 ## Execution log
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|
-| 2026-10-26 | Candidate `153c054` (full CI run pending) | PR-001–PR-018, PR-020–PR-021; PR-019 pending | 16 | 2 | 2 | 219 | [Previous green full CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280974805); [current candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40281657193) | Branch protection/release gate fails; local working-tree state and named owners are blocked; backend unused-symbol warnings remain as P2 cleanup.
+| 2026-10-26 | Code/config candidate `c9e6941` verified green in [run 40282290084](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40282290084); checklist documentation commits follow | PR-001–PR-018, PR-020–PR-022, PR-025; PR-019 pending | 18 | 2 | 8 | 211 | [Green candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40282290084) | CI passes config preflight, frontend build/smoke tests and backend tests. Branch protection/release gate fails; local working-tree, owner assignment and live staging/provider checks are blocked; backend unused-symbol warnings remain P2 cleanup. |
 
 ## Related project documents
 

@@ -132,6 +132,9 @@ userSchema.methods.comparePassword = function comparePassword(password) {
 };
 
 userSchema.statics.hashPassword = function hashPassword(password) {
+  if (typeof password !== "string" || Buffer.byteLength(password, "utf8") > 72) {
+    throw new RangeError("Password must be 72 UTF-8 bytes or fewer.");
+  }
   return bcrypt.hash(password, 12);
 };
 

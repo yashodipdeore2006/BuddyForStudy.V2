@@ -92,6 +92,12 @@ jobs:
           RAZORPAY_KEY_ID: "rzp_live_0123456789abcdef"
           RAZORPAY_KEY_SECRET: "ci-only-provider-secret-0123456789"
           RAZORPAY_WEBHOOK_SECRET: "ci-only-webhook-secret-0123456789abcdef0123456789"
+          SMTP_HOST: "smtp.example.net"
+          SMTP_PORT: "587"
+          SMTP_SECURE: "false"
+          SMTP_USER: "ci-only@example.net"
+          SMTP_PASS: "ci-only-smtp-password-12345"
+          MAIL_FROM: "ci-only@example.net"
         run: npm run validate:production-config
       - run: npm test
       - name: Build with AI selector comparison (mock mode only)

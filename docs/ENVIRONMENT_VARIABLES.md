@@ -72,16 +72,16 @@
 
 | Variable | Requirement | Secret? | Purpose / validation |
 |---|---|---|---|
-| `SMTP_HOST` | Optional unless email delivery is required | No | SMTP server host. |
-| `SMTP_PORT` | Optional; defaults to `587` | No | SMTP server port. |
-| `SMTP_SECURE` | Optional; defaults to false | No | Set `true` only when using implicit TLS on the configured port; confirm provider requirements. |
-| `SMTP_USER` | Optional unless email delivery is required | Treat as sensitive | SMTP login. |
-| `SMTP_PASS` | Optional unless email delivery is required | **Yes** | SMTP password or provider token. |
-| `MAIL_FROM` | Optional; falls back to `SMTP_USER` | Treat as sender identity | Verified sender address used for messages. Confirm provider authorisation and SPF/DKIM/DMARC. |
-| `WEB_PUSH_VAPID_PUBLIC_KEY` | Optional unless browser push is enabled | No | Public VAPID key returned to the browser. |
-| `WEB_PUSH_VAPID_PRIVATE_KEY` | Optional unless browser push is enabled | **Yes** | VAPID private key; server-side only. Keep paired with the public key. |
-| `WEB_PUSH_SUBJECT` | Recommended when Web Push is configured | No | Contact URI such as a `mailto:` address. |
-| `REDIS_URL` | Optional; cache/queue-dependent features may degrade without it | **Yes if credentials are embedded** | Redis connection URI. Use auth/TLS on hosted Redis and never log the full URI. |
+| `SMTP_HOST` | **Required in production** | No | Remote SMTP hostname. Production validator rejects blank/loopback hostnames; SMTP transport requires TLS. |
+| `SMTP_PORT` | **Required/validated in production; defaults to `587`** | No | Integer port 1–65535. Typically 587 with STARTTLS or 465 with implicit TLS; verify provider settings. |
+| `SMTP_SECURE` | Optional; defaults to false | No | Must be the string `true` or `false`. Production transports require TLS, including STARTTLS when `false`. |
+| `SMTP_USER` | **Required in production** | Treat as sensitive | SMTP login; must be set. Used as sender fallback if `MAIL_FROM` is omitted, and therefore must be a valid address in that case. |
+| `SMTP_PASS` | **Required in production** | **Yes** | Non-placeholder provider password/token of at least 8 characters. |
+| `MAIL_FROM` | Required unless `SMTP_USER` is a valid sender address | Treat as sender identity | Valid sender email address used for messages; confirm provider authorisation and SPF/DKIM/DMARC. |
+| `WEB_PUSH_VAPID_PUBLIC_KEY` | Optional; all three Web Push settings become required together when any one is supplied | No | Public VAPID key returned to the browser. |
+| `WEB_PUSH_VAPID_PRIVATE_KEY` | Optional; all three Web Push settings become required together when any one is supplied | **Yes** | VAPID private key; server-side only. Keep paired with the public key. |
+| `WEB_PUSH_SUBJECT` | Optional; required with both VAPID keys if Web Push is configured | No | `mailto:` address or HTTPS contact URL. |
+| `REDIS_URL` | Optional; cache/queue-dependent features may degrade without it | **Yes if credentials are embedded** | If set in production, must use `rediss://`, remote host and credentials. Never log the full URI. |
 | `SENTRY_DSN` | Optional | Treat as sensitive operational config | Enables Sentry reporting. Confirm environment/project separation and event scrubbing. |
 | `SENTRY_TRACES_SAMPLE_RATE` | Optional; defaults to `0.1` | No | Trace sample rate; validate range before adjusting for production traffic. |
 

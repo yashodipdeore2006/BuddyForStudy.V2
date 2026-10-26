@@ -100,7 +100,17 @@ function validateOptionalWebPush(config, errors) {
     errors.push("WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT must be configured together");
   }
   const subject = String(config.WEB_PUSH_SUBJECT || "").trim();
-  if (subject && !/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subject) && !/^https:\/\//i.test(subject)) {
+  const mailtoAddress = subject.toLowerCase().startsWith("mailto:") ? subject.slice(7) : "";
+  const mailtoParts = mailtoAddress.split("@");
+  const isMailto = mailtoParts.length === 2 && mailtoParts.every((part) => part.length > 0) && mailtoParts[1].includes(".") && !mailtoAddress.includes(" ");
+  let isHttpsContact = false;
+  try {
+    const contactUrl = new URL(subject);
+    isHttpsContact = contactUrl.protocol === "https:" && Boolean(contactUrl.hostname);
+  } catch {
+    // Invalid contact URL; report one safe validation error below.
+  }
+  if (subject && !isMailto && !isHttpsContact) {
     errors.push("WEB_PUSH_SUBJECT must be a mailto: address or HTTPS contact URL");
   }
 }

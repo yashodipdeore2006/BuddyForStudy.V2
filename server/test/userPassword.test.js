@@ -6,3 +6,21 @@ test("password hashing rejects inputs that bcrypt would truncate beyond 72 UTF-8
   assert.throws(() => User.hashPassword("a".repeat(73)), /72 UTF-8 bytes or fewer/);
   assert.throws(() => User.hashPassword("😀".repeat(19)), /72 UTF-8 bytes or fewer/);
 });
+
+test("password hashing uses bcrypt and password comparison verifies only the original password", async () => {
+  const password = "correct-horse-42";
+  const passwordHash = await User.hashPassword(password);
+
+  assert.notEqual(passwordHash, password);
+  assert.match(passwordHash, /^\\$2[aby]\\$12\\$/);
+
+  const user = new User({
+    name: "Learner Example",
+    email: "learner@example.test",
+    password: passwordHash
+  });
+
+  assert.equal(await user.comparePassword(password), true);
+  assert.equal(await user.comparePassword("incorrect-password"), false);
+  assert.equal(user.toJSON().password, undefined);
+});

@@ -52,9 +52,11 @@ test("Sentry event sanitizer handles missing and malformed request URLs", () => 
 test("Sentry event sanitizer preserves non-sensitive diagnostics", () => {
   const result = sanitizeSentryEvent({
     tags: { route: "/api/courses", method: "GET", status: "500" },
+    contexts: { user: { id: "user-7", email: "learner@example.com" }, runtime: { name: "node" } },
     exception: { values: [{ type: "TypeError", value: "failure" }] }
   });
   assert.deepEqual(result.tags, { route: "/api/courses", method: "GET", status: "500" });
+  assert.deepEqual(result.contexts, { runtime: { name: "node" } });
   assert.equal(result.exception.values[0].type, "TypeError");
   assert.equal(result.exception.values[0].value, "[redacted exception message]");
 });

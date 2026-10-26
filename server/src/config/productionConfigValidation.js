@@ -28,6 +28,18 @@ function validateHttpsUrl(value, name, errors) {
   }
 }
 
+function validateTrustProxyHops(config, errors) {
+  const raw = String(config.TRUST_PROXY_HOPS ?? "").trim();
+  if (!raw) {
+    errors.push("TRUST_PROXY_HOPS must be explicitly set in production to match the trusted proxy chain");
+    return;
+  }
+  const hops = Number(raw);
+  if (!Number.isInteger(hops) || hops < 0 || hops > 10) {
+    errors.push("TRUST_PROXY_HOPS must be an integer between 0 and 10");
+  }
+}
+
 function validateMongoUri(value, errors) {
   try {
     const parsed = new URL(String(value || ""));
@@ -142,6 +154,7 @@ export function getProductionConfigErrors(config = {}) {
 
   validateHttpsUrl(config.CLIENT_URL, "CLIENT_URL", errors);
   validateHttpsUrl(config.API_URL, "API_URL", errors);
+  validateTrustProxyHops(config, errors);
   validateMongoUri(config.MONGO_URI, errors);
   validateSmtp(config, errors);
   validateOptionalWebPush(config, errors);

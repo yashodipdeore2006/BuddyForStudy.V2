@@ -40,6 +40,8 @@ import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
+// Configure the exact trusted proxy hop count for the deployment; avoid blanket trust.
+app.set("trust proxy", env.trustProxyHops);
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many authentication attempts. Please try again later." } });
 const paymentLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many payment requests. Please try again later." } });
 const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });

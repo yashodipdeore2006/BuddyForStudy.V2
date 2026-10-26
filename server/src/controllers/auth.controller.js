@@ -87,15 +87,40 @@ export async function resendOtp(req, res) {
   }
 }
 
-export async function forgotPassword(req, res) {
+export async function handleForgotPasswordRequest(
+  req,
+  res,
+  requestPasswordReset = authService.requestPasswordReset
+) {
+  let input;
   try {
-    const input = forgotPasswordSchema.parse(req.body);
-    const result = await authService.requestPasswordReset(input.email);
-    return success(res, result, "If the account exists, a password reset OTP has been sent.");
+    input = forgotPasswordSchema.parse(req.body);
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return authErrorResponse(res, error);
   }
+
+  try {
+    await requestPasswordReset(input.email);
+  } catch (error) {
+    // Cooldown and mail-provider errors can occur only for an existing account.
+    // Keep the public response indistinguishable to avoid account enumeration.
+    // Log only a bounded status, never the email, provider message, or secret-bearing details.
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599
+      ? error.status
+      : 500;
+    console.warn("[auth] Password reset request processing failed", { status });
+  }
+
+  return success(
+    res,
+    { email: input.email.trim().toLowerCase() },
+    "If the account exists, a password reset OTP has been sent."
+  );
+}
+
+export async function forgotPassword(req, res) {
+  return handleForgotPasswordRequest(req, res);
 }
 
 export async function resetPassword(req, res) {

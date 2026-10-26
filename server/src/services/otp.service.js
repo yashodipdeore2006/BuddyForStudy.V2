@@ -30,7 +30,8 @@ function mailer() {
     host: env.smtpHost,
     port: env.smtpPort,
     secure: env.smtpSecure,
-    auth: { user: env.smtpUser, pass: env.smtpPass }
+    auth: { user: env.smtpUser, pass: env.smtpPass },
+    requireTLS: true
   });
 }
 

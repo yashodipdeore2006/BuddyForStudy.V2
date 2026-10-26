@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 64 / 239 |
+| Verified done | 66 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 158 / 239 |
+| Not checked | 156 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -81,7 +81,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-018** assign rollback and release decision owners.  
   Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
 - [x] **PR-019** capture CI for exact candidate SHA.  
-  Status: `DONE` · Evidence: exact current `main` code candidate `392be5a5a90b8e4418abe42767cf113dc1c824bb` is green in [CI run 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679); frontend and backend jobs passed, including user-data ownership, consent capture/withdrawal, PII redaction, session revocation, and browser smoke tests.
+  Status: `DONE` · Evidence: exact current code candidate `f0e4784d7f703801f8a84d464f5d49bca8def7e9` is green in [CI run 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526), including backend tests/lint, frontend lint/typecheck/build, and all browser navigation/admin/auth/course-player regression tests. Checklist documentation commits follow the tested code candidate.
 - [ ] **PR-020** block release while required checks are red or pending.  
   Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
@@ -263,10 +263,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [x] **PR-102** verify completion UI updates without refresh.  
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) now verifies the primary completion action and sidebar state both update without a page reload, and the progress GET is not repeated after the completion POST. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446) on candidate `94fa470c08ccf9a0c37d3030baf0ea85bc022b57`.
-- [ ] **PR-103** verify uncompletion UI and backend state.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-104** test repeated completion idempotency.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-103** verify uncompletion UI and backend state.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies DELETE completion updates the sidebar and main action back to incomplete without a page refresh. Backend `uncompleteItem` also updates progress and enrollment status. Passed in [CI 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526) on candidate `f0e4784d7f703801f8a84d464f5d49bca8def7e9`.
+- [x] **PR-104** test repeated completion idempotency.  
+  Status: `DONE` · Evidence: [`server/test/progressServiceIdempotency.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/progressServiceIdempotency.test.js) calls `completeItem` twice for the same lesson and verifies one completion record, unchanged count/percentage, and learning activity persisted once. The browser test also verifies the main completion action is disabled after completion. Passed in [CI 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526).
 - [x] **PR-105** verify first quiz submission completes lesson regardless of score.  
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies the first course-module quiz submission completes the lesson even when the score is `0%`; quiz grade and completion POST each happen once, and the sidebar reflects the completed state. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446).
 - [x] **PR-106** preserve graded result if progress save fails.  
@@ -583,6 +583,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Exact candidate `392be5a5a90b8e4418abe42767cf113dc1c824bb` | PR-060–PR-071, PR-073–PR-078 verified | 60 | 4 | 13 | 162 | [Green CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679); [ownership test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1422120a3c3d184daf9e8b2c8c818e7dc8945a34); [consent test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/392be5a5a90b8e4418abe42767cf113dc1c824bb) | Verified role/permission boundaries, user-data ownership, export controls, PII/error redaction, role/status audit, consent persistence/withdrawal, and audit outbox behavior. DATA-001 remains a P1 failure under PR-056 and PR-078; PR-072 and PR-079 remain unchecked pending exhaustive destructive-action/page-to-permission mapping. |
 
 | 2026-10-26 | Exact candidate `94fa470c08ccf9a0c37d3030baf0ea85bc022b57` | PR-102, PR-105–PR-107 verified | 64 | 4 | 13 | 158 | [Green CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446) | Player E2E verifies immediate completion UI updates, first failing-score quiz completion, preservation of graded result on progress-save failure, and retry without regrading. PR-103 and PR-104 remain open pending the uncompletion/idempotency test candidate `f0e4784d`. |
+
+| 2026-10-26 | Exact code candidate `f0e4784d7f703801f8a84d464f5d49bca8def7e9` | PR-103 and PR-104 verified | 66 | 4 | 13 | 156 | [Green CI 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526); [idempotency test commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/f0e4784d7f703801f8a84d464f5d49bca8def7e9) | Uncompletion updates the UI immediately without a refresh; backend repeated completion remains idempotent and records learning activity once. Quiz completion and failed-save retry behavior remain green. DATA-001 and release-control/staging gates remain open. |
 
 ## Related project documents
 

@@ -144,7 +144,7 @@ function findUnknownTemplatePlaceholders(template) {
 }
 
 function escapeTemplateHtml(value) {
-  return String(value ?? "").replace(/[&<>"\']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" })[character]);
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]);
 }
 
 function renderTemplatePreview(template, sampleData = {}) {

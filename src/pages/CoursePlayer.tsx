@@ -629,7 +629,7 @@ export default function CoursePlayer() {
           const progressData = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
           setProgress(mapProgress(progressData.progress));
           activeLessonCompletedRef.current = true;
-        } catch (progressError) {
+        } catch {
           setQuizActionError("Quiz graded, but lesson completion could not be saved. Use the lesson completion circle to retry.");
         }
       }

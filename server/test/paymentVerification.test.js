@@ -165,8 +165,8 @@ test("quiz progress-save failures preserve graded results instead of replacing t
   const submitEnd = player.indexOf("\n\n  if (loading)", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "Expected course quiz submit handler");
   const submitHandler = player.slice(submitStart, submitEnd);
-  assert.match(submitHandler, /setQuizSubmitted\\(true\\)/);
+  assert.match(submitHandler, /setQuizSubmitted\(true\)/);
   assert.match(submitHandler, /Quiz graded, but lesson completion could not be saved/);
-  assert.match(submitHandler, /setQuizActionError\\(/);
-  assert.doesNotMatch(submitHandler, /setError\\(progressError/);
+  assert.match(submitHandler, /setQuizActionError\(/);
+  assert.doesNotMatch(submitHandler, /setError\(progressError/);
 });

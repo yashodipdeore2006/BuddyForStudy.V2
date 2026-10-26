@@ -71,3 +71,20 @@ test("failed webhooks cannot overwrite successful or refunded payment states", (
     assert.equal(FAILED_PAYMENT_SOURCE_STATUSES.includes(protectedStatus), false);
   }
 });
+
+test("subscription checkout rejects a pending checkout for a different plan", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const controller = await readFile("src/controllers/payment.controller.js", "utf8");
+  const start = controller.indexOf("const pendingCheckout = await Payment.findOne");
+  const end = controller.indexOf("const intervalMap =", start);
+  assert.ok(start >= 0 && end > start, "pending subscription checkout block should exist");
+  const block = controller.slice(start, end);
+  assert.match(block, /pendingPlanId/);
+  assert.match(block, /pendingPlanId !== String\(plan\._id\)/);
+  assert.match(block, /different subscription plan is already pending/);
+  assert.ok(
+    block.indexOf("pendingPlanId !== String(plan._id)") < block.indexOf("Existing subscription checkout reused"),
+    "the requested plan must be checked before reusing a pending checkout"
+  );
+});
+

@@ -7,6 +7,7 @@ const validConfig = {
   JWT_SECRET: "a-production-secret-that-is-longer-than-32-characters",
   CLIENT_URL: "https://buddyforstudy.example",
   API_URL: "https://api.buddyforstudy.example",
+  TRUST_PROXY_HOPS: "1",
   SMTP_HOST: "smtp.buddyforstudy.example",
   SMTP_PORT: "587",
   SMTP_SECURE: "false",
@@ -55,6 +56,13 @@ test("production config requires a live-mode Razorpay key and sufficiently stron
   assert.ok(getProductionConfigErrors({ ...validConfig, RAZORPAY_KEY_ID: "rzp_test_0123456789abcdef" }).some((error) => error.includes("RAZORPAY_KEY_ID")));
   assert.ok(getProductionConfigErrors({ ...validConfig, RAZORPAY_KEY_SECRET: "short" }).some((error) => error.includes("RAZORPAY_KEY_SECRET")));
   assert.ok(getProductionConfigErrors({ ...validConfig, RAZORPAY_WEBHOOK_SECRET: "short" }).some((error) => error.includes("RAZORPAY_WEBHOOK_SECRET")));
+});
+
+test("production config requires explicit, bounded trusted-proxy hop configuration", () => {
+  for (const value of ["", "-1", "1.5", "11", "many"]) {
+    assert.ok(getProductionConfigErrors({ ...validConfig, TRUST_PROXY_HOPS: value }).some((error) => error.includes("TRUST_PROXY_HOPS")));
+  }
+  assert.ok(getProductionConfigErrors(validConfig).every((error) => !error.includes("TRUST_PROXY_HOPS")));
 });
 
 test("production config requires valid SMTP for email authentication", () => {

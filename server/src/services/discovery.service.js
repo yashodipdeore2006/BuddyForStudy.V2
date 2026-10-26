@@ -7,7 +7,6 @@ import { Course } from "../models/Course.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
 
-const cache = new Map();
 const aiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
 const searchSpecSchema = {
@@ -232,7 +231,7 @@ function stripAiOnlyLessons(course) {
   }));
 }
 
-async function createNormalCourseFromSearch(query, result) {
+async function createNormalCourseFromSearch(query, result, level = "Beginner") {
   const availableModules = result.modules.filter((module) => module.course);
   const totalSeconds = availableModules.reduce(
     (sum, module) => sum + Number(module.course?.durationSeconds || 0),

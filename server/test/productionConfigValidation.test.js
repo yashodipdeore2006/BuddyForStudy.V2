@@ -37,6 +37,7 @@ test("production config rejects local, unauthenticated, or non-TLS MongoDB URIs"
   for (const uri of [
     "mongodb://127.0.0.1:27017/buddyforstudy",
     "mongodb://host.example/buddyforstudy?tls=false",
+    "mongodb+srv://user:password@host.example/buddyforstudy?tls=false",
     "mongodb+srv://host.example/",
     "not-a-uri",
   ]) {

@@ -790,18 +790,36 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
   });
 
+  test("[EXP-CATALOG-LOADING-001] course catalogue shows loading skeletons until the request settles", async ({ page }) => {
+    let releaseCatalog: (() => void) | undefined;
+    const pendingCatalog = new Promise<void>((resolve) => { releaseCatalog = resolve; });
+    const loadingCourse = courseFixture("catalog-loading", { title: "Loaded after skeleton" });
+    await mockAppApi(page);
+    await page.route("**/api/courses**", async (route) => {
+      await pendingCatalog;
+      return json(route, { courses: [loadingCourse], pagination: { page: 1, limit: 50, total: 1, pages: 1 } });
+    });
+
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
+    await expect(page.locator(".bfs-course-results-grid .animate-pulse").first()).toBeVisible();
+    releaseCatalog?.();
+    await expect(page.getByRole("heading", { name: "Loaded after skeleton" })).toBeVisible();
+    await expect(page.locator(".bfs-course-results-grid .animate-pulse")).toHaveCount(0);
+  });
+
   test("[EXP-CATALOG-RETRY-001] course catalogue failure can be retried without reloading the page", async ({ page }) => {
     let requests = 0;
     const retryCourse = courseFixture("catalog-retry", { title: "Recovered catalogue course" });
     await mockAppApi(page);
     await page.route("**/api/courses**", async (route) => {
       requests += 1;
-      if (requests === 1) return json(route, { message: "Catalog temporarily unavailable." }, 503);
+      if (requests === 1) return route.abort("internetdisconnected");
       return json(route, { courses: [retryCourse], pagination: { page: 1, limit: 50, total: 1, pages: 1 } });
     });
 
     await page.goto(baseURL + "/explore");
-    await expect(page.getByRole("alert")).toContainText("Catalog temporarily unavailable.");
+    await expect(page.getByRole("alert")).toContainText("Check your internet connection and try again.");
     await expect(page.getByRole("button", { name: "Retry loading courses" })).toBeEnabled();
     await page.getByRole("button", { name: "Retry loading courses" }).click();
 

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 0 / 239 |
-| Failed / defects found | 0 / 239 (not yet classified) |
+| Verified done | 3 / 239 |
+| Failed / defects found | 1 / 239 |
 | Blocked | 0 / 239 (not yet classified) |
-| Not checked | 239 / 239 |
+| Not checked | 235 / 239 |
 | Release decision | **NOT READY — execution not complete** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
@@ -44,17 +44,17 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 ### A. Release controls and CI
 
 - [ ] **PR-001** record candidate main SHA and release tag.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `DONE` · Evidence: [candidate commit `357a54e`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/357a54e6fa7d8b0829906b2a58c266e9f0b8bb81) · Finding/fix: —
 - [ ] **PR-002** confirm clean working tree.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-003** review commits since last green CI.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `DONE` · Evidence: [latest previously green run on `6c0967f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); only checklist documentation followed that candidate at time of review · Finding/fix: —
 - [ ] **PR-004** confirm main branch protection.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `FAIL` · Evidence: GitHub API reports `main.protected = false` · Finding: `REL-001` — configure branch protection/ruleset; connector does not expose a write operation for this setting.
 - [ ] **PR-005** confirm CI runs on push and pull request.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-006** make frontend lint blocking.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `DONE` · Evidence: [`.github/workflows/ci.yml`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) runs `npm run lint` without `continue-on-error`; the frontend job passed in [run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
 - [ ] **PR-007** verify frontend typecheck blocks.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-008** verify frontend unit tests block.  
@@ -559,13 +559,13 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | Finding ID | Severity | Task ID(s) | Reproduction/evidence | Root cause | Fix commit | Regression test | Retest |
 |---|---|---|---|---|---|---|---|
-| — | — | — | No findings entered in this checklist yet | — | — | — | — |
+| REL-001 | P1 | PR-004 | GitHub API: `main.protected=false` | Branch protection/ruleset not enabled or not exposed | Manual repository settings required | Require CI checks and PR review | BLOCKED on settings access |
 
 ## Execution log
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|
-| 2026-10-26 | `main` at initialization | Checklist created; checks not yet executed | 0 | 0 | 0 | 239 | [GitHub Actions](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions) | Recheck current CI on final candidate SHA before release. |
+| 2026-10-26 | `357a54e` | PR-001, PR-003, PR-004, PR-006 | 3 | 1 | 0 | 235 | [Prior green CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); [current candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40279269516) | Branch protection is a release-control failure; current checklist commit's CI is still queued at this update. |
 
 ## Related project documents
 

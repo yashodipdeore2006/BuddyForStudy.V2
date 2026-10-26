@@ -126,9 +126,9 @@ test("subscription checkout only reuses a pending provider checkout for the same
   assert.match(block, /if \(pendingCheckouts\.length\)/);
   assert.match(block, /different plan or trial conversion is already pending/);
   assert.match(block, /pendingPlanId:/);
-  assert.match(block, /checkoutLockKey\("subscription", req\.user\.userId\)/);
-  assert.match(block, /acquireCheckoutLock\(lockKey\)/);
-  assert.ok(block.indexOf('acquireCheckoutLock(lockKey)') < block.indexOf('const existingSubscription = await UserSubscription.findOne'),
+  assert.match(controller, /checkoutLockKey\("subscription", req\.user\.userId\)/);
+  assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
+  assert.ok(controller.indexOf('acquireCheckoutLock(lockKey)') < controller.indexOf('const existingSubscription = await UserSubscription.findOne'),
     "The lock must be acquired before subscription eligibility and pending-checkout checks");
 });
 

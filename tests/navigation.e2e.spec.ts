@@ -1057,6 +1057,40 @@ test.describe("learner control and state regression", () => {
     expect(completionRequests).toBe(2);
   });
 
+  test("[PRICING-CURRENCY-CONSISTENCY-001] card, course details, and subscription plans preserve fractional currency amounts", async ({ page }) => {
+    const courseId = "fractional-course";
+    const amount = 99.5;
+    const paidCourse = courseFixture(courseId, {
+      title: "Fractional Price Course",
+      pricing: { mode: "paid", price: amount, saleEnabled: false, currency: "INR" }
+    });
+    await mockAppApi(page, {
+      catalogCourses: [paidCourse],
+      course: paidCourse,
+      billingPlans: [{
+        _id: "fractional-plan",
+        name: "Fractional plan",
+        price: amount,
+        currency: "INR",
+        billingInterval: "monthly",
+        features: ["Core access"]
+      }]
+    });
+
+    await page.goto(baseURL + "/explore");
+    const catalogGrid = page.locator(".bfs-course-results-grid").last();
+    await expect(catalogGrid.getByRole("heading", { name: "Fractional Price Course" })).toBeVisible();
+    await expect(catalogGrid.getByText("₹99.5", { exact: true })).toBeVisible();
+
+    await page.goto(baseURL + "/courses/" + courseId);
+    await expect(page.getByRole("heading", { name: "Fractional Price Course" })).toBeVisible();
+    await expect(page.getByText("₹99.5", { exact: true }).first()).toBeVisible();
+
+    await page.goto(baseURL + "/pricing");
+    await expect(page.getByRole("heading", { name: "Fractional plan" })).toBeVisible();
+    await expect(page.getByText("₹99.5", { exact: true }).first()).toBeVisible();
+  });
+
   test("[DETAIL-REVIEWS-001] course reviews tab exposes a real empty state and refreshes its data", async ({ page }) => {
     let reviewReads = 0;
     page.on("request", (request) => {

@@ -12,7 +12,7 @@ import { getCourseNavTargets } from "@/lib/courseNav";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
 import { useCourseState } from "@/lib/useCourseState";
-import { getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
+import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice } from "@/lib/coursePricing";
 
 export type CourseCardVariant = "catalog" | "enrolled" | "recommended" | "compact" | "horizontal";
 
@@ -342,8 +342,8 @@ export default function CourseCard({
       {shareNotice && <div className="bfs-course-card__status" role="status">{shareNotice}</div>}
       <div className="bfs-course-card__action-row">
         <span className={"bfs-course-card__price" + (isFree ? " bfs-course-card__price--free" : "")}>
-          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(effectivePrice)}
-          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{new Intl.NumberFormat("en-IN", { style: "currency", currency: course.pricing?.currency || "INR", maximumFractionDigits: 0 }).format(crossedOutPrice)}</del>}
+          {effectivePrice === null ? "Price unavailable" : isFree ? "Free" : formatCurrencyAmount(effectivePrice, course.pricing?.currency || "INR")}
+          {effectivePrice !== null && crossedOutPrice !== null && crossedOutPrice > effectivePrice && <del>{formatCurrencyAmount(crossedOutPrice, course.pricing?.currency || "INR")}</del>}
         </span>
         <CourseActionButton
           state={actionState}

@@ -34,7 +34,7 @@ import ExpandableText from '@/components/ExpandableText';
 import { routes } from "@/lib/routes";
 import { getCourseCardDescription } from "@/lib/courseCardDescription";
 import { shareCourseLink } from "@/lib/shareCourse";
-import { getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
+import { formatCurrencyAmount, getCourseCrossedOutPrice, getEffectiveCoursePrice, hasValidActiveCourseSale } from "@/lib/coursePricing";
 import {
   courseTimestampNotesKey,
   formatMediaTimestamp,
@@ -43,7 +43,7 @@ import {
 } from "@/lib/courseNotes";
 
 function formatCoursePrice(amount: number, currency = 'INR') {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 2 }).format(amount);
+  return formatCurrencyAmount(amount, currency);
 }
 
 type CourseReview = { _id: string; rating: number; comment?: string; createdAt?: string; moderationStatus?: string; user?: { _id?: string; id?: string; name?: string } | null; };

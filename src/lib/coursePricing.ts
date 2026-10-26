@@ -36,3 +36,31 @@ export function getCourseCrossedOutPrice(pricing?: Partial<CoursePricing> | null
   const compareAtPrice = Number(pricing?.compareAtPrice || 0);
   return Math.max(basePrice, Number.isFinite(compareAtPrice) ? compareAtPrice : 0);
 }
+
+/**
+ * Shared user-facing currency formatter.
+ * Preserves fractional minor units instead of silently rounding prices to whole rupees.
+ */
+export function formatCurrencyAmount(amount: number, currency = "INR", locale = "en-IN"): string {
+  if (!Number.isFinite(amount)) return "Price unavailable";
+  const requestedCurrency = String(currency || "INR").trim().toUpperCase();
+  try {
+    const currencyDigits = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: requestedCurrency,
+    }).resolvedOptions().maximumFractionDigits;
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: requestedCurrency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: currencyDigits,
+    }).format(amount);
+  } catch {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
+}

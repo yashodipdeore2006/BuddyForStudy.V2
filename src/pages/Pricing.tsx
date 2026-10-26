@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
+import { formatCurrencyAmount } from "@/lib/coursePricing";
 
 type Plan = {
   _id: string;
@@ -19,11 +20,7 @@ type Plan = {
 };
 
 function formatMoney(amount: number, currency = "INR") {
-  try {
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
-  } catch {
-    return `₹${Math.round(amount)}`;
-  }
+  return formatCurrencyAmount(amount, currency);
 }
 
 function intervalLabel(interval: string) {

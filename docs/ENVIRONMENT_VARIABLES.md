@@ -16,6 +16,8 @@
 |---|---|---|---|
 | `VITE_API_URL` | Required for deployed frontend | Yes | Public API origin; defaults to local development in the example. Must point to the deployed backend in production. |
 | `VITE_GOOGLE_CLIENT_ID` | Optional for deployments without Google Sign-In; needed when using it | Yes | Google Identity Services web client ID. Must match server `GOOGLE_CLIENT_ID` and the authorised JavaScript origins. |
+| `VITE_INTENT_V2` | Optional; default `false` in `.env.example` | Yes | Frontend feature flag for the intent-driven Build with AI question flow. Must be coordinated with server `INTENT_V2`; changing it requires a frontend rebuild. |
+| `VITE_ASYNC_ROADMAP` | Optional; default `false` in `.env.example` | Yes | Frontend feature flag for async roadmap draft/poll/events. Keep off until the server `ASYNC_ROADMAP` routes and auth flow are deployed and smoke-tested. |
 | `VITE_PUBLIC_SUPPORT_EMAIL` | Optional | Yes | Public support contact for footer/help surfaces. |
 | `VITE_PUBLIC_SOCIAL_INSTAGRAM` | Optional | Yes | Public Instagram URL; use the official HTTPS profile. |
 | `VITE_PUBLIC_SOCIAL_LINKEDIN` | Optional | Yes | Public LinkedIn URL; use the official HTTPS profile. |

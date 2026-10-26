@@ -109,9 +109,9 @@ async function UserConsentEventDeleteBestEffort(userId) {
   }
 }
 
-export async function login({ email, password }) {
+export async function loginWithDependencies({ email, password }, { findUserByEmail, sendOtp }) {
   const normalizedEmail = email.trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select("+password");
+  const user = await findUserByEmail(normalizedEmail);
 
   if (!user || !(await user.comparePassword(password))) {
     throw authError("Invalid email or password", 401);
@@ -121,12 +121,19 @@ export async function login({ email, password }) {
     throw authError("Email not verified. Please verify your email before signing in.", 403);
   }
 
-  await otpService.sendOtp(user, "login_verification");
+  await sendOtp(user, "login_verification");
   return {
     requiresOtp: true,
     purpose: "login_verification",
     email: user.email
   };
+}
+
+export async function login({ email, password }) {
+  return loginWithDependencies({ email, password }, {
+    findUserByEmail: (normalizedEmail) => User.findOne({ email: normalizedEmail }).select("+password"),
+    sendOtp: otpService.sendOtp
+  });
 }
 
 

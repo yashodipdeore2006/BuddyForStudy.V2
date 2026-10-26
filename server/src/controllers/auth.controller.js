@@ -2,6 +2,7 @@ import { z } from "zod";
 import * as authService from "../services/auth.service.js";
 import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
+import { authErrorResponse } from "../utils/authErrorResponse.js";
 
 const registerSchema = z.object({
   name: z.string().trim().min(2).max(100),

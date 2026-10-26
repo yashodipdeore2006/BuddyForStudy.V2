@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 15 / 239 |
+| Verified done | 16 / 239 |
 | Failed tasks | 2 / 239 |
 | Blocked | 2 / 239 |
-| Not checked | 220 / 239 |
+| Not checked | 219 / 239 |
 | Open findings | 2 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog) |
 | Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
@@ -87,8 +87,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### B. Configuration and secrets
 
-- [ ] **PR-021** inventory frontend and backend environment variables.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-021** inventory frontend and backend environment variables.  
+  Status: `DONE` · Evidence: [`docs/ENVIRONMENT_VARIABLES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/ENVIRONMENT_VARIABLES.md) documents public frontend values, backend secrets, production requirements, feature flags, bootstrap-only vars and deployment smoke inputs; `server/.env.example` now includes the runtime flags missing from its prior version. The stale OpenAI variable guidance in `server/README.md` was corrected to Gemini.
 - [ ] **PR-022** run production config validation.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-023** verify strong unique non-placeholder JWT secret.  
@@ -568,7 +568,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|
-| 2026-10-26 | Candidate `1ada53c` (full CI run pending while recording this batch) | PR-001–PR-018, PR-020; PR-019 pending | 15 | 2 | 2 | 220 | [Previous green full CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); [candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280974805) | Branch protection/release gate fails; local working-tree state and named owners are blocked; backend unused-symbol warnings remain as P2 cleanup. |
+| 2026-10-26 | Candidate `153c054` (full CI run pending) | PR-001–PR-018, PR-020–PR-021; PR-019 pending | 16 | 2 | 2 | 219 | [Previous green full CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280974805); [current candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40281657193) | Branch protection/release gate fails; local working-tree state and named owners are blocked; backend unused-symbol warnings remain as P2 cleanup.
 
 ## Related project documents
 

@@ -96,6 +96,10 @@ npm run verify:deployment
 
 The verifier checks API liveness, database readiness, public billing plans, Google-auth configuration, and (when provided) that the frontend responds with HTML. The frontend URL is optional for API-only smoke checks, but should be supplied for a complete deployment check.
 
+## Reverse proxy and rate limiting
+
+The API configures Express `trust proxy` from `TRUST_PROXY_HOPS`. The production validator requires an explicit integer from `0` to `10`. Set it to the exact trusted-hop count for the actual hosting/network topology; `0` is for direct client connections. Do not set blanket `true` or guess a hop count, because a mismatched proxy chain can allow spoofed client IPs or collapse unrelated clients into one rate-limit bucket.
+
 ## Validate production environment configuration
 
 Before a production deployment, install dependencies and run the config check against the deployment environment (or an equivalent staging environment with staging-only credentials):

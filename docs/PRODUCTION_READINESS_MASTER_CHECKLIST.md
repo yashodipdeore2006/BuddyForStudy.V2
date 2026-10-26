@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 42 / 239 |
+| Verified done | 43 / 239 |
 | Failed tasks | 3 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 181 / 239 |
+| Not checked | 180 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -81,7 +81,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-018** assign rollback and release decision owners.  
   Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
 - [x] **PR-019** capture CI for exact candidate SHA.  
-  Status: `DONE` · Evidence: exact current candidate `0dd13777be4cb108c3ce6fed1e2ae18b399de5c2` is green in [CI run 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104); frontend and backend jobs passed including the auth token-version/revocation regression suite.
+  Status: `DONE` · Evidence: latest code candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` passed frontend and backend in [CI run 40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107), including backend lint/tests, production-config preflight, frontend lint/typecheck/unit tests/build, Playwright navigation/admin/Google-auth/login-accessibility suites; the checklist documentation change follows that tested code candidate.
 - [ ] **PR-020** block release while required checks are red or pending.  
   Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
@@ -166,8 +166,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE WITH LIMITATION` · Evidence: authenticated frontend requests use an explicit `Authorization: Bearer` header from localStorage in [`src/lib/api.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/src/lib/api.ts); the backend has no cookie-session authentication in the reviewed auth routes and configures CORS with `credentials: false` in [`server.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/server.js). A cookie-based CSRF token is not applicable to this flow. CORS alone is not the CSRF control; XSS/storage compromise remains a separate risk and must be reviewed.
 - [x] **PR-058** test CORS allowlist and arbitrary-origin rejection.  
   Status: `DONE` · Evidence: [`corsPolicy.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/corsPolicy.test.js) verifies production accepts only the configured origin, rejects arbitrary/deceptive origins and localhost origins, while development accepts known loopback ports. The full backend suite passed in [CI 40290327188](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290327188).
-- [ ] **PR-059** test auth rate limits and accessible states.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-059** test auth rate limits and accessible states.  
+  Status: `DONE` · Evidence: [`authRateLimit.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authRateLimit.test.js) exercises the configured 30 requests per 15-minute auth limit and verifies a safe 429 response; [`auth-accessibility.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/auth-accessibility.e2e.spec.ts) verifies associated labels, password visibility state, assertive login errors, and no session stored after rejection. Both tests are in blocking CI run [40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107), green on code candidate `695850e4307a6f7abab58e7513e56b44d4b58c39`.
 
 ### D. Authorization and privacy
 
@@ -578,7 +578,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Candidate `51ece64` (SMTP/Web Push/Redis validator + canonical-route coverage) verified green | PR-021, PR-030 validation code | 23 | 2 | 13 | 201 | [Successful CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | Synthetic config preflight, backend lint/tests, frontend typecheck/build and canonical public/private route Playwright tests passed. Live SMTP/Web Push/Redis values remain a staging/provider task. |
 | 2026-10-26 | Security/auth-response candidate `2021402` | PR-033–PR-039 plus auth tasks under validation | 23 | 2 | 13 | 201 | [Last fully green relevant CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746); [current candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284256463) | Auth error responses now redact untrusted internal messages; do not mark the newest auth changes verified until the current CI run completes successfully. Branch protection and staging/provider gates remain open. |
 
-| 2026-10-26 | Candidate `38d19d3fe7b9bd52c3f20e158be4f36972c00050` | PR-054–PR-058 checked; PR-056 FAIL recorded | 42 | 3 | 13 | 181 | [Green CI 40290327188](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290327188); [proposed privacy procedure](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) | Invitation, suspended-session, CSRF applicability and CORS checks have source/test evidence. Missing account export/deletion/retention workflow is a P1 blocker. New candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` adds auth rate-limit/accessibility coverage; CI [40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107) is pending, so PR-059 remains NOT CHECKED. |
+| 2026-10-26 | Code candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` verified green | PR-054–PR-059 checked; PR-056 FAIL recorded | 43 | 3 | 13 | 180 | [Green exact-code CI 40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107); [privacy workflow gap](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) | Blocking CI passed frontend and backend jobs, including actual auth limiter behavior and login accessibility tests. Current `main` also has checklist documentation follow-up. `DATA-001` remains a P1 launch blocker; branch protection and live staging/provider checks remain open. |
 
 ## Related project documents
 

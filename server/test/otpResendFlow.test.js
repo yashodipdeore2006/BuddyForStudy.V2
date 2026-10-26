@@ -27,8 +27,11 @@ function installMocks({ existingOtp }) {
     create: AuthOtp.create,
     createTransport: nodemailer.createTransport
   };
-  const calls = { deletions: [], creations: [], messages: [], transportOptions: [] };
-  AuthOtp.findOne = () => ({ sort: async () => existingOtp });
+  const calls = { lookups: [], deletions: [], creations: [], messages: [], transportOptions: [] };
+  AuthOtp.findOne = (filter) => {
+    calls.lookups.push(filter);
+    return { sort: async () => existingOtp };
+  };
   AuthOtp.deleteMany = async (filter) => {
     calls.deletions.push(filter);
     return { deletedCount: 1 };
@@ -58,10 +61,11 @@ test("OTP resend inside the cooldown is rejected before replacing or mailing a c
   const state = installMocks({ existingOtp });
   try {
     await assert.rejects(
-      sendOtp(mockUser(), "email_verification"),
+      sendOtp(mockUser(), "login_verification"),
       (error) => error.status === 429 && error.isOperational === true &&
         Number.isInteger(error.retryAfter) && error.retryAfter > 0 && error.retryAfter <= 60
     );
+    assert.equal(state.calls.lookups[0]?.purpose, "login_verification");
     assert.deepEqual(state.calls.deletions, []);
     assert.deepEqual(state.calls.creations, []);
     assert.deepEqual(state.calls.messages, []);

@@ -1065,6 +1065,7 @@ test.describe("learner control and state regression", () => {
       pricing: { mode: "paid", price: amount, saleEnabled: false, currency: "INR" }
     });
     await mockAppApi(page, {
+      courseId,
       catalogCourses: [paidCourse],
       course: paidCourse,
       billingPlans: [{

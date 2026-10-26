@@ -28,11 +28,11 @@
 |---|---|---|---|
 | `NODE_ENV` | Set to `production` in production | No | Enables fail-closed production configuration validation. |
 | `PORT` | Platform-dependent; defaults to `5000` | No | HTTP listener port. Let the hosting platform supply it where required. |
-| `MONGO_URI` | Required | **Yes** | MongoDB connection string. Use least-privilege database credentials and TLS for hosted MongoDB. |
+| `MONGO_URI` | Required | **Yes** | Production validator requires a non-loopback MongoDB URI, an explicit database name, username/password credentials, and TLS (`mongodb+srv` defaults to TLS; `mongodb://` must specify `tls=true` or `ssl=true`). Use least-privilege credentials. |
 | `JWT_SECRET` | Required | **Yes** | Signs application JWTs. Production must use a unique, high-entropy, non-placeholder value with at least 32 characters. Rotate deliberately and account for session invalidation. |
 | `JWT_EXPIRES_IN` | Optional; defaults to `7d` | No | JWT lifetime accepted by the token library. Review against session policy. |
 | `CLIENT_URL` | Required in production | No | Single public frontend origin for production CORS and redirects; validator requires HTTPS and rejects loopback. |
-| `API_URL` | Recommended in production | No | Public backend origin used by email unsubscribe links. Must be the deployed API origin rather than the frontend origin. |
+| `API_URL` | **Required in production** | No | Public backend origin used by email unsubscribe links. Validator requires a valid HTTPS non-loopback URL; it must be the deployed API origin rather than the frontend origin. |
 | `GOOGLE_CLIENT_ID` | Required for Google Sign-In | No (client identifier) | Google OAuth web client ID. Match the frontend value and authorised origins. |
 
 ## AI and YouTube integrations
@@ -59,9 +59,9 @@
 
 | Variable | Requirement | Secret? | Purpose / validation |
 |---|---|---|---|
-| `RAZORPAY_KEY_ID` | **Required in production** | Treat as sensitive | Razorpay API key ID. Use production credentials only in the production environment. |
-| `RAZORPAY_KEY_SECRET` | **Required in production** | **Yes** | Razorpay API secret. Server-side only. |
-| `RAZORPAY_WEBHOOK_SECRET` | **Required in production** | **Yes** | Webhook signature verification secret. Must match the configured Razorpay webhook endpoint. |
+| `RAZORPAY_KEY_ID` | **Required in production** | Treat as sensitive | Must have the `rzp_live_` prefix and must not be a placeholder. Use production credentials only in the production environment. |
+| `RAZORPAY_KEY_SECRET` | **Required in production** | **Yes** | Must be non-placeholder and at least 16 characters. Razorpay API secret; server-side only. |
+| `RAZORPAY_WEBHOOK_SECRET` | **Required in production** | **Yes** | Must be non-placeholder and at least 32 characters; must match the configured Razorpay webhook endpoint. |
 
 ## Email, Web Push, cache, and observability
 

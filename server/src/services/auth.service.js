@@ -336,16 +336,25 @@ export async function requestPasswordReset(email) {
   return { email: normalizedEmail };
 }
 
-export async function resetPassword({ email, otp, newPassword }) {
-  const record = await otpService.verifyOtp({ email, purpose: "password_reset", code: otp });
-  const user = await User.findById(record.user).select("+password");
+export async function resetPasswordWithDependencies({ email, otp, newPassword }, dependencies = {}) {
+  const verifyOtp = dependencies.verifyOtp ?? otpService.verifyOtp;
+  const findUserById = dependencies.findUserById ?? ((userId) => User.findById(userId).select("+password"));
+  const hashPassword = dependencies.hashPassword ?? ((password) => User.hashPassword(password));
+  const rotateSessions = dependencies.rotateSessions ?? updatePasswordAndRotateSessions;
+
+  const record = await verifyOtp({ email, purpose: "password_reset", code: otp });
+  const user = await findUserById(record.user);
   if (!user) throw authError("Account not found", 404);
+  if (!user.isActive) throw authError("Account is inactive", 401);
   if (user.authProvider === "google" || !user.password) {
     throw authError("This account does not use an email password.", 400);
   }
 
-  const passwordHash = await User.hashPassword(newPassword);
-  const updatedUser = await updatePasswordAndRotateSessions(user, passwordHash, { emailVerified: true });
-
+  const passwordHash = await hashPassword(newPassword);
+  const updatedUser = await rotateSessions(user, passwordHash, { emailVerified: true });
   return { user: publicUser(updatedUser), token: signAccessToken(updatedUser) };
+}
+
+export async function resetPassword(input) {
+  return resetPasswordWithDependencies(input);
 }

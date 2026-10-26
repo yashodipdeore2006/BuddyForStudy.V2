@@ -9,7 +9,7 @@ const jwt = jwtModule.default ?? jwtModule;
 const { User } = await import("../src/models/User.js");
 const { authMiddleware, optionalAuthMiddleware } = await import("../src/middleware/auth.js");
 const { signAccessToken, isTokenVersionCurrent } = await import("../src/utils/jwt.js");
-const { revokeAllSessions, changePassword } = await import("../src/services/auth.service.js");
+const { revokeAllSessions, changePassword, resetPasswordWithDependencies } = await import("../src/services/auth.service.js");
 const { env } = await import("../src/config/env.js");
 
 function makeUser(version = 0, overrides = {}) {
@@ -202,4 +202,97 @@ test("malformed token-version claims are rejected and token version is not seria
   assert.equal(isTokenVersionCurrent({ tokenVersion: -1 }, user), false);
   assert.equal(isTokenVersionCurrent({ tokenVersion: "3" }, user), false);
   assert.equal(isTokenVersionCurrent({ tokenVersion: 3 }, user), true);
+});
+
+test("password reset consumes the password_reset OTP and rotates to a fresh token version", async () => {
+  const user = makeUser(7);
+  let verifiedOtpRequest;
+  let rotated;
+  const result = await resetPasswordWithDependencies({
+    email: "LEARNER@example.test",
+    otp: "123456",
+    newPassword: "new-reset-password"
+  }, {
+    verifyOtp: async (input) => {
+      verifiedOtpRequest = input;
+      return { user: user._id };
+    },
+    findUserById: async (userId) => {
+      assert.equal(userId, user._id);
+      return user;
+    },
+    hashPassword: async (password) => {
+      assert.equal(password, "new-reset-password");
+      return "new-reset-hash";
+    },
+    rotateSessions: async (currentUser, passwordHash, fields) => {
+      assert.equal(currentUser, user);
+      assert.equal(passwordHash, "new-reset-hash");
+      assert.deepEqual(fields, { emailVerified: true });
+      rotated = { ...currentUser, ...fields, password: passwordHash, authTokenVersion: currentUser.authTokenVersion + 1 };
+      return rotated;
+    }
+  });
+
+  assert.deepEqual(verifiedOtpRequest, {
+    email: "LEARNER@example.test",
+    purpose: "password_reset",
+    code: "123456"
+  });
+  const payload = jwt.verify(result.token, env.jwtSecret);
+  assert.equal(payload.tokenVersion, 8);
+  assert.equal(isTokenVersionCurrent(payload, rotated), true);
+  assert.equal(isTokenVersionCurrent(payload, user), false);
+  assert.equal(result.user.authTokenVersion, undefined);
+});
+
+test("password reset does not activate a suspended account or issue another session", async () => {
+  const suspendedUser = makeUser(2, { isActive: false });
+  let rotationCalls = 0;
+  await assert.rejects(
+    resetPasswordWithDependencies({
+      email: "learner@example.test",
+      otp: "123456",
+      newPassword: "new-reset-password"
+    }, {
+      verifyOtp: async () => ({ user: suspendedUser._id }),
+      findUserById: async () => suspendedUser,
+      hashPassword: async () => "new-reset-hash",
+      rotateSessions: async () => { rotationCalls += 1; }
+    }),
+    (error) => error.status === 401 && error.message === "Account is inactive"
+  );
+  assert.equal(rotationCalls, 0);
+});
+
+test("suspended users cannot reuse otherwise valid tokens", async () => {
+  const user = makeUser(0, { isActive: false });
+  const token = signAccessToken(makeUser(0));
+  const originalFindById = User.findById;
+  try {
+    User.findById = () => ({ select: async () => user });
+    const requiredResponse = responseMock();
+    let requiredNext = false;
+    await authMiddleware(
+      { headers: { authorization: "Bearer " + token } },
+      requiredResponse,
+      () => { requiredNext = true; }
+    );
+    assert.equal(requiredNext, false);
+    assert.equal(requiredResponse.statusCode, 401);
+    assert.equal(requiredResponse.body.message, "Account is inactive");
+
+    const optionalResponse = responseMock();
+    let optionalNext = false;
+    await optionalAuthMiddleware(
+      { headers: { authorization: "Bearer " + token } },
+      optionalResponse,
+      () => { optionalNext = true; }
+    );
+    assert.equal(optionalNext, false);
+    assert.equal(optionalResponse.statusCode, 401);
+    assert.equal(optionalResponse.body.message, "Account is inactive");
+  } finally {
+    User.findById = originalFindById;
+  }
 });

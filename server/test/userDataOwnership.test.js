@@ -30,7 +30,7 @@ test("saved-course queries and writes are scoped to the authenticated user", asy
 
   assert.match(routes, /router\.use\(authMiddleware\)/);
   assert.match(controller, /SavedCourse\.find\(\{ user: req\.user\.userId \}\)/);
-  assert.match(controller, /\{ user: req\.user\.userId, course: course\.\_id \}/);
+  assert.match(controller, /\{ user: req\.user\.userId, course: course\._id \}/);
   assert.match(controller, /findOneAndDelete\(\{\s*user: req\.user\.userId,\s*course: courseId\s*\}\)/);
   assert.doesNotMatch(controller, /req\.(?:body|query|params)\.userId/);
 });

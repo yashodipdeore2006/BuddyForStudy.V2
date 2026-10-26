@@ -172,6 +172,10 @@ export default function Courses() {
   const [catalogQuery, setCatalogQuery] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [catalogSort, setCatalogSort] = useState<"recent" | "popular" | "title">("recent");
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogRetryKey, setCatalogRetryKey] = useState(0);
+  const catalogPageSize = 12;
   const { session } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRoadmap, setAiRoadmap] = useState<AiRoadmap | null>(null);
@@ -257,7 +261,7 @@ export default function Courses() {
         let batch: RawCourse[] = [];
         let searchDiscovery: SearchDiscovery | null = null;
         do {
-          const params = new URLSearchParams({ page: String(page), limit: '50' });
+          const params = new URLSearchParams({ page: String(page), limit: '50', sort: catalogSort === "popular" ? "popular" : "recent" });
           if (selectedLevel !== 'all') params.set('level', selectedLevel);
           if (selectedCategory !== 'all') params.set('category', selectedCategory);
           if (catalogQuery.trim()) params.set('q', catalogQuery.trim());
@@ -316,7 +320,7 @@ export default function Courses() {
     }
 
     fetchCourses();
-  }, [selectedLevel, selectedCategory, catalogQuery]);
+  }, [selectedLevel, selectedCategory, catalogQuery, catalogSort, catalogRetryKey]);
 
   useEffect(() => {
     let active = true;
@@ -355,6 +359,58 @@ export default function Courses() {
   }, [courses]);
 
   const filteredCourses = useMemo(() => courses, [courses]);
+  const sortedCourses = useMemo(() => {
+    const rows = [...filteredCourses];
+    if (catalogSort === "title") {
+      return rows.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+    }
+    const timestamp = (value: string | undefined) => {
+      const parsed = new Date(value || "").getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    if (catalogSort === "popular") {
+      return rows.sort((a, b) =>
+        Number(b.enrollment_count || 0) - Number(a.enrollment_count || 0)
+        || Number(b.ratingAverage || 0) - Number(a.ratingAverage || 0)
+        || timestamp(b.created_at) - timestamp(a.created_at)
+      );
+    }
+    return rows.sort((a, b) => timestamp(b.created_at) - timestamp(a.created_at));
+  }, [filteredCourses, catalogSort]);
+  const catalogPageCount = Math.max(1, Math.ceil(sortedCourses.length / catalogPageSize));
+  const currentCatalogPage = Math.min(catalogPage, catalogPageCount);
+  const visibleCourses = sortedCourses.slice(
+    (currentCatalogPage - 1) * catalogPageSize,
+    currentCatalogPage * catalogPageSize
+  );
+  const catalogPagination = sortedCourses.length > catalogPageSize ? (
+    <nav aria-label="Course pagination" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+      <p className="text-sm text-slate-500">
+        Showing {(currentCatalogPage - 1) * catalogPageSize + 1}–{Math.min(currentCatalogPage * catalogPageSize, sortedCourses.length)} of {sortedCourses.length} courses
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Previous course page"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}
+          disabled={currentCatalogPage <= 1}
+        >Previous</button>
+        <span aria-live="polite" className="min-w-24 text-center text-sm font-semibold text-slate-700">Page {currentCatalogPage} of {catalogPageCount}</span>
+        <button
+          type="button"
+          aria-label="Next course page"
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => setCatalogPage((page) => Math.min(catalogPageCount, page + 1))}
+          disabled={currentCatalogPage >= catalogPageCount}
+        >Next</button>
+      </div>
+    </nav>
+  ) : null;
+
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [catalogQuery, selectedLevel, selectedCategory, catalogSort]);
 
   const hasFilters = selectedLevel !== 'all' || selectedCategory !== 'all' || catalogQuery.trim().length > 0;
 
@@ -363,6 +419,8 @@ export default function Courses() {
     setCatalogQuery('');
     setSelectedLevel('all');
     setSelectedCategory('all');
+    setCatalogSort("recent");
+    setCatalogPage(1);
     setAiRoadmap(null);
     setAiError(null);
   };
@@ -748,6 +806,17 @@ export default function Courses() {
               ))}
             </select>
 
+            <select
+              aria-label="Sort courses"
+              value={catalogSort}
+              onChange={(e) => { setCatalogSort(e.target.value as "recent" | "popular" | "title"); setCatalogPage(1); }}
+              className="input-field h-10 w-full py-1 text-sm sm:w-auto"
+            >
+              <option value="recent">Recently added</option>
+              <option value="popular">Most popular</option>
+              <option value="title">Title A–Z</option>
+            </select>
+
             {hasFilters && (
               <button
                 type="button"
@@ -761,6 +830,18 @@ export default function Courses() {
           </div>
         </div>
       </section>
+
+      {catalogError && (
+        <div role="alert" aria-live="assertive" className="mt-4 flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 sm:flex-row sm:items-center sm:justify-between">
+          <p>Course catalogue unavailable: {catalogError}</p>
+          <button
+            type="button"
+            className="inline-flex w-fit items-center justify-center rounded-lg border border-red-300 bg-white px-4 py-2 font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-50"
+            onClick={() => { setCatalogRetryKey((key) => key + 1); setCatalogError(""); }}
+            disabled={loading}
+          >Retry loading courses</button>
+        </div>
+      )}
 
       {aiOpen && (
         <div
@@ -1234,15 +1315,17 @@ export default function Courses() {
             <div className="mt-5 rounded-2xl">
               <CourseGridSkeleton count={6} />
             </div>
-          ) : (
+          ) : catalogError ? null : (
             <div className="mt-5 rounded-2xl">
-              {filteredCourses.length > 0 && (
+              {visibleCourses.length > 0 && (
                 <div className="bfs-course-results-grid grid gap-4">
-                  {filteredCourses.map((course) => (
+                  {visibleCourses.map((course) => (
                     <CourseCard key={course.id} course={course} showActions initiallySaved={savedCourseIds.has(course.id)} initiallyEnrolled={enrolledCourseIds.has(course.id)} />
                   ))}
                 </div>
               )}
+
+              {catalogPagination}
 
               {youtubeDiscovery && (
                 <YouTubeSearchFallback
@@ -1282,14 +1365,15 @@ export default function Courses() {
             <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((item) => <div key={item} className="h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
             </div>
-          ) : catalogError ? (
-            <div role="alert" className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-5 text-sm text-red-700">{catalogError}</div>
-          ) : filteredCourses.length === 0 ? (
+          ) : catalogError ? null : filteredCourses.length === 0 ? (
             <div className="mt-5"><EmptyState icon={<BookOpen className="h-8 w-8" />} title="No courses available" description="Published courses will appear here. Try changing your filters or search." /></div>
           ) : (
-            <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {filteredCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
-            </div>
+            <>
+              <div className="bfs-course-results-grid mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                {visibleCourses.map((course) => <CourseCard key={course.id} course={course} showActions />)}
+              </div>
+              {catalogPagination}
+            </>
           )}
         </section>
       )}

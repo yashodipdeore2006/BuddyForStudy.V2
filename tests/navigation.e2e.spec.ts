@@ -768,6 +768,48 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
   });
 
+  test("[EXP-CATALOG-SORT-PAGE-001] catalog sort and pagination operate on the complete filtered result set", async ({ page }) => {
+    const titles = ["Zeta Course", "Alpha Course", ...Array.from({ length: 12 }, (_, index) => "Course " + String(index + 3).padStart(2, "0"))];
+    const catalogCourses = titles.map((title, index) => courseFixture("catalog-" + index, { title, category: "Development", level: "Beginner" }));
+    await mockAppApi(page, { catalogCourses });
+    await page.goto(baseURL + "/explore");
+
+    await expect(page.getByRole("heading", { name: "All available courses" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+    const grid = page.locator(".bfs-course-results-grid").last();
+    await expect(grid.getByRole("heading")).toHaveCount(12);
+
+    await page.getByRole("combobox", { name: "Sort courses" }).selectOption("title");
+    await expect(grid.getByRole("heading").first()).toHaveText("Alpha Course");
+    await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Next course page" }).click();
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 2 of 2")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Zeta Course", exact: true })).toBeVisible();
+    await expect(grid.getByRole("heading")).toHaveCount(2);
+    await page.getByRole("button", { name: "Previous course page" }).click();
+    await expect(page.getByRole("navigation", { name: "Course pagination" }).getByText("Page 1 of 2")).toBeVisible();
+  });
+
+  test("[EXP-CATALOG-RETRY-001] course catalogue failure can be retried without reloading the page", async ({ page }) => {
+    let requests = 0;
+    const retryCourse = courseFixture("catalog-retry", { title: "Recovered catalogue course" });
+    await mockAppApi(page);
+    await page.route("**/api/courses**", async (route) => {
+      requests += 1;
+      if (requests === 1) return json(route, { message: "Catalog temporarily unavailable." }, 503);
+      return json(route, { courses: [retryCourse], pagination: { page: 1, limit: 50, total: 1, pages: 1 } });
+    });
+
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("alert")).toContainText("Catalog temporarily unavailable.");
+    await expect(page.getByRole("button", { name: "Retry loading courses" })).toBeEnabled();
+    await page.getByRole("button", { name: "Retry loading courses" }).click();
+
+    await expect.poll(() => requests).toBe(2);
+    await expect(page.getByRole("heading", { name: "Recovered catalogue course" })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+
   test("[LEARN-TABS-001] My Learning uses saved status snapshots for all three tabs without per-course progress requests", async ({ page }) => {
     const inProgressCourse = courseFixture("node-api", { title: "Node API Foundations" });
     const notStartedCourse = courseFixture("sql-basics", { title: "SQL for Beginners", category: "Data" });

@@ -10,6 +10,7 @@ const MAX_VERIFY_ATTEMPTS = 5;
 function authError(message, status = 400) {
   const error = new Error(message);
   error.status = status;
+  error.isOperational = true;
   return error;
 }
 

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "lint": "eslint .",
+    "lint": "node ../node_modules/eslint/bin/eslint.js .",
     "create-admin": "node src/scripts/createAdmin.js",
     "test": "node --test",
     "worker": "node src/jobs/worker.js",

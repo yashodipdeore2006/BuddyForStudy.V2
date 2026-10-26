@@ -191,6 +191,18 @@ test("timestamped lesson note timestamps parse and format consistently", () => {
   assert.equal(notesModule.formatMediaTimestamp(3735), "1:02:15");
 });
 
+test("timestamped notes are separated by account and course", () => {
+  const userA = notesModule.courseTimestampNotesKey("user-a", "course-1");
+  const userB = notesModule.courseTimestampNotesKey("user-b", "course-1");
+  const anotherCourse = notesModule.courseTimestampNotesKey("user-a", "course-2");
+  assert.notEqual(userA, userB);
+  assert.notEqual(userA, anotherCourse);
+  assert.equal(notesModule.courseTimestampNotesKey("", "course-1"), "bfs-course-timestamped-notes:anonymous:course-1");
+
+  const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
+  assert.match(player, /courseTimestampNotesKey\(String\(session\?\.user\?\.id \|\| "anonymous"\), courseId\)/);
+});
+
 test("course pages expose timestamped notes, lesson-state labels, and source duration metadata", () => {
   const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
   const courseDetails = fs.readFileSync(path.join(root, "src/pages/CourseDetails.tsx"), "utf8");

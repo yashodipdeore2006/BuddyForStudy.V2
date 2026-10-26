@@ -60,3 +60,31 @@ test("Sentry event sanitizer preserves non-sensitive diagnostics", () => {
   assert.equal(result.exception.values[0].type, "TypeError");
   assert.equal(result.exception.values[0].value, "[redacted exception message]");
 });
+ 
+test("Sentry event sanitizer redacts data beyond the nested traversal limit", () => {
+  const result = sanitizeSentryEvent({
+    contexts: {
+      diagnostics: {
+        level1: {
+          level2: {
+            level3: {
+              level4: {
+                level5: {
+                  level6: {
+                    token: "deep-private-token",
+                    email: "learner@example.com"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  const serialized = JSON.stringify(result.contexts);
+  assert.equal(serialized.includes("deep-private-token"), false);
+  assert.equal(serialized.includes("learner@example.com"), false);
+  assert.ok(serialized.includes("[redacted nested value]"));
+});

@@ -26,7 +26,10 @@ jobs:
       - run: npm run typecheck
       - name: Course navigation unit tests
         run: npm run test:unit
-      - run: npm run build
+      - name: Build production app with synthetic canonical site URL
+        env:
+          VITE_PUBLIC_SITE_URL: "https://buddyforstudy.example"
+        run: npm run build
       - name: Install Playwright for browser smoke tests
         run: |
           npm install --no-save @playwright/test

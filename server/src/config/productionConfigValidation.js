@@ -44,8 +44,10 @@ function validateMongoUri(value, errors) {
     if (!parsed.username || !parsed.password) {
       errors.push("MONGO_URI must use database credentials in production");
     }
-    const tlsEnabled = parsed.protocol === "mongodb+srv:" ||
-      ["true", "1"].includes(String(parsed.searchParams.get("tls") || parsed.searchParams.get("ssl") || "").toLowerCase());
+    const explicitTls = parsed.searchParams.get("tls") ?? parsed.searchParams.get("ssl");
+    const tlsEnabled = explicitTls === null
+      ? parsed.protocol === "mongodb+srv:"
+      : ["true", "1"].includes(String(explicitTls).toLowerCase());
     if (!tlsEnabled) {
       errors.push("MONGO_URI must enable TLS for production connections");
     }

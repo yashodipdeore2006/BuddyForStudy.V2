@@ -21,7 +21,7 @@ test("every application admin page is mapped to an explicit shared-layout permis
   assert.ok(linksStart >= 0 && linksEnd > linksStart, "shared layout primary navigation must declare its permission map");
   const linksSource = layout.slice(linksStart, linksEnd);
   const mappedPermissions = new Map(
-    [...linksSource.matchAll(/to:\s*"(\/admin[^"]+)"[^\n]*permission:\s*"([^"]+)"/g)]
+    [...linksSource.matchAll(/to:\s*"(\/admin[^"]*)"[^\n]*permission:\s*"([^"]+)"/g)]
       .map((match) => [match[1], match[2]])
   );
 

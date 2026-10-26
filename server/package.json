@@ -14,7 +14,8 @@
     "generate:web-push-keys": "web-push generate-vapid-keys",
     "set-admin-role": "node src/scripts/setAdminRole.js",
     "test:notification-channels": "node src/scripts/testNotificationChannels.js",
-    "strip-youtube-stats": "node src/scripts/stripYouTubeStats.js"
+    "strip-youtube-stats": "node src/scripts/stripYouTubeStats.js",
+    "validate:production-config": "node src/scripts/validateProductionConfig.js"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

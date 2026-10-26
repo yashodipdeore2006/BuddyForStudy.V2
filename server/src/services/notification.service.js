@@ -560,7 +560,7 @@ export async function createNotificationEvent({
   if (!notification) return null;
   if (created && !deferDispatch) {
     if (payload.emailStatus === "pending") void dispatchEmail(notification._id).catch((error) => console.error("[notifications] email dispatch error", JSON.stringify(safeDeliveryErrorMetadata(error))));
-    if (payload.pushStatus === "pending") void dispatchPush(notification._id).catch((error) => console.error("[notifications] push dispatch error", String(error?.message || error).slice(0, 200)));
+    if (payload.pushStatus === "pending") void dispatchPush(notification._id).catch((error) => console.error("[notifications] push dispatch error", JSON.stringify(safeDeliveryErrorMetadata(error))));
   }
   return notification;
 }
@@ -770,7 +770,7 @@ export async function reconcilePendingCoursePurchaseNotifications(now = new Date
         ).catch(() => {});
         console.error("[notifications] course purchase reconciliation failed", {
           paymentId: String(payment._id),
-          message: String(error?.message || "Unknown notification error").slice(0, 200)
+          ...safeDeliveryErrorMetadata(error)
         });
       }
     }
@@ -895,7 +895,7 @@ export async function reconcilePendingSubscriptionActivationNotifications(now = 
         ).catch(() => {});
         console.error("[notifications] subscription activation reconciliation failed", {
           paymentId: String(payment._id),
-          message: String(error?.message || "Unknown notification error").slice(0, 200)
+          ...safeDeliveryErrorMetadata(error)
         });
       }
     }

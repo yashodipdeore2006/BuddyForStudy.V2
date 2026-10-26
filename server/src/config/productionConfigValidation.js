@@ -56,6 +56,73 @@ function validateMongoUri(value, errors) {
   }
 }
 
+
+function validateSmtp(config, errors) {
+  const host = String(config.SMTP_HOST || "").trim();
+  if (!host) {
+    errors.push("SMTP_HOST is required in production for email-based authentication");
+  } else if (/[\\s/]/.test(host) || host.includes("://") || LOOPBACK_HOSTS.has(host.toLowerCase())) {
+    errors.push("SMTP_HOST must be a remote hostname, not a URL or loopback host");
+  }
+
+  const port = Number(config.SMTP_PORT || 587);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    errors.push("SMTP_PORT must be an integer between 1 and 65535");
+  }
+
+  const secureValue = String(config.SMTP_SECURE ?? "false").trim().toLowerCase();
+  if (!["true", "false"].includes(secureValue)) {
+    errors.push("SMTP_SECURE must be true or false");
+  }
+
+  if (!String(config.SMTP_USER || "").trim()) {
+    errors.push("SMTP_USER is required in production");
+  }
+  const password = String(config.SMTP_PASS || "").trim();
+  if (password.length < 8 || isPlaceholder(password)) {
+    errors.push("SMTP_PASS must be a non-placeholder credential of at least 8 characters");
+  }
+
+  const sender = String(config.MAIL_FROM || config.SMTP_USER || "").trim();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(sender)) {
+    errors.push("MAIL_FROM (or SMTP_USER fallback) must be a valid sender email address");
+  }
+}
+
+function validateOptionalWebPush(config, errors) {
+  const values = [
+    config.WEB_PUSH_VAPID_PUBLIC_KEY,
+    config.WEB_PUSH_VAPID_PRIVATE_KEY,
+    config.WEB_PUSH_SUBJECT
+  ];
+  if (!values.some((value) => String(value || "").trim())) return;
+  if (values.some((value) => !String(value || "").trim())) {
+    errors.push("WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT must be configured together");
+  }
+  const subject = String(config.WEB_PUSH_SUBJECT || "").trim();
+  if (subject && !/^mailto:[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(subject) && !/^https:\\/\\//i.test(subject)) {
+    errors.push("WEB_PUSH_SUBJECT must be a mailto: address or HTTPS contact URL");
+  }
+}
+
+function validateOptionalRedis(value, errors) {
+  if (!String(value || "").trim()) return;
+  try {
+    const parsed = new URL(String(value));
+    if (parsed.protocol !== "rediss:") {
+      errors.push("REDIS_URL must use rediss:// TLS in production");
+    }
+    if (!parsed.hostname || LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+      errors.push("REDIS_URL must point to a remote Redis host in production");
+    }
+    if (!parsed.password) {
+      errors.push("REDIS_URL must include authentication credentials in production");
+    }
+  } catch {
+    errors.push("REDIS_URL must be a valid Redis connection URL");
+  }
+}
+
 export function getProductionConfigErrors(config = {}) {
   const errors = [];
   const jwtSecret = String(config.JWT_SECRET || "").trim();
@@ -66,6 +133,9 @@ export function getProductionConfigErrors(config = {}) {
   validateHttpsUrl(config.CLIENT_URL, "CLIENT_URL", errors);
   validateHttpsUrl(config.API_URL, "API_URL", errors);
   validateMongoUri(config.MONGO_URI, errors);
+  validateSmtp(config, errors);
+  validateOptionalWebPush(config, errors);
+  validateOptionalRedis(config.REDIS_URL, errors);
 
   const keyId = String(config.RAZORPAY_KEY_ID || "").trim();
   if (!keyId) {

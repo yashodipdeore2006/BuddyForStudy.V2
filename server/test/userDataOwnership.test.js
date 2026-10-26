@@ -35,6 +35,14 @@ test("saved-course queries and writes are scoped to the authenticated user", asy
   assert.doesNotMatch(controller, /req\.(?:body|query|params)\.userId/);
 });
 
+test("timestamped lesson notes are namespaced by user and course to prevent cross-account leakage", async () => {
+  const notes = await source("../../src/lib/courseNotes.ts");
+  assert.match(notes, /function courseTimestampNotesKey\\(userId: string, courseId: string\\)/);
+  assert.match(notes, /"bfs-course-timestamped-notes:" \\+ \\(userId \\|\\| "anonymous"\\) \\+ ":" \\+ courseId/);
+  assert.match(notes, /localStorage\\.getItem\\(key\\)/);
+  assert.match(notes, /localStorage\\.setItem\\(key, JSON\\.stringify\\(notes\\)\\)/);
+});
+
 test("profile and consent mutations derive account identity from the authenticated request", async () => {
   const [meRoutes, consentRoutes, consentController] = await Promise.all([
     source("../src/routes/me.routes.js"),

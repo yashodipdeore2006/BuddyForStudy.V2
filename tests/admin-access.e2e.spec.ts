@@ -623,6 +623,10 @@ test.describe("administrator route and permission UX", () => {
     await expect(page.getByText("Failed notice")).toBeVisible();
     await expect(page.getByText(/Read-only delivery access/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Retry email/i })).toHaveCount(0);
+
+    await page.goto(baseURL + "/admin/design-system");
+    await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
+    await expect(page.getByText(/does not have permission to access this section/i)).toBeVisible();
   });
   test("[ADM-COMMUNICATION-SEND-FAILURE-001] notification queue failure preserves confirmation and permits retry", async ({ page }) => {
     let previewRequests = 0;

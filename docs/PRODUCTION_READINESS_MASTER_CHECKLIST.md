@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 23 / 239 |
+| Verified done | 24 / 239 |
 | Failed tasks | 2 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 201 / 239 |
+| Not checked | 200 / 239 |
 | Open findings | 3 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification) |
 | Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
@@ -71,7 +71,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-013** align CI and declared deployment Node versions.  
   Status: `DONE` · Evidence: `.nvmrc`, root/server `engines.node`, both lockfile root entries, and CI all specify Node `24.x`/`24`; CI uses `actions/checkout@v5` and `actions/setup-node@v5`. Production host settings still require post-deploy verification.
 - [x] **PR-014** use lockfile-based clean installs.  
-  Status: `DONE` · Evidence: frontend and backend `npm ci` both passed in [CI run 40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); `server/.npmrc` keeps optional-peer resolution consistent with the committed lockfile.
+  Status: `DONE` · Evidence: frontend and backend `npm ci` both passed on exact candidate `e8da7c08` in [CI run 40286388546](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40286388546); the formerly stale backend lockfile was regenerated in [commit 8e5484a](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/8e5484a), and backend `npm ci` passed again in the lockfile repair job. `server/.npmrc` preserves the intentional optional-peer resolution mode.
 - [x] **PR-015** review workflow permissions and fork secret exposure.  
   Status: `DONE` · Evidence: [CI workflow](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) explicitly grants only `contents: read`, uses `pull_request` (not `pull_request_target`), has no deployment secrets in steps, and sets checkout `persist-credentials: false`.
 - [x] **PR-016** scan for committed env files and secrets.  
@@ -80,8 +80,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`docs/RELEASE_NOTES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/RELEASE_NOTES.md) records verified changes, CI evidence, known risks, and explicit NOT READY status.
 - [ ] **PR-018** assign rollback and release decision owners.  
   Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
-- [ ] **PR-019** capture CI for exact candidate SHA.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-019** capture CI for exact candidate SHA.  
+  Status: `DONE` · Evidence: exact current `main` candidate `e8da7c08e27af3652f6fa378247caf1574482270` is green in [CI run 40286388546](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40286388546); both frontend and backend jobs completed successfully. The run includes the lockfile repair commit `8e5484a`.
 - [ ] **PR-020** block release while required checks are red or pending.  
   Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
@@ -575,6 +575,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Candidate `f7d800b` includes public environment inventory/type fixes | PR-021 retest pending | 17 | 3 | 8 | 211 | [Inventory fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/f7d800bf4926e5768034953c096f964f4091fbcc) | Source audit found missing public social-link vars and missing rollout flag types. Fix committed; keep `REL-005` open until CI typecheck/build passes on a candidate including these commits. |
 | 2026-10-26 | Candidate `51ece64` (SMTP/Web Push/Redis validator + canonical-route coverage) verified green | PR-021, PR-030 validation code | 23 | 2 | 13 | 201 | [Successful CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | Synthetic config preflight, backend lint/tests, frontend typecheck/build and canonical public/private route Playwright tests passed. Live SMTP/Web Push/Redis values remain a staging/provider task. |
 | 2026-10-26 | Security/auth-response candidate `2021402` | PR-033–PR-039 plus auth tasks under validation | 23 | 2 | 13 | 201 | [Last fully green relevant CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746); [current candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284256463) | Auth error responses now redact untrusted internal messages; do not mark the newest auth changes verified until the current CI run completes successfully. Branch protection and staging/provider gates remain open. |
+
+| 2026-10-26 | Exact current candidate `e8da7c08e27af3652f6fa378247caf1574482270` | PR-019 completed; PR-014 clean-install retest refreshed | 24 | 2 | 13 | 200 | [Green CI run 40286388546](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40286388546); [lockfile repair commit 8e5484a](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/8e5484a) | Frontend and backend jobs both succeeded on exact `main` candidate; backend `npm ci` is now verified against the regenerated lockfile. Release remains NOT READY because branch protection/release gating and live staging/provider verification remain open. |
 
 ## Related project documents
 

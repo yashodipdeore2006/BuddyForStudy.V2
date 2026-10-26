@@ -52,15 +52,22 @@ export async function register({
   if (existing) throw authError("Email is already registered", 409);
 
   const hashedPassword = await User.hashPassword(password);
-  const user = await User.create({
-    name: name.trim(),
-    email: normalizedEmail,
-    password: hashedPassword,
-    role: "user",
-    authProvider: "local",
-    emailVerified: false,
-    marketingEmailConsent: false
-  });
+  let user;
+  try {
+    user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: "user",
+      authProvider: "local",
+      emailVerified: false,
+      marketingEmailConsent: false
+    });
+  } catch (error) {
+    // The unique email index is the final arbiter when simultaneous registrations race.
+    if (error?.code === 11000) throw authError("Email is already registered", 409);
+    throw error;
+  }
 
   try {
     await otpService.sendOtp(user, "email_verification");
@@ -73,6 +80,7 @@ export async function register({
   } catch (error) {
     // A failed registration must not leave an unusable half-created account.
     await UserConsentEventDeleteBestEffort(user._id);
+    await AuthOtpDeleteBestEffort(user._id);
     await user.deleteOne();
     throw error;
   }
@@ -81,6 +89,15 @@ export async function register({
     requiresVerification: true,
     email: user.email
   };
+}
+
+async function AuthOtpDeleteBestEffort(userId) {
+  try {
+    const { AuthOtp } = await import("../models/AuthOtp.js");
+    await AuthOtp.deleteMany({ user: userId });
+  } catch {
+    // Preserve the original registration error; cleanup should not mask it.
+  }
 }
 
 async function UserConsentEventDeleteBestEffort(userId) {

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 14 / 239 |
+| Verified done | 15 / 239 |
 | Failed tasks | 2 / 239 |
 | Blocked | 2 / 239 |
-| Not checked | 221 / 239 |
+| Not checked | 220 / 239 |
 | Open findings | 2 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog) |
 | Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
@@ -568,7 +568,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|
-| 2026-10-26 | Candidate `1ada53c` (full CI run pending while recording this batch) | PR-001, PR-003, PR-005–PR-017, PR-019–PR-020 | 14 | 2 | 2 | 221 | [Previous green full CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); [candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280974805) | Branch protection/release gate fails; local working-tree state and named owners are blocked; backend unused-symbol warnings remain as P2 cleanup. |
+| 2026-10-26 | Candidate `1ada53c` (full CI run pending while recording this batch) | PR-001–PR-018, PR-020; PR-019 pending | 15 | 2 | 2 | 220 | [Previous green full CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); [candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280974805) | Branch protection/release gate fails; local working-tree state and named owners are blocked; backend unused-symbol warnings remain as P2 cleanup. |
 
 ## Related project documents
 

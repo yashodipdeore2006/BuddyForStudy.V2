@@ -3,6 +3,10 @@ import { getProductionConfigErrors } from "./productionConfigValidation.js";
 if (process.env.BUILD_WITH_AI_SELECTOR_MOCK !== "true") dotenv.config();
 
 const nodeEnv = process.env.NODE_ENV || "development";
+const configuredTrustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
+const trustProxyHops = Number.isInteger(configuredTrustProxyHops) && configuredTrustProxyHops >= 0 && configuredTrustProxyHops <= 10
+  ? configuredTrustProxyHops
+  : 0;
 if (nodeEnv === "production") {
   const errors = getProductionConfigErrors(process.env);
   if (errors.length) {
@@ -18,6 +22,7 @@ for (const key of required) {
 export const env = {
   nodeEnv,
   port: Number(process.env.PORT || 5000),
+  trustProxyHops,
   mongoUri: process.env.MONGO_URI,
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",

@@ -33,6 +33,7 @@
 |---|---|---|---|
 | `NODE_ENV` | Set to `production` in production | No | Enables fail-closed production configuration validation. |
 | `PORT` | Platform-dependent; defaults to `5000` | No | HTTP listener port. Let the hosting platform supply it where required. |
+| `TRUST_PROXY_HOPS` | **Explicitly required in production** | No | Integer from `0` to `10` that matches the exact trusted reverse-proxy hop count in the deployment. `0` means no trusted proxy. Set based on verified provider/network topology; do not guess or use blanket trust. Used by Express so per-IP rate limiting sees the correct client address. |
 | `MONGO_URI` | Required | **Yes** | Production validator requires a non-loopback MongoDB URI, an explicit database name, username/password credentials, and TLS (`mongodb+srv` defaults to TLS; `mongodb://` must specify `tls=true` or `ssl=true`). Use least-privilege credentials. |
 | `JWT_SECRET` | Required | **Yes** | Signs application JWTs. Production must use a unique, high-entropy, non-placeholder value with at least 32 characters. Rotate deliberately and account for session invalidation. |
 | `JWT_EXPIRES_IN` | Optional; defaults to `7d` | No | JWT lifetime accepted by the token library. Review against session policy. |

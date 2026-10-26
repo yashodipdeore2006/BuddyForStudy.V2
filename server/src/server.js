@@ -36,6 +36,7 @@ import consentRoutes from "./routes/consent.routes.js";
 import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import adminTrialsRoutes from "./routes/adminTrials.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
+import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 
 const app = express();
@@ -56,7 +57,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
-app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
+app.use(morgan(safeRequestLog));
 // A learner page can legitimately request course data, enrollment state, saved
 // state and reviews in parallel. Keep a broad abuse-protection ceiling here;
 // sensitive endpoints retain their own stricter auth/payment limiters.
@@ -120,7 +121,11 @@ connectDatabase()
     });
   })
   .catch((error) => {
-    console.error("Failed to start server:", error);
+    console.error("Failed to start server:", {
+      name: error?.name || "Error",
+      code: typeof error?.code === "string" || typeof error?.code === "number" ? error.code : undefined,
+      ...(env.nodeEnv === "production" ? {} : { message: String(error?.message || "Unknown startup error").slice(0, 1000) })
+    });
     process.exit(1);
   });
 

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 7 / 239 |
-| Failed / defects found | 2 / 239 |
+| Verified done | 8 / 239 |
+| Failed / defects found | 3 / 239 |
 | Blocked | 0 / 239 (not yet classified) |
-| Not checked | 230 / 239 |
+| Not checked | 228 / 239 |
 | Release decision | **NOT READY — execution not complete** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
@@ -43,28 +43,28 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### A. Release controls and CI
 
-- [ ] **PR-001** record candidate main SHA and release tag.  
+- [x] **PR-001** record candidate main SHA and release tag.  
   Status: `DONE` · Evidence: [candidate commit `357a54e`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/357a54e6fa7d8b0829906b2a58c266e9f0b8bb81) · Finding/fix: —
 - [ ] **PR-002** confirm clean working tree.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-003** review commits since last green CI.  
+- [x] **PR-003** review commits since last green CI.  
   Status: `DONE` · Evidence: [latest previously green run on `6c0967f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); only checklist documentation followed that candidate at time of review · Finding/fix: —
 - [ ] **PR-004** confirm main branch protection.  
   Status: `FAIL` · Evidence: GitHub API reports `main.protected = false` · Finding: `REL-001` — configure branch protection/ruleset; connector does not expose a write operation for this setting.
 - [ ] **PR-005** confirm CI runs on push and pull request.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-006** make frontend lint blocking.  
+  Status: `DONE` · Evidence: [`.github/workflows/ci.yml`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) defines push for `main`/`test` and pull requests targeting `main` · Finding/fix: —
+- [x] **PR-006** make frontend lint blocking.  
   Status: `DONE` · Evidence: [`.github/workflows/ci.yml`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) runs `npm run lint` without `continue-on-error`; the frontend job passed in [run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
-- [ ] **PR-007** verify frontend typecheck blocks.  
-  Status: \`DONE\` · Evidence: [successful typecheck in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
-- [ ] **PR-008** verify frontend unit tests block.  
-  Status: \`DONE\` · Evidence: [successful frontend unit tests in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
-- [ ] **PR-009** verify production build blocks.  
-  Status: \`DONE\` · Evidence: [successful production build in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
-- [ ] **PR-010** verify backend tests block.  
-  Status: \`DONE\` · Evidence: [successful backend tests in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
+- [x] **PR-007** verify frontend typecheck blocks.  
+  Status: `DONE` · Evidence: [successful typecheck in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
+- [x] **PR-008** verify frontend unit tests block.  
+  Status: `DONE` · Evidence: [successful frontend unit tests in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
+- [x] **PR-009** verify production build blocks.  
+  Status: `DONE` · Evidence: [successful production build in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
+- [x] **PR-010** verify backend tests block.  
+  Status: `DONE` · Evidence: [successful backend tests in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
 - [ ] **PR-011** enforce backend lint and syntax checks.  
-  Status: \`FAIL\` · Evidence: [CI workflow](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) runs server syntax check but has no backend lint step · Finding/fix: REL-002: add blocking `npm run lint` in server job
+  Status: `FAIL` · Evidence: [CI workflow](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) runs server syntax check but has no backend lint step · Finding/fix: REL-002: add blocking `npm run lint` in server job
 - [ ] **PR-012** make browser smoke tests block.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-013** align CI and production Node versions.  
@@ -561,12 +561,13 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 |---|---|---|---|---|---|---|---|
 | REL-001 | P1 | PR-004 | GitHub API: `main.protected=false` | Branch protection/ruleset not enabled or not exposed | Manual repository settings required | Require CI checks and PR review | BLOCKED on settings access |
 | REL-002 | P1 | PR-011 | `.github/workflows/ci.yml` has no server `npm run lint` step | Backend lint is not a required CI gate | Add blocking backend lint step on `main` | Backend lint + full CI | OPEN |
+| REL-003 | P1 | PR-013 | CI installs backend dependencies with `npm install` | Backend dependency install is not a strict clean lockfile install | Switch backend CI to `npm ci` after confirming lockfile is committed | Backend tests + full CI | OPEN |
 
 ## Execution log
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|
-| 2026-10-26 | `6c0967f` code candidate; checklist follow-up commits pending CI | PR-001, PR-003, PR-004, PR-006–PR-011 | 7 | 2 | 0 | 230 | [Last green run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); [latest run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40279307377) | `main` is unprotected and backend lint is missing from required CI. Latest docs-only candidate CI is queued. |
+| 2026-10-26 | `6c0967f` code candidate; checklist follow-up commits pending CI | PR-001, PR-003–PR-006, PR-007–PR-010, PR-013 | 8 | 3 | 0 | 228 | [Last green run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); [latest run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40279307377) | `main` is unprotected; backend lint is missing from CI; backend install should use `npm ci`. Latest candidate CI is pending. |
 
 ## Related project documents
 

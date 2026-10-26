@@ -82,7 +82,7 @@ test("OTP resend after cooldown stores only a keyed digest and sends the matchin
 
     const stored = state.calls.creations[0];
     const message = state.calls.messages[0];
-    const code = message.html.match(/color:#2563eb">([0-9]{6})<\\/div>/)?.[1];
+    const code = message.html.match(/color:#2563eb">([0-9]{6})<\/div>/)?.[1];
     assert.ok(code, "the outgoing email should contain a six-digit OTP");
     assert.match(stored.codeHash, /^[a-f0-9]{64}$/);
     assert.equal(stored.codeHash, crypto.createHmac("sha256", process.env.JWT_SECRET).update(code).digest("hex"));

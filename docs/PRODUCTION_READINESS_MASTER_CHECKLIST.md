@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 66 / 239 |
+| Verified done | 70 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 156 / 239 |
+| Not checked | 152 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -81,7 +81,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-018** assign rollback and release decision owners.  
   Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
 - [x] **PR-019** capture CI for exact candidate SHA.  
-  Status: `DONE` · Evidence: exact current code candidate `f0e4784d7f703801f8a84d464f5d49bca8def7e9` is green in [CI run 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526), including backend tests/lint, frontend lint/typecheck/build, and all browser navigation/admin/auth/course-player regression tests. Checklist documentation commits follow the tested code candidate.
+  Status: `DONE` · Evidence: exact candidate `6afca87678f4fb181ad5d10e3c1a8226214edfd2` is green in [CI run 40312089329](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329). Backend tests/lint/config preflight and frontend lint/typecheck/unit tests/production build/browser tests passed, including admin deletion confirmation, direct-route permissions, catalogue sort/pagination, loading, and offline retry. Checklist documentation changes follow the tested code candidate.
 - [ ] **PR-020** block release while required checks are red or pending.  
   Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
@@ -195,8 +195,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`adminUserStatusAudit.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminUserStatusAudit.test.js) and [`adminProUserStatusReason.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminProUserStatusReason.test.js) verify reason bounds, before/after audit evidence and administrator-account restrictions; [`admin-access.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/admin-access.e2e.spec.ts) verifies disable/reactivate confirmation and retry behavior. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
 - [x] **PR-071** test role-change authorization and audit.  
   Status: `DONE` · Evidence: [`adminRolesController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRolesController.test.js) verifies role-change audit/queue behavior, last-active Super Admin protection, governance lock and reason validation; route authorization tests verify the `admin_roles.manage` permission boundary. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
-- [ ] **PR-072** test destructive-action confirmation and server validation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-072** test destructive-action confirmation and server validation.  
+  Status: `DONE` · Evidence: [`adminCourseContentDeletion.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminCourseContentDeletion.test.js) verifies module/lesson/resource deletes reject missing, short, oversized reasons and malformed identifiers before database access. [`admin-access.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/admin-access.e2e.spec.ts) verifies deletion requires the exact typed phrase and a reason, and sends that reason to the API. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
 - [x] **PR-073** test consent capture withdrawal and timestamps.  
   Status: `DONE` · Evidence: [`consentPersistence.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/consentPersistence.test.js) verifies Terms/Privacy versions/timestamps, marketing opt-in synchronization, withdrawal timestamps, and immutable consent events; [`consentValidation.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/consentValidation.test.js) covers input/event validation. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
 - [x] **PR-074** separate marketing and transactional consent.  
@@ -209,15 +209,15 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`auditSanitizer.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/auditSanitizer.test.js), [`safeDeliveryError.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/safeDeliveryError.test.js), [`safeRequestLog.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/safeRequestLog.test.js), and [`sentryEventSanitizer.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/sentryEventSanitizer.test.js) cover secret-like keys, URL/query leakage, credential headers, provider errors and bounded diagnostics. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
 - [ ] **PR-078** review privacy retention export and deletion obligations.  
   Status: `FAIL` · Evidence: [`docs/CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md` C16](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md) identifies export/deletion/correction and retention as unimplemented; [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) is a proposed procedure, not runtime functionality. Shares P1 finding `DATA-001`: there is no complete authenticated data export/deletion workflow, approved category-level retention schedule, legal-hold workflow, backup-expiry policy, or verified deletion outcome.
-- [ ] **PR-079** compare admin route permissions with page and data access.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-079** compare admin route permissions with page and data access.  
+  Status: `DONE` · Evidence: [`adminPagePermissionCoverage.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminPagePermissionCoverage.test.js) inventories all App `/admin` routes and requires an explicit page permission; [`adminRoutePermissionCoverage.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRoutePermissionCoverage.test.js) and [`adminRouteAuthorization.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRouteAuthorization.test.js) cover backend endpoint gates. Browser regression directly visits `/admin/design-system` under a restricted role. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
 
 ### E. Catalogue and pricing
 
-- [ ] **PR-080** test catalogue search filters sort and pagination.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-081** test catalogue empty loading error offline retry states.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-080** test catalogue search filters sort and pagination.  
+  Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies query/level/category filters sync with the request in `[EXP-SEARCH-001]` and verifies Title A–Z sorting, 12-item pagination, and next/previous page navigation in `[EXP-CATALOG-SORT-PAGE-001]`. Explore now offers Recent, Popular, and Title A–Z options and resets pagination when filters or sorting change. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
+- [x] **PR-081** test catalogue empty loading error offline retry states.  
+  Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) tests delayed catalogue loading skeletons in `[EXP-CATALOG-LOADING-001]` and disconnect/retry recovery in `[EXP-CATALOG-RETRY-001]`. UI renders a shared retryable error for failed catalogue requests, keeps empty results distinct from loading, and retries without a full page reload. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
 - [ ] **PR-082** test course details missing fields and long titles.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-083** test card navigation and independent action buttons.  
@@ -586,6 +586,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | 2026-10-26 | Exact code candidate `f0e4784d7f703801f8a84d464f5d49bca8def7e9` | PR-103 and PR-104 verified | 66 | 4 | 13 | 156 | [Green CI 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526); [idempotency test commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/f0e4784d7f703801f8a84d464f5d49bca8def7e9) | Uncompletion updates the UI immediately without a refresh; backend repeated completion remains idempotent and records learning activity once. Quiz completion and failed-save retry behavior remain green. DATA-001 and release-control/staging gates remain open. |
 
+| 2026-10-26 | Exact candidate `6afca87678f4fb181ad5d10e3c1a8226214edfd2` | PR-072, PR-079–PR-081 verified | 70 | 4 | 13 | 152 | [Green CI run 40312089329](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329); [audited deletion commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a00e12019e41d4a6e4f3122d6e8baa50bc98241c); [catalogue UI commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0b714b7c327586eede79e015c22dba64b52d8d96) | Destructive content deletion now requires ID validation, typed confirmation, and an auditable reason; admin page permission inventory passes; Explore now has sort, pagination, loading, and offline retry tests. DATA-001 remains P1, as do branch protection and staging/provider launch gates. |
 ## Related project documents
 
 - `docs/BUG_HISTORY_AND_PLATFORM_AUDIT.md` — reported bugs, known fixes and audit candidates.

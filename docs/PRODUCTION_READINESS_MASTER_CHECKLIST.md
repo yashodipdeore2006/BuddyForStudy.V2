@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 43 / 239 |
-| Failed tasks | 3 / 239 |
+| Verified done | 60 / 239 |
+| Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 180 / 239 |
+| Not checked | 162 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -81,7 +81,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-018** assign rollback and release decision owners.  
   Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
 - [x] **PR-019** capture CI for exact candidate SHA.  
-  Status: `DONE` · Evidence: latest code candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` passed frontend and backend in [CI run 40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107), including backend lint/tests, production-config preflight, frontend lint/typecheck/unit tests/build, Playwright navigation/admin/Google-auth/login-accessibility suites; the checklist documentation change follows that tested code candidate.
+  Status: `DONE` · Evidence: exact current `main` code candidate `392be5a5a90b8e4418abe42767cf113dc1c824bb` is green in [CI run 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679); frontend and backend jobs passed, including user-data ownership, consent capture/withdrawal, PII redaction, session revocation, and browser smoke tests.
 - [ ] **PR-020** block release while required checks are red or pending.  
   Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
@@ -171,44 +171,44 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### D. Authorization and privacy
 
-- [ ] **PR-060** enumerate roles and fail closed for unknown roles.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-061** verify every admin API permission middleware.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-062** verify frontend guards are not security boundaries.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-063** test unauthenticated protected API access.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-064** test cross-user profile notes progress and saved items.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-065** test learner denial for admin APIs.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-066** test admin role allowed and denied actions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-067** test export permissions fields and limits.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-068** test PII reveal reason permission and audit.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-069** mask PII in lists logs notifications and errors.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-070** test admin status-change reason and audit.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-071** test role-change authorization and audit.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-060** enumerate roles and fail closed for unknown roles.  
+  Status: `DONE` · Evidence: [`adminRbac.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRbac.test.js) and [`adminAuthMiddleware.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminAuthMiddleware.test.js) cover declared role profiles and fail-closed behavior for unknown roles, permissions, and permission overrides. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-061** verify every admin API permission middleware.  
+  Status: `DONE` · Evidence: [`adminRoutePermissionCoverage.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRoutePermissionCoverage.test.js), [`adminRouteAuthorization.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRouteAuthorization.test.js), and [`adminLegacyRouteAuthorization.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminLegacyRouteAuthorization.test.js) enumerate protected route permission gates, verify role access, and reject forged principals. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-062** verify frontend guards are not security boundaries.  
+  Status: `DONE` · Evidence: [`adminRouteAuthorization.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRouteAuthorization.test.js) verifies registered admin routes do not rely on frontend navigation for security; backend middleware enforces role/permission checks. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-063** test unauthenticated protected API access.  
+  Status: `DONE` · Evidence: [`adminAuthMiddleware.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminAuthMiddleware.test.js) tests missing bearer and invalid tokens; [`adminMiddleware.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminMiddleware.test.js) rejects unauthenticated/non-admin principals. Protected admin, progress and saved-course routes are mounted behind authentication. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-064** test cross-user profile notes progress and saved items.  
+  Status: `DONE` · Evidence: [`userDataOwnership.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/userDataOwnership.test.js) verifies progress and saved-course reads/writes use the authenticated user, profile/consent mutations derive identity from the authenticated principal, and timestamped lesson notes are namespaced by user/course. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-065** test learner denial for admin APIs.  
+  Status: `DONE` · Evidence: [`adminRouteAuthorization.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRouteAuthorization.test.js) verifies a learner role, mismatched access type, or forged permission metadata cannot pass admin permission gates. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-066** test admin role allowed and denied actions.  
+  Status: `DONE` · Evidence: [`adminRbac.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRbac.test.js), [`adminMiddleware.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminMiddleware.test.js), and route-authorization tests cover finance, publishing, support, and administrator-governance role boundaries. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-067** test export permissions fields and limits.  
+  Status: `DONE` · Evidence: [`adminProUserExportValidation.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminProUserExportValidation.test.js) verifies selected IDs, malformed/oversized selection and reason rejection, allowlisted fields, sort bounds, row limit, and audit event. [`admin-access.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/admin-access.e2e.spec.ts) requires a reason and exact `EXPORT 1 USERS` confirmation. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-068** test PII reveal reason permission and audit.  
+  Status: `DONE` · Evidence: [`adminPiiReveal.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminPiiReveal.test.js) covers reason validation, redacted audit before revealing PII, fail-closed behavior if both audit stores fail, and masked lists. [`admin-access.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/admin-access.e2e.spec.ts) tests the permission/reason UI. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-069** mask PII in lists logs notifications and errors.  
+  Status: `DONE` · Evidence: [`adminPiiReveal.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminPiiReveal.test.js) verifies masked lists; [`adminSensitiveOutput.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminSensitiveOutput.test.js) verifies delivery-log email/URL redaction; [`safeRequestLog.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/safeRequestLog.test.js), [`auditSanitizer.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/auditSanitizer.test.js), and [`sentryEventSanitizer.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/sentryEventSanitizer.test.js) cover secrets in logs, audit snapshots and telemetry. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-070** test admin status-change reason and audit.  
+  Status: `DONE` · Evidence: [`adminUserStatusAudit.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminUserStatusAudit.test.js) and [`adminProUserStatusReason.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminProUserStatusReason.test.js) verify reason bounds, before/after audit evidence and administrator-account restrictions; [`admin-access.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/admin-access.e2e.spec.ts) verifies disable/reactivate confirmation and retry behavior. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-071** test role-change authorization and audit.  
+  Status: `DONE` · Evidence: [`adminRolesController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminRolesController.test.js) verifies role-change audit/queue behavior, last-active Super Admin protection, governance lock and reason validation; route authorization tests verify the `admin_roles.manage` permission boundary. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
 - [ ] **PR-072** test destructive-action confirmation and server validation.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-073** test consent capture withdrawal and timestamps.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-074** separate marketing and transactional consent.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-075** test fail-closed behavior when audit persistence fails.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-076** test audit outbox retry dedupe and dual-store failure.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-077** redact passwords tokens OTPs and payment secrets.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-073** test consent capture withdrawal and timestamps.  
+  Status: `DONE` · Evidence: [`consentPersistence.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/consentPersistence.test.js) verifies Terms/Privacy versions/timestamps, marketing opt-in synchronization, withdrawal timestamps, and immutable consent events; [`consentValidation.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/consentValidation.test.js) covers input/event validation. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-074** separate marketing and transactional consent.  
+  Status: `DONE WITH LIMITATION` · Evidence: [`consentPersistence.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/consentPersistence.test.js) and [`consentValidation.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/consentValidation.test.js) verify marketing opt-in/withdrawal syncs only the announcements preference and records separate consent; authentication OTP email is handled by the separate transactional [`otp.service.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/otp.service.js). Real provider delivery remains a staging gate under REL-004. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-075** test fail-closed behavior when audit persistence fails.  
+  Status: `DONE` · Evidence: [`adminPiiReveal.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminPiiReveal.test.js) verifies PII is not returned when both primary audit persistence and outbox fallback fail; [`auditOutbox.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/auditOutbox.service.test.js) covers dual-store failure. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-076** test audit outbox retry dedupe and dual-store failure.  
+  Status: `DONE` · Evidence: [`auditOutbox.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/auditOutbox.service.test.js) tests retry queueing, idempotent replay/dedupe, bounded exponential backoff, and failure when both stores are unavailable. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
+- [x] **PR-077** redact passwords tokens OTPs and payment secrets.  
+  Status: `DONE` · Evidence: [`auditSanitizer.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/auditSanitizer.test.js), [`safeDeliveryError.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/safeDeliveryError.test.js), [`safeRequestLog.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/safeRequestLog.test.js), and [`sentryEventSanitizer.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/sentryEventSanitizer.test.js) cover secret-like keys, URL/query leakage, credential headers, provider errors and bounded diagnostics. Passed in [CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679).
 - [ ] **PR-078** review privacy retention export and deletion obligations.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `FAIL` · Evidence: [`docs/CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md` C16](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md) identifies export/deletion/correction and retention as unimplemented; [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) is a proposed procedure, not runtime functionality. Shares P1 finding `DATA-001`: there is no complete authenticated data export/deletion workflow, approved category-level retention schedule, legal-hold workflow, backup-expiry policy, or verified deletion outcome.
 - [ ] **PR-079** compare admin route permissions with page and data access.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 
@@ -567,7 +567,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | REL-005 | P2 | PR-021 | `src/lib/socialLinks.ts` had Facebook/GitHub social variables and rollout flags missing from example/types | Frontend env types and inventory drifted from actual public flags and social-link usage | `3b67883`, `d152ea3`, `f7d800b` | Frontend typecheck and current env/type inventory inspection; successful CI run [40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — current example, declarations, code and inventory agree |
 | REL-006 | P1 | PR-030 | CI run [40283675707](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283675707) exposed malformed Web Push URL regex syntax | SMTP/Web Push/Redis config validation was added before its final regex source was syntactically valid | `51ece64` | Backend lint, synthetic production config preflight, tests and canonical-route Playwright tests pass in [CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — keep live SMTP provider delivery under REL-004 staging gate |
 | AUTH-001 | P1 | PR-051–PR-053 | Logout previously cleared only the local browser token and issued JWTs remained valid until expiry; password change/reset did not invalidate other sessions | Tokens had no per-user revocation/version check | `0dd1377` | [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) tests stale/legacy/expired tokens, multi-device logout revocation and password rotation; exact-candidate CI [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104) passed | RESOLVED — token version now checked in required and optional auth middleware; logout increments it atomically; password change/reset atomically rotate it and return a fresh token |
-| DATA-001 | P1 | PR-056 | The consent audit plan states a full account export/deletion rights workflow was not found; route/source review found no authenticated request tracker or deletion/export orchestrator | Account data rights/retention process is described generically in policy/contact copy but has no operational workflow, approved category-by-category retention schedule, legal-hold path, or verified deletion/export outcome | Proposed procedure documented in [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md); runtime fix not yet implemented | Required: identity-verified request tracking, permission-scoped export, reviewed idempotent deletion/anonymization orchestration, retention/legal-hold handling, backup expiry, retry and post-operation verification tests | OPEN — P1 launch blocker; proposed document is not implementation evidence |
+| DATA-001 | P1 | PR-056, PR-078 | The consent audit plan states a full account export/deletion rights workflow was not found; route/source review found no authenticated request tracker or deletion/export orchestrator | Account data rights/retention process is described generically in policy/contact copy but has no operational workflow, approved category-by-category retention schedule, legal-hold path, or verified deletion/export outcome | Proposed procedure documented in [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md); runtime fix not yet implemented | Required: identity-verified request tracking, permission-scoped export, reviewed idempotent deletion/anonymization orchestration, retention/legal-hold handling, backup expiry, retry and post-operation verification tests | OPEN — P1 launch blocker; proposed document is not implementation evidence |
 
 ## Execution log
 
@@ -579,6 +579,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Security/auth-response candidate `2021402` | PR-033–PR-039 plus auth tasks under validation | 23 | 2 | 13 | 201 | [Last fully green relevant CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746); [current candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284256463) | Auth error responses now redact untrusted internal messages; do not mark the newest auth changes verified until the current CI run completes successfully. Branch protection and staging/provider gates remain open. |
 
 | 2026-10-26 | Code candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` verified green | PR-054–PR-059 checked; PR-056 FAIL recorded | 43 | 3 | 13 | 180 | [Green exact-code CI 40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107); [privacy workflow gap](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) | Blocking CI passed frontend and backend jobs, including actual auth limiter behavior and login accessibility tests. Current `main` also has checklist documentation follow-up. `DATA-001` remains a P1 launch blocker; branch protection and live staging/provider checks remain open. |
+
+| 2026-10-26 | Exact candidate `392be5a5a90b8e4418abe42767cf113dc1c824bb` | PR-060–PR-071, PR-073–PR-078 verified | 60 | 4 | 13 | 162 | [Green CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679); [ownership test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1422120a3c3d184daf9e8b2c8c818e7dc8945a34); [consent test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/392be5a5a90b8e4418abe42767cf113dc1c824bb) | Verified role/permission boundaries, user-data ownership, export controls, PII/error redaction, role/status audit, consent persistence/withdrawal, and audit outbox behavior. DATA-001 remains a P1 failure under PR-056 and PR-078; PR-072 and PR-079 remain unchecked pending exhaustive destructive-action/page-to-permission mapping. |
 
 ## Related project documents
 

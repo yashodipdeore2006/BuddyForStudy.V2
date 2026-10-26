@@ -79,9 +79,9 @@ test("notification delivery logs mask recipient PII and redact provider email ad
     assert.equal(res.body.deliveries.length, 1);
     const delivery = res.body.deliveries[0];
     assert.equal(delivery.recipient.email, "l***@example.test");
-    assert.equal(delivery.channels.email.error, "[masked email] at [provider URL]");
-    assert.equal(delivery.channels.push.error, "[masked email] at [provider URL]");
-    assert.equal(delivery.retryHistory[0].previousError, "[masked email] at [provider URL]");
+    assert.equal(delivery.channels.email.error, "SMTP rejected [masked email] at [provider URL]");
+    assert.equal(delivery.channels.push.error, "Push failed for [masked email] at [provider URL]");
+    assert.equal(delivery.retryHistory[0].previousError, "Failure for [masked email] at [provider URL]");
     const serialized = JSON.stringify(res.body);
     assert.equal(serialized.includes(rawEmail), false);
     assert.equal(serialized.includes("https://"), false);

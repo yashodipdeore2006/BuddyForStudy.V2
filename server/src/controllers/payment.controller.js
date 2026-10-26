@@ -32,6 +32,40 @@ export async function createCourseOrder(req, res, next) {
     const lockToken = await acquireCheckoutLock(lockKey);
     if (!lockToken) return failure(res, "A checkout for this course is already being prepared. Retry in a moment.", 409);
     try {
+    const pendingCourseCheckout = await Payment.findOne({
+      user: req.user.userId,
+      course: course._id,
+      provider: "razorpay",
+      status: "pending",
+      "metadata.checkoutType": "course"
+    }).sort({ createdAt: -1 });
+    if (pendingCourseCheckout) {
+      const pendingAmount = Number(pendingCourseCheckout.amount);
+      const pendingCurrency = String(pendingCourseCheckout.currency || "INR").toUpperCase();
+      const requestedCurrency = String(course.pricing.currency || "INR").toUpperCase();
+      if (
+        !pendingCourseCheckout.providerOrderId ||
+        !Number.isFinite(pendingAmount) ||
+        pendingAmount <= 0 ||
+        pendingAmount !== amount ||
+        pendingCurrency !== requestedCurrency
+      ) {
+        return failure(res, "A pending checkout exists for this course with different or incomplete pricing. Contact support before retrying.", 409, {
+          paymentId: String(pendingCourseCheckout._id)
+        });
+      }
+      return success(res, {
+        paymentId: pendingCourseCheckout._id,
+        order: {
+          id: pendingCourseCheckout.providerOrderId,
+          amount: Math.round(pendingAmount * 100),
+          currency: pendingCurrency
+        },
+        keyId: razorpay.getPublicKey(),
+        course: { id: course._id, title: course.title, amount: pendingAmount }
+      }, "Existing course checkout reused");
+    }
+
     const receipt = "bfs_" + Date.now().toString(36) + "_" + req.user.userId.slice(-8);
     const order = await razorpay.createOrder({
       amount,

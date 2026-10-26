@@ -1,63 +1,9 @@
 import { z } from "zod";
+import { registerSchema, loginSchema, loginOtpSchema, googleSchema, otpSchema, resendOtpSchema, forgotPasswordSchema, resetPasswordSchema, profileSchema, changePasswordSchema } from "../validation/authSchemas.js";
 import * as authService from "../services/auth.service.js";
 import { env } from "../config/env.js";
 import { success, failure } from "../utils/response.js";
 import { authErrorResponse } from "../utils/authErrorResponse.js";
-
-const registerSchema = z.object({
-  name: z.string().trim().min(2).max(100),
-  email: z.string().trim().email(),
-  password: z.string().min(8).max(128),
-  termsAccepted: z.literal(true, { error: "You must agree to the Terms of Service." }),
-  privacyAcknowledged: z.literal(true, { error: "Please acknowledge the Privacy Policy." }),
-  marketingEmailConsent: z.boolean().default(false)
-});
-
-const loginSchema = z.object({
-  email: z.string().trim().email(),
-  password: z.string().min(1).max(128)
-});
-
-const loginOtpSchema = z.object({
-  email: z.string().trim().email(),
-  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code")
-});
-
-const googleSchema = z.object({
-  credential: z.string().min(1),
-  termsAccepted: z.literal(true).optional(),
-  privacyAcknowledged: z.literal(true).optional(),
-  marketingEmailConsent: z.boolean().optional()
-});
-
-const otpSchema = z.object({
-  email: z.string().trim().email(),
-  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code")
-});
-
-const resendOtpSchema = z.object({
-  email: z.string().trim().email(),
-  purpose: z.enum(["email_verification", "login_verification", "password_reset"])
-});
-
-const forgotPasswordSchema = z.object({
-  email: z.string().trim().email()
-});
-
-const resetPasswordSchema = z.object({
-  email: z.string().trim().email(),
-  otp: z.string().regex(/^\d{6}$/, "OTP must be a 6-digit code"),
-  newPassword: z.string().min(8).max(128)
-});
-
-const profileSchema = z.object({
-  name: z.string().trim().min(2).max(100)
-});
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1).max(128),
-  newPassword: z.string().min(8).max(128)
-});
 
 export async function register(req, res) {
   try {

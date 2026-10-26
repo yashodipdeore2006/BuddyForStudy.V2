@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, setAuth } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, Pencil, X } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
@@ -313,10 +313,15 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
 
     setSavingPassword(true);
     try {
-      await apiFetch("/api/auth/change-password", {
+      const result = await apiFetch<{ token?: string; user?: unknown }>("/api/auth/change-password", {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword }),
       });
+      // Password changes invalidate previously issued tokens; keep this browser signed in
+      // with the newly issued token for the rotated account version.
+      if (typeof result.token === "string" && result.user) {
+        setAuth(result.token, result.user);
+      }
       setPasswordSuccess(true);
       setCurrentPassword("");
       setNewPassword("");

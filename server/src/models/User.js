@@ -47,6 +47,13 @@ const userSchema = new mongoose.Schema(
       default: true,
       required: true
     },
+    // Increment this to invalidate all access tokens previously issued to the account.
+    authTokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+      required: true
+    },
     emailVerified: {
       type: Boolean,
       default: false,
@@ -141,6 +148,7 @@ userSchema.statics.hashPassword = function hashPassword(password) {
 userSchema.set("toJSON", {
   transform: (_doc, ret) => {
     delete ret.password;
+    delete ret.authTokenVersion;
     delete ret.__v;
     return ret;
   }

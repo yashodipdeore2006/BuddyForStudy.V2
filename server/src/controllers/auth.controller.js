@@ -156,8 +156,13 @@ export async function changePassword(req, res) {
   }
 }
 
-export function logout(_req, res) {
-  return success(res, {}, "Logout successful");
+export async function logout(req, res) {
+  try {
+    await authService.revokeAllSessions(req.user.userId);
+    return success(res, {}, "Signed out from all sessions");
+  } catch (error) {
+    return authErrorResponse(res, error);
+  }
 }
 
 export async function me(req, res) {

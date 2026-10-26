@@ -3,6 +3,7 @@ import { User } from "../models/User.js";
 import { env } from "../config/env.js";
 import { failure } from "../utils/response.js";
 import { hasAdminPermission } from "../utils/adminRbac.js";
+import { isTokenVersionCurrent } from "../utils/jwt.js";
 
 export async function authMiddleware(req, res, next) {
   try {
@@ -19,6 +20,9 @@ export async function authMiddleware(req, res, next) {
 
     if (!user) return failure(res, "User not found", 401);
     if (!user.isActive) return failure(res, "Account is inactive", 401);
+    if (!isTokenVersionCurrent(payload, user)) {
+      return failure(res, "Authentication token has been revoked", 401);
+    }
 
     req.user = {
       userId: user._id.toString(),
@@ -80,6 +84,9 @@ export async function optionalAuthMiddleware(req, res, next) {
 
     if (!user) return failure(res, "User not found", 401);
     if (!user.isActive) return failure(res, "Account is inactive", 401);
+    if (!isTokenVersionCurrent(payload, user)) {
+      return failure(res, "Authentication token has been revoked", 401);
+    }
 
     req.user = {
       userId: user._id.toString(),

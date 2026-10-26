@@ -35,6 +35,39 @@ function authError(message, status = 400) {
   return error;
 }
 
+function authTokenVersionFilter(user) {
+  const version = Number.isSafeInteger(user.authTokenVersion) && user.authTokenVersion >= 0
+    ? user.authTokenVersion
+    : 0;
+  if (version === 0) {
+    // Some existing accounts predate the version field and still need revocation support.
+    return {
+      _id: user._id,
+      $or: [
+        { authTokenVersion: 0 },
+        { authTokenVersion: { $exists: false } }
+      ]
+    };
+  }
+  return { _id: user._id, authTokenVersion: version };
+}
+
+async function updatePasswordAndRotateSessions(user, passwordHash, additionalFields = {}) {
+  const updatedUser = await User.findOneAndUpdate(
+    authTokenVersionFilter(user),
+    {
+      $set: { ...additionalFields, password: passwordHash },
+      $inc: { authTokenVersion: 1 }
+    },
+    { new: true, runValidators: true }
+  ).select("+password");
+
+  if (!updatedUser) {
+    throw authError("Account security settings changed. Please retry.", 409);
+  }
+  return updatedUser;
+}
+
 export async function register({
   name,
   email,
@@ -136,6 +169,16 @@ export async function login({ email, password }) {
   });
 }
 
+
+
+export async function revokeAllSessions(userId) {
+  const result = await User.updateOne(
+    { _id: userId },
+    { $inc: { authTokenVersion: 1 } }
+  );
+  if (!result?.matchedCount) throw authError("User not found", 404);
+  return { revoked: true };
+}
 
 export async function verifyLogin({ email, otp }) {
   const record = await otpService.verifyOtp({ email, purpose: "login_verification", code: otp });
@@ -239,9 +282,9 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
   const valid = await user.comparePassword(currentPassword);
   if (!valid) throw authError("Current password is incorrect", 401);
 
-  user.password = await User.hashPassword(newPassword);
-  await user.save();
-  return { user: publicUser(user) };
+  const passwordHash = await User.hashPassword(newPassword);
+  const updatedUser = await updatePasswordAndRotateSessions(user, passwordHash);
+  return { user: publicUser(updatedUser), token: signAccessToken(updatedUser) };
 }
 
 
@@ -301,9 +344,8 @@ export async function resetPassword({ email, otp, newPassword }) {
     throw authError("This account does not use an email password.", 400);
   }
 
-  user.password = await User.hashPassword(newPassword);
-  user.emailVerified = true;
-  await user.save();
+  const passwordHash = await User.hashPassword(newPassword);
+  const updatedUser = await updatePasswordAndRotateSessions(user, passwordHash, { emailVerified: true });
 
-  return { user: publicUser(user), token: signAccessToken(user) };
+  return { user: publicUser(updatedUser), token: signAccessToken(updatedUser) };
 }

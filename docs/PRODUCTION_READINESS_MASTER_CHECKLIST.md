@@ -12,10 +12,10 @@
 |---|---:|
 | Total tasks | 239 |
 | Verified done | 17 / 239 |
-| Failed tasks | 3 / 239 |
+| Failed tasks | 4 / 239 |
 | Blocked | 8 / 239 |
-| Not checked | 211 / 239 |
-| Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; REL-005 P2 frontend env inventory/type drift) |
+| Not checked | 210 / 239 |
+| Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; REL-005 P2 frontend env inventory/type drift; REL-006 P1 config-validator CI failure) |
 | Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
@@ -106,7 +106,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-029** verify YouTube API restrictions and quota.  
   Status: `BLOCKED` · Evidence: `YOUTUBE_API_KEY`, `YT_DAILY_QUOTA_BUDGET` and quota guard settings are documented in [`docs/ENVIRONMENT_VARIABLES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/ENVIRONMENT_VARIABLES.md). Blocker: Google Cloud API restrictions, configured daily quota and live YouTube response need provider-console access and staging verification.
 - [ ] **PR-030** verify SMTP host TLS sender and credentials.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `FAIL — syntax fix committed; CI retest pending` · Evidence: production config validation now requires a remote SMTP hostname, valid port/secure flag, SMTP login and non-placeholder credential, plus a valid sender address; CI run [40283675707](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283675707) then failed backend lint on a malformed escaped regex at `productionConfigValidation.js:103`. Fix: `9be56a7`; rerun lint, tests, and production preflight before closure. Finding: `REL-006`.
 - [ ] **PR-031** verify Web Push VAPID keys and subject.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-032** verify Redis authentication and TLS.  
@@ -565,6 +565,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | REL-003 | P1 | PR-014 | Initial `npm ci` rejected the committed peer-dependency tree; install now succeeds with project npm config | Lockfile omitted optional MongoDB peer integrations and npm's default resolution did not match the committed tree | `c22ae9d` (`server/.npmrc`); CI now uses `npm ci` | Run clean installs for frontend/backend, then backend tests | RESOLVED — both clean installs and backend tests passed in [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017) |
 | REL-004 | P1 | PR-023, PR-024, PR-026–PR-029 | Source validator/tests are verifiable, but deployed environment values and provider-console settings are not available in this session | Production secrets, OAuth origins, API restrictions and quotas must be confirmed in deployment/provider consoles without exposing secret values | Pending authorised staging/provider access | Run config preflight and deployment smoke tests; verify OAuth, Razorpay, Gemini, YouTube quota and integration behavior in staging | BLOCKED — do not waive for production release |
 | REL-005 | P2 | PR-021 | `src/lib/socialLinks.ts` consumed `VITE_PUBLIC_SOCIAL_FACEBOOK` and `VITE_PUBLIC_SOCIAL_GITHUB`, missing from the public env example/inventory; documented `VITE_INTENT_V2` and `VITE_ASYNC_ROADMAP` were missing from `ImportMetaEnv` declarations | Frontend env types and inventory drifted from actual public flags and social-link usage | `3b67883`, `d152ea3`, `f7d800b` | Verify the example, inventory, declarations, frontend lint/typecheck and green CI on a candidate containing all three changes | OPEN — fix committed; CI retest pending |
+| REL-006 | P1 | PR-030 | CI run [40283675707](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283675707) failed `Backend lint`; `productionConfigValidation.js:103` had malformed escaped HTTPS URL regex (`Expecting Unicode escape sequence \\uXXXX`) | SMTP/Web Push/Redis validation regexes were double-escaped in source | `9be56a7` | Run backend lint/tests and production config preflight, then the complete CI workflow on the fix SHA | OPEN — regex correction committed; CI run [40283956910](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283956910) queued |
 
 ## Execution log
 
@@ -572,6 +573,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 |---|---|---|---:|---:|---:|---:|---|---|
 | 2026-10-26 | Code/config candidate `c9e6941` verified green in [run 40282290084](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40282290084); checklist documentation commits follow | PR-001–PR-018, PR-020–PR-022, PR-025; PR-019 pending | 18 | 2 | 8 | 211 | [Green candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40282290084) | CI passes config preflight, frontend build/smoke tests and backend tests. Branch protection/release gate fails; local working-tree, owner assignment and live staging/provider checks are blocked; backend unused-symbol warnings remain P2 cleanup. |
 | 2026-10-26 | Candidate `f7d800b` includes public environment inventory/type fixes | PR-021 retest pending | 17 | 3 | 8 | 211 | [Inventory fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/f7d800bf4926e5768034953c096f964f4091fbcc) | Source audit found missing public social-link vars and missing rollout flag types. Fix committed; keep `REL-005` open until CI typecheck/build passes on a candidate including these commits. |
+| 2026-10-26 | Candidate `9be56a7` fixes regex parsing in SMTP/Web Push/Redis production config validation | PR-030 retest pending | 17 | 4 | 8 | 210 | [Regex fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/9be56a7af53a2745d28ade62d002ccac822b6cb0) | Previous CI run failed backend lint due to malformed regex. Keep `REL-006` open until backend lint, tests and synthetic production preflight pass. |
 
 ## Related project documents
 

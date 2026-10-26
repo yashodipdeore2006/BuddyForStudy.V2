@@ -1065,7 +1065,7 @@ test.describe("administrator route and permission UX", () => {
     await page.goto(baseURL + "/admin/courses");
     await page.getByRole("button", { name: /Manage Curriculum/i }).click();
     await expect.poll(() => detailReads).toBe(1);
-    await expect(page.getByDisplayValue("Module to remove")).toBeVisible();
+    await expect(page.locator('input[value="Module to remove"]')).toBeVisible();
     await page.getByRole("button", { name: "Remove Module" }).click();
 
     const dialog = page.getByRole("alertdialog", { name: "Delete module?" });
@@ -1084,7 +1084,7 @@ test.describe("administrator route and permission UX", () => {
 
     await expect.poll(() => deletionRequests).toBe(1);
     expect(deletionPayload).toEqual({ reason: "Remove obsolete curriculum after course review." });
-    await expect(page.getByDisplayValue("Module to remove")).toHaveCount(0);
+    await expect(page.locator('input[value="Module to remove"]')).toHaveCount(0);
   });
 
   test("[ADM-COMMAND-PERMISSION-001] command palette does not expose routes outside the current permission set", async ({ page }) => {

@@ -89,6 +89,7 @@ jobs:
           JWT_SECRET: "ci-only-randomized-preflight-secret-with-enough-unique-characters-67890"
           CLIENT_URL: "https://buddyforstudy.example"
           API_URL: "https://api.buddyforstudy.example"
+          TRUST_PROXY_HOPS: "1"
           RAZORPAY_KEY_ID: "rzp_live_0123456789abcdef"
           RAZORPAY_KEY_SECRET: "ci-only-provider-secret-0123456789"
           RAZORPAY_WEBHOOK_SECRET: "ci-only-webhook-secret-0123456789abcdef0123456789"

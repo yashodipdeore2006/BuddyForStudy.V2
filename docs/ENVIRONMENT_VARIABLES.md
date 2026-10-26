@@ -15,6 +15,7 @@
 | Variable | Requirement | Public? | Purpose / validation |
 |---|---|---|---|
 | `VITE_API_URL` | Required for deployed frontend | Yes | Public API origin; defaults to local development in the example. Must point to the deployed backend in production. |
+| `VITE_PUBLIC_SITE_URL` | Required to emit canonical tags on public routes | Yes | Verified HTTPS production site origin; code ignores invalid, localhost, or non-HTTPS values. Set this in the frontend build environment. Authenticated/admin/player routes deliberately do not emit canonical tags. |
 | `VITE_GOOGLE_CLIENT_ID` | Optional for deployments without Google Sign-In; needed when using it | Yes | Google Identity Services web client ID. Must match server `GOOGLE_CLIENT_ID` and the authorised JavaScript origins. |
 | `VITE_INTENT_V2` | Optional; default `false` in `.env.example` | Yes | Frontend feature flag for the intent-driven Build with AI question flow. Must be coordinated with server `INTENT_V2`; changing it requires a frontend rebuild. |
 | `VITE_ASYNC_ROADMAP` | Optional; default `false` in `.env.example` | Yes | Frontend feature flag for async roadmap draft/poll/events. Keep off until the server `ASYNC_ROADMAP` routes and auth flow are deployed and smoke-tested. |

@@ -79,6 +79,17 @@ jobs:
       - run: npm ci
       - name: Backend lint
         run: npm run lint
+      - name: Validate production config preflight with synthetic values
+        env:
+          NODE_ENV: "production"
+          MONGO_URI: "mongodb+srv://ci-user:ci-only-password@cluster.example.net/buddyforstudy?retryWrites=true&w=majority"
+          JWT_SECRET: "ci-only-randomized-preflight-secret-with-enough-unique-characters-67890"
+          CLIENT_URL: "https://buddyforstudy.example"
+          API_URL: "https://api.buddyforstudy.example"
+          RAZORPAY_KEY_ID: "rzp_live_0123456789abcdef"
+          RAZORPAY_KEY_SECRET: "ci-only-provider-secret-0123456789"
+          RAZORPAY_WEBHOOK_SECRET: "ci-only-webhook-secret-0123456789abcdef0123456789"
+        run: npm run validate:production-config
       - run: npm test
       - name: Build with AI selector comparison (mock mode only)
         working-directory: .

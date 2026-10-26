@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 24 / 239 |
+| Verified done | 38 / 239 |
 | Failed tasks | 2 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 200 / 239 |
+| Not checked | 186 / 239 |
 | Open findings | 3 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification) |
 | Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
@@ -81,7 +81,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-018** assign rollback and release decision owners.  
   Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
 - [x] **PR-019** capture CI for exact candidate SHA.  
-  Status: `DONE` · Evidence: exact current `main` candidate `e8da7c08e27af3652f6fa378247caf1574482270` is green in [CI run 40286388546](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40286388546); both frontend and backend jobs completed successfully. The run includes the lockfile repair commit `8e5484a`.
+  Status: `DONE` · Evidence: exact current candidate `0dd13777be4cb108c3ce6fed1e2ae18b399de5c2` is green in [CI run 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104); frontend and backend jobs passed including the auth token-version/revocation regression suite.
 - [ ] **PR-020** block release while required checks are red or pending.  
   Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
@@ -128,34 +128,34 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### C. Authentication
 
-- [ ] **PR-040** test registration validation and boundaries.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-041** test duplicate registration race.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-042** verify password hashing and policy.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-043** test login success and safe failure responses.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-044** test email verification expiry replay and resend.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-045** test login OTP expiry retries and cooldown.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-046** test forgot-password enumeration resistance.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-047** test reset OTP expiry and reuse prevention.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-048** test Google sign-in success.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-049** test Google prompt dismissal and token failure.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-050** verify OAuth issuer audience and account linking.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-051** test logout state cleanup.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-052** test malformed expired and revoked tokens.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-053** test session expiry and concurrent sessions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-040** test registration validation and boundaries.  
+  Status: `DONE` · Evidence: registration validation and boundary tests in [authRegistrationValidation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authRegistrationValidation.test.js) and [authSchemas.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authSchemas.test.js) passed in [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-041** test duplicate registration race.  
+  Status: `DONE` · Evidence: duplicate registration race returns a safe 409 in [authRegistrationRace.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authRegistrationRace.test.js); backend suite passed in [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-042** verify password hashing and policy.  
+  Status: `DONE` · Evidence: bcrypt hash/compare, serialized password exclusion and 72-byte UTF-8 policy are covered in [userPassword.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/userPassword.test.js) and [authSchemas.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authSchemas.test.js); backend suite passed in [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-043** test login success and safe failure responses.  
+  Status: `DONE` · Evidence: [authLogin.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authLogin.test.js) covers successful login challenge, safe credential failures, inactive accounts and unverified local users; [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104) passed.
+- [x] **PR-044** test email verification expiry replay and resend.  
+  Status: `DONE` · Evidence: [otpSecurity.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/otpSecurity.test.js) covers email OTP one-time use/expiry; [otpResendFlow.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/otpResendFlow.test.js) covers cooldown and email dispatch. Full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-045** test login OTP expiry retries and cooldown.  
+  Status: `DONE` · Evidence: [otpSecurity.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/otpSecurity.test.js) covers login OTP expiry, attempts, lockout and replay; cooldown/resend tests pass in [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-046** test forgot-password enumeration resistance.  
+  Status: `DONE` · Evidence: [forgotPasswordEnumeration.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/forgotPasswordEnumeration.test.js) checks matching public responses for unknown accounts and processing failures. Fix: [5ede19d](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/5ede19d). Full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-047** test reset OTP expiry and reuse prevention.  
+  Status: `DONE` · Evidence: [otpSecurity.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/otpSecurity.test.js) covers password-reset OTP purpose, expiry and replay rejection; full backend suite passed in [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-048** test Google sign-in success.  
+  Status: `DONE` · Evidence: [googleLogin.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/googleLogin.test.js) covers Google user creation, verified local-account linking, unverified-email rejection and inactive accounts; full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-049** test Google prompt dismissal and token failure.  
+  Status: `DONE` · Evidence: [google-auth.e2e.spec.ts](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/google-auth.e2e.spec.ts) runs in the blocking Playwright step in [ci.yml](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml); browser smoke tests passed in [CI 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-050** verify OAuth issuer audience and account linking.  
+  Status: `DONE WITH LIMITATION` · Evidence: [googleLogin.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/googleLogin.test.js) verifies configured audience is passed to Google `verifyIdToken` and tests linking/unverified-email rejection. Google Identity library performs signed-token/issuer checks; real provider credential checks remain under `REL-004` staging verification. Full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-051** test logout state cleanup.  
+  Status: `DONE` · Evidence: [navigation.e2e.spec.ts](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies client credentials clear if logout API fails; [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) verifies server-side revocation across devices. Full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-052** test malformed expired and revoked tokens.  
+  Status: `DONE` · Evidence: [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) covers malformed, expired, legacy and revoked tokens; required and optional middleware both check token version. Full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
+- [x] **PR-053** test session expiry and concurrent sessions.  
+  Status: `DONE` · Evidence: [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) verifies multi-device logout revocation, password-change token rotation and expired-token rejection; full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
 - [ ] **PR-054** test admin invitation accept expire and revoke.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-055** test suspended accounts across existing sessions.  
@@ -566,6 +566,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | REL-004 | P1 | PR-023, PR-024, PR-026–PR-030, PR-038 | Source validators/tests are verifiable, but deployed environment values and provider-console settings are not available in this session | Production secrets, OAuth origins, API restrictions, quotas and SMTP delivery must be confirmed in deployment/provider consoles without exposing secret values | Production config validator and env inventory | Run config preflight and deployment smoke tests; verify OAuth, Razorpay, Gemini, YouTube quota, SMTP OTP delivery and environment separation in staging | BLOCKED — do not waive for production release |
 | REL-005 | P2 | PR-021 | `src/lib/socialLinks.ts` had Facebook/GitHub social variables and rollout flags missing from example/types | Frontend env types and inventory drifted from actual public flags and social-link usage | `3b67883`, `d152ea3`, `f7d800b` | Frontend typecheck and current env/type inventory inspection; successful CI run [40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — current example, declarations, code and inventory agree |
 | REL-006 | P1 | PR-030 | CI run [40283675707](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283675707) exposed malformed Web Push URL regex syntax | SMTP/Web Push/Redis config validation was added before its final regex source was syntactically valid | `51ece64` | Backend lint, synthetic production config preflight, tests and canonical-route Playwright tests pass in [CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — keep live SMTP provider delivery under REL-004 staging gate |
+| AUTH-001 | P1 | PR-051–PR-053 | Logout previously cleared only the local browser token and issued JWTs remained valid until expiry; password change/reset did not invalidate other sessions | Tokens had no per-user revocation/version check | `0dd1377` | [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) tests stale/legacy/expired tokens, multi-device logout revocation and password rotation; exact-candidate CI [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104) passed | RESOLVED — token version now checked in required and optional auth middleware; logout increments it atomically; password change/reset atomically rotate it and return a fresh token |
 
 ## Execution log
 
@@ -576,7 +577,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Candidate `51ece64` (SMTP/Web Push/Redis validator + canonical-route coverage) verified green | PR-021, PR-030 validation code | 23 | 2 | 13 | 201 | [Successful CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | Synthetic config preflight, backend lint/tests, frontend typecheck/build and canonical public/private route Playwright tests passed. Live SMTP/Web Push/Redis values remain a staging/provider task. |
 | 2026-10-26 | Security/auth-response candidate `2021402` | PR-033–PR-039 plus auth tasks under validation | 23 | 2 | 13 | 201 | [Last fully green relevant CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746); [current candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284256463) | Auth error responses now redact untrusted internal messages; do not mark the newest auth changes verified until the current CI run completes successfully. Branch protection and staging/provider gates remain open. |
 
-| 2026-10-26 | Exact current candidate `e8da7c08e27af3652f6fa378247caf1574482270` | PR-019 completed; PR-014 clean-install retest refreshed | 24 | 2 | 13 | 200 | [Green CI run 40286388546](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40286388546); [lockfile repair commit 8e5484a](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/8e5484a) | Frontend and backend jobs both succeeded on exact `main` candidate; backend `npm ci` is now verified against the regenerated lockfile. Release remains NOT READY because branch protection/release gating and live staging/provider verification remain open. |
+| 2026-10-26 | Exact candidate `0dd13777be4cb108c3ce6fed1e2ae18b399de5c2` | PR-040–PR-053 authentication/session checks verified | 38 | 2 | 13 | 186 | [Green CI run 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104); [session revocation commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0dd13777be4cb108c3ce6fed1e2ae18b399de5c2) | Exact-SHA CI covers auth boundaries, OTP expiry/replay/cooldowns, Google sign-in/UI failures, malformed/expired/revoked JWTs and session rotation. Live Google credentials and deployed secrets remain under REL-004. |
 
 ## Related project documents
 

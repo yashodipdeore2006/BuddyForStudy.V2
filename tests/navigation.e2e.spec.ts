@@ -1103,15 +1103,16 @@ test.describe("learner control and state regression", () => {
 test.describe("public platform pages and footer", () => {
   test("public pages render the marketing footer and their main content", async ({ page }) => {
     const pages = [
-      { path: "/about", heading: "Make your next learning step feel clear." },
-      { path: "/contact", heading: "We want your learning experience to work for you." },
-      { path: "/faq", heading: "Frequently asked questions" },
+      { path: "/about", heading: "Make your next learning step feel clear.", canonical: "https://buddyforstudy.example/about" },
+      { path: "/contact", heading: "We want your learning experience to work for you.", canonical: "https://buddyforstudy.example/contact" },
+      { path: "/faq", heading: "Frequently asked questions", canonical: "https://buddyforstudy.example/faq" },
     ];
 
     for (const item of pages) {
       await page.goto(baseURL + item.path);
       await expect(page.locator("main.bfs-public-page")).toBeVisible();
       await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", item.canonical);
       await expect(page.locator("footer.bfs-marketing-footer")).toBeVisible();
       await expect(page.getByRole("heading", { name: "BuddyForStudy", exact: true })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Discover", exact: true })).toBeVisible();
@@ -1122,14 +1123,23 @@ test.describe("public platform pages and footer", () => {
 
   test("public aliases redirect to canonical information pages", async ({ page }) => {
     const aliases = [
-      { path: "/about-us", canonical: "/about" },
-      { path: "/contact-us", canonical: "/contact" },
-      { path: "/help", canonical: "/faq" },
+      { path: "/about-us", canonical: "/about", canonicalUrl: "https://buddyforstudy.example/about" },
+      { path: "/contact-us", canonical: "/contact", canonicalUrl: "https://buddyforstudy.example/contact" },
+      { path: "/help", canonical: "/faq", canonicalUrl: "https://buddyforstudy.example/faq" },
     ];
     for (const item of aliases) {
       await page.goto(baseURL + item.path);
       await expect(page).toHaveURL(new RegExp(item.canonical + "$"));
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", item.canonicalUrl);
     }
+  });
+
+  test("canonical metadata is not emitted for authentication or private learning routes", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/settings");
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
   });
 
   test("footer navigation points to supported destinations", async ({ page }) => {

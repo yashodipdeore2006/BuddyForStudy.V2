@@ -257,10 +257,20 @@ async function mockAppApi(page: Page, options: {
       return json(route, { enrollment: options.enrolled ? { status: "active" } : null });
     }
     const completionPrefix = `/api/progress/${courseId}/items/`;
-    if (pathname.startsWith(completionPrefix) && pathname.endsWith("/complete") && route.request().method() === "POST") {
+    const completionMethod = route.request().method();
+    if (
+      pathname.startsWith(completionPrefix) &&
+      pathname.endsWith("/complete") &&
+      (completionMethod === "POST" || completionMethod === "DELETE")
+    ) {
       const lessonId = decodeURIComponent(pathname.slice(completionPrefix.length).replace(/\/complete$/, ""));
-      if (!completedLessons.some((entry) => entry.lessonId === lessonId)) {
-        completedLessons.push({ lessonId, type: "tutorial", completedAt: new Date().toISOString() });
+      if (completionMethod === "POST") {
+        if (!completedLessons.some((entry) => entry.lessonId === lessonId)) {
+          completedLessons.push({ lessonId, type: "tutorial", completedAt: new Date().toISOString() });
+        }
+      } else {
+        const completedIndex = completedLessons.findIndex((entry) => entry.lessonId === lessonId);
+        if (completedIndex >= 0) completedLessons.splice(completedIndex, 1);
       }
       const totalLessons = Math.max(courseLessonCount, 1);
       return json(route, {
@@ -271,7 +281,7 @@ async function mockAppApi(page: Page, options: {
           completedLessons,
           completedCount: completedLessons.length,
           totalLessons,
-          lastLessonId: lessonId,
+          lastLessonId: completedLessons.at(-1)?.lessonId || null,
           percentage: Math.min(100, Math.round(completedLessons.length / totalLessons * 100)),
           lastAccessedAt: new Date().toISOString(),
         },
@@ -816,6 +826,32 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("button", { name: "Completed", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Mark Lesson one incomplete" })).toBeVisible();
     expect(completionRequests).toBe(1);
+    expect(progressReads).toBe(1);
+  });
+
+  test("[PLAYER-UNCOMPLETE-001] marking a completed lesson incomplete updates the UI without refreshing", async ({ page }) => {
+    let completionRequests = 0;
+    let uncompletionRequests = 0;
+    let progressReads = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/progress/course-fixture") progressReads += request.method() === "GET" ? 1 : 0;
+      if (url.pathname === "/api/progress/course-fixture/items/lesson-1/complete" && request.method() === "POST") completionRequests += 1;
+      if (url.pathname === "/api/progress/course-fixture/items/lesson-1/complete" && request.method() === "DELETE") uncompletionRequests += 1;
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+
+    await expect.poll(() => progressReads).toBe(1);
+    await page.getByRole("button", { name: "Mark complete" }).click();
+    const incompleteAction = page.getByRole("button", { name: "Mark Lesson one incomplete" });
+    await expect(incompleteAction).toBeVisible();
+
+    await incompleteAction.click();
+    await expect(page.getByRole("button", { name: "Mark Lesson one complete" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark complete" })).toBeVisible();
+    expect(completionRequests).toBe(1);
+    expect(uncompletionRequests).toBe(1);
     expect(progressReads).toBe(1);
   });
 

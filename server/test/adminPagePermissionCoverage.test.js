@@ -40,7 +40,7 @@ test("every application admin page is mapped to an explicit shared-layout permis
   assert.deepEqual(missing, [], "every admin route must map to an explicit permission before direct navigation is allowed");
   assert.match(
     layout,
-    /links\.find\(\(item\) => item\.to === location\.pathname\)\?\.permission \?\? routePermissionOverrides\[location\.pathname\]/,
+    /links\.find\(\(item\) => item\.to === location\.pathname\)\?\.permission\s*\?\?\s*routePermissionOverrides\[location\.pathname\]/,
     "direct route access must use the same permission map as the navigation"
   );
 });

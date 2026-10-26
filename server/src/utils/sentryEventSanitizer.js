@@ -1,7 +1,9 @@
 const SENSITIVE_KEY = /(?:authorization|cookie|password|passwd|secret|token|api.?key|credential|email|phone|address|session|jwt|signature|payment|card|customer|user.?id)/i;
 
 function scrubObject(value, depth = 0) {
-  if (!value || typeof value !== "object" || depth > 5) return value;
+  if (!value || typeof value !== "object") return value;
+  // Fail closed at the traversal boundary; never return an uninspected object.
+  if (depth > 5) return "[redacted nested value]";
   if (Array.isArray(value)) return value.slice(0, 50).map((item) => scrubObject(item, depth + 1));
   const clean = {};
   for (const [key, item] of Object.entries(value)) {

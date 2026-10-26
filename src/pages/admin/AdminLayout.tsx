@@ -326,8 +326,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     || links.find((item) => item.to === location.pathname)
     || visibleLinks.find((item) => item.to !== "/admin" && location.pathname.startsWith(item.to + "/"));
   const currentLabel = pathEntry?.label || routeLabels[location.pathname] || "Admin";
-  const requiredPermission = links.find((item) => item.to === location.pathname)?.permission ?? routePermissionOverrides[location.pathname]
-    || (location.pathname === "/admin/roles" ? "admin_roles.manage" : location.pathname === "/admin/design-system" ? "settings.read" : undefined);
+  const requiredPermission = links.find((item) => item.to === location.pathname)?.permission
+    ?? routePermissionOverrides[location.pathname]
+    ?? (location.pathname === "/admin/roles" ? "admin_roles.manage" : undefined);
   const production = import.meta.env.MODE === "production";
 
   const handleSignOut = async () => {

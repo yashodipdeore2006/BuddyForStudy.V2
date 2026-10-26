@@ -1047,19 +1047,24 @@ test.describe("administrator route and permission UX", () => {
       roleLabel: "Course Manager",
       permissions: ["dashboard.read", "courses.read", "courses.manage"],
     });
-    await page.route(`**/api/admin/courses/${courseId}`, async (route) => {
-      if (route.request().method() === "GET") return json(route, { course: courseDetail });
+    let detailReads = 0;
+    await page.route("**/api/admin/courses/**", async (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      if (pathname === `/api/admin/courses/${courseId}` && route.request().method() === "GET") {
+        detailReads += 1;
+        return json(route, { course: courseDetail });
+      }
+      if (pathname === `/api/admin/courses/${courseId}/modules/module-fixture` && route.request().method() === "DELETE") {
+        deletionRequests += 1;
+        deletionPayload = route.request().postDataJSON();
+        return json(route, { course: { ...courseDetail, modules: [] } });
+      }
       return route.fallback();
-    });
-    await page.route(`**/api/admin/courses/${courseId}/modules/module-fixture`, async (route) => {
-      if (route.request().method() !== "DELETE") return route.fallback();
-      deletionRequests += 1;
-      deletionPayload = route.request().postDataJSON();
-      return json(route, { course: { ...courseDetail, modules: [] } });
     });
 
     await page.goto(baseURL + "/admin/courses");
     await page.getByRole("button", { name: /Manage Curriculum/i }).click();
+    await expect.poll(() => detailReads).toBe(1);
     await expect(page.getByText("Module to remove")).toBeVisible();
     await page.getByRole("button", { name: "Remove Module" }).click();
 

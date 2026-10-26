@@ -15,7 +15,7 @@ function authError(message, status = 400) {
 }
 
 function hashOtp(code) {
-  return crypto.createHash("sha256").update(code).digest("hex");
+  return crypto.createHmac("sha256", env.jwtSecret).update(code).digest("hex");
 }
 
 function createOtp() {
@@ -90,15 +90,43 @@ export async function sendOtp(user, purpose) {
 
 export async function verifyOtp({ email, purpose, code }) {
   const normalizedEmail = email.trim().toLowerCase();
+  const nowMs = Date.now();
+  const now = new Date(nowMs);
   const record = await AuthOtp.findOne({ email: normalizedEmail, purpose, usedAt: null }).sort({ createdAt: -1 });
-  if (!record || record.expiresAt.getTime() < Date.now()) throw authError("OTP is invalid or expired.", 400);
+  if (!record || record.expiresAt.getTime() <= nowMs) throw authError("OTP is invalid or expired.", 400);
   if (record.attempts >= MAX_VERIFY_ATTEMPTS) throw authError("Too many incorrect OTP attempts. Please request a new OTP.", 429);
-  if (hashOtp(code) !== record.codeHash) {
-    record.attempts += 1;
-    await record.save();
+
+  const submittedHash = hashOtp(code);
+  if (submittedHash !== record.codeHash) {
+    const attemptUpdate = await AuthOtp.updateOne(
+      {
+        _id: record._id,
+        usedAt: null,
+        expiresAt: { $gt: now },
+        attempts: { $lt: MAX_VERIFY_ATTEMPTS }
+      },
+      { $inc: { attempts: 1 } }
+    );
+    if (!attemptUpdate?.modifiedCount) {
+      throw authError("Too many incorrect OTP attempts. Please request a new OTP.", 429);
+    }
     throw authError("Incorrect OTP.", 400);
   }
-  record.usedAt = new Date();
-  await record.save();
-  return record;
+
+  // Consume atomically so concurrent valid submissions cannot both succeed.
+  const consumed = await AuthOtp.findOneAndUpdate(
+    {
+      _id: record._id,
+      email: normalizedEmail,
+      purpose,
+      codeHash: submittedHash,
+      usedAt: null,
+      expiresAt: { $gt: now },
+      attempts: { $lt: MAX_VERIFY_ATTEMPTS }
+    },
+    { $set: { usedAt: now } },
+    { new: true }
+  );
+  if (!consumed) throw authError("OTP is invalid or expired.", 400);
+  return consumed;
 }

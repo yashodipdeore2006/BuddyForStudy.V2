@@ -162,7 +162,7 @@ test("course checkout refuses to reuse pending orders when the current price or 
 test("quiz progress-save failures preserve graded results instead of replacing the course player", () => {
   const player = readFileSync(new URL("../../src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
   const submitStart = player.indexOf("const handleQuizSubmit");
-  const submitEnd = player.indexOf("\\n\\n  if (loading)", submitStart);
+  const submitEnd = player.indexOf("\n\n  if (loading)", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "Expected course quiz submit handler");
   const submitHandler = player.slice(submitStart, submitEnd);
   assert.match(submitHandler, /setQuizSubmitted\\(true\\)/);

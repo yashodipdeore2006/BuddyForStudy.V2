@@ -797,20 +797,168 @@ test.describe("learner control and state regression", () => {
     expect(perCourseRequests, "My Learning should use the single batched enrollment response, not fetch progress once per course").toEqual([]);
   });
 
-  test("[PLAYER-COMPLETE-001] marking a lesson complete persists the result and disables duplicate completion", async ({ page }) => {
+  test("[PLAYER-COMPLETE-001] completion updates the lesson action and sidebar immediately without a page refresh", async ({ page }) => {
     let completionRequests = 0;
+    let progressReads = 0;
     page.on("request", (request) => {
       const url = new URL(request.url());
       if (request.method() === "POST" && url.pathname === "/api/progress/course-fixture/items/lesson-1/complete") completionRequests += 1;
+      if (request.method() === "GET" && url.pathname === "/api/progress/course-fixture") progressReads += 1;
     });
     await mockAppApi(page, { authenticated: true, enrolled: true });
     await page.goto(baseURL + "/learn/course-fixture/lesson-1");
 
     const completeButton = page.getByRole("button", { name: "Mark complete" });
     await expect(completeButton).toBeVisible();
+    await expect.poll(() => progressReads).toBe(1);
     await completeButton.click();
+
     await expect(page.getByRole("button", { name: "Completed", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Mark Lesson one incomplete" })).toBeVisible();
     expect(completionRequests).toBe(1);
+    expect(progressReads).toBe(1);
+  });
+
+  test("[PLAYER-QUIZ-COMPLETE-001] first quiz submission completes the lesson even when the learner fails", async ({ page }) => {
+    let gradeRequests = 0;
+    let completionRequests = 0;
+    const quizCourse = courseFixture("course-fixture", {
+      title: "Quiz completion fixture",
+      modules: [{
+        _id: "module-1",
+        title: "Assessment module",
+        lessons: [{
+          _id: "lesson-1",
+          title: "Quiz lesson",
+          type: "quiz",
+          description: "Choose an answer to test automatic lesson completion.",
+          duration: "5 min",
+          quiz: { scope: "lesson", questionCount: 1, passingScore: 70 }
+        }]
+      }]
+    });
+
+    await mockAppApi(page, { authenticated: true, enrolled: true, course: quizCourse });
+    await page.route("**/api/ai/quiz", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      return json(route, {
+        quiz: {
+          quizBankId: "quiz-bank-1",
+          questions: [{
+            id: "q1",
+            question: "Which option is correct?",
+            options: [{ id: "A", text: "Incorrect option" }, { id: "B", text: "Correct option" }]
+          }],
+          passingScore: 70
+        }
+      });
+    });
+    await page.route("**/api/ai/practice-quiz/submit", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      gradeRequests += 1;
+      return json(route, {
+        score: 0,
+        passed: false,
+        results: [{ questionId: "q1", correctOptionId: "B", explanation: "Option B is correct." }]
+      });
+    });
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "POST" && url.pathname === "/api/progress/course-fixture/items/lesson-1/complete") completionRequests += 1;
+    });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.getByText("Which option is correct?")).toBeVisible();
+    await page.getByRole("button", { name: /Incorrect option/ }).click();
+    await page.getByRole("button", { name: "Submit Quiz" }).click();
+
+    await expect(page.getByText("Your score: 0%")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Finish Course" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark Quiz lesson incomplete" })).toBeVisible();
+    expect(gradeRequests).toBe(1);
+    expect(completionRequests).toBe(1);
+  });
+
+  test("[PLAYER-QUIZ-RECOVERY-001] a failed progress save preserves the grade and retry does not grade again", async ({ page }) => {
+    let gradeRequests = 0;
+    let completionRequests = 0;
+    const quizCourse = courseFixture("course-fixture", {
+      title: "Quiz recovery fixture",
+      modules: [{
+        _id: "module-1",
+        title: "Assessment module",
+        lessons: [{
+          _id: "lesson-1",
+          title: "Quiz lesson",
+          type: "quiz",
+          description: "A quiz whose progress save can be retried.",
+          duration: "5 min",
+          quiz: { scope: "lesson", questionCount: 1, passingScore: 70 }
+        }]
+      }]
+    });
+
+    await mockAppApi(page, { authenticated: true, enrolled: true, course: quizCourse });
+    await page.route("**/api/ai/quiz", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      return json(route, {
+        quiz: {
+          quizBankId: "quiz-bank-1",
+          questions: [{
+            id: "q1",
+            question: "Which option is correct?",
+            options: [{ id: "A", text: "Incorrect option" }, { id: "B", text: "Correct option" }]
+          }],
+          passingScore: 70
+        }
+      });
+    });
+    await page.route("**/api/ai/practice-quiz/submit", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      gradeRequests += 1;
+      return json(route, {
+        score: 0,
+        passed: false,
+        results: [{ questionId: "q1", correctOptionId: "B", explanation: "Option B is correct." }]
+      });
+    });
+    await page.route("**/api/progress/course-fixture/items/lesson-1/complete", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      completionRequests += 1;
+      if (completionRequests === 1) {
+        return json(route, { message: "Progress service is temporarily unavailable." }, 503);
+      }
+      return json(route, {
+        progress: {
+          _id: "progress-1",
+          user: learner.id,
+          course: "course-fixture",
+          completedLessons: [{ lessonId: "lesson-1", type: "quiz", completedAt: new Date().toISOString() }],
+          completedCount: 1,
+          totalLessons: 1,
+          percentage: 100,
+          lastLessonId: "lesson-1",
+          lastAccessedAt: new Date().toISOString()
+        }
+      });
+    });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.getByText("Which option is correct?")).toBeVisible();
+    await page.getByRole("button", { name: /Incorrect option/ }).click();
+    await page.getByRole("button", { name: "Submit Quiz" }).click();
+
+    await expect(page.getByText("Your score: 0%")).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("Quiz graded, but lesson completion could not be saved");
+    await expect(page.getByRole("button", { name: "Mark Quiz lesson complete" })).toBeVisible();
+    expect(gradeRequests).toBe(1);
+    expect(completionRequests).toBe(1);
+
+    await page.getByRole("button", { name: "Mark Quiz lesson complete" }).click();
+    await expect(page.getByRole("button", { name: "Mark Quiz lesson incomplete" })).toBeVisible();
+    await expect(page.getByText("Your score: 0%")).toBeVisible();
+    expect(gradeRequests).toBe(1);
+    expect(completionRequests).toBe(2);
   });
 
   test("[DETAIL-REVIEWS-001] course reviews tab exposes a real empty state and refreshes its data", async ({ page }) => {

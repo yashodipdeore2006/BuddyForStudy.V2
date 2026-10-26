@@ -108,7 +108,7 @@ test("course checkout reuses the latest pending order instead of creating duplic
   assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
   assert.ok(controller.indexOf('acquireCheckoutLock(lockKey)') < controller.indexOf('const priorPurchase = await Payment.findOne'),
     "The lock must be acquired before querying purchases or creating the provider order");
-  assert.match(controller, /previous checkout is pending but its payment reference is incomplete/);
+  assert.match(controller, /payment\?\.providerOrderId &&/);
 });
 
 

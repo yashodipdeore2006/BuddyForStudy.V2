@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 60 / 239 |
+| Verified done | 64 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 162 / 239 |
+| Not checked | 158 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -261,18 +261,18 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-101** test previous/next lesson navigation.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-102** verify completion UI updates without refresh.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-102** verify completion UI updates without refresh.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) now verifies the primary completion action and sidebar state both update without a page reload, and the progress GET is not repeated after the completion POST. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446) on candidate `94fa470c08ccf9a0c37d3030baf0ea85bc022b57`.
 - [ ] **PR-103** verify uncompletion UI and backend state.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-104** test repeated completion idempotency.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-105** verify first quiz submission completes lesson regardless of score.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-106** preserve graded result if progress save fails.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-107** retry progress save without regrading quiz.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-105** verify first quiz submission completes lesson regardless of score.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies the first course-module quiz submission completes the lesson even when the score is `0%`; quiz grade and completion POST each happen once, and the sidebar reflects the completed state. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446).
+- [x] **PR-106** preserve graded result if progress save fails.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) forces the first lesson-progress save to return `503` and verifies the graded `0%` quiz result remains visible with an accessible alert instead of being replaced by a page-level error. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446).
+- [x] **PR-107** retry progress save without regrading quiz.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) retries lesson completion through the sidebar after a transient save failure and verifies the quiz-grade endpoint remains at one request while progress POST is retried exactly once. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446).
 - [ ] **PR-108** test missing answers malformed payloads and duplicate submits.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-109** separate quiz pass state from lesson completion.  
@@ -581,6 +581,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Code candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` verified green | PR-054–PR-059 checked; PR-056 FAIL recorded | 43 | 3 | 13 | 180 | [Green exact-code CI 40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107); [privacy workflow gap](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) | Blocking CI passed frontend and backend jobs, including actual auth limiter behavior and login accessibility tests. Current `main` also has checklist documentation follow-up. `DATA-001` remains a P1 launch blocker; branch protection and live staging/provider checks remain open. |
 
 | 2026-10-26 | Exact candidate `392be5a5a90b8e4418abe42767cf113dc1c824bb` | PR-060–PR-071, PR-073–PR-078 verified | 60 | 4 | 13 | 162 | [Green CI 40304531679](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40304531679); [ownership test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1422120a3c3d184daf9e8b2c8c818e7dc8945a34); [consent test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/392be5a5a90b8e4418abe42767cf113dc1c824bb) | Verified role/permission boundaries, user-data ownership, export controls, PII/error redaction, role/status audit, consent persistence/withdrawal, and audit outbox behavior. DATA-001 remains a P1 failure under PR-056 and PR-078; PR-072 and PR-079 remain unchecked pending exhaustive destructive-action/page-to-permission mapping. |
+
+| 2026-10-26 | Exact candidate `94fa470c08ccf9a0c37d3030baf0ea85bc022b57` | PR-102, PR-105–PR-107 verified | 64 | 4 | 13 | 158 | [Green CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446) | Player E2E verifies immediate completion UI updates, first failing-score quiz completion, preservation of graded result on progress-save failure, and retry without regrading. PR-103 and PR-104 remain open pending the uncompletion/idempotency test candidate `f0e4784d`. |
 
 ## Related project documents
 

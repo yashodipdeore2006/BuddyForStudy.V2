@@ -88,3 +88,19 @@ test("subscription checkout rejects a pending checkout for a different plan", as
   );
 });
 
+test("course and subscription checkout creation is serialized before provider calls", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const controller = await readFile("src/controllers/payment.controller.js", "utf8");
+  const courseStart = controller.indexOf("export async function createCourseOrder");
+  const courseEnd = controller.indexOf("export async function verifyCoursePayment", courseStart);
+  const subscriptionStart = controller.indexOf("export async function createSubscriptionOrder");
+  assert.ok(courseStart >= 0 && courseEnd > courseStart);
+  assert.ok(subscriptionStart >= 0);
+  const course = controller.slice(courseStart, courseEnd);
+  const subscription = controller.slice(subscriptionStart);
+  assert.ok(course.indexOf('acquireCheckoutLock(lockKey)') < course.indexOf("razorpay.createOrder("));
+  assert.ok(course.indexOf('releaseCheckoutLock(lockKey, lockToken)') > course.indexOf("razorpay.createOrder("));
+  assert.ok(subscription.indexOf('acquireCheckoutLock(lockKey)') < subscription.indexOf("razorpay.createSubscription("));
+  assert.ok(subscription.indexOf('releaseCheckoutLock(lockKey, lockToken)') > subscription.indexOf("razorpay.createSubscription("));
+});
+

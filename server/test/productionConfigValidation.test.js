@@ -7,6 +7,12 @@ const validConfig = {
   JWT_SECRET: "a-production-secret-that-is-longer-than-32-characters",
   CLIENT_URL: "https://buddyforstudy.example",
   API_URL: "https://api.buddyforstudy.example",
+  SMTP_HOST: "smtp.buddyforstudy.example",
+  SMTP_PORT: "587",
+  SMTP_SECURE: "false",
+  SMTP_USER: "noreply@buddyforstudy.example",
+  SMTP_PASS: "smtp-provider-token-012345",
+  MAIL_FROM: "noreply@buddyforstudy.example",
   RAZORPAY_KEY_ID: "rzp_live_0123456789abcdef",
   RAZORPAY_KEY_SECRET: "provider-secret-0123456789abcdef",
   RAZORPAY_WEBHOOK_SECRET: "webhook-secret-0123456789abcdef0123456789",
@@ -49,6 +55,34 @@ test("production config requires a live-mode Razorpay key and sufficiently stron
   assert.ok(getProductionConfigErrors({ ...validConfig, RAZORPAY_KEY_ID: "rzp_test_0123456789abcdef" }).some((error) => error.includes("RAZORPAY_KEY_ID")));
   assert.ok(getProductionConfigErrors({ ...validConfig, RAZORPAY_KEY_SECRET: "short" }).some((error) => error.includes("RAZORPAY_KEY_SECRET")));
   assert.ok(getProductionConfigErrors({ ...validConfig, RAZORPAY_WEBHOOK_SECRET: "short" }).some((error) => error.includes("RAZORPAY_WEBHOOK_SECRET")));
+});
+
+test("production config requires valid SMTP for email authentication", () => {
+  for (const [key, value] of [
+    ["SMTP_HOST", ""],
+    ["SMTP_HOST", "localhost"],
+    ["SMTP_PORT", "70000"],
+    ["SMTP_USER", ""],
+    ["SMTP_PASS", "short"],
+    ["MAIL_FROM", "not-an-email"],
+    ["SMTP_SECURE", "sometimes"],
+  ]) {
+    assert.ok(getProductionConfigErrors({ ...validConfig, [key]: value }).some((error) => error.includes(key.replace("MAIL_FROM", "MAIL_FROM")) || error.includes("SMTP")));
+  }
+});
+
+test("production config requires Web Push values as a complete set", () => {
+  const errors = getProductionConfigErrors({
+    ...validConfig,
+    WEB_PUSH_VAPID_PUBLIC_KEY: "public-key",
+    WEB_PUSH_SUBJECT: "mailto:ops@buddyforstudy.example",
+  });
+  assert.ok(errors.some((error) => error.includes("must be configured together")));
+});
+
+test("production config requires TLS and authentication when Redis is configured", () => {
+  assert.ok(getProductionConfigErrors({ ...validConfig, REDIS_URL: "redis://cache.example:6379" }).some((error) => error.includes("rediss://")));
+  assert.deepEqual(getProductionConfigErrors({ ...validConfig, REDIS_URL: "rediss://default:password@cache.example:6379" }), []);
 });
 
 test("production config requires all Razorpay values", () => {

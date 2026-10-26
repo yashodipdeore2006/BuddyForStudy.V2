@@ -142,6 +142,15 @@ export async function createSubscriptionOrder(req, res, next) {
       "metadata.checkoutType": "subscription"
     }).select("_id providerOrderId plan").populate("plan", "name price currency billingInterval").lean();
     if (pendingCheckout) {
+      const pendingPlanId = String(pendingCheckout.plan?._id ?? pendingCheckout.plan ?? "");
+      if (!pendingPlanId || pendingPlanId !== String(plan._id)) {
+        return failure(
+          res,
+          "A checkout for a different subscription plan is already pending. Finish it or contact support before selecting another plan.",
+          409,
+          { paymentId: String(pendingCheckout._id) }
+        );
+      }
       if (pendingCheckout.providerOrderId && pendingCheckout.plan) {
         return success(res, {
           subscriptionId: pendingCheckout.providerOrderId,

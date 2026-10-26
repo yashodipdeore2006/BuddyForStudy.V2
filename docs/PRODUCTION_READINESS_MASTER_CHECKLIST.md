@@ -11,12 +11,12 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 38 / 239 |
-| Failed tasks | 2 / 239 |
+| Verified done | 42 / 239 |
+| Failed tasks | 3 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 186 / 239 |
-| Open findings | 3 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification) |
-| Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
+| Not checked | 181 / 239 |
+| Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
+| Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
 
@@ -156,16 +156,16 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) covers malformed, expired, legacy and revoked tokens; required and optional middleware both check token version. Full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
 - [x] **PR-053** test session expiry and concurrent sessions.  
   Status: `DONE` · Evidence: [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) verifies multi-device logout revocation, password-change token rotation and expired-token rejection; full CI passed in [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104).
-- [ ] **PR-054** test admin invitation accept expire and revoke.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-055** test suspended accounts across existing sessions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-054** test admin invitation accept expire and revoke.  
+  Status: `DONE` · Evidence: [`adminInvitationsController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminInvitationsController.test.js) covers invalid/expired/revoked/used invitations, atomic acceptance claims, role assignment, and revocation/audit behavior; [`adminInvitationMongo.integration.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminInvitationMongo.integration.test.js) checks concurrent acceptance/revocation. Full backend suite passed in [CI 40290327188](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290327188).
+- [x] **PR-055** test suspended accounts across existing sessions.  
+  Status: `DONE` · Evidence: [`authTokenRevocation.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) verifies inactive users are rejected by required and optional auth middleware even with a correctly signed token; exact candidate [CI 40290327188](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290327188) passed.
 - [ ] **PR-056** review account deletion and retention.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-057** review CSRF for state-changing requests.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-058** test CORS allowlist and arbitrary-origin rejection.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `FAIL` · Evidence: [`docs/CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md` C16](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md) explicitly says a full export/deletion rights workflow was not found; source route audit found no account export/delete request endpoint or orchestrator. [Proposed operating procedure](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) is documentation only and does not implement the workflow. Finding: `DATA-001` P1 — identity verification, data-category inventory, retention/legal-hold rules, auditable request tracking, deletion/anonymization orchestration, backup expiry, retries and completion evidence are not implemented.
+- [x] **PR-057** review CSRF for state-changing requests.  
+  Status: `DONE WITH LIMITATION` · Evidence: authenticated frontend requests use an explicit `Authorization: Bearer` header from localStorage in [`src/lib/api.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/src/lib/api.ts); the backend has no cookie-session authentication in the reviewed auth routes and configures CORS with `credentials: false` in [`server.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/server.js). A cookie-based CSRF token is not applicable to this flow. CORS alone is not the CSRF control; XSS/storage compromise remains a separate risk and must be reviewed.
+- [x] **PR-058** test CORS allowlist and arbitrary-origin rejection.  
+  Status: `DONE` · Evidence: [`corsPolicy.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/corsPolicy.test.js) verifies production accepts only the configured origin, rejects arbitrary/deceptive origins and localhost origins, while development accepts known loopback ports. The full backend suite passed in [CI 40290327188](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290327188).
 - [ ] **PR-059** test auth rate limits and accessible states.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 
@@ -567,6 +567,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | REL-005 | P2 | PR-021 | `src/lib/socialLinks.ts` had Facebook/GitHub social variables and rollout flags missing from example/types | Frontend env types and inventory drifted from actual public flags and social-link usage | `3b67883`, `d152ea3`, `f7d800b` | Frontend typecheck and current env/type inventory inspection; successful CI run [40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — current example, declarations, code and inventory agree |
 | REL-006 | P1 | PR-030 | CI run [40283675707](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283675707) exposed malformed Web Push URL regex syntax | SMTP/Web Push/Redis config validation was added before its final regex source was syntactically valid | `51ece64` | Backend lint, synthetic production config preflight, tests and canonical-route Playwright tests pass in [CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — keep live SMTP provider delivery under REL-004 staging gate |
 | AUTH-001 | P1 | PR-051–PR-053 | Logout previously cleared only the local browser token and issued JWTs remained valid until expiry; password change/reset did not invalidate other sessions | Tokens had no per-user revocation/version check | `0dd1377` | [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) tests stale/legacy/expired tokens, multi-device logout revocation and password rotation; exact-candidate CI [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104) passed | RESOLVED — token version now checked in required and optional auth middleware; logout increments it atomically; password change/reset atomically rotate it and return a fresh token |
+| DATA-001 | P1 | PR-056 | The consent audit plan states a full account export/deletion rights workflow was not found; route/source review found no authenticated request tracker or deletion/export orchestrator | Account data rights/retention process is described generically in policy/contact copy but has no operational workflow, approved category-by-category retention schedule, legal-hold path, or verified deletion/export outcome | Proposed procedure documented in [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md); runtime fix not yet implemented | Required: identity-verified request tracking, permission-scoped export, reviewed idempotent deletion/anonymization orchestration, retention/legal-hold handling, backup expiry, retry and post-operation verification tests | OPEN — P1 launch blocker; proposed document is not implementation evidence |
 
 ## Execution log
 
@@ -577,7 +578,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Candidate `51ece64` (SMTP/Web Push/Redis validator + canonical-route coverage) verified green | PR-021, PR-030 validation code | 23 | 2 | 13 | 201 | [Successful CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | Synthetic config preflight, backend lint/tests, frontend typecheck/build and canonical public/private route Playwright tests passed. Live SMTP/Web Push/Redis values remain a staging/provider task. |
 | 2026-10-26 | Security/auth-response candidate `2021402` | PR-033–PR-039 plus auth tasks under validation | 23 | 2 | 13 | 201 | [Last fully green relevant CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746); [current candidate CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284256463) | Auth error responses now redact untrusted internal messages; do not mark the newest auth changes verified until the current CI run completes successfully. Branch protection and staging/provider gates remain open. |
 
-| 2026-10-26 | Exact candidate `0dd13777be4cb108c3ce6fed1e2ae18b399de5c2` | PR-040–PR-053 authentication/session checks verified | 38 | 2 | 13 | 186 | [Green CI run 40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104); [session revocation commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0dd13777be4cb108c3ce6fed1e2ae18b399de5c2) | Exact-SHA CI covers auth boundaries, OTP expiry/replay/cooldowns, Google sign-in/UI failures, malformed/expired/revoked JWTs and session rotation. Live Google credentials and deployed secrets remain under REL-004. |
+| 2026-10-26 | Candidate `38d19d3fe7b9bd52c3f20e158be4f36972c00050` | PR-054–PR-058 checked; PR-056 FAIL recorded | 42 | 3 | 13 | 181 | [Green CI 40290327188](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290327188); [proposed privacy procedure](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md) | Invitation, suspended-session, CSRF applicability and CORS checks have source/test evidence. Missing account export/deletion/retention workflow is a P1 blocker. New candidate `695850e4307a6f7abab58e7513e56b44d4b58c39` adds auth rate-limit/accessibility coverage; CI [40290839107](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40290839107) is pending, so PR-059 remains NOT CHECKED. |
 
 ## Related project documents
 

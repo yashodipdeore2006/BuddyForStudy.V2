@@ -6,7 +6,7 @@ function scrubObject(value, depth = 0) {
   const clean = {};
   for (const [key, item] of Object.entries(value)) {
     if (SENSITIVE_KEY.test(key)) continue;
-    if (["data", "body", "query_string", "cookies", "env"].includes(key.toLowerCase())) continue;
+    if (["user", "data", "body", "query_string", "cookies", "env"].includes(key.toLowerCase())) continue;
     clean[key] = scrubObject(item, depth + 1);
   }
   return clean;

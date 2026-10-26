@@ -11,11 +11,12 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 8 / 239 |
-| Failed / defects found | 3 / 239 |
-| Blocked | 0 / 239 (not yet classified) |
-| Not checked | 228 / 239 |
-| Release decision | **NOT READY — execution not complete** |
+| Verified done | 14 / 239 |
+| Failed tasks | 2 / 239 |
+| Blocked | 2 / 239 |
+| Not checked | 221 / 239 |
+| Open findings | 2 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog) |
+| Release decision | **NOT READY — branch protection and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
 
@@ -43,15 +44,15 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### A. Release controls and CI
 
-- [x] **PR-001** record candidate main SHA and release tag.  
-  Status: `DONE` · Evidence: [candidate commit `357a54e`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/357a54e6fa7d8b0829906b2a58c266e9f0b8bb81) · Finding/fix: —
+- [x] **PR-001** record candidate main SHA and release-tag decision.  
+  Status: `DONE` · Evidence: current reviewed candidate [`1ada53c`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1ada53cafc7a4bdf26542bf1c8bbc3f9cb81aef5); production tag intentionally deferred because release status is NOT READY · Finding/fix: —
 - [ ] **PR-002** confirm clean working tree.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: GitHub connector can inspect committed `main` but cannot inspect uncommitted files on the developer's local workstation · Next action: run `git status --short` in the release workspace before tagging/deploying.
 - [x] **PR-003** review commits since last green CI.  
   Status: `DONE` · Evidence: [latest previously green run on `6c0967f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); only checklist documentation followed that candidate at time of review · Finding/fix: —
 - [ ] **PR-004** confirm main branch protection.  
   Status: `FAIL` · Evidence: GitHub API reports `main.protected = false` · Finding: `REL-001` — configure branch protection/ruleset; connector does not expose a write operation for this setting.
-- [ ] **PR-005** confirm CI runs on push and pull request.  
+- [x] **PR-005** confirm CI runs on push and pull request.  
   Status: `DONE` · Evidence: [`.github/workflows/ci.yml`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) defines push for `main`/`test` and pull requests targeting `main` · Finding/fix: —
 - [x] **PR-006** make frontend lint blocking.  
   Status: `DONE` · Evidence: [`.github/workflows/ci.yml`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) runs `npm run lint` without `continue-on-error`; the frontend job passed in [run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
@@ -63,26 +64,26 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [successful production build in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
 - [x] **PR-010** verify backend tests block.  
   Status: `DONE` · Evidence: [successful backend tests in run 40278571539](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539) · Finding/fix: —
-- [ ] **PR-011** enforce backend lint and syntax checks.  
-  Status: `FAIL` · Evidence: [CI workflow](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) runs server syntax check but has no backend lint step · Finding/fix: REL-002: add blocking `npm run lint` in server job
-- [ ] **PR-012** make browser smoke tests block.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-013** align CI and production Node versions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-014** use lockfile-based clean installs.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-015** review workflow permissions and fork secret exposure.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-016** scan for committed env files and secrets.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-017** record release notes and known risks.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-011** enforce backend lint and syntax checks.  
+  Status: `DONE WITH WARNINGS` · Evidence: [green CI run 40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017) passed backend lint, tests, mock selector comparison, and JavaScript syntax checks · Finding: `REL-002` remains OPEN as P2 because legacy unused-symbol diagnostics are warnings; `no-undef`/correctness errors still fail the gate.
+- [x] **PR-012** make browser smoke tests block.  
+  Status: `DONE` · Evidence: Playwright navigation/admin smoke tests passed in [CI run 40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); the workflow has no `continue-on-error` on the smoke-test step.
+- [x] **PR-013** align CI and declared deployment Node versions.  
+  Status: `DONE` · Evidence: `.nvmrc`, root/server `engines.node`, both lockfile root entries, and CI all specify Node `24.x`/`24`; CI uses `actions/checkout@v5` and `actions/setup-node@v5`. Production host settings still require post-deploy verification.
+- [x] **PR-014** use lockfile-based clean installs.  
+  Status: `DONE` · Evidence: frontend and backend `npm ci` both passed in [CI run 40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); `server/.npmrc` keeps optional-peer resolution consistent with the committed lockfile.
+- [x] **PR-015** review workflow permissions and fork secret exposure.  
+  Status: `DONE` · Evidence: [CI workflow](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/.github/workflows/ci.yml) explicitly grants only `contents: read`, uses `pull_request` (not `pull_request_target`), has no deployment secrets in steps, and sets checkout `persist-credentials: false`.
+- [x] **PR-016** scan for committed env files and secrets.  
+  Status: `DONE — current tree scan` · Evidence: recursive Git tree scan (518 entries) found only `.env.example` and `server/.env.example` among env/key-like paths; repository code searches returned no matches for common API-key prefixes such as `AIza`, `sk-proj`, `sk-live`, `rzp_live`, `ghp_`, or `mongodb+srv`. Limitation: this is a current-tree pattern scan, not a full historical Git-secret scan.
+- [x] **PR-017** record release notes and known risks.  
+  Status: `DONE` · Evidence: [`docs/RELEASE_NOTES.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/RELEASE_NOTES.md) records verified changes, CI evidence, known risks, and explicit NOT READY status.
 - [ ] **PR-018** assign rollback and release decision owners.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: owner identities and formal approval authority are not defined in repository sources, and they cannot be inferred safely. Project owner must record named primary/backup release and rollback owners plus risk-acceptance authority.
 - [ ] **PR-019** capture CI for exact candidate SHA.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-020** block release while required checks are red or pending.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
 
 ### B. Configuration and secrets
 
@@ -559,15 +560,15 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | Finding ID | Severity | Task ID(s) | Reproduction/evidence | Root cause | Fix commit | Regression test | Retest |
 |---|---|---|---|---|---|---|---|
-| REL-001 | P1 | PR-004 | GitHub API: `main.protected=false` | Branch protection/ruleset not enabled or not exposed | Manual repository settings required | Require CI checks and PR review | BLOCKED on settings access |
-| REL-002 | P1 | PR-011 | `.github/workflows/ci.yml` has no server `npm run lint` step | Backend lint is not a required CI gate | Add blocking backend lint step on `main` | Backend lint + full CI | OPEN |
-| REL-003 | P1 | PR-013 | CI installs backend dependencies with `npm install` | Backend dependency install is not a strict clean lockfile install | Switch backend CI to `npm ci` after confirming lockfile is committed | Backend tests + full CI | OPEN |
+| REL-001 | P1 | PR-004, PR-020 | GitHub API: `main.protected=false`; no release workflow enforces candidate checks | Branch protection/ruleset is not enabled, so failing/pending checks do not prevent merges/releases | Manual repository settings required | Enable PR reviews and require frontend/backend jobs; verify red/pending jobs block merge | OPEN — settings write access unavailable through connector |
+| REL-002 | P2 | PR-011 | Initial strict backend lint surfaced 65 errors; discovery course code used undefined `level`; green CI now runs backend lint and syntax checks | Legacy unused symbols and intentionally empty catches caused lint failures; one actual undefined identifier was corrected; remaining unused-symbol findings are warnings | `ef7aacf` (lint policy), `0ca81cb` (undefined level), `fd6fe03` (escape cleanup) | Backend lint + tests + syntax checks | CI PASS in [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); warning cleanup remains OPEN |
+| REL-003 | P1 | PR-014 | Initial `npm ci` rejected the committed peer-dependency tree; install now succeeds with project npm config | Lockfile omitted optional MongoDB peer integrations and npm's default resolution did not match the committed tree | `c22ae9d` (`server/.npmrc`); CI now uses `npm ci` | Run clean installs for frontend/backend, then backend tests | RESOLVED — both clean installs and backend tests passed in [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017) |
 
 ## Execution log
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|
-| 2026-10-26 | `6c0967f` code candidate; checklist follow-up commits pending CI | PR-001, PR-003–PR-006, PR-007–PR-010, PR-013 | 8 | 3 | 0 | 228 | [Last green run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); [latest run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40279307377) | `main` is unprotected; backend lint is missing from CI; backend install should use `npm ci`. Latest candidate CI is pending. |
+| 2026-10-26 | Candidate `1ada53c` (full CI run pending while recording this batch) | PR-001, PR-003, PR-005–PR-017, PR-019–PR-020 | 14 | 2 | 2 | 221 | [Previous green full CI](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017); [candidate run](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280974805) | Branch protection/release gate fails; local working-tree state and named owners are blocked; backend unused-symbol warnings remain as P2 cleanup. |
 
 ## Related project documents
 

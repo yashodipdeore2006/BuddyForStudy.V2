@@ -1013,6 +1013,71 @@ test.describe("administrator route and permission UX", () => {
     await expect(publishToggle).not.toBeChecked();
     expect(publishRequests).toBe(0);
   });
+  test("[ADM-CONTENT-DELETE-001] curriculum module deletion requires typed confirmation and a valid audit reason", async ({ page }) => {
+    const courseId = "507f1f77bcf86cd799439011";
+    let deletionPayload: unknown;
+    let deletionRequests = 0;
+    const courseDetail = {
+      _id: courseId,
+      title: "Course reader fixture",
+      category: "Development",
+      level: "Beginner",
+      status: "draft",
+      isPublished: false,
+      featured: false,
+      enrollmentEnabled: true,
+      certificateEnabled: true,
+      pricing: { mode: "free", price: 0, currency: "INR" },
+      modules: [{
+        _id: "module-fixture",
+        title: "Module to remove",
+        description: "A test module",
+        lessons: [],
+        resources: []
+      }]
+    };
+
+    await mockAdminApi(page, {
+      user: analystUser,
+      adminRole: "course_manager",
+      roleLabel: "Course Manager",
+      permissions: ["dashboard.read", "courses.read", "courses.manage"],
+    });
+    await page.route(`**/api/admin/courses/${courseId}`, async (route) => {
+      if (route.request().method() === "GET") return json(route, { course: courseDetail });
+      return route.fallback();
+    });
+    await page.route(`**/api/admin/courses/${courseId}/modules/module-fixture`, async (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback();
+      deletionRequests += 1;
+      deletionPayload = route.request().postDataJSON();
+      return json(route, { course: { ...courseDetail, modules: [] } });
+    });
+
+    await page.goto(baseURL + "/admin/courses");
+    await page.getByRole("button", { name: /Manage Curriculum/i }).click();
+    await expect(page.getByText("Module to remove")).toBeVisible();
+    await page.getByRole("button", { name: "Remove Module" }).click();
+
+    const dialog = page.getByRole("alertdialog", { name: "Delete module?" });
+    await expect(dialog).toBeVisible();
+    const phrase = dialog.getByLabel("Type DELETE MODULE to confirm");
+    const reason = dialog.getByLabel("Reason (required)");
+    const confirm = dialog.getByRole("button", { name: "Delete module", exact: true });
+    await expect(confirm).toBeDisabled();
+    await reason.fill("Remove obsolete curriculum after course review.");
+    await phrase.fill("DELETE LESSON");
+    await expect(confirm).toBeDisabled();
+    expect(deletionRequests).toBe(0);
+    await phrase.fill("DELETE MODULE");
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+
+    await expect.poll(() => deletionRequests).toBe(1);
+    expect(deletionPayload).toEqual({ reason: "Remove obsolete curriculum after course review." });
+    await expect(page.getByText("Module to remove")).toHaveCount(0);
+  });
+
   test("[ADM-COMMAND-PERMISSION-001] command palette does not expose routes outside the current permission set", async ({ page }) => {
     await mockAdminApi(page, {
       user: analystUser,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BookOpen, ChevronDown, ChevronRight, ExternalLink, FileText, Github, Link as LinkIcon, Loader2, Plus, RefreshCcw, Save, Trash2, Video } from "lucide-react";
 import { adminFetch } from "@/lib/adminApi";
 import { AdminPageHeader, AdminPagination } from "@/components/admin/AdminUI";
+import { TypedConfirmDialog } from "@/components/admin/TypedConfirmDialog";
 
 type TutorialEditor = {
   lessonId: string;
@@ -130,6 +131,14 @@ type AdminCourseRecord = {
   modules?: CourseModule[];
 };
 
+type PendingContentDeletion = {
+  kind: "module" | "lesson" | "resource";
+  courseId: string;
+  moduleId: string;
+  targetId: string;
+  targetTitle: string;
+  moduleTitle: string;
+};
 type CourseReadinessCheck = { key: string; label: string; fix?: string };
 type CourseReadiness = {
   ready?: boolean;
@@ -164,6 +173,11 @@ export default function AdminCoursesPro() {
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
   const [permissions, setPermissions] = useState<string[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
+  const [pendingContentDeletion, setPendingContentDeletion] = useState<PendingContentDeletion | null>(null);
+  const [contentDeletionReason, setContentDeletionReason] = useState("");
+  const [contentDeletionConfirmation, setContentDeletionConfirmation] = useState("");
+  const [contentDeletionBusy, setContentDeletionBusy] = useState(false);
+  const [contentDeletionError, setContentDeletionError] = useState("");
   const canManageCourses = permissions.includes("courses.manage");
   const canPublishCourses = permissions.includes("courses.publish");
 
@@ -510,17 +524,18 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteModule(courseId: string, module: CourseModule) {
-    if (!window.confirm(`Remove module "${module.title}" and all its lessons/resources?`)) return;
-
-    try {
-      const data = await adminFetch(`/api/admin/courses/${courseId}/modules/${module._id}`, {
-        method: "DELETE",
-      });
-      patchDetail(courseId, data.course);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Unable to remove module");
-    }
+  function deleteModule(courseId: string, module: CourseModule) {
+    setPendingContentDeletion({
+      kind: "module",
+      courseId,
+      moduleId: module._id,
+      targetId: module._id,
+      targetTitle: module.title || "Untitled module",
+      moduleTitle: module.title || "Untitled module",
+    });
+    setContentDeletionReason("");
+    setContentDeletionConfirmation("");
+    setContentDeletionError("");
   }
 
   async function addVideoToModule(courseId: string, module: CourseModule) {
@@ -571,17 +586,18 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteLesson(courseId: string, module: CourseModule, lesson: CourseLesson) {
-    if (!window.confirm(`Remove "${lesson.title}" from "${module.title}"?`)) return;
-    try {
-      const data = await adminFetch(
-        `/api/admin/courses/${courseId}/modules/${module._id}/lessons/${lesson._id}`,
-        { method: "DELETE" }
-      );
-      patchDetail(courseId, data.course);
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Unable to remove learning item");
-    }
+  function deleteLesson(courseId: string, module: CourseModule, lesson: CourseLesson) {
+    setPendingContentDeletion({
+      kind: "lesson",
+      courseId,
+      moduleId: module._id,
+      targetId: lesson._id,
+      targetTitle: lesson.title || "Untitled lesson",
+      moduleTitle: module.title || "Untitled module",
+    });
+    setContentDeletionReason("");
+    setContentDeletionConfirmation("");
+    setContentDeletionError("");
   }
 
   async function addModuleResource(courseId: string, module: CourseModule) {
@@ -618,16 +634,54 @@ export default function AdminCoursesPro() {
     }
   }
 
-  async function deleteModuleResource(courseId: string, module: CourseModule, resource: CourseResource) {
-    if (!window.confirm(`Remove module resource "${resource.title}"?`)) return;
+  function deleteModuleResource(courseId: string, module: CourseModule, resource: CourseResource) {
+    setPendingContentDeletion({
+      kind: "resource",
+      courseId,
+      moduleId: module._id,
+      targetId: resource._id,
+      targetTitle: resource.title || "Untitled resource",
+      moduleTitle: module.title || "Untitled module",
+    });
+    setContentDeletionReason("");
+    setContentDeletionConfirmation("");
+    setContentDeletionError("");
+  }
+
+  async function confirmContentDeletion() {
+    const target = pendingContentDeletion;
+    if (!target || contentDeletionBusy) return;
+    const reason = contentDeletionReason.trim();
+    if (reason.length < 10 || reason.length > 500) {
+      setContentDeletionError("Enter a reason between 10 and 500 characters.");
+      return;
+    }
+    const requiredText = "DELETE " + target.kind.toUpperCase();
+    if (contentDeletionConfirmation !== requiredText) {
+      setContentDeletionError("Type the exact confirmation phrase to continue.");
+      return;
+    }
+
+    setContentDeletionBusy(true);
+    setContentDeletionError("");
     try {
-      const data = await adminFetch(
-        `/api/admin/courses/${courseId}/modules/${module._id}/resources/${resource._id}`,
-        { method: "DELETE" }
-      );
-      patchDetail(courseId, data.course);
+      const endpoint = target.kind === "module"
+        ? `/api/admin/courses/${target.courseId}/modules/${target.moduleId}`
+        : target.kind === "lesson"
+          ? `/api/admin/courses/${target.courseId}/modules/${target.moduleId}/lessons/${target.targetId}`
+          : `/api/admin/courses/${target.courseId}/modules/${target.moduleId}/resources/${target.targetId}`;
+      const data = await adminFetch(endpoint, {
+        method: "DELETE",
+        body: JSON.stringify({ reason }),
+      });
+      patchDetail(target.courseId, data.course);
+      setPendingContentDeletion(null);
+      setContentDeletionReason("");
+      setContentDeletionConfirmation("");
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Unable to remove resource");
+      setContentDeletionError(error instanceof Error ? error.message : "Unable to remove course content.");
+    } finally {
+      setContentDeletionBusy(false);
     }
   }
 
@@ -1339,6 +1393,37 @@ export default function AdminCoursesPro() {
             );
           })
         )}
+        <TypedConfirmDialog
+          open={Boolean(pendingContentDeletion)}
+          title={pendingContentDeletion ? `Delete ${pendingContentDeletion.kind}?` : "Delete course content?"}
+          description={pendingContentDeletion ? (
+            <div>
+              <p>Remove <strong>{pendingContentDeletion.targetTitle}</strong> from module <strong>{pendingContentDeletion.moduleTitle}</strong>?</p>
+              {pendingContentDeletion.kind === "module" && <p className="mt-2">All lessons and resources in this module will also be removed.</p>}
+              {pendingContentDeletion.kind === "lesson" && <p className="mt-2">Learners will no longer see this lesson in the course structure.</p>}
+              {pendingContentDeletion.kind === "resource" && <p className="mt-2">This resource link will be removed from the module.</p>}
+              {contentDeletionError && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{contentDeletionError}</p>}
+            </div>
+          ) : undefined}
+          consequence="This action cannot be undone from the curriculum editor. The deletion reason is included in the course revision and audit log."
+          confirmLabel={pendingContentDeletion ? "Delete " + pendingContentDeletion.kind : "Delete content"}
+          requiredText={pendingContentDeletion ? "DELETE " + pendingContentDeletion.kind.toUpperCase() : undefined}
+          value={contentDeletionConfirmation}
+          onValueChange={(value) => { setContentDeletionConfirmation(value); setContentDeletionError(""); }}
+          reason={contentDeletionReason}
+          onReasonChange={(value) => { setContentDeletionReason(value); setContentDeletionError(""); }}
+          reasonRequired
+          onConfirm={() => { void confirmContentDeletion(); }}
+          onClose={() => {
+            if (contentDeletionBusy) return;
+            setPendingContentDeletion(null);
+            setContentDeletionReason("");
+            setContentDeletionConfirmation("");
+            setContentDeletionError("");
+          }}
+          loading={contentDeletionBusy}
+          danger
+        />
         {!openCourseId && <div className="border-t border-slate-100 pt-3">
           <AdminPagination page={page} pages={pages} total={total} from={total ? (page - 1) * limit + 1 : 0} to={Math.min(page * limit, total)} limit={limit} loading={loading} onPageChange={(nextPage) => { setPage(nextPage); void load(courseQuery, nextPage, limit); }} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); void load(courseQuery, 1, nextLimit); }} />
         </div>}

@@ -1299,6 +1299,9 @@ export async function updateCourseModule(req, res, next) {
 
 export async function deleteCourseModule(req, res, next) {
   try {
+    if (!isValidObjectId(req.params.courseId) || !isValidObjectId(req.params.moduleId)) return failure(res, "Invalid course or module identifier", 400);
+    const reason = requireContentReason(req, res, "course module deletion");
+    if (!reason) return;
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
     const index = (course.modules || []).findIndex((item) => String(item._id) === String(req.params.moduleId));
@@ -1308,12 +1311,12 @@ export async function deleteCourseModule(req, res, next) {
     course.modules.splice(index, 1);
     renumberModules(course);
     course.markModified("modules");
-    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.deleted", "Course", course._id, {
       moduleId: String(removed._id), title: removed.title
-    }, null, req.body?.reason || "");
+    }, null, reason);
     return success(res, { course }, "Module removed");
   } catch (e) { next(e); }
 }
@@ -1468,6 +1471,9 @@ export async function addCourseLesson(req, res, next) {
 
 export async function deleteCourseLesson(req, res, next) {
   try {
+    if (!isValidObjectId(req.params.courseId) || !isValidObjectId(req.params.moduleId) || !isValidObjectId(req.params.lessonId)) return failure(res, "Invalid course, module, or lesson identifier", 400);
+    const reason = requireContentReason(req, res, "course lesson deletion");
+    if (!reason) return;
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
     const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
@@ -1479,12 +1485,12 @@ export async function deleteCourseLesson(req, res, next) {
     module.lessons.splice(index, 1);
     renumberModules(course);
     course.markModified("modules");
-    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.lesson.deleted", "Course", course._id, {
       moduleId: String(module._id), lessonId: String(removed._id), title: removed.title, type: removed.type
-    }, null, req.body?.reason || "");
+    }, null, reason);
     return success(res, { course, module }, "Learning item removed");
   } catch (e) { next(e); }
 }
@@ -1526,6 +1532,9 @@ export async function addModuleResource(req, res, next) {
 
 export async function deleteModuleResource(req, res, next) {
   try {
+    if (!isValidObjectId(req.params.courseId) || !isValidObjectId(req.params.moduleId) || !isValidObjectId(req.params.resourceId)) return failure(res, "Invalid course, module, or resource identifier", 400);
+    const reason = requireContentReason(req, res, "course module resource deletion");
+    if (!reason) return;
     const course = await Course.findById(req.params.courseId);
     if (!course) return failure(res, "Course not found", 404);
     const module = (course.modules || []).find((item) => String(item._id) === String(req.params.moduleId));
@@ -1537,7 +1546,7 @@ export async function deleteModuleResource(req, res, next) {
     let removedResourceHost = "";
     try { removedResourceHost = new URL(removed.url).hostname.toLowerCase().replace(/^www\./, ""); } catch { /* Legacy resources may contain invalid URLs. */ }
     module.resources.splice(index, 1);
-    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason: String(req.body?.reason || "Admin course content change").slice(0, 500), summary: "Course content or metadata changed" };
+    course.$locals.revisionContext = { actor: req.user?.user?._id || req.user?.userId || null, source: "admin", reason, summary: "Course content or metadata changed" };
     await course.save();
     await cacheDelete(`course:${course._id}`);
     await audit(req, "course.module.resource.deleted", "Course", course._id, {
@@ -1547,7 +1556,7 @@ export async function deleteModuleResource(req, res, next) {
       type: removed.type,
       hasUrl: Boolean(removed.url),
       urlHost: removedResourceHost
-    }, null, req.body?.reason || "");
+    }, null, reason);
     return success(res, { course, module }, "Module resource removed");
   } catch (e) { next(e); }
 }

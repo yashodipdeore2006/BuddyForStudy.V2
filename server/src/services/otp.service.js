@@ -22,6 +22,14 @@ function createOtp() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
 }
 
+export function getOtpResendCooldownSeconds(lastSentAt, now = new Date()) {
+  const lastSentMs = new Date(lastSentAt).getTime();
+  const nowMs = new Date(now).getTime();
+  if (!Number.isFinite(lastSentMs) || !Number.isFinite(nowMs)) return 0;
+  const remainingMs = RESEND_COOLDOWN_MS - (nowMs - lastSentMs);
+  return remainingMs > 0 ? Math.min(RESEND_COOLDOWN_MS / 1000, Math.ceil(remainingMs / 1000)) : 0;
+}
+
 function mailer() {
   if (!env.smtpHost || !env.smtpUser || !env.smtpPass) {
     throw authError("Email delivery is not configured on the server.", 503);
@@ -61,8 +69,8 @@ function emailCopy(purpose, code, name) {
 export async function sendOtp(user, purpose) {
   const now = new Date();
   const existing = await AuthOtp.findOne({ user: user._id, purpose }).sort({ createdAt: -1 });
-  if (existing?.lastSentAt && now.getTime() - existing.lastSentAt.getTime() < RESEND_COOLDOWN_MS) {
-    const retryAfter = Math.ceil((RESEND_COOLDOWN_MS - (now.getTime() - existing.lastSentAt.getTime())) / 1000);
+  const retryAfter = existing?.lastSentAt ? getOtpResendCooldownSeconds(existing.lastSentAt, now) : 0;
+  if (retryAfter > 0) {
     const error = authError("Please wait before requesting another OTP.", 429);
     error.retryAfter = retryAfter;
     throw error;

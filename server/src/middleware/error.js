@@ -71,8 +71,8 @@ export function errorHandler(error, req, res, _next) {
     method: req.method,
     route: req.path,
     error: error?.name || "Error",
-    message: String(error?.message || "Unknown error").slice(0, 1000),
-    code: error?.code,
+    ...(isProduction ? {} : { message: String(error?.message || "Unknown error").slice(0, 1000) }),
+    code: typeof error?.code === "string" || typeof error?.code === "number" ? error.code : undefined,
     status: normalized.status
   });
 

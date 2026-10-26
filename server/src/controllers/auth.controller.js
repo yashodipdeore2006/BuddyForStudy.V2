@@ -65,7 +65,7 @@ export async function register(req, res) {
     return success(res, result, "User registered successfully", 201);
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -76,7 +76,7 @@ export async function login(req, res) {
     return success(res, result, "Login successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -98,7 +98,7 @@ export async function googleLogin(req, res) {
     return success(res, result, "Google authentication successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -110,7 +110,7 @@ export async function verifyLogin(req, res) {
     return success(res, result, "Login successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -121,7 +121,7 @@ export async function verifyEmail(req, res) {
     return success(res, result, "Email verified successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -136,9 +136,7 @@ export async function resendOtp(req, res) {
     return success(res, result, "OTP sent successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    const body = { message: error.message };
-    if (error.retryAfter) body.retryAfter = error.retryAfter;
-    return failure(res, body.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -149,7 +147,7 @@ export async function forgotPassword(req, res) {
     return success(res, result, "If the account exists, a password reset OTP has been sent.");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -160,7 +158,7 @@ export async function resetPassword(req, res) {
     return success(res, result, "Password reset successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -171,7 +169,7 @@ export async function updateProfile(req, res) {
     return success(res, result, "Profile updated successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -182,7 +180,7 @@ export async function changePassword(req, res) {
     return success(res, result, "Password updated successfully");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }
 
@@ -220,6 +218,6 @@ export async function updateLearningPace(req, res) {
     return success(res, { hoursPerDay: user?.learningPaceHoursPerDay || input.hoursPerDay }, "Learning pace updated");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    return failure(res, error.message, error.status || 500);
+    return authErrorResponse(res, error);
   }
 }

@@ -63,12 +63,12 @@ GOOGLE_CLIENT_ID=
 Required:
 
 ```
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-6-luna
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
 YOUTUBE_API_KEY=
 ```
 
-The AI service searches YouTube for candidate learning videos, then uses the OpenAI Responses API to construct a structured BuddyForStudy course plan. Generated source URLs are returned with the course plan.
+The AI services use the configured Gemini model for structured course and quiz generation, and search YouTube for candidate learning videos. Use the configuration names and defaults in `src/config/env.js` and `.env.example`. Generated source URLs are returned with the course plan.
 
 Never commit real API keys or MongoDB credentials.
 
@@ -95,6 +95,10 @@ npm run verify:deployment
 ```
 
 The verifier checks API liveness, database readiness, public billing plans, Google-auth configuration, and (when provided) that the frontend responds with HTML. The frontend URL is optional for API-only smoke checks, but should be supplied for a complete deployment check.
+
+## Environment variable inventory
+
+See [Environment Variable Inventory](../docs/ENVIRONMENT_VARIABLES.md) for frontend/public values, backend secrets, production requirements, feature flags, bootstrap-only variables, and deployment smoke-test inputs.
 
 ## Regression and CI checks
 

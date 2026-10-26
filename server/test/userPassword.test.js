@@ -12,7 +12,8 @@ test("password hashing uses bcrypt and password comparison verifies only the ori
   const passwordHash = await User.hashPassword(password);
 
   assert.notEqual(passwordHash, password);
-  assert.match(passwordHash, /^\\$2[aby]\\$12\\$/);
+  assert.ok(["2a", "2b", "2y"].includes(passwordHash.split("$")[1]));
+  assert.equal(passwordHash.split("$")[2], "12");
 
   const user = new User({
     name: "Learner Example",

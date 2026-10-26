@@ -8,11 +8,18 @@ export default tseslint.config(
   { ignores: ['dist'] },
   {
     extends: [js.configs.recommended],
-    files: ['server/**/*.js'],
+    files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: globals.node,
+    },
+    rules: {
+      // Keep correctness failures blocking while legacy unused-symbol debt is remediated.
+      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none', ignoreRestSiblings: true, varsIgnorePattern: '^_' }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'error',
+      'no-undef': 'error',
     },
   },
   {

@@ -148,3 +148,13 @@ test("billing value summaries keep different currencies separate", () => {
   assert.match(adminBilling, /paidTotalsByCurrency/);
   assert.match(adminBilling, /money\(amount, currency\)/);
 });
+
+test("course checkout refuses to reuse pending orders when the current price or currency changed", () => {
+  const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
+  assert.match(controller, /function pendingCourseCheckoutMatchesPrice\(payment, amount, currency\)/);
+  assert.match(controller, /pendingAmount === Number\(amount\)/);
+  assert.match(controller, /pendingCurrency === requestedCurrency/);
+  assert.match(controller, /pendingCourseCheckoutMatchesPrice\(pending, amount, course\.pricing\.currency \|\| "INR"\)/);
+  assert.match(controller, /pendingCourseCheckoutMatchesPrice\(pendingCourseCheckout, amount, course\.pricing\.currency \|\| "INR"\)/);
+  assert.match(controller, /amount or currency no longer matches the current price/);
+});

@@ -24,6 +24,8 @@
 | `VITE_PUBLIC_SOCIAL_LINKEDIN` | Optional | Yes | Public LinkedIn URL; use the official HTTPS profile. |
 | `VITE_PUBLIC_SOCIAL_YOUTUBE` | Optional | Yes | Public YouTube URL; use the official HTTPS channel. |
 | `VITE_PUBLIC_SOCIAL_X` | Optional | Yes | Public X URL; use the official HTTPS profile. |
+| `VITE_PUBLIC_SOCIAL_FACEBOOK` | Optional | Yes | Public Facebook URL; use the official HTTPS page. |
+| `VITE_PUBLIC_SOCIAL_GITHUB` | Optional | Yes | Public GitHub URL; use the official HTTPS profile or repository. |
 
 ## Backend runtime and security
 

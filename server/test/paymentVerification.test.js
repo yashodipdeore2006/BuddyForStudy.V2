@@ -99,6 +99,8 @@ test("course and subscription checkout creation is serialized before provider ca
   const course = controller.slice(courseStart, courseEnd);
   const subscription = controller.slice(subscriptionStart);
   assert.ok(course.indexOf('acquireCheckoutLock(lockKey)') < course.indexOf("razorpay.createOrder("));
+  assert.ok(course.indexOf("const pendingCourseCheckout = await Payment.findOne") < course.indexOf("razorpay.createOrder("));
+  assert.ok(course.indexOf("Existing course checkout reused") < course.indexOf("razorpay.createOrder("));
   assert.ok(course.indexOf('releaseCheckoutLock(lockKey, lockToken)') > course.indexOf("razorpay.createOrder("));
   assert.ok(subscription.indexOf('acquireCheckoutLock(lockKey)') < subscription.indexOf("razorpay.createSubscription("));
   assert.ok(subscription.indexOf('releaseCheckoutLock(lockKey, lockToken)') > subscription.indexOf("razorpay.createSubscription("));

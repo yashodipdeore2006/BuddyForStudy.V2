@@ -96,6 +96,16 @@ npm run verify:deployment
 
 The verifier checks API liveness, database readiness, public billing plans, Google-auth configuration, and (when provided) that the frontend responds with HTML. The frontend URL is optional for API-only smoke checks, but should be supplied for a complete deployment check.
 
+## Validate production environment configuration
+
+Before a production deployment, install dependencies and run the config check against the deployment environment (or an equivalent staging environment with staging-only credentials):
+
+```bash
+NODE_ENV=production npm run validate:production-config
+```
+
+The command validates only configuration shape and policy; it does not connect to MongoDB or verify that OAuth, Razorpay, Gemini, YouTube, SMTP, Web Push, Redis or Sentry credentials are active. Never paste secret values into CI logs or issue comments. Follow this with `npm run verify:deployment` against staging URLs.
+
 ## Environment variable inventory
 
 See [Environment Variable Inventory](../docs/ENVIRONMENT_VARIABLES.md) for frontend/public values, backend secrets, production requirements, feature flags, bootstrap-only variables, and deployment smoke-test inputs.

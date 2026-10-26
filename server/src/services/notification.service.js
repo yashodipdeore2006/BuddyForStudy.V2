@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import mongoose from "mongoose";
 import nodemailer from "nodemailer";
+import { safeDeliveryError, safeDeliveryErrorMetadata } from "../utils/safeDeliveryError.js";
 import { mailRecipientAccepted, summarizeNotificationDeliveryOutcomes } from "./notificationDeliveryOutcomes.js";
 import { env } from "../config/env.js";
 import { Enrollment } from "../models/Enrollment.js";
@@ -267,13 +268,13 @@ async function dispatchEmail(notificationId) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: {
         emailStatus: terminal ? "failed" : "pending",
-        emailError: String(error?.message || "Email delivery failed").slice(0, 500)
+        emailError: safeDeliveryError(error, "email")
       }
     });
     console.error("[notifications] email delivery failed", {
       notificationId: String(notification._id),
       attempt: attempts,
-      message: String(error?.message || "Unknown mail error").slice(0, 200)
+      ...safeDeliveryErrorMetadata(error)
     });
     return { status: terminal ? "failed" : "retrying" };
   }
@@ -338,9 +339,7 @@ async function dispatchPush(notificationId) {
     } catch (error) {
       const statusCode = Number(error?.statusCode || error?.status || 0);
       const expired = statusCode === 404 || statusCode === 410;
-      const errorMessage = expired
-        ? "Push subscription expired or no longer exists"
-        : String(error?.message || "Web Push delivery failed").slice(0, 400);
+      const errorMessage = safeDeliveryError(error, "push");
       await PushSubscription.updateOne({ _id: subscription._id }, {
         $set: {
           ...(expired ? { active: false, deactivatedAt: new Date() } : {}),
@@ -353,7 +352,7 @@ async function dispatchPush(notificationId) {
         notificationId: String(notification._id),
         subscriptionId: String(subscription._id),
         statusCode: statusCode || undefined,
-        message: errorMessage
+        ...safeDeliveryErrorMetadata(error)
       });
     }
   }
@@ -560,7 +559,7 @@ export async function createNotificationEvent({
   }
   if (!notification) return null;
   if (created && !deferDispatch) {
-    if (payload.emailStatus === "pending") void dispatchEmail(notification._id).catch((error) => console.error("[notifications] email dispatch error", String(error?.message || error).slice(0, 200)));
+    if (payload.emailStatus === "pending") void dispatchEmail(notification._id).catch((error) => console.error("[notifications] email dispatch error", JSON.stringify(safeDeliveryErrorMetadata(error))));
     if (payload.pushStatus === "pending") void dispatchPush(notification._id).catch((error) => console.error("[notifications] push dispatch error", String(error?.message || error).slice(0, 200)));
   }
   return notification;
@@ -690,7 +689,7 @@ export async function processSubscriptionExpiryReminders(now = new Date()) {
       } catch (error) {
         console.error("[notifications] subscription expiry reminder failed", {
           subscriptionId: String(subscription.providerSubscriptionId || subscription._id),
-          message: String(error?.message || "Unknown notification error").slice(0, 200)
+          ...safeDeliveryErrorMetadata(error)
         });
       }
     }

@@ -16,6 +16,19 @@ const checkoutSchema = z.object({
   courseId: z.string().min(1)
 });
 
+function pendingCourseCheckoutMatchesPrice(payment, amount, currency) {
+  const pendingAmount = Number(payment?.amount);
+  const pendingCurrency = String(payment?.currency || "INR").toUpperCase();
+  const requestedCurrency = String(currency || "INR").toUpperCase();
+  return Boolean(
+    payment?.providerOrderId &&
+    Number.isFinite(pendingAmount) &&
+    pendingAmount > 0 &&
+    pendingAmount === Number(amount) &&
+    pendingCurrency === requestedCurrency
+  );
+}
+
 async function restorePurchasedCourseEnrollment(payment, userId) {
   if (!payment?.course) return null;
   // Payment must already be stored as paid before this call. The enrollment
@@ -60,9 +73,9 @@ export async function createCourseOrder(req, res, next) {
         provider: "razorpay",
         status: "pending"
       }).sort({ createdAt: -1 });
-      if (pending?.providerOrderId && Number.isFinite(Number(pending.amount)) && Number(pending.amount) > 0) {
+      if (pending && pendingCourseCheckoutMatchesPrice(pending, amount, course.pricing.currency || "INR")) {
         const pendingAmount = Number(pending.amount);
-        const pendingCurrency = pending.currency || "INR";
+        const pendingCurrency = String(pending.currency || "INR").toUpperCase();
         return success(res, {
           paymentId: pending._id,
           order: { id: pending.providerOrderId, amount: Math.round(pendingAmount * 100), currency: pendingCurrency },
@@ -70,7 +83,7 @@ export async function createCourseOrder(req, res, next) {
           course: { id: course._id, title: course.title, amount: pendingAmount }
         }, "Existing course checkout reused", 200);
       }
-      return failure(res, "A checkout for this course is already being prepared. Retry in a moment.", 409);
+      return failure(res, "A checkout is already pending for this course, but its amount or currency no longer matches the current price. Please contact support before retrying.", 409);
     }
     try {
     const priorPurchase = await Payment.findOne({
@@ -101,13 +114,11 @@ export async function createCourseOrder(req, res, next) {
     }).sort({ createdAt: -1 });
 
     if (pendingCourseCheckout) {
-      if (!pendingCourseCheckout.providerOrderId ||
-          !Number.isFinite(Number(pendingCourseCheckout.amount)) ||
-          Number(pendingCourseCheckout.amount) <= 0) {
-        return failure(res, "A previous checkout is pending but its payment reference is incomplete. Contact support before retrying.", 409);
+      if (!pendingCourseCheckoutMatchesPrice(pendingCourseCheckout, amount, course.pricing.currency || "INR")) {
+        return failure(res, "A previous checkout is pending, but its amount or currency no longer matches the current price. Contact support before retrying.", 409);
       }
       const pendingAmount = Number(pendingCourseCheckout.amount);
-      const pendingCurrency = pendingCourseCheckout.currency || "INR";
+      const pendingCurrency = String(pendingCourseCheckout.currency || "INR").toUpperCase();
       return success(res, {
         paymentId: pendingCourseCheckout._id,
         order: {

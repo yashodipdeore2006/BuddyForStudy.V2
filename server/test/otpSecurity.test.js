@@ -100,17 +100,17 @@ test("OTP expiry is inclusive at the exact expiry timestamp", async () => {
   }
 });
 
-test("incorrect OTP attempts increment atomically and stop after the attempt limit", async () => {
-  const state = installOtpMocks(makeRecord());
+test("incorrect login OTP attempts increment atomically and stop after the attempt limit", async () => {
+  const state = installOtpMocks(makeRecord({ purpose: "login_verification" }));
   try {
     await assert.rejects(
-      verifyOtp({ email: "learner@example.com", purpose: "email_verification", code: "000000" }),
+      verifyOtp({ email: "learner@example.com", purpose: "login_verification", code: "000000" }),
       (error) => error.status === 400 && error.message === "Incorrect OTP."
     );
     assert.equal(state.record.attempts, 1);
     state.record.attempts = 5;
     await assert.rejects(
-      verifyOtp({ email: "learner@example.com", purpose: "email_verification", code: "000000" }),
+      verifyOtp({ email: "learner@example.com", purpose: "login_verification", code: "000000" }),
       (error) => error.status === 429 && /Too many/i.test(error.message)
     );
   } finally {

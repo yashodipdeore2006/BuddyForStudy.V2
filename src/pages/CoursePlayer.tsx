@@ -630,9 +630,7 @@ export default function CoursePlayer() {
           setProgress(mapProgress(progressData.progress));
           activeLessonCompletedRef.current = true;
         } catch (progressError) {
-          setError(progressError instanceof Error
-            ? "Quiz graded, but lesson completion could not be saved. Use the lesson completion circle to retry."
-            : "Quiz graded, but lesson completion could not be saved. Use the lesson completion circle to retry.");
+          setQuizActionError("Quiz graded, but lesson completion could not be saved. Use the lesson completion circle to retry.");
         }
       }
     } catch (err) {

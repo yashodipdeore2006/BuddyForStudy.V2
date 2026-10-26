@@ -78,17 +78,19 @@ export default function Login() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <div role="alert" aria-live="assertive" aria-atomic="true" className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+          <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="login-email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -102,12 +104,14 @@ export default function Login() {
 
         <div>
           <div className="mb-1.5 flex items-center justify-between gap-3">
-            <label className="text-sm font-medium text-slate-700">Password</label>
+            <label htmlFor="login-password" className="text-sm font-medium text-slate-700">Password</label>
             <Link to={routes.forgotPassword()} className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot password?</Link>
           </div>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="login-password"
+              name="password"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -121,6 +125,7 @@ export default function Login() {
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               aria-label="Toggle password visibility"
+              aria-pressed={showPassword}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>

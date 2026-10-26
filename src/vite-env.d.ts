@@ -3,12 +3,16 @@
 interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   readonly VITE_PUBLIC_SITE_URL?: string;
+  readonly VITE_INTENT_V2?: string;
+  readonly VITE_ASYNC_ROADMAP?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_PUBLIC_SUPPORT_EMAIL?: string;
   readonly VITE_PUBLIC_SOCIAL_INSTAGRAM?: string;
   readonly VITE_PUBLIC_SOCIAL_LINKEDIN?: string;
   readonly VITE_PUBLIC_SOCIAL_YOUTUBE?: string;
   readonly VITE_PUBLIC_SOCIAL_X?: string;
+  readonly VITE_PUBLIC_SOCIAL_FACEBOOK?: string;
+  readonly VITE_PUBLIC_SOCIAL_GITHUB?: string;
 }
 
 interface ImportMeta {

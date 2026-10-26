@@ -146,24 +146,33 @@ export async function verifyLogin({ email, otp }) {
   return { user: publicUser(user), token: signAccessToken(user) };
 }
 
-export async function googleLogin(credential, consent = null) {
-  if (!env.googleClientId) throw authError("Google OAuth is not configured on the server", 503);
+export async function googleLoginWithDependencies(credential, consent = null, dependencies = {}) {
+  const clientId = dependencies.clientId ?? env.googleClientId;
+  if (!clientId) throw authError("Google OAuth is not configured on the server", 503);
 
-  const ticket = await googleClient.verifyIdToken({
+  const verifyIdToken = dependencies.verifyIdToken ?? ((options) => googleClient.verifyIdToken(options));
+  const ticket = await verifyIdToken({
     idToken: credential,
-    audience: env.googleClientId
+    audience: clientId
   });
-  const payload = ticket.getPayload();
+  const payload = ticket?.getPayload?.();
 
   if (!payload?.sub || !payload.email || !payload.email_verified) {
     throw authError("Google account could not be verified", 401);
   }
 
+  const findUser = dependencies.findUser ?? ((filter) => User.findOne(filter));
+  const createUser = dependencies.createUser ?? ((document) => User.create(document));
+  const saveUser = dependencies.saveUser ?? ((user) => user.save());
+  const acceptConsent = dependencies.acceptConsent ?? acceptLegalPolicies;
+  const findUserById = dependencies.findUserById ?? ((userId) => User.findById(userId));
+  const issueToken = dependencies.issueToken ?? signAccessToken;
+
   const email = payload.email.toLowerCase();
-  let user = await User.findOne({ $or: [{ googleId: payload.sub }, { email }] });
+  let user = await findUser({ $or: [{ googleId: payload.sub }, { email }] });
 
   if (!user) {
-    user = await User.create({
+    user = await createUser({
       name: payload.name || email.split("@")[0],
       email,
       role: "user",
@@ -180,21 +189,25 @@ export async function googleLogin(credential, consent = null) {
     user.authProvider = user.password ? "local_google" : "google";
     user.emailVerified = true;
     if (!user.name && payload.name) user.name = payload.name;
-    await user.save();
+    await saveUser(user);
   }
 
   if (consent) {
-    await acceptLegalPolicies(user._id, {
+    await acceptConsent(user._id, {
       termsAccepted: consent.termsAccepted === true,
       privacyAcknowledged: consent.privacyAcknowledged === true,
       marketingEmailConsent: consent.marketingEmailConsent === true,
       source: "registration"
     });
-    user = await User.findById(user._id);
+    user = await findUserById(user._id);
     if (!user) throw authError("Account not found", 404);
   }
 
-  return { user: publicUser(user), token: signAccessToken(user) };
+  return { user: publicUser(user), token: issueToken(user) };
+}
+
+export async function googleLogin(credential, consent = null) {
+  return googleLoginWithDependencies(credential, consent);
 }
 
 export async function updateProfile(userId, { name }) {

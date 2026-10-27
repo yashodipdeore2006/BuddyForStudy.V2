@@ -1204,6 +1204,47 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("₹99.5", { exact: true }).first()).toBeVisible();
   });
 
+  test("[PRICING-CTA-001] selecting a subscription card sends its exact plan ID to checkout", async ({ page }) => {
+    let checkoutBody: Record<string, unknown> | null = null;
+    await mockAppApi(page, {
+      authenticated: true,
+      billingPlans: [
+        {
+          _id: "plan-inr-yearly",
+          name: "Annual INR",
+          price: 499,
+          currency: "INR",
+          billingInterval: "yearly",
+          sortOrder: 1,
+          features: ["Annual access"]
+        },
+        {
+          _id: "plan-usd-monthly",
+          name: "Global USD Monthly",
+          price: 9.99,
+          currency: "USD",
+          billingInterval: "monthly",
+          sortOrder: 2,
+          features: ["Global monthly access"]
+        }
+      ]
+    });
+    await page.route("**/api/payments/subscription/order", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      checkoutBody = route.request().postDataJSON() as Record<string, unknown>;
+      return json(route, { message: "Synthetic checkout failure for CTA verification." }, 503);
+    });
+
+    await page.goto(baseURL + "/pricing");
+    const selectedCard = page.locator(".bfs-plan-card").filter({ hasText: "Global USD Monthly" });
+    await expect(selectedCard.getByRole("heading", { name: "Global USD Monthly" })).toBeVisible();
+    await expect(selectedCard).toContainText("month");
+    await selectedCard.getByRole("button", { name: /Choose plan/ }).click();
+
+    await expect(page.getByRole("status")).toContainText("Synthetic checkout failure for CTA verification.");
+    expect(checkoutBody).toEqual({ planId: "plan-usd-monthly" });
+  });
+
   test("[PRICING-ORDER-001] subscription plan cards preserve admin-configured order across currencies and billing periods", async ({ page }) => {
     await mockAppApi(page, {
       billingPlans: [

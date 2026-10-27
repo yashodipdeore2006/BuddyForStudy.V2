@@ -573,6 +573,60 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
   });
 
+  test("[EXP-COURSE-CARD-ACTION-001] saving from a catalogue card does not navigate or enroll", async ({ page }) => {
+    const course = courseFixture("independent-card-actions", { title: "Independent Card Actions" });
+    const mutations: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() !== "GET" && url.pathname.startsWith("/api/saved-courses")) {
+        mutations.push(request.method() + " " + url.pathname);
+      }
+      if (request.method() === "POST" && url.pathname === "/api/enrollments/independent-card-actions") {
+        mutations.push("UNEXPECTED ENROLLMENT");
+      }
+    });
+
+    await mockAppApi(page, {
+      authenticated: true,
+      courseId: "independent-card-actions",
+      course,
+      catalogCourses: [course],
+    });
+    await page.goto(baseURL + "/explore");
+    const card = page.locator(".bfs-course-card").filter({ hasText: "Independent Card Actions" }).first();
+    const saveButton = card.getByRole("button", { name: "Save course" });
+    await expect(saveButton).toHaveAttribute("aria-pressed", "false");
+    await saveButton.click();
+
+    await expect(card.getByRole("button", { name: "Remove from saved courses" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page).toHaveURL(/\/explore(?:\?.*)?$/);
+    expect(mutations).toEqual(["POST /api/saved-courses"]);
+  });
+
+  test("[EXP-COURSE-CARD-REVIEWS-001] zero-rating review links stay independent and display truthful empty state", async ({ page }) => {
+    const course = courseFixture("zero-review-course", { title: "Zero Review Course", ratingCount: 0, ratingAverage: 0 });
+    let enrollmentMutations = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "POST" && url.pathname === "/api/enrollments/zero-review-course") enrollmentMutations += 1;
+    });
+
+    await mockAppApi(page, { courseId: "zero-review-course", course, catalogCourses: [course] });
+    await page.goto(baseURL + "/explore");
+    const card = page.locator(".bfs-course-card").filter({ hasText: "Zero Review Course" }).first();
+    const reviewsLink = card.getByRole("link", { name: "View course reviews. No ratings yet." });
+    await expect(reviewsLink).toBeVisible();
+    await expect(reviewsLink).toContainText("No ratings yet");
+    await reviewsLink.click();
+
+    await expect(page).toHaveURL(/\/courses\/zero-review-course\?tab=reviews#reviews$/);
+    await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No published reviews yet" })).toBeVisible();
+    await expect(page.getByText("New course", { exact: true })).toBeVisible();
+    await expect(page.getByText("Be the first to review", { exact: true })).toBeVisible();
+    expect(enrollmentMutations).toBe(0);
+  });
+
   test("[EXP-COURSE-DETAILS-ROBUST-001] sparse course data and very long titles render without runtime errors", async ({ page }) => {
     const longTitle = "Foundations of Production-Grade Node.js APIs and Reliable Distributed Systems ".repeat(3).trim();
     const sparseCourse = {

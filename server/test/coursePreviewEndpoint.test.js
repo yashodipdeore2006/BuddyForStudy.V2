@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 test("public course details endpoint uses the sanitized preview for paid courses", () => {
   const controller = readFileSync(new URL("../src/controllers/course.controller.js", import.meta.url), "utf8");
-  const start = controller.indexOf("export async function get(");
+  const start = controller.indexOf("export async function details(");
   const end = controller.indexOf("\nexport async function", start + 1);
   assert.ok(start >= 0 && end > start, "Expected the public course details handler");
 

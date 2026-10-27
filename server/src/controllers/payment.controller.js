@@ -9,6 +9,7 @@ import { isValidObjectId } from "../utils/ids.js";
 import { verifyPaymentSignature } from "../services/razorpay.service.js";
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getEffectiveCoursePrice } from "../utils/coursePricing.js";
+import { toRazorpayMinorUnits } from "../utils/razorpayAmounts.js";
 import { enroll } from "../services/enrollment.service.js";
 import { acquireCheckoutLock, checkoutLockKey, releaseCheckoutLock } from "../services/checkoutLock.service.js";
 
@@ -20,13 +21,12 @@ function pendingCourseCheckoutMatchesPrice(payment, amount, currency) {
   const pendingAmount = Number(payment?.amount);
   const pendingCurrency = String(payment?.currency || "INR").toUpperCase();
   const requestedCurrency = String(currency || "INR").toUpperCase();
-  return Boolean(
-    payment?.providerOrderId &&
-    Number.isFinite(pendingAmount) &&
-    pendingAmount > 0 &&
-    pendingAmount === Number(amount) &&
-    pendingCurrency === requestedCurrency
-  );
+  if (!payment?.providerOrderId || pendingCurrency !== requestedCurrency || !Number.isFinite(pendingAmount) || pendingAmount <= 0) return false;
+  try {
+    return toRazorpayMinorUnits(pendingAmount, pendingCurrency) === toRazorpayMinorUnits(Number(amount), requestedCurrency);
+  } catch {
+    return false;
+  }
 }
 
 async function restorePurchasedCourseEnrollment(payment, userId) {
@@ -78,7 +78,7 @@ export async function createCourseOrder(req, res, next) {
         const pendingCurrency = String(pending.currency || "INR").toUpperCase();
         return success(res, {
           paymentId: pending._id,
-          order: { id: pending.providerOrderId, amount: Math.round(pendingAmount * 100), currency: pendingCurrency },
+          order: { id: pending.providerOrderId, amount: toRazorpayMinorUnits(pendingAmount, pendingCurrency), currency: pendingCurrency },
           keyId: razorpay.getPublicKey(),
           course: { id: course._id, title: course.title, amount: pendingAmount }
         }, "Existing course checkout reused", 200);
@@ -123,7 +123,7 @@ export async function createCourseOrder(req, res, next) {
         paymentId: pendingCourseCheckout._id,
         order: {
           id: pendingCourseCheckout.providerOrderId,
-          amount: Math.round(pendingAmount * 100),
+          amount: toRazorpayMinorUnits(pendingAmount, pendingCourseCheckout.currency || "INR"),
           currency: pendingCurrency
         },
         keyId: razorpay.getPublicKey(),

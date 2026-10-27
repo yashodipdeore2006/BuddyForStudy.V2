@@ -226,8 +226,8 @@ router.post("/refunds", async (req,res,next)=>{ try {
   if(!payment) return failure(res,"Paid payment not found",404);
   const existing=await RefundRequest.findOne({payment:payment._id,status:{ $in: ACTIVE_REFUND_STATUSES }});
   if(existing) return failure(res,"A refund request already exists for this payment",409);
-  const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount);
-  const amountValidation = validateRefundAmount(req.body?.amount, remainingAmount);
+  const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, null, payment.currency || "INR");
+  const amountValidation = validateRefundAmount(req.body?.amount, remainingAmount, payment.currency || "INR");
   if (!amountValidation.valid) return failure(res, amountValidation.message, 400);
   const reason = String(req.body.reason || "").trim().slice(0, 2000);
   let refund;

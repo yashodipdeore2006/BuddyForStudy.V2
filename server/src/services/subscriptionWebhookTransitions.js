@@ -1,3 +1,5 @@
+import { fromRazorpayMinorUnits } from "../utils/razorpayAmounts.js";
+
 /**
  * Normalize a provider-confirmed subscription charge before writing billing
  * history. subscription.charged is the event signal; when the payment snapshot
@@ -26,12 +28,13 @@ export function normalizeSubscriptionCharge(subscription, paymentEntity) {
     return { valid: false, reason: "Invalid subscription payment currency" };
   }
 
-  return {
-    valid: true,
-    providerPaymentId,
-    amount: amountMinor / 100,
-    currency
-  };
+  let amount;
+  try {
+    amount = fromRazorpayMinorUnits(amountMinor, currency);
+  } catch {
+    return { valid: false, reason: "Invalid subscription payment amount" };
+  }
+  return { valid: true, providerPaymentId, amount, currency };
 }
 
 export function subscriptionEventTimestamp(event) {

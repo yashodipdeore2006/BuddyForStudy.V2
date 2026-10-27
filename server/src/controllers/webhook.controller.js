@@ -13,7 +13,7 @@ import { CAPTURED_PAYMENT_SOURCE_STATUSES, FAILED_PAYMENT_SOURCE_STATUSES, build
 import { capturedPaymentValidationError } from "../services/paymentVerification.js";
 import { getWebhookClaimDisposition, WEBHOOK_EVENT_LEASE_MS } from "../services/webhookEventClaims.js";
 import { subscriptionEventTimestamp, subscriptionEventFreshnessFilter, normalizeSubscriptionCharge, SUBSCRIPTION_ACTIVATION_PAYMENT_STATUSES, TERMINAL_PAYMENT_STATUSES } from "../services/subscriptionWebhookTransitions.js";
-import { getRemainingRefundableAmount, normalizeProcessedProviderRefund, paymentStatusForRemainingBalance } from "../services/refundBalance.service.js";
+import { getRemainingRefundableAmount, normalizeProcessedProviderRefund, paymentStatusForRemainingBalance, refundAmountsMatch } from "../services/refundBalance.service.js";
 
 function eventId(req) {
   const supplied = req.get("x-razorpay-event-id");
@@ -312,7 +312,7 @@ async function recordProcessedRefund(providerRefund) {
   let refund = await RefundRequest.findOne({ providerRefundId: normalized.providerRefundId });
   if (refund && (
     String(refund.payment || "") !== String(payment._id) ||
-    Math.round(Number(refund.amount) * 100) !== Math.round(normalized.amount * 100)
+    !refundAmountsMatch(refund.amount, normalized.amount, payment.currency || "INR")
   )) {
     console.error("[billing-webhook] provider refund ID conflicts with local refund record", {
       providerRefundId,
@@ -350,7 +350,7 @@ async function recordProcessedRefund(providerRefund) {
       if (
         !candidate ||
         String(candidate.payment || "") !== String(payment._id) ||
-        Math.round(Number(candidate.amount) * 100) !== Math.round(normalized.amount * 100) ||
+        !refundAmountsMatch(candidate.amount, normalized.amount, payment.currency || "INR") ||
         !["pending", "approved"].includes(candidate.status) ||
         (candidate.providerRefundId && candidate.providerRefundId !== normalized.providerRefundId)
       ) {

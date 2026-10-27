@@ -25,6 +25,30 @@ test("effective course price ignores invalid active sale values and aligns with 
   assert.equal(getCoursePricingValidationError({ mode: "paid", price: 35, saleEnabled: true, salePrice: 20 }), null);
 });
 
+test("negative and non-finite base and sale prices fail closed", () => {
+  const invalidBasePrices = [-1, 0, NaN, Infinity, -Infinity, "not-a-price", undefined];
+  for (const price of invalidBasePrices) {
+    assert.equal(
+      getEffectiveCoursePrice({ mode: "paid", price }),
+      null,
+      `invalid base price ${String(price)} must never produce a payable price`
+    );
+    assert.match(
+      getCoursePricingValidationError({ mode: "paid", price }),
+      /positive base price/i,
+      `invalid base price ${String(price)} must be rejected by pricing validation`
+    );
+  }
+
+  const invalidSalePrices = [-1, 0, NaN, Infinity, -Infinity, "not-a-price", undefined];
+  for (const salePrice of invalidSalePrices) {
+    const pricing = { mode: "paid", price: 100, saleEnabled: true, salePrice };
+    assert.equal(getEffectiveCoursePrice(pricing), 100);
+    assert.match(getCoursePricingValidationError(pricing), /sale price|active sale/i);
+    assert.equal(hasValidActiveCourseSale(pricing), false);
+  }
+});
+
 test("pricing operations will not preserve an active zero or invalid sale price", () => {
   assert.throws(() => calculateNextPricing({ mode: "paid", price: 35, saleEnabled: true, salePrice: 0 }, validatePricingOperation({ type: "fixed", amount: 30 })), /invalidate an active sale/);
 });

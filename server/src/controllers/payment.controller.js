@@ -224,7 +224,10 @@ export async function verifyCoursePayment(req, res, next) {
   }
 }
 
-export async function createSubscriptionOrder(req, res, next) {
+export async function createSubscriptionOrder(req, res, next, dependencies = {}) {
+  const createSubscriptionPlan = dependencies.createSubscriptionPlan || razorpay.createSubscriptionPlan;
+  const createSubscription = dependencies.createSubscription || razorpay.createSubscription;
+  const getPublicKey = dependencies.getPublicKey || razorpay.getPublicKey;
   try {
     const schema = z.object({ planId: z.string().min(1), trialConversionGrantId: z.string().optional(), recurringConsent: z.literal(true).optional() });
     const { planId, trialConversionGrantId, recurringConsent } = schema.parse(req.body);
@@ -293,7 +296,7 @@ export async function createSubscriptionOrder(req, res, next) {
       if (matchingPendingCheckout.providerOrderId && matchingPendingCheckout.plan) {
         return success(res, {
           subscriptionId: matchingPendingCheckout.providerOrderId,
-          keyId: razorpay.getPublicKey(),
+          keyId: getPublicKey(),
           plan: {
             id: matchingPendingCheckout.plan._id,
             name: matchingPendingCheckout.plan.name,
@@ -326,7 +329,7 @@ export async function createSubscriptionOrder(req, res, next) {
     if (!interval) return failure(res, "Unsupported billing interval", 400);
 
     if (!plan.providerPlanId) {
-      const providerPlan = await razorpay.createSubscriptionPlan({
+      const providerPlan = await createSubscriptionPlan({
         name: plan.name,
         amount: plan.price,
         currency: plan.currency || "INR",
@@ -347,7 +350,7 @@ export async function createSubscriptionOrder(req, res, next) {
     };
     const totalCount = totalCountByInterval[plan.billingInterval];
 
-    const subscription = await razorpay.createSubscription({
+    const subscription = await createSubscription({
       planId: plan.providerPlanId,
       customerNotify: 1,
       totalCount
@@ -366,7 +369,7 @@ export async function createSubscriptionOrder(req, res, next) {
 
     return success(res, {
       subscriptionId: subscription.id,
-      keyId: razorpay.getPublicKey(),
+      keyId: getPublicKey(),
       plan: { id: plan._id, name: plan.name, price: plan.price, currency: plan.currency, billingInterval: plan.billingInterval }
     }, "Subscription checkout created", 201);
     } finally {

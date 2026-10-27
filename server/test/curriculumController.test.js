@@ -130,9 +130,9 @@ test("module creation persists the new module and keeps modules sorted by order"
 
 test("updating module order re-sorts persisted modules", async () => {
   const course = makeCourse([
-    { _id: MODULE_A, title: "First", order: 1 },
-    { _id: MODULE_B, title: "Second", order: 2 },
-    { _id: "507f1f77bcf86cd799439016", title: "Third", order: 3 }
+    { _id: MODULE_A, title: "First", order: 2 },
+    { _id: MODULE_B, title: "Second", order: 3 },
+    { _id: "507f1f77bcf86cd799439016", title: "Third", order: 4 }
   ]);
   const res = await invokeWithCourse(course, updateModule, {
     params: { courseId: COURSE_ID, moduleId: MODULE_B },
@@ -143,7 +143,7 @@ test("updating module order re-sorts persisted modules", async () => {
   assert.equal(res.body.success, true);
   assert.equal(course.saveCalls, 1);
   assert.deepEqual(course.modules.map((module) => module.title), ["Moved to front", "First", "Third"]);
-  assert.deepEqual(course.modules.map((module) => module.order), [1, 1, 3]);
+  assert.deepEqual(course.modules.map((module) => module.order), [1, 2, 4]);
 });
 
 test("lesson creation persists a lesson with the correct default body and order", async () => {
@@ -174,8 +174,8 @@ test("updating lesson order persists and re-sorts lessons within its module", as
     title: "Module",
     order: 1,
     lessons: [
-      { _id: LESSON_A, title: "First lesson", type: "tutorial", order: 1 },
-      { _id: LESSON_B, title: "Second lesson", type: "project", order: 2 }
+      { _id: LESSON_A, title: "First lesson", type: "tutorial", order: 2 },
+      { _id: LESSON_B, title: "Second lesson", type: "project", order: 3 }
     ]
   }]);
   const res = await invokeWithCourse(course, updateLesson, {
@@ -187,7 +187,7 @@ test("updating lesson order persists and re-sorts lessons within its module", as
   assert.equal(res.body.success, true);
   assert.equal(course.saveCalls, 1);
   assert.deepEqual(course.modules[0].lessons.map((lesson) => lesson.title), ["Promoted project", "First lesson"]);
-  assert.deepEqual(course.modules[0].lessons.map((lesson) => lesson.order), [1, 1]);
+  assert.deepEqual(course.modules[0].lessons.map((lesson) => lesson.order), [1, 2]);
 });
 
 test("module and lesson deletion remove the selected subdocument and save the parent course", async (t) => {

@@ -702,6 +702,7 @@ test.describe("administrator route and permission UX", () => {
   test("[ADM-PRICING-APPLY-FAILURE-001] pricing apply failure preserves preview and reason for retry", async ({ page }) => {
     let previewRequests = 0;
     let applyRequests = 0;
+    let coursePrice = 799;
     let applyPayload: Record<string, unknown> | null = null;
     page.on("dialog", (dialog) => { void dialog.accept(); });
     await mockAdminApi(page, {
@@ -718,7 +719,7 @@ test.describe("administrator route and permission UX", () => {
         level: "Beginner",
         status: "published",
         isPublished: true,
-        pricing: { mode: "paid", price: 799, compareAtPrice: 999, currency: "INR", saleEnabled: false, salePrice: 0 },
+        pricing: { mode: "paid", price: coursePrice, compareAtPrice: 999, currency: "INR", saleEnabled: false, salePrice: 0 },
         updatedAt: "2026-10-24T10:00:00.000Z",
       }],
       total: 1,
@@ -760,6 +761,7 @@ test.describe("administrator route and permission UX", () => {
       applyRequests += 1;
       applyPayload = route.request().postDataJSON() as Record<string, unknown>;
       if (applyRequests === 1) return json(route, { message: "Pricing service is temporarily unavailable." }, 503);
+      coursePrice = 499;
       return json(route, { appliedCount: 1, skippedCount: 0, batchId: "pricing-batch-fixture" });
     });
 
@@ -785,6 +787,8 @@ test.describe("administrator route and permission UX", () => {
 
     await page.getByRole("button", { name: "Confirm and apply preview" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Batch complete: 1 updated, 0 skipped. Stale courses were left unchanged." })).toBeVisible();
+    const catalogueTable = page.getByRole("table").filter({ has: page.getByRole("columnheader", { name: "Base price" }) });
+    await expect(catalogueTable.getByRole("row", { name: /Backend Fundamentals/ })).toContainText("₹499");
     expect(applyRequests).toBe(2);
   });
 

@@ -696,6 +696,44 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByText("Your current plan includes this course", { exact: true })).toHaveCount(0);
   });
 
+  test("[DETAIL-FREE-ENROLLMENT-ACCESS-001] free individual enrollment grants the learning hub without checkout", async ({ page }) => {
+    const courseId = "free-enrollment-course";
+    const course = courseFixture(courseId, {
+      title: "Free Enrollment Access",
+      pricing: { mode: "free", price: 0, currency: "INR" }
+    });
+    let enrollmentRequests = 0;
+    let checkoutRequests = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname === "/api/enrollments/" + courseId && request.method() === "POST") enrollmentRequests += 1;
+      if (url.pathname === "/api/payments/course/order" && request.method() === "POST") checkoutRequests += 1;
+    });
+
+    await mockAppApi(page, { authenticated: true, courseId, course });
+    await page.route("**/api/enrollments/" + courseId, async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      return json(route, {
+        enrollment: {
+          _id: "free-enrollment-fixture",
+          course: courseId,
+          status: "active",
+          accessSource: "individual"
+        }
+      });
+    });
+
+    await page.goto(baseURL + "/courses/" + courseId);
+    await expect(page.getByRole("heading", { name: "Free Enrollment Access" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enroll free" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Enroll free" }).first().click();
+
+    await expect(page.getByRole("heading", { name: "Your next lessons" })).toBeVisible();
+    await expect(page).toHaveURL(/\/courses\/free-enrollment-course(?:\?.*)?$/);
+    expect(enrollmentRequests).toBe(1);
+    expect(checkoutRequests).toBe(0);
+  });
+
   test("free course card opens course details before enrolling", async ({ page }) => {
     await mockAppApi(page, {
       authenticated: true,

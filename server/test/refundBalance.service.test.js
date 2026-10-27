@@ -163,8 +163,8 @@ test("refund.processed webhook reconciles external refunds into payment status a
   assert.doesNotMatch(webhook, /status: \{ \$in: \["pending", "approved"\] \},\s*amount: normalized\.amount,\s*providerRefundId: \{ \$in: \["", null\] \}\)\.sort/);
   assert.match(admin, /notes: \{ bfs_refund_request_id: String\(refund\._id\) \}/);
   assert.match(razorpay, /if \(notes && typeof notes === "object" && !Array\.isArray\(notes\)\) payload\.notes = notes/);
-  assert.match(webhook, /getRemainingRefundableAmount\(payment\._id, payment\.amount\)/);
-  assert.match(webhook, /payment\.status = paymentStatusForRemainingBalance\(remainingAmount\)/);
+  assert.match(webhook, /getRemainingRefundableAmount\(payment\._id, payment\.amount, null, payment\.currency \|\| "INR"\)/);
+  assert.match(webhook, /payment\.status = paymentStatusForRemainingBalance\(remainingAmount, payment\.currency \|\| "INR"\)/);
   assert.match(webhook, /eventKey: `refund-status:\$\{refund\._id\}:processed`/);
   assert.match(webhook, /external-refund-reconciled:/);
 });
@@ -177,8 +177,8 @@ test("admin refund payment status is recomputed from all confirmed refunds after
   assert.ok(start >= 0 && end > start, "Expected the admin refund handler");
   const handler = controller.slice(start, end);
   const refundPersist = handler.indexOf("await refund.save()");
-  const aggregateBalance = handler.indexOf("const remainingAfterConfirmedRefunds = await getRemainingRefundableAmount(payment._id, payment.amount)");
-  const paymentWrite = handler.indexOf("payment.status = paymentStatusForRemainingBalance(remainingAfterConfirmedRefunds)");
+  const aggregateBalance = handler.indexOf("const remainingAfterConfirmedRefunds = await getRemainingRefundableAmount(payment._id, payment.amount, null, payment.currency || \"INR\")");
+  const paymentWrite = handler.indexOf("payment.status = paymentStatusForRemainingBalance(remainingAfterConfirmedRefunds, payment.currency || \"INR\")");
   assert.ok(refundPersist >= 0 && aggregateBalance > refundPersist, "Calculate from processed refunds only after saving the new processed refund");
   assert.ok(paymentWrite > aggregateBalance, "Set payment status from the aggregate confirmed balance");
   assert.doesNotMatch(handler, /const isFullRefund = refund\.amount >= remainingAmount/);

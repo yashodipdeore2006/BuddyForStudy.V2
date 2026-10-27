@@ -102,7 +102,7 @@ test("course payment verification restores enrollment on success and idempotent 
 test("course checkout reuses the latest pending order instead of creating duplicate payable orders", () => {
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
   assert.match(controller, /const pendingCourseCheckout = await Payment\.findOne\([\s\S]*?course: course\._id,[\s\S]*?provider: "razorpay",[\s\S]*?status: "pending"[\s\S]*?\)\.sort\(\{ createdAt: -1 \}\)/);
-  assert.match(controller, /if \(pendingCourseCheckout\)[\s\S]*?order: \{[\s\S]*?id: pendingCourseCheckout\.providerOrderId,[\s\S]*?Math\.round\(pendingAmount \* 100\)/);
+  assert.match(controller, /if \(pendingCourseCheckout\)[\s\S]*?order: \{[\s\S]*?id: pendingCourseCheckout\.providerOrderId,[\s\S]*?toRazorpayMinorUnits\(pendingAmount, pendingCourseCheckout\.currency \|\| "INR"\)/);
   assert.match(controller, /Existing course checkout reused/);
   assert.match(controller, /checkoutLockKey\("course", req\.user\.userId, String\(course\._id\)\)/);
   assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
@@ -152,7 +152,7 @@ test("billing value summaries keep different currencies separate", () => {
 test("course checkout refuses to reuse pending orders when the current price or currency changed", () => {
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
   assert.match(controller, /function pendingCourseCheckoutMatchesPrice\(payment, amount, currency\)/);
-  assert.match(controller, /pendingAmount === Number\(amount\)/);
+  assert.match(controller, /toRazorpayMinorUnits\(pendingAmount, pendingCurrency\) === toRazorpayMinorUnits\(Number\(amount\), requestedCurrency\)/);
   assert.match(controller, /pendingCurrency === requestedCurrency/);
   assert.match(controller, /pendingCourseCheckoutMatchesPrice\(pending, amount, course\.pricing\.currency \|\| "INR"\)/);
   assert.match(controller, /pendingCourseCheckoutMatchesPrice\(pendingCourseCheckout, amount, course\.pricing\.currency \|\| "INR"\)/);

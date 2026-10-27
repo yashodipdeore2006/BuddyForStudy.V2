@@ -35,6 +35,109 @@ async function withMocks(mocks, run) {
   }
 }
 
+
+test("subscription checkout sends the selected plan price, currency, interval and period to Razorpay", async () => {
+  const cases = [
+    {
+      planId: "507f1f77bcf86cd799439012",
+      name: "USD Monthly",
+      price: 9.99,
+      currency: "USD",
+      billingInterval: "monthly",
+      providerPlanId: "plan_usd_monthly",
+      expectedPeriod: "monthly",
+      expectedInterval: 1,
+      expectedCount: 120
+    },
+    {
+      planId: "507f1f77bcf86cd799439014",
+      name: "JPY Yearly",
+      price: 125,
+      currency: "JPY",
+      billingInterval: "yearly",
+      providerPlanId: "plan_jpy_yearly",
+      expectedPeriod: "yearly",
+      expectedInterval: 1,
+      expectedCount: 10
+    }
+  ];
+
+  for (const item of cases) {
+    const plan = {
+      _id: item.planId,
+      name: item.name,
+      price: item.price,
+      currency: item.currency,
+      billingInterval: item.billingInterval,
+      isActive: true,
+      providerPlanId: "",
+      save: async function () {}
+    };
+    const captured = { providerPlan: null, providerSubscription: null, payment: null };
+    await withMocks([
+      checkoutLockMocks,
+      [SubscriptionPlan, {
+        findOne: async (filter) => {
+          assert.deepEqual(filter, { _id: item.planId, isActive: true });
+          return plan;
+        }
+      }],
+      [UserSubscription, { findOne: async () => null }],
+      [Payment, {
+        find: () => {
+          const query = {
+            sort() { return query; },
+            select() { return query; },
+            populate() { return { lean: async () => [] }; }
+          };
+          return query;
+        },
+        create: async (document) => {
+          captured.payment = { ...document };
+          return document;
+        }
+      }]
+    ], async () => {
+      const res = makeResponse();
+      await createSubscriptionOrder({
+        body: { planId: item.planId },
+        user: { userId: "507f1f77bcf86cd799439099" }
+      }, res, (error) => assert.fail(error), {
+        createSubscriptionPlan: async (input) => {
+          captured.providerPlan = input;
+          return { id: item.providerPlanId };
+        },
+        createSubscription: async (input) => {
+          captured.providerSubscription = input;
+          return { id: "sub_" + item.currency.toLowerCase() };
+        },
+        getPublicKey: () => "rzp_test_public_key"
+      });
+
+      assert.equal(res.result.statusCode, 201);
+      assert.equal(res.result.body.plan.name, item.name);
+      assert.equal(res.result.body.plan.price, item.price);
+      assert.equal(res.result.body.plan.currency, item.currency);
+      assert.equal(res.result.body.plan.billingInterval, item.billingInterval);
+      assert.deepEqual(captured.providerPlan, {
+        name: item.name,
+        amount: item.price,
+        currency: item.currency,
+        period: item.expectedPeriod,
+        interval: item.expectedInterval
+      });
+      assert.deepEqual(captured.providerSubscription, {
+        planId: item.providerPlanId,
+        customerNotify: 1,
+        totalCount: item.expectedCount
+      });
+      assert.equal(captured.payment.amount, item.price);
+      assert.equal(captured.payment.currency, item.currency);
+      assert.equal(captured.payment.metadata.checkoutType, "subscription");
+    });
+  }
+});
+
 test("subscription order creation reuses an existing pending provider checkout", async () => {
   await withMocks([
     checkoutLockMocks,

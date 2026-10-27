@@ -108,7 +108,7 @@ test("course checkout reuses the latest pending order instead of creating duplic
   assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
   assert.ok(controller.indexOf('acquireCheckoutLock(lockKey)') < controller.indexOf('const priorPurchase = await Payment.findOne'),
     "The lock must be acquired before querying purchases or creating the provider order");
-  assert.match(controller, /payment\?\.providerOrderId &&/);
+  assert.match(controller, /!payment\?\.providerOrderId \|\| pendingCurrency !== requestedCurrency/);
 });
 
 
@@ -153,7 +153,7 @@ test("course checkout refuses to reuse pending orders when the current price or 
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
   assert.match(controller, /function pendingCourseCheckoutMatchesPrice\(payment, amount, currency\)/);
   assert.match(controller, /toRazorpayMinorUnits\(pendingAmount, pendingCurrency\) === toRazorpayMinorUnits\(Number\(amount\), requestedCurrency\)/);
-  assert.match(controller, /pendingCurrency === requestedCurrency/);
+  assert.match(controller, /pendingCurrency !== requestedCurrency/);
   assert.match(controller, /pendingCourseCheckoutMatchesPrice\(pending, amount, course\.pricing\.currency \|\| "INR"\)/);
   assert.match(controller, /pendingCourseCheckoutMatchesPrice\(pendingCourseCheckout, amount, course\.pricing\.currency \|\| "INR"\)/);
   assert.match(controller, /amount or currency no longer matches the current price/);

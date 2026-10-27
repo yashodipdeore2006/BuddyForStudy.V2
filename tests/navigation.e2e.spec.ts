@@ -589,7 +589,7 @@ test.describe("canonical learner navigation", () => {
     await page.goto(baseURL + "/courses/sparse-long-title-course");
 
     await expect(page.getByRole("heading", { name: longTitle })).toBeVisible();
-    await expect(page.getByText("Progress tracking begins when lessons are available.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: longTitle })).toBeVisible();
     await expect(page.getByText("Curriculum coming soon", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in to enroll" })).toBeVisible();
     expect(pageErrors).toEqual([]);

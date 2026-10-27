@@ -29,8 +29,8 @@ test("public catalogue query excludes drafts, archived records, deleted records 
     assert.deepEqual(countFilter.isPublished, true);
     assert.equal(countFilter.deletedAt, null);
     assert.deepEqual(countFilter.status, { $ne: "archived" });
-    assert.ok(countFilter.$and.includes(await import("../src/services/course.service.js").then((m) => m.PUBLICATION_APPROVAL_FILTER)) === false,
-      "publication approval rules should remain embedded in the query; the private constant is not exported");
+    assert.equal(countFilter.$and.length, 1);
+    assert.ok(countFilter.$and[0].$or, "generated-course approval rules must remain part of the public filter");
     assert.equal(pipelines.length, 1);
     assert.deepEqual(pipelines[0][0].$match.status, { $ne: "archived" });
     assert.deepEqual(pipelines[0][0].$match.isPublished, true);

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 75 / 239 |
+| Verified done | 77 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 147 / 239 |
+| Not checked | 145 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -228,10 +228,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies a fractional INR course price is formatted consistently on Explore card, course details, and subscription-plan surfaces. Passed in [CI 40313595957](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40313595957) on candidate `a48495c8ed`.
 - [x] **PR-086** test admin price edits propagate correctly.  
   Status: `DONE` · Evidence: [`tests/admin-access.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/admin-access.e2e.spec.ts) now simulates pricing preview, a failed apply, a successful retry, and an updated course catalogue response; it asserts the refreshed catalogue row displays `₹499` after the apply. Passed in [CI 40469962130](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40469962130) on candidate `5342d4ffc9d78e13ba6d523d43f8141785a1ae07` (including test change from commit [`3c86387`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/3c86387de5a99fd9360cd4a8e3116c9522e7c3f3)).
-- [ ] **PR-087** test free-course setting through enrollment and access.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-088** test invalid negative and non-finite prices fail closed.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-087** test free-course setting through enrollment and access.  
+  Status: `DONE` · Evidence: `[DETAIL-FREE-ENROLLMENT-ACCESS-001]` in [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies an authenticated learner can enroll in a free course, see the learning hub, and does not trigger payment checkout. Passed in [CI 40470211985](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470211985) on candidate `40fda6f99bb36c0154c85794ff6340be110c0418`.
+- [x] **PR-088** test invalid negative and non-finite prices fail closed.  
+  Status: `DONE` · Evidence: [`server/test/coursePricing.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/coursePricing.test.js) now tests negative, zero, NaN, positive/negative infinity, string, missing base prices and invalid sale prices; assertions require fail-closed pricing and validation errors. Passed in [CI 40470486555](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470486555) on candidate `b4b3402417bcc31d73a9a4ed0d6bac23935751a7`.
 - [ ] **PR-089** test currency formatting and minor-unit conversions.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-090** verify configured plan order across currencies.  
@@ -592,6 +592,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-27 | Exact candidate `8d70ccc9dc726afb17a948e1807735f1950676a8` | PR-083 and PR-084 verified | 74 | 4 | 13 | 148 | [Green CI 40469653330](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40469653330); [card stacking fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ca6997de7a7fa2d7ec72789f4e9c6852cb78afbf) | Browser tests confirmed card action links work independently after the stacking-context fix; zero-review states are truthful on both Explore cards and course details. PR-086 admin pricing refresh E2E is being checked in candidate `3c86387de5`; current release blockers are unchanged. |
 
 | 2026-10-27 | Exact candidate `5342d4ffc9d78e13ba6d523d43f8141785a1ae07` | PR-086 verified | 75 | 4 | 13 | 147 | [Green CI 40469962130](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40469962130); [admin pricing refresh E2E commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/3c86387de5a99fd9360cd4a8e3116c9522e7c3f3) | Admin pricing apply retry now verifies that after a successful apply, the catalogue reload reflects the updated ₹499 base price. PR-087 free-course enrollment/access E2E has been added on candidate `40fda6f99bb36c0154c85794ff6340be110c0418`; CI is in progress. Release blockers unchanged. |
+
+| 2026-10-27 | Exact candidate `b4b3402417bcc31d73a9a4ed0d6bac23935751a7` | PR-087 and PR-088 verified | 77 | 4 | 13 | 145 | [Green CI 40470486555](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470486555); [free enrollment CI 40470211985](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470211985) | Free individual enrollment/access is covered without payment checkout; negative/non-finite base and sale prices fail closed in backend pricing tests. Next up is PR-089: cross-currency formatting and provider minor-unit conversion; current production code contains hard-coded x100 conversions which require correction before this check can pass. Release blockers unchanged. |
 
 ## Related project documents
 

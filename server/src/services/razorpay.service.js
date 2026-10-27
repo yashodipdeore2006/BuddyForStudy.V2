@@ -1,6 +1,7 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { env } from "../config/env.js";
+import { toRazorpayMinorUnits } from "../utils/razorpayAmounts.js";
 
 function getClient() {
   const keyId = String(env.razorpayKeyId || "").trim();
@@ -40,7 +41,7 @@ function wrapProviderError(operation, error) {
 export async function createOrder({ amount, currency, receipt, notes = {} }) {
   const client = getClient();
   return client.orders.create({
-    amount: Math.round(amount * 100),
+    amount: toRazorpayMinorUnits(amount, currency),
     currency,
     receipt,
     notes
@@ -55,7 +56,7 @@ export async function createSubscriptionPlan({ name, amount, currency, interval,
       interval,
       item: {
         name,
-        amount: Math.round(amount * 100),
+        amount: toRazorpayMinorUnits(amount, currency),
         currency,
         description: name
       }
@@ -104,10 +105,10 @@ export async function fetchRefund({ refundId, paymentId }) {
   }
 }
 
-export async function refundPayment({ paymentId, amount, notes }) {
+export async function refundPayment({ paymentId, amount, currency = "INR", notes }) {
   const client = getClient();
   const payload = {};
-  if (amount != null) payload.amount = Math.round(amount * 100);
+  if (amount != null) payload.amount = toRazorpayMinorUnits(amount, currency);
   if (notes && typeof notes === "object" && !Array.isArray(notes)) payload.notes = notes;
   return client.payments.refund(paymentId, payload);
 }

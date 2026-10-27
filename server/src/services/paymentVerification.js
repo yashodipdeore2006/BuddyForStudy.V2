@@ -1,3 +1,5 @@
+import { toRazorpayMinorUnits } from "../utils/razorpayAmounts.js";
+
 /**
  * Validate the provider's authoritative payment resource before a course
  * payment can transition to paid. The checkout signature is verified by the
@@ -13,7 +15,13 @@ export function capturedPaymentValidationError(payment, providerPayment) {
   if (providerPayment?.status !== "captured") {
     return "Payment has not been captured";
   }
-  if (Number(providerPayment.amount) !== Math.round(payment.amount * 100)) {
+  let expectedAmount;
+  try {
+    expectedAmount = toRazorpayMinorUnits(Number(payment.amount), payment.currency || "INR");
+  } catch {
+    return "Payment amount mismatch";
+  }
+  if (expectedAmount <= 0 || Number(providerPayment.amount) !== expectedAmount) {
     return "Payment amount mismatch";
   }
   if (String(providerPayment.currency || "").toUpperCase() !== String(payment.currency).toUpperCase()) {

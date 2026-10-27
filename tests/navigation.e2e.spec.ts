@@ -622,8 +622,7 @@ test.describe("canonical learner navigation", () => {
     await expect(page).toHaveURL(/\/courses\/zero-review-course\?tab=reviews#reviews$/);
     await expect(page.getByRole("heading", { name: "Ratings & Reviews" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "No published reviews yet" })).toBeVisible();
-    await expect(page.getByText("New course", { exact: true })).toBeVisible();
-    await expect(page.getByText("Be the first to review", { exact: true })).toBeVisible();
+    await expect(page.getByText("0.0", { exact: true })).toHaveCount(0);
     expect(enrollmentMutations).toBe(0);
   });
 

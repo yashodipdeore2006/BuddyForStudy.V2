@@ -36,6 +36,6 @@ test("amount conversion rejects negative, non-finite, unsupported precision and 
   for (const value of [-1, NaN, Infinity, -Infinity, null, undefined, ""]) {
     assert.throws(() => toRazorpayMinorUnits(value, "INR"));
   }
-  assert.throws(() => toRazorpayMinorUnits(1, "ZZZ"), /currency code|Currency/i);
+  assert.throws(() => toRazorpayMinorUnits(1, "INVALID"), /Currency must be a three-letter code/i);
   assert.throws(() => toRazorpayMinorUnits(1.2345, "CLF"), /precision/i);
 });

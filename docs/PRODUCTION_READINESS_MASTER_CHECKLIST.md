@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 70 / 239 |
+| Verified done | 72 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 152 / 239 |
+| Not checked | 150 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -218,14 +218,14 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies query/level/category filters sync with the request in `[EXP-SEARCH-001]` and verifies Title A–Z sorting, 12-item pagination, and next/previous page navigation in `[EXP-CATALOG-SORT-PAGE-001]`. Explore now offers Recent, Popular, and Title A–Z options and resets pagination when filters or sorting change. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
 - [x] **PR-081** test catalogue empty loading error offline retry states.  
   Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) tests delayed catalogue loading skeletons in `[EXP-CATALOG-LOADING-001]` and disconnect/retry recovery in `[EXP-CATALOG-RETRY-001]`. UI renders a shared retryable error for failed catalogue requests, keeps empty results distinct from loading, and retries without a full page reload. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
-- [ ] **PR-082** test course details missing fields and long titles.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-082** test course details missing fields and long titles.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) adds `[EXP-COURSE-DETAILS-ROBUST-001]` for a course payload missing optional display fields, zero lessons, and a very long title; it checks the page and curriculum empty state render without runtime errors. Passed in [CI 40468810696](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40468810696) on candidate `4156cf62716fba9a11ff48e14ff42e870d92f0bf`.
 - [ ] **PR-083** test card navigation and independent action buttons.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-084** test zero-review display accuracy.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-085** compare prices and currencies across user surfaces.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-085** compare prices and currencies across user surfaces.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies a fractional INR course price is formatted consistently on Explore card, course details, and subscription-plan surfaces. Passed in [CI 40313595957](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40313595957) on candidate `a48495c8ed`.
 - [ ] **PR-086** test admin price edits propagate correctly.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-087** test free-course setting through enrollment and access.  
@@ -587,6 +587,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-26 | Exact code candidate `f0e4784d7f703801f8a84d464f5d49bca8def7e9` | PR-103 and PR-104 verified | 66 | 4 | 13 | 156 | [Green CI 40306445526](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40306445526); [idempotency test commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/f0e4784d7f703801f8a84d464f5d49bca8def7e9) | Uncompletion updates the UI immediately without a refresh; backend repeated completion remains idempotent and records learning activity once. Quiz completion and failed-save retry behavior remain green. DATA-001 and release-control/staging gates remain open. |
 
 | 2026-10-26 | Exact candidate `6afca87678f4fb181ad5d10e3c1a8226214edfd2` | PR-072, PR-079–PR-081 verified | 70 | 4 | 13 | 152 | [Green CI run 40312089329](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329); [audited deletion commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a00e12019e41d4a6e4f3122d6e8baa50bc98241c); [catalogue UI commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0b714b7c327586eede79e015c22dba64b52d8d96) | Destructive content deletion now requires ID validation, typed confirmation, and an auditable reason; admin page permission inventory passes; Explore now has sort, pagination, loading, and offline retry tests. DATA-001 remains P1, as do branch protection and staging/provider launch gates. |
+| 2026-10-27 | Separate verified candidates `4156cf6271` and `a48495c8ed` | PR-082 and PR-085 verified | 72 | 4 | 13 | 150 | [Sparse course page CI 40468810696](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40468810696); [currency consistency CI 40313595957](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40313595957) | Long-title/sparse-course details and cross-surface fractional INR formatting have green evidence. PR-083/PR-084 course-card independent-action tests are being retested after correcting the card stacking context; PR-086 admin pricing-refresh E2E is also added and awaiting CI. Release remains NOT READY on PR-004, PR-020, DATA-001 and blocked live deployment/provider verification. |
+
 ## Related project documents
 
 - `docs/BUG_HISTORY_AND_PLATFORM_AUDIT.md` — reported bugs, known fixes and audit candidates.

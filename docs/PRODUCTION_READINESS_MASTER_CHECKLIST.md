@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 77 / 239 |
+| Verified done | 78 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 145 / 239 |
+| Not checked | 144 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -232,8 +232,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: `[DETAIL-FREE-ENROLLMENT-ACCESS-001]` in [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies an authenticated learner can enroll in a free course, see the learning hub, and does not trigger payment checkout. Passed in [CI 40470211985](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470211985) on candidate `40fda6f99bb36c0154c85794ff6340be110c0418`.
 - [x] **PR-088** test invalid negative and non-finite prices fail closed.  
   Status: `DONE` · Evidence: [`server/test/coursePricing.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/coursePricing.test.js) now tests negative, zero, NaN, positive/negative infinity, string, missing base prices and invalid sale prices; assertions require fail-closed pricing and validation errors. Passed in [CI 40470486555](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470486555) on candidate `b4b3402417bcc31d73a9a4ed0d6bac23935751a7`.
-- [ ] **PR-089** test currency formatting and minor-unit conversions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-089** test currency formatting and minor-unit conversions.  
+  Status: `DONE` · Evidence: [`razorpayAmounts.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/razorpayAmounts.test.js) covers INR/USD major↔minor conversion, zero-decimal JPY, Razorpay's supported 3-decimal currencies (BHD/KWD/OMR), unsupported precision and invalid inputs; [`refundBalance.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/refundBalance.service.test.js) verifies refund comparisons use currency-specific minor-unit precision. Hard-coded x100 provider-refund comparisons were replaced with `refundAmountsMatch`, and exhausted negative balances now resolve to `refunded`. The full blocking CI run [40473426742](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40473426742) passed on candidate `9645427b0a2e399913f151fef159459c2da21768`.
 - [ ] **PR-090** verify configured plan order across currencies.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-091** match plan period features price and CTA to backend.  
@@ -595,6 +595,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | 2026-10-27 | Exact candidate `b4b3402417bcc31d73a9a4ed0d6bac23935751a7` | PR-087 and PR-088 verified | 77 | 4 | 13 | 145 | [Green CI 40470486555](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470486555); [free enrollment CI 40470211985](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470211985) | Free individual enrollment/access is covered without payment checkout; negative/non-finite base and sale prices fail closed in backend pricing tests. Next up is PR-089: cross-currency formatting and provider minor-unit conversion; current production code contains hard-coded x100 conversions which require correction before this check can pass. Release blockers unchanged. |
 
+| 2026-10-27 | Exact candidate `9645427b0a2e399913f151fef159459c2da21768` | PR-089 verified; PR-090 plan-order E2E added for retest | 78 | 4 | 13 | 144 | [Green CI 40473426742](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40473426742); [currency conversion test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/f67ea462b75a2f2420a82847c42fae1ba0fdd03b); [currency-aware refund comparison](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/52e770fdf94c852d71e73c49d1720a73905879be) | Currency precision conversion and refund reconciliation checks now pass. The subsequent commit adds PR-090 E2E asserting the configured subscription-plan order is preserved across INR/USD/JPY and different billing periods; CI run 40473700104 is queued. Release decision remains NOT READY due to branch protection, DATA-001, and live staging/provider verification. |
 ## Related project documents
 
 - `docs/BUG_HISTORY_AND_PLATFORM_AUDIT.md` — reported bugs, known fixes and audit candidates.

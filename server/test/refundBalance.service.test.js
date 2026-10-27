@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { refundAmountsMatch } from "../src/services/refundBalance.service.js";
 import { calculateRemainingRefundableAmount, validateRefundAmount, matchesProviderRefund, normalizeProcessedProviderRefund, ACTIVE_REFUND_STATUSES, classifyProviderRefundStatus, paymentStatusForRemainingBalance } from "../src/services/refundBalance.service.js";
 import { RefundRequest } from "../src/models/RefundRequest.js";
 import { PaymentIssue } from "../src/models/PaymentIssue.js";
@@ -15,6 +16,20 @@ test("remaining refundable balance safely handles invalid values", () => {
   assert.equal(calculateRemainingRefundableAmount("invalid", 0), 0);
   assert.equal(calculateRemainingRefundableAmount(100, -1), 0);
 });
+
+
+test("refund amount comparisons use each currency's supported minor-unit precision", () => {
+  assert.equal(refundAmountsMatch(10, 10, "INR"), true);
+  assert.equal(refundAmountsMatch(10, 10.01, "INR"), false);
+  assert.equal(refundAmountsMatch(125, 125, "JPY"), true);
+  assert.equal(refundAmountsMatch(125, 125.01, "JPY"), false);
+  assert.equal(refundAmountsMatch(1.23, 1.23, "BHD"), true);
+  assert.equal(refundAmountsMatch(1.23, 1.24, "BHD"), false);
+  assert.equal(refundAmountsMatch(1.234, 1.234, "BHD"), false);
+  assert.equal(refundAmountsMatch(null, 0, "INR"), false);
+  assert.equal(refundAmountsMatch("invalid", 0, "INR"), false);
+});
+
 
 test("refund amount defaults to the remaining balance and rejects invalid or excessive values", () => {
   assert.deepEqual(validateRefundAmount(undefined, 75), { valid: true, amount: 75 });

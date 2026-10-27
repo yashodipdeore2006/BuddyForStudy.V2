@@ -84,13 +84,11 @@ test("review endpoint rejects malformed course IDs, out-of-range ratings and ove
   }
 
   await t.test("valid comment is trimmed by the schema", async () => {
-    const { z } = await import("zod");
     const { reviewSchema } = await import("../src/utils/reviewValidation.js");
     assert.deepEqual(reviewSchema.parse({ rating: 5, comment: "  Useful review  " }), {
       rating: 5,
       comment: "Useful review"
     });
-    assert.equal(z.ZodError.name, "ZodError");
   });
 });
 

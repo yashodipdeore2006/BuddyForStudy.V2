@@ -36,6 +36,9 @@ export function calculateRemainingRefundableAmount(totalAmount, alreadyRefunded,
 export function paymentStatusForRemainingBalance(remainingAmount, currency = "INR") {
   const remaining = Number(remainingAmount);
   if (!Number.isFinite(remaining)) return "partially_refunded";
+  // An exhausted or overdrawn balance is fully refunded; don't let currency
+  // normalization reject a negative floating-point remainder and downgrade it.
+  if (remaining <= 0) return "refunded";
   try {
     return toRazorpayMinorUnits(normalizeRazorpayAmount(remaining, currency), currency) <= 0
       ? "refunded"

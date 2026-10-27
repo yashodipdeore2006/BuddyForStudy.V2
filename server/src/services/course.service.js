@@ -246,6 +246,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
   const candidateFilter = {
     isPublished: true,
     deletedAt: null,
+    status: { $ne: "archived" },
     "generation.mode": { $ne: "module" },
     $and: [PUBLICATION_APPROVAL_FILTER],
     ...(category ? { category } : {}),
@@ -294,7 +295,7 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
 
     const existing = await Course.findOne(matchFilter).lean();
     if (existing) {
-      if (existing.isPublished && isApprovedForPublication(existing)) courses.push(existing);
+      if (existing.isPublished && !existing.deletedAt && existing.status !== "archived" && isApprovedForPublication(existing)) courses.push(existing);
       continue;
     }
 
@@ -311,11 +312,11 @@ async function getStandaloneModuleCourses(search, { category, level } = {}) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
 
-      if (created?.isPublished && !created.deletedAt && isApprovedForPublication(created)) courses.push(created);
+      if (created?.isPublished && !created.deletedAt && created.status !== "archived" && isApprovedForPublication(created)) courses.push(created);
     } catch (error) {
       if (error?.code === 11000) {
         const duplicate = await Course.findOne(matchFilter).lean();
-        if (duplicate?.isPublished && !duplicate.deletedAt && isApprovedForPublication(duplicate)) courses.push(duplicate);
+        if (duplicate?.isPublished && !duplicate.deletedAt && duplicate.status !== "archived" && isApprovedForPublication(duplicate)) courses.push(duplicate);
         else throw error;
       } else {
         throw error;

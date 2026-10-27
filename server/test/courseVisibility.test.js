@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/course-visibility-test";
 process.env.JWT_SECRET ||= "unit-test-only-secret-that-is-long-enough";
@@ -66,4 +67,20 @@ test("unprivileged course detail lookup filters archived, deleted and unpublishe
     if (originalRedisUrl === undefined) delete process.env.REDIS_URL;
     else process.env.REDIS_URL = originalRedisUrl;
   }
+});
+
+
+test("standalone module search never re-exposes archived parents or generated child courses", () => {
+  const source = readFileSync(new URL("../src/services/course.service.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function getStandaloneModuleCourses");
+  const end = source.indexOf("\nfunction hasMultipleTutorialVideos", start);
+  assert.ok(start >= 0 && end > start, "Expected standalone module course discovery helper");
+
+  const helper = source.slice(start, end);
+  assert.ok(helper.includes('status: { $ne: "archived" }'));
+  assert.ok(helper.includes('existing.status !== "archived"'));
+  assert.ok(helper.includes('created.status !== "archived"'));
+  assert.ok(helper.includes('duplicate.status !== "archived"'));
+  assert.ok(helper.includes("!created.deletedAt"));
+  assert.ok(helper.includes("!duplicate.deletedAt"));
 });

@@ -573,6 +573,28 @@ test.describe("canonical learner navigation", () => {
     await expect(page.getByRole("heading", { name: "Course fixture" })).toBeVisible();
   });
 
+  test("[EXP-COURSE-DETAILS-ROBUST-001] sparse course data and very long titles render without runtime errors", async ({ page }) => {
+    const longTitle = "Foundations of Production-Grade Node.js APIs and Reliable Distributed Systems ".repeat(3).trim();
+    const sparseCourse = {
+      _id: "sparse-long-title-course",
+      title: longTitle,
+      isPublished: true,
+      pricing: { mode: "free", price: 0, currency: "INR" },
+      modules: [],
+    } as unknown as ReturnType<typeof courseFixture>;
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await mockAppApi(page, { courseId: "sparse-long-title-course", course: sparseCourse });
+    await page.goto(baseURL + "/courses/sparse-long-title-course");
+
+    await expect(page.getByRole("heading", { name: longTitle })).toBeVisible();
+    await expect(page.getByText("Progress tracking begins when lessons are available.")).toBeVisible();
+    await expect(page.getByText("Curriculum coming soon", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in to enroll" })).toBeVisible();
+    expect(pageErrors).toEqual([]);
+  });
+
   test("free course offers individual enrollment and subscription options without extra green notices", async ({ page }) => {
     await mockAppApi(page, { course: courseFixture("course-fixture") });
     await page.goto(baseURL + "/courses/course-fixture");

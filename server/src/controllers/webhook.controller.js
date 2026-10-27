@@ -435,8 +435,8 @@ async function recordProcessedRefund(providerRefund) {
     return;
   }
 
-  const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount);
-  payment.status = paymentStatusForRemainingBalance(remainingAmount);
+  const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, null, payment.currency || "INR");
+  payment.status = paymentStatusForRemainingBalance(remainingAmount, payment.currency || "INR");
   await payment.save();
 
   await createNotificationEvent({

@@ -2341,7 +2341,7 @@ export async function updateRefund(req, res, next) {
     } else if (req.body.status === "approved" || req.body.status === "processed") {
       if (refund.status === "processed") return failure(res, "Refund is already processed", 409);
       if (refund.status === "rejected") return failure(res, "Rejected refund requests cannot be processed", 409);
-      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
+      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id, payment.currency || "INR");
       if (refund.amount > remainingAmount || remainingAmount <= 0) {
         return failure(res, "Refund exceeds the remaining refundable balance for this payment.", 409);
       }
@@ -2371,6 +2371,7 @@ export async function updateRefund(req, res, next) {
         providerRefund = await razorpay.refundPayment({
           paymentId: payment.providerPaymentId,
           amount: refund.amount,
+          currency: payment.currency || "INR",
           notes: { bfs_refund_request_id: String(refund._id) }
         });
       } catch (providerError) {
@@ -2485,8 +2486,8 @@ export async function updateRefund(req, res, next) {
       processedAt: refund.processedAt
     }, reason);
     if (refund.status === "processed") {
-      const remainingAfterConfirmedRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
-      payment.status = paymentStatusForRemainingBalance(remainingAfterConfirmedRefunds);
+      const remainingAfterConfirmedRefunds = await getRemainingRefundableAmount(payment._id, payment.amount, null, payment.currency || "INR");
+      payment.status = paymentStatusForRemainingBalance(remainingAfterConfirmedRefunds, payment.currency || "INR");
       await payment.save();
     }
     try {
@@ -2563,8 +2564,8 @@ export async function reconcileRefund(req, res, next) {
       if (refund.providerRefundId !== providerRefundId || providerStatus !== "processed") {
         return failure(res, "This refund is already processed. Its provider reference cannot be changed.", 409);
       }
-      const remainingAfterAllRefunds = await getRemainingRefundableAmount(payment._id, payment.amount);
-      const expectedPaymentStatus = paymentStatusForRemainingBalance(remainingAfterAllRefunds);
+      const remainingAfterAllRefunds = await getRemainingRefundableAmount(payment._id, payment.amount, null, payment.currency || "INR");
+      const expectedPaymentStatus = paymentStatusForRemainingBalance(remainingAfterAllRefunds, payment.currency || "INR");
       if (payment.status !== expectedPaymentStatus) {
         const beforePaymentStatus = payment.status;
         payment.status = expectedPaymentStatus;
@@ -2602,7 +2603,7 @@ export async function reconcileRefund(req, res, next) {
     const before = { status: refund.status, providerRefundId: refund.providerRefundId || "", decisionReason: refund.decisionReason || "" };
     refund.decisionReason = reason;
     if (providerStatus === "processed") {
-      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id);
+      const remainingAmount = await getRemainingRefundableAmount(payment._id, payment.amount, refund._id, payment.currency || "INR");
       if (refund.amount > remainingAmount || remainingAmount <= 0) {
         await RefundRequest.updateOne(
           { _id: refund._id, reconciliationToken },
@@ -2620,7 +2621,7 @@ export async function reconcileRefund(req, res, next) {
       refund.processedAt = new Date();
       refund.processedBy = req.user.user?._id || req.user.userId;
       refund.adminNote = [refund.adminNote, "Provider refund verified during reconciliation."].filter(Boolean).join("\n").slice(0, 2000);
-      payment.status = paymentStatusForRemainingBalance(remainingAmount - refund.amount);
+      payment.status = paymentStatusForRemainingBalance(remainingAmount - refund.amount, payment.currency || "INR");
       // Persist the provider-confirmed refund first. If the payment write fails,
       // the idempotent processed-refund path above repairs payment status on retry.
       await refund.save();

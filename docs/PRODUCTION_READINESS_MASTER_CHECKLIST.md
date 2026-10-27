@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 72 / 239 |
+| Verified done | 74 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 150 / 239 |
+| Not checked | 148 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -220,10 +220,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) tests delayed catalogue loading skeletons in `[EXP-CATALOG-LOADING-001]` and disconnect/retry recovery in `[EXP-CATALOG-RETRY-001]`. UI renders a shared retryable error for failed catalogue requests, keeps empty results distinct from loading, and retries without a full page reload. Full CI passed on [candidate 6afca876](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329).
 - [x] **PR-082** test course details missing fields and long titles.  
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) adds `[EXP-COURSE-DETAILS-ROBUST-001]` for a course payload missing optional display fields, zero lessons, and a very long title; it checks the page and curriculum empty state render without runtime errors. Passed in [CI 40468810696](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40468810696) on candidate `4156cf62716fba9a11ff48e14ff42e870d92f0bf`.
-- [ ] **PR-083** test card navigation and independent action buttons.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-084** test zero-review display accuracy.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-083** test card navigation and independent action buttons.  
+  Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) covers course title/CTA navigation, and `[EXP-COURSE-CARD-ACTION-001]` verifies Save acts independently without triggering card navigation or enrollment. The stacked-link defect was fixed by setting `.bfs-course-card__body` above the stretched card link in [`learner-components.css`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/src/styles/learner-components.css). Passed in [CI 40469653330](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40469653330) on candidate `8d70ccc9dc726afb17a948e1807735f1950676a8`.
+- [x] **PR-084** test zero-review display accuracy.  
+  Status: `DONE` · Evidence: `[EXP-COURSE-CARD-REVIEWS-001]` in [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies a course with zero ratings is labeled `No ratings yet` on the card, opens the separate reviews route, and shows `No published reviews yet` without a false `0.0` rating or enrollment mutation. Passed in [CI 40469653330](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40469653330) on candidate `8d70ccc9dc726afb17a948e1807735f1950676a8`.
 - [x] **PR-085** compare prices and currencies across user surfaces.  
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies a fractional INR course price is formatted consistently on Explore card, course details, and subscription-plan surfaces. Passed in [CI 40313595957](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40313595957) on candidate `a48495c8ed`.
 - [ ] **PR-086** test admin price edits propagate correctly.  
@@ -588,6 +588,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | 2026-10-26 | Exact candidate `6afca87678f4fb181ad5d10e3c1a8226214edfd2` | PR-072, PR-079–PR-081 verified | 70 | 4 | 13 | 152 | [Green CI run 40312089329](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329); [audited deletion commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a00e12019e41d4a6e4f3122d6e8baa50bc98241c); [catalogue UI commit](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0b714b7c327586eede79e015c22dba64b52d8d96) | Destructive content deletion now requires ID validation, typed confirmation, and an auditable reason; admin page permission inventory passes; Explore now has sort, pagination, loading, and offline retry tests. DATA-001 remains P1, as do branch protection and staging/provider launch gates. |
 | 2026-10-27 | Separate verified candidates `4156cf6271` and `a48495c8ed` | PR-082 and PR-085 verified | 72 | 4 | 13 | 150 | [Sparse course page CI 40468810696](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40468810696); [currency consistency CI 40313595957](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40313595957) | Long-title/sparse-course details and cross-surface fractional INR formatting have green evidence. PR-083/PR-084 course-card independent-action tests are being retested after correcting the card stacking context; PR-086 admin pricing-refresh E2E is also added and awaiting CI. Release remains NOT READY on PR-004, PR-020, DATA-001 and blocked live deployment/provider verification. |
+
+| 2026-10-27 | Exact candidate `8d70ccc9dc726afb17a948e1807735f1950676a8` | PR-083 and PR-084 verified | 74 | 4 | 13 | 148 | [Green CI 40469653330](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40469653330); [card stacking fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ca6997de7a7fa2d7ec72789f4e9c6852cb78afbf) | Browser tests confirmed card action links work independently after the stacking-context fix; zero-review states are truthful on both Explore cards and course details. PR-086 admin pricing refresh E2E is being checked in candidate `3c86387de5`; current release blockers are unchanged. |
 
 ## Related project documents
 

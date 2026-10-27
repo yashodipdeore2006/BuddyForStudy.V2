@@ -2,11 +2,7 @@ import { z } from "zod";
 import * as service from "../services/review.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
-
-const reviewSchema = z.object({
-  rating: z.number().int().min(1).max(5),
-  comment: z.string().trim().max(1000).optional().default("")
-});
+import { reviewSchema } from "../utils/reviewValidation.js";
 
 export async function list(req, res, next) {
   try {

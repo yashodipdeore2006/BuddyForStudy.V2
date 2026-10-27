@@ -569,7 +569,7 @@ async function getDiscoveryPricingPreviews(resources, level) {
 }
 
 export async function listPublished({ page = 1, limit = 20, search, category, level, sort = "recent" }) {
-  const filter = { isPublished: true, deletedAt: null, $and: [PUBLICATION_APPROVAL_FILTER] };
+  const filter = { isPublished: true, deletedAt: null, status: { $ne: "archived" }, $and: [PUBLICATION_APPROVAL_FILTER] };
   if (category) filter.category = category;
   if (level) filter.level = level;
 

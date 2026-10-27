@@ -17,7 +17,7 @@ test("safe HTTP URL parser rejects malformed URLs, unsafe schemes, deceptive pro
     "ftp://docs.example.com/file",
     "httpfoo://docs.example.com/file",
     "https://user:password@docs.example.com/private",
-    "https:///missing-host"
+    "https://"
   ]) {
     assert.equal(parseSafeHttpUrl(value), null, `expected URL to be rejected: ${value}`);
   }

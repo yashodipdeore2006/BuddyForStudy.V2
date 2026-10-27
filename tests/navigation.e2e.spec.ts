@@ -598,7 +598,7 @@ test.describe("canonical learner navigation", () => {
     await expect(saveButton).toHaveAttribute("aria-pressed", "false");
     await saveButton.click();
 
-    await expect(card.getByRole("button", { name: "Remove from saved courses" })).toHaveAttribute("aria-pressed", "true");
+    await expect(card.getByRole("button", { name: "Remove course from saved courses" })).toHaveAttribute("aria-pressed", "true");
     await expect(page).toHaveURL(/\/explore(?:\?.*)?$/);
     expect(mutations).toEqual(["POST /api/saved-courses"]);
   });

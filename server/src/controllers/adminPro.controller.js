@@ -44,6 +44,7 @@ import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
+import { parseSafeHttpUrl } from "../utils/safeHttpUrl.js";
 import { validateCouponAdminInput } from "../utils/couponAdminValidation.js";
 import { validateSubscriptionPlanAdminInput, hasProviderBillingTermsChanged } from "../utils/subscriptionPlanAdminValidation.js";
 import { createNotificationEvent, notifyActiveAdmins, retryNotificationDelivery } from "../services/notification.service.js";
@@ -1331,7 +1332,8 @@ export async function addCourseVideo(req, res, next) {
     const resourceUrl = String(req.body.resourceUrl || req.body.videoUrl || "").trim();
     if (!resourceUrl) return failure(res, "YouTube video or playlist URL is required", 400);
 
-    const url = new URL(resourceUrl);
+    const url = parseSafeHttpUrl(resourceUrl);
+    if (!url) return failure(res, "Enter a valid HTTP or HTTPS YouTube video or playlist URL", 400);
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
     const playlistId = (host === "youtube.com" || host === "m.youtube.com") ? url.searchParams.get("list") : null;
 
@@ -1507,9 +1509,8 @@ export async function addModuleResource(req, res, next) {
     const type = ["link", "document", "repository", "article"].includes(req.body.type) ? req.body.type : "link";
     if (!title || !resourceUrl) return failure(res, "Resource title and URL are required", 400);
 
-    let parsed;
-    try { parsed = new URL(resourceUrl); } catch { return failure(res, "Resource URL is invalid", 400); }
-    if (!parsed.protocol.startsWith("http")) return failure(res, "Resource URL must be http or https", 400);
+    const parsed = parseSafeHttpUrl(resourceUrl);
+    if (!parsed) return failure(res, "Resource URL must be a valid HTTP or HTTPS URL", 400);
 
     const resource = module.resources.create({ title, url: resourceUrl, type });
     module.resources.push(resource);
@@ -1603,7 +1604,8 @@ export async function updateCourseTutorial(req, res, next) {
       lessons: summarizeLessonsForAudit(targetModule.lessons || [])
     };
 
-    const url = new URL(resourceUrl);
+    const url = parseSafeHttpUrl(resourceUrl);
+    if (!url) return failure(res, "Enter a valid HTTP or HTTPS YouTube video or playlist URL", 400);
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
     const playlistId = (host === "youtube.com" || host === "m.youtube.com") ? url.searchParams.get("list") : null;
 

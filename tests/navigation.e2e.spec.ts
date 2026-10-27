@@ -1204,6 +1204,50 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("₹99.5", { exact: true }).first()).toBeVisible();
   });
 
+  test("[PRICING-ORDER-001] subscription plan cards preserve admin-configured order across currencies and billing periods", async ({ page }) => {
+    await mockAppApi(page, {
+      billingPlans: [
+        {
+          _id: "plan-configured-first",
+          name: "Configured First",
+          price: 499,
+          currency: "INR",
+          billingInterval: "yearly",
+          sortOrder: 1,
+          features: ["Annual access"]
+        },
+        {
+          _id: "plan-configured-second",
+          name: "Configured Second",
+          price: 9.99,
+          currency: "USD",
+          billingInterval: "monthly",
+          sortOrder: 2,
+          features: ["Monthly global access"]
+        },
+        {
+          _id: "plan-configured-third",
+          name: "Configured Third",
+          price: 125,
+          currency: "JPY",
+          billingInterval: "quarterly",
+          sortOrder: 3,
+          features: ["Quarterly access"]
+        }
+      ]
+    });
+
+    await page.goto(baseURL + "/pricing");
+    const planCards = page.locator(".bfs-plan-card");
+    await expect(planCards).toHaveCount(3);
+    await expect(planCards.nth(0).getByRole("heading", { name: "Configured First" })).toBeVisible();
+    await expect(planCards.nth(1).getByRole("heading", { name: "Configured Second" })).toBeVisible();
+    await expect(planCards.nth(2).getByRole("heading", { name: "Configured Third" })).toBeVisible();
+    await expect(planCards.nth(0)).toContainText("year");
+    await expect(planCards.nth(1)).toContainText("month");
+    await expect(planCards.nth(2)).toContainText("quarter");
+  });
+
   test("[DETAIL-REVIEWS-001] course reviews tab exposes a real empty state and refreshes its data", async ({ page }) => {
     let reviewReads = 0;
     page.on("request", (request) => {

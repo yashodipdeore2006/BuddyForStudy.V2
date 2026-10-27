@@ -18,6 +18,20 @@ export async function getRemainingRefundableAmount(paymentId, totalAmount, exclu
   return calculateRemainingRefundableAmount(totalAmount, rows[0]?.refunded || 0, currency);
 }
 
+/** Compare stored major-unit amounts using the exact precision for their provider currency. */
+export function refundAmountsMatch(leftAmount, rightAmount, currency = "INR") {
+  if (
+    leftAmount === null || leftAmount === undefined || leftAmount === "" ||
+    rightAmount === null || rightAmount === undefined || rightAmount === ""
+  ) return false;
+  try {
+    return toRazorpayMinorUnits(Number(leftAmount), currency) ===
+      toRazorpayMinorUnits(Number(rightAmount), currency);
+  } catch {
+    return false;
+  }
+}
+
 export function calculateRemainingRefundableAmount(totalAmount, alreadyRefunded, currency = "INR") {
   const total = Number(totalAmount);
   const refunded = Number(alreadyRefunded);

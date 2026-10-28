@@ -999,16 +999,16 @@ test.describe("learner control and state regression", () => {
 
     await page.goto(baseURL + "/learn/course-fixture/lesson-1");
     await expect(page.getByText("0/2 lessons")).toBeVisible();
-    await expect(page.getByText("0%")).toBeVisible();
+    await expect(page.locator("header").getByText("0%", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Mark complete" }).click();
     await expect(page.getByText("1/2 lessons")).toBeVisible();
-    await expect(page.getByText("50%", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("50%", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark Lesson one incomplete" })).toBeVisible();
     expect(progressReads).toBe(1);
 
     await page.reload();
     await expect(page.getByText("1/2 lessons")).toBeVisible();
-    await expect(page.getByText("50%", { exact: true })).toBeVisible();
+    await expect(page.locator("header").getByText("50%", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark Lesson one incomplete" })).toBeVisible();
     expect(progressReads).toBe(2);
   });

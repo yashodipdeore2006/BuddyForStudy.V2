@@ -67,6 +67,20 @@ test("course quiz submission validates answer payload shape and completeness bef
   assert.ok(handler.includes('if (e instanceof z.ZodError) return failure(res, "Validation failed", 400'));
 });
 
+test("pending or rejected AI question sets are never delivered or graded as approved", () => {
+  const generateStart = aiController.indexOf("export async function generatePracticeQuiz");
+  const submitStart = aiController.indexOf("export async function submitPracticeQuiz", generateStart);
+  const courseSubmitStart = aiController.indexOf("export async function submitCourseQuiz", submitStart);
+  assert.ok(generateStart >= 0 && submitStart > generateStart && courseSubmitStart > submitStart);
+  const generateHandler = aiController.slice(generateStart, submitStart);
+  const submitHandler = aiController.slice(submitStart, courseSubmitStart);
+  assert.ok(generateHandler.includes('const bank = allBank.filter((item) => item.moderationStatus === "approved")'));
+  assert.ok(generateHandler.includes('if (allBank.some((item) => item.moderationStatus !== "approved"))'));
+  assert.ok(submitHandler.includes('moderationStatus: "approved"'));
+  assert.ok(submitHandler.includes('if (bankQuizzes.length !== ids.length) return failure'));
+  assert.ok(aiRoadmapService.includes('aiReviewStatus: { $nin: ["pending", "rejected"] }'));
+});
+
 test("saved course quizzes remain available without Gemini and enrolled learners retain non-public course access", () => {
   const start = aiRoadmapService.indexOf("export async function generateCourseQuiz");
   const end = aiRoadmapService.indexOf("function courseHasTutorialVideos", start);

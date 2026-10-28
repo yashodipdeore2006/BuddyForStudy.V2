@@ -211,7 +211,7 @@ export default function SavedRoadmap() {
           {module.description && <p className="mt-1 text-sm text-slate-600">{module.description}</p>}
           <ol className="mt-4 space-y-2">
             {moduleLessons.map((lesson, lessonIndex) => {
-              const id = String(lesson.id ?? lesson.lessonId ?? lesson._id ?? allLessons.find((item) => item.title === lesson.title && item.moduleTitle === module.title)?.lessonId ?? "");
+              const id = String(lesson.id ?? lesson.lessonId ?? allLessons.find((item) => item.title === lesson.title && item.moduleTitle === module.title)?.lessonId ?? lesson._id ?? "");
               const isDone = id ? completed.has(id) : false;
               const video = lesson.tutorial?.videos?.[0]?.url;
               return <li id={id ? "roadmap-lesson-" + encodeURIComponent(id) : undefined} key={id || lessonIndex} tabIndex={-1} className="flex flex-wrap items-start gap-3 rounded-xl bg-slate-50 p-3 focus:outline-none focus:ring-2 focus:ring-violet-500">

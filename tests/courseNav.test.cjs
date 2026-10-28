@@ -187,6 +187,10 @@ test("timestamped lesson note timestamps parse and format consistently", () => {
   assert.equal(notesModule.parseMediaTimestamp("95"), 95);
   assert.equal(notesModule.parseMediaTimestamp("1:75"), null);
   assert.equal(notesModule.parseMediaTimestamp("bad"), null);
+  assert.equal(notesModule.parseMediaTimestamp("604800"), 604800);
+  assert.equal(notesModule.parseMediaTimestamp("604801"), null);
+  assert.equal(notesModule.parseMediaTimestamp("999999999999999999999"), null);
+  assert.equal(notesModule.parseMediaTimestamp("168:00:01"), null);
   assert.equal(notesModule.formatMediaTimestamp(764), "12:44");
   assert.equal(notesModule.formatMediaTimestamp(3735), "1:02:15");
 });

@@ -138,6 +138,66 @@ test("subscription checkout sends the selected plan price, currency, interval an
   }
 });
 
+test("concurrent subscription checkout is rejected before subscription eligibility or payment writes", async () => {
+  const planId = "507f1f77bcf86cd799439012";
+  const userId = "507f1f77bcf86cd799439099";
+  let eligibilityReads = 0;
+  let pendingPaymentReads = 0;
+  let providerPlanCalls = 0;
+  let providerSubscriptionCalls = 0;
+  let paymentWrites = 0;
+  let releaseCalls = 0;
+  const plan = {
+    _id: planId,
+    name: "Pro",
+    price: 199,
+    currency: "INR",
+    billingInterval: "monthly",
+    isActive: true,
+    providerPlanId: ""
+  };
+  const res = makeResponse();
+  await createSubscriptionOrder({
+    body: { planId },
+    user: { userId }
+  }, res, (error) => { throw error; }, {
+    SubscriptionPlan: {
+      findOne: async (filter) => {
+        assert.deepEqual(filter, { _id: planId, isActive: true });
+        return plan;
+      }
+    },
+    UserSubscription: {
+      findOne: async () => { eligibilityReads += 1; return null; }
+    },
+    Payment: {
+      find: () => {
+        pendingPaymentReads += 1;
+        throw new Error("A contending request must not inspect pending payments");
+      },
+      create: async () => { paymentWrites += 1; }
+    },
+    TrialGrant: { findOne: async () => null },
+    acquireCheckoutLock: async (key) => {
+      assert.match(key, /subscription/);
+      return null;
+    },
+    releaseCheckoutLock: async () => { releaseCalls += 1; },
+    createSubscriptionPlan: async () => { providerPlanCalls += 1; return { id: "unexpected" }; },
+    createSubscription: async () => { providerSubscriptionCalls += 1; return { id: "unexpected" }; },
+    getPublicKey: () => "rzp_test_public_key"
+  });
+
+  assert.equal(res.result.statusCode, 409);
+  assert.match(res.result.body.message, /already being prepared/i);
+  assert.equal(eligibilityReads, 0);
+  assert.equal(pendingPaymentReads, 0);
+  assert.equal(providerPlanCalls, 0);
+  assert.equal(providerSubscriptionCalls, 0);
+  assert.equal(paymentWrites, 0);
+  assert.equal(releaseCalls, 0);
+});
+
 test("subscription order creation reuses an existing pending provider checkout", async () => {
   await withMocks([
     checkoutLockMocks,

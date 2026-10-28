@@ -225,6 +225,34 @@ test("module and lesson deletion remove the selected subdocument and save the pa
   });
 });
 
+test("all curriculum CRUD handlers return 400 for malformed course IDs without querying MongoDB", async () => {
+  const originalFindById = Course.findById;
+  let lookups = 0;
+  Course.findById = async () => {
+    lookups += 1;
+    throw new Error("must not query invalid id");
+  };
+  const cases = [
+    { handler: createModule, params: { courseId: "bad" }, body: { title: "Module", order: 1 } },
+    { handler: updateModule, params: { courseId: "bad", moduleId: MODULE_A }, body: { title: "Renamed" } },
+    { handler: deleteModule, params: { courseId: "bad", moduleId: MODULE_A }, body: {} },
+    { handler: createLesson, params: { courseId: "bad", moduleId: MODULE_A }, body: { title: "Lesson", type: "tutorial", order: 1 } },
+    { handler: updateLesson, params: { courseId: "bad", moduleId: MODULE_A, lessonId: LESSON_A }, body: { title: "Renamed" } },
+    { handler: deleteLesson, params: { courseId: "bad", moduleId: MODULE_A, lessonId: LESSON_A }, body: {} }
+  ];
+  try {
+    for (const { handler, params, body } of cases) {
+      const res = responseRecorder();
+      await handler({ params, body }, res, (error) => assert.fail("Unexpected controller error: " + error));
+      assert.equal(res.statusCode, 400, handler.name + " should return HTTP 400");
+      assert.equal(res.body?.success, false, handler.name + " should return the standard failure response");
+    }
+    assert.equal(lookups, 0, "invalid IDs must be rejected before database access");
+  } finally {
+    Course.findById = originalFindById;
+  }
+});
+
 test("curriculum controllers reject malformed IDs and nonexistent modules/lessons without writing", async (t) => {
   const course = makeCourse([{ _id: MODULE_A, title: "Module", order: 1, lessons: [] }]);
 

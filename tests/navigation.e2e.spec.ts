@@ -1524,6 +1524,29 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("Note removed.")).toBeVisible();
   });
 
+  test("[PLAYER-DEEP-LINK-001] direct lesson URLs load and invalid lesson IDs offer recovery", async ({ page }) => {
+    const course = courseFixture("course-fixture", {
+      modules: [{
+        _id: "module-1",
+        title: "Module one",
+        lessons: [
+          { _id: "lesson-1", title: "Lesson one", type: "tutorial", description: "", duration: "5 min" },
+          { _id: "lesson-2", title: "Lesson two", type: "tutorial", description: "", duration: "7 min" },
+        ],
+      }],
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true, course });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-2");
+    await expect(page.getByRole("heading", { name: "Lesson two", exact: true })).toBeVisible();
+
+    await page.goto(baseURL + "/learn/course-fixture/invalid-lesson");
+    await expect(page.getByRole("status")).toHaveText("This lesson could not be found or is no longer available.");
+    await page.getByRole("button", { name: "Go to first lesson" }).click();
+    await expect(page).toHaveURL(/\\/learn\\/course-fixture\\/lesson-1$/);
+    await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
+  });
+
   test("[PLAYER-LESSON-NAV-001] previous and next follow curriculum order and update the canonical URL", async ({ page }) => {
     const course = courseFixture("course-fixture", {
       modules: [{

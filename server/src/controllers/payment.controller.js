@@ -29,11 +29,11 @@ function pendingCourseCheckoutMatchesPrice(payment, amount, currency) {
   }
 }
 
-async function restorePurchasedCourseEnrollment(payment, userId) {
+async function restorePurchasedCourseEnrollment(payment, userId, enrollUser = enroll) {
   if (!payment?.course) return null;
   // Payment must already be stored as paid before this call. The enrollment
   // service verifies that purchase before granting individual course access.
-  return enroll(userId, payment.course);
+  return enrollUser(userId, payment.course);
 }
 
 export async function createCourseOrder(req, res, next, dependencies = {}) {
@@ -172,7 +172,12 @@ export async function createCourseOrder(req, res, next, dependencies = {}) {
   }
 }
 
-export async function verifyCoursePayment(req, res, next) {
+export async function verifyCoursePayment(req, res, next, dependencies = {}) {
+  const PaymentModel = dependencies.Payment || Payment;
+  const verifySignature = dependencies.verifyPaymentSignature || verifyPaymentSignature;
+  const fetchProviderPayment = dependencies.fetchPayment || razorpay.fetchPayment;
+  const validateCapturedPayment = dependencies.capturedPaymentValidationError || capturedPaymentValidationError;
+  const enrollUser = dependencies.enroll || enroll;
   try {
     const schema = z.object({
       paymentId: z.string().min(1),
@@ -181,14 +186,14 @@ export async function verifyCoursePayment(req, res, next) {
       razorpaySignature: z.string().min(1)
     });
     const input = schema.parse(req.body);
-    const payment = await Payment.findOne({
+    const payment = await PaymentModel.findOne({
       _id: input.paymentId,
       user: req.user.userId,
       provider: "razorpay"
     });
     if (!payment) return failure(res, "Payment record not found", 404);
     if (payment.providerOrderId !== input.razorpayOrderId) return failure(res, "Order mismatch", 400);
-    if (!verifyPaymentSignature({
+    if (!verifySignature({
       orderId: payment.providerOrderId,
       paymentId: input.razorpayPaymentId,
       signature: input.razorpaySignature
@@ -198,7 +203,7 @@ export async function verifyCoursePayment(req, res, next) {
       if (payment.providerPaymentId === input.razorpayPaymentId) {
         // Make retries recover access if the original request saved the payment
         // but failed before enrollment was completed.
-        const enrollment = await restorePurchasedCourseEnrollment(payment, req.user.userId);
+        const enrollment = await restorePurchasedCourseEnrollment(payment, req.user.userId, enrollUser);
         return success(res, { payment, enrollment }, "Payment already verified; course access restored");
       }
       return failure(res, "Payment has already been verified with a different provider payment", 409);
@@ -207,8 +212,8 @@ export async function verifyCoursePayment(req, res, next) {
       return failure(res, "Payment is already refunded", 409);
     }
 
-    const providerPayment = await razorpay.fetchPayment(input.razorpayPaymentId);
-    const providerValidationError = capturedPaymentValidationError(payment, providerPayment);
+    const providerPayment = await fetchProviderPayment(input.razorpayPaymentId);
+    const providerValidationError = validateCapturedPayment(payment, providerPayment);
     if (providerValidationError) return failure(res, providerValidationError, 400);
 
     payment.providerPaymentId = input.razorpayPaymentId;

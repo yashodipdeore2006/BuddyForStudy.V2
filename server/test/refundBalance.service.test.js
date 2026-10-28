@@ -206,7 +206,7 @@ test("refund requests enforce payment ownership, eligible status, balance limits
   assert.ok(start >= 0 && end > start, "Expected the learner refund request route");
   const handler = routes.slice(start, end);
   assert.match(handler, /Payment\.findOne\(\{_id:req\.body\.paymentId,user:req\.user\.userId,status:\{\$in:\["paid","partially_refunded"\]\}\}\)/);
-  assert.match(handler, /RefundRequest\.findOne\(\{payment:payment\._id,status:\{ \$in: ACTIVE_REFUND_STATUSES \} \}\)/);
+  assert.match(handler, /RefundRequest\.findOne\(\{payment:payment\._id,status:\{\s*\$in:\s*ACTIVE_REFUND_STATUSES\s*\}\}\)/);
   assert.match(handler, /validateRefundAmount\(req\.body\?\.amount, remainingAmount, payment\.currency \|\| "INR"\)/);
   assert.match(handler, /activePaymentKey: payment\._id/);
   assert.match(handler, /createError\?\.code === 11000/);

@@ -52,3 +52,52 @@ test("duplicate async roadmap request reuses the recent draft instead of enqueue
     RoadmapDraft.create = originalCreate;
   }
 });
+
+test("quota/provider failure is persisted as a retryable failed draft with a safe recovery event", async () => {
+  const userId = "507f1f77bcf86cd799439011";
+  const profile = { topic: "MERN stack", goal: "learn", level: "Beginner" };
+  const draft = { _id: "draft-quota-test", events: [], status: "queued" };
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  const originalUpdateOne = RoadmapDraft.updateOne;
+
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
+  RoadmapDraft.updateOne = async (filter, update) => {
+    if (filter.status === "queued" && draft.status !== "queued") return { modifiedCount: 0 };
+    if (update.$set) Object.assign(draft, update.$set);
+    if (update.$push?.events?.$each) draft.events.push(...update.$push.events.$each);
+    return { modifiedCount: 1 };
+  };
+
+  try {
+    const created = await createRoadmapDraft({
+      userId,
+      profile,
+      dependencies: {
+        generateAIRoadmap: async () => {
+          const error = new Error("provider quota details must not be exposed");
+          error.code = "QUOTA_EXHAUSTED";
+          throw error;
+        }
+      }
+    });
+    assert.equal(created.status, "queued");
+    const deadline = Date.now() + 1500;
+    while (draft.status !== "failed" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    assert.equal(draft.status, "failed");
+    assert.equal(draft.errorCode, "QUOTA_EXHAUSTED");
+    const event = draft.events.find((item) => item.type === "error");
+    assert.ok(event);
+    assert.equal(event.state, "failed");
+    assert.equal(event.message, "Roadmap build failed. Please retry.");
+    assert.equal(JSON.stringify(draft.events).includes("provider quota details"), false);
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+    RoadmapDraft.updateOne = originalUpdateOne;
+  }
+});

@@ -88,6 +88,14 @@ test("failed webhooks cannot overwrite successful or refunded payment states", (
 });
 
 
+test("failure webhooks update only retryable payment source states", () => {
+  const webhook = readFileSync(new URL("../src/controllers/webhook.controller.js", import.meta.url), "utf8");
+  assert.match(webhook, /Payment\.updateOne\([\s\S]*?providerOrderId: orderId,[\s\S]*?status: \{ \$in: FAILED_PAYMENT_SOURCE_STATUSES \}[\s\S]*?\$set: buildFailedPaymentUpdate\(paymentEntity\)/);
+  for (const protectedStatus of ["paid", "refunded", "partially_refunded", "cancelled"]) {
+    assert.equal(FAILED_PAYMENT_SOURCE_STATUSES.includes(protectedStatus), false);
+  }
+});
+
 test("course payment verification restores enrollment on success and idempotent retry", () => {
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
   const courseDetails = readFileSync(new URL("../../src/pages/CourseDetails.tsx", import.meta.url), "utf8");

@@ -130,7 +130,7 @@ export default function SavedRoadmap() {
   }
 
   async function submitQuiz(moduleIndex: number) {
-    if (!roadmapId || busyAction) return;
+    if (!roadmap || !roadmapId || busyAction) return;
     const questions = roadmap.course?.modules?.[moduleIndex]?.quiz?.questions ?? [];
     const answers = quizAnswers[moduleIndex] ?? {};
     if (!questions.length) {

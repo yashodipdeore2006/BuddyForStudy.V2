@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 88 / 239 |
+| Verified done | 94 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 134 / 239 |
+| Not checked | 128 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -257,10 +257,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### F. Learning progress and quizzes
 
-- [ ] **PR-100** test player deep links and invalid lesson IDs.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-101** test previous/next lesson navigation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-100** test player deep links and invalid lesson IDs.  
+  Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) opens a lesson URL directly, verifies the lesson content, then opens an invalid lesson ID and checks the explicit not-found recovery state and “Go to first lesson” action. Passed on [green CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541).
+- [x] **PR-101** test previous/next lesson navigation.  
+  Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies Previous/Next follow curriculum order, boundary disablement, canonical URL changes, and matching lesson headings. Passed on [green CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541).
 - [x] **PR-102** verify completion UI updates without refresh.  
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) now verifies the primary completion action and sidebar state both update without a page reload, and the progress GET is not repeated after the completion POST. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446) on candidate `94fa470c08ccf9a0c37d3030baf0ea85bc022b57`.
 - [x] **PR-103** verify uncompletion UI and backend state.  
@@ -273,20 +273,20 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) forces the first lesson-progress save to return `503` and verifies the graded `0%` quiz result remains visible with an accessible alert instead of being replaced by a page-level error. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446).
 - [x] **PR-107** retry progress save without regrading quiz.  
   Status: `DONE` · Evidence: [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) retries lesson completion through the sidebar after a transient save failure and verifies the quiz-grade endpoint remains at one request while progress POST is retried exactly once. Passed in [CI 40305609446](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40305609446).
-- [ ] **PR-108** test missing answers malformed payloads and duplicate submits.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-109** separate quiz pass state from lesson completion.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-110** prevent premature answer-key disclosure.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-108** test missing answers malformed payloads and duplicate submits.  
+  Status: `DONE` · Evidence: [`quizSecurity.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/quizSecurity.test.js) rejects missing/invalid selected options; [`quizEndpointSecurity.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/quizEndpointSecurity.test.js) verifies answer shape/size validation and rejection before persistence; [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies Submit Quiz stays disabled with missing answers and rapid duplicate clicks trigger one grading request. Passed on [green CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541).
+- [x] **PR-109** separate quiz pass state from lesson completion.  
+  Status: `DONE` · Evidence: [`CoursePlayer.tsx`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/src/pages/CoursePlayer.tsx) now keeps quiz pass state separate from lesson completion, allowing “Try Again” after a failed quiz has already completed the lesson. [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) asserts a 0% score, completed lesson state, Finish Course, and Try Again simultaneously. Passed on [green CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541).
+- [x] **PR-110** prevent premature answer-key disclosure.  
+  Status: `DONE` · Evidence: [`quizSecurity.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/quizSecurity.test.js), [`quizEndpointSecurity.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/quizEndpointSecurity.test.js), and [`roadmapQuizSecurity.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/roadmapQuizSecurity.test.js) verify learner-facing quiz projections omit answer keys/explanations until an authorized submission/review. Passed on [green CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541).
 - [ ] **PR-111** test cross-user/course/lesson quiz access denial.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-112** test practice quiz loading pending empty and error states.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-113** prevent pending-review AI questions being treated as approved.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-114** test notes CRUD timestamp bounds and isolation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-114** test notes CRUD timestamp bounds and isolation.  
+  Status: `DONE` · Evidence: [`courseNav.test.cjs`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/courseNav.test.cjs) covers timestamp parsing/formatting, rejects timestamps above the seven-day safety bound and unsafe integers, and verifies account/course-scoped note keys; [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies invalid/missing/out-of-range timestamps, note creation, reload persistence, and deletion; [`userDataOwnership.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/userDataOwnership.test.js) verifies notes are namespaced by user and course. Passed on [green CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541).
 - [ ] **PR-115** test feedback submission duplicate protection and retry.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-116** verify progress denominator count and percentage.  
@@ -596,7 +596,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | 2026-10-27 | Exact candidate `b4b3402417bcc31d73a9a4ed0d6bac23935751a7` | PR-087 and PR-088 verified | 77 | 4 | 13 | 145 | [Green CI 40470486555](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470486555); [free enrollment CI 40470211985](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470211985) | Free individual enrollment/access is covered without payment checkout; negative/non-finite base and sale prices fail closed in backend pricing tests. Next up is PR-089: cross-currency formatting and provider minor-unit conversion; current production code contains hard-coded x100 conversions which require correction before this check can pass. Release blockers unchanged. |
 
-| 2026-10-28 | Exact candidate `ab1f1e7695e4dfd80d51d34c0ae5dd6140d32983` | PR-095–PR-097 verified | 88 | 4 | 13 | 134 | [Green full CI 40666823822](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40666823822); [curriculum error fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/78fad7fbf6051da9ac6296bb4fb0217990198514); [malformed-ID regression](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ab1f1e7695e4dfd80d51d34c0ae5dd6140d32983) | Fixed curriculum controllers to return standard 400/404 responses for known invalid/missing course errors instead of forwarding them as unexpected exceptions; added regression for all six CRUD handlers. Verified curriculum ordering, strict resource URL validation, and review duplicate/moderation coverage. Next: PR-100 invalid lesson deep links and PR-108–PR-115 quiz/notes/feedback checks. DATA-001, REL-001, REL-004 remain open. |
+| 2026-10-28 | Exact candidate `ff295747cab5bb1ea12fcf13b9deec604939288b` | PR-100, PR-101, PR-108–PR-110, PR-114 verified | 94 | 4 | 13 | 128 | [Green full CI 40668121541](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40668121541); [invalid-lesson recovery](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ffe752145506b6a24998fd88eb015995f9e8c5a4); [duplicate-submit guard](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/05aa5eca04627adfe87d46436ddb4fabe2f8eaad); [failed-quiz retake fix](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ff295747cab5bb1ea12fcf13b9deec604939288b); [timestamp bounds](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/fa153d2b434a7b148b4f21c0596e9652013a9553) | Verified deep links and invalid-lesson recovery, previous/next navigation, quiz payload validation, duplicate-submit guard, answer-key projection, separate quiz-pass/lesson-completion state, and timestamped-note bounds/isolation. Current main has additional practice-quiz state, moderation, and course-access regression work in CI; do not count those until green. DATA-001, REL-001, REL-004 remain open. |
 ## Related project documents
 
 - `docs/BUG_HISTORY_AND_PLATFORM_AUDIT.md` — reported bugs, known fixes and audit candidates.

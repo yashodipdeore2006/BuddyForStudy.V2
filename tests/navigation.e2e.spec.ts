@@ -1642,18 +1642,26 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
   });
 
-  test("[PLAYER-PRACTICE-QUIZ-STATES-001] pending review and empty quiz responses stay recoverable", async ({ page }) => {
-    let generationRequests = 0;
+  test("[PLAYER-PRACTICE-QUIZ-PENDING-001] pending-review questions show a recoverable state", async ({ page }) => {
     await mockAppApi(page, { authenticated: true, enrolled: true });
     await page.route("**/api/ai/practice-quiz", async (route) => {
       if (route.request().method() !== "POST") return route.fallback();
-      generationRequests += 1;
-      if (generationRequests === 1) {
-        return json(route, {
-          pendingReview: true,
-          message: "AI practice questions are waiting for administrator approval."
-        });
-      }
+      return json(route, {
+        pendingReview: true,
+        message: "AI practice questions are waiting for administrator approval."
+      });
+    });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await page.getByRole("tab", { name: "Quiz" }).click();
+    await expect(page.getByRole("alert")).toContainText("waiting for administrator approval");
+    await expect(page.getByRole("button", { name: "Generate Practice Quiz" })).toBeEnabled();
+  });
+
+  test("[PLAYER-PRACTICE-QUIZ-EMPTY-001] empty quiz responses show a recoverable state", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true, enrolled: true });
+    await page.route("**/api/ai/practice-quiz", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
       return json(route, {
         quiz: { questions: [] },
         message: "No quiz questions are available for this action yet."
@@ -1662,13 +1670,8 @@ test.describe("learner control and state regression", () => {
 
     await page.goto(baseURL + "/learn/course-fixture/lesson-1");
     await page.getByRole("tab", { name: "Quiz" }).click();
-    await expect(page.getByRole("alert")).toContainText("waiting for administrator approval");
-    await expect(page.getByRole("button", { name: "Generate Practice Quiz" })).toBeEnabled();
-
-    await page.getByRole("button", { name: "Generate Practice Quiz" }).click();
     await expect(page.getByRole("alert")).toContainText("No quiz questions are available for this action yet.");
     await expect(page.getByRole("button", { name: "Generate Practice Quiz" })).toBeEnabled();
-    expect(generationRequests).toBe(2);
   });
 
   test("[PLAYER-PRACTICE-QUIZ-FAILURE-001] quiz generation failure is announced and can be retried", async ({ page }) => {

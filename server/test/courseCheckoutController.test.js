@@ -37,6 +37,35 @@ function request() {
   return { body: { courseId }, user: { userId } };
 }
 
+test("provider order creation failure releases the checkout lock and does not persist a pending payment", async () => {
+  const providerError = new Error("Razorpay temporarily unavailable");
+  let paymentCreateCalls = 0;
+  let releaseCalls = 0;
+  let nextError;
+  const Payment = {
+    findOne(filter) {
+      if (filter.status && typeof filter.status === "object" && filter.status.$in) return query(null);
+      if (filter.status === "pending") return query(null);
+      assert.fail("Unexpected payment lookup");
+    },
+    async create() { paymentCreateCalls += 1; return {}; }
+  };
+  const res = makeResponse();
+  await createCourseOrder(request(), res, (error) => { nextError = error; }, {
+    Course: { findOne: async () => makeCourse() },
+    Payment,
+    createOrder: async () => { throw providerError; },
+    getPublicKey: () => "rzp_test_public",
+    acquireCheckoutLock: async () => "lock-token",
+    releaseCheckoutLock: async () => { releaseCalls += 1; }
+  });
+
+  assert.equal(nextError, providerError);
+  assert.equal(paymentCreateCalls, 0);
+  assert.equal(releaseCalls, 1);
+  assert.equal(res.result.body, undefined);
+});
+
 test("eligible paid-course checkout creates one provider order and one pending payment", async () => {
   let providerOrderCalls = 0;
   let paymentCreateCalls = 0;

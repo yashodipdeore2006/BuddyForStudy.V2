@@ -979,6 +979,40 @@ test.describe("learner control and state regression", () => {
     expect(perCourseRequests, "My Learning should use the single batched enrollment response, not fetch progress once per course").toEqual([]);
   });
 
+  test("[PLAYER-PROGRESS-RELOAD-001] progress denominator and percentage stay consistent after reload", async ({ page }) => {
+    let progressReads = 0;
+    const course = courseFixture("course-fixture", {
+      modules: [{
+        _id: "module-1",
+        title: "Module one",
+        lessons: [
+          { _id: "lesson-1", title: "Lesson one", type: "tutorial", description: "", duration: "5 min" },
+          { _id: "lesson-2", title: "Lesson two", type: "tutorial", description: "", duration: "7 min" },
+        ],
+      }],
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true, course });
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "GET" && url.pathname === "/api/progress/course-fixture") progressReads += 1;
+    });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.getByText("0/2 lessons")).toBeVisible();
+    await expect(page.getByText("0%")).toBeVisible();
+    await page.getByRole("button", { name: "Mark complete" }).click();
+    await expect(page.getByText("1/2 lessons")).toBeVisible();
+    await expect(page.getByText("50%", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark Lesson one incomplete" })).toBeVisible();
+    expect(progressReads).toBe(1);
+
+    await page.reload();
+    await expect(page.getByText("1/2 lessons")).toBeVisible();
+    await expect(page.getByText("50%", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark Lesson one incomplete" })).toBeVisible();
+    expect(progressReads).toBe(2);
+  });
+
   test("[PLAYER-COMPLETE-001] completion updates the lesson action and sidebar immediately without a page refresh", async ({ page }) => {
     let completionRequests = 0;
     let progressReads = 0;

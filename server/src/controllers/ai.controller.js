@@ -10,28 +10,21 @@ import { CourseQuizAttempt } from "../models/CourseQuizAttempt.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { gradeQuizSubmission, normalizeQuizAnswers, toPublicQuiz, toPublicQuizQuestion } from "../utils/quizSecurity.js";
 import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
+import { checkCourseLearningAccess } from "../utils/courseLearningAccess.js";
 import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";
 
 const quizGenerationJobs = new Set();
 
 async function ensureCourseLearningAccess(req, courseId) {
-  if (req.user?.role === "admin" && req.user?.accessType === "admin") {
-    return { allowed: true };
-  }
-  const { Enrollment } = await import("../models/Enrollment.js");
-  const enrollment = await Enrollment.findOne({
-    user: req.user.userId,
-    course: courseId,
-    status: { $in: ["active", "completed"] },
-    revokedBy: null
+  return checkCourseLearningAccess({
+    user: req.user,
+    courseId,
+    findEnrollment: async (filter) => {
+      const { Enrollment } = await import("../models/Enrollment.js");
+      return Enrollment.findOne(filter);
+    },
+    canAccessCourse
   });
-  if (!enrollment) {
-    return { allowed: false, status: 403, message: "Active or completed enrollment required" };
-  }
-  if (!await canAccessCourse(req.user.userId, courseId)) {
-    return { allowed: false, status: 403, message: "Your current plan does not include access to this course or its individual purchase is no longer valid. Upgrade your plan or purchase the course to continue." };
-  }
-  return { allowed: true };
 }
 
 async function queueNextLessonQuiz(courseId, lessonId) {

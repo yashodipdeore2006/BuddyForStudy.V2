@@ -199,6 +199,13 @@ test("admin refund payment status is recomputed from all confirmed refunds after
   assert.doesNotMatch(handler, /const isFullRefund = refund\.amount >= remainingAmount/);
 });
 
+test("fully refunded payment state removes individual paid-course access", () => {
+  const entitlement = readFileSync(new URL("../src/services/subscriptionEntitlement.service.js", import.meta.url), "utf8");
+  assert.equal(paymentStatusForRemainingBalance(0), "refunded");
+  assert.match(entitlement, /Payment\.exists\(\{[\s\S]*?status: \{ \$in: \["paid", "partially_refunded"\] \}/);
+  assert.doesNotMatch(entitlement, /status: \{ \$in: \["paid", "partially_refunded", "refunded"\] \}/);
+});
+
 test("provider refund IDs have a unique index when populated", () => {
   const index = RefundRequest.schema.indexes().find(([, options]) => options.name === "unique_provider_refund_id");
   assert.ok(index, "Expected a unique refund provider reference index");

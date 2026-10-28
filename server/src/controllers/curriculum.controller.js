@@ -50,6 +50,7 @@ export async function createModule(req, res, next) {
     return success(res, { module }, "Module created successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    if (e?.status === 400 || e?.status === 404) return failure(res, e.message, e.status);
     next(e);
   }
 }
@@ -67,6 +68,7 @@ export async function updateModule(req, res, next) {
     return success(res, { module }, "Module updated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    if (e?.status === 400 || e?.status === 404) return failure(res, e.message, e.status);
     next(e);
   }
 }
@@ -80,7 +82,10 @@ export async function deleteModule(req, res, next) {
     await course.save();
     await invalidateCourseCache(course._id);
     return success(res, {}, "Module deleted successfully");
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e?.status === 400 || e?.status === 404) return failure(res, e.message, e.status);
+    next(e);
+  }
 }
 
 export async function createLesson(req, res, next) {
@@ -99,6 +104,7 @@ export async function createLesson(req, res, next) {
     return success(res, { lesson }, "Lesson created successfully", 201);
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    if (e?.status === 400 || e?.status === 404) return failure(res, e.message, e.status);
     next(e);
   }
 }
@@ -118,6 +124,7 @@ export async function updateLesson(req, res, next) {
     return success(res, { lesson }, "Lesson updated successfully");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    if (e?.status === 400 || e?.status === 404) return failure(res, e.message, e.status);
     next(e);
   }
 }
@@ -133,5 +140,8 @@ export async function deleteLesson(req, res, next) {
     await course.save();
     await invalidateCourseCache(course._id);
     return success(res, {}, "Lesson deleted successfully");
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e?.status === 400 || e?.status === 404) return failure(res, e.message, e.status);
+    next(e);
+  }
 }

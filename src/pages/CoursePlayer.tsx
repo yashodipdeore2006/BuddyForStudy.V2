@@ -484,6 +484,9 @@ export default function CoursePlayer() {
         setPracticeQuizError(data.message || "These AI-generated practice questions are waiting for administrator approval.");
         return;
       }
+      if (!Array.isArray(data.quiz?.questions) || data.quiz.questions.length === 0) {
+        throw new Error(data.message || "No quiz questions are available yet. Please retry.");
+      }
       setPracticeQuizError("");
       setPracticeQuizAnswers({});
       setPracticeQuizSubmitted(false);

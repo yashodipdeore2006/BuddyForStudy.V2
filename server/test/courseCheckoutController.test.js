@@ -37,6 +37,86 @@ function request() {
   return { body: { courseId }, user: { userId } };
 }
 
+test("eligible paid-course checkout creates one provider order and one pending payment", async () => {
+  let providerOrderCalls = 0;
+  let paymentCreateCalls = 0;
+  let releaseCalls = 0;
+  const Payment = {
+    findOne(filter) {
+      if (filter.status && typeof filter.status === "object" && filter.status.$in) return query(null);
+      if (filter.status === "pending") return query(null);
+      assert.fail("Unexpected payment lookup");
+    },
+    async create(input) {
+      paymentCreateCalls += 1;
+      assert.equal(input.user, userId);
+      assert.equal(input.course, courseId);
+      assert.equal(input.amount, 499);
+      assert.equal(input.currency, "INR");
+      assert.equal(input.provider, "razorpay");
+      assert.equal(input.status, "pending");
+      assert.equal(input.metadata.checkoutType, "course");
+      return { _id: "payment-created", ...input };
+    }
+  };
+  const res = makeResponse();
+  await createCourseOrder(request(), res, (error) => { throw error; }, {
+    Course: { findOne: async () => makeCourse() },
+    Payment,
+    createOrder: async (input) => {
+      providerOrderCalls += 1;
+      assert.equal(input.amount, 499);
+      assert.equal(input.currency, "INR");
+      assert.equal(input.notes.courseId, courseId);
+      assert.equal(input.notes.userId, userId);
+      return { id: "order_created", amount: 49900, currency: "INR" };
+    },
+    getPublicKey: () => "rzp_test_public",
+    acquireCheckoutLock: async () => "lock-token",
+    releaseCheckoutLock: async () => { releaseCalls += 1; }
+  });
+
+  assert.equal(res.result.statusCode, 201);
+  assert.equal(res.result.body.paymentId, "payment-created");
+  assert.equal(res.result.body.order.id, "order_created");
+  assert.equal(providerOrderCalls, 1);
+  assert.equal(paymentCreateCalls, 1);
+  assert.equal(releaseCalls, 1);
+});
+
+test("concurrent course checkout reuses the matching pending order when the lock is already held", async () => {
+  const pending = {
+    _id: "payment-pending",
+    amount: 499,
+    currency: "INR",
+    providerOrderId: "order_in_flight"
+  };
+  let providerOrderCalls = 0;
+  let releaseCalls = 0;
+  const Payment = {
+    findOne(filter) {
+      assert.equal(filter.status, "pending");
+      return query(pending);
+    },
+    async create() { assert.fail("Concurrent request must not create a payment"); }
+  };
+  const res = makeResponse();
+  await createCourseOrder(request(), res, (error) => { throw error; }, {
+    Course: { findOne: async () => makeCourse() },
+    Payment,
+    createOrder: async () => { providerOrderCalls += 1; return { id: "unexpected" }; },
+    getPublicKey: () => "rzp_test_public",
+    acquireCheckoutLock: async () => null,
+    releaseCheckoutLock: async () => { releaseCalls += 1; }
+  });
+
+  assert.equal(res.result.statusCode, 200);
+  assert.equal(res.result.body.paymentId, pending._id);
+  assert.equal(res.result.body.order.id, "order_in_flight");
+  assert.equal(providerOrderCalls, 0);
+  assert.equal(releaseCalls, 0);
+});
+
 test("course checkout reuses an existing pending order when the amount and currency still match", async () => {
   const pending = {
     _id: "payment-pending",

@@ -1147,6 +1147,7 @@ test.describe("learner control and state regression", () => {
 
     await expect(page.getByText("Your score: 0%")).toBeVisible();
     await expect(page.getByRole("button", { name: "Finish Course" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try Again" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark Quiz lesson incomplete" })).toBeVisible();
     expect(gradeRequests).toBe(1);
     expect(completionRequests).toBe(1);

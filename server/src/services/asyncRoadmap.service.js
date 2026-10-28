@@ -100,7 +100,8 @@ async function resolveCourseNodes({ draft, courseId, userId, profile }) {
   await Promise.all(workers);
 }
 
-export async function createRoadmapDraft({ userId, profile, options = {} }) {
+export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {
+  const generateRoadmap = dependencies.generateAIRoadmap || generateAIRoadmap;
   const key = stableProfileKey(userId, profile);
   const recent = await RoadmapDraft.findOne({
     userId, idempotencyKey: key, createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
@@ -118,7 +119,7 @@ export async function createRoadmapDraft({ userId, profile, options = {} }) {
     try {
       // jobs/worker.js is a scheduled maintenance runner, not an on-demand consumer.
       // The process-local queue is bounded by NODE_CONCURRENCY; draft/node state is durable in MongoDB.
-      const result = await generateAIRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
+      const result = await generateRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
       const courseId = result?.course?._id || result?.course?.id || null;
       if (!courseId) throw new Error("Async roadmap build did not return a persisted course");
       await RoadmapDraft.updateOne({ _id: draft._id }, {

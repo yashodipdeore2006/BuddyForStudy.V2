@@ -114,7 +114,7 @@ test("course checkout reuses the latest pending order instead of creating duplic
   assert.match(controller, /if \(pendingCourseCheckout\)[\s\S]*?order: \{[\s\S]*?id: pendingCourseCheckout\.providerOrderId,[\s\S]*?toRazorpayMinorUnits\(pendingAmount, pendingCourseCheckout\.currency \|\| "INR"\)/);
   assert.match(controller, /Existing course checkout reused/);
   assert.match(controller, /checkoutLockKey\("course", req\.user\.userId, String\(course\._id\)\)/);
-  assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
+  assert.match(controller, /const acquireLock = dependencies\.acquireCheckoutLock \|\| acquireCheckoutLock/);
   const courseCheckout = controller.slice(
     controller.indexOf("export async function createCourseOrder"),
     controller.indexOf("export async function verifyCoursePayment")
@@ -127,7 +127,7 @@ test("course checkout reuses the latest pending order instead of creating duplic
 
 test("subscription checkout only reuses a pending provider checkout for the same plan and conversion intent", () => {
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
-  const start = controller.indexOf("const pendingCheckouts = await Payment.find({");
+  const start = controller.indexOf("const pendingCheckouts = await PaymentModel.find({");
   const end = controller.indexOf("const intervalMap", start);
   assert.ok(start >= 0 && end > start, "Expected pending subscription checkout guard");
   const block = controller.slice(start, end);
@@ -141,7 +141,7 @@ test("subscription checkout only reuses a pending provider checkout for the same
   assert.match(block, /pendingPlanId:/);
   assert.match(controller, /checkoutLockKey\("subscription", req\.user\.userId\)/);
   assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
-  assert.ok(controller.indexOf('acquireCheckoutLock(lockKey)') < controller.indexOf('const existingSubscription = await UserSubscription.findOne'),
+  assert.ok(controller.indexOf('acquireLock(lockKey)') < controller.indexOf('const existingSubscription = await UserSubscriptionModel.findOne'),
     "The lock must be acquired before subscription eligibility and pending-checkout checks");
 });
 

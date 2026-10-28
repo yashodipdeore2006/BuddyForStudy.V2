@@ -199,6 +199,20 @@ test("admin refund payment status is recomputed from all confirmed refunds after
   assert.doesNotMatch(handler, /const isFullRefund = refund\.amount >= remainingAmount/);
 });
 
+test("refund requests enforce payment ownership, eligible status, balance limits, and duplicate-race handling", () => {
+  const routes = readFileSync(new URL("../src/routes/billing.routes.js", import.meta.url), "utf8");
+  const start = routes.indexOf('router.post("/refunds"');
+  const end = routes.indexOf('router.get("/trial"', start);
+  assert.ok(start >= 0 && end > start, "Expected the learner refund request route");
+  const handler = routes.slice(start, end);
+  assert.match(handler, /Payment\.findOne\(\{_id:req\.body\.paymentId,user:req\.user\.userId,status:\{\$in:\["paid","partially_refunded"\]\}\}\)/);
+  assert.match(handler, /RefundRequest\.findOne\(\{payment:payment\._id,status:\{ \$in: ACTIVE_REFUND_STATUSES \} \}\)/);
+  assert.match(handler, /validateRefundAmount\(req\.body\?\.amount, remainingAmount, payment\.currency \|\| "INR"\)/);
+  assert.match(handler, /activePaymentKey: payment\._id/);
+  assert.match(handler, /createError\?\.code === 11000/);
+  assert.match(handler, /A refund request already exists for this payment\. Refresh Billing to see its status\./);
+});
+
 test("fully refunded payment state removes individual paid-course access", () => {
   const entitlement = readFileSync(new URL("../src/services/subscriptionEntitlement.service.js", import.meta.url), "utf8");
   assert.equal(paymentStatusForRemainingBalance(0), "refunded");

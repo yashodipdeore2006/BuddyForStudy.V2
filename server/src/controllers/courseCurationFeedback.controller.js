@@ -4,6 +4,7 @@ import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
 import { success, failure } from "../utils/response.js";
 
 const schema = z.object({
+  submissionId: z.string().trim().min(16).max(100).optional(),
   event: z.enum(["helpful", "outdated", "wrong_level", "completed", "abandoned"]),
   query: z.string().trim().min(2).max(200),
   resourceId: z.string().trim().min(1).max(200),
@@ -26,7 +27,7 @@ export async function recordCurationFeedback(req, res, next) {
   try {
     const input = schema.parse(req.body);
     if (input.courseId && !mongoose.isValidObjectId(input.courseId)) return failure(res, "Invalid courseId", 400);
-    const feedback = await CourseCurationFeedback.create({
+    const feedbackData = {
       user: req.user?.userId || null,
       query: input.query,
       normalizedQuery: normalizeQuery(input.query),
@@ -38,7 +39,23 @@ export async function recordCurationFeedback(req, res, next) {
       engineVersion: "course-curation-decision-engine-v1.7",
       rank: input.rank ?? null,
       score: input.score ?? null
-    });
+    };
+    let feedback;
+    if (input.submissionId) {
+      try {
+        feedback = await CourseCurationFeedback.findOneAndUpdate(
+          { submissionId: input.submissionId },
+          { $setOnInsert: { ...feedbackData, submissionId: input.submissionId } },
+          { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+        );
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+        feedback = await CourseCurationFeedback.findOne({ submissionId: input.submissionId });
+        if (!feedback) throw error;
+      }
+    } else {
+      feedback = await CourseCurationFeedback.create(feedbackData);
+    }
     return success(res, { recorded: true, id: String(feedback._id) }, "Curation feedback recorded");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);

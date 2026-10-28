@@ -171,6 +171,7 @@ export default function CoursePlayer() {
   const [practiceQuizLoading, setPracticeQuizLoading] = useState(false);
   const [practiceQuizError, setPracticeQuizError] = useState("");
   const practiceAutoAttemptRef = useRef("");
+  const quizSubmissionInFlightRef = useRef(false);
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
   const [noteTimestamp, setNoteTimestamp] = useState("");
   const [pausedTimestampSeconds, setPausedTimestampSeconds] = useState<number | null>(null);
@@ -587,7 +588,8 @@ export default function CoursePlayer() {
   };
 
   const handleQuizSubmit = async () => {
-    if (!courseId || !lessonId || !quizData?.questions?.length || completing) return;
+    if (!courseId || !lessonId || !quizData?.questions?.length || completing || quizSubmissionInFlightRef.current) return;
+    quizSubmissionInFlightRef.current = true;
     setCompleting(true);
     setQuizActionError("");
     setError("");
@@ -636,6 +638,7 @@ export default function CoursePlayer() {
     } catch (err) {
       setQuizActionError(err instanceof Error ? err.message : "Unable to submit or grade this quiz.");
     } finally {
+      quizSubmissionInFlightRef.current = false;
       setCompleting(false);
     }
   };

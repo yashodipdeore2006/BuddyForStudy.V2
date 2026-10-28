@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Notification } from "../src/models/Notification.js";
 import { NotificationPreference } from "../src/models/NotificationPreference.js";
 import { UserConsentEvent } from "../src/models/UserConsentEvent.js";
-import { list, updatePreferences, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
+import { list, markRead, markAllRead, updatePreferences, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -49,7 +49,7 @@ test("notification list bounds limits to integers and defaults invalid input saf
     await withMocks([
       [Notification, {
         find: () => query,
-        countDocuments: async () => 0
+        countDocuments: async () => 7
       }]
     ], async () => {
       await list({ query: { limit: input }, user: { userId: "user-1" } }, res, (error) => { throw error; });
@@ -58,9 +58,108 @@ test("notification list bounds limits to integers and defaults invalid input saf
     assert.equal(appliedLimit, expected, `limit input ${input}`);
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.success, true);
+    assert.equal(res.body.unreadCount, 7);
   }
 });
 
+
+test("mark-read only decrements unread count for the request that changes unread to read", async () => {
+  const notificationId = "507f1f77bcf86cd799439012";
+  const userId = "507f1f77bcf86cd799439011";
+  const existing = { _id: notificationId, user: userId, readAt: new Date("2026-10-28T12:00:00Z") };
+  const updateFilters = [];
+  let firstUpdate = true;
+  await withMocks([
+    [Notification, {
+      findOneAndUpdate: (filter) => {
+        updateFilters.push(filter);
+        return { lean: async () => {
+          if (!firstUpdate) return null;
+          firstUpdate = false;
+          return existing;
+        } };
+      },
+      findOne: (filter) => ({ lean: async () => {
+        assert.deepEqual(filter, { _id: notificationId, user: userId });
+        return existing;
+      } })
+    }]
+  ], async () => {
+    const first = responseRecorder();
+    await markRead({ params: { notificationId }, user: { userId } }, first, (error) => { throw error; });
+    assert.equal(first.statusCode, 200);
+    assert.equal(first.body.wasUnread, true);
+
+    const retry = responseRecorder();
+    await markRead({ params: { notificationId }, user: { userId } }, retry, (error) => { throw error; });
+    assert.equal(retry.statusCode, 200);
+    assert.equal(retry.body.wasUnread, false);
+  });
+
+  assert.equal(updateFilters.length, 2);
+  for (const filter of updateFilters) {
+    assert.deepEqual(filter, { _id: notificationId, user: userId, readAt: null });
+  }
+});
+
+test("mark-all-read updates only the authenticated user's visible unread notifications", async () => {
+  const userId = "507f1f77bcf86cd799439011";
+  let capturedFilter;
+  let capturedUpdate;
+  const res = responseRecorder();
+  await withMocks([
+    [Notification, {
+      updateMany: async (filter, update) => {
+        capturedFilter = filter;
+        capturedUpdate = update;
+        return { modifiedCount: 3 };
+      }
+    }]
+  ], async () => {
+    await markAllRead({ user: { userId } }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.updated, 3);
+  assert.deepEqual(capturedFilter, { user: userId, showInApp: { $ne: false }, readAt: null });
+  assert.ok(capturedUpdate.$set.readAt instanceof Date);
+});
+
+test("notification preferences persist category-specific email and in-app channels", async () => {
+  let capturedUpdate;
+  const preferenceStorage = {
+    findOne: () => ({ lean: async () => null }),
+    findOneAndUpdate: (_filter, update) => {
+      capturedUpdate = update;
+      return { lean: async () => ({ user: "507f1f77bcf86cd799439011", ...(update.$setOnInsert || {}), ...(update.$set || {}) }) };
+    }
+  };
+  const res = responseRecorder();
+  await withMocks([
+    [NotificationPreference, preferenceStorage],
+    [UserConsentEvent, { create: async () => { throw new Error("Non-marketing preferences must not create a consent event"); } }]
+  ], async () => {
+    await updatePreferences({
+      body: {
+        emailCourseUpdates: false,
+        inAppCourseUpdates: true,
+        emailProjectUpdates: false,
+        inAppProjectUpdates: true,
+        emailAnnouncements: false,
+        inAppAnnouncements: true
+      },
+      user: { userId: "507f1f77bcf86cd799439011" }
+    }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(capturedUpdate.$set.emailCourseUpdates, false);
+  assert.equal(capturedUpdate.$set.inAppCourseUpdates, true);
+  assert.equal(capturedUpdate.$set.emailProjectUpdates, false);
+  assert.equal(capturedUpdate.$set.inAppProjectUpdates, true);
+  assert.equal(capturedUpdate.$set.emailAnnouncements, false);
+  assert.equal(capturedUpdate.$set.inAppAnnouncements, true);
+});
 
 test("push endpoint ownership guard prevents cross-account reassignment", () => {
   assert.equal(isPushSubscriptionOwnedByUser(null, "user-1"), true);

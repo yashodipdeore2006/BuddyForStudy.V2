@@ -874,7 +874,7 @@ export default function CoursePlayer() {
                                       {completing ? "Saving..." : navigation.next ? "Continue" : "Finish Course"}
                                     </button>
                                   )}
-                                  {!quizPassed && !currentCompleted && (
+                                  {!quizPassed && (
                                     <button
                                       type="button"
                                       onClick={() => {

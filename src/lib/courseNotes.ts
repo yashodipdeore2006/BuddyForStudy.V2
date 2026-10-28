@@ -21,14 +21,22 @@ export function formatMediaTimestamp(seconds: number): string {
     : String(minutes).padStart(2, "0") + ":" + String(remainingSeconds).padStart(2, "0");
 }
 
+const MAX_MEDIA_TIMESTAMP_SECONDS = 7 * 24 * 60 * 60;
+
 export function parseMediaTimestamp(value: string): number | null {
   const normalized = String(value || "").trim();
   if (!normalized) return null;
-  if (/^\d+$/.test(normalized)) return Number(normalized);
+  if (/^\d+$/.test(normalized)) {
+    const seconds = Number(normalized);
+    return Number.isSafeInteger(seconds) && seconds <= MAX_MEDIA_TIMESTAMP_SECONDS ? seconds : null;
+  }
   if (!/^\d{1,3}:\d{2}(?::\d{2})?$/.test(normalized)) return null;
   const parts = normalized.split(":").map(Number);
   if (parts.slice(1).some((part) => part > 59)) return null;
-  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts[0] * 60 + parts[1];
+  const seconds = parts.length === 3
+    ? parts[0] * 3600 + parts[1] * 60 + parts[2]
+    : parts[0] * 60 + parts[1];
+  return Number.isSafeInteger(seconds) && seconds <= MAX_MEDIA_TIMESTAMP_SECONDS ? seconds : null;
 }
 
 export function loadTimestampedCourseNotes(key: string): TimestampedCourseNote[] {
@@ -43,7 +51,9 @@ export function loadTimestampedCourseNotes(key: string): TimestampedCourseNote[]
       typeof (item as TimestampedCourseNote).id === "string" &&
       typeof (item as TimestampedCourseNote).lessonId === "string" &&
       typeof (item as TimestampedCourseNote).lessonTitle === "string" &&
-      Number.isFinite((item as TimestampedCourseNote).timestampSeconds) &&
+      Number.isSafeInteger((item as TimestampedCourseNote).timestampSeconds) &&
+      (item as TimestampedCourseNote).timestampSeconds >= 0 &&
+      (item as TimestampedCourseNote).timestampSeconds <= MAX_MEDIA_TIMESTAMP_SECONDS &&
       typeof (item as TimestampedCourseNote).content === "string" &&
       typeof (item as TimestampedCourseNote).createdAt === "string"
     );

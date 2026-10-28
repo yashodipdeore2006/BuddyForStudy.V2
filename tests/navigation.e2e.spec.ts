@@ -1543,7 +1543,7 @@ test.describe("learner control and state regression", () => {
     await page.goto(baseURL + "/learn/course-fixture/invalid-lesson");
     await expect(page.getByRole("status")).toHaveText("This lesson could not be found or is no longer available.");
     await page.getByRole("button", { name: "Go to first lesson" }).click();
-    await expect(page).toHaveURL(/\\/learn\\/course-fixture\\/lesson-1$/);
+    await expect(page).toHaveURL(baseURL + "/learn/course-fixture/lesson-1");
     await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
   });
 

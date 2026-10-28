@@ -141,8 +141,9 @@ test("subscription checkout only reuses a pending provider checkout for the same
   assert.match(block, /pendingPlanId:/);
   assert.match(controller, /checkoutLockKey\("subscription", req\.user\.userId\)/);
   assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
-  assert.ok(controller.indexOf('acquireLock(lockKey)') < controller.indexOf('const existingSubscription = await UserSubscriptionModel.findOne'),
-    "The lock must be acquired before subscription eligibility and pending-checkout checks");
+  const subscriptionCheckout = controller.slice(controller.indexOf("export async function createSubscriptionOrder"));
+  assert.ok(subscriptionCheckout.indexOf("acquireLock(lockKey)") < subscriptionCheckout.indexOf("const existingSubscription = await UserSubscriptionModel.findOne"),
+    "The subscription lock must be acquired before subscription eligibility and pending-checkout checks");
 });
 
 

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 108 / 239 |
+| Verified done | 109 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 114 / 239 |
+| Not checked | 113 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -295,8 +295,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies the learner sees `0/2` and `0%`, completes one lesson and sees `1/2` and `50%`, reloads, then still sees `1/2`, `50%`, and the completed sidebar state. Passed in [green full CI 40669422168](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40669422168).
 - [x] **PR-118** test saved roadmap continue complete quiz and delete.  
   Status: `DONE` · Evidence: `[ROADMAP-LIFECYCLE-001]` in [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies continuing to the next incomplete lesson, completion/progress update, quiz submission/result feedback, and confirmed deletion with navigation back to My learning. Passed in exact candidate [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476) (`579614b4de4e4957bffb5f70c834a08d18d65c6d).
-- [ ] **PR-119** test roadmap async recovery duplicate request and quota failure.  
-  Status: `NOT CHECKED` · Evidence: [`asyncRoadmap.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/asyncRoadmap.service.test.js) verifies recent duplicate requests reuse the existing draft, and the test passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476). Finding/fix: quota/provider failure retryability and end-to-end recovery still need a dedicated test before this combined task can be marked DONE.
+- [x] **PR-119** test roadmap async recovery duplicate request and quota failure.  
+  Status: `DONE` · Evidence: [`asyncRoadmap.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/asyncRoadmap.service.test.js) verifies recent duplicate requests reuse an existing draft and a simulated quota/provider failure persists a safe `failed` state/event without leaking provider details. [`asyncRoadmapController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/asyncRoadmapController.test.js) verifies failed finalization returns HTTP 502 with a retryable response scoped to the authenticated owner. Passed in exact candidate [CI 40685618232](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685618232) (`944747a22d3ed66fdc70abf15b85585594b1bf2b).
 
 ### G. Payments and refunds
 
@@ -598,6 +598,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | 2026-10-28 | Exact candidate `107d1d3de57cf133ba39d214c25ebd98fcb63923` | PR-111–PR-113, PR-115–PR-117 verified | 100 | 4 | 13 | 122 | [Green full CI 40669422168](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40669422168); [course access isolation](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/4405141998fd03e63792782509cbba246e40df87); [empty quiz recovery](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/d86aba0f9861dd67f7a12dc1285543ed2ef14483); [feedback idempotency](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/dd35fabf6c914419eea3a9ed72fc3dafba3945ca); [progress reload regression](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/107d1d3de57cf133ba39d214c25ebd98fcb63923) | Verified cross-user quiz access gates, pending/empty practice quiz recovery, moderation checks, idempotent feedback retries, progress denominator/percentage, and reload consistency. Next area: saved roadmaps and payment/checkout/webhook guarantees. DATA-001, REL-001, REL-004 remain open. |
 | 2026-10-28 | Exact candidate `579614b4de4e4957bffb5f70c834a08d18d65c6d` | PR-118, PR-120–PR-124, PR-126–PR-127 verified | 108 | 4 | 13 | 114 | [Green full CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476); [checkout controller tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/4e53a56b78f4383cf320779247509f6328def8ec); [duplicate roadmap request test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/579614b4de4e4957bffb5f70c834a08d18d65c6d) | Full CI passed frontend and backend. Verified saved-roadmap learner lifecycle, fresh and concurrent paid checkout, pending-order amount/currency guards, subscription plan/conversion matching, provider failure lock cleanup, and server-authoritative checkout pricing/identity. PR-119 remains open for quota/provider-failure recovery testing; DATA-001, REL-001, and REL-004 remain release blockers. |
+
+| 2026-10-28 | Exact candidate `944747a22d3ed66fdc70abf15b85585594b1bf2b` | PR-119 verified | 109 | 4 | 13 | 113 | [Green full CI 40685618232](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685618232); [quota failure test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/aabe92bfd51b398710ee319e46f3ba867ccb40fb); [retryable finalization test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/944747a22d3ed66fdc70abf15b85585594b1bf2b) | Verified async roadmap duplicate-request reuse, safe quota/provider-failure persistence, and owner-scoped retryable finalization. Remaining priority work includes payment verification/replay and webhook/refund guarantees; DATA-001, REL-001, and REL-004 remain release blockers. |
 
 ## Related project documents
 

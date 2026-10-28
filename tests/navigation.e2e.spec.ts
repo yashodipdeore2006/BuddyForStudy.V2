@@ -1027,6 +1027,71 @@ test.describe("learner control and state regression", () => {
     expect(progressReads).toBe(1);
   });
 
+  test("[PLAYER-QUIZ-SUBMIT-001] missing answers stay blocked and rapid duplicate submits grade only once", async ({ page }) => {
+    let submissionRequests = 0;
+    let finishSubmit = () => {};
+    const submitGate = new Promise<void>((resolve) => { finishSubmit = resolve; });
+    const quizCourse = courseFixture("course-fixture", {
+      title: "Quiz submit fixture",
+      modules: [{
+        _id: "module-1",
+        title: "Assessment module",
+        lessons: [{
+          _id: "lesson-1",
+          title: "Quiz lesson",
+          type: "quiz",
+          description: "Choose an answer to submit the quiz.",
+          duration: "5 min",
+          quiz: { scope: "lesson", questionCount: 1, passingScore: 70 }
+        }]
+      }]
+    });
+
+    await mockAppApi(page, { authenticated: true, enrolled: true, course: quizCourse });
+    await page.route("**/api/ai/quiz", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      return json(route, {
+        quiz: {
+          questions: [{
+            id: "q1",
+            question: "Which option is correct?",
+            options: [{ id: "A", text: "Incorrect option" }, { id: "B", text: "Correct option" }]
+          }],
+          passingScore: 70
+        }
+      });
+    });
+    await page.route("**/api/ai/quiz/submit", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      submissionRequests += 1;
+      await submitGate;
+      return json(route, {
+        score: 0,
+        passed: false,
+        results: [{ questionId: "q1", correctOptionId: "B", explanation: "Option B is correct." }]
+      });
+    });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.getByText("Which option is correct?")).toBeVisible();
+    const submit = page.getByRole("button", { name: "Submit Quiz" });
+    await expect(submit).toBeDisabled();
+    expect(submissionRequests).toBe(0);
+
+    await page.getByRole("button", { name: /Incorrect option/ }).click();
+    await expect(submit).toBeEnabled();
+    await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll("button")).find((node) => node.textContent?.trim() === "Submit Quiz");
+      if (!(button instanceof HTMLButtonElement)) throw new Error("Submit Quiz button is missing");
+      button.click();
+      button.click();
+    });
+    await expect.poll(() => submissionRequests).toBe(1);
+    finishSubmit();
+    await expect(page.getByText("Your score: 0%")).toBeVisible();
+    expect(submissionRequests).toBe(1);
+  });
+
   test("[PLAYER-QUIZ-COMPLETE-001] first quiz submission completes the lesson even when the learner fails", async ({ page }) => {
     let gradeRequests = 0;
     let completionRequests = 0;

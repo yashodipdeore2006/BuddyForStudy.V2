@@ -44,18 +44,21 @@ export async function createDraft(req, res, next) {
   }
 }
 
-export async function finalizeDraft(req, res, next) {
+export async function finalizeDraft(req, res, next, dependencies = {}) {
+  const authorizeRequest = dependencies.authorize || authorize;
+  const getDraft = dependencies.getDraftForUser || getDraftForUser;
+  const waitForCurrentDraft = dependencies.waitForDraft || waitForDraft;
   try {
-    if (!await authorize(req, res)) return;
+    if (!await authorizeRequest(req, res)) return;
     const draftId = z.string().uuid().parse(req.body?.draftId);
     const suppliedProfile = req.body?.profile ? profileSchema.parse(req.body.profile) : null;
-    let draft = await getDraftForUser(draftId, req.user.userId);
+    let draft = await getDraft(draftId, req.user.userId);
     if (!draft) return failure(res, "Roadmap draft not found", 404);
     if (suppliedProfile && JSON.stringify(suppliedProfile) !== JSON.stringify(draft.profile)) {
       // A changed goal/profile must create a new draft; never mutate a running idempotent build.
       return failure(res, "Profile changed. Start a new roadmap draft.", 409);
     }
-    draft = await waitForDraft(draftId, req.user.userId, 2000);
+    draft = await waitForCurrentDraft(draftId, req.user.userId, 2000);
     if (draft?.status === "ready") return success(res, draft.result, "Learning roadmap generated successfully");
     if (draft?.status === "failed") return failure(res, "Roadmap build failed. Please retry.", 502, { draftId, retryable: true });
     return success(res, { ...(draft?.result || {}), draftId, status: draft?.status || "queued", roadmapId: draft?.roadmapId ? String(draft.roadmapId) : null, modules: draft?.result?.course?.modules || [], eventsUrl: `/api/ai/roadmap/${draftId}/events`, pollUrl: `/api/ai/roadmap/${draftId}` }, "Roadmap is still building");

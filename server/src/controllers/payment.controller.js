@@ -228,7 +228,7 @@ export async function verifyCoursePayment(req, res, next, dependencies = {}) {
     // Complete the paid purchase on the server. If enrollment is temporarily
     // unavailable, keep the verified payment; a retry of this same verification
     // will attempt enrollment again without charging the learner twice.
-    const enrollment = await restorePurchasedCourseEnrollment(payment, req.user.userId);
+    const enrollment = await restorePurchasedCourseEnrollment(payment, req.user.userId, enrollUser);
     return success(res, { payment, enrollment }, "Payment verified and course access granted");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);

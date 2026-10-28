@@ -57,14 +57,14 @@ test("course quiz submission validates answer payload shape and completeness bef
   const start = aiController.indexOf("export async function submitCourseQuiz");
   assert.ok(start >= 0, "Course quiz submission handler must exist");
   const handler = aiController.slice(start);
-  assert.match(handler, /answers: z\\.record\\(z\\.string\\(\\), z\\.string\\(\\)\\)\\.default\\(\\{\\}\\)/);
-  assert.match(handler, /Object\\.keys\\(input\\.answers\\)\\.length > 200/);
+  assert.ok(handler.includes("answers: z.record(z.string(), z.string()).default({})"));
+  assert.ok(handler.includes("Object.keys(input.answers).length > 200"));
   const validation = handler.indexOf("normalizeQuizAnswers(questions, input.answers)");
   const invalidAnswerResponse = handler.indexOf("Answer every question using one of its available options before submitting.");
   const persistence = handler.indexOf("CourseQuizAttempt.create");
   assert.ok(validation >= 0 && invalidAnswerResponse > validation && persistence > invalidAnswerResponse,
     "Malformed or incomplete answers must be rejected before a quiz attempt is persisted");
-  assert.match(handler, /if \\(e instanceof z\\.ZodError\\) return failure\\(res, "Validation failed", 400/);
+  assert.ok(handler.includes('if (e instanceof z.ZodError) return failure(res, "Validation failed", 400'));
 });
 
 test("saved course quizzes remain available without Gemini and enrolled learners retain non-public course access", () => {

@@ -3,6 +3,7 @@ import { Course } from "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { TrialGrant } from "../models/TrialGrant.js";
+import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import * as razorpay from "../services/razorpay.service.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -237,6 +238,12 @@ export async function verifyCoursePayment(req, res, next, dependencies = {}) {
 }
 
 export async function createSubscriptionOrder(req, res, next, dependencies = {}) {
+  const SubscriptionPlanModel = dependencies.SubscriptionPlan || SubscriptionPlan;
+  const PaymentModel = dependencies.Payment || Payment;
+  const UserSubscriptionModel = dependencies.UserSubscription || UserSubscription;
+  const TrialGrantModel = dependencies.TrialGrant || TrialGrant;
+  const acquireLock = dependencies.acquireCheckoutLock || acquireCheckoutLock;
+  const releaseLock = dependencies.releaseCheckoutLock || releaseCheckoutLock;
   const createSubscriptionPlan = dependencies.createSubscriptionPlan || razorpay.createSubscriptionPlan;
   const createSubscription = dependencies.createSubscription || razorpay.createSubscription;
   const getPublicKey = dependencies.getPublicKey || razorpay.getPublicKey;
@@ -245,18 +252,17 @@ export async function createSubscriptionOrder(req, res, next, dependencies = {})
     const { planId, trialConversionGrantId, recurringConsent } = schema.parse(req.body);
     if (!isValidObjectId(planId)) return failure(res, "Invalid planId", 400);
 
-    const { SubscriptionPlan } = await import("../models/SubscriptionPlan.js");
-    const plan = await SubscriptionPlan.findOne({ _id: planId, isActive: true });
+    const plan = await SubscriptionPlanModel.findOne({ _id: planId, isActive: true });
     if (!plan) return failure(res, "Subscription plan not found", 404);
     if (plan.billingInterval === "one_time") return failure(res, "Use course checkout for one-time purchases", 400);
 
     const lockKey = checkoutLockKey("subscription", req.user.userId);
-    const lockToken = await acquireCheckoutLock(lockKey);
+    const lockToken = await acquireLock(lockKey);
     if (!lockToken) {
       return failure(res, "A subscription checkout is already being prepared for this account. Retry in a moment.", 409);
     }
     try {
-    const existingSubscription = await UserSubscription.findOne({
+    const existingSubscription = await UserSubscriptionModel.findOne({
       user: req.user.userId,
       status: { $in: ["trialing", "active", "past_due"] },
       $or: [
@@ -268,7 +274,7 @@ export async function createSubscriptionOrder(req, res, next, dependencies = {})
     let conversionGrant = null;
     if (trialConversionGrantId) {
       if (!isValidObjectId(trialConversionGrantId) || recurringConsent !== true) return failure(res, "Explicit recurring-payment consent is required for trial conversion.", 400);
-      conversionGrant = await TrialGrant.findOne({
+      conversionGrant = await TrialGrantModel.findOne({
         _id: trialConversionGrantId, user: req.user.userId, status: "trialing",
         endsAt: { $gt: new Date() }, conversionPlan: plan._id,
         conversionConsentStatus: "pending_user_consent"
@@ -282,7 +288,7 @@ export async function createSubscriptionOrder(req, res, next, dependencies = {})
     // Do not create another provider subscription when a previous checkout is
     // still pending. This also makes retries after a page refresh idempotent
     // instead of creating multiple billable subscriptions for the same user.
-    const pendingCheckouts = await Payment.find({
+    const pendingCheckouts = await PaymentModel.find({
       user: req.user.userId,
       provider: "razorpay",
       status: "pending",
@@ -368,7 +374,7 @@ export async function createSubscriptionOrder(req, res, next, dependencies = {})
       totalCount
     });
 
-    await Payment.create({
+    await PaymentModel.create({
       user: req.user.userId,
       plan: plan._id,
       amount: plan.price,
@@ -385,7 +391,7 @@ export async function createSubscriptionOrder(req, res, next, dependencies = {})
       plan: { id: plan._id, name: plan.name, price: plan.price, currency: plan.currency, billingInterval: plan.billingInterval }
     }, "Subscription checkout created", 201);
     } finally {
-      await releaseCheckoutLock(lockKey, lockToken).catch((error) => console.error("[checkout] subscription lock release failed", { userId: String(req.user.userId), message: String(error?.message || error).slice(0, 200) }));
+      await releaseLock(lockKey, lockToken).catch((error) => console.error("[checkout] subscription lock release failed", { userId: String(req.user.userId), message: String(error?.message || error).slice(0, 200) }));
     }
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);

@@ -1599,6 +1599,62 @@ test.describe("learner control and state regression", () => {
     expect(saveAttempts).toBe(1);
   });
 
+  test("[PLAYER-CURATION-FEEDBACK-001] duplicate feedback clicks are ignored and failed feedback can be retried", async ({ page }) => {
+    const course = courseFixture("course-fixture", {
+      modules: [{
+        _id: "module-1",
+        title: "Module one",
+        lessons: [{
+          _id: "lesson-1",
+          title: "Lesson one",
+          type: "tutorial",
+          description: "",
+          duration: "5 min",
+          tutorial: {
+            videos: [{
+              videoId: "video-1",
+              title: "Video one",
+              url: "https://www.youtube.com/watch?v=video-1",
+              durationSeconds: 300
+            }]
+          }
+        }]
+      }]
+    });
+    const feedbackPayloads: Array<Record<string, unknown>> = [];
+    let finishFirstRequest = () => {};
+    const firstRequestGate = new Promise<void>((resolve) => { finishFirstRequest = resolve; });
+    await mockAppApi(page, { authenticated: true, enrolled: true, course });
+    await page.route("**/api/ai/curation-feedback", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      feedbackPayloads.push(route.request().postDataJSON() as Record<string, unknown>);
+      if (feedbackPayloads.length === 1) {
+        await firstRequestGate;
+        return json(route, { message: "Feedback service is temporarily unavailable." }, 503);
+      }
+      return json(route, { recorded: true, id: "feedback-1" });
+    });
+
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    const helpful = page.getByRole("button", { name: "Helpful", exact: true });
+    await expect(helpful).toBeVisible();
+    await page.evaluate(() => {
+      const button = Array.from(document.querySelectorAll("button")).find((node) => node.textContent?.trim() === "Helpful");
+      if (!(button instanceof HTMLButtonElement)) throw new Error("Helpful feedback button is missing");
+      button.click();
+      button.click();
+    });
+    await expect.poll(() => feedbackPayloads.length).toBe(1);
+    finishFirstRequest();
+
+    await expect(page.getByRole("alert")).toContainText("Feedback could not be sent");
+    await page.getByRole("button", { name: "Retry feedback" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Thanks for your feedback." })).toBeVisible();
+    expect(feedbackPayloads).toHaveLength(2);
+    expect(feedbackPayloads[0].submissionId).toBe(feedbackPayloads[1].submissionId);
+    await expect(helpful).toBeDisabled();
+  });
+
   test("[PLAYER-NOTES-001] timestamped notes validate timestamps and persist across reload", async ({ page }) => {
     await mockAppApi(page, { authenticated: true, enrolled: true });
     await page.goto(baseURL + "/learn/course-fixture/lesson-1");

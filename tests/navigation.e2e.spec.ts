@@ -1685,6 +1685,89 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("Note removed.")).toBeVisible();
   });
 
+  test("[ROADMAP-LIFECYCLE-001] saved roadmap supports continue, completion, quiz submission and deletion", async ({ page }) => {
+    const roadmap = {
+      _id: "roadmap-fixture",
+      query: "Node.js backend",
+      canonicalTopic: "Node.js backend",
+      level: "Beginner",
+      status: "active",
+      course: {
+        title: "Node.js backend roadmap",
+        description: "Build and verify backend skills.",
+        modules: [{
+          title: "HTTP basics",
+          lessons: [{ id: "lesson-1", lessonId: "lesson-1", title: "HTTP APIs", type: "tutorial", order: 1 }],
+          quiz: {
+            title: "HTTP quiz",
+            questions: [{
+              question: "Which protocol powers web APIs?",
+              options: ["HTTP", "CSV"],
+              answer: 0,
+              explanation: "HTTP is used for web APIs."
+            }]
+          }
+        }]
+      },
+      lessons: [{ lessonId: "lesson-1", title: "HTTP APIs", type: "tutorial", moduleTitle: "HTTP basics", order: 1 }],
+      completedLessonIds: [],
+      quizAttempts: [],
+      progress: { completedCount: 0, totalLessons: 1, percentage: 0 }
+    };
+    let deleted = false;
+    const snapshot = () => JSON.parse(JSON.stringify(roadmap));
+    await mockAppApi(page, { authenticated: true, enrolled: true });
+    await page.route("**/api/roadmaps/**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.pathname === "/api/roadmaps/roadmap-fixture" && request.method() === "GET") {
+        return json(route, deleted ? { roadmap: null } : { roadmap: snapshot() }, deleted ? 404 : 200);
+      }
+      if (url.pathname === "/api/roadmaps/roadmap-fixture/lessons/lesson-1/complete" && request.method() === "POST") {
+        if (!roadmap.completedLessonIds.includes("lesson-1")) roadmap.completedLessonIds.push("lesson-1");
+        roadmap.status = "completed";
+        roadmap.completedAt = new Date().toISOString();
+        roadmap.progress = { completedCount: 1, totalLessons: 1, percentage: 100 };
+        return json(route, { roadmap: snapshot() });
+      }
+      if (url.pathname === "/api/roadmaps/roadmap-fixture/quizzes/0/submit" && request.method() === "POST") {
+        const body = request.postDataJSON() as { answers: number[] };
+        const score = body.answers[0] === 0 ? 1 : 0;
+        roadmap.quizAttempts.push({ moduleIndex: 0, score, total: 1, attemptedAt: new Date().toISOString() });
+        return json(route, { roadmap: snapshot() });
+      }
+      if (url.pathname === "/api/roadmaps/roadmap-fixture/quizzes/0/generate" && request.method() === "POST") {
+        return json(route, { roadmap: snapshot() });
+      }
+      if (url.pathname === "/api/roadmaps/roadmap-fixture" && request.method() === "DELETE") {
+        deleted = true;
+        return json(route, { deleted: true });
+      }
+      return route.fallback();
+    });
+
+    await page.goto(baseURL + "/roadmaps/roadmap-fixture");
+    await expect(page.getByRole("heading", { name: "Node.js backend roadmap" })).toBeVisible();
+    await expect(page.getByText("0 of 1 lessons completed")).toBeVisible();
+    await page.getByRole("button", { name: "Continue: HTTP APIs" }).click();
+    await expect(page.locator("#roadmap-lesson-lesson-1")).toBeFocused();
+
+    await page.getByRole("button", { name: "Mark complete" }).click();
+    await expect(page.getByText("1 of 1 lessons completed")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review roadmap" })).toBeVisible();
+
+    await page.getByRole("radio", { name: "HTTP" }).check();
+    await page.getByRole("button", { name: "Submit quiz" }).click();
+    await expect(page.getByRole("status")).toContainText("Quiz submitted: 1 of 1 correct.");
+    await expect(page.getByText("HTTP is used for web APIs.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete roadmap" }).click();
+    await expect(page.getByText("Delete this saved roadmap and its progress?")).toBeVisible();
+    await page.getByRole("button", { name: "Confirm delete" }).click();
+    await expect(page).toHaveURL(baseURL + "/my-learning");
+    expect(deleted).toBe(true);
+  });
+
   test("[PLAYER-DEEP-LINK-001] direct lesson URLs load and invalid lesson IDs offer recovery", async ({ page }) => {
     const course = courseFixture("course-fixture", {
       modules: [{

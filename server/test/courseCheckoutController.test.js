@@ -89,7 +89,9 @@ test("eligible paid-course checkout creates one provider order and one pending p
     }
   };
   const res = makeResponse();
-  await createCourseOrder(request(), res, (error) => { throw error; }, {
+  const req = request();
+  req.body = { courseId, amount: 1, price: 1, currency: "USD", userId: "507f191e810c19729de860eb", planId: "client-plan-override" };
+  await createCourseOrder(req, res, (error) => { throw error; }, {
     Course: { findOne: async () => makeCourse() },
     Payment,
     createOrder: async (input) => {

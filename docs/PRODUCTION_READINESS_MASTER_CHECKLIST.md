@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 100 / 239 |
+| Verified done | 108 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 122 / 239 |
+| Not checked | 114 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -293,29 +293,29 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`progressServiceIdempotency.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/progressServiceIdempotency.test.js) verifies one completed lesson out of two yields `completedCount: 1`, `totalLessons: 2`, and `percentage: 50`; [`courseJourneyRoadmap.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseJourneyRoadmap.test.js) checks zero/full progress calculations. Passed in [green full CI 40669422168](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40669422168).
 - [x] **PR-117** compare progress after mutation and reload.  
   Status: `DONE` · Evidence: [`navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies the learner sees `0/2` and `0%`, completes one lesson and sees `1/2` and `50%`, reloads, then still sees `1/2`, `50%`, and the completed sidebar state. Passed in [green full CI 40669422168](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40669422168).
-- [ ] **PR-118** test saved roadmap continue complete quiz and delete.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-118** test saved roadmap continue complete quiz and delete.  
+  Status: `DONE` · Evidence: `[ROADMAP-LIFECYCLE-001]` in [`tests/navigation.e2e.spec.ts`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/tests/navigation.e2e.spec.ts) verifies continuing to the next incomplete lesson, completion/progress update, quiz submission/result feedback, and confirmed deletion with navigation back to My learning. Passed in exact candidate [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476) (`579614b4de4e4957bffb5f70c834a08d18d65c6d).
 - [ ] **PR-119** test roadmap async recovery duplicate request and quota failure.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `NOT CHECKED` · Evidence: [`asyncRoadmap.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/asyncRoadmap.service.test.js) verifies recent duplicate requests reuse the existing draft, and the test passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476). Finding/fix: quota/provider failure retryability and end-to-end recovery still need a dedicated test before this combined task can be marked DONE.
 
 ### G. Payments and refunds
 
-- [ ] **PR-120** test eligible paid-course checkout.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-121** test concurrent checkout idempotency.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-122** reuse pending order only if order price currency match.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-123** test stale order conflict and recovery guidance.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-124** match pending subscription plan and conversion intent.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-120** test eligible paid-course checkout.  
+  Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) exercises eligible paid-course checkout with server-derived price/currency, one Razorpay order, and one persisted pending payment. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476) on candidate `579614b4de4e4957bffb5f70c834a08d18d65c6d`.
+- [x] **PR-121** test concurrent checkout idempotency.  
+  Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) verifies that when another request holds the course lock, a matching pending order is reused and no second provider order/payment is created. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
+- [x] **PR-122** reuse pending order only if order price currency match.  
+  Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) verifies pending orders are reused only when amount and currency match; changed price and currency both fail closed with HTTP 409. [`paymentVerification.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/paymentVerification.test.js) retains source-level guard assertions. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
+- [x] **PR-123** test stale order conflict and recovery guidance.  
+  Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) verifies stale pending price/currency conflicts return a clear 409 message advising support contact rather than silently issuing another payable order. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
+- [x] **PR-124** match pending subscription plan and conversion intent.  
+  Status: `DONE` · Evidence: [`paymentSubscriptionCheckoutGuard.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/paymentSubscriptionCheckoutGuard.test.js) verifies pending subscription checkout reuse matches the selected plan and trial-conversion grant/intent; a different pending plan or conversion intent is rejected. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
 - [ ] **PR-125** test concurrent subscription checkout eligibility.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-126** test provider order failure cleanup.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-127** prevent client price currency plan course or user override.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-126** test provider order failure cleanup.  
+  Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) forces provider order creation to fail and verifies the error is forwarded, the checkout lock is released, and no pending payment is persisted. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
+- [x] **PR-127** prevent client price currency plan course or user override.  
+  Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) sends forged client amount, price, currency, user ID, and plan ID; assertions confirm the order and payment use the server-side course price/currency and authenticated principal. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
 - [ ] **PR-128** test payment signature valid invalid and replay.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-129** verify provider order captured status amount currency.  
@@ -597,6 +597,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-27 | Exact candidate `b4b3402417bcc31d73a9a4ed0d6bac23935751a7` | PR-087 and PR-088 verified | 77 | 4 | 13 | 145 | [Green CI 40470486555](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470486555); [free enrollment CI 40470211985](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40470211985) | Free individual enrollment/access is covered without payment checkout; negative/non-finite base and sale prices fail closed in backend pricing tests. Next up is PR-089: cross-currency formatting and provider minor-unit conversion; current production code contains hard-coded x100 conversions which require correction before this check can pass. Release blockers unchanged. |
 
 | 2026-10-28 | Exact candidate `107d1d3de57cf133ba39d214c25ebd98fcb63923` | PR-111–PR-113, PR-115–PR-117 verified | 100 | 4 | 13 | 122 | [Green full CI 40669422168](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40669422168); [course access isolation](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/4405141998fd03e63792782509cbba246e40df87); [empty quiz recovery](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/d86aba0f9861dd67f7a12dc1285543ed2ef14483); [feedback idempotency](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/dd35fabf6c914419eea3a9ed72fc3dafba3945ca); [progress reload regression](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/107d1d3de57cf133ba39d214c25ebd98fcb63923) | Verified cross-user quiz access gates, pending/empty practice quiz recovery, moderation checks, idempotent feedback retries, progress denominator/percentage, and reload consistency. Next area: saved roadmaps and payment/checkout/webhook guarantees. DATA-001, REL-001, REL-004 remain open. |
+| 2026-10-28 | Exact candidate `579614b4de4e4957bffb5f70c834a08d18d65c6d` | PR-118, PR-120–PR-124, PR-126–PR-127 verified | 108 | 4 | 13 | 114 | [Green full CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476); [checkout controller tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/4e53a56b78f4383cf320779247509f6328def8ec); [duplicate roadmap request test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/579614b4de4e4957bffb5f70c834a08d18d65c6d) | Full CI passed frontend and backend. Verified saved-roadmap learner lifecycle, fresh and concurrent paid checkout, pending-order amount/currency guards, subscription plan/conversion matching, provider failure lock cleanup, and server-authoritative checkout pricing/identity. PR-119 remains open for quota/provider-failure recovery testing; DATA-001, REL-001, and REL-004 remain release blockers. |
+
 ## Related project documents
 
 - `docs/BUG_HISTORY_AND_PLATFORM_AUDIT.md` — reported bugs, known fixes and audit candidates.

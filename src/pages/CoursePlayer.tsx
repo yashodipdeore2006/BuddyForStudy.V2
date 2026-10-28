@@ -1413,8 +1413,21 @@ export default function CoursePlayer() {
                 </section>
               </>
             ) : (
-              <div className="flex min-h-[50vh] items-center justify-center px-6 text-center text-slate-500">
-                This course has no lessons yet.
+              <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center text-slate-500">
+                {allLessons.length === 0 ? (
+                  <p>This course has no lessons yet.</p>
+                ) : (
+                  <>
+                    <p role="status">This lesson could not be found or is no longer available.</p>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate(allLessons[0].id)}
+                      className="btn-primary justify-center"
+                    >
+                      Go to first lesson
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

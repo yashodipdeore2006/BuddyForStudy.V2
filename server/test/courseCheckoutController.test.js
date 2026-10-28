@@ -220,6 +220,37 @@ test("course checkout rejects a pending order if the configured price changed", 
   assert.equal(releaseCalls, 1);
 });
 
+test("course checkout refuses to reuse a pending order with a different currency", async () => {
+  const pending = {
+    _id: "payment-pending-usd",
+    amount: 499,
+    currency: "USD",
+    providerOrderId: "order_usd"
+  };
+  let providerOrderCalls = 0;
+  const Payment = {
+    findOne(filter) {
+      if (filter.status && typeof filter.status === "object" && filter.status.$in) return query(null);
+      if (filter.status === "pending") return query(pending);
+      assert.fail("Unexpected payment lookup");
+    },
+    async create() { assert.fail("Must not create a second payment"); }
+  };
+  const res = makeResponse();
+  await createCourseOrder(request(), res, (error) => { throw error; }, {
+    Course: { findOne: async () => makeCourse() },
+    Payment,
+    createOrder: async () => { providerOrderCalls += 1; return { id: "unexpected" }; },
+    getPublicKey: () => "rzp_test_public",
+    acquireCheckoutLock: async () => "lock-token",
+    releaseCheckoutLock: async () => {}
+  });
+
+  assert.equal(res.result.statusCode, 409);
+  assert.match(res.result.body.message, /amount or currency no longer matches/i);
+  assert.equal(providerOrderCalls, 0);
+});
+
 test("a previously purchased course restores enrollment without creating another payable order", async () => {
   const purchase = { _id: "payment-paid", amount: 499, status: "paid" };
   let createOrderCalls = 0;

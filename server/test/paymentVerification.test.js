@@ -101,7 +101,8 @@ test("course payment verification restores enrollment on success and idempotent 
 
 test("course checkout reuses the latest pending order instead of creating duplicate payable orders", () => {
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
-  assert.match(controller, /const pendingCourseCheckout = await Payment\.findOne\([\s\S]*?course: course\._id,[\s\S]*?provider: "razorpay",[\s\S]*?status: "pending"[\s\S]*?\)\.sort\(\{ createdAt: -1 \}\)/);
+  assert.match(controller, /const PaymentModel = dependencies\.Payment \|\| Payment/);
+  assert.match(controller, /const pendingCourseCheckout = await PaymentModel\.findOne\([\s\S]*?course: course\._id,[\s\S]*?provider: "razorpay",[\s\S]*?status: "pending"[\s\S]*?\)\.sort\(\{ createdAt: -1 \}\)/);
   assert.match(controller, /if \(pendingCourseCheckout\)[\s\S]*?order: \{[\s\S]*?id: pendingCourseCheckout\.providerOrderId,[\s\S]*?toRazorpayMinorUnits\(pendingAmount, pendingCourseCheckout\.currency \|\| "INR"\)/);
   assert.match(controller, /Existing course checkout reused/);
   assert.match(controller, /checkoutLockKey\("course", req\.user\.userId, String\(course\._id\)\)/);

@@ -1576,6 +1576,11 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByText("Enter a timestamp such as 01:25 or 1:02:15.")).toBeVisible();
     await expect(page.getByText("No notes yet")).toBeVisible();
 
+    await page.getByLabel("Video timestamp").fill("604801");
+    await page.getByRole("button", { name: "Save note" }).click();
+    await expect(page.getByText("Enter a timestamp such as 01:25 or 1:02:15.")).toBeVisible();
+    await expect(page.getByText("No notes yet")).toBeVisible();
+
     await page.getByLabel("Video timestamp").fill("01:25");
     await page.getByRole("button", { name: "Save note" }).click();
     await expect(page.getByText("Timestamped note saved.")).toBeVisible();

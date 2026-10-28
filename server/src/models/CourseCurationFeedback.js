@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const courseCurationFeedbackSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, index: true },
+  submissionId: { type: String, trim: true, maxlength: 100, default: undefined },
   query: { type: String, required: true, trim: true, maxlength: 200, index: true },
   normalizedQuery: { type: String, required: true, trim: true, maxlength: 200, index: true },
   event: {
@@ -25,6 +26,7 @@ const courseCurationFeedbackSchema = new mongoose.Schema({
 
 courseCurationFeedbackSchema.index({ normalizedQuery: 1, resourceId: 1, createdAt: -1 });
 courseCurationFeedbackSchema.index({ user: 1, createdAt: -1 });
+courseCurationFeedbackSchema.index({ submissionId: 1 }, { unique: true, sparse: true });
 
 export const CourseCurationFeedback = mongoose.models.CourseCurationFeedback ||
   mongoose.model("CourseCurationFeedback", courseCurationFeedbackSchema);

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 109 / 239 |
+| Verified done | 113 / 239 |
 | Failed tasks | 4 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 113 / 239 |
+| Not checked | 109 / 239 |
 | Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -316,14 +316,14 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) forces provider order creation to fail and verifies the error is forwarded, the checkout lock is released, and no pending payment is persisted. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
 - [x] **PR-127** prevent client price currency plan course or user override.  
   Status: `DONE` · Evidence: [`courseCheckoutController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseCheckoutController.test.js) sends forged client amount, price, currency, user ID, and plan ID; assertions confirm the order and payment use the server-side course price/currency and authenticated principal. Passed in [CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476).
-- [ ] **PR-128** test payment signature valid invalid and replay.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-129** verify provider order captured status amount currency.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-130** test successful verification and idempotent access restore.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-131** prevent failure webhook overwriting paid/refunded state.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-128** test payment signature valid invalid and replay.  
+  Status: `DONE` · Evidence: [`razorpay.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/razorpay.test.js) computes and accepts a valid HMAC payment signature and rejects a tampered signature. [`coursePaymentVerificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/coursePaymentVerificationController.test.js) rejects invalid signatures before provider lookup/enrollment, permits replay of the same verified payment only, and rejects a different provider payment ID. Passed in exact candidate [CI 40686320933](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40686320933).
+- [x] **PR-129** verify provider order captured status amount currency.  
+  Status: `DONE` · Evidence: [`paymentVerification.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/paymentVerification.test.js) validates captured status and order/amount/currency matching, including missing/mismatched fields. [`coursePaymentVerificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/coursePaymentVerificationController.test.js) verifies the controller only persists a matching captured provider payment. Passed in [CI 40686320933](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40686320933).
+- [x] **PR-130** test successful verification and idempotent access restore.  
+  Status: `DONE` · Evidence: [`coursePaymentVerificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/coursePaymentVerificationController.test.js) verifies successful payment persistence and enrollment; retrying the same paid provider payment restores enrollment without a second provider fetch/save, while different payment IDs and refunded states are rejected. Passed in [CI 40686320933](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40686320933).
+- [x] **PR-131** prevent failure webhook overwriting paid/refunded state.  
+  Status: `DONE` · Evidence: [`paymentWebhookTransitions.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/paymentWebhookTransitions.test.js) restricts failed transitions to `created`/`pending`; [`paymentVerification.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/paymentVerification.test.js) asserts the webhook controller uses that guarded status filter, excluding `paid`, `refunded`, `partially_refunded`, and `cancelled`. Passed in [CI 40686320933](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40686320933).
 - [ ] **PR-132** prevent capture webhook rewriting terminal states.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-133** verify provider-required raw webhook signature.  
@@ -600,6 +600,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-28 | Exact candidate `579614b4de4e4957bffb5f70c834a08d18d65c6d` | PR-118, PR-120–PR-124, PR-126–PR-127 verified | 108 | 4 | 13 | 114 | [Green full CI 40685130476](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685130476); [checkout controller tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/4e53a56b78f4383cf320779247509f6328def8ec); [duplicate roadmap request test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/579614b4de4e4957bffb5f70c834a08d18d65c6d) | Full CI passed frontend and backend. Verified saved-roadmap learner lifecycle, fresh and concurrent paid checkout, pending-order amount/currency guards, subscription plan/conversion matching, provider failure lock cleanup, and server-authoritative checkout pricing/identity. PR-119 remains open for quota/provider-failure recovery testing; DATA-001, REL-001, and REL-004 remain release blockers. |
 
 | 2026-10-28 | Exact candidate `944747a22d3ed66fdc70abf15b85585594b1bf2b` | PR-119 verified | 109 | 4 | 13 | 113 | [Green full CI 40685618232](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40685618232); [quota failure test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/aabe92bfd51b398710ee319e46f3ba867ccb40fb); [retryable finalization test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/944747a22d3ed66fdc70abf15b85585594b1bf2b) | Verified async roadmap duplicate-request reuse, safe quota/provider-failure persistence, and owner-scoped retryable finalization. Remaining priority work includes payment verification/replay and webhook/refund guarantees; DATA-001, REL-001, and REL-004 remain release blockers. |
+
+| 2026-10-28 | Exact candidate `53fb2ca4f405099b9013ca46401b50c0846c3a3c` | PR-128–PR-131 verified | 113 | 4 | 13 | 109 | [Green full CI 40686320933](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40686320933); [payment verification tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/77645f4896b3aa88e1305a3b57128c7b5f1cd815); [webhook terminal-state guard test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/53fb2ca4f405099b9013ca46401b50c0846c3a3c) | Verified valid/invalid payment signatures, captured provider amount/currency/order validation, idempotent access restoration on same-payment retry, rejection of different-payment replay/refunded reactivation, and failed-webhook terminal-state protection. DATA-001, REL-001, and REL-004 remain release blockers. |
 
 ## Related project documents
 

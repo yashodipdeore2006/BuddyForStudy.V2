@@ -92,9 +92,9 @@ test("course payment verification restores enrollment on success and idempotent 
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
   const courseDetails = readFileSync(new URL("../../src/pages/CourseDetails.tsx", import.meta.url), "utf8");
 
-  assert.match(controller, /async function restorePurchasedCourseEnrollment\(payment, userId\)/);
+  assert.match(controller, /async function restorePurchasedCourseEnrollment\(payment, userId, enrollUser = enroll\)/);
   assert.match(controller, /Payment already verified; course access restored/);
-  assert.match(controller, /await payment\.save\(\);[\s\S]*?restorePurchasedCourseEnrollment\(payment, req\.user\.userId\)/);
+  assert.match(controller, /await payment\.save\(\);[\s\S]*?restorePurchasedCourseEnrollment\(payment, req\.user\.userId, enrollUser\)/);
   assert.match(courseDetails, /const verificationData = await apiFetch\('\/api\/payments\/course\/verify'/);
   assert.match(courseDetails, /verificationData\?\.enrollment/);
 });

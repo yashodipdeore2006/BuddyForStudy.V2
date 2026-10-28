@@ -64,6 +64,17 @@ test("course payment webhook reconciles captured payment before marking it paid"
   assert.match(webhook, /_id: pendingCoursePayment\._id,[\s\S]*?status: \{ \$in: CAPTURED_PAYMENT_SOURCE_STATUSES \}/);
 });
 
+test("mismatched course capture is logged and cannot mark payment paid or grant access", () => {
+  const webhook = readFileSync(new URL("../src/controllers/webhook.controller.js", import.meta.url), "utf8");
+  const start = webhook.indexOf("const validationError = capturedPaymentValidationError(pendingCoursePayment, paymentEntity)");
+  const end = webhook.indexOf('} else if (event.event === "subscription.activated"', start);
+  assert.ok(start >= 0 && end > start, "Expected course capture validation branch");
+  const block = webhook.slice(start, end);
+  assert.match(block, /if \(validationError\) \{[\s\S]*?ignored course capture because provider payment did not match checkout[\s\S]*?reason: validationError/);
+  assert.match(block, /\} else \{[\s\S]*?await Payment\.findOneAndUpdate\(/);
+  assert.ok(block.indexOf("if (validationError)") < block.indexOf("await Payment.findOneAndUpdate("));
+});
+
 test("course webhook validation rejects missing or mismatched capture fields", () => {
   assert.equal(capturedPaymentValidationError(payment, null), "Provider payment order mismatch");
   assert.equal(capturedPaymentValidationError(payment, { ...captured, amount: undefined }), "Payment amount mismatch");

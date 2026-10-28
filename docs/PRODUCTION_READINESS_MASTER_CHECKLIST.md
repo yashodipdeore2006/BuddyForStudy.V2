@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 119 / 239 |
-| Failed tasks | 4 / 239 |
+| Verified done | 121 / 239 |
+| Failed tasks | 5 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 103 / 239 |
-| Open findings | 4 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow) |
+| Not checked | 100 / 239 |
+| Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
@@ -335,11 +335,11 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-136** validate subscription charge relationship and actual amount.  
   Status: `DONE` · Evidence: [`subscriptionWebhookTransitions.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/subscriptionWebhookTransitions.test.js) verifies subscription ID matching, captured status, provider payment ID, positive amount, currency normalization and persistence of actual provider amount/currency rather than checkout’s stale amount. Passed in [CI 40687177920](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687177920).
 - [ ] **PR-137** test renewal upgrade downgrade cancellation expiry grace.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-138** test refund eligibility amount bounds and duplicate request.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-139** test partial/full refund balance reconciliation and access revocation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `FAIL` · Evidence: [`billing.routes.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/routes/billing.routes.js) exposes checkout, sync, and cancellation, while the reviewed billing routes do not expose an upgrade/downgrade plan-change flow; existing tests cover expiry boundaries and stale webhook ordering but do not establish a documented grace-period policy. Finding: `BILL-001` P2 — lifecycle is only partially specified/implemented.
+- [x] **PR-138** test refund eligibility amount bounds and duplicate request.  
+  Status: `DONE` · Evidence: [`refundBalance.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/refundBalance.service.test.js) verifies refund amount bounds and currency precision, paid/partially-refunded eligibility, one active refund claim per payment, duplicate-key race handling, and provider identity/amount validation before processing. Passed in exact candidate [CI 40687697793](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687697793).
+- [x] **PR-139** test partial/full refund balance reconciliation and access revocation.  
+  Status: `DONE` · Evidence: [`refundBalance.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/refundBalance.service.test.js) verifies processed refund reconciliation, aggregate remaining-balance status, partial/full refund state, and that fully refunded payments are excluded from individual paid-course access. Passed in [CI 40687697793](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687697793).
 
 ### H. Notifications and workers
 
@@ -569,6 +569,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | CONTENT-001 | P2 | PR-093 | Public catalogue and standalone-module discovery did not explicitly exclude archived records from every learner-facing filter | An archived record with stale `isPublished: true` could pass the catalogue filter and a generated standalone module could be rediscovered | `04dfee75`, `bb68a8e` | [`courseVisibility.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseVisibility.test.js) and [`contentQuality.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/contentQuality.test.js) passed on green [CI 40475976561](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40475976561) | RESOLVED — public catalogue, detail and standalone-discovery paths now exclude `status: archived`, deleted records and unpublished courses |
 | AUTH-001 | P1 | PR-051–PR-053 | Logout previously cleared only the local browser token and issued JWTs remained valid until expiry; password change/reset did not invalidate other sessions | Tokens had no per-user revocation/version check | `0dd1377` | [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) tests stale/legacy/expired tokens, multi-device logout revocation and password rotation; exact-candidate CI [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104) passed | RESOLVED — token version now checked in required and optional auth middleware; logout increments it atomically; password change/reset atomically rotate it and return a fresh token |
 | DATA-001 | P1 | PR-056, PR-078 | The consent audit plan states a full account export/deletion rights workflow was not found; route/source review found no authenticated request tracker or deletion/export orchestrator | Account data rights/retention process is described generically in policy/contact copy but has no operational workflow, approved category-by-category retention schedule, legal-hold path, or verified deletion/export outcome | Proposed procedure documented in [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md); runtime fix not yet implemented | Required: identity-verified request tracking, permission-scoped export, reviewed idempotent deletion/anonymization orchestration, retention/legal-hold handling, backup expiry, retry and post-operation verification tests | OPEN — P1 launch blocker; proposed document is not implementation evidence |
+| BILL-001 | P2 | PR-137 | Billing routes expose subscription checkout, sync, and cancellation but no plan upgrade/downgrade route; no explicit grace-period contract is present in the reviewed lifecycle routes/tests | Subscription lifecycle scope is incomplete or undocumented; provider event handling covers charged/pending/halted/cancelled/completed but does not establish self-service plan changes or grace-period entitlement rules | Not implemented | Add product-approved plan-change semantics, provider update/replace flow, prorations/effective dates, cancellation/reversal behavior, and grace-period access rules; add integration tests for renewal, upgrade/downgrade, cancellation, expiry and grace boundaries | OPEN — P2 product/lifecycle gap; do not claim full subscription lifecycle coverage |
 
 ## Execution log
 
@@ -604,6 +605,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-28 | Exact candidate `53fb2ca4f405099b9013ca46401b50c0846c3a3c` | PR-128–PR-131 verified | 113 | 4 | 13 | 109 | [Green full CI 40686320933](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40686320933); [payment verification tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/77645f4896b3aa88e1305a3b57128c7b5f1cd815); [webhook terminal-state guard test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/53fb2ca4f405099b9013ca46401b50c0846c3a3c) | Verified valid/invalid payment signatures, captured provider amount/currency/order validation, idempotent access restoration on same-payment retry, rejection of different-payment replay/refunded reactivation, and failed-webhook terminal-state protection. DATA-001, REL-001, and REL-004 remain release blockers. |
 
 | 2026-10-28 | Exact candidate `3b4066b4ab7e1770923a4f22d750a3dfa65c2559` | PR-125, PR-132–PR-136 verified | 119 | 4 | 13 | 103 | [Green full CI 40687177920](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687177920); [subscription lock test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/760fd62762f6a44c9b6fa000cbc6afd6f21ae88d); [webhook signature and mismatch tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/cd5bae68366e27fda78d9b53f1ddfc6c65c25d19) | Verified subscription checkout lock contention, terminal payment-state protection, raw webhook signatures, duplicate claim/retry behavior, mismatch logging without access, and subscription charge relationship/amount/currency checks. DATA-001, REL-001, and REL-004 remain release blockers. |
+
+| 2026-10-28 | Exact candidate `1f96c18d7e2696359a644415f3d9703c9695050f` | PR-138 and PR-139 verified; PR-137 FAIL recorded | 121 | 5 | 13 | 100 | [Green full CI 40687697793](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687697793); [refund eligibility/duplicate test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/5177535e9606963b9207b3905df4b83edd52b15a); [full-refund access test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/c1b548f4eab57142e98ddedc25d56bfeb477c78d) | Refund request eligibility, amount limits, duplicate claim protection, reconciliation and full-refund access revocation are covered. Added `BILL-001` P2: no plan upgrade/downgrade route or explicit grace-period policy was found. P1 release blockers remain unchanged. |
 
 ## Related project documents
 

@@ -130,7 +130,7 @@ test("course checkout reuses the latest pending order instead of creating duplic
     controller.indexOf("export async function createCourseOrder"),
     controller.indexOf("export async function verifyCoursePayment")
   );
-  assert.ok(courseCheckout.indexOf("acquireCheckoutLock(lockKey)") < courseCheckout.indexOf("const priorPurchase = await PaymentModel.findOne"),
+  assert.ok(courseCheckout.indexOf("acquireLock(lockKey)") < courseCheckout.indexOf("const priorPurchase = await PaymentModel.findOne"),
     "The course lock must be acquired before querying purchases or creating the provider order");
   assert.match(controller, /!payment\?\.providerOrderId \|\| pendingCurrency !== requestedCurrency/);
 });
@@ -151,8 +151,8 @@ test("subscription checkout only reuses a pending provider checkout for the same
   assert.match(block, /different plan or trial conversion is already pending/);
   assert.match(block, /pendingPlanId:/);
   assert.match(controller, /checkoutLockKey\("subscription", req\.user\.userId\)/);
-  assert.match(controller, /acquireCheckoutLock\(lockKey\)/);
   const subscriptionCheckout = controller.slice(controller.indexOf("export async function createSubscriptionOrder"));
+  assert.match(subscriptionCheckout, /const acquireLock = dependencies\.acquireCheckoutLock \|\| acquireCheckoutLock/);
   assert.ok(subscriptionCheckout.indexOf("acquireLock(lockKey)") < subscriptionCheckout.indexOf("const existingSubscription = await UserSubscriptionModel.findOne"),
     "The subscription lock must be acquired before subscription eligibility and pending-checkout checks");
 });

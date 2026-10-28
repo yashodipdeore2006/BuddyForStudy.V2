@@ -2,6 +2,7 @@ import { z } from "zod";
 import mongoose from "mongoose";
 import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
 import { success, failure } from "../utils/response.js";
+import { persistCurationFeedback } from "../services/curationFeedback.service.js";
 
 const schema = z.object({
   submissionId: z.string().trim().min(16).max(100).optional(),
@@ -40,22 +41,11 @@ export async function recordCurationFeedback(req, res, next) {
       rank: input.rank ?? null,
       score: input.score ?? null
     };
-    let feedback;
-    if (input.submissionId) {
-      try {
-        feedback = await CourseCurationFeedback.findOneAndUpdate(
-          { submissionId: input.submissionId },
-          { $setOnInsert: { ...feedbackData, submissionId: input.submissionId } },
-          { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-        );
-      } catch (error) {
-        if (error?.code !== 11000) throw error;
-        feedback = await CourseCurationFeedback.findOne({ submissionId: input.submissionId });
-        if (!feedback) throw error;
-      }
-    } else {
-      feedback = await CourseCurationFeedback.create(feedbackData);
-    }
+    const feedback = await persistCurationFeedback({
+      model: CourseCurationFeedback,
+      payload: feedbackData,
+      submissionId: input.submissionId
+    });
     return success(res, { recorded: true, id: String(feedback._id) }, "Curation feedback recorded");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);

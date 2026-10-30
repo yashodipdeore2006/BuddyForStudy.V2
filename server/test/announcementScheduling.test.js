@@ -96,13 +96,23 @@ test("delivery log is paginated, masks recipients and retries only failed channe
   assert.match(routes, /router\.post\("\/deliveries\/:notificationId\/retry", adminPermissionMiddleware\("notifications\.retry"\)/);
   for (const token of ["recipient", "eventKey", "dateFrom", "dateTo", "Retry "]) assert.ok(page.includes(token), "missing delivery-log feature " + token);
   assert.match(page, /Sent = provider accepted/);
-  const retry = (await read("../src/services/notification.service.js")).split("export async function retryNotificationDelivery")[1].split("export async function createNotificationEvent")[0];
+  const service = await read("../src/services/notification.service.js");
+  const retry = service.slice(service.indexOf("export async function retryNotificationDelivery"), service.indexOf("export async function createNotificationEvent"));
+  const retryFilter = service.slice(service.indexOf("export function buildManualNotificationRetryFilter"), service.indexOf("export function buildManualNotificationRetryPipeline"));
+  const retryPipeline = service.slice(service.indexOf("export function buildManualNotificationRetryPipeline"), service.indexOf("export async function retryNotificationDelivery"));
   assert.match(retry, /findOneAndUpdate/);
-  assert.match(retry, /\[statusField\]: "failed"/);
-  assert.doesNotMatch(retry, /\[statusField\]: "skipped"/);
+  assert.match(retry, /buildManualNotificationRetryFilter/);
+  assert.match(retry, /buildManualNotificationRetryPipeline/);
   assert.match(retry, /queued: true/);
   assert.match(retry, /status: "pending"/);
   assert.doesNotMatch(retry, /dispatchEmail|dispatchPush/);
+  assert.match(retryFilter, /\[statusField\]: "failed"/);
+  assert.doesNotMatch(retryFilter, /\[statusField\]: "skipped"/);
+  assert.match(retryFilter, /\$expr:\s*\{\s*\$lt:/);
+  assert.match(retryPipeline, /\$concatArrays/);
+  assert.match(retryPipeline, /previousError:/);
+  assert.match(retryPipeline, /actorId:/);
+  assert.match(retryPipeline, /reason:/);
 });
 
 test("template preview validates placeholders and test send targets only the signed-in administrator with audit reason", async () => {

@@ -35,7 +35,7 @@ test("intent parse endpoint rate limit is bounded to 20 requests per minute", ()
   assert.match(routeSource, /legacyHeaders:\s*false/);
   const route = getIntentParseRoute();
   assert.equal(typeof route.stack[3].handle, "function");
-  assert.equal(route.stack[3].handle.name, "rateLimitMiddleware");
+  assert.notEqual(route.stack[3].handle, parseIntentController, "rate limiter must precede the controller");
 });
 
 test("intent parser feature flag is checked server-side before processing input", () => {

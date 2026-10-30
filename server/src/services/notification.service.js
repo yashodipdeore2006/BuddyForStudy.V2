@@ -248,7 +248,6 @@ export async function dispatchEmail(notificationId, dependencies = {}) {
   }
 
   const preferences = await getUserNotificationPreferences(notification.user._id);
-  const keys = preferenceKeys(notification.type);
   if (!isNotificationEmailAllowed(notification.type, preferences)) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "skipped", emailError: "Disabled by learner email preferences" }

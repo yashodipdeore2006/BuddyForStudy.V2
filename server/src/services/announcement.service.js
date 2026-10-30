@@ -98,9 +98,15 @@ export async function refreshAnnouncementStats(announcement) {
  * deterministic per campaign and recipient, so a crash after enqueueing but
  * before advancing the cursor safely replays the same batch without duplicates.
  */
+export function normalizeAnnouncementBatchLimits(maxBatches = 5, batchSize = 100) {
+  return {
+    maxBatches: Math.min(50, Math.max(1, Math.trunc(Number(maxBatches) || 5))),
+    batchSize: Math.min(100, Math.max(1, Math.trunc(Number(batchSize) || 100)))
+  };
+}
+
 export async function processScheduledAnnouncements(now = new Date(), maxBatches = 5, batchSize = 100) {
-  const safeBatchCount = Math.min(50, Math.max(1, Math.trunc(Number(maxBatches) || 5)));
-  const safeBatchSize = Math.min(100, Math.max(1, Math.trunc(Number(batchSize) || 100)));
+  const { maxBatches: safeBatchCount, batchSize: safeBatchSize } = normalizeAnnouncementBatchLimits(maxBatches, batchSize);
   let batches = 0;
   let recipientsQueued = 0;
   let failures = 0;
@@ -193,7 +199,7 @@ export async function recoverAnnouncementBatch(announcementId, lockToken, error,
   await Announcement.updateOne(
     { _id: announcementId, batchLockToken: lockToken },
     { $set: {
-      ...(attempts >= 5 ? { status: "failed", completedAt: now } : {}),
+      ...(attempts >= 5 ? { status: "failed", completedAt: now, nextBatchAt: null } : {}),
       batchLockUntil: null, batchLockToken: "", lastError: message,
       ...(attempts < 5 ? { nextBatchAt: new Date(now.getTime() + Math.min(15 * 60 * 1000, 30 * 1000 * (2 ** Math.max(0, attempts - 1)))) } : {})
     } }

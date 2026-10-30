@@ -375,7 +375,7 @@ test("a failure after private course persistence archives and detaches the incom
     if (update.$push?.events?.$each) draft.events.push(...update.$push.events.$each);
     return { modifiedCount: 1 };
   };
-  Course.findOne = async () => { throw new Error("course read failed after persistence"); };
+  Course.findOne = () => { throw new Error("course read failed after persistence"); };
   Course.updateOne = async (filter, update) => {
     archivedFilter = filter;
     archivedUpdate = update;

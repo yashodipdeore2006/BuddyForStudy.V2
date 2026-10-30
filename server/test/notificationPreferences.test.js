@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeUserNotificationPreferences, createEmailUnsubscribeToken, verifyEmailUnsubscribeToken } from "../src/services/notification.service.js";
+import { normalizeUserNotificationPreferences, createEmailUnsubscribeToken, verifyEmailUnsubscribeToken, isNotificationEmailAllowed } from "../src/services/notification.service.js";
 
 test("email product updates default to off for new users", () => {
   const preferences = normalizeUserNotificationPreferences(null, "user-1");
@@ -75,4 +75,15 @@ test("notification links allow only same-origin application paths", async () => 
   assert.equal(normalizeNotificationLink("/\\\\attacker.example/phishing"), "/notifications");
   assert.equal(normalizeNotificationLink("javascript:alert(1)"), "/notifications");
   assert.equal(normalizeNotificationLink(""), "/notifications");
+});
+
+
+test("notification email consent is category-specific while billing and security remain transactional", () => {
+  assert.equal(isNotificationEmailAllowed("promotion", { emailAnnouncements: false }), false);
+  assert.equal(isNotificationEmailAllowed("promotion", { emailAnnouncements: true, emailAnnouncementsConsentAt: null }), false);
+  assert.equal(isNotificationEmailAllowed("promotion", { emailAnnouncements: true, emailAnnouncementsConsentAt: new Date() }), true);
+  assert.equal(isNotificationEmailAllowed("course", { emailCourseUpdates: false }), false);
+  assert.equal(isNotificationEmailAllowed("learning", { emailLearningReminders: false }), false);
+  assert.equal(isNotificationEmailAllowed("billing", { emailAnnouncements: false }), true);
+  assert.equal(isNotificationEmailAllowed("security", { emailCourseUpdates: false }), true);
 });

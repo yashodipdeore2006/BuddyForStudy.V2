@@ -145,7 +145,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
 
   const assertLease = async () => {
     await heartbeatInFlight;
-    if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) {
+    if (leaseLost || !await renewAdmission({ draftId, leaseToken: lease.leaseToken })) {
       leaseLost = true;
       await recoverAdmissions().catch(() => {});
       throw Object.assign(new Error("Roadmap admission lease was lost"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });

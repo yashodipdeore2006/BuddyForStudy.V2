@@ -111,3 +111,13 @@ test("roadmap cancellation returns conflict when generation already started", as
   assert.equal(res.result.body.message, "This roadmap build has already started and cannot be cancelled.");
 });
 
+test("synchronous roadmap generation uses the same persistent rate and distributed capacity guards", async () => {
+  const controller = await readFile(new URL("../src/controllers/ai.controller.js", import.meta.url), "utf8");
+  const admission = await readFile(new URL("../src/services/roadmapAdmission.service.js", import.meta.url), "utf8");
+  assert.match(controller, /consumeRoadmapRequestAllowance\(\{ userId: req\.user\.userId, maxRequests: 5 \}\)/);
+  assert.match(controller, /runWithRoadmapAdmission\(\{/);
+  assert.match(admission, /roadmap_admission_global_slot_unique/);
+  assert.match(admission, /roadmap_admission_user_slot_unique/);
+  assert.match(admission, /roadmap_admission_rate_user_window_unique/);
+  assert.match(controller, /ROADMAP_USER_RATE_LIMIT.*ROADMAP_USER_QUEUE_LIMIT.*ROADMAP_QUEUE_FULL/);
+});

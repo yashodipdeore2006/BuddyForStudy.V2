@@ -84,6 +84,10 @@ test("MongoDB enforces atomic roadmap global/user slots, rate windows, renewal a
     "atomic rate-window increments must admit exactly the configured request count");
   assert.equal(await RateWindowModel.countDocuments({ userId: rateUser }), 1);
   assert.equal((await RateWindowModel.findOne({ userId: rateUser })).count, 12);
+  const nextWindowAt = new Date(Date.now() + 10 * 60 * 1000);
+  assert.equal(await consumeRoadmapRequestAllowance({
+    userId: rateUser, maxRequests: 5, now: nextWindowAt, RateWindowModel
+  }), 1, "the next fixed window starts with a fresh request allowance");
 
   const lease = globalAttempts.find((result) => result.status === "fulfilled").value;
   const renewalAt = new Date(lease.expiresAt.getTime() - 30_000);
@@ -99,12 +103,15 @@ test("MongoDB enforces atomic roadmap global/user slots, rate windows, renewal a
   const expiredUser = new mongoose.Types.ObjectId();
   const expiredDraftId = "expired-roadmap-draft";
   const expiredToken = "expired-lease-token";
+  const staleCourseId = new mongoose.Types.ObjectId();
   await DraftModel.create({
     draftId: expiredDraftId,
     userId: expiredUser,
     query: "MongoDB",
     profile: { topic: "MongoDB" },
     status: "building",
+    roadmapId: staleCourseId,
+    result: { partial: true },
     admissionLeaseToken: expiredToken
   });
   await LeaseModel.create({
@@ -116,13 +123,23 @@ test("MongoDB enforces atomic roadmap global/user slots, rate windows, renewal a
     heartbeatAt: expiredAt,
     expiresAt: expiredAt
   });
+  let archivedCourse = false;
   const recovered = await recoverExpiredRoadmapAdmissions({
     now: new Date(),
     LeaseModel,
     DraftModel,
-    CourseModel: { updateOne: async () => ({ modifiedCount: 0 }) }
+    CourseModel: {
+      updateOne: async (filter, update) => {
+        assert.equal(String(filter._id), String(staleCourseId));
+        assert.equal(String(filter.createdForUser), String(expiredUser));
+        assert.deepEqual(update.$set, { status: "archived", isPublished: false, visibility: "private" });
+        archivedCourse = true;
+        return { modifiedCount: 1 };
+      }
+    }
   });
   assert.equal(recovered, 1);
+  assert.equal(archivedCourse, true);
   const failedDraft = await DraftModel.findOne({ draftId: expiredDraftId });
   assert.equal(failedDraft.status, "failed");
   assert.equal(failedDraft.errorCode, "ROADMAP_ADMISSION_LEASE_EXPIRED");

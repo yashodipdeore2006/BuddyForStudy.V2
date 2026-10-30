@@ -314,7 +314,7 @@ export async function sendTestPush(req, res, next, dependencies = {}) {
         failed += 1;
         const statusCode = Number(error?.statusCode || error?.status || 0);
         const expired = statusCode === 404 || statusCode === 410;
-        await PushSubscription.updateOne({ _id: subscription._id }, {
+        await (dependencies.updateSubscription || ((filter, update) => PushSubscription.updateOne(filter, update)))({ _id: subscription._id }, {
           $set: {
             ...(expired ? { active: false, deactivatedAt: new Date() } : {}),
             lastFailureAt: new Date(),

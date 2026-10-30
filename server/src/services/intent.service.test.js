@@ -149,3 +149,20 @@ test("malformed structured intent output falls back safely and is not cached", a
   assert.ok(result.questionPlan.some((item) => item.id === "goal"));
   assert.equal(model.entries.size, 0);
 });
+
+test("provider outage and malformed JSON failures return a safe uncached fallback", async (t) => {
+  for (const [name, generate] of [
+    ["provider outage", async () => { throw new Error("provider unavailable"); }],
+    ["malformed JSON", async () => { throw new SyntaxError("Unexpected token in JSON"); }]
+  ]) {
+    await t.test(name, async () => {
+      const model = memoryCache();
+      const result = await parseIntent("Python backend development", { model, generate });
+      assert.equal(result.valid, true);
+      assert.equal(result.fallback, true);
+      assert.equal(result.profile.topic, "Python backend development");
+      assert.ok(result.questionPlan.some((item) => item.id === "goal"));
+      assert.equal(model.entries.size, 0, "failed provider output must never be cached");
+    });
+  }
+});

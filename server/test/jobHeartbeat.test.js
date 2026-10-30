@@ -87,6 +87,33 @@ test("worker shutdown clears schedulers, waits for active jobs, marks stopped an
   assert.match(shutdown, /clearInterval\(heartbeatHandle\)/);
   assert.match(shutdown, /clearInterval\(announcementHandle\)/);
   assert.match(shutdown, /while \(maintenanceInProgress \|\| announcementRunInProgress \|\| nightlyRunInProgress\)/);
+  assert.match(shutdown, /await heartbeatInProgress/);
+  assert.ok(shutdown.indexOf("await heartbeatInProgress") < shutdown.indexOf('heartbeatWorker("stopped")'), "the final stopped heartbeat must follow any in-flight running heartbeat");
   assert.match(shutdown, /heartbeatWorker\("stopped"\)/);
   assert.match(shutdown, /mongoose\.disconnect\(\)/);
+  assert.match(worker, /let heartbeatInProgress = Promise\.resolve\(\)/);
+  assert.match(worker, /heartbeatInProgress = heartbeatWorker\("running"\)\.catch/);
+  assert.ok(worker.indexOf('process.on("SIGTERM"') < worker.lastIndexOf("await runMaintenance();"), "SIGTERM must be handled during initial maintenance");
+  assert.ok(worker.indexOf('process.on("SIGINT"') < worker.lastIndexOf("await runAnnouncementBatches();"), "SIGINT must be handled during initial announcement processing");
+});
+
+
+test("missing and stopped worker heartbeats raise critical alerts", async () => {
+  const alerts = [];
+  const now = new Date("2026-10-19T10:00:00Z");
+  for (const heartbeat of [
+    null,
+    { jobName: WORKER_JOB_NAME, workerStatus: "stopped", lastHeartbeatAt: new Date("2026-10-19T09:59:30Z") }
+  ]) {
+    await withMocks([
+      [JobHeartbeat, { findOne: () => ({ lean: async () => heartbeat }) }],
+      [OperationalAlert, { findOneAndUpdate: async (filter, update) => { alerts.push({ filter, update }); return {}; } }]
+    ], async () => {
+      const result = await checkWorkerHeartbeat(now);
+      assert.equal(result.status, "stale");
+    });
+  }
+  assert.equal(alerts.length, 2);
+  assert.ok(alerts.every((item) => item.filter.key === "background-worker-heartbeat-stale"));
+  assert.ok(alerts.every((item) => item.update.$set.severity === "critical"));
 });

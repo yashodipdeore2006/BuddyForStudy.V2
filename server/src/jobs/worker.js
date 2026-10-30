@@ -19,6 +19,7 @@ let maintenanceInProgress = false;
 let stopping = false;
 let intervalHandle;
 let heartbeatHandle;
+let heartbeatInProgress = Promise.resolve();
 let announcementHandle;
 let announcementRunInProgress = false;
 let nightlyRunInProgress = false;
@@ -184,6 +185,7 @@ async function shutdown(signal) {
     while (maintenanceInProgress || announcementRunInProgress || nightlyRunInProgress) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    await heartbeatInProgress;
     await heartbeatWorker("stopped").catch((error) => console.error("[worker] unable to record shutdown heartbeat", { code: error?.code }));
     await mongoose.disconnect();
     console.info("[worker] database connection closed");
@@ -197,12 +199,14 @@ async function shutdown(signal) {
 await connectDatabase();
 await heartbeatWorker("running");
 heartbeatHandle = setInterval(() => {
-  void heartbeatWorker("running").catch((error) => console.error("[worker] heartbeat write failed", { code: error?.code, name: error?.name }));
+  heartbeatInProgress = heartbeatWorker("running").catch((error) => {
+    console.error("[worker] heartbeat write failed", { code: error?.code, name: error?.name });
+  });
 }, 60 * 1000);
-await runMaintenance();
-await runAnnouncementBatches();
-intervalHandle = setInterval(() => void runMaintenance(), intervalMs);
-announcementHandle = setInterval(() => void runAnnouncementBatches(), 30 * 1000);
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
+intervalHandle = setInterval(() => void runMaintenance(), intervalMs);
+announcementHandle = setInterval(() => void runAnnouncementBatches(), 30 * 1000);
+await runMaintenance();
+await runAnnouncementBatches();
 console.info("[worker] background maintenance worker started");

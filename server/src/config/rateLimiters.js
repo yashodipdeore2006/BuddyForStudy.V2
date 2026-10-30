@@ -14,3 +14,16 @@ export const AUTH_RATE_LIMIT_POLICY = Object.freeze({
 });
 
 export const authLimiter = rateLimit(AUTH_RATE_LIMIT_POLICY);
+
+
+export const aiRoadmapDraftLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => String(req.user?.userId || "unauthenticated"),
+  message: {
+    success: false,
+    message: "Too many roadmap build requests. Please wait before starting another build."
+  }
+});

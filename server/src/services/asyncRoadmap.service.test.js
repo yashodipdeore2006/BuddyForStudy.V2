@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents } from "./asyncRoadmap.service.js";
+import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents, waitForDraft } from "./asyncRoadmap.service.js";
 import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { Course } from "../models/Course.js";
 
@@ -122,6 +122,69 @@ test("event streams refuse non-owner and admin access before writing headers", a
     const denied = await attachDraftEvents(req, res, "draft-owned", "admin-user");
     assert.equal(denied, false);
     assert.equal(headerWrites, writesAfterOwner);
+  } finally {
+    cleanup?.();
+    RoadmapDraft.findOne = originalFindOne;
+  }
+});
+
+test("roadmap polling returns the latest queued state at the caller timeout", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  let reads = 0;
+  RoadmapDraft.findOne = () => ({
+    lean: async () => { reads += 1; return { draftId: "draft-pending", status: "queued", events: [] }; }
+  });
+  const started = Date.now();
+  try {
+    const result = await waitForDraft("draft-pending", "owner-user", 100);
+    const elapsed = Date.now() - started;
+    assert.equal(result.status, "queued");
+    assert.ok(reads >= 1);
+    assert.ok(elapsed >= 80 && elapsed < 1000, "polling should respect a short caller timeout");
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+  }
+});
+
+test("roadmap polling returns immediately when the draft reaches a terminal state", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  RoadmapDraft.findOne = () => ({
+    lean: async () => ({ draftId: "draft-ready", status: "ready", result: { ok: true } })
+  });
+  const started = Date.now();
+  try {
+    const result = await waitForDraft("draft-ready", "owner-user", 2000);
+    assert.equal(result.status, "ready");
+    assert.ok(Date.now() - started < 500, "terminal drafts must not consume the polling timeout");
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+  }
+});
+
+test("reconnected roadmap event streams replay persisted events in order", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  const events = [
+    { type: "progress", state: "building", at: "2026-10-30T10:00:00.000Z" },
+    { type: "node", nodeId: "lesson-1", state: "ready", at: "2026-10-30T10:00:01.000Z" }
+  ];
+  RoadmapDraft.findOne = () => ({
+    lean: async () => ({ draftId: "draft-resume", userId: "owner-user", events })
+  });
+  let cleanup;
+  const req = { on(event, handler) { if (event === "close") cleanup = handler; } };
+  const writes = [];
+  const res = {
+    status() { return this; },
+    setHeader() {},
+    flushHeaders() {},
+    write(value) { writes.push(value); }
+  };
+  try {
+    const connected = await attachDraftEvents(req, res, "draft-resume", "owner-user");
+    assert.equal(connected, true);
+    assert.equal(writes.length, 2);
+    assert.match(writes[0], /event: progress/);
+    assert.match(writes[1], /event: node/);
   } finally {
     cleanup?.();
     RoadmapDraft.findOne = originalFindOne;

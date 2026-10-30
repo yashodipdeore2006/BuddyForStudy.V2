@@ -42,7 +42,7 @@ export async function createDraft(req, res, next, dependencies = {}) {
     return success(res, draft, "Roadmap draft queued");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
-    if (error?.code === "ROADMAP_USER_QUEUE_LIMIT" || error?.code === "ROADMAP_QUEUE_FULL") {
+    if (error?.code === "ROADMAP_USER_RATE_LIMIT" || error?.code === "ROADMAP_USER_QUEUE_LIMIT" || error?.code === "ROADMAP_QUEUE_FULL") {
       return failure(res, error.message, error.status || 503, { code: error.code, retryable: true });
     }
     next(error);

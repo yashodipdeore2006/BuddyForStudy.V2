@@ -5,6 +5,7 @@ import { generateRoadmap, generateAndSaveCourse, generateQuiz, generatePracticeQ
 import { recordCurationFeedback } from "../controllers/courseCurationFeedback.controller.js";
 import * as asyncRoadmap from "../controllers/asyncRoadmap.controller.js";
 import { env } from "../config/env.js";
+import { aiRoadmapDraftLimiter } from "../config/rateLimiters.js";
 
 
 const router = Router();
@@ -12,7 +13,7 @@ const router = Router();
 router.get("/usage", authMiddleware, usage);
 router.post("/curation-feedback", authMiddleware, recordCurationFeedback);
 if (env.asyncRoadmap) {
-  router.post("/roadmap/draft", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.createDraft);
+  router.post("/roadmap/draft", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), aiRoadmapDraftLimiter, asyncRoadmap.createDraft);
   router.get("/roadmap/:draftId/events", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.streamDraft);
   router.get("/roadmap/:draftId", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.pollDraft);
   router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.finalizeDraft);

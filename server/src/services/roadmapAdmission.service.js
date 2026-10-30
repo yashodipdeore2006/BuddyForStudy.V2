@@ -3,6 +3,7 @@ import { RoadmapAdmissionLease } from "../models/RoadmapAdmissionLease.js";
 import { RoadmapAdmissionRateWindow } from "../models/RoadmapAdmissionRateWindow.js";
 import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { Course } from "../models/Course.js";
+import { env } from "../config/env.js";
 
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const LEASE_DURATION_MS = 2 * 60 * 1000;
@@ -158,4 +159,43 @@ export async function releaseQueuedRoadmapAdmission({
 }) {
   const result = await LeaseModel.deleteOne({ draftId, userId });
   return result.deletedCount === 1;
+}
+
+export async function runWithRoadmapAdmission({
+  userId,
+  maxGlobal = Math.max(1, Number(env.nodeConcurrency) || 3) * 20,
+  maxPerUser = 2,
+  work
+}) {
+  if (typeof work !== "function") throw new TypeError("Roadmap admission work callback is required");
+  const draftId = `sync-${randomUUID()}`;
+  const lease = await reserveRoadmapAdmission({ userId, draftId, maxGlobal, maxPerUser });
+  let leaseLost = false;
+  let heartbeatInFlight = Promise.resolve();
+  const heartbeatTimer = setInterval(() => {
+    heartbeatInFlight = heartbeatInFlight.then(async () => {
+      if (leaseLost) return;
+      if (!await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) leaseLost = true;
+    }).catch(() => { leaseLost = true; });
+  }, 30000);
+  heartbeatTimer.unref?.();
+
+  const assertLease = async () => {
+    await heartbeatInFlight;
+    if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) {
+      leaseLost = true;
+      await recoverExpiredRoadmapAdmissions().catch(() => {});
+      throw Object.assign(new Error("Roadmap admission lease was lost"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
+    }
+  };
+
+  try {
+    const result = await work(assertLease);
+    await assertLease();
+    return result;
+  } finally {
+    clearInterval(heartbeatTimer);
+    await heartbeatInFlight;
+    await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
+  }
 }

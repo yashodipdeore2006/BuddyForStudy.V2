@@ -15,7 +15,7 @@
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
 | Not checked | 68 / 239 |
-| Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
+| Open findings | 6 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap; REL-005 P2 distributed roadmap admission race) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.

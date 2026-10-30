@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { createDraft, finalizeDraft } from "../src/controllers/asyncRoadmap.controller.js";
+import { createDraft, finalizeDraft, cancelDraft } from "../src/controllers/asyncRoadmap.controller.js";
 
 function makeResponse() {
   const result = { statusCode: 200, body: undefined };
@@ -70,7 +70,44 @@ test("async roadmap draft route applies authentication, entitlements, then a per
   const routes = await readFile(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
   const limiters = await readFile(new URL("../src/config/rateLimiters.js", import.meta.url), "utf8");
   assert.match(routes, /router\.post\("\/roadmap\/draft",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*asyncRoadmap\.createDraft\)/);
+  assert.match(routes, /router\.post\("\/roadmap\/:[^"]*\/cancel",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*asyncRoadmap\.cancelDraft\)/);
   assert.match(routes, /router\.post\("\/roadmap",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*generateRoadmap\)/);
   assert.match(limiters, /aiRoadmapDraftLimiter\s*=\s*rateLimit\(\{[\s\S]*?windowMs:\s*10\s*\*\s*60\s*\*\s*1000,[\s\S]*?max:\s*5,[\s\S]*?standardHeaders:\s*true,[\s\S]*?legacyHeaders:\s*false,[\s\S]*?keyGenerator:\s*\(req\)\s*=>\s*String\(req\.user\?\.userId/);
+});
+
+
+test("roadmap cancellation endpoint returns owner-scoped queued cancellation", async () => {
+  const draftId = "550e8400-e29b-41d4-a716-446655440000";
+  const userId = "507f191e810c19729de860ea";
+  const res = makeResponse();
+  let received;
+  await cancelDraft({
+    user: { userId },
+    params: { draftId }
+  }, res, (error) => { throw error; }, {
+    authorize: async () => true,
+    cancelQueuedRoadmapDraft: async (...args) => {
+      received = args;
+      return { draftId, status: "cancelled", cancelled: true };
+    }
+  });
+  assert.deepEqual(received, [draftId, userId]);
+  assert.equal(res.result.statusCode, 200);
+  assert.equal(res.result.body.message, "Roadmap build cancelled");
+  assert.equal(res.result.body.data.cancelled, true);
+});
+
+test("roadmap cancellation returns conflict when generation already started", async () => {
+  const draftId = "550e8400-e29b-41d4-a716-446655440000";
+  const res = makeResponse();
+  await cancelDraft({
+    user: { userId: "507f191e810c19729de860ea" },
+    params: { draftId }
+  }, res, (error) => { throw error; }, {
+    authorize: async () => true,
+    cancelQueuedRoadmapDraft: async () => ({ draftId, status: "building", cancelled: false })
+  });
+  assert.equal(res.result.statusCode, 409);
+  assert.equal(res.result.body.message, "This roadmap build has already started and cannot be cancelled.");
 });
 

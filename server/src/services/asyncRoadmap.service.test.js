@@ -329,6 +329,84 @@ test("global roadmap queue capacity rejects additional builds before persistence
   }
 });
 
+test("a recent failed draft can be retried with a new draft ID", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  const originalUpdateOne = RoadmapDraft.updateOne;
+  let createCalls = 0;
+  RoadmapDraft.findOne = () => ({ sort: async () => ({ draftId: "failed-old", status: "failed" }) });
+  RoadmapDraft.create = async (payload) => {
+    createCalls += 1;
+    return { _id: "draft-new-row", ...payload };
+  };
+  RoadmapDraft.updateOne = async () => ({ modifiedCount: 0 });
+  try {
+    const result = await createRoadmapDraft({
+      userId: "507f191e810c19729de860ea",
+      profile: { topic: "React retry", goal: "learn" },
+      dependencies: { countActiveDrafts: async () => 0 }
+    });
+    assert.equal(result.reused, false);
+    assert.equal(result.status, "queued");
+    assert.equal(createCalls, 1);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+    RoadmapDraft.updateOne = originalUpdateOne;
+  }
+});
+
+test("a failure after private course persistence archives and detaches the incomplete course", async () => {
+  const userId = "507f191e810c19729de860ea";
+  const draft = { _id: "draft-partial-row", draftId: "draft-partial", events: [], status: "queued" };
+  const originalDraftFindOne = RoadmapDraft.findOne;
+  const originalDraftCreate = RoadmapDraft.create;
+  const originalDraftUpdateOne = RoadmapDraft.updateOne;
+  const originalCourseFindOne = Course.findOne;
+  const originalCourseUpdateOne = Course.updateOne;
+  let archivedFilter;
+  let archivedUpdate;
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
+  RoadmapDraft.updateOne = async (filter, update) => {
+    if (filter.status === "queued") Object.assign(draft, update.$set);
+    if (update.$set) Object.assign(draft, update.$set);
+    if (update.$push?.events?.$each) draft.events.push(...update.$push.events.$each);
+    return { modifiedCount: 1 };
+  };
+  Course.findOne = async () => { throw new Error("course read failed after persistence"); };
+  Course.updateOne = async (filter, update) => {
+    archivedFilter = filter;
+    archivedUpdate = update;
+    return { modifiedCount: 1 };
+  };
+  try {
+    await createRoadmapDraft({
+      userId,
+      profile: { topic: "React partial", goal: "learn" },
+      dependencies: {
+        countActiveDrafts: async () => 0,
+        generateAIRoadmap: async () => ({ course: { id: "course-partial", modules: [] } })
+      }
+    });
+    const deadline = Date.now() + 1000;
+    while (draft.status !== "failed" && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(draft.status, "failed");
+    assert.equal(draft.roadmapId, null);
+    assert.equal(draft.result, null);
+    assert.deepEqual(archivedFilter, { _id: "course-partial", createdForUser: userId });
+    assert.deepEqual(archivedUpdate.$set, { status: "archived", isPublished: false, visibility: "private" });
+    assert.ok(draft.events.some((event) => event.type === "error"));
+  } finally {
+    RoadmapDraft.findOne = originalDraftFindOne;
+    RoadmapDraft.create = originalDraftCreate;
+    RoadmapDraft.updateOne = originalDraftUpdateOne;
+    Course.findOne = originalCourseFindOne;
+    Course.updateOne = originalCourseUpdateOne;
+  }
+});
+
 test("quota/provider failure is persisted as a retryable failed draft with a safe recovery event", async () => {
   const userId = "507f1f77bcf86cd799439011";
   const profile = { topic: "MERN stack", goal: "learn", level: "Beginner" };

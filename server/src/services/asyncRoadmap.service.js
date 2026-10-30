@@ -110,7 +110,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
   const recent = await RoadmapDraft.findOne({
     userId, idempotencyKey: key, createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
   }).sort({ createdAt: -1 });
-  if (recent && recent.status !== "cancelled") return { draftId: recent.draftId, status: recent.status, reused: true };
+  if (recent && ["queued", "building", "ready"].includes(recent.status)) return { draftId: recent.draftId, status: recent.status, reused: true };
 
   const activeFilter = { status: { $in: ["queued", "building"] } };
   const recentUserCount = await countActiveDrafts({
@@ -149,11 +149,12 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     const claimed = await RoadmapDraft.updateOne({ _id: draft._id, status: "queued" }, { $set: { status: "building" } });
     if (!claimed.modifiedCount) return;
     await addEvent(draft, { type: "progress", state: "building", draftId });
+    let courseId = null;
     try {
       // jobs/worker.js is a scheduled maintenance runner, not an on-demand consumer.
       // The process-local queue is bounded by NODE_CONCURRENCY; draft/node state is durable in MongoDB.
       const result = await generateRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
-      const courseId = result?.course?._id || result?.course?.id || null;
+      courseId = result?.course?._id || result?.course?.id || null;
       if (!courseId) throw new Error("Async roadmap build did not return a persisted course");
       await RoadmapDraft.updateOne({ _id: draft._id }, {
         $set: { roadmapId: courseId, result, status: "building", updatedAt: new Date() }
@@ -167,8 +168,20 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
       });
       await addEvent(draft, { type: "done", state: "ready", draftId, roadmapId: String(courseId) });
     } catch (error) {
+      if (courseId) {
+        await Course.updateOne(
+          { _id: courseId, createdForUser: userId },
+          { $set: { status: "archived", isPublished: false, visibility: "private" } }
+        ).catch(() => {});
+      }
       await RoadmapDraft.updateOne({ _id: draft._id }, {
-        $set: { status: "failed", errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"), updatedAt: new Date() }
+        $set: {
+          status: "failed",
+          errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"),
+          roadmapId: null,
+          result: null,
+          updatedAt: new Date()
+        }
       });
       await addEvent(draft, { type: "error", state: "failed", draftId, message: "Roadmap build failed. Please retry." });
     }

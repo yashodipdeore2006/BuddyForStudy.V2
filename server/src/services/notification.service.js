@@ -31,7 +31,7 @@ export function normalizeNotificationLink(value) {
     return fallback;
   }
   try {
-    const base = new URL(env.clientUrl);
+    const base = new URL("https://buddyforstudy.invalid");
     const target = new URL(raw, base);
     if (target.origin !== base.origin || target.username || target.password) return fallback;
     return `${target.pathname}${target.search}${target.hash}`;

@@ -64,6 +64,33 @@ test("notification list bounds limits to integers and defaults invalid input saf
 });
 
 
+test("notification list normalizes legacy external links before returning them to the learner", async () => {
+  const notification = {
+    _id: "507f1f77bcf86cd799439012",
+    title: "Account update",
+    message: "A notification",
+    link: "https://attacker.example/phishing"
+  };
+  const query = {
+    sort() { return this; },
+    limit() { return this; },
+    lean: async () => [notification]
+  };
+  const res = responseRecorder();
+  await withMocks([
+    [Notification, {
+      find: () => query,
+      countDocuments: async () => 1
+    }]
+  ], async () => {
+    await list({ query: {}, user: { userId: "507f1f77bcf86cd799439011" } }, res, (error) => { throw error; });
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.notifications[0].link, "/notifications");
+  assert.equal(notification.link, "https://attacker.example/phishing");
+});
+
 test("mark-read only decrements unread count for the request that changes unread to read", async () => {
   const notificationId = "507f1f77bcf86cd799439012";
   const userId = "507f1f77bcf86cd799439011";

@@ -50,6 +50,7 @@ function pump() {
 }
 
 async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease }) {
+  await assertLease();
   const course = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   if (!course) throw new Error("Private roadmap course was not found for its owner");
   const jobs = [];
@@ -58,6 +59,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
       if (lesson.type === "quiz") continue;
       jobs.push(async () => {
         const nodeId = String(lesson._id);
+        await assertLease();
         await Course.updateOne(
           { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
           { $set: { "modules.$[module].lessons.$[lesson].buildState": "queued" } },
@@ -85,6 +87,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
           await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: curated.best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaUnits: curated.meta?.quotaUnits || 0 } });
         } catch (error) {
           if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
+          await assertLease();
           // Each node is isolated: persist failure and allow sibling jobs to finish.
           await Course.updateOne(
             { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
@@ -187,6 +190,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
         if (!finalized.modifiedCount) throw Object.assign(new Error("Roadmap draft ownership changed"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
         await addEvent(draft, { type: "done", state: "ready", draftId, roadmapId: String(courseId) });
       } catch (error) {
+        if (error?.code !== "ROADMAP_ADMISSION_LEASE_LOST") await assertLease();
         if (courseId) {
           await Course.updateOne(
             { _id: courseId, createdForUser: userId },

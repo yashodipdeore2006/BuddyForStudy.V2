@@ -35,7 +35,10 @@ test("manual notification retry records actor, reason and bounded retry history"
   ], async () => {
     const result = await retryNotificationDelivery(notification._id, "email", {
       reason: "Provider incident resolved; retry approved.",
-      actorId: "507f1f77bcf86cd799439011"
+      actorId: "507f1f77bcf86cd799439011",
+      platform: { emailEnabled: true, pushEnabled: true },
+      isMailerConfigured: () => true,
+      isPushConfigured: () => true
     });
     assert.equal(result.status, "pending");
     assert.equal(result.retryCount, 1);
@@ -62,7 +65,12 @@ test("manual notification retry refuses a fourth retry for the same channel", as
     }]
   ], async () => {
     await assert.rejects(
-      retryNotificationDelivery(notificationId, "email", { reason: "Retry after provider recovery" }),
+      retryNotificationDelivery(notificationId, "email", {
+        reason: "Retry after provider recovery",
+        platform: { emailEnabled: true, pushEnabled: true },
+        isMailerConfigured: () => true,
+        isPushConfigured: () => true
+      }),
       (error) => error.status === 409 && /retry limit reached/i.test(error.message)
     );
   });

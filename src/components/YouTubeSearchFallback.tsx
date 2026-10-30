@@ -479,6 +479,9 @@ export default function YouTubeSearchFallback({
 
   const currentLesson = viewer?.course.lessons[viewer.lessonIndex];
   const hasAnything = curatedResources !== undefined ? curatedResources.length > 0 : builtCourses.length > 0 || courses.length > 0 || playlists.length > 0;
+  const discoveryWarning = /quota|daily.?limit/i.test(error)
+    ? "YouTube is temporarily unavailable because its daily API quota has been reached. Your BuddyForStudy courses remain available."
+    : error;
 
   if (!hasAnything && curatedResources === undefined && !loadingPlaylists && !error) {
     return (
@@ -888,7 +891,7 @@ export default function YouTubeSearchFallback({
           )}
           {error && (
             <p className="mt-5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
-              YouTube discovery warning: {error}
+              {discoveryWarning}
             </p>
           )}
           {viewerError && (

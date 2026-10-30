@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { finalizeDraft } from "../src/controllers/asyncRoadmap.controller.js";
+import { createDraft, finalizeDraft } from "../src/controllers/asyncRoadmap.controller.js";
 
 function makeResponse() {
   const result = { statusCode: 200, body: undefined };
@@ -42,3 +42,24 @@ test("failed async roadmap finalization returns a safe retryable response scoped
   assert.deepEqual(res.result.body.errors, { draftId, retryable: true });
   assert.equal(JSON.stringify(res.result.body).includes("QUOTA_EXHAUSTED"), false);
 });
+
+test("roadmap draft controller returns safe 429/503 responses for capacity limits", async () => {
+  const request = {
+    user: { userId: "507f191e810c19729de860ea" },
+    body: { topic: "React", goal: "learn", level: "Beginner" }
+  };
+  for (const expected of [
+    { code: "ROADMAP_USER_QUEUE_LIMIT", status: 429, message: "You already have the maximum number of active roadmap builds." },
+    { code: "ROADMAP_QUEUE_FULL", status: 503, message: "Roadmap build capacity is temporarily full. Please retry shortly." }
+  ]) {
+    const res = makeResponse();
+    await createDraft(request, res, (error) => { throw error; }, {
+      authorize: async () => true,
+      createRoadmapDraft: async () => { throw Object.assign(new Error(expected.message), { code: expected.code, status: expected.status }); }
+    });
+    assert.equal(res.result.statusCode, expected.status);
+    assert.equal(res.result.body.message, expected.message);
+    assert.deepEqual(res.result.body.errors, { code: expected.code, retryable: true });
+  }
+});
+

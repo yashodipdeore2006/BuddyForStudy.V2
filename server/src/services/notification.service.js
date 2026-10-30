@@ -133,6 +133,14 @@ function preferenceKeys(type) {
   return { email: null, inApp: null };
 }
 
+export function isNotificationEmailAllowed(type, preferences = {}) {
+  const keys = preferenceKeys(type);
+  const transactional = type === "billing" || type === "security";
+  const explicitAnnouncementConsent = keys.email !== "emailAnnouncements" ||
+    (preferences.emailAnnouncements === true && Boolean(preferences.emailAnnouncementsConsentAt));
+  return transactional || !keys.email || (preferences[keys.email] !== false && explicitAnnouncementConsent);
+}
+
 export function normalizeUserNotificationPreferences(stored, userId) {
   const preferences = { ...DEFAULT_PREFERENCES, ...(stored || {}), user: String(userId) };
   // Historical defaults were on without recording opt-in; fail closed until explicit consent exists.
@@ -241,8 +249,7 @@ export async function dispatchEmail(notificationId, dependencies = {}) {
 
   const preferences = await getUserNotificationPreferences(notification.user._id);
   const keys = preferenceKeys(notification.type);
-  const transactional = notification.type === "billing" || notification.type === "security";
-  if (!transactional && keys.email && preferences[keys.email] === false) {
+  if (!isNotificationEmailAllowed(notification.type, preferences)) {
     await Notification.updateOne({ _id: notification._id }, {
       $set: { emailStatus: "skipped", emailError: "Disabled by learner email preferences" }
     });
@@ -511,8 +518,7 @@ export async function createNotificationEvent({
   const showInApp = forceInApp || (inApp && transactional) || (inApp && platform.inAppEnabled && (!keys.inApp || preferences[keys.inApp] !== false));
   const smtpConfigured = Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
   const pushConfigured = isWebPushConfigured();
-  const explicitAnnouncementConsent = keys.email !== "emailAnnouncements" || (preferences.emailAnnouncements === true && Boolean(preferences.emailAnnouncementsConsentAt));
-  const emailPreferenceAllowed = transactional || !keys.email || (preferences[keys.email] !== false && explicitAnnouncementConsent);
+  const emailPreferenceAllowed = isNotificationEmailAllowed(type, preferences);
   const shouldEmail = email && platform.emailEnabled && smtpConfigured && emailPreferenceAllowed;
   const shouldPush = push && platform.pushEnabled && preferences.pushEnabled === true && pushConfigured;
   const emailSkippedReason = shouldEmail || !email

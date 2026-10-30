@@ -16,7 +16,9 @@ const {
   blendMetadataJudgeScores,
   adjustFreshnessWithCurationFeedback,
   evaluateCurationHardGates,
-  selectCurationResultSlots
+  selectCurationResultSlots,
+  curateNormalSearch,
+  __setCurationDecisionEngineAdaptersForTests
 } = engine;
 
 function baseCandidate(overrides = {}) {
@@ -342,6 +344,53 @@ test("feedback endpoint, route, and learner controls are connected", async () =>
   assert.ok(ui.includes("/api/discovery/curation-feedback"));
   assert.ok(service.includes("loadLearnerFeedbackSignals"));
   assert.ok(service.includes("scoreFinalCandidates(deduplicated, profile, syllabus, feedbackSignals, metadataJudgment.byCandidateId)"));
+});
+
+test("quota exhaustion is exposed as a recoverable discovery error", async () => {
+  __setCurationDecisionEngineAdaptersForTests({
+    getCache: async () => null,
+    setCache: async () => {},
+    getSearchResultCount: async () => ({ value: 5 }),
+    searchVideos: async () => { throw Object.assign(new Error("quota budget exhausted"), { name: "QuotaBudgetError" }); },
+    searchPlaylists: async () => { throw Object.assign(new Error("quota budget exhausted"), { name: "QuotaBudgetError" }); },
+    searchChannelPlaylists: async () => []
+  });
+  try {
+    const result = await curateNormalSearch("React full course", {
+      cacheScope: "quota-regression",
+      maxQueries: 1,
+      syllabus: { topic: "React", source: "injected", confidence: 1, modules: [{ name: "React foundations", weight: 1, keyConcepts: ["components"], prerequisites: [] }] }
+    });
+    assert.equal(result.resources.length, 0);
+    assert.match(result.meta.youtubeError, /YouTube API daily quota exceeded/i);
+  } finally {
+    __setCurationDecisionEngineAdaptersForTests(null);
+  }
+});
+
+test("cached curation results remain available without calling YouTube providers", async () => {
+  let providerCalls = 0;
+  const cached = {
+    resources: [{ id: "cached-video", sourceType: "video", sourceId: "cached-video", title: "Cached React course", sourceUrl: "https://www.youtube.com/watch?v=cached-video" }],
+    meta: { version: "cached-engine-version", poolCandidates: 1, resultsShown: 1 }
+  };
+  __setCurationDecisionEngineAdaptersForTests({
+    getCache: async (key) => key.includes(":curated-results:") ? cached : null,
+    setCache: async () => {},
+    getSearchResultCount: async () => ({ value: 5 }),
+    searchVideos: async () => { providerCalls += 1; throw new Error("provider must not be called for a cache hit"); },
+    searchPlaylists: async () => { providerCalls += 1; throw new Error("provider must not be called for a cache hit"); }
+  });
+  try {
+    const result = await curateNormalSearch("Cached React course", { cacheScope: "cached-result-regression" });
+    assert.equal(result.resources[0].title, "Cached React course");
+    assert.equal(result.meta.cacheHit, true);
+    assert.equal(result.meta.resultCacheHit, true);
+    assert.equal(result.meta.searchCalls, 0);
+    assert.equal(providerCalls, 0);
+  } finally {
+    __setCurationDecisionEngineAdaptersForTests(null);
+  }
 });
 
 test("golden-set evaluation computes nDCG, hidden-gem recall, junk rate and a summary", () => {

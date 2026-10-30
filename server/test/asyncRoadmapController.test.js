@@ -50,6 +50,7 @@ test("roadmap draft controller returns safe 429/503 responses for capacity limit
     body: { topic: "React", goal: "learn", level: "Beginner" }
   };
   for (const expected of [
+    { code: "ROADMAP_USER_RATE_LIMIT", status: 429, message: "Too many roadmap build requests. Please wait before starting another build." },
     { code: "ROADMAP_USER_QUEUE_LIMIT", status: 429, message: "You already have the maximum number of active roadmap builds." },
     { code: "ROADMAP_QUEUE_FULL", status: 503, message: "Roadmap build capacity is temporarily full. Please retry shortly." }
   ]) {

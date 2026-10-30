@@ -397,7 +397,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-164** bound provider retries with backoff.  
   Status: `REGRESSION TESTS ADDED — CI PENDING` · Evidence: [commit `21c1723`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/21c17231b60c57f500b55795406418baa5a3e4d2) adds tests for bounded 429 retry/backoff, recovery after transient rate limiting, per-attempt quota accounting, and a three-attempt cap for repeated network failures. Existing 5xx retry tests also cover three total attempts. · Finding/fix: awaiting green CI; retry policy remains bounded at two retries after the initial request.
 - [ ] **PR-165** test quota counters concurrency and reset boundary.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `REGRESSION TESTS ADDED — CI PENDING` · Evidence: [commit `fbd2c48`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/fbd2c48fedfe43fcc727ac35527c314c16147051) covers concurrent consumption at the hard budget boundary (only remaining units are allowed; rejected attempts remain counted/fail closed) and exact Pacific midnight TTL under both PST and PDT. · Finding/fix: awaiting green CI.
 - [ ] **PR-166** verify exhausted quota fallback UX.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-167** verify cached resource validity and attribution.  

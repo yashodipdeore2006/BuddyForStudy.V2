@@ -92,7 +92,7 @@ test("MongoDB enforces atomic roadmap global/user slots, rate windows, renewal a
   }), true);
   assert.equal(await renewRoadmapAdmission({
     draftId: lease.draftId, leaseToken: lease.leaseToken,
-    now: new Date(lease.expiresAt.getTime() + 1), LeaseModel
+    now: new Date(renewalAt.getTime() + 120_001), LeaseModel
   }), false);
 
   const expiredAt = new Date(Date.now() - 10_000);

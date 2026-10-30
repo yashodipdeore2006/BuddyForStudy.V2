@@ -176,3 +176,70 @@ test("manual delivery retries preserve the previous failure and enforce a bounde
   assert.match(retryPipeline, /reason:/);
   assert.match(retryPipeline, /\[statusField\]: "pending"/);
 });
+
+test("campaign dry-run, explicit send confirmation and delivery report are protected end to end", async () => {
+  const page = await read("../../src/pages/admin/AdminCommunications.tsx");
+  const controller = await read("../src/controllers/adminPro.controller.js");
+  const routes = await read("../src/routes/adminPro.routes.js");
+  const audience = await read("../src/services/adminAudience.service.js");
+
+  const preview = controller.slice(
+    controller.indexOf("export async function previewNotificationAudience"),
+    controller.indexOf("export async function sendNotification")
+  );
+  assert.match(preview, /resolveAdminAudience/);
+  assert.match(preview, /channelCounts/);
+  assert.match(preview, /previewToken: createAdminAudiencePreviewToken/);
+  assert.match(preview, /email: maskEmail\(user\.email\)/);
+  assert.doesNotMatch(preview, /Announcement\.create|createNotificationEvent|deliverPendingNotification/);
+
+  const requestSend = page.slice(page.indexOf("async function send()"), page.indexOf("async function performSend"));
+  assert.match(requestSend, /if \(!audiencePreview\)/);
+  assert.match(requestSend, /audiencePreview\.recipientCount < 1/);
+  assert.match(requestSend, /audiencePreview\.truncated/);
+  assert.match(requestSend, /requestConfirmation\(/);
+  assert.doesNotMatch(requestSend, /performSend\(/);
+
+  const confirmation = page.slice(page.indexOf("async function submitConfirmation"), page.indexOf("const confirmationRequiredText"));
+  assert.match(confirmation, /reason\.length < 10/);
+  assert.match(confirmation, /requiredText && confirmationText\.trim\(\) !== requiredText/);
+  assert.match(confirmation, /await performSend\(action\.channel, reason\)/);
+
+  const performSend = page.slice(page.indexOf("async function performSend"), page.indexOf("async function submitConfirmation"));
+  assert.match(performSend, /\/api\/admin\/announcements\/send/);
+  assert.match(performSend, /previewToken: audiencePreview\.previewToken/);
+  assert.match(performSend, /channel: channels/);
+  assert.match(performSend, /reason: reason\.trim\(\)/);
+
+  const send = controller.slice(
+    controller.indexOf("export async function sendAnnouncement"),
+    controller.indexOf("export async function listAnnouncements")
+  );
+  assert.match(send, /verifyAdminAudiencePreviewToken/);
+  assert.match(send, /Announcement\.create/);
+  assert.match(send, /status = scheduledAt \? "scheduled" : "sending"/);
+  assert.match(send, /audit\(req, scheduledAt \? "announcement\.scheduled" : "announcement\.send"/);
+  assert.doesNotMatch(send, /createNotificationEvent/);
+
+  assert.match(audience, /channels/);
+  assert.match(audience, /audienceTargetFingerprint/);
+  assert.match(routes, /router\.post\("\/notifications\/audience-preview", adminPermissionMiddleware\("communications\.send"\)/);
+  assert.match(routes, /router\.post\("\/announcements\/send", adminPermissionMiddleware\("communications\.send"\)/);
+  assert.match(routes, /router\.get\("\/announcements\/:announcementId\/report", adminPermissionMiddleware\("communications\.manage"\)/);
+
+  const report = controller.slice(
+    controller.indexOf("export async function announcementReport"),
+    controller.indexOf("export async function settings")
+  );
+  assert.match(report, /refreshAnnouncementStats/);
+  assert.match(report, /channels: \{ in_app: stats\.in_app, email: stats\.email, push: stats\.push \}/);
+  assert.match(report, /limit\(20\)/);
+  assert.match(report, /email: maskEmail\(item\.user\.email\)/);
+  assert.match(report, /safeDeliveryError/);
+
+  assert.match(page, /async function loadCampaignReport/);
+  assert.match(page, /Channel acceptance report/);
+  for (const status of ["accepted", "pending", "failed", "skipped"]) {
+    assert.ok(page.includes(status), "campaign report is missing " + status + " delivery status");
+  }
+});

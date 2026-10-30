@@ -407,6 +407,52 @@ async function dispatchPush(notificationId) {
   return { status: !stillActive ? "skipped" : terminal ? "failed" : "retrying" };
 }
 
+export function buildManualNotificationRetryFilter(notificationId, channel) {
+  if (!["email", "push"].includes(channel)) throw new Error("Channel must be email or push.");
+  const statusField = channel === "email" ? "emailStatus" : "pushStatus";
+  return {
+    _id: notificationId,
+    [statusField]: "failed",
+    $expr: {
+      $lt: [
+        { $size: { $filter: { input: { $ifNull: ["$retryHistory", []] }, as: "retry", cond: { $eq: ["$retry.channel", channel] } } } },
+        3
+      ]
+    }
+  };
+}
+
+export function buildManualNotificationRetryPipeline(channel, actorId, reason) {
+  if (!["email", "push"].includes(channel)) throw new Error("Channel must be email or push.");
+  const statusField = channel === "email" ? "emailStatus" : "pushStatus";
+  const attemptsField = channel === "email" ? "emailAttempts" : "pushAttempts";
+  const lastAttemptField = channel === "email" ? "emailLastAttemptAt" : "pushLastAttemptAt";
+  const errorField = channel === "email" ? "emailError" : "pushError";
+  return [{
+    $set: {
+      retryHistory: {
+        $concatArrays: [
+          { $ifNull: ["$retryHistory", []] },
+          [{
+            channel: { $literal: channel },
+            priorAttempts: { $ifNull: [channel === "email" ? "$emailAttempts" : "$pushAttempts", 0] },
+            previousError: { $ifNull: [channel === "email" ? "$emailError" : "$pushError", ""] },
+            previousLastAttemptAt: { $ifNull: [channel === "email" ? "$emailLastAttemptAt" : "$pushLastAttemptAt", null] },
+            retriedAt: "$NOW",
+            actorId: { $literal: actorId || null },
+            reason: { $literal: String(reason || "").slice(0, 500) }
+          }]
+        ]
+      },
+      [statusField]: "pending",
+      [attemptsField]: 0,
+      [lastAttemptField]: null,
+      [errorField]: "",
+      updatedAt: "$NOW"
+    }
+  }];
+}
+
 export async function retryNotificationDelivery(notificationId, channel, dependencies = {}) {
   const { reason = "", actorId = null } = dependencies;
   if (!["email", "push"].includes(channel)) {
@@ -424,39 +470,11 @@ export async function retryNotificationDelivery(notificationId, channel, depende
     if (!platform.pushEnabled) { const error = new Error("Push delivery is globally disabled in Platform Settings."); error.status = 409; throw error; }
     if (!pushConfigured) { const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push."); error.status = 503; throw error; }
   }
-  const statusField = channel === "email" ? "emailStatus" : "pushStatus";
-  const attemptsField = channel === "email" ? "emailAttempts" : "pushAttempts";
-  const lastAttemptField = channel === "email" ? "emailLastAttemptAt" : "pushLastAttemptAt";
-  const errorField = channel === "email" ? "emailError" : "pushError";
+  const retryFilter = buildManualNotificationRetryFilter(notificationId, channel);
+  const retryPipeline = buildManualNotificationRetryPipeline(channel, actorId, reason);
   const notification = await Notification.findOneAndUpdate(
-    {
-      _id: notificationId,
-      [statusField]: "failed",
-      $expr: { $lt: [{ $size: { $filter: { input: { $ifNull: ["$retryHistory", []] }, as: "retry", cond: { $eq: ["$$retry.channel", channel] } } } }, 3] }
-    },
-    [{
-      $set: {
-        retryHistory: {
-          $concatArrays: [
-            { $ifNull: ["$retryHistory", []] },
-            [{
-              channel: { $literal: channel },
-              priorAttempts: { $ifNull: [channel === "email" ? "$emailAttempts" : "$pushAttempts", 0] },
-              previousError: { $ifNull: [channel === "email" ? "$emailError" : "$pushError", ""] },
-              previousLastAttemptAt: { $ifNull: [channel === "email" ? "$emailLastAttemptAt" : "$pushLastAttemptAt", null] },
-              retriedAt: "$$NOW",
-              actorId: { $literal: actorId || null },
-              reason: { $literal: String(reason || "").slice(0, 500) }
-            }]
-          ]
-        },
-        [statusField]: "pending",
-        [attemptsField]: 0,
-        [lastAttemptField]: null,
-        [errorField]: "",
-        updatedAt: "$$NOW"
-      }
-    }],
+    retryFilter,
+    retryPipeline,
     { new: true, updatePipeline: true }
   );
   if (!notification) {

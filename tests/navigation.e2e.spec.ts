@@ -883,20 +883,16 @@ test.describe("learner control and state regression", () => {
 
   test("[EXP-YOUTUBE-QUOTA-FALLBACK-001] quota exhaustion keeps local courses usable and shows a safe recovery message", async ({ page }) => {
     const localCourse = courseFixture("local-js-course", { title: "JavaScript Foundations", category: "Development" });
-    await mockAppApi(page, { catalogCourses: [localCourse] });
-    await page.route("**/api/courses**", async (route) => {
-      const params = new URL(route.request().url()).searchParams;
-      if (params.get("q")?.trim().toLowerCase() !== "javascript") return route.fallback();
-      return json(route, {
-        courses: [localCourse],
-        discovery: {
-          mode: "youtube_fallback",
-          query: "javascript",
-          courseRecommendations: [],
-          playlists: [],
-          youtubeError: "YouTube API quota exceeded",
-        },
-      });
+    await mockAppApi(page, {
+      catalogCourses: [localCourse],
+      catalogDiscovery: {
+        mode: "youtube_fallback",
+        query: "javascript",
+        courseRecommendations: [],
+        playlists: [],
+        curatedResources: [],
+        youtubeError: "YouTube API quota exceeded",
+      },
     });
 
     await page.goto(baseURL + "/explore");

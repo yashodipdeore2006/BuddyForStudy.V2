@@ -4,6 +4,18 @@ import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, 
 import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { Course } from "../models/Course.js";
 
+function admissionDependencies(overrides = {}) {
+  return {
+    consumeRoadmapRequestAllowance: async () => 1,
+    reserveRoadmapAdmission: async ({ draftId }) => ({ draftId, leaseToken: "test-admission-lease" }),
+    renewRoadmapAdmission: async () => true,
+    releaseRoadmapAdmission: async () => true,
+    recoverExpiredRoadmapAdmissions: async () => 0,
+    ...overrides
+  };
+}
+
+
 test("async roadmap idempotency key is stable for the same user and profile", () => {
   const profile = { topic: "MERN stack", goal: "learn", level: "Beginner" };
   assert.equal(stableProfileKey("user-1", profile), stableProfileKey("user-1", profile));
@@ -184,7 +196,7 @@ test("cancelled queued drafts are not started by the local queue worker", async 
       userId: "507f191e810c19729de860ea",
       profile: { topic: "React", goal: "learn" },
       dependencies: {
-        countActiveDrafts: async () => 0,
+        ...admissionDependencies(),
         generateAIRoadmap: async () => { generationCalls += 1; return { course: { id: "course-1" } }; }
       }
     });
@@ -272,9 +284,13 @@ test("persistent per-user request window rejects a sixth unique roadmap draft", 
       createRoadmapDraft({
         userId: "507f191e810c19729de860ea",
         profile: { topic: "Distributed systems", goal: "learn" },
-        dependencies: {
-          countActiveDrafts: async (filter) => filter.createdAt ? 5 : 0
-        }
+        dependencies: admissionDependencies({
+          consumeRoadmapRequestAllowance: async () => {
+            throw Object.assign(new Error("Too many roadmap build requests. Please wait before starting another build."), {
+              code: "ROADMAP_USER_RATE_LIMIT", status: 429
+            });
+          }
+        })
       }),
       (error) => error.code === "ROADMAP_USER_RATE_LIMIT" && error.status === 429
     );
@@ -296,7 +312,13 @@ test("active roadmap builds are capped per user before a new draft is persisted"
       createRoadmapDraft({
         userId: "507f191e810c19729de860ea",
         profile: { topic: "React", goal: "learn" },
-        dependencies: { countActiveDrafts: async (filter) => filter.userId ? 2 : 2 }
+        dependencies: admissionDependencies({
+          reserveRoadmapAdmission: async () => {
+            throw Object.assign(new Error("You already have the maximum number of active roadmap builds."), {
+              code: "ROADMAP_USER_QUEUE_LIMIT", status: 429
+            });
+          }
+        })
       }),
       (error) => error.code === "ROADMAP_USER_QUEUE_LIMIT" && error.status === 429
     );
@@ -318,7 +340,13 @@ test("global roadmap queue capacity rejects additional builds before persistence
       createRoadmapDraft({
         userId: "507f191e810c19729de860ea",
         profile: { topic: "Node.js", goal: "learn" },
-        dependencies: { countActiveDrafts: async (filter) => filter.userId ? 0 : 10000 }
+        dependencies: admissionDependencies({
+          reserveRoadmapAdmission: async () => {
+            throw Object.assign(new Error("Roadmap build capacity is temporarily full. Please retry shortly."), {
+              code: "ROADMAP_QUEUE_FULL", status: 503
+            });
+          }
+        })
       }),
       (error) => error.code === "ROADMAP_QUEUE_FULL" && error.status === 503
     );
@@ -344,7 +372,7 @@ test("a recent failed draft can be retried with a new draft ID", async () => {
     const result = await createRoadmapDraft({
       userId: "507f191e810c19729de860ea",
       profile: { topic: "React retry", goal: "learn" },
-      dependencies: { countActiveDrafts: async () => 0 }
+      dependencies: admissionDependencies()
     });
     assert.equal(result.reused, false);
     assert.equal(result.status, "queued");
@@ -386,7 +414,7 @@ test("a failure after private course persistence archives and detaches the incom
       userId,
       profile: { topic: "React partial", goal: "learn" },
       dependencies: {
-        countActiveDrafts: async () => 0,
+        ...admissionDependencies(),
         generateAIRoadmap: async () => ({ course: { id: "course-partial", modules: [] } })
       }
     });
@@ -429,7 +457,7 @@ test("quota/provider failure is persisted as a retryable failed draft with a saf
       userId,
       profile,
       dependencies: {
-        countActiveDrafts: async () => 0,
+        ...admissionDependencies(),
         generateAIRoadmap: async () => {
           const error = new Error("provider quota details must not be exposed");
           error.code = "QUOTA_EXHAUSTED";

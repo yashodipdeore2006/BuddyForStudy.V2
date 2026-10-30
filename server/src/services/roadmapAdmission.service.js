@@ -165,17 +165,18 @@ export async function runWithRoadmapAdmission({
   userId,
   maxGlobal = Math.max(1, Number(env.nodeConcurrency) || 3) * 20,
   maxPerUser = 2,
-  work
+  work,
+  LeaseModel = RoadmapAdmissionLease
 }) {
   if (typeof work !== "function") throw new TypeError("Roadmap admission work callback is required");
   const draftId = `sync-${randomUUID()}`;
-  const lease = await reserveRoadmapAdmission({ userId, draftId, maxGlobal, maxPerUser });
+  const lease = await reserveRoadmapAdmission({ userId, draftId, maxGlobal, maxPerUser, LeaseModel });
   let leaseLost = false;
   let heartbeatInFlight = Promise.resolve();
   const heartbeatTimer = setInterval(() => {
     heartbeatInFlight = heartbeatInFlight.then(async () => {
       if (leaseLost) return;
-      if (!await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) leaseLost = true;
+      if (!await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken, LeaseModel })) leaseLost = true;
     }).catch(() => { leaseLost = true; });
   }, 30000);
   heartbeatTimer.unref?.();
@@ -184,7 +185,7 @@ export async function runWithRoadmapAdmission({
     await heartbeatInFlight;
     if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) {
       leaseLost = true;
-      await recoverExpiredRoadmapAdmissions().catch(() => {});
+      await recoverExpiredRoadmapAdmissions({ LeaseModel }).catch(() => {});
       throw Object.assign(new Error("Roadmap admission lease was lost"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
     }
   };
@@ -196,6 +197,6 @@ export async function runWithRoadmapAdmission({
   } finally {
     clearInterval(heartbeatTimer);
     await heartbeatInFlight;
-    await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
+    await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken, LeaseModel }).catch(() => {});
   }
 }

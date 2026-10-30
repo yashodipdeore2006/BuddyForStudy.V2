@@ -25,7 +25,7 @@ before(async () => {
   process.env.YT_COMBINED_SEARCH = "false";
   quota = await import("./quota.service.js");
   quota.__setQuotaTestAdapters({
-    getState: async () => ({ state: exhausted ? "exhausted" : quotaState, units: quotaUnits, budget: 1000, softLimitPct: 80, resetDay: "test", store: "mock" }),
+    getState: async () => ({ state: quota.__quotaTestHooks.stateFor(quotaUnits, exhausted), units: quotaUnits, budget: 1000, softLimitPct: 80, resetDay: "test", store: "mock" }),
     increment: async (cost) => (quotaUnits += cost),
     markQuotaExceeded: async () => { exhausted = true; quotaState = "exhausted"; },
   });

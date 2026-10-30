@@ -260,7 +260,8 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
   return { draftId, status: "queued", reused: false };
 }
 
-export async function cancelQueuedRoadmapDraft(draftId, userId) {
+export async function cancelQueuedRoadmapDraft(draftId, userId, dependencies = {}) {
+  const releaseQueuedAdmission = dependencies.releaseQueuedRoadmapAdmission || releaseQueuedRoadmapAdmission;
   const cancelled = await RoadmapDraft.findOneAndUpdate(
     { draftId, userId, status: "queued" },
     { $set: { status: "cancelled", updatedAt: new Date() } },
@@ -274,7 +275,7 @@ export async function cancelQueuedRoadmapDraft(draftId, userId) {
       await runtime.waitForHeartbeat();
       await runtime.release().catch(() => {});
     } else {
-      await releaseQueuedRoadmapAdmission({ draftId, userId }).catch(() => {});
+      await releaseQueuedAdmission({ draftId, userId }).catch(() => {});
     }
     await addEvent(cancelled, { type: "cancelled", state: "cancelled", draftId, message: "Roadmap build cancelled." });
     return { draftId, status: "cancelled", cancelled: true };

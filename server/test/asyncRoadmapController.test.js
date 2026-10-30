@@ -69,6 +69,7 @@ test("async roadmap draft route applies authentication, entitlements, then a per
   const routes = await readFile(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
   const limiters = await readFile(new URL("../src/config/rateLimiters.js", import.meta.url), "utf8");
   assert.match(routes, /router\.post\("\/roadmap\/draft",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*asyncRoadmap\.createDraft\)/);
+  assert.match(routes, /router\.post\("\/roadmap",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*generateRoadmap\)/);
   assert.match(limiters, /aiRoadmapDraftLimiter\s*=\s*rateLimit\(\{[\s\S]*?windowMs:\s*10\s*\*\s*60\s*\*\s*1000,[\s\S]*?max:\s*5,[\s\S]*?standardHeaders:\s*true,[\s\S]*?legacyHeaders:\s*false,[\s\S]*?keyGenerator:\s*\(req\)\s*=>\s*String\(req\.user\?\.userId/);
 });
 

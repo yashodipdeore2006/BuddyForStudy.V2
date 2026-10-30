@@ -131,8 +131,8 @@ export async function reserveRoadmapAdmission({
     }
   }
 
-  const userActive = await LeaseModel.countDocuments({ userId, expiresAt: { $gt: now } });
-  if (userActive >= maxPerUser) throw capacityError("ROADMAP_USER_QUEUE_LIMIT");
+  const latestUserActive = await LeaseModel.countDocuments({ userId, expiresAt: { $gt: now } });
+  if (latestUserActive >= maxPerUser) throw capacityError("ROADMAP_USER_QUEUE_LIMIT");
   throw capacityError("ROADMAP_QUEUE_FULL");
 }
 

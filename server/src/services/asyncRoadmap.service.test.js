@@ -53,6 +53,30 @@ test("duplicate async roadmap request reuses the recent draft instead of enqueue
   }
 });
 
+test("persistent per-user request window rejects a sixth unique roadmap draft", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  let createCalls = 0;
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async () => { createCalls += 1; throw new Error("draft must not be created"); };
+  try {
+    await assert.rejects(
+      createRoadmapDraft({
+        userId: "507f191e810c19729de860ea",
+        profile: { topic: "Distributed systems", goal: "learn" },
+        dependencies: {
+          countActiveDrafts: async (filter) => filter.createdAt ? 5 : 0
+        }
+      }),
+      (error) => error.code === "ROADMAP_USER_RATE_LIMIT" && error.status === 429
+    );
+    assert.equal(createCalls, 0);
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+  }
+});
+
 test("active roadmap builds are capped per user before a new draft is persisted", async () => {
   const originalFindOne = RoadmapDraft.findOne;
   const originalCreate = RoadmapDraft.create;

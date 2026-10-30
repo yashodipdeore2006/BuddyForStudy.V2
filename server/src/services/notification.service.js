@@ -213,9 +213,9 @@ export async function saveUserNotificationPreferences(userId, updates) {
   return normalizeUserNotificationPreferences(preferences, userId);
 }
 
-async function dispatchEmail(notificationId) {
-  const mailer = getMailer();
-  const platform = await getNotificationPlatformSettings();
+export async function dispatchEmail(notificationId, dependencies = {}) {
+  const mailer = dependencies.mailer ?? getMailer();
+  const platform = dependencies.platform ?? await getNotificationPlatformSettings();
   if (!mailer || !platform.emailEnabled) return { status: "skipped" };
   const filter = {
     _id: notificationId,

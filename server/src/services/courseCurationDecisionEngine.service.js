@@ -125,6 +125,16 @@ function medianDate(values) {
   const dates = (values || []).map((v) => new Date(v || 0).getTime()).filter((v) => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
   return dates.length ? new Date(dates[Math.floor(dates.length / 2)]) : null;
 }
+function canonicalYouTubeResourceUrl(candidate) {
+  const isValidId = (value) => /^[A-Za-z0-9_-]{6,64}$/.test(String(value || "").trim());
+  const sourceType = String(candidate?.sourceType || "video");
+  if (sourceType === "playlist") {
+    const playlistId = String(candidate.sourceId || "").trim();
+    return isValidId(playlistId) ? "https://www.youtube.com/playlist?list=" + encodeURIComponent(playlistId) : "";
+  }
+  const videoId = String(candidate?.videoId || (sourceType === "video" ? candidate?.sourceId : "") || candidate?.items?.[0]?.videoId || "").trim();
+  return isValidId(videoId) ? "https://www.youtube.com/watch?v=" + encodeURIComponent(videoId) : "";
+}
 function formatDuration(seconds) {
   const total = Math.max(0, Math.round(Number(seconds) || 0));
   const hours = Math.floor(total / 3600);
@@ -1253,7 +1263,7 @@ function setRankingSlots(candidates, resultLimit = FINAL_RESULT_COUNT) {
     thumbnail: candidate.thumbnail || "",
     channelTitle: candidate.channelTitle || "",
     channelId: candidate.channelId || "",
-    sourceUrl: candidate.url || candidate.playlistSearchUrl || "",
+    sourceUrl: canonicalYouTubeResourceUrl(candidate),
     duration: candidate.duration || formatDuration(candidate.durationSeconds),
     durationSeconds: Math.round(candidate.durationSeconds || 0),
     durationEstimated: Boolean(candidate.durationEstimated),
@@ -1284,7 +1294,7 @@ function setRankingSlots(candidates, resultLimit = FINAL_RESULT_COUNT) {
       metadataJudge: candidate.features.metadataJudgmentUsed ? "gemini_metadata_only" : "heuristics_only"
     },
     sourceTypeVersion: ENGINE_VERSION,
-    items: (candidate.items || []).slice(0, 12).map((item) => ({
+    items: (candidate.items || []).filter((item) => /^[A-Za-z0-9_-]{6,64}$/.test(String(item.videoId || ""))).slice(0, 12).map((item) => ({
       videoId: item.videoId,
       title: item.title,
       description: item.description || "",
@@ -1293,7 +1303,7 @@ function setRankingSlots(candidates, resultLimit = FINAL_RESULT_COUNT) {
       thumbnail: item.thumbnail || "",
       channelTitle: item.channelTitle || "",
       publishedAt: item.publishedAt || null,
-      url: item.url || ("https://www.youtube.com/watch?v=" + item.videoId)
+      url: "https://www.youtube.com/watch?v=" + encodeURIComponent(item.videoId)
     }))
   }));
 }

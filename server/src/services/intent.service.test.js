@@ -104,3 +104,48 @@ test("invalid intent returns no questions, no profile, and is not cached", async
   assert.equal(model.entries.size, 0);
   assert.equal(normalizeIntentQuery("  PYTHON   for   everything "), "python for everything");
 });
+
+test("ambiguous learning intent asks a clarifying goal instead of silently assuming one", async () => {
+  const model = memoryCache();
+  const result = await parseIntent("Python for everything", {
+    model,
+    generate: async () => ({
+      valid: true,
+      profile: {
+        topic: "Python", domain: "software_web", scope: "broad", goal: null,
+        level: "Beginner", knownSkills: [], minutesPerDay: 60, language: "en",
+        targetRole: null, targetCompany: null, examName: null, examDate: null,
+        syllabusText: null, projectIdea: null, deadline: null
+      },
+      confidences: { topic: 1, goal: 0.2, scope: 0.5, knownSkills: 0, minutesPerDay: 0, language: 0 },
+      domain: "software_web", scope: "broad",
+      options: { roles: [], exams: [], projectIdeas: [] }
+    })
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.assumed, false);
+  assert.ok(result.questionPlan.some((item) => item.id === "goal"));
+  assert.equal(model.entries.size, 1);
+});
+
+test("malformed structured intent output falls back safely and is not cached", async () => {
+  const model = memoryCache();
+  const result = await parseIntent("Python", {
+    model,
+    generate: async () => ({
+      valid: true,
+      profile: { topic: "Python", level: "Expert" },
+      confidences: {},
+      domain: "software_web",
+      scope: "broad",
+      options: { roles: [], exams: [], projectIdeas: [] }
+    })
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.fallback, true);
+  assert.equal(result.profile.topic, "Python");
+  assert.ok(result.questionPlan.some((item) => item.id === "goal"));
+  assert.equal(model.entries.size, 0);
+});

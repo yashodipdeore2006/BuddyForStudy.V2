@@ -6,7 +6,7 @@ const roadmapDraftSchema = new mongoose.Schema({
   query: { type: String, required: true, maxlength: 200 },
   goal: { type: String, enum: ["job_ready", "exam", "project", "learn"], default: "learn" },
   profile: { type: mongoose.Schema.Types.Mixed, default: {} },
-  status: { type: String, enum: ["queued", "building", "ready", "failed"], default: "queued", index: true },
+  status: { type: String, enum: ["queued", "building", "ready", "failed", "cancelled"], default: "queued", index: true },
   roadmapId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
   result: { type: mongoose.Schema.Types.Mixed, default: null },
   errorCode: { type: String, default: "" },

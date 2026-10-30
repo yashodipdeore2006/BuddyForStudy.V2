@@ -112,15 +112,20 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
 
 export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {
   const generateRoadmap = dependencies.generateAIRoadmap || generateAIRoadmap;
+  const consumeAllowance = dependencies.consumeRoadmapRequestAllowance || consumeRoadmapRequestAllowance;
+  const reserveAdmission = dependencies.reserveRoadmapAdmission || reserveRoadmapAdmission;
+  const renewAdmission = dependencies.renewRoadmapAdmission || renewRoadmapAdmission;
+  const releaseAdmission = dependencies.releaseRoadmapAdmission || releaseRoadmapAdmission;
+  const recoverAdmissions = dependencies.recoverExpiredRoadmapAdmissions || recoverExpiredRoadmapAdmissions;
   const key = stableProfileKey(userId, profile);
   const recent = await RoadmapDraft.findOne({
     userId, idempotencyKey: key, createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
   }).sort({ createdAt: -1 });
   if (recent && ["queued", "building", "ready"].includes(recent.status)) return { draftId: recent.draftId, status: recent.status, reused: true };
 
-  await consumeRoadmapRequestAllowance({ userId, maxRequests: MAX_USER_DRAFTS_PER_WINDOW });
+  await consumeAllowance({ userId, maxRequests: MAX_USER_DRAFTS_PER_WINDOW });
   const draftId = randomUUID();
-  const lease = await reserveRoadmapAdmission({
+  const lease = await reserveAdmission({
     userId,
     draftId,
     maxGlobal: MAX_ACTIVE_DRAFTS,
@@ -132,7 +137,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
   const heartbeatTimer = setInterval(() => {
     heartbeatInFlight = heartbeatInFlight.then(async () => {
       if (leaseLost) return;
-      const renewed = await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken });
+      const renewed = await renewAdmission({ draftId, leaseToken: lease.leaseToken });
       if (!renewed) leaseLost = true;
     }).catch(() => { leaseLost = true; });
   }, 30000);
@@ -142,7 +147,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     await heartbeatInFlight;
     if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) {
       leaseLost = true;
-      await recoverExpiredRoadmapAdmissions().catch(() => {});
+      await recoverAdmissions().catch(() => {});
       throw Object.assign(new Error("Roadmap admission lease was lost"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
     }
   };
@@ -155,7 +160,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     });
   } catch (error) {
     clearInterval(heartbeatTimer);
-    await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
+    await releaseAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
     throw error;
   }
 
@@ -163,7 +168,8 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     heartbeatTimer,
     leaseToken: lease.leaseToken,
     markLost: () => { leaseLost = true; },
-    waitForHeartbeat: () => heartbeatInFlight
+    waitForHeartbeat: () => heartbeatInFlight,
+    release: () => releaseAdmission({ draftId, leaseToken: lease.leaseToken })
   });
 
   queue.push(async () => {
@@ -266,7 +272,7 @@ export async function cancelQueuedRoadmapDraft(draftId, userId) {
       clearInterval(runtime.heartbeatTimer);
       runtime.markLost();
       await runtime.waitForHeartbeat();
-      await releaseRoadmapAdmission({ draftId, leaseToken: runtime.leaseToken }).catch(() => {});
+      await runtime.release().catch(() => {});
     } else {
       await releaseQueuedRoadmapAdmission({ draftId, userId }).catch(() => {});
     }

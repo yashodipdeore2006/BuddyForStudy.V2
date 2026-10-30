@@ -27,7 +27,7 @@ export function normalizeNotificationLink(value) {
   if (!raw) return fallback;
   // Notifications only navigate within the application. Reject absolute URLs,
   // protocol-relative URLs, backslashes and control characters.
-  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || /[\\u0000-\\u001f\\u007f]/.test(raw)) {
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || /[\u0000-\u001f\u007f]/.test(raw)) {
     return fallback;
   }
   try {

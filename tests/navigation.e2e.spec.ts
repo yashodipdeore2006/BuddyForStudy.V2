@@ -93,6 +93,7 @@ async function mockAppApi(page: Page, options: {
   courseId?: string;
   course?: ReturnType<typeof courseFixture>;
   catalogCourses?: Array<ReturnType<typeof courseFixture>>;
+  catalogDiscovery?: Record<string, unknown>;
   enrolled?: boolean;
   hasPlanAccess?: boolean;
   pushAvailable?: boolean;
@@ -210,7 +211,7 @@ async function mockAppApi(page: Page, options: {
           && (level === "all" || String(item.level || "").toLowerCase() === level)
           && (category === "all" || String(item.category || "").toLowerCase() === category);
       });
-      return json(route, { courses: rows });
+      return json(route, { courses: rows, ...(options.catalogDiscovery && query ? { discovery: options.catalogDiscovery } : {}) });
     }
     if (pathname === `/api/courses/${courseId}/roadmap`) {
       return json(route, {
@@ -878,6 +879,28 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("combobox", { name: "Filter by level" })).toHaveValue("all");
     await expect(page.getByRole("combobox", { name: "Filter by category" })).toHaveValue("all");
     await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
+  });
+
+  test("[EXP-YOUTUBE-QUOTA-FALLBACK-001] quota exhaustion keeps local courses usable and shows a safe recovery message", async ({ page }) => {
+    const localCourse = courseFixture("local-js-course", { title: "JavaScript Foundations", category: "Development" });
+    await mockAppApi(page, {
+      catalogCourses: [localCourse],
+      catalogDiscovery: {
+        mode: "youtube_fallback",
+        query: "javascript",
+        courseRecommendations: [],
+        playlists: [],
+        youtubeError: "YouTube API quota exceeded",
+      },
+    });
+
+    await page.goto(baseURL + "/explore");
+    await page.getByRole("textbox", { name: "Search courses" }).fill("javascript");
+    await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
+
+    await expect(page.getByRole("heading", { name: "JavaScript Foundations" })).toBeVisible();
+    await expect(page.getByText("YouTube is temporarily unavailable because its daily API quota has been reached. Your BuddyForStudy courses remain available.", { exact: true })).toBeVisible();
+    await expect(page.getByText("No BuddyForStudy or YouTube results found")).toHaveCount(0);
   });
 
   test("[EXP-CATALOG-SORT-PAGE-001] catalog sort and pagination operate on the complete filtered result set", async ({ page }) => {

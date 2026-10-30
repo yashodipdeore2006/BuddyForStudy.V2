@@ -391,7 +391,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-161** test prompt plan size and adversarial input.  
   Status: `IMPLEMENTED — CI PENDING` · Evidence: [prompt hardening commit `25e1a1f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/25e1a1f22bedab82895f7887dfcccb7681431635), [formatting fix `0211cad`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0211cad35062e581d3aed990d5591a6070fab4d9), and [regression tests `23b7cfe`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/23b7cfe8257a6645a7cec3b75416bcb589d4565e) bound learner-controlled prompt fields, JSON-encode them, add an explicit untrusted-input trust boundary, and test oversized/adversarial inputs. CI [run #3629](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41091603181) is queued. · Finding/fix: awaiting green CI and review of output prompt behavior.
 - [ ] **PR-162** verify intent endpoint feature flag auth and rate limit.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `TEST ADDED — CI PENDING` · Evidence: [commit `787134a`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/787134a61ac415c72e51bbd15bc244e0b66818e3) adds route-chain assertions for authentication, both subscription feature gates, limiter-before-controller ordering, 20 requests/minute configuration, and server-side feature-flag check. · Finding/fix: awaiting green CI.
 - [ ] **PR-163** test AI timeout outage malformed JSON and schema validation.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-164** bound provider retries with backoff.  

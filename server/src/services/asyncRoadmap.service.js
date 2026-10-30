@@ -11,6 +11,7 @@ let active = 0;
 const concurrency = Math.max(1, Number(env.nodeConcurrency) || 3);
 const MAX_ACTIVE_DRAFTS = Math.max(concurrency, concurrency * 20);
 const MAX_ACTIVE_DRAFTS_PER_USER = 2;
+const MAX_USER_DRAFTS_PER_WINDOW = 5;
 const HEARTBEAT_MS = 15000;
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 
@@ -112,6 +113,16 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
   if (recent) return { draftId: recent.draftId, status: recent.status, reused: true };
 
   const activeFilter = { status: { $in: ["queued", "building"] } };
+  const recentUserCount = await countActiveDrafts({
+    userId,
+    createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
+  });
+  if (recentUserCount >= MAX_USER_DRAFTS_PER_WINDOW) {
+    throw Object.assign(new Error("Too many roadmap build requests. Please wait before starting another build."), {
+      code: "ROADMAP_USER_RATE_LIMIT",
+      status: 429
+    });
+  }
   const [globalActiveCount, userActiveCount] = await Promise.all([
     countActiveDrafts(activeFilter),
     countActiveDrafts({ ...activeFilter, userId })

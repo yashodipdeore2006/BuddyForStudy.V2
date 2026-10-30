@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { JobHeartbeat } from "../src/models/JobHeartbeat.js";
 import { OperationalAlert } from "../src/models/OperationalAlert.js";
-import { checkWorkerHeartbeat, heartbeatWorker, WORKER_HEARTBEAT_STALE_AFTER_MS, WORKER_JOB_NAME } from "../src/services/jobHeartbeat.service.js";
+import { checkWorkerHeartbeat, heartbeatWorker, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed, WORKER_HEARTBEAT_STALE_AFTER_MS, WORKER_JOB_NAME } from "../src/services/jobHeartbeat.service.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -54,4 +54,39 @@ test("fresh worker heartbeat resolves the stale-worker alert", async () => {
     assert.equal(result.status, "healthy");
   });
   assert.equal(resolved, true);
+});
+
+
+test("maintenance lifecycle records start, completion and failure counters", async () => {
+  const calls = [];
+  await withMocks([[JobHeartbeat, {
+    findOneAndUpdate: async (filter, update) => { calls.push({ filter, update }); return {}; }
+  }]], async () => {
+    const startedAt = new Date("2026-10-19T10:00:00Z");
+    const completedAt = new Date("2026-10-19T10:05:00Z");
+    const failedAt = new Date("2026-10-19T10:10:00Z");
+    await markMaintenanceStarted(startedAt);
+    await markMaintenanceCompleted(completedAt);
+    await markMaintenanceFailed(new Error("provider timeout"), failedAt);
+  });
+
+  assert.equal(calls[0].update.$set.lastMaintenanceStartedAt.toISOString(), "2026-10-19T10:00:00.000Z");
+  assert.equal(calls[1].update.$set.lastMaintenanceCompletedAt.toISOString(), "2026-10-19T10:05:00.000Z");
+  assert.equal(calls[1].update.$set.consecutiveFailures, 0);
+  assert.equal(calls[2].update.$set.lastError, "provider timeout");
+  assert.equal(calls[2].update.$inc.consecutiveFailures, 1);
+});
+
+test("worker shutdown clears schedulers, waits for active jobs, marks stopped and disconnects", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const worker = await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8");
+  const start = worker.indexOf("async function shutdown(signal)");
+  const end = worker.indexOf("\n}\n", start);
+  const shutdown = worker.slice(start, end + 3);
+  assert.match(shutdown, /clearInterval\(intervalHandle\)/);
+  assert.match(shutdown, /clearInterval\(heartbeatHandle\)/);
+  assert.match(shutdown, /clearInterval\(announcementHandle\)/);
+  assert.match(shutdown, /while \(maintenanceInProgress \|\| announcementRunInProgress \|\| nightlyRunInProgress\)/);
+  assert.match(shutdown, /heartbeatWorker\("stopped"\)/);
+  assert.match(shutdown, /mongoose\.disconnect\(\)/);
 });

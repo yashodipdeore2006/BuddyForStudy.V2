@@ -12,6 +12,7 @@ import { gradeQuizSubmission, normalizeQuizAnswers, toPublicQuiz, toPublicQuizQu
 import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
 import { checkCourseLearningAccess } from "../utils/courseLearningAccess.js";
 import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";
+import { consumeRoadmapRequestAllowance, runWithRoadmapAdmission } from "../services/roadmapAdmission.service.js";
 
 const quizGenerationJobs = new Set();
 
@@ -113,6 +114,7 @@ export async function usage(req, res, next) {
 }
 
 export async function generateRoadmap(req, res, next) {
+  let generatedResult = null;
   try {
     const input = schema.parse(req.body);
     const isAdmin = req.user?.user?.role === "admin";
@@ -121,16 +123,33 @@ export async function generateRoadmap(req, res, next) {
     if (!personalized) {
       return failure(res, "Personalized learning roadmaps are not included in your current plan. Upgrade to use this feature.", 403, { feature: "personalized_roadmaps", plan: (await getActivePlanForUser(req.user.userId))?.name || "Free" });
     }
+    await consumeRoadmapRequestAllowance({ userId: req.user.userId, maxRequests: 5 });
     const plan = await getActivePlanForUser(req.user.userId);
-    const result = await generateAIRoadmap(input, {
+    const result = await runWithRoadmapAdmission({
       userId: req.user.userId,
-      plan,
-      personalized,
-      projectsEnabled
+      work: async (assertLease) => {
+        generatedResult = await generateAIRoadmap(input, {
+          userId: req.user.userId,
+          plan,
+          personalized,
+          projectsEnabled
+        });
+        await assertLease();
+        return generatedResult;
+      }
     });
     return success(res, result, "Learning roadmap generated successfully");
   } catch (e) {
+    if (generatedResult?.course?._id || generatedResult?.course?.id) {
+      await Course.updateOne(
+        { _id: generatedResult.course._id || generatedResult.course.id, createdForUser: req.user.userId },
+        { $set: { status: "archived", isPublished: false, visibility: "private" } }
+      ).catch(() => {});
+    }
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    if (["ROADMAP_USER_RATE_LIMIT", "ROADMAP_USER_QUEUE_LIMIT", "ROADMAP_QUEUE_FULL", "ROADMAP_ADMISSION_LEASE_LOST"].includes(e?.code)) {
+      return failure(res, e.message, e.status || 503, { code: e.code, retryable: true });
+    }
     next(e);
   }
 }

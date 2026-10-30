@@ -94,7 +94,7 @@ test("roadmap cancellation endpoint returns owner-scoped queued cancellation", a
   assert.deepEqual(received, [draftId, userId]);
   assert.equal(res.result.statusCode, 200);
   assert.equal(res.result.body.message, "Roadmap build cancelled");
-  assert.equal(res.result.body.data.cancelled, true);
+  assert.equal(res.result.body.cancelled, true);
 });
 
 test("roadmap cancellation returns conflict when generation already started", async () => {

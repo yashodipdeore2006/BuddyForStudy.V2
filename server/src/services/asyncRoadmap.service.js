@@ -110,7 +110,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
   const recent = await RoadmapDraft.findOne({
     userId, idempotencyKey: key, createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
   }).sort({ createdAt: -1 });
-  if (recent) return { draftId: recent.draftId, status: recent.status, reused: true };
+  if (recent && recent.status !== "cancelled") return { draftId: recent.draftId, status: recent.status, reused: true };
 
   const activeFilter = { status: { $in: ["queued", "building"] } };
   const recentUserCount = await countActiveDrafts({
@@ -146,7 +146,8 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     profile, status: "queued", idempotencyKey: key
   });
   queue.push(async () => {
-    await RoadmapDraft.updateOne({ _id: draft._id, status: "queued" }, { $set: { status: "building" } });
+    const claimed = await RoadmapDraft.updateOne({ _id: draft._id, status: "queued" }, { $set: { status: "building" } });
+    if (!claimed.modifiedCount) return;
     await addEvent(draft, { type: "progress", state: "building", draftId });
     try {
       // jobs/worker.js is a scheduled maintenance runner, not an on-demand consumer.
@@ -176,6 +177,21 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
   return { draftId, status: "queued", reused: false };
 }
 
+export async function cancelQueuedRoadmapDraft(draftId, userId) {
+  const cancelled = await RoadmapDraft.findOneAndUpdate(
+    { draftId, userId, status: "queued" },
+    { $set: { status: "cancelled", updatedAt: new Date() } },
+    { new: true }
+  );
+  if (cancelled) {
+    await addEvent(cancelled, { type: "cancelled", state: "cancelled", draftId, message: "Roadmap build cancelled." });
+    return { draftId, status: "cancelled", cancelled: true };
+  }
+  const existing = await getDraftForUser(draftId, userId);
+  if (!existing) return null;
+  return { draftId, status: existing.status, cancelled: false };
+}
+
 export async function getDraftForUser(draftId, userId) {
   return RoadmapDraft.findOne({ draftId, userId }).lean();
 }
@@ -184,7 +200,7 @@ export async function waitForDraft(draftId, userId, timeoutMs = 2000) {
   const deadline = Date.now() + Math.min(2000, Math.max(0, timeoutMs));
   while (Date.now() < deadline) {
     const draft = await getDraftForUser(draftId, userId);
-    if (!draft || ["ready", "failed"].includes(draft.status)) return draft;
+    if (!draft || ["ready", "failed", "cancelled"].includes(draft.status)) return draft;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   return getDraftForUser(draftId, userId);

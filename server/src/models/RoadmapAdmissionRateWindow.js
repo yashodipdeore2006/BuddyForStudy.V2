@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const roadmapAdmissionRateWindowSchema = new mongoose.Schema({
+export const roadmapAdmissionRateWindowSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   windowStart: { type: Date, required: true },
   count: { type: Number, required: true, default: 0, min: 0 },

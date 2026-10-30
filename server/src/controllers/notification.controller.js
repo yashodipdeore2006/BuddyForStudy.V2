@@ -2,7 +2,7 @@ import { isValidObjectId } from "../utils/ids.js";
 import { Notification } from "../models/Notification.js";
 import { failure, success } from "../utils/response.js";
 import { z } from "zod";
-import { getUserNotificationPreferences, saveUserNotificationPreferences, verifyEmailUnsubscribeToken } from "../services/notification.service.js";
+import { getUserNotificationPreferences, saveUserNotificationPreferences, verifyEmailUnsubscribeToken, normalizeNotificationLink } from "../services/notification.service.js";
 import { isWithinQuietHours } from "../services/reminderScheduling.js";
 
 import { PushSubscription } from "../models/PushSubscription.js";
@@ -70,7 +70,7 @@ export async function list(req, res, next) {
       readAt: null
     });
 
-    return success(res, { notifications, unreadCount });
+    return success(res, { notifications: notifications.map((notification) => ({ ...notification, link: normalizeNotificationLink(notification.link) })), unreadCount });
   } catch (e) {
     next(e);
   }

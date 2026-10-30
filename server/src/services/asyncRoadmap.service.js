@@ -9,6 +9,8 @@ const queue = [];
 const listeners = new Map();
 let active = 0;
 const concurrency = Math.max(1, Number(env.nodeConcurrency) || 3);
+const MAX_ACTIVE_DRAFTS = Math.max(concurrency, concurrency * 20);
+const MAX_ACTIVE_DRAFTS_PER_USER = 2;
 const HEARTBEAT_MS = 15000;
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 
@@ -102,11 +104,30 @@ async function resolveCourseNodes({ draft, courseId, userId, profile }) {
 
 export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {
   const generateRoadmap = dependencies.generateAIRoadmap || generateAIRoadmap;
+  const countActiveDrafts = dependencies.countActiveDrafts || ((filter) => RoadmapDraft.countDocuments(filter));
   const key = stableProfileKey(userId, profile);
   const recent = await RoadmapDraft.findOne({
     userId, idempotencyKey: key, createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
   }).sort({ createdAt: -1 });
   if (recent) return { draftId: recent.draftId, status: recent.status, reused: true };
+
+  const activeFilter = { status: { $in: ["queued", "building"] } };
+  const [globalActiveCount, userActiveCount] = await Promise.all([
+    countActiveDrafts(activeFilter),
+    countActiveDrafts({ ...activeFilter, userId })
+  ]);
+  if (userActiveCount >= MAX_ACTIVE_DRAFTS_PER_USER) {
+    throw Object.assign(new Error("You already have the maximum number of active roadmap builds."), {
+      code: "ROADMAP_USER_QUEUE_LIMIT",
+      status: 429
+    });
+  }
+  if (globalActiveCount >= MAX_ACTIVE_DRAFTS) {
+    throw Object.assign(new Error("Roadmap build capacity is temporarily full. Please retry shortly."), {
+      code: "ROADMAP_QUEUE_FULL",
+      status: 503
+    });
+  }
 
   const draftId = randomUUID();
   const draft = await RoadmapDraft.create({

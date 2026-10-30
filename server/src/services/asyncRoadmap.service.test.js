@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents, waitForDraft } from "./asyncRoadmap.service.js";
+import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents, waitForDraft, cancelQueuedRoadmapDraft } from "./asyncRoadmap.service.js";
 import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { Course } from "../models/Course.js";
 
@@ -125,6 +125,76 @@ test("event streams refuse non-owner and admin access before writing headers", a
   } finally {
     cleanup?.();
     RoadmapDraft.findOne = originalFindOne;
+  }
+});
+
+test("only the owner can cancel a queued roadmap draft and cancellation is persisted", async () => {
+  const originalFindOneAndUpdate = RoadmapDraft.findOneAndUpdate;
+  const originalUpdateOne = RoadmapDraft.updateOne;
+  const draft = { _id: "draft-row", draftId: "draft-queued", events: [] };
+  let capturedFilter;
+  RoadmapDraft.findOneAndUpdate = async (filter, update) => {
+    capturedFilter = filter;
+    assert.equal(update.$set.status, "cancelled");
+    return draft;
+  };
+  RoadmapDraft.updateOne = async (_filter, update) => {
+    if (update.$push?.events?.$each) draft.events.push(...update.$push.events.$each);
+    return { modifiedCount: 1 };
+  };
+  try {
+    const result = await cancelQueuedRoadmapDraft("draft-queued", "owner-user");
+    assert.deepEqual(capturedFilter, { draftId: "draft-queued", userId: "owner-user", status: "queued" });
+    assert.deepEqual(result, { draftId: "draft-queued", status: "cancelled", cancelled: true });
+    assert.equal(draft.events[0].type, "cancelled");
+    assert.equal(draft.events[0].message, "Roadmap build cancelled.");
+  } finally {
+    RoadmapDraft.findOneAndUpdate = originalFindOneAndUpdate;
+    RoadmapDraft.updateOne = originalUpdateOne;
+  }
+});
+
+test("a running roadmap build cannot be falsely reported as cancelled", async () => {
+  const originalFindOneAndUpdate = RoadmapDraft.findOneAndUpdate;
+  const originalFindOne = RoadmapDraft.findOne;
+  RoadmapDraft.findOneAndUpdate = async () => null;
+  RoadmapDraft.findOne = () => ({
+    lean: async () => ({ draftId: "draft-running", userId: "owner-user", status: "building" })
+  });
+  try {
+    const result = await cancelQueuedRoadmapDraft("draft-running", "owner-user");
+    assert.deepEqual(result, { draftId: "draft-running", status: "building", cancelled: false });
+  } finally {
+    RoadmapDraft.findOneAndUpdate = originalFindOneAndUpdate;
+    RoadmapDraft.findOne = originalFindOne;
+  }
+});
+
+test("cancelled queued drafts are not started by the local queue worker", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  const originalUpdateOne = RoadmapDraft.updateOne;
+  const draft = { _id: "draft-cancelled-before-start", status: "queued", events: [] };
+  let generationCalls = 0;
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
+  RoadmapDraft.updateOne = async () => ({ modifiedCount: 0 });
+  try {
+    const result = await createRoadmapDraft({
+      userId: "507f191e810c19729de860ea",
+      profile: { topic: "React", goal: "learn" },
+      dependencies: {
+        countActiveDrafts: async () => 0,
+        generateAIRoadmap: async () => { generationCalls += 1; return { course: { id: "course-1" } }; }
+      }
+    });
+    assert.equal(result.status, "queued");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.equal(generationCalls, 0);
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+    RoadmapDraft.updateOne = originalUpdateOne;
   }
 });
 

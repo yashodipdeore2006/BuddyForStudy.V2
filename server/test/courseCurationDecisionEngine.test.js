@@ -279,7 +279,7 @@ test("curated resource attribution uses canonical YouTube URLs and rejects malfo
     })
   ])[0];
   assert.equal(video.sourceUrl, "https://www.youtube.com/watch?v=video-123");
-  assert.equal(video.channelTitle, "Creator creator-1");
+  assert.equal(video.channelTitle, "Creator 1");
   assert.equal(video.items.length, 1);
   assert.equal(video.items[0].url, "https://www.youtube.com/watch?v=lesson-123");
 

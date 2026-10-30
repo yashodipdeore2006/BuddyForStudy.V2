@@ -171,8 +171,8 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
       try {
         await assertLease();
         const result = await generateRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
-        await assertLease();
         courseId = result?.course?._id || result?.course?.id || null;
+        await assertLease();
         if (!courseId) throw new Error("Async roadmap build did not return a persisted course");
         await RoadmapDraft.updateOne(
           { _id: draft._id, status: "building", admissionLeaseToken: lease.leaseToken },

@@ -2159,7 +2159,7 @@ export async function retryDeliveryLog(req, res, next) {
     const existing = await Notification.findById(req.params.notificationId).select("emailStatus pushStatus").lean();
     if (!existing) return failure(res, "Notification delivery not found", 404);
     if (existing[channel === "email" ? "emailStatus" : "pushStatus"] !== "failed") return failure(res, "Only failed deliveries can be retried from the delivery log", 409);
-    const result = await retryNotificationDelivery(req.params.notificationId, channel);
+    const result = await retryNotificationDelivery(req.params.notificationId, channel, { reason, actorId: req.user.user._id });
     await audit(req, "notification.delivery.retried", "Notification", req.params.notificationId, null, { channel: result.channel, status: result.status, attempts: result.attempts }, reason);
     return success(res, { delivery: result }, `${channel === "email" ? "Email" : "Push"} retry queued for background delivery`);
   } catch (error) { if (error?.status) return failure(res, error.message, error.status); next(error); }

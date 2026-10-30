@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { failure, success } from "../utils/response.js";
 import { getEntitlement, getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
-import { createRoadmapDraft, getDraftForUser, waitForDraft, attachDraftEvents, getRoadmapPoll } from "../services/asyncRoadmap.service.js";
+import { createRoadmapDraft, getDraftForUser, waitForDraft, attachDraftEvents, getRoadmapPoll, cancelQueuedRoadmapDraft } from "../services/asyncRoadmap.service.js";
 
 const profileSchema = z.object({
   topic: z.string().trim().min(2).max(200),
@@ -66,7 +66,26 @@ export async function finalizeDraft(req, res, next, dependencies = {}) {
     draft = await waitForCurrentDraft(draftId, req.user.userId, 2000);
     if (draft?.status === "ready") return success(res, draft.result, "Learning roadmap generated successfully");
     if (draft?.status === "failed") return failure(res, "Roadmap build failed. Please retry.", 502, { draftId, retryable: true });
+    if (draft?.status === "cancelled") return failure(res, "Roadmap build was cancelled. Start a new draft to continue.", 409, { draftId, retryable: true });
     return success(res, { ...(draft?.result || {}), draftId, status: draft?.status || "queued", roadmapId: draft?.roadmapId ? String(draft.roadmapId) : null, modules: draft?.result?.course?.modules || [], eventsUrl: `/api/ai/roadmap/${draftId}/events`, pollUrl: `/api/ai/roadmap/${draftId}` }, "Roadmap is still building");
+  } catch (error) {
+    if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    next(error);
+  }
+}
+
+export async function cancelDraft(req, res, next, dependencies = {}) {
+  const authorizeRequest = dependencies.authorize || authorize;
+  const cancelDraftRecord = dependencies.cancelQueuedRoadmapDraft || cancelQueuedRoadmapDraft;
+  try {
+    if (!await authorizeRequest(req, res)) return;
+    const draftId = z.string().uuid().parse(req.params.draftId);
+    const result = await cancelDraftRecord(draftId, req.user.userId);
+    if (!result) return failure(res, "Roadmap draft not found", 404);
+    if (!result.cancelled && result.status === "building") {
+      return failure(res, "This roadmap build has already started and cannot be cancelled.", 409, { draftId, retryable: false });
+    }
+    return success(res, result, result.cancelled ? "Roadmap build cancelled" : "Roadmap build is already terminal");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     next(error);

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 145 / 239 |
+| Verified done | 147 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 75 / 239 |
+| Not checked | 73 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -400,10 +400,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [commit `21c1723`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/21c17231b60c57f500b55795406418baa5a3e4d2) adds tests for bounded 429 retry/backoff, recovery after transient rate limiting, per-attempt quota accounting, and a three-attempt cap for repeated network failures. Existing 5xx retry tests cover three total attempts. Exact candidate [commit `48298fc`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/48298fc5a74ede711e4c7635d8b2eba3ae9da70f) passed full CI [run #3643](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41093210285). · Finding/fix: —
 - [ ] **PR-165** test quota counters concurrency and reset boundary.  
   Status: `DONE` · Evidence: [commit `fbd2c48`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/fbd2c48fedfe43fcc727ac35527c314c16147051) covers concurrent consumption at the hard budget boundary (only remaining units are allowed; rejected attempts remain counted/fail closed) and exact Pacific midnight TTL under both PST and PDT. The quota test adapter was corrected to derive state from the accumulated counter in [commit `48298fc`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/48298fc5a74ede711e4c7635d8b2eba3ae9da70f). Exact candidate passed full CI [run #3643](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41093210285). · Finding/fix: —
-- [ ] **PR-166** verify exhausted quota fallback UX.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-167** verify cached resource validity and attribution.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-166** verify exhausted quota fallback UX.  
+  Status: `DONE` · Evidence: frontend browser regression `EXP-YOUTUBE-QUOTA-FALLBACK-001` verifies that a local BuddyForStudy course remains visible and the user receives the quota-specific recovery message when YouTube discovery is unavailable. The test asserts the actual rendered copy (no nonexistent UI label). Exact candidate `29d1f7f7` passed full CI [run #3653](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41096109793). · Finding/fix: test-fixture/assertion corrections in [commit `baa6ec6`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/baa6ec68e072b649ae9f6efeb4d6d966db022495) and [commit `29d1f7f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/29d1f7f7b02e6f77ab47d9036c13bc2c11de39dd).
+- [x] **PR-167** verify cached resource validity and attribution.  
+  Status: `DONE` · Evidence: curated results now derive source links from validated YouTube video/playlist IDs, canonicalize video and playlist URLs, and omit malformed lesson IDs instead of emitting invalid `watch?v=undefined` links. Regression coverage verifies canonical video/playlist links, creator attribution, rejection of attacker-controlled URLs, and malformed-ID handling. Implementation: [commit `5aab417`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/5aab41764b0f5cd4c2f3efab924f54cd34a017c2); regression test: [commit `eb11441`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/eb114412aa9caf62b4622a88bdfadc5464e90447); fixture correction: [commit `ab33afd`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ab33afd9180675047cfe589827fdc6f7902a0cdc). Exact candidate `29d1f7f7` passed full CI [run #3653](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41096109793). · Finding/fix: —
 - [ ] **PR-168** filter invalid private and deleted curation videos.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-169** test YouTube forbidden/quota errors and cache fallback.  

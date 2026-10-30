@@ -9,7 +9,7 @@ process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/buddyforstudy_curation_test
 process.env.JWT_SECRET ||= "curation-tests-only-not-a-production-secret";
 
 const engine = await import("../src/services/courseCurationDecisionEngine.service.js");
-const { getYouTubeSearchOptions } = await import("../src/services/youtube.service.js");
+const { getYouTubeSearchOptions, __youtubeSelectorTestUtils } = await import("../src/services/youtube.service.js");
 const {
   classifyCurationIntent,
   scoreLearnerCommunityConsensus,
@@ -88,6 +88,18 @@ function slotCandidate(index, overrides = {}) {
     ...overrides
   };
 }
+
+test("YouTube curation accepts only public embeddable resources with valid IDs", () => {
+  const isUsable = __youtubeSelectorTestUtils.isPublicEmbeddableCandidate;
+  assert.equal(isUsable({ videoId: "public-123", privacyStatus: "public", embeddable: true }), true);
+  assert.equal(isUsable({ videoId: "private-123", privacyStatus: "private", embeddable: true }), false);
+  assert.equal(isUsable({ videoId: "unlisted-123", privacyStatus: "unlisted", embeddable: true }), false);
+  assert.equal(isUsable({ videoId: "unknown-123", privacyStatus: "unknown", embeddable: true }), false);
+  assert.equal(isUsable({ videoId: "blocked-123", privacyStatus: "public", embeddable: false }), false);
+  assert.equal(isUsable({ videoId: "missing-status", embeddable: true }), false);
+  assert.equal(isUsable({ videoId: "bad id", privacyStatus: "public", embeddable: true }), false);
+  assert.equal(isUsable(null), false);
+});
 
 test("YouTube candidate search follows explicit requested-language intent", () => {
   assert.deepEqual(getYouTubeSearchOptions("hi", true), {

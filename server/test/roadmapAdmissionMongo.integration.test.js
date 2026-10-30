@@ -123,7 +123,13 @@ test("MongoDB enforces atomic roadmap global/user slots, rate windows, renewal a
     userId: rateUser, maxRequests: 5, now: nextWindowAt, RateWindowModel
   }), 1, "the next fixed window starts with a fresh request allowance");
 
-  const lease = globalAttempts.find((result) => result.status === "fulfilled").value;
+  const lease = await reserveRoadmapAdmission({
+    userId: new mongoose.Types.ObjectId(),
+    draftId: "lease-renewal-boundary",
+    maxGlobal: 3,
+    maxPerUser: 2,
+    LeaseModel
+  });
   const renewalAt = new Date(lease.expiresAt.getTime() - 30_000);
   assert.equal(await renewRoadmapAdmission({
     draftId: lease.draftId, leaseToken: lease.leaseToken, now: renewalAt, LeaseModel

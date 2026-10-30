@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Notification } from "../src/models/Notification.js";
 import { NotificationPreference } from "../src/models/NotificationPreference.js";
 import { UserConsentEvent } from "../src/models/UserConsentEvent.js";
+import { User } from "../src/models/User.js";
 import { list, markRead, markAllRead, updatePreferences, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
 
 async function withMocks(mocks, run) {
@@ -140,6 +141,7 @@ test("notification preferences persist category-specific email and in-app channe
   const res = responseRecorder();
   await withMocks([
     [NotificationPreference, preferenceStorage],
+    [User, { updateOne: async () => ({ acknowledged: true, modifiedCount: 1 }) }],
     [UserConsentEvent, { create: async () => { throw new Error("Non-marketing preferences must not create a consent event"); } }]
   ], async () => {
     await updatePreferences({

@@ -86,7 +86,7 @@ test("global roadmap queue capacity rejects additional builds before persistence
       createRoadmapDraft({
         userId: "507f191e810c19729de860ea",
         profile: { topic: "Node.js", goal: "learn" },
-        dependencies: { countActiveDrafts: async (filter) => filter.userId ? 0 : 60 }
+        dependencies: { countActiveDrafts: async (filter) => filter.userId ? 0 : 10000 }
       }),
       (error) => error.code === "ROADMAP_QUEUE_FULL" && error.status === 503
     );

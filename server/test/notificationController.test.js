@@ -4,7 +4,7 @@ import { Notification } from "../src/models/Notification.js";
 import { NotificationPreference } from "../src/models/NotificationPreference.js";
 import { UserConsentEvent } from "../src/models/UserConsentEvent.js";
 import { User } from "../src/models/User.js";
-import { list, markRead, markAllRead, updatePreferences, isPushSubscriptionOwnedByUser } from "../src/controllers/notification.controller.js";
+import { list, markRead, markAllRead, updatePreferences, isPushSubscriptionOwnedByUser, isAllowedPushEndpoint, sendTestPush } from "../src/controllers/notification.controller.js";
 
 async function withMocks(mocks, run) {
   const originals = [];
@@ -251,4 +251,82 @@ test("explicit push enable/disable preferences create push consent audit events"
   assert.equal(events[0].type, "push_notifications");
   assert.equal(events[0].accepted, true);
   assert.equal(events[0].source, "settings");
+});
+
+
+test("push endpoint allowlist accepts public browser services and rejects unsafe destinations", () => {
+  assert.equal(isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/token"), true);
+  assert.equal(isAllowedPushEndpoint("https://web.push.apple.com/device/token"), true);
+  assert.equal(isAllowedPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/token"), true);
+  assert.equal(isAllowedPushEndpoint("http://fcm.googleapis.com/token"), false);
+  assert.equal(isAllowedPushEndpoint("https://127.0.0.1/token"), false);
+  assert.equal(isAllowedPushEndpoint("https://localhost/token"), false);
+  assert.equal(isAllowedPushEndpoint("https://attacker.example/token"), false);
+  assert.equal(isAllowedPushEndpoint("https://user:pass@fcm.googleapis.com/token"), false);
+});
+
+test("push test-send fails closed when provider configuration is absent or learner consent is off", async () => {
+  const unavailable = responseRecorder();
+  await sendTestPush({ user: { userId: "user-1" } }, unavailable, (error) => { throw error; }, {
+    isWebPushConfigured: () => false
+  });
+  assert.equal(unavailable.statusCode, 503);
+
+  const disabled = responseRecorder();
+  await sendTestPush({ user: { userId: "user-1" } }, disabled, (error) => { throw error; }, {
+    isWebPushConfigured: () => true,
+    getPreferences: async () => ({ pushEnabled: false })
+  });
+  assert.equal(disabled.statusCode, 409);
+});
+
+test("push test-send requires an active subscription and deactivates expired endpoints", async () => {
+  const noSubscription = responseRecorder();
+  await sendTestPush({ user: { userId: "user-1" } }, noSubscription, (error) => { throw error; }, {
+    isWebPushConfigured: () => true,
+    getPreferences: async () => ({ pushEnabled: true }),
+    findSubscriptions: async () => []
+  });
+  assert.equal(noSubscription.statusCode, 409);
+
+  const expired = responseRecorder();
+  const updates = [];
+  await sendTestPush({ user: { userId: "user-1" } }, expired, (error) => { throw error; }, {
+    isWebPushConfigured: () => true,
+    getPreferences: async () => ({ pushEnabled: true }),
+    findSubscriptions: async () => [{ _id: "push-1" }],
+    sendWebPushNotification: async () => { const error = new Error("subscription expired"); error.statusCode = 410; throw error; },
+    updateSubscription: async (filter, update) => { updates.push({ filter, update }); return { modifiedCount: 1 }; }
+  });
+  assert.equal(expired.statusCode, 502);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].filter, { _id: "push-1" });
+  assert.equal(updates[0].update.$set.active, false);
+  assert.ok(updates[0].update.$set.deactivatedAt instanceof Date);
+  assert.equal(updates[0].update.$set.lastError, "Push subscription expired or no longer exists");
+});
+
+test("push test-send reports partial success and cleans up expired devices", async () => {
+  const response = responseRecorder();
+  const updates = [];
+  await sendTestPush({ user: { userId: "user-1" } }, response, (error) => { throw error; }, {
+    isWebPushConfigured: () => true,
+    getPreferences: async () => ({ pushEnabled: true }),
+    findSubscriptions: async () => [{ _id: "push-good" }, { _id: "push-expired" }],
+    sendWebPushNotification: async (subscription) => {
+      if (subscription._id === "push-expired") {
+        const error = new Error("expired");
+        error.statusCode = 404;
+        throw error;
+      }
+    },
+    updateSubscription: async (filter, update) => { updates.push({ filter, update }); return { modifiedCount: 1 }; }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.attempted, 2);
+  assert.equal(response.body.sent, 1);
+  assert.equal(response.body.failed, 1);
+  assert.equal(updates.length, 2);
+  assert.equal(updates.find((entry) => entry.filter._id === "push-expired").update.$set.active, false);
 });

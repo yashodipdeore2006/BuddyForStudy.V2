@@ -164,6 +164,16 @@ function detectVideoStructure(description = "") {
   };
 }
 
+function isPublicEmbeddableCandidate(video) {
+  return Boolean(
+    video &&
+    /^[A-Za-z0-9_-]{6,64}$/.test(String(video.videoId || "")) &&
+    video.privacyStatus === "public" &&
+    video.embeddable === true
+  );
+}
+export const __youtubeSelectorTestUtils = { isPublicEmbeddableCandidate };
+
 function toCandidate(video,channel){
   if(!video)return null;
   const durationSeconds=parseIsoDuration(video.contentDetails?.duration);
@@ -178,7 +188,7 @@ function toCandidate(video,channel){
     viewCount:Number(video.statistics?.viewCount||0),likeCount:Number(video.statistics?.likeCount||0),
     commentCount:Number(video.statistics?.commentCount||0),
     subscriberCount:Number(channel?.statistics?.subscriberCount||0),
-    embeddable:video.status?.embeddable!==false,
+    embeddable:video.status?.embeddable===true,
     privacyStatus:video.status?.privacyStatus||"unknown",
     regionRestriction:video.contentDetails?.regionRestriction||{},
     url: `https://www.youtube.com/watch?v=${video.id}`, embedUrl: `https://www.youtube.com/embed/${video.id}`,
@@ -201,6 +211,7 @@ export async function getYouTubeVideoResource(videoId) {
     error.status = 404;
     throw error;
   }
+  if (video.status?.privacyStatus !== "public" || video.status?.embeddable !== true) return null;
 
   const channelIds = video.snippet?.channelId ? [video.snippet.channelId] : [];
   const channels = await getChannelDetails(channelIds);
@@ -238,9 +249,8 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
   const candidates = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))]
     .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
     .filter((video) =>
-      video &&
+      isPublicEmbeddableCandidate(video) &&
       (!searchPolicy?.excludeShorts || !video.isShort) &&
-      (!searchPolicy?.requireEmbeddable || video.embeddable) &&
       video.durationSeconds >= minDuration * 60 &&
       video.durationSeconds <= maxDuration * 60
     );
@@ -410,9 +420,8 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
   const candidates = uniqueIds
     .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
     .filter((video) =>
-      video &&
+      isPublicEmbeddableCandidate(video) &&
       !video.isShort &&
-      video.embeddable &&
       video.durationSeconds >= searchPolicy.minDurationMinutes * 60 &&
       video.durationSeconds <= searchPolicy.maxDurationMinutes * 60
     );
@@ -481,7 +490,7 @@ async function attachProjectYouTubeVideos(project) {
     .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
     .filter((video) =>
       video &&
-      video.embeddable &&
+      isPublicEmbeddableCandidate(video) &&
       !video.isShort &&
       video.durationSeconds >= policy.minDurationMinutes * 60 &&
       video.durationSeconds <= policy.maxDurationMinutes * 60

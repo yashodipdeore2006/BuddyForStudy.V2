@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 131 / 239 |
+| Verified done | 133 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 90 / 239 |
+| Not checked | 88 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -365,10 +365,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`notificationOutboxSchema.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationOutboxSchema.test.js) verifies per-user unique event keys, attempt counters, attempt timestamps and retry-history schema; [`notificationEmailRetry.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationEmailRetry.test.js) verifies the 10-minute retry backoff, bounded attempt claim, retryable state before the limit and terminal `failed` state at the limit. Exact candidate [CI 41081979247](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081979247) passed both jobs.
 - [ ] **PR-150** test scheduled notifications timezone and duplicate runs.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-151** test audience filter correctness and category separation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-152** compare campaign preview and eligible audience.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-151** test audience filter correctness and category separation.  
+  Status: `DONE` · Evidence: [`adminAudience.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminAudience.service.test.js) verifies targeting modes are mutually exclusive, selection is bounded, email recipients are normalized/deduplicated, invalid date/progress filters fail, and selected-email queries remain scoped. `resolveAdminAudience` applies the shared filter service across notification/email campaigns and trial audience resolution. Passed in [CI 41082195136](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41082195136).
+- [x] **PR-152** compare campaign preview and eligible audience.  
+  Status: `DONE` · Evidence: [`adminAudience.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminAudience.service.test.js) verifies the signed preview token binds targeting filters, delivery channels and the exact recipient set; changing a channel or recipient invalidates the token. Campaign send paths call `verifyAdminAudiencePreviewToken` before queuing. Passed in [CI 41082195136](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41082195136).
 - [ ] **PR-153** enforce consent unsubscribe batching and provider limits.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-154** test campaign dry-run send confirmation and delivery report.  
@@ -614,6 +614,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-30 | Exact candidate `1817cdffbc62ae85f3147d9090d3f14e3da10df1` | PR-147 verified; PR-148 pending VAPID-secret test CI | 129 | 5 | 13 | 92 | [Green CI 41081673273](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081673273); [push safety tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1817cdffbc62ae85f3147d9090d3f14e3da10df1) | Push permission/config gating, absent subscription behavior, expired endpoint deactivation and partial multi-device delivery are verified. PR-148 adds explicit assurance that only the public VAPID key is exposed. |
 | 2026-10-30 | Exact candidate `21ccddb481ae141c12b389ee5ea0b79469207a7e` | PR-148 verified; PR-149–PR-152 under test | 130 | 5 | 13 | 91 | [Green CI 41081869925](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081869925); [VAPID secrecy test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/21ccddb481ae141c12b389ee5ea0b79469207a7e) | Push test-send remains scoped to the authenticated user's active subscriptions; missing provider/consent states fail closed; only the public VAPID key is exposed. |
 | 2026-10-30 | Exact code candidate `3161008daf0c181d57ae8a54a787b4d3f3272996` | PR-149 verified; PR-150–PR-153 in progress | 131 | 5 | 13 | 90 | [Green CI 41081979247](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081979247); [outbox retry tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/3161008daf0c181d57ae8a54a787b4d3f3272996) | Notification outbox persistence/idempotency, bounded retries, 10-minute backoff and terminal failure handling have green evidence. |
+| 2026-10-30 | Exact audience candidate `4820e567d84aa8610e696f840a7dda6a72547f9c` | PR-151 and PR-152 verified | 133 | 5 | 13 | 88 | [Green CI 41082195136](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41082195136); [audience regression](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/4820e567d84aa8610e696f840a7dda6a72547f9c) | Campaign audience selection, bounded targeting modes, date/progress validation, selected-email normalization and signed preview-token binding to exact recipients/channels are verified. |
 | 2026-10-30 | Exact code candidate `e4b8bb48c05b036ca8dfb27877f01a4a3114a213` | PR-143 and PR-144 verified | 126 | 5 | 13 | 95 | [Green CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210) | Notification delivery failure summaries, multi-device partial failures, recipient acceptance, event-key uniqueness and billing notification idempotency keys are verified. Next: transactional email templates and SMTP retry/suppression behavior. |
 
 ## Related project documents

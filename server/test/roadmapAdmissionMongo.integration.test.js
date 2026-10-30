@@ -9,7 +9,8 @@ import {
   reserveRoadmapAdmission,
   renewRoadmapAdmission,
   releaseRoadmapAdmission,
-  recoverExpiredRoadmapAdmissions
+  recoverExpiredRoadmapAdmissions,
+  runWithRoadmapAdmission
 } from "../src/services/roadmapAdmission.service.js";
 
 const enabled = Boolean(process.env.MONGO_URI);
@@ -73,6 +74,39 @@ test("MongoDB enforces atomic roadmap global/user slots, rate windows, renewal a
     globalAttempts.filter((result) => result.status === "rejected" && result.reason?.code === "ROADMAP_QUEUE_FULL").length,
     7
   );
+
+  await LeaseModel.deleteMany({});
+  const syncUser = new mongoose.Types.ObjectId();
+  let releaseSyncWork;
+  let signalSyncStarted;
+  const syncGate = new Promise((resolve) => { releaseSyncWork = resolve; });
+  const syncStarted = new Promise((resolve) => { signalSyncStarted = resolve; });
+  const syncWork = runWithRoadmapAdmission({
+    userId: syncUser,
+    maxGlobal: 1,
+    maxPerUser: 1,
+    LeaseModel,
+    work: async () => {
+      signalSyncStarted();
+      await syncGate;
+      return "generated";
+    }
+  });
+  await syncStarted;
+  await assert.rejects(
+    runWithRoadmapAdmission({
+      userId: syncUser,
+      maxGlobal: 1,
+      maxPerUser: 1,
+      LeaseModel,
+      work: async () => "must-not-run"
+    }),
+    (error) => error?.code === "ROADMAP_USER_QUEUE_LIMIT"
+  );
+  releaseSyncWork();
+  assert.equal(await syncWork, "generated");
+  assert.equal(await LeaseModel.countDocuments({}), 0,
+    "synchronous generation must release its distributed admission slot after completion");
 
   const rateUser = new mongoose.Types.ObjectId();
   const rateAttempts = await Promise.allSettled(

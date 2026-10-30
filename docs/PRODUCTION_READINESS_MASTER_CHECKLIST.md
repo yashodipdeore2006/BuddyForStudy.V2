@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 135 / 239 |
+| Verified done | 139 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 85 / 239 |
+| Not checked | 81 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -371,16 +371,16 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`adminAudience.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminAudience.service.test.js) verifies the signed preview token binds targeting filters, delivery channels and the exact recipient set; changing a channel or recipient invalidates the token. Campaign send paths call `verifyAdminAudiencePreviewToken` before queuing. Passed in [CI 41082195136](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41082195136).
 - [x] **PR-153** enforce consent unsubscribe batching and provider limits.  
   Status: `DONE` · Evidence: [`notificationPreferences.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationPreferences.test.js) verifies promotional email opt-in and unsubscribe tokens are signed, user-bound and expiring; [`isNotificationEmailAllowed`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/notification.service.js) is tested for category-specific consent and transactional exceptions. [`announcementService.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/announcementService.test.js) verifies allowed channel separation and bounded batches (max 50 batches × 100 recipients), retry backoff and dead-letter behavior. Exact candidate [CI 41082647133](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41082647133) passed.
-- [ ] **PR-154** test campaign dry-run send confirmation and delivery report.  
-  Status: `NOT CHECKED — regression test committed; CI pending` · Evidence: [main regression-test commit `8be80f3`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/8be80f362d6605d49ba509a0a48cad894b8cabfd); no completion count change until the exact candidate passes CI · Finding/fix: —
-- [ ] **PR-155** bound manual retries and audit them.  
-  Status: `NOT CHECKED — controller fix and regression test committed; CI pending` · Evidence: [controller fix `0cc8f3f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0cc8f3f82dd927bea389e1e76c69897142d5fec4); [actor/reason regression test `a22301c`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a22301ceb0f66813013135d7c2146ce8f3412cc0) · Completion count unchanged pending CI · Finding/fix: retry-history metadata was previously not passed from the controller to the service.
-- [ ] **PR-156** test worker heartbeat stale-job recovery and shutdown.  
-  Status: `NOT CHECKED — shutdown race fix and regression tests committed; CI pending` · Evidence: [worker fix `c418369`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/c41836982dab976907c1795a18b7eedb87a79e47); [heartbeat/shutdown tests `e50b42f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/e50b42fdcd3350949f77ba90cc327bc3b13a94d9) · Completion count unchanged pending CI · Finding/fix: shutdown could race an in-flight heartbeat and startup signal handlers were registered after initial maintenance.
+- [x] **PR-154** test campaign dry-run send confirmation and delivery report.  
+  Status: `DONE` · Evidence: [`adminCampaignSafety.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminCampaignSafety.test.js) verifies preview is side-effect-free, send requires a matching signed preview and reason, and the recipient set is checked before persistence; [`announcementService.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/announcementService.test.js) verifies channel-separated delivery reporting. Both CI jobs passed on exact candidate [`c007c8b`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692) · Finding/fix: —
+- [x] **PR-155** bound manual retries and audit them.  
+  Status: `DONE` · Evidence: [`notificationManualRetry.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationManualRetry.test.js) verifies failed-only retries, a three-retry cap, channel isolation, bounded reason, actor/reason history and an audit event. Both CI jobs passed on exact candidate [`c007c8b`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692) · Finding/fix: retry-history metadata was wired through the controller and service.
+- [x] **PR-156** test worker heartbeat stale-job recovery and shutdown.  
+  Status: `DONE` · Evidence: [`jobHeartbeat.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/jobHeartbeat.test.js) verifies missing/stopped/stale heartbeat alerts, healthy recovery, waits for in-flight heartbeat before recording stopped state, and closes the database after active jobs drain. Both CI jobs passed on exact candidate [`c007c8b`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692) · Finding/fix: shutdown now waits for the active heartbeat write.
 - [ ] **PR-157** verify worker deployment and supervision.  
   Status: `BLOCKED` · Evidence: [`server/package.json`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/package.json) exposes the separate `worker` start script and [`docs/NOTIFICATIONS.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/NOTIFICATIONS.md) documents the Render Background Worker command and required server environment. Repository tree contains no checked-in Render service manifest, and I do not have access to the Render production dashboard/process logs to verify that a continuously running worker is deployed, supervised, auto-restarted and emitting fresh heartbeats. Finding: `REL-004` remains OPEN until a production worker instance and heartbeat/alert evidence are supplied.
-- [ ] **PR-158** alert on backlog and repeated failures.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-158** alert on backlog and repeated failures.  
+  Status: `DONE` · Evidence: [`notificationBacklog.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationBacklog.test.js) verifies aged backlog warning alerts, critical alerts for severe backlog, and automatic resolution when a channel clears; worker invokes the backlog monitor during maintenance. Both CI jobs passed on exact candidate [`c007c8b`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692) · Finding/fix: —
 - [ ] **PR-159** test trial grants atomicity idempotency and audit.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 
@@ -633,3 +633,6 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 ## Definition of done
 
 The checklist is complete only when all tasks are `DONE` or have justified, approved `N/A`; every `FAIL` is fixed and retested; blocked tasks are resolved or formally accepted as launch risks; the exact release candidate has green CI; staging evidence is linked; and the release decision is recorded. A task count never overrides a release-blocking defect.
+
+
+| 2026-10-30 | Exact candidate `c007c8bf7d0204560edf720bf7712f0f91972cbc` | PR-154, PR-155, PR-156 and PR-158 verified | 139 | 5 | 14 | 81 | [Green CI 41090196692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692); [campaign safety tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminCampaignSafety.test.js); [manual retry tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationManualRetry.test.js); [worker heartbeat tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/jobHeartbeat.test.js); [backlog tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationBacklog.test.js) | Current main head CI completed with backend and frontend jobs successful. PR-157 remains blocked on live Render worker verification; PR-159 remains unchecked pending stronger trial-grant idempotency/audit regression coverage. Release remains NOT READY. |

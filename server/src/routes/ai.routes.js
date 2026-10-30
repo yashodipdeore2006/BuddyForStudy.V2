@@ -18,7 +18,7 @@ if (env.asyncRoadmap) {
   router.get("/roadmap/:draftId", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.pollDraft);
   router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.finalizeDraft);
 } else {
-  router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), generateRoadmap);
+  router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), aiRoadmapDraftLimiter, generateRoadmap);
 }
 router.post("/quiz", authMiddleware, generateQuiz);
 router.post("/quiz/submit", authMiddleware, submitCourseQuiz);

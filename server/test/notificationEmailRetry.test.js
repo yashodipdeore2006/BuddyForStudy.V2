@@ -57,6 +57,9 @@ test("SMTP failure remains retryable before the configured final attempt", async
   });
 
   assert.equal(claimFilter.emailAttempts.$lt, 3);
+  assert.equal(claimFilter.$or[0].emailLastAttemptAt, null);
+  assert.ok(claimFilter.$or[1].emailLastAttemptAt.$lte instanceof Date);
+  assert.ok(Date.now() - claimFilter.$or[1].emailLastAttemptAt.$lte.getTime() >= 10 * 60 * 1000 - 1000);
   assert.equal(updates.at(-1).$set.emailStatus, "pending");
   assert.ok(updates.at(-1).$set.emailError.length > 0);
 });

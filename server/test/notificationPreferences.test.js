@@ -65,3 +65,14 @@ test("mark-read endpoint reports whether it performed the unread transition", as
   assert.match(userPage, /if \(data\.wasUnread === true\) setUnreadCount/);
   assert.match(adminPage, /if \(data\.wasUnread === true\) setUnreadCount/);
 });
+
+test("notification links allow only same-origin application paths", async () => {
+  const { normalizeNotificationLink } = await import("../src/services/notification.service.js");
+  assert.equal(normalizeNotificationLink("/courses/course-1"), "/courses/course-1");
+  assert.equal(normalizeNotificationLink("/learn/course-1/lesson-2?tab=notes#content"), "/learn/course-1/lesson-2?tab=notes#content");
+  assert.equal(normalizeNotificationLink("https://attacker.example/phishing"), "/notifications");
+  assert.equal(normalizeNotificationLink("//attacker.example/phishing"), "/notifications");
+  assert.equal(normalizeNotificationLink("/\\\\attacker.example/phishing"), "/notifications");
+  assert.equal(normalizeNotificationLink("javascript:alert(1)"), "/notifications");
+  assert.equal(normalizeNotificationLink(""), "/notifications");
+});

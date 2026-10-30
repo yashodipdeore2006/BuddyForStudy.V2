@@ -25,12 +25,12 @@ Set these in the **server** environment (never commit actual secrets):
 
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and optionally `MAIL_FROM` for email delivery.
 - `CLIENT_URL` to the public BuddyForStudy frontend URL so email links point to the right environment.
-- `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` to enable server-side push delivery.
-- `VITE_ONESIGNAL_APP_ID` in the frontend build environment to enable the user's browser push opt-in control.
+- `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_SUBJECT` for standards-based browser Web Push.
+- Keep the VAPID private key in the server environment only. The frontend receives only the public key from the API.
 
 For course purchases, payment verification creates a pending notification-outbox state; the enrollment flow queues the receipt only after an active enrollment exists. The background worker reconciles pending paid-course receipts if the request fails between saving enrollment and creating the notification event. Event keys prevent a webhook, sync, enrollment retry, or worker reconciliation from creating duplicate receipt notifications.
 
-Email events are recorded as `pending`, `sent`, `skipped`, or `failed`. When SMTP is missing, optional delivery is marked skipped instead of remaining in a forever-pending state. Failed sends are retried by the worker up to the platform-configured attempt count. An email is marked `sent` only after Nodemailer reports the intended recipient as accepted by the SMTP transport; this does not prove inbox delivery or that the learner read it. OneSignal requests use a persistent UUID idempotency key so network retries can replay a provider result without creating a second push request. A push is marked `sent` only when OneSignal returns a non-empty notification ID; that confirms provider creation, not browser display or user engagement. The OneSignal REST key must be kept server-side; the frontend only needs the public app ID.
+Email events are recorded as `pending`, `sent`, `skipped`, or `failed`. When SMTP is missing, optional delivery is marked skipped instead of remaining in a forever-pending state. Failed sends are retried by the worker up to the platform-configured attempt count. An email is marked `sent` only after Nodemailer reports the intended recipient as accepted by the SMTP transport; this does not prove inbox delivery or that the learner read it. Browser push uses the Web Push protocol through the server-side `web-push` library. A push is marked `sent` when the push service accepts the request; this does not prove that the browser displayed the notification or that the learner engaged with it. The VAPID private key and contact subject must remain server-side; the frontend only receives the public VAPID key. Expired provider endpoints (HTTP 404/410) are deactivated during test delivery so learners can subscribe again.
 
 ## The background worker is required
 
@@ -64,7 +64,7 @@ In **Admin → Communications**, automatic templates are seeded on first load an
 
 ## Push notes
 
-This repository contains a web client. Browser push can be enabled through OneSignal once both environment variables are configured. A native iOS/Android app must also integrate the matching OneSignal app and log in using the same BuddyForStudy user ID before it can receive push alerts; the web helper alone does not install or configure a native mobile app.
+This repository contains a web client. Browser push uses standards-based Web Push with VAPID keys; it does not require OneSignal. Native iOS/Android applications need their own platform push integration and registration flow; the web helper does not install or configure native mobile push.
 
 ## Smoke-test checklist
 
@@ -75,4 +75,4 @@ This repository contains a web client. Browser push can be enabled through OneSi
 5. Submit a refund request and update it from Admin → Billing/Refunds; verify the user gets a status message.
 6. Complete all lessons in a test course; verify a single course-completion notification.
 7. Set a test user's reminder hour to the current hour, temporarily lower the inactivity threshold in Platform Settings, and run the worker; verify one reminder and no duplicates when the worker reruns.
-8. If using push, configure OneSignal, enable push from a supported HTTPS browser, and send a real test notification. A browser permission grant without valid provider configuration is not a delivery test.
+8. If using push, configure all three VAPID values, enable push from a supported HTTPS browser, and send a real test notification. A browser permission grant without valid provider configuration is not a delivery test.

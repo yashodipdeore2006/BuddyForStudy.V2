@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createDraft, finalizeDraft } from "../src/controllers/asyncRoadmap.controller.js";
 
 function makeResponse() {
@@ -61,5 +62,13 @@ test("roadmap draft controller returns safe 429/503 responses for capacity limit
     assert.equal(res.result.body.message, expected.message);
     assert.deepEqual(res.result.body.errors, { code: expected.code, retryable: true });
   }
+});
+
+
+test("async roadmap draft route applies authentication, entitlements, then a per-user rate limiter", async () => {
+  const routes = await readFile(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
+  const limiters = await readFile(new URL("../src/config/rateLimiters.js", import.meta.url), "utf8");
+  assert.match(routes, /router\.post\("\/roadmap\/draft",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*asyncRoadmap\.createDraft\)/);
+  assert.match(limiters, /aiRoadmapDraftLimiter\s*=\s*rateLimit\(\{[\s\S]*?windowMs:\s*10\s*\*\s*60\s*\*\s*1000,[\s\S]*?max:\s*5,[\s\S]*?standardHeaders:\s*true,[\s\S]*?legacyHeaders:\s*false,[\s\S]*?keyGenerator:\s*\(req\)\s*=>\s*String\(req\.user\?\.userId/);
 });
 

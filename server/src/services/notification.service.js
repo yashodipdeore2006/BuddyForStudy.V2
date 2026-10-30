@@ -21,6 +21,25 @@ import { getReminderClock, isWithinQuietHours, hasBeenInactive, learningReminder
 import { buildCoursePurchaseNotificationPayload, buildSubscriptionActivatedNotificationPayload, formatBillingNotificationDate } from "./billingNotificationPayloads.js";
 import * as razorpay from "./razorpay.service.js";
 
+export function normalizeNotificationLink(value) {
+  const fallback = "/notifications";
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  // Notifications only navigate within the application. Reject absolute URLs,
+  // protocol-relative URLs, backslashes and control characters.
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || /[\\u0000-\\u001f\\u007f]/.test(raw)) {
+    return fallback;
+  }
+  try {
+    const base = new URL(env.clientUrl);
+    const target = new URL(raw, base);
+    if (target.origin !== base.origin || target.username || target.password) return fallback;
+    return `${target.pathname}${target.search}${target.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
 const DEFAULT_PREFERENCES = {
   emailCourseUpdates: true,
   inAppCourseUpdates: true,
@@ -232,7 +251,7 @@ async function dispatchEmail(notificationId) {
 
   try {
     const appUrl = env.clientUrl.replace(/\/$/, "");
-    const link = notification.link ? appUrl + notification.link : appUrl + "/notifications";
+    const link = appUrl + normalizeNotificationLink(notification.link);
     const title = escapeHtml(notification.title);
     const message = escapeHtml(notification.message).replace(/\n/g, "<br />");
     const isPromotional = notification.type === "promotion";
@@ -330,7 +349,7 @@ async function dispatchPush(notificationId) {
         notificationId: String(notification._id),
         title: notification.title,
         body: notification.message,
-        url: notification.link || "/notifications"
+        url: normalizeNotificationLink(notification.link)
       });
       delivered += 1;
       await PushSubscription.updateOne({ _id: subscription._id }, {
@@ -471,7 +490,7 @@ export async function createNotificationEvent({
   const keys = preferenceKeys(type);
   const { User } = await import("../models/User.js");
   const user = await User.findById(userId).select("name").lean();
-  const sourceLink = String(link || "");
+  const sourceLink = normalizeNotificationLink(link);
   const appUrl = env.clientUrl.replace(/\/$/, "");
   const variables = {
     ...Object.fromEntries(Object.entries(metadata || {}).map(([key, value]) => [key, value === undefined || value === null ? "" : String(value)])),
@@ -519,7 +538,7 @@ export async function createNotificationEvent({
     title: String(renderedTitle || "BuddyForStudy update").slice(0, 200),
     message: String(renderedMessage || "").slice(0, 5000),
     type,
-    link: String(link || "").slice(0, 1000),
+    link: sourceLink.slice(0, 1000),
     showInApp,
     metadata: {
       ...(metadata && typeof metadata === "object" ? metadata : {}),

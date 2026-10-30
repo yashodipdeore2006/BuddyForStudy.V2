@@ -4,6 +4,7 @@ import { env } from "../config/env.js";
 import { generateAIRoadmap } from "./aiRoadmap.service.js";
 import { Course } from "../models/Course.js";
 import { curateForNode } from "./nodeCuration.service.js";
+import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
 
 const queue = [];
 const listeners = new Map();
@@ -11,7 +12,6 @@ let active = 0;
 const concurrency = Math.max(1, Number(env.nodeConcurrency) || 3);
 const MAX_ACTIVE_DRAFTS = Math.max(concurrency, concurrency * 20);
 const MAX_ACTIVE_DRAFTS_PER_USER = 2;
-const MAX_USER_DRAFTS_PER_WINDOW = 5;
 const HEARTBEAT_MS = 15000;
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 
@@ -48,7 +48,7 @@ function pump() {
   }
 }
 
-async function resolveCourseNodes({ draft, courseId, userId, profile }) {
+async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease }) {
   const course = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   if (!course) throw new Error("Private roadmap course was not found for its owner");
   const jobs = [];
@@ -70,6 +70,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile }) {
             profile: { topic: profile.topic, level: profile.level || profile.intentProfile?.level || "Beginner", language: profile.language || profile.intentProfile?.language || "en" },
             durationPolicy
           });
+          await assertLease();
           const state = curated.meta?.state || (curated.best ? (curated.meta?.lowConfidence ? "low_confidence" : "ready") : "failed");
           const video = curated.best ? { ...curated.best, state, alternatives: curated.alternatives || [] } : null;
           const path = lesson.type === "project" ? "project.videos" : "tutorial.videos";
@@ -82,6 +83,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile }) {
           );
           await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: curated.best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaUnits: curated.meta?.quotaUnits || 0 } });
         } catch (error) {
+          if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
           // Each node is isolated: persist failure and allow sibling jobs to finish.
           await Course.updateOne(
             { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
@@ -105,85 +107,111 @@ async function resolveCourseNodes({ draft, courseId, userId, profile }) {
 
 export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {
   const generateRoadmap = dependencies.generateAIRoadmap || generateAIRoadmap;
-  const countActiveDrafts = dependencies.countActiveDrafts || ((filter) => RoadmapDraft.countDocuments(filter));
   const key = stableProfileKey(userId, profile);
   const recent = await RoadmapDraft.findOne({
     userId, idempotencyKey: key, createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
   }).sort({ createdAt: -1 });
   if (recent && ["queued", "building", "ready"].includes(recent.status)) return { draftId: recent.draftId, status: recent.status, reused: true };
 
-  const activeFilter = { status: { $in: ["queued", "building"] } };
-  const recentUserCount = await countActiveDrafts({
+  await consumeRoadmapRequestAllowance({ userId, maxRequests: MAX_USER_DRAFTS_PER_WINDOW });
+  const draftId = randomUUID();
+  const lease = await reserveRoadmapAdmission({
     userId,
-    createdAt: { $gt: new Date(Date.now() - IDEMPOTENCY_TTL_MS) }
+    draftId,
+    maxGlobal: MAX_ACTIVE_DRAFTS,
+    maxPerUser: MAX_ACTIVE_DRAFTS_PER_USER
   });
-  if (recentUserCount >= MAX_USER_DRAFTS_PER_WINDOW) {
-    throw Object.assign(new Error("Too many roadmap build requests. Please wait before starting another build."), {
-      code: "ROADMAP_USER_RATE_LIMIT",
-      status: 429
+
+  let leaseLost = false;
+  let heartbeatInFlight = Promise.resolve();
+  const heartbeatTimer = setInterval(() => {
+    heartbeatInFlight = heartbeatInFlight.then(async () => {
+      if (leaseLost) return;
+      const renewed = await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken });
+      if (!renewed) leaseLost = true;
+    }).catch(() => { leaseLost = true; });
+  }, 30000);
+  heartbeatTimer.unref?.();
+
+  const assertLease = async () => {
+    await heartbeatInFlight;
+    if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) {
+      leaseLost = true;
+      await recoverExpiredRoadmapAdmissions().catch(() => {});
+      throw Object.assign(new Error("Roadmap admission lease was lost"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
+    }
+  };
+
+  let draft;
+  try {
+    draft = await RoadmapDraft.create({
+      draftId, userId, query: profile.topic, goal: profile.goal || "learn",
+      profile, status: "queued", idempotencyKey: key, admissionLeaseToken: lease.leaseToken
     });
-  }
-  const [globalActiveCount, userActiveCount] = await Promise.all([
-    countActiveDrafts(activeFilter),
-    countActiveDrafts({ ...activeFilter, userId })
-  ]);
-  if (userActiveCount >= MAX_ACTIVE_DRAFTS_PER_USER) {
-    throw Object.assign(new Error("You already have the maximum number of active roadmap builds."), {
-      code: "ROADMAP_USER_QUEUE_LIMIT",
-      status: 429
-    });
-  }
-  if (globalActiveCount >= MAX_ACTIVE_DRAFTS) {
-    throw Object.assign(new Error("Roadmap build capacity is temporarily full. Please retry shortly."), {
-      code: "ROADMAP_QUEUE_FULL",
-      status: 503
-    });
+  } catch (error) {
+    clearInterval(heartbeatTimer);
+    await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
+    throw error;
   }
 
-  const draftId = randomUUID();
-  const draft = await RoadmapDraft.create({
-    draftId, userId, query: profile.topic, goal: profile.goal || "learn",
-    profile, status: "queued", idempotencyKey: key
-  });
   queue.push(async () => {
-    const claimed = await RoadmapDraft.updateOne({ _id: draft._id, status: "queued" }, { $set: { status: "building" } });
-    if (!claimed.modifiedCount) return;
-    await addEvent(draft, { type: "progress", state: "building", draftId });
-    let courseId = null;
     try {
-      // jobs/worker.js is a scheduled maintenance runner, not an on-demand consumer.
-      // The process-local queue is bounded by NODE_CONCURRENCY; draft/node state is durable in MongoDB.
-      const result = await generateRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
-      courseId = result?.course?._id || result?.course?.id || null;
-      if (!courseId) throw new Error("Async roadmap build did not return a persisted course");
-      await RoadmapDraft.updateOne({ _id: draft._id }, {
-        $set: { roadmapId: courseId, result, status: "building", updatedAt: new Date() }
-      });
-      await addEvent(draft, { type: "skeleton", state: "building", draftId, roadmapId: String(courseId), result });
-      await resolveCourseNodes({ draft, courseId, userId, profile });
-      const completed = await RoadmapDraft.findById(draft._id).lean();
-      const finalResult = { ...(completed?.result || result), status: "ready", roadmapId: String(courseId) };
-      await RoadmapDraft.updateOne({ _id: draft._id }, {
-        $set: { status: "ready", result: finalResult, updatedAt: new Date() }
-      });
-      await addEvent(draft, { type: "done", state: "ready", draftId, roadmapId: String(courseId) });
-    } catch (error) {
-      if (courseId) {
-        await Course.updateOne(
-          { _id: courseId, createdForUser: userId },
-          { $set: { status: "archived", isPublished: false, visibility: "private" } }
-        ).catch(() => {});
-      }
-      await RoadmapDraft.updateOne({ _id: draft._id }, {
-        $set: {
-          status: "failed",
-          errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"),
-          roadmapId: null,
-          result: null,
-          updatedAt: new Date()
+      await assertLease();
+      const claimed = await RoadmapDraft.updateOne(
+        { _id: draft._id, status: "queued", admissionLeaseToken: lease.leaseToken },
+        { $set: { status: "building", updatedAt: new Date() } }
+      );
+      if (!claimed.modifiedCount) return;
+      await addEvent(draft, { type: "progress", state: "building", draftId });
+      let courseId = null;
+      try {
+        await assertLease();
+        const result = await generateRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
+        await assertLease();
+        courseId = result?.course?._id || result?.course?.id || null;
+        if (!courseId) throw new Error("Async roadmap build did not return a persisted course");
+        await RoadmapDraft.updateOne(
+          { _id: draft._id, status: "building", admissionLeaseToken: lease.leaseToken },
+          { $set: { roadmapId: courseId, result, status: "building", updatedAt: new Date() } }
+        );
+        await addEvent(draft, { type: "skeleton", state: "building", draftId, roadmapId: String(courseId), result });
+        await resolveCourseNodes({ draft, courseId, userId, profile, assertLease });
+        await assertLease();
+        const completed = await RoadmapDraft.findById(draft._id).lean();
+        const finalResult = { ...(completed?.result || result), status: "ready", roadmapId: String(courseId) };
+        const finalized = await RoadmapDraft.updateOne(
+          { _id: draft._id, status: "building", admissionLeaseToken: lease.leaseToken },
+          { $set: { status: "ready", result: finalResult, updatedAt: new Date() } }
+        );
+        if (!finalized.modifiedCount) throw Object.assign(new Error("Roadmap draft ownership changed"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
+        await addEvent(draft, { type: "done", state: "ready", draftId, roadmapId: String(courseId) });
+      } catch (error) {
+        if (courseId) {
+          await Course.updateOne(
+            { _id: courseId, createdForUser: userId },
+            { $set: { status: "archived", isPublished: false, visibility: "private" } }
+          ).catch(() => {});
         }
-      });
-      await addEvent(draft, { type: "error", state: "failed", draftId, message: "Roadmap build failed. Please retry." });
+        if (error?.code !== "ROADMAP_ADMISSION_LEASE_LOST") {
+          await RoadmapDraft.updateOne(
+            { _id: draft._id, status: "building", admissionLeaseToken: lease.leaseToken },
+            {
+              $set: {
+                status: "failed",
+                errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"),
+                roadmapId: null,
+                result: null,
+                updatedAt: new Date()
+              }
+            }
+          );
+          await addEvent(draft, { type: "error", state: "failed", draftId, message: "Roadmap build failed. Please retry." });
+        }
+      }
+    } finally {
+      clearInterval(heartbeatTimer);
+      await heartbeatInFlight;
+      await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
     }
   });
   pump();

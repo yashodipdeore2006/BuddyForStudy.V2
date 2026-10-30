@@ -144,3 +144,39 @@ test("combined search stays off by default and can be exercised with mocks when 
     env.ytCombinedSearch = originalCombined;
   }
 });
+
+test("gateway retries rate limits with bounded backoff and stops after three attempts", async () => {
+  quotaUnits = 0;
+  quotaState = "ok";
+  exhausted = false;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return calls < 3
+      ? jsonResponse({ error: { message: "rate limited" } }, 429)
+      : jsonResponse({ items: [{ id: "recovered-video" }] });
+  };
+
+  const result = await gateway.youtubeRequest("videos", { part: "snippet", id: "recovered-video" });
+  assert.equal(calls, 3);
+  assert.equal(result.items[0].id, "recovered-video");
+  assert.equal(quotaUnits, 3, "each retry must consume quota before the provider call");
+});
+
+test("gateway caps repeated network failures at three total attempts", async () => {
+  quotaUnits = 0;
+  quotaState = "ok";
+  exhausted = false;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new TypeError("fetch failed");
+  };
+
+  await assert.rejects(
+    gateway.youtubeRequest("videos", { part: "snippet", id: "unavailable-video" }),
+    /fetch failed/
+  );
+  assert.equal(calls, 3);
+  assert.equal(quotaUnits, 3);
+});

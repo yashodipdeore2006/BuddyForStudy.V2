@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 128 / 239 |
+| Verified done | 129 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 93 / 239 |
+| Not checked | 92 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -357,8 +357,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`messageTemplateDefaults.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/messageTemplateDefaults.test.js) verifies paired in-app/email templates for course purchase, subscription activation, renewal and payment failure; required payment/billing placeholders; and safe email markup. Exact candidate [CI 41081450692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081450692) passed frontend and backend jobs.
 - [x] **PR-146** test SMTP failure retry and suppression.  
   Status: `DONE` · Evidence: [`notificationEmailRetry.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationEmailRetry.test.js) verifies transient SMTP failures remain pending/retryable before the configured attempt limit, the final attempt becomes terminal `failed`, and globally disabled email delivery is suppressed without sending. Exact candidate [CI 41081558904](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081558904) passed frontend and backend jobs.
-- [ ] **PR-147** test push denied unsupported expired and cleanup cases.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-147** test push denied unsupported expired and cleanup cases.  
+  Status: `DONE` · Evidence: [`notificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationController.test.js) verifies push test-send is rejected when VAPID config is missing, learner push consent is off, or no active subscription exists; it verifies expired 404/410 endpoints are deactivated and partial device success is reported correctly. The controller restricts endpoint registration to public HTTPS browser push providers. Exact candidate [CI 41081673273](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081673273) passed backend and frontend.
 - [ ] **PR-148** restrict push test-send and protect subscription secrets.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-149** test outbox persistence retry backoff and dead-letter.  
@@ -611,6 +611,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-30 | Exact code candidate `e4b8bb48c05b036ca8dfb27877f01a4a3114a213` | PR-142 verified; PR-143–PR-159 under notification/worker audit | 124 | 5 | 13 | 97 | [Green CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210) | Same-origin notification-link validation is covered for new and legacy notifications and applied to email and push destinations. The code candidate passes backend lint/tests/syntax and frontend lint/typecheck/unit/build/Playwright smoke. |
 | 2026-10-30 | Exact template candidate `819fc517` verified green | PR-145 verified; PR-146–PR-148 under active implementation/testing | 127 | 5 | 13 | 94 | [Green CI 41081450692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081450692); [template regression](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/819fc517a342dac577af040d91860dff1840c06b) | Critical transactional course purchase, subscription activation/renewal and payment-failure templates now have paired-channel and placeholder/markup tests. SMTP retry and push expiry cases are added but pending CI. |
 | 2026-10-30 | Exact code candidate `0fbb86a42f93d2d306ec2dee6c0df210ec7f7a81` | PR-146 verified; PR-147–PR-148 awaiting latest CI | 128 | 5 | 13 | 93 | [Green CI 41081558904](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081558904); [SMTP retry test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0fbb86a42f93d2d306ec2dee6c0df210ec7f7a81) | SMTP transient failure, final-attempt terminal failure and global delivery suppression have deterministic tests. Push expiry/partial failure and VAPID secret exposure checks are in CI. |
+| 2026-10-30 | Exact candidate `1817cdffbc62ae85f3147d9090d3f14e3da10df1` | PR-147 verified; PR-148 pending VAPID-secret test CI | 129 | 5 | 13 | 92 | [Green CI 41081673273](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081673273); [push safety tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1817cdffbc62ae85f3147d9090d3f14e3da10df1) | Push permission/config gating, absent subscription behavior, expired endpoint deactivation and partial multi-device delivery are verified. PR-148 adds explicit assurance that only the public VAPID key is exposed. |
 | 2026-10-30 | Exact code candidate `e4b8bb48c05b036ca8dfb27877f01a4a3114a213` | PR-143 and PR-144 verified | 126 | 5 | 13 | 95 | [Green CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210) | Notification delivery failure summaries, multi-device partial failures, recipient acceptance, event-key uniqueness and billing notification idempotency keys are verified. Next: transactional email templates and SMTP retry/suppression behavior. |
 
 ## Related project documents

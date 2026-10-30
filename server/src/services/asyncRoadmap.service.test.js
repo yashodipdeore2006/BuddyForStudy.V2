@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRoadmapDraft, stableProfileKey } from "./asyncRoadmap.service.js";
+import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents } from "./asyncRoadmap.service.js";
 import { RoadmapDraft } from "../models/RoadmapDraft.js";
+import { Course } from "../models/Course.js";
 
 test("async roadmap idempotency key is stable for the same user and profile", () => {
   const profile = { topic: "MERN stack", goal: "learn", level: "Beginner" };
@@ -50,6 +51,78 @@ test("duplicate async roadmap request reuses the recent draft instead of enqueue
   } finally {
     RoadmapDraft.findOne = originalFindOne;
     RoadmapDraft.create = originalCreate;
+  }
+});
+
+test("draft reads are strictly owner-scoped, including admin identities", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  let capturedFilter;
+  RoadmapDraft.findOne = (filter) => {
+    capturedFilter = filter;
+    return { lean: async () => null };
+  };
+  try {
+    const result = await getDraftForUser("draft-private", "507f191e810c19729de860ea");
+    assert.equal(result, null);
+    assert.deepEqual(capturedFilter, { draftId: "draft-private", userId: "507f191e810c19729de860ea" });
+    const adminAttempt = await getDraftForUser("draft-private", "507f191e810c19729de860eb");
+    assert.equal(adminAttempt, null);
+    assert.equal(capturedFilter.userId, "507f191e810c19729de860eb");
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+  }
+});
+
+test("roadmap polling scopes both draft and private course lookups to the owner", async () => {
+  const originalDraftFindOne = RoadmapDraft.findOne;
+  const originalCourseFindOne = Course.findOne;
+  const ownerId = "507f191e810c19729de860ea";
+  const draft = {
+    draftId: "draft-owned", userId: ownerId, status: "ready",
+    roadmapId: "507f191e810c19729de860ef",
+    result: { course: { title: "Private roadmap", modules: [] } }, events: []
+  };
+  let courseFilter;
+  RoadmapDraft.findOne = (filter) => ({ lean: async () => filter.userId === ownerId ? draft : null });
+  Course.findOne = (filter) => {
+    courseFilter = filter;
+    return { lean: async () => ({ _id: draft.roadmapId, modules: [] }) };
+  };
+  try {
+    const ownerPoll = await getRoadmapPoll("draft-owned", ownerId);
+    assert.equal(ownerPoll.status, "ready");
+    assert.equal(courseFilter.createdForUser, ownerId);
+    assert.equal(courseFilter._id, draft.roadmapId);
+    const adminPoll = await getRoadmapPoll("draft-owned", "507f191e810c19729de860eb");
+    assert.equal(adminPoll, null);
+  } finally {
+    RoadmapDraft.findOne = originalDraftFindOne;
+    Course.findOne = originalCourseFindOne;
+  }
+});
+
+test("event streams refuse non-owner and admin access before writing headers", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  let headerWrites = 0;
+  RoadmapDraft.findOne = (filter) => ({
+    lean: async () => filter.userId === "owner-user" ? { draftId: "draft-owned", events: [] } : null
+  });
+  const req = { on() {} };
+  const res = {
+    status() { headerWrites += 1; return this; },
+    setHeader() { headerWrites += 1; },
+    flushHeaders() { headerWrites += 1; },
+    write() { headerWrites += 1; }
+  };
+  try {
+    const allowed = await attachDraftEvents(req, res, "draft-owned", "owner-user");
+    assert.equal(allowed, true);
+    const writesAfterOwner = headerWrites;
+    const denied = await attachDraftEvents(req, res, "draft-owned", "admin-user");
+    assert.equal(denied, false);
+    assert.equal(headerWrites, writesAfterOwner);
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
   }
 });
 

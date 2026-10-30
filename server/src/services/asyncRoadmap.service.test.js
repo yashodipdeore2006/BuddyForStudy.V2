@@ -155,7 +155,7 @@ test("only the owner can cancel a queued roadmap draft and cancellation is persi
     return { modifiedCount: 1 };
   };
   try {
-    const result = await cancelQueuedRoadmapDraft("draft-queued", "owner-user");
+    const result = await cancelQueuedRoadmapDraft("draft-queued", "owner-user", { releaseQueuedRoadmapAdmission: async () => true });
     assert.deepEqual(capturedFilter, { draftId: "draft-queued", userId: "owner-user", status: "queued" });
     assert.deepEqual(result, { draftId: "draft-queued", status: "cancelled", cancelled: true });
     assert.equal(draft.events[0].type, "cancelled");

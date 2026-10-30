@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 139 / 239 |
+| Verified done | 140 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 81 / 239 |
+| Not checked | 80 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -381,8 +381,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `BLOCKED` · Evidence: [`server/package.json`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/package.json) exposes the separate `worker` start script and [`docs/NOTIFICATIONS.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/NOTIFICATIONS.md) documents the Render Background Worker command and required server environment. Repository tree contains no checked-in Render service manifest, and I do not have access to the Render production dashboard/process logs to verify that a continuously running worker is deployed, supervised, auto-restarted and emitting fresh heartbeats. Finding: `REL-004` remains OPEN until a production worker instance and heartbeat/alert evidence are supplied.
 - [x] **PR-158** alert on backlog and repeated failures.  
   Status: `DONE` · Evidence: [`notificationBacklog.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationBacklog.test.js) verifies aged backlog warning alerts, critical alerts for severe backlog, and automatic resolution when a channel clears; worker invokes the backlog monitor during maintenance. Both CI jobs passed on exact candidate [`c007c8b`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692) · Finding/fix: —
-- [ ] **PR-159** test trial grants atomicity idempotency and audit.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-159** test trial grants atomicity idempotency and audit.  
+  Status: `DONE WITH TEST-SCOPE LIMITATION` · Evidence: [`adminTrialCampaignSafety.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminTrialCampaignSafety.test.js) verifies explicit confirmation, bounded idempotency keys, duplicate-key guard, active-subscription recheck, atomic replaceable-subscription filter, paid-conversion consent and audit event; [`adminTrialGrantAtomicity.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminTrialGrantAtomicity.test.js) verifies concurrent active-subscription conflict cleanup and no unsafe upsert. Both tests are included in successful backend CI on candidate [`c007c8b`](https://github.com/yashodipodeore2006/BuddyForStudy.V2/actions/runs/41090196692). Limitation: current tests assert controller contracts/source structure rather than exercising a real concurrent MongoDB transaction; this is not evidence of multi-document transactional atomicity. · Finding/fix: —
 
 ### I. Build with AI and providers
 

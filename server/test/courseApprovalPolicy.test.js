@@ -10,7 +10,7 @@ function settingQuery(value) {
   };
 }
 
-async function validateGeneratedCourse(approvalMode) {
+async function validateGeneratedCourse(approvalMode, privateForUser = false) {
   const originalFindOne = PlatformSetting.findOne;
   PlatformSetting.findOne = (filter) => {
     if (filter.key === "content_approval_ai_courses") {
@@ -30,6 +30,7 @@ async function validateGeneratedCourse(approvalMode) {
       level: "Beginner",
       duration: "4 weeks",
       isPublished: true,
+      ...(privateForUser ? { visibility: "private", createdForUser: "507f191e810c19729de860ea" } : {}),
       modules: [],
       generation: { mode: "ai", query: "React" }
     });
@@ -64,6 +65,16 @@ test("automatic AI course approval records provenance but still enforces readine
   assert.equal(course.aiReviewSource, "automatic");
   assert.equal(course.aiReviewedBy, null);
   assert.ok(course.aiReviewedAt instanceof Date);
+  assert.equal(course.isPublished, false);
+  assert.equal(course.status, "draft");
+});
+
+test("automatic approval never publishes a learner-private async roadmap", async () => {
+  const course = await validateGeneratedCourse("automatic", true);
+  assert.equal(course.aiReviewStatus, "approved");
+  assert.equal(course.aiReviewSource, "automatic");
+  assert.equal(course.visibility, "private");
+  assert.equal(String(course.createdForUser), "507f191e810c19729de860ea");
   assert.equal(course.isPublished, false);
   assert.equal(course.status, "draft");
 });

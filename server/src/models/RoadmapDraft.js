@@ -11,6 +11,7 @@ const roadmapDraftSchema = new mongoose.Schema({
   result: { type: mongoose.Schema.Types.Mixed, default: null },
   errorCode: { type: String, default: "" },
   idempotencyKey: { type: String, default: "", index: true },
+  admissionLeaseToken: { type: String, default: "", select: false },
   events: { type: [mongoose.Schema.Types.Mixed], default: [] },
   createdAt: { type: Date, default: Date.now, expires: 3600 },
   updatedAt: { type: Date, default: Date.now }

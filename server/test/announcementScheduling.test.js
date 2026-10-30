@@ -162,7 +162,7 @@ test("manual delivery retries preserve the previous failure and enforce a bounde
   assert.match(retry, /buildManualNotificationRetryFilter/);
   assert.match(retry, /buildManualNotificationRetryPipeline/);
   assert.match(retry, /Manual retry limit reached/);
-  assert.match(controller, /retryNotificationDelivery\\(req\\.params\\.notificationId, channel, \\{ reason, actorId: req\\.user\\.user\\._id \\}\\)/);
+  assert.match(controller, /retryNotificationDelivery\(req\.params\.notificationId, channel, \{ reason, actorId: req\.user\.user\._id \}\)/);
   assert.match(retry, /queued: true/);
   assert.match(retry, /status: "pending"/);
   assert.doesNotMatch(retry, /dispatchEmail|dispatchPush/);

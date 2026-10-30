@@ -57,7 +57,10 @@ export async function recoverExpiredRoadmapAdmissions({
 } = {}) {
   let recovered = 0;
   while (true) {
-    const lease = await LeaseModel.findOneAndDelete({ expiresAt: { $lte: now } });
+    // Mark the draft terminal before deleting its expired lease. If the process
+    // crashes between these writes, the next recovery pass can safely finish
+    // deleting the same expired lease without reviving the draft.
+    const lease = await LeaseModel.findOne({ expiresAt: { $lte: now } }).sort({ expiresAt: 1 });
     if (!lease) break;
     const draft = await DraftModel.findOneAndUpdate(
       { draftId: lease.draftId, admissionLeaseToken: lease.leaseToken, status: { $in: ["queued", "building"] } },
@@ -86,6 +89,7 @@ export async function recoverExpiredRoadmapAdmissions({
         { $set: { status: "archived", isPublished: false, visibility: "private" } }
       ).catch(() => {});
     }
+    await LeaseModel.deleteOne({ _id: lease._id, expiresAt: { $lte: now } });
     recovered += 1;
   }
   return recovered;

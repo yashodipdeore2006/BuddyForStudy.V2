@@ -62,33 +62,35 @@ export async function recoverExpiredRoadmapAdmissions({
     // deleting the same expired lease without reviving the draft.
     const lease = await LeaseModel.findOne({ expiresAt: { $lte: now } }).sort({ expiresAt: 1 });
     if (!lease) break;
-    const draft = await DraftModel.findOneAndUpdate(
-      { draftId: lease.draftId, admissionLeaseToken: lease.leaseToken, status: { $in: ["queued", "building"] } },
-      {
-        $set: {
-          status: "failed",
-          errorCode: "ROADMAP_ADMISSION_LEASE_EXPIRED",
-          roadmapId: null,
-          result: null,
-          updatedAt: now
-        },
-        $push: {
-          events: {
-            type: "error",
-            state: "failed",
-            message: "Roadmap build stopped unexpectedly. Please retry.",
-            at: now.toISOString()
-          }
-        }
-      },
-      { new: false }
-    );
+    const draftFilter = {
+      draftId: lease.draftId,
+      admissionLeaseToken: lease.leaseToken,
+      status: { $in: ["queued", "building"] }
+    };
+    const draft = await DraftModel.findOne(draftFilter).lean();
     if (draft?.roadmapId) {
       await CourseModel.updateOne(
         { _id: draft.roadmapId, createdForUser: draft.userId },
         { $set: { status: "archived", isPublished: false, visibility: "private" } }
       ).catch(() => {});
     }
+    await DraftModel.updateOne(draftFilter, {
+      $set: {
+        status: "failed",
+        errorCode: "ROADMAP_ADMISSION_LEASE_EXPIRED",
+        roadmapId: null,
+        result: null,
+        updatedAt: now
+      },
+      $push: {
+        events: {
+          type: "error",
+          state: "failed",
+          message: "Roadmap build stopped unexpectedly. Please retry.",
+          at: now.toISOString()
+        }
+      }
+    });
     await LeaseModel.deleteOne({ _id: lease._id, expiresAt: { $lte: now } });
     recovered += 1;
   }

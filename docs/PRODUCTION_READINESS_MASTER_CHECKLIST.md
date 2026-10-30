@@ -13,8 +13,8 @@
 | Total tasks | 239 |
 | Verified done | 135 / 239 |
 | Failed tasks | 5 / 239 |
-| Blocked | 13 / 239 |
-| Not checked | 86 / 239 |
+| Blocked | 14 / 239 |
+| Not checked | 85 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -378,7 +378,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-156** test worker heartbeat stale-job recovery and shutdown.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-157** verify worker deployment and supervision.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `BLOCKED` · Evidence: [`server/package.json`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/package.json) exposes the separate `worker` start script and [`docs/NOTIFICATIONS.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/NOTIFICATIONS.md) documents the Render Background Worker command and required server environment. Repository tree contains no checked-in Render service manifest, and I do not have access to the Render production dashboard/process logs to verify that a continuously running worker is deployed, supervised, auto-restarted and emitting fresh heartbeats. Finding: `REL-004` remains OPEN until a production worker instance and heartbeat/alert evidence are supplied.
 - [ ] **PR-158** alert on backlog and repeated failures.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-159** test trial grants atomicity idempotency and audit.  
@@ -572,6 +572,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | BILL-001 | P2 | PR-137 | Billing routes expose subscription checkout, sync, and cancellation but no plan upgrade/downgrade route; no explicit grace-period contract is present in the reviewed lifecycle routes/tests | Subscription lifecycle scope is incomplete or undocumented; provider event handling covers charged/pending/halted/cancelled/completed but does not establish self-service plan changes or grace-period entitlement rules | Not implemented | Add product-approved plan-change semantics, provider update/replace flow, prorations/effective dates, cancellation/reversal behavior, and grace-period access rules; add integration tests for renewal, upgrade/downgrade, cancellation, expiry and grace boundaries | OPEN — P2 product/lifecycle gap; do not claim full subscription lifecycle coverage |
 
 ## Execution log
+| 2026-10-30 | Current deployment evidence review | PR-157 classified BLOCKED | 135 | 5 | 14 | 85 | [`server/package.json`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/package.json); [`docs/NOTIFICATIONS.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/NOTIFICATIONS.md) | Worker start command and Render deployment instructions exist, but actual production process supervision/heartbeat cannot be verified without Render access. REL-004 remains open. |
 
 | Date (UTC) | Candidate SHA | Tasks executed | Done | Fail | Blocked | Remaining | Evidence | Notes |
 |---|---|---|---:|---:|---:|---:|---|---|

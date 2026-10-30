@@ -13,7 +13,7 @@ import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
 
 const channels = new Set(["notification", "email", "announcement"]);
 const messageTypes = new Set(["system", "course", "billing", "promotion", "security"]);
-const DEFAULT_AUTOMATED_TEMPLATES = [
+export const DEFAULT_AUTOMATED_TEMPLATES = [
   { name: "Course purchase confirmed · In-app", key: "course-purchase-confirmed-in-app", channel: "notification", title: "Course purchase confirmed", body: "Payment of {{currency}} {{amount}} for {{courseTitle}} was verified on {{purchaseDate}}. Reference: {{paymentReference}}. Your enrollment is confirmed; open your roadmap to start learning.", messageType: "billing", link: "" },
   { name: "Course purchase confirmed · Email", key: "course-purchase-confirmed-email", channel: "email", subject: "Your BuddyForStudy course purchase is confirmed", body: "<h1>Course purchase confirmed</h1><p>Hi {{userName}}, your payment of <strong>{{currency}} {{amount}}</strong> for <strong>{{courseTitle}}</strong> was verified on {{purchaseDate}}.</p><p>Payment reference: <code>{{paymentReference}}</code></p><p>Your enrollment is confirmed. <a href=\"{{link}}\">Open your course roadmap</a> to start learning.</p>", messageType: "billing", link: "" },
   { name: "Subscription active · In-app", key: "subscription-activated-in-app", channel: "notification", title: "Your subscription is active", body: "Your {{planName}} plan is active with {{billingInterval}} billing. Payment of {{currency}} {{amount}} is confirmed. Current billing period: {{periodSummary}}.", messageType: "billing", link: "" },

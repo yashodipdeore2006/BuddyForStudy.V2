@@ -470,6 +470,7 @@ export async function retryNotificationDelivery(notificationId, channel, depende
     if (!platform.pushEnabled) { const error = new Error("Push delivery is globally disabled in Platform Settings."); error.status = 409; throw error; }
     if (!pushConfigured) { const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push."); error.status = 503; throw error; }
   }
+  const statusField = channel === "email" ? "emailStatus" : "pushStatus";
   const retryFilter = buildManualNotificationRetryFilter(notificationId, channel);
   const retryPipeline = buildManualNotificationRetryPipeline(channel, actorId, reason);
   const notification = await Notification.findOneAndUpdate(

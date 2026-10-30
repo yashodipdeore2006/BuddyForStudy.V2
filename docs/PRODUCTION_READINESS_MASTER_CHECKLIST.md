@@ -395,7 +395,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-163** test AI timeout outage malformed JSON and schema validation.  
   Status: `TESTS ADDED — CI PENDING` · Evidence: existing timeout and invalid-schema tests plus [commit `daea4df`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/daea4df87eee7e695b30c6cb4b439bb32a469cfb) covering provider outage and malformed-JSON exceptions; failed results are required to return static fallback and remain uncached. · Finding/fix: awaiting green CI and a separate review of roadmap-generation provider failures.
 - [ ] **PR-164** bound provider retries with backoff.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `REGRESSION TESTS ADDED — CI PENDING` · Evidence: [commit `21c1723`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/21c17231b60c57f500b55795406418baa5a3e4d2) adds tests for bounded 429 retry/backoff, recovery after transient rate limiting, per-attempt quota accounting, and a three-attempt cap for repeated network failures. Existing 5xx retry tests also cover three total attempts. · Finding/fix: awaiting green CI; retry policy remains bounded at two retries after the initial request.
 - [ ] **PR-165** test quota counters concurrency and reset boundary.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-166** verify exhausted quota fallback UX.  

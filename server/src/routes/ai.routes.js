@@ -15,6 +15,7 @@ router.post("/curation-feedback", authMiddleware, recordCurationFeedback);
 if (env.asyncRoadmap) {
   router.post("/roadmap/draft", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), aiRoadmapDraftLimiter, asyncRoadmap.createDraft);
   router.get("/roadmap/:draftId/events", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.streamDraft);
+  router.post("/roadmap/:draftId/cancel", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.cancelDraft);
   router.get("/roadmap/:draftId", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.pollDraft);
   router.post("/roadmap", authMiddleware, requireFeature("ai_course_builder"), requireFeature("personalized_roadmaps"), asyncRoadmap.finalizeDraft);
 } else {

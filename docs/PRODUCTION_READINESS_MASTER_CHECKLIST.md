@@ -372,7 +372,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-153** enforce consent unsubscribe batching and provider limits.  
   Status: `DONE` · Evidence: [`notificationPreferences.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationPreferences.test.js) verifies promotional email opt-in and unsubscribe tokens are signed, user-bound and expiring; [`isNotificationEmailAllowed`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/notification.service.js) is tested for category-specific consent and transactional exceptions. [`announcementService.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/announcementService.test.js) verifies allowed channel separation and bounded batches (max 50 batches × 100 recipients), retry backoff and dead-letter behavior. Exact candidate [CI 41082647133](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41082647133) passed.
 - [ ] **PR-154** test campaign dry-run send confirmation and delivery report.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `NOT CHECKED — regression test committed; CI pending` · Evidence: [main regression-test commit `8be80f3`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/8be80f362d6605d49ba509a0a48cad894b8cabfd); no completion count change until the exact candidate passes CI · Finding/fix: —
 - [ ] **PR-155** bound manual retries and audit them.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-156** test worker heartbeat stale-job recovery and shutdown.  

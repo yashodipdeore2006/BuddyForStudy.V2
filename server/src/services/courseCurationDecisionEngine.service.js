@@ -1596,7 +1596,7 @@ export async function curateNormalSearch(query, options = {}) {
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.level + "|" + profile.language + "|" + settingCount);
   let pool = await getCachedValue(poolKey);
   const poolCacheHit = Boolean(pool);
-  let youtubeError = "";
+  let youtubeError = pool?.youtubeError || "";
   if (!pool) {
     const searchOptions = getYouTubeSearchOptions(profile.language, profile.languageExplicit);
     const [videoResult, playlistResult] = await withYouTubeRequestMetrics(requestMetrics, () => Promise.allSettled([
@@ -1609,8 +1609,22 @@ export async function curateNormalSearch(query, options = {}) {
     ]));
     const videos = videoResult.status === "fulfilled" ? videoResult.value : [];
     let playlists = playlistResult.status === "fulfilled" ? playlistResult.value : [];
-    if (videoResult.status === "rejected") youtubeError = videoResult.reason?.message || "YouTube video candidate search failed";
-    if (playlistResult.status === "rejected") youtubeError = youtubeError ? youtubeError + "; " + (playlistResult.reason?.message || "Playlist search failed") : (playlistResult.reason?.message || "Playlist search failed");
+    if (videoResult.status === "rejected") {
+      const error = videoResult.reason;
+      youtubeError = error?.name === "QuotaBudgetError"
+        ? "YouTube API daily quota exceeded"
+        : error?.message || "YouTube video candidate search failed";
+    }
+    if (playlistResult.status === "rejected") {
+      const error = playlistResult.reason;
+      const message = error?.name === "QuotaBudgetError"
+        ? "YouTube API daily quota exceeded"
+        : error?.message || "Playlist search failed";
+      youtubeError = youtubeError ? youtubeError + "; " + message : message;
+    }
+    if (requestMetrics.quotaState === "exhausted" && !youtubeError) {
+      youtubeError = "YouTube API daily quota exceeded";
+    }
 
     const topChannelIds = [...new Set(
       videos.slice(0, 80).map((candidate) => String(candidate.channelId || "")).filter(Boolean)
@@ -1637,6 +1651,8 @@ export async function curateNormalSearch(query, options = {}) {
       channelPlaylistsFetched: channelPlaylists.length,
       expandedChannelCount: topChannelIds.length,
       queries,
+      youtubeError,
+      quotaState: requestMetrics.quotaState || "unknown",
       cachedAt: new Date().toISOString()
     };
     const ttl = videos.length || playlists.length ? 24 * 60 * 60 * 1000 : EMPTY_RESULT_TTL_MS;

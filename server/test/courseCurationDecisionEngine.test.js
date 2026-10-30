@@ -266,6 +266,39 @@ test("short-course wording does not trigger the YouTube Shorts gate", () => {
   assert.equal(decision.passed, true, decision.reason);
 });
 
+test("curated resource attribution uses canonical YouTube URLs and rejects malformed identifiers", () => {
+  const video = selectCurationResultSlots([
+    slotCandidate(1, {
+      sourceId: "video-123",
+      url: "https://attacker.example/fake",
+      videoId: "video-123",
+      items: [
+        { videoId: "lesson-123", title: "Lesson one", url: "https://attacker.example/lesson" },
+        { videoId: "", title: "Malformed lesson" }
+      ]
+    })
+  ])[0];
+  assert.equal(video.sourceUrl, "https://www.youtube.com/watch?v=video-123");
+  assert.equal(video.channelTitle, "Creator creator-1");
+  assert.equal(video.items.length, 1);
+  assert.equal(video.items[0].url, "https://www.youtube.com/watch?v=lesson-123");
+
+  const playlist = selectCurationResultSlots([
+    slotCandidate(2, {
+      sourceType: "playlist",
+      sourceId: "playlist_123",
+      url: "https://attacker.example/playlist",
+      playlistSearchUrl: "https://attacker.example/playlist"
+    })
+  ])[0];
+  assert.equal(playlist.sourceUrl, "https://www.youtube.com/playlist?list=playlist_123");
+
+  const malformed = selectCurationResultSlots([
+    slotCandidate(3, { sourceId: "not a valid id", videoId: "", url: "javascript:alert(1)" })
+  ])[0];
+  assert.equal(malformed.sourceUrl, "");
+});
+
 test("ranking slots cap creators at two results and deduplicate resources", () => {
   const candidates = [
     slotCandidate(1, { channelId: "same-channel", finalScore: 96 }),

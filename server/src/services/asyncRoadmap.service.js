@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { generateAIRoadmap } from "./aiRoadmap.service.js";
 import { Course } from "../models/Course.js";
 import { curateForNode } from "./nodeCuration.service.js";
-import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
+import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, releaseQueuedRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
 
 const queue = [];
 const listeners = new Map();
@@ -267,6 +267,8 @@ export async function cancelQueuedRoadmapDraft(draftId, userId) {
       runtime.markLost();
       await runtime.waitForHeartbeat();
       await releaseRoadmapAdmission({ draftId, leaseToken: runtime.leaseToken }).catch(() => {});
+    } else {
+      await releaseQueuedRoadmapAdmission({ draftId, userId }).catch(() => {});
     }
     await addEvent(cancelled, { type: "cancelled", state: "cancelled", draftId, message: "Roadmap build cancelled." });
     return { draftId, status: "cancelled", cancelled: true };

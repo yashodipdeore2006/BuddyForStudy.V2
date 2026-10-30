@@ -8,6 +8,7 @@ import "../models/Course.js";
 import { Payment } from "../models/Payment.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
 import { heartbeatWorker, markMaintenanceStarted, markMaintenanceCompleted, markMaintenanceFailed } from "../services/jobHeartbeat.service.js";
+import { checkNotificationDeliveryBacklog } from "../services/notificationBacklog.service.js";
 import { deliverPendingNotificationEmails, deliverPendingNotificationPush, processLearningReminders, reconcilePendingCoursePurchaseNotifications, reconcilePendingSubscriptionActivationNotifications, processSubscriptionExpiryReminders } from "../services/notification.service.js";
 import { processScheduledAnnouncements } from "../services/announcement.service.js";
 import { refreshStaleVideos } from "../services/youtubeCompliance.service.js";
@@ -121,6 +122,7 @@ async function runMaintenance() {
         await resolveOperationalAlert(alertKey);
       }
     }
+    await checkNotificationDeliveryBacklog(now).catch((error) => console.error("[worker] notification backlog check failed", { code: error?.code, name: error?.name }));
     await resolveOperationalAlert("background-maintenance-failure");
     await markMaintenanceCompleted().catch((error) => console.error("[worker] unable to record maintenance completion", { code: error?.code }));
     console.info(`[worker] maintenance completed in ${Date.now() - startedAt}ms; subscriptions expired=${subscriptions.modifiedCount}; trial grants expired=${trialGrants.modifiedCount}; stale payments cancelled=${payments.modifiedCount}; notification jobs=${notificationJobs.map((item) => item.status).join(",")}`);

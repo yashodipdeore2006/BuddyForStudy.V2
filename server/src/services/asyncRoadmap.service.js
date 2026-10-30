@@ -189,13 +189,16 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
         );
         if (!finalized.modifiedCount) throw Object.assign(new Error("Roadmap draft ownership changed"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
         await addEvent(draft, { type: "done", state: "ready", draftId, roadmapId: String(courseId) });
-      } catch (error) {
-        if (error?.code !== "ROADMAP_ADMISSION_LEASE_LOST") await assertLease();
+      } catch (caughtError) {
+        let error = caughtError;
         if (courseId) {
           await Course.updateOne(
             { _id: courseId, createdForUser: userId },
             { $set: { status: "archived", isPublished: false, visibility: "private" } }
           ).catch(() => {});
+        }
+        if (error?.code !== "ROADMAP_ADMISSION_LEASE_LOST") {
+          try { await assertLease(); } catch (leaseError) { error = leaseError; }
         }
         const failureFilter = {
           _id: draft._id,
@@ -216,24 +219,22 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
         }
       }
     } catch (error) {
-      if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") {
-        await RoadmapDraft.updateOne(
-          {
-            _id: draft._id,
-            status: { $in: ["queued", "building"] },
-            admissionLeaseToken: lease.leaseToken
-          },
-          {
-            $set: {
-              status: "failed",
-              errorCode: "ROADMAP_ADMISSION_LEASE_LOST",
-              roadmapId: null,
-              result: null,
-              updatedAt: new Date()
-            }
+      await RoadmapDraft.updateOne(
+        {
+          _id: draft._id,
+          status: { $in: ["queued", "building"] },
+          admissionLeaseToken: lease.leaseToken
+        },
+        {
+          $set: {
+            status: "failed",
+            errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"),
+            roadmapId: null,
+            result: null,
+            updatedAt: new Date()
           }
-        ).catch(() => {});
-      }
+        }
+      ).catch(() => {});
     } finally {
       clearInterval(heartbeatTimer);
       await heartbeatInFlight;

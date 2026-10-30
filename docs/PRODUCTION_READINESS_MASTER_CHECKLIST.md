@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 130 / 239 |
+| Verified done | 131 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 91 / 239 |
+| Not checked | 90 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -361,8 +361,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`notificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationController.test.js) verifies push test-send is rejected when VAPID config is missing, learner push consent is off, or no active subscription exists; it verifies expired 404/410 endpoints are deactivated and partial device success is reported correctly. The controller restricts endpoint registration to public HTTPS browser push providers. Exact candidate [CI 41081673273](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081673273) passed backend and frontend.
 - [x] **PR-148** restrict push test-send and protect subscription secrets.  
   Status: `DONE` · Evidence: [`notificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationController.test.js) verifies test-send uses the authenticated user's own active subscriptions and rejects missing configuration/consent; [`webPush.service.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/src/services/webPush.service.test.js) verifies the public-key helper returns only the public VAPID key and never the private key. Notification routes are mounted behind `authMiddleware`. Exact candidate [CI 41081869925](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081869925) passed backend and frontend.
-- [ ] **PR-149** test outbox persistence retry backoff and dead-letter.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-149** test outbox persistence retry backoff and dead-letter.  
+  Status: `DONE` · Evidence: [`notificationOutboxSchema.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationOutboxSchema.test.js) verifies per-user unique event keys, attempt counters, attempt timestamps and retry-history schema; [`notificationEmailRetry.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationEmailRetry.test.js) verifies the 10-minute retry backoff, bounded attempt claim, retryable state before the limit and terminal `failed` state at the limit. Exact candidate [CI 41081979247](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081979247) passed both jobs.
 - [ ] **PR-150** test scheduled notifications timezone and duplicate runs.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-151** test audience filter correctness and category separation.  
@@ -613,6 +613,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-30 | Exact code candidate `0fbb86a42f93d2d306ec2dee6c0df210ec7f7a81` | PR-146 verified; PR-147–PR-148 awaiting latest CI | 128 | 5 | 13 | 93 | [Green CI 41081558904](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081558904); [SMTP retry test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0fbb86a42f93d2d306ec2dee6c0df210ec7f7a81) | SMTP transient failure, final-attempt terminal failure and global delivery suppression have deterministic tests. Push expiry/partial failure and VAPID secret exposure checks are in CI. |
 | 2026-10-30 | Exact candidate `1817cdffbc62ae85f3147d9090d3f14e3da10df1` | PR-147 verified; PR-148 pending VAPID-secret test CI | 129 | 5 | 13 | 92 | [Green CI 41081673273](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081673273); [push safety tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1817cdffbc62ae85f3147d9090d3f14e3da10df1) | Push permission/config gating, absent subscription behavior, expired endpoint deactivation and partial multi-device delivery are verified. PR-148 adds explicit assurance that only the public VAPID key is exposed. |
 | 2026-10-30 | Exact candidate `21ccddb481ae141c12b389ee5ea0b79469207a7e` | PR-148 verified; PR-149–PR-152 under test | 130 | 5 | 13 | 91 | [Green CI 41081869925](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081869925); [VAPID secrecy test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/21ccddb481ae141c12b389ee5ea0b79469207a7e) | Push test-send remains scoped to the authenticated user's active subscriptions; missing provider/consent states fail closed; only the public VAPID key is exposed. |
+| 2026-10-30 | Exact code candidate `3161008daf0c181d57ae8a54a787b4d3f3272996` | PR-149 verified; PR-150–PR-153 in progress | 131 | 5 | 13 | 90 | [Green CI 41081979247](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081979247); [outbox retry tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/3161008daf0c181d57ae8a54a787b4d3f3272996) | Notification outbox persistence/idempotency, bounded retries, 10-minute backoff and terminal failure handling have green evidence. |
 | 2026-10-30 | Exact code candidate `e4b8bb48c05b036ca8dfb27877f01a4a3114a213` | PR-143 and PR-144 verified | 126 | 5 | 13 | 95 | [Green CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210) | Notification delivery failure summaries, multi-device partial failures, recipient acceptance, event-key uniqueness and billing notification idempotency keys are verified. Next: transactional email templates and SMTP retry/suppression behavior. |
 
 ## Related project documents

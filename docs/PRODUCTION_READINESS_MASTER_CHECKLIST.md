@@ -387,9 +387,9 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 ### I. Build with AI and providers
 
 - [ ] **PR-160** test intent parser valid ambiguous and malformed input.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `IMPLEMENTED — CI PENDING` · Evidence: [commit `d1d7a20`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/d1d7a20aa2337cefe5263e6eef1a9052d6008c02) adds ambiguous-goal clarification and malformed-structured-output fallback/no-cache tests; CI [run #3626](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41091347771) was still running at last check. · Finding/fix: awaiting green CI.
 - [ ] **PR-161** test prompt plan size and adversarial input.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `IMPLEMENTED — CI PENDING` · Evidence: [prompt hardening commit `25e1a1f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/25e1a1f22bedab82895f7887dfcccb7681431635), [formatting fix `0211cad`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0211cad35062e581d3aed990d5591a6070fab4d9), and [regression tests `23b7cfe`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/23b7cfe8257a6645a7cec3b75416bcb589d4565e) bound learner-controlled prompt fields, JSON-encode them, add an explicit untrusted-input trust boundary, and test oversized/adversarial inputs. CI [run #3629](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41091603181) is queued. · Finding/fix: awaiting green CI and review of output prompt behavior.
 - [ ] **PR-162** verify intent endpoint feature flag auth and rate limit.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-163** test AI timeout outage malformed JSON and schema validation.  

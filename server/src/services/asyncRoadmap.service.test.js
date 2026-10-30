@@ -53,6 +53,50 @@ test("duplicate async roadmap request reuses the recent draft instead of enqueue
   }
 });
 
+test("active roadmap builds are capped per user before a new draft is persisted", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  let createCalls = 0;
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async () => { createCalls += 1; throw new Error("draft must not be created"); };
+  try {
+    await assert.rejects(
+      createRoadmapDraft({
+        userId: "507f191e810c19729de860ea",
+        profile: { topic: "React", goal: "learn" },
+        dependencies: { countActiveDrafts: async (filter) => filter.userId ? 2 : 2 }
+      }),
+      (error) => error.code === "ROADMAP_USER_QUEUE_LIMIT" && error.status === 429
+    );
+    assert.equal(createCalls, 0);
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+  }
+});
+
+test("global roadmap queue capacity rejects additional builds before persistence", async () => {
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  let createCalls = 0;
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async () => { createCalls += 1; throw new Error("draft must not be created"); };
+  try {
+    await assert.rejects(
+      createRoadmapDraft({
+        userId: "507f191e810c19729de860ea",
+        profile: { topic: "Node.js", goal: "learn" },
+        dependencies: { countActiveDrafts: async (filter) => filter.userId ? 0 : 60 }
+      }),
+      (error) => error.code === "ROADMAP_QUEUE_FULL" && error.status === 503
+    );
+    assert.equal(createCalls, 0);
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+  }
+});
+
 test("quota/provider failure is persisted as a retryable failed draft with a safe recovery event", async () => {
   const userId = "507f1f77bcf86cd799439011";
   const profile = { topic: "MERN stack", goal: "learn", level: "Beginner" };
@@ -75,6 +119,7 @@ test("quota/provider failure is persisted as a retryable failed draft with a saf
       userId,
       profile,
       dependencies: {
+        countActiveDrafts: async () => 0,
         generateAIRoadmap: async () => {
           const error = new Error("provider quota details must not be exposed");
           error.code = "QUOTA_EXHAUSTED";

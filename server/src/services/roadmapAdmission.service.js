@@ -183,7 +183,7 @@ export async function runWithRoadmapAdmission({
 
   const assertLease = async () => {
     await heartbeatInFlight;
-    if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken })) {
+    if (leaseLost || !await renewRoadmapAdmission({ draftId, leaseToken: lease.leaseToken, LeaseModel })) {
       leaseLost = true;
       await recoverExpiredRoadmapAdmissions({ LeaseModel }).catch(() => {});
       throw Object.assign(new Error("Roadmap admission lease was lost"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });

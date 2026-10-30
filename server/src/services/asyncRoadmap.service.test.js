@@ -107,7 +107,8 @@ test("event streams refuse non-owner and admin access before writing headers", a
   RoadmapDraft.findOne = (filter) => ({
     lean: async () => filter.userId === "owner-user" ? { draftId: "draft-owned", events: [] } : null
   });
-  const req = { on() {} };
+  let cleanup;
+  const req = { on(event, handler) { if (event === "close") cleanup = handler; } };
   const res = {
     status() { headerWrites += 1; return this; },
     setHeader() { headerWrites += 1; },
@@ -122,6 +123,7 @@ test("event streams refuse non-owner and admin access before writing headers", a
     assert.equal(denied, false);
     assert.equal(headerWrites, writesAfterOwner);
   } finally {
+    cleanup?.();
     RoadmapDraft.findOne = originalFindOne;
   }
 });

@@ -407,19 +407,22 @@ async function dispatchPush(notificationId) {
   return { status: !stillActive ? "skipped" : terminal ? "failed" : "retrying" };
 }
 
-export async function retryNotificationDelivery(notificationId, channel, { reason = "", actorId = null } = {}) {
+export async function retryNotificationDelivery(notificationId, channel, dependencies = {}) {
+  const { reason = "", actorId = null } = dependencies;
   if (!["email", "push"].includes(channel)) {
     const error = new Error("Channel must be email or push.");
     error.status = 400;
     throw error;
   }
-  const platform = await getNotificationPlatformSettings();
+  const platform = dependencies.platform ?? await getNotificationPlatformSettings();
+  const mailerConfigured = dependencies.isMailerConfigured ? dependencies.isMailerConfigured() : Boolean(getMailer());
+  const pushConfigured = dependencies.isPushConfigured ? dependencies.isPushConfigured() : isWebPushConfigured();
   if (channel === "email") {
     if (!platform.emailEnabled) { const error = new Error("Email delivery is globally disabled in Platform Settings."); error.status = 409; throw error; }
-    if (!getMailer()) { const error = new Error("Configure SMTP in the server environment before retrying email."); error.status = 503; throw error; }
+    if (!mailerConfigured) { const error = new Error("Configure SMTP in the server environment before retrying email."); error.status = 503; throw error; }
   } else {
     if (!platform.pushEnabled) { const error = new Error("Push delivery is globally disabled in Platform Settings."); error.status = 409; throw error; }
-    if (!isWebPushConfigured()) { const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push."); error.status = 503; throw error; }
+    if (!pushConfigured) { const error = new Error("Configure WEB_PUSH_VAPID_PUBLIC_KEY, WEB_PUSH_VAPID_PRIVATE_KEY, and WEB_PUSH_SUBJECT on the server before retrying push."); error.status = 503; throw error; }
   }
   const statusField = channel === "email" ? "emailStatus" : "pushStatus";
   const attemptsField = channel === "email" ? "emailAttempts" : "pushAttempts";

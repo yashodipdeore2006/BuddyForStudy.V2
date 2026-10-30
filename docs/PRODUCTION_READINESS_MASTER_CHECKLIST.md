@@ -393,7 +393,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-162** verify intent endpoint feature flag auth and rate limit.  
   Status: `TEST ADDED — CI PENDING` · Evidence: [commit `787134a`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/787134a61ac415c72e51bbd15bc244e0b66818e3) adds route-chain assertions for authentication, both subscription feature gates, limiter-before-controller ordering, 20 requests/minute configuration, and server-side feature-flag check. · Finding/fix: awaiting green CI.
 - [ ] **PR-163** test AI timeout outage malformed JSON and schema validation.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `TESTS ADDED — CI PENDING` · Evidence: existing timeout and invalid-schema tests plus [commit `daea4df`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/daea4df87eee7e695b30c6cb4b439bb32a469cfb) covering provider outage and malformed-JSON exceptions; failed results are required to return static fallback and remain uncached. · Finding/fix: awaiting green CI and a separate review of roadmap-generation provider failures.
 - [ ] **PR-164** bound provider retries with backoff.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-165** test quota counters concurrency and reset boundary.  

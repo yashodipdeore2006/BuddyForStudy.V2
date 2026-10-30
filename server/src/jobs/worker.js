@@ -13,6 +13,7 @@ import { deliverPendingNotificationEmails, deliverPendingNotificationPush, proce
 import { processScheduledAnnouncements } from "../services/announcement.service.js";
 import { refreshStaleVideos } from "../services/youtubeCompliance.service.js";
 import { rebuildSkillPriors } from "../services/skillResourcePrior.service.js";
+import { recoverExpiredRoadmapAdmissions } from "../services/roadmapAdmission.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -62,6 +63,8 @@ async function runMaintenance() {
 
   try {
     const now = new Date();
+    const recoveredRoadmapAdmissions = await recoverExpiredRoadmapAdmissions({ now });
+    if (recoveredRoadmapAdmissions) console.warn("[worker] recovered expired roadmap admission leases", { count: recoveredRoadmapAdmissions });
     await runNightlyCurationJobs(now);
     const [subscriptions, payments, trialGrants] = await Promise.all([
       UserSubscription.updateMany(

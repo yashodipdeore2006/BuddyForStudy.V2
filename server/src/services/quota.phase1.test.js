@@ -180,3 +180,23 @@ test("gateway caps repeated network failures at three total attempts", async () 
   assert.equal(calls, 3);
   assert.equal(quotaUnits, 3);
 });
+
+test("quota counter allows no more than the remaining hard-budget units under concurrency", async () => {
+  quotaUnits = 995;
+  quotaState = "ok";
+  exhausted = false;
+  const attempts = await Promise.allSettled(Array.from({ length: 10 }, () => quota.tryConsume(1)));
+  const allowed = attempts.filter((result) => result.status === "fulfilled");
+  const rejected = attempts.filter((result) => result.status === "rejected");
+
+  assert.equal(allowed.length, 5);
+  assert.equal(rejected.length, 5);
+  assert.ok(rejected.every((result) => result.reason.name === "QuotaBudgetError"));
+  assert.equal(quotaUnits, 1005, "rejected attempts remain counted so the counter fails closed");
+  assert.equal((await quota.getState()).state, "exhausted");
+});
+
+test("quota reset TTL resolves midnight in both Pacific standard and daylight time", () => {
+  assert.equal(quota.__quotaTestHooks.secondsUntilPacificReset(new Date("2026-01-01T07:59:00Z")), 60);
+  assert.equal(quota.__quotaTestHooks.secondsUntilPacificReset(new Date("2026-07-01T06:59:00Z")), 60);
+});

@@ -128,7 +128,10 @@ test("mark-all-read updates only the authenticated user's visible unread notific
 test("notification preferences persist category-specific email and in-app channels", async () => {
   let capturedUpdate;
   const preferenceStorage = {
-    findOne: () => ({ lean: async () => null }),
+    findOne: () => ({
+      select() { return this; },
+      lean: async () => null
+    }),
     findOneAndUpdate: (_filter, update) => {
       capturedUpdate = update;
       return { lean: async () => ({ user: "507f1f77bcf86cd799439011", ...(update.$setOnInsert || {}), ...(update.$set || {}) }) };

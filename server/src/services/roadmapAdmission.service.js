@@ -107,6 +107,13 @@ export async function reserveRoadmapAdmission({
   LeaseModel = RoadmapAdmissionLease
 }) {
   await recoverExpiredRoadmapAdmissions({ now, LeaseModel });
+  const [globalActive, userActive] = await Promise.all([
+    LeaseModel.countDocuments({ expiresAt: { $gt: now } }),
+    LeaseModel.countDocuments({ userId, expiresAt: { $gt: now } })
+  ]);
+  if (userActive >= maxPerUser) throw capacityError("ROADMAP_USER_QUEUE_LIMIT");
+  if (globalActive >= maxGlobal) throw capacityError("ROADMAP_QUEUE_FULL");
+
   const leaseToken = randomUUID();
   const expiresAt = new Date(now.getTime() + LEASE_DURATION_MS);
 

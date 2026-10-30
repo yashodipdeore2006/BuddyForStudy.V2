@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 121 / 239 |
+| Verified done | 123 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 100 / 239 |
+| Not checked | 98 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -343,10 +343,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### H. Notifications and workers
 
-- [ ] **PR-140** test notification list unread count and mark-read actions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-141** enforce notification preferences by category/channel.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-140** test notification list unread count and mark-read actions.  
+  Status: `DONE` · Evidence: [`notificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationController.test.js) covers bounded notification list limits, unread count, mark-read idempotency, and mark-all-read scoping to the authenticated user's visible notifications. Exact candidate [CI 41080904342](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41080904342) passed backend and frontend jobs.
+- [x] **PR-141** enforce notification preferences by category/channel.  
+  Status: `DONE` · Evidence: [`notificationController.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationController.test.js) verifies category/channel preference persistence, marketing preference synchronization, and explicit push-consent audit events; [`notificationPreferences.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationPreferences.test.js) verifies promotional email defaults to opt-out and legacy enabled preferences without recorded consent are treated as opted out. Exact candidate [CI 41080904342](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41080904342) passed.
 - [ ] **PR-142** verify notification links are valid and authorized.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-143** test partial and total delivery failures.  
@@ -607,6 +607,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-28 | Exact candidate `3b4066b4ab7e1770923a4f22d750a3dfa65c2559` | PR-125, PR-132–PR-136 verified | 119 | 4 | 13 | 103 | [Green full CI 40687177920](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687177920); [subscription lock test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/760fd62762f6a44c9b6fa000cbc6afd6f21ae88d); [webhook signature and mismatch tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/cd5bae68366e27fda78d9b53f1ddfc6c65c25d19) | Verified subscription checkout lock contention, terminal payment-state protection, raw webhook signatures, duplicate claim/retry behavior, mismatch logging without access, and subscription charge relationship/amount/currency checks. DATA-001, REL-001, and REL-004 remain release blockers. |
 
 | 2026-10-28 | Exact candidate `1f96c18d7e2696359a644415f3d9703c9695050f` | PR-138 and PR-139 verified; PR-137 FAIL recorded | 121 | 5 | 13 | 100 | [Green full CI 40687697793](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687697793); [refund eligibility/duplicate test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/5177535e9606963b9207b3905df4b83edd52b15a); [full-refund access test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/c1b548f4eab57142e98ddedc25d56bfeb477c78d) | Refund request eligibility, amount limits, duplicate claim protection, reconciliation and full-refund access revocation are covered. Added `BILL-001` P2: no plan upgrade/downgrade route or explicit grace-period policy was found. P1 release blockers remain unchanged. |
+| 2026-10-30 | Verified code candidate `1409f1c5720b67cc1f493d0cfa3f5e4ea772704d` (subsequent notification-link hardening is pending CI) | PR-140 and PR-141 verified; PR-142 is under retest | 123 | 5 | 13 | 98 | [Green CI 41080904342](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41080904342) | Notification unread/list state and category/channel preference behavior now have green regression coverage. Additional same-origin notification-link normalization and legacy-record sanitization are committed but remain unverified until current head CI passes. |
 
 ## Related project documents
 

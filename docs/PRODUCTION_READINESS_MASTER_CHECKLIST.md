@@ -374,7 +374,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-154** test campaign dry-run send confirmation and delivery report.  
   Status: `NOT CHECKED — regression test committed; CI pending` · Evidence: [main regression-test commit `8be80f3`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/8be80f362d6605d49ba509a0a48cad894b8cabfd); no completion count change until the exact candidate passes CI · Finding/fix: —
 - [ ] **PR-155** bound manual retries and audit them.  
-  Status: `NOT CHECKED — controller fix and regression test committed; CI pending` · Evidence: [controller fix `0cc8f3f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0cc8f3f82dd927bea389e1e76c69897142d5fec4); [actor/reason regression test `988d8b3`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/988d8b38af9ea8adfb94c033e51092a23b2b3f9b) · Completion count unchanged pending CI · Finding/fix: retry-history metadata was previously not passed from the controller to the service.
+  Status: `NOT CHECKED — controller fix and regression test committed; CI pending` · Evidence: [controller fix `0cc8f3f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/0cc8f3f82dd927bea389e1e76c69897142d5fec4); [actor/reason regression test `a22301c`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a22301ceb0f66813013135d7c2146ce8f3412cc0) · Completion count unchanged pending CI · Finding/fix: retry-history metadata was previously not passed from the controller to the service.
 - [ ] **PR-156** test worker heartbeat stale-job recovery and shutdown.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-157** verify worker deployment and supervision.  

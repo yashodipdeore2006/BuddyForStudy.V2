@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 148 / 239 |
+| Verified done | 149 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 72 / 239 |
+| Not checked | 71 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -406,8 +406,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: curated results now derive source links from validated YouTube video/playlist IDs, canonicalize video and playlist URLs, and omit malformed lesson IDs instead of emitting invalid `watch?v=undefined` links. Regression coverage verifies canonical video/playlist links, creator attribution, rejection of attacker-controlled URLs, and malformed-ID handling. Implementation: [commit `5aab417`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/5aab41764b0f5cd4c2f3efab924f54cd34a017c2); regression test: [commit `eb11441`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/eb114412aa9caf62b4622a88bdfadc5464e90447); fixture correction: [commit `ab33afd`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/ab33afd9180675047cfe589827fdc6f7902a0cdc). Exact candidate `29d1f7f7` passed full CI [run #3653](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41096109793). · Finding/fix: —
 - [x] **PR-168** filter invalid private and deleted curation videos.  
   Status: `DONE` · Evidence: selector eligibility now requires a valid YouTube video ID, `privacyStatus === "public"`, and `embeddable === true`; applied to legacy course selection, normal YouTube recommendations, AI curation, and project tutorials. Direct resource lookup rejects non-public/non-embeddable videos, and missing/deleted IDs are excluded because no video detail candidate is produced. Regression coverage checks private, unlisted, unknown privacy, non-embeddable, missing-status, malformed-ID and absent-resource cases. Implementation: [commit `a735d18`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a735d183f44f8259a8ff5539902ffcccac86e6a7); tests: [commit `16c4743`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/16c47432eac7b0c013807449fe95840f6e031d99). Exact candidate `16c47432` passed full CI [run #3656](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41096641387). · Finding/fix: —
-- [ ] **PR-169** test YouTube forbidden/quota errors and cache fallback.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-169** test YouTube forbidden/quota errors and cache fallback.  
+  Status: `DONE` · Evidence: curation now exposes provider quota exhaustion as a recoverable `youtubeError` even when the low-level search helpers degrade to empty arrays; the quota state/error is retained in the candidate-pool cache so repeat requests do not lose the warning. A valid cached curation result is returned without contacting YouTube providers, with `cacheHit`, `resultCacheHit` and zero search-call metadata. Regression tests cover quota rejection, surfaced user-facing error metadata, and cached-result fallback with provider-call assertions. Implementation: [commit `2e02ef8`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/2e02ef8656ba55d1110217c1983b84322bbe0657); tests: [commit `e193089`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/e1930894c15ceec1acd3e1e6384b9a26e47d49f7). Exact candidate `e1930894` passed full CI [run #3659](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41097171382). · Finding/fix: —
 - [ ] **PR-170** enforce roadmap concurrency and user rate limits.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-171** test async roadmap owner/admin isolation.  

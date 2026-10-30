@@ -8,6 +8,7 @@ import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAd
 
 const queue = [];
 const listeners = new Map();
+const admissionRuntimes = new Map();
 let active = 0;
 const concurrency = Math.max(1, Number(env.nodeConcurrency) || 3);
 const MAX_ACTIVE_DRAFTS = Math.max(concurrency, concurrency * 20);
@@ -158,6 +159,13 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     throw error;
   }
 
+  admissionRuntimes.set(draftId, {
+    heartbeatTimer,
+    leaseToken: lease.leaseToken,
+    markLost: () => { leaseLost = true; },
+    waitForHeartbeat: () => heartbeatInFlight
+  });
+
   queue.push(async () => {
     try {
       await assertLease();
@@ -238,6 +246,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
     } finally {
       clearInterval(heartbeatTimer);
       await heartbeatInFlight;
+      admissionRuntimes.delete(draftId);
       await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
     }
   });
@@ -252,6 +261,13 @@ export async function cancelQueuedRoadmapDraft(draftId, userId) {
     { new: true }
   );
   if (cancelled) {
+    const runtime = admissionRuntimes.get(draftId);
+    if (runtime) {
+      clearInterval(runtime.heartbeatTimer);
+      runtime.markLost();
+      await runtime.waitForHeartbeat();
+      await releaseRoadmapAdmission({ draftId, leaseToken: runtime.leaseToken }).catch(() => {});
+    }
     await addEvent(cancelled, { type: "cancelled", state: "cancelled", draftId, message: "Roadmap build cancelled." });
     return { draftId, status: "cancelled", cancelled: true };
   }

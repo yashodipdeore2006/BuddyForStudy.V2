@@ -31,15 +31,20 @@ async function authorize(req, res) {
   return true;
 }
 
-export async function createDraft(req, res, next) {
+export async function createDraft(req, res, next, dependencies = {}) {
+  const authorizeRequest = dependencies.authorize || authorize;
+  const createDraftRecord = dependencies.createRoadmapDraft || createRoadmapDraft;
   try {
-    if (!await authorize(req, res)) return;
+    if (!await authorizeRequest(req, res)) return;
     const profile = profileSchema.parse(req.body.profile || req.body);
     if (profile.intentProfile) Object.assign(profile, profile.intentProfile);
-    const draft = await createRoadmapDraft({ userId: req.user.userId, profile });
+    const draft = await createDraftRecord({ userId: req.user.userId, profile });
     return success(res, draft, "Roadmap draft queued");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    if (error?.code === "ROADMAP_USER_QUEUE_LIMIT" || error?.code === "ROADMAP_QUEUE_FULL") {
+      return failure(res, error.message, error.status || 503, { code: error.code, retryable: true });
+    }
     next(error);
   }
 }

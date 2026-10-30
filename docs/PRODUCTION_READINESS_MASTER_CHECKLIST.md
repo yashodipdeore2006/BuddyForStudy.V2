@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 126 / 239 |
+| Verified done | 127 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 13 / 239 |
-| Not checked | 95 / 239 |
+| Not checked | 94 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -353,8 +353,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: [`notificationDeliveryOutcomes.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationDeliveryOutcomes.test.js) verifies accepted/rejected recipient handling, retryable and terminal failures, and partial multi-device push failures; the worker's delivery summary is tested for both partial and total failure outcomes. Passed in [CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210).
 - [x] **PR-144** deduplicate payment and completion notifications.  
   Status: `DONE` · Evidence: [`notificationOutboxSchema.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationOutboxSchema.test.js) verifies unique per-user event keys and stable UUIDv4 push idempotency keys; [`billingNotificationPayloads.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/billingNotificationPayloads.test.js) verifies stable course-purchase and subscription-activation event keys. Passed in [CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210).
-- [ ] **PR-145** test email templates for critical transactional messages.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-145** test email templates for critical transactional messages.  
+  Status: `DONE` · Evidence: [`messageTemplateDefaults.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/messageTemplateDefaults.test.js) verifies paired in-app/email templates for course purchase, subscription activation, renewal and payment failure; required payment/billing placeholders; and safe email markup. Exact candidate [CI 41081450692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081450692) passed frontend and backend jobs.
 - [ ] **PR-146** test SMTP failure retry and suppression.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-147** test push denied unsupported expired and cleanup cases.  
@@ -609,6 +609,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | 2026-10-28 | Exact candidate `1f96c18d7e2696359a644415f3d9703c9695050f` | PR-138 and PR-139 verified; PR-137 FAIL recorded | 121 | 5 | 13 | 100 | [Green full CI 40687697793](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40687697793); [refund eligibility/duplicate test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/5177535e9606963b9207b3905df4b83edd52b15a); [full-refund access test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/c1b548f4eab57142e98ddedc25d56bfeb477c78d) | Refund request eligibility, amount limits, duplicate claim protection, reconciliation and full-refund access revocation are covered. Added `BILL-001` P2: no plan upgrade/downgrade route or explicit grace-period policy was found. P1 release blockers remain unchanged. |
 | 2026-10-30 | Verified code candidate `1409f1c5720b67cc1f493d0cfa3f5e4ea772704d` (subsequent notification-link hardening is pending CI) | PR-140 and PR-141 verified; PR-142 is under retest | 123 | 5 | 13 | 98 | [Green CI 41080904342](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41080904342) | Notification unread/list state and category/channel preference behavior now have green regression coverage. Additional same-origin notification-link normalization and legacy-record sanitization are committed but remain unverified until current head CI passes. |
 | 2026-10-30 | Exact code candidate `e4b8bb48c05b036ca8dfb27877f01a4a3114a213` | PR-142 verified; PR-143–PR-159 under notification/worker audit | 124 | 5 | 13 | 97 | [Green CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210) | Same-origin notification-link validation is covered for new and legacy notifications and applied to email and push destinations. The code candidate passes backend lint/tests/syntax and frontend lint/typecheck/unit/build/Playwright smoke. |
+| 2026-10-30 | Exact template candidate `819fc517` verified green | PR-145 verified; PR-146–PR-148 under active implementation/testing | 127 | 5 | 13 | 94 | [Green CI 41081450692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081450692); [template regression](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/819fc517a342dac577af040d91860dff1840c06b) | Critical transactional course purchase, subscription activation/renewal and payment-failure templates now have paired-channel and placeholder/markup tests. SMTP retry and push expiry cases are added but pending CI. |
 | 2026-10-30 | Exact code candidate `e4b8bb48c05b036ca8dfb27877f01a4a3114a213` | PR-143 and PR-144 verified | 126 | 5 | 13 | 95 | [Green CI 41081031210](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41081031210) | Notification delivery failure summaries, multi-device partial failures, recipient acceptance, event-key uniqueness and billing notification idempotency keys are verified. Next: transactional email templates and SMTP retry/suppression behavior. |
 
 ## Related project documents

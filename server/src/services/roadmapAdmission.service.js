@@ -144,3 +144,12 @@ export async function releaseRoadmapAdmission({
   const result = await LeaseModel.deleteOne({ draftId, leaseToken });
   return result.deletedCount === 1;
 }
+
+export async function releaseQueuedRoadmapAdmission({
+  draftId,
+  userId,
+  LeaseModel = RoadmapAdmissionLease
+}) {
+  const result = await LeaseModel.deleteOne({ draftId, userId });
+  return result.deletedCount === 1;
+}

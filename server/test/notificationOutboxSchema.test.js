@@ -49,3 +49,22 @@ test("subscription outbox state is independent from course purchase outbox state
   assert.ok(Payment.schema.path("subscriptionNotificationLastCheckedAt"));
   assert.ok(Payment.schema.path("subscriptionNotificationQueuedAt"));
 });
+
+test("notification outbox tracks bounded attempts and terminal failure history", () => {
+  const notification = new Notification({
+    user: new mongoose.Types.ObjectId(),
+    title: "Delivery test",
+    message: "Delivery test"
+  });
+  assert.equal(notification.emailAttempts, 0);
+  assert.equal(notification.pushAttempts, 0);
+  assert.equal(notification.emailStatus, "skipped");
+  assert.equal(notification.pushStatus, "skipped");
+  assert.ok(Notification.schema.path("emailLastAttemptAt"));
+  assert.ok(Notification.schema.path("pushLastAttemptAt"));
+  assert.ok(Notification.schema.path("retryHistory"));
+  assert.ok(Notification.schema.path("retryHistory").schema.path("channel"));
+  assert.deepEqual(Notification.schema.path("retryHistory").schema.path("channel").enumValues, ["email", "push"]);
+  assert.ok(Notification.schema.path("retryHistory").schema.path("retriedAt"));
+  assert.ok(Notification.schema.path("retryHistory").schema.path("reason"));
+});

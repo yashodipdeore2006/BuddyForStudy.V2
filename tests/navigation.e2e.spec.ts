@@ -898,7 +898,9 @@ test.describe("learner control and state regression", () => {
     await page.getByRole("textbox", { name: "Search courses" }).fill("javascript");
     await page.getByRole("textbox", { name: "Search courses" }).press("Enter");
 
+    await expect(page.getByRole("heading", { name: "Courses for “javascript”" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "JavaScript Foundations" })).toBeVisible();
+    await expect(page.getByText("YouTube discovery warning:", { exact: false })).toBeVisible();
     await expect(page.getByText("YouTube is temporarily unavailable because its daily API quota has been reached. Your BuddyForStudy courses remain available.", { exact: true })).toBeVisible();
     await expect(page.getByText("No BuddyForStudy or YouTube results found")).toHaveCount(0);
   });

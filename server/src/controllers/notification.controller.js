@@ -193,7 +193,7 @@ export function isPushSubscriptionOwnedByUser(subscription, userId) {
   return !subscription || String(subscription.user) === String(userId);
 }
 
-function isAllowedPushEndpoint(value) {
+export function isAllowedPushEndpoint(value) {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:" || url.username || url.password || url.port) return false;
@@ -283,27 +283,31 @@ export async function removePushSubscription(req, res, next) {
   }
 }
 
-export async function sendTestPush(req, res, next) {
+export async function sendTestPush(req, res, next, dependencies = {}) {
   try {
-    if (!isWebPushConfigured()) return failure(res, "Web Push is not configured on the server.", 503);
-    const preferences = await getUserNotificationPreferences(req.user.userId);
+    const configured = (dependencies.isWebPushConfigured || isWebPushConfigured)();
+    if (!configured) return failure(res, "Web Push is not configured on the server.", 503);
+    const getPreferences = dependencies.getPreferences || getUserNotificationPreferences;
+    const preferences = await getPreferences(req.user.userId);
     if (preferences.pushEnabled !== true) return failure(res, "Enable push notifications before sending a test.", 409);
 
-    const subscriptions = await PushSubscription.find({ user: req.user.userId, active: true }).lean();
+    const subscriptions = dependencies.findSubscriptions
+      ? await dependencies.findSubscriptions(req.user.userId)
+      : await PushSubscription.find({ user: req.user.userId, active: true }).lean();
     if (!subscriptions.length) return failure(res, "This browser has no active push subscription. Enable push first.", 409);
 
     let sent = 0;
     let failed = 0;
     await Promise.all(subscriptions.map(async (subscription) => {
       try {
-        await sendWebPushNotification(subscription, {
+        await (dependencies.sendWebPushNotification || sendWebPushNotification)(subscription, {
           title: "BuddyForStudy test notification",
           body: "Push notifications are connected to this device.",
           url: "/settings",
           notificationId: "test-" + Date.now()
         });
         sent += 1;
-        await PushSubscription.updateOne({ _id: subscription._id }, {
+        await (dependencies.updateSubscription || ((filter, update) => PushSubscription.updateOne(filter, update)))({ _id: subscription._id }, {
           $set: { lastSuccessAt: new Date(), lastError: "", lastFailureAt: null }
         });
       } catch (error) {

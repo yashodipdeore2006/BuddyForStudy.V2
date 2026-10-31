@@ -23,7 +23,6 @@ jobs:
           node-version: 24
           cache: npm
       - name: Apply non-breaking frontend audit updates to lockfile
-        continue-on-error: true
         run: |
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1
@@ -57,7 +56,6 @@ jobs:
           cache-dependency-path: server/package-lock.json
       - name: Apply non-breaking backend audit updates to lockfile
         working-directory: server
-        continue-on-error: true
         run: |
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1
@@ -77,3 +75,42 @@ jobs:
             /tmp/backend-audit.log
           if-no-files-found: error
           retention-days: 2
+
+  commit-lockfiles:
+    needs: [frontend-lockfile, backend-lockfile]
+    if: needs.frontend-lockfile.result == 'success' && needs.backend-lockfile.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dependency-candidate
+          path: /tmp/frontend-candidate
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-dependency-candidate
+          path: /tmp/backend-candidate
+      - name: Apply audited lockfile candidates
+        run: |
+          frontend_lock="$(find /tmp/frontend-candidate -type f -name package-lock.json -print -quit)"
+          backend_lock="$(find /tmp/backend-candidate -type f -path '*/server/package-lock.json' -print -quit)"
+          test -n "$frontend_lock"
+          test -n "$backend_lock"
+          cp "$frontend_lock" package-lock.json
+          cp "$backend_lock" server/package-lock.json
+      - name: Commit lockfile refresh
+        run: |
+          if git diff --quiet -- package-lock.json server/package-lock.json; then
+            echo "Lockfiles are already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json server/package-lock.json
+          git commit -m "chore: refresh audited dependency lockfiles"
+          git push origin HEAD:main

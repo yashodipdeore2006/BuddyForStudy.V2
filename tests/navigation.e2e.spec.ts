@@ -1499,6 +1499,31 @@ test.describe("learner control and state regression", () => {
     expect(mutations).toEqual(["DELETE", "POST"]);
   });
 
+  test("[A11Y-UNENROLL-DIALOG-FOCUS-001] unenroll dialog traps focus, closes on Escape, and restores focus", async ({ page }) => {
+    const course = courseFixture("unenroll-focus-course", { title: "Unenroll Focus Course" });
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(course, "not-started")],
+    });
+    await page.goto(baseURL + "/my-learning?tab=not-started");
+    const card = page.locator('[data-course-status="not-started"]');
+    const actions = card.locator('summary[aria-label="Course actions for Unenroll Focus Course"]');
+    await actions.click();
+    await card.getByRole("button", { name: "Unenroll", exact: true }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Unenroll from this course?" });
+    const close = dialog.getByRole("button", { name: "Close dialog" });
+    const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByRole("button", { name: "Unenroll", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator("main h1")).toBeFocused();
+  });
+
   test("[DETAIL-REVIEW-FAILURE-001] failed review submission preserves input and permits retry", async ({ page }) => {
     let submissions = 0;
     page.on("request", (request) => {

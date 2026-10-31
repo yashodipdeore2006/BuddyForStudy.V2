@@ -6,7 +6,6 @@ process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/course-visibility-test";
 process.env.JWT_SECRET ||= "unit-test-only-secret-that-is-long-enough";
 
 const { Course } = await import("../src/models/Course.js");
-const { Enrollment } = await import("../src/models/Enrollment.js");
 const { listPublished, getPublished } = await import("../src/services/course.service.js");
 
 test("public catalogue query excludes drafts, archived records, deleted records and unapproved generated courses", async () => {

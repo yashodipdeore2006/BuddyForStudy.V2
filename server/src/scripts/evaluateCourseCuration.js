@@ -17,7 +17,8 @@ async function main() {
     throw new Error(
       "Unable to read the expert-labelled curation set at " + fixturePath +
       ". Copy server/data/course-curation-golden-set.example.json to the requested path and add human-labelled resource IDs. " +
-      String(error?.message || error)
+      String(error?.message || error),
+      { cause: error }
     );
   }
   if (!Array.isArray(cases) || !cases.length) {

@@ -2395,3 +2395,32 @@ test.describe("form accessibility smoke audit", () => {
     expect(violations, violations.join("\\n")).toEqual([]);
   });
 });
+
+
+test("[A11Y-REDUCED-MOTION-001] application motion respects the operating system reduced-motion preference", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await mockAppApi(page, { authenticated: true });
+  await page.goto(baseURL + "/home");
+
+  const motion = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.className = "animate-spin transition-all";
+    document.body.appendChild(probe);
+    const style = window.getComputedStyle(probe);
+    const result = {
+      animationDuration: style.animationDuration,
+      transitionDuration: style.transitionDuration,
+      scrollBehavior: window.getComputedStyle(document.documentElement).scrollBehavior,
+    };
+    probe.remove();
+    return result;
+  });
+
+  const maxSeconds = (value: string) => Math.max(...value.split(",").map((part) => {
+    const duration = Number.parseFloat(part);
+    return part.trim().endsWith("ms") ? duration / 1000 : duration;
+  }));
+  expect(maxSeconds(motion.animationDuration)).toBeLessThanOrEqual(0.00001);
+  expect(maxSeconds(motion.transitionDuration)).toBeLessThanOrEqual(0.00001);
+  expect(motion.scrollBehavior).toBe("auto");
+});

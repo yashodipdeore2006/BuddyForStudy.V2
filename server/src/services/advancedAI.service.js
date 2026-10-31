@@ -14,6 +14,7 @@ import { getEntitlement, readPlanLimit } from "./subscriptionEntitlement.service
 import { getContentApprovalMode } from "./contentApprovalPolicy.service.js";
 import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
+import { safeTelemetryError } from "../utils/safeTelemetryError.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -207,7 +208,7 @@ async function refreshVideoDuration(course, lesson) {
     console.error("Unable to refresh lesson video duration for advanced AI", {
       courseId: String(course._id),
       lessonId: String(lesson._id),
-      message: error.message
+      ...safeTelemetryError(error)
     });
   }
   return 0;

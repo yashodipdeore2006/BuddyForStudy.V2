@@ -2219,7 +2219,7 @@ test.describe("route loading and recoverable failure states", () => {
       return json(route, { savedCourses: [] });
     });
 
-    await page.goto(baseURL + "/saved-courses");
+    await page.goto(baseURL + "/saved");
     await expect(page.getByRole("heading", { name: "Couldn’t load saved courses" })).toBeVisible();
     await expect(page.getByRole("alert")).toContainText("Saved courses service unavailable");
     await expect(page.getByRole("heading", { name: "No saved courses" })).toHaveCount(0);

@@ -2249,3 +2249,64 @@ test("[ROUTE-BILLING-ERROR-RETRY-001] billing failure never renders empty transa
   await expect(page.getByRole("heading", { name: "Billing & transactions" })).toBeVisible();
   expect(attempts).toBe(2);
 });
+
+
+test.describe("interactive control accessibility smoke audit", () => {
+  test("[A11Y-CONTROLS-NAMES-001] primary public and learner routes expose named controls and valid link targets", async ({ page }) => {
+    await mockAppApi(page, {
+      authenticated: true,
+      learningEnrollments: [learningEnrollmentFixture(courseFixture("course-fixture"), "in-progress")],
+    });
+
+    const paths = [
+      "/",
+      "/about",
+      "/contact",
+      "/faq",
+      "/login",
+      "/register",
+      "/forgot-password",
+      "/home",
+      "/explore",
+      "/my-learning",
+      "/saved",
+      "/profile",
+      "/settings",
+      "/billing",
+      "/notifications",
+      "/pricing",
+    ];
+    const violations: string[] = [];
+
+    for (const path of paths) {
+      await page.goto(baseURL + path);
+      await expect(page.locator("main, [role=main]").first()).toBeVisible();
+
+      const controls = await page.locator("button, a[href]").evaluateAll((elements) => elements.map((element) => {
+        const node = element as HTMLElement;
+        const label = [
+          node.getAttribute("aria-label"),
+          node.getAttribute("title"),
+          node.innerText,
+          node.querySelector("img[alt]")?.getAttribute("alt"),
+        ].filter(Boolean).join(" ").replace(/\\s+/g, " ").trim();
+        const href = node instanceof HTMLAnchorElement ? node.getAttribute("href") : null;
+        return {
+          tag: node.tagName.toLowerCase(),
+          label,
+          href,
+          visible: Boolean(node.getClientRects().length),
+        };
+      }));
+
+      for (const control of controls.filter((item) => item.visible)) {
+        if (!control.label) violations.push(path + ": unnamed " + control.tag + (control.href ? " link " + control.href : " button"));
+        if (control.href !== null && (control.href === "#" || /^javascript:/i.test(control.href))) {
+          violations.push(path + ": unsafe/placeholder link target " + control.href);
+        }
+      }
+    }
+
+    expect(violations, violations.join("\\n")).toEqual([]);
+  });
+});

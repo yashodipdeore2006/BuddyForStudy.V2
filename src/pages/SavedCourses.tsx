@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bookmark } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { CourseLevel } from "@/types";
 import EmptyState from "@/components/EmptyState";
+import ErrorState from "@/components/ErrorState";
 import PageHeader from "@/components/PageHeader";
 import CourseCard from "@/components/CourseCard";
 import { routes } from "@/lib/routes";
@@ -27,20 +28,24 @@ type Saved = {
 export default function SavedCourses() {
   const [savedCourses, setSavedCourses] = useState<Saved[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const data = await apiFetch("/api/saved-courses");
       setSavedCourses((data.savedCourses || []).filter((item: Saved) => item.course));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load saved courses. Please try again.");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
 
   return (
@@ -56,6 +61,8 @@ export default function SavedCourses() {
             <div key={item} className="h-96 animate-pulse rounded-3xl border border-slate-200 bg-white" />
           ))}
         </div>
+      ) : loadError ? (
+        <div className="mt-8"><ErrorState title="Couldn’t load saved courses" description={loadError} onRetry={() => void load()} /></div>
       ) : savedCourses.length === 0 ? (
         <div className="mt-8">
           <EmptyState

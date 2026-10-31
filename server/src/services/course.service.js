@@ -610,8 +610,8 @@ export async function listPublished({ page = 1, limit = 20, search, category, le
       );
     }
 
-    let curation = { resources: [], meta: { version: "course-curation-decision-engine-v1", resultsShown: 0 } };
-    let youtubeError = "";
+    let curation;
+    let youtubeError;
 
     try {
       curation = await curateNormalSearch(normalizedSearch, { category, level });

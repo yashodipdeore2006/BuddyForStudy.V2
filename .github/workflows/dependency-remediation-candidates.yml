@@ -9,108 +9,76 @@ on:
       - "server/package.json"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  frontend-lockfile:
+  refresh-and-verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          persist-credentials: false
+          persist-credentials: true
       - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
-      - name: Apply non-breaking frontend audit updates to lockfile
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+      - name: Generate frontend lockfile from manifest
         run: |
           rm -f package-lock.json
-          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1
-          npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/frontend-audit-fix.log 2>&1 || true
-          npm audit --audit-level=high > /tmp/frontend-audit.log 2>&1 || true
-          cat /tmp/frontend-audit-fix.log
-          cat /tmp/frontend-audit.log
-          npm ci --ignore-scripts
-      - name: Upload frontend dependency candidate
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dependency-candidate
-          path: |
-            package-lock.json
-            /tmp/frontend-audit-fix.log
-            /tmp/frontend-audit.log
-          if-no-files-found: error
-          retention-days: 2
-
-  backend-lockfile:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: server/package-lock.json
-      - name: Apply non-breaking backend audit updates to lockfile
+          npm install --package-lock-only --ignore-scripts --no-fund
+      - name: Install frontend dependencies cleanly
+        run: npm ci
+      - name: Apply compatible frontend security fixes
+        run: |
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          npm ci
+          npm audit --audit-level=high
+      - name: Generate backend lockfile from manifest
         working-directory: server
         run: |
           rm -f package-lock.json
-          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1
-          npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/backend-audit-fix.log 2>&1 || true
-          npm audit --omit=dev --audit-level=high > /tmp/backend-audit.log 2>&1 || true
-          cat /tmp/backend-audit-fix.log
-          cat /tmp/backend-audit.log
-          npm ci --ignore-scripts
-      - name: Upload backend dependency candidate
+          npm install --package-lock-only --ignore-scripts --no-fund
+      - name: Install backend dependencies cleanly
+        working-directory: server
+        run: npm ci
+      - name: Apply compatible backend security fixes
+        working-directory: server
+        run: |
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          npm ci
+          npm audit --audit-level=high
+      - name: Verify backend lint and tests
+        working-directory: server
+        run: |
+          npm run lint
+          npm test
+      - name: Verify frontend lint typecheck unit tests and production build
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run test:unit
+          VITE_PUBLIC_SITE_URL=https://buddyforstudy.example npm run build
+      - name: Upload dependency lockfile candidates for audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-dependency-candidate
+          name: verified-dependency-lockfiles
           path: |
+            package-lock.json
             server/package-lock.json
-            /tmp/backend-audit-fix.log
-            /tmp/backend-audit.log
           if-no-files-found: error
-          retention-days: 2
-
-  commit-lockfiles:
-    needs: [frontend-lockfile, backend-lockfile]
-    if: needs.frontend-lockfile.result == 'success' && needs.backend-lockfile.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-          persist-credentials: true
-      - uses: actions/download-artifact@v4
-        with:
-          name: frontend-dependency-candidate
-          path: /tmp/frontend-candidate
-      - uses: actions/download-artifact@v4
-        with:
-          name: backend-dependency-candidate
-          path: /tmp/backend-candidate
-      - name: Apply audited lockfile candidates
+          retention-days: 3
+      - name: Commit and push verified lockfile refresh
         run: |
-          frontend_lock="$(find /tmp/frontend-candidate -type f -name package-lock.json -print -quit)"
-          backend_lock="$(find /tmp/backend-candidate -type f -path '*/server/package-lock.json' -print -quit)"
-          test -n "$frontend_lock"
-          test -n "$backend_lock"
-          cp "$frontend_lock" package-lock.json
-          cp "$backend_lock" server/package-lock.json
-      - name: Commit lockfile refresh
-        run: |
-          if git diff --quiet -- package-lock.json server/package-lock.json; then
-            echo "Lockfiles are already current."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package-lock.json server/package-lock.json
-          git commit -m "chore: refresh audited dependency lockfiles"
+          if git diff --cached --quiet; then
+            echo "Lockfiles already match approved manifests; no commit required."
+            exit 0
+          fi
+          git commit -m "chore: refresh verified dependency lockfiles"
           git push origin HEAD:main

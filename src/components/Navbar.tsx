@@ -258,7 +258,7 @@ export default function Navbar() {
       document.removeEventListener("mousedown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [navigate, openPalette, session, paletteOpen, shortcutsOpen]);
+  }, [navigate, openPalette, session, paletteOpen, shortcutsOpen, menuOpen]);
 
   const handleSignOut = async () => {
     setMenuOpen(false);

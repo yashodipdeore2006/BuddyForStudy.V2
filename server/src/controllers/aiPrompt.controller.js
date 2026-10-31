@@ -102,6 +102,7 @@ async function changeActiveVersion(req, feature, version, reason) {
 export async function listPromptVersions(req, res, next) {
   try {
     const prompts = await Promise.all(AI_PROMPT_FEATURE_KEYS.map(async (feature) => {
+      const definition = AI_PROMPT_FEATURES[feature];
         const [activePrompt, versions] = await Promise.all([
         getActiveAIPrompt(feature),
         AIPromptVersion.find({ feature })
@@ -147,7 +148,6 @@ export async function createPromptVersion(req, res, next) {
   try {
     const { feature } = req.params;
     if (!isValidFeature(feature)) return failure(res, "Unsupported AI prompt feature.", 400);
-    const definition = AI_PROMPT_FEATURES[feature];
     const reason = cleanReason(req.body?.reason, "create an AI prompt version");
     const checked = validateUploadedPrompt(feature, req.body?.prompt);
     if (!checked.valid) return failure(res, checked.message, 400);

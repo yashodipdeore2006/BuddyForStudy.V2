@@ -3,6 +3,7 @@ import { CourseCurationFeedback } from "../models/CourseCurationFeedback.js";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
+import { safeTelemetryError } from "../utils/safeTelemetryError.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { CourseCurationCache } from "../models/CourseCurationCache.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
@@ -314,7 +315,7 @@ async function getTopicSyllabus(profile) {
       });
       syllabus = normalizeSyllabus(JSON.parse(response.text), profile.query);
     } catch (error) {
-      console.warn("Curation syllabus generation fell back to rules", { query: profile.normalizedQuery, message: error?.message || error });
+      console.warn("Curation syllabus generation fell back to rules", safeTelemetryError(error));
       syllabus = fallbackSyllabus(profile.query);
     }
   } else {
@@ -425,10 +426,7 @@ async function evaluateCandidatesWithMetadataRubric(candidates, profile, syllabu
       judgedCount: evaluations.length
     };
   } catch (error) {
-    console.warn("Curation metadata rubric evaluation unavailable", {
-      query: profile.normalizedQuery,
-      message: error?.message || error
-    });
+    console.warn("Curation metadata rubric evaluation unavailable", safeTelemetryError(error));
     return { byCandidateId: new Map(), source: "failed-fallback-to-metadata-heuristics", judgedCount: 0 };
   }
 }
@@ -1358,7 +1356,7 @@ async function enrichPlaylists(candidates, profile) {
           : await getPlaylistCourse(candidate.sourceId);
         return { id: candidate.id, detail, originalCount: candidate.itemCount };
       } catch (error) {
-        console.warn("Curation playlist enrichment failed", { playlistId: candidate.sourceId, message: error?.message || error });
+        console.warn("Curation playlist enrichment failed", safeTelemetryError(error));
         return { id: candidate.id, detail: null, originalCount: candidate.itemCount };
       }
     }));
@@ -1576,7 +1574,6 @@ export async function curateNormalSearch(query, options = {}) {
     console.info("Course curation completed", {
       requestId,
       skillId,
-      query: profile.normalizedQuery,
       version: ENGINE_VERSION,
       candidates: cached.meta?.poolCandidates || 0,
       results: cached.resources.length,
@@ -1641,7 +1638,7 @@ export async function curateNormalSearch(query, options = {}) {
           : searchChannelCoursePlaylists(topChannelIds, 5)
       );
     } catch (error) {
-      console.warn("Curation channel playlist expansion unavailable", { query: profile.normalizedQuery, message: error?.message || error });
+      console.warn("Curation channel playlist expansion unavailable", safeTelemetryError(error));
     }
     const playlistsById = new Map();
     for (const playlist of [...playlists, ...channelPlaylists]) {

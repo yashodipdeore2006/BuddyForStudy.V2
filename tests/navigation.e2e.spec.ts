@@ -2424,3 +2424,27 @@ test("[A11Y-REDUCED-MOTION-001] application motion respects the operating system
   expect(maxSeconds(motion.transitionDuration)).toBeLessThanOrEqual(0.00001);
   expect(motion.scrollBehavior).toBe("auto");
 });
+
+
+test("[A11Y-SEMANTICS-001] primary routes expose a main landmark, a page heading and alt attributes", async ({ page }) => {
+  await mockAppApi(page, { authenticated: true });
+  const paths = ["/", "/about", "/contact", "/faq", "/login", "/register", "/forgot-password", "/home", "/explore", "/my-learning", "/saved", "/profile", "/settings", "/billing", "/notifications", "/pricing"];
+  const violations: string[] = [];
+
+  for (const path of paths) {
+    await page.goto(baseURL + path);
+    const audit = await page.evaluate(() => {
+      const mains = Array.from(document.querySelectorAll("main, [role=main]")).filter((element) => element.getClientRects().length);
+      const pageHeadings = mains.flatMap((main) => Array.from(main.querySelectorAll("h1")).filter((heading) => heading.getClientRects().length));
+      const missingImageAlt = Array.from(document.querySelectorAll("img"))
+        .filter((image) => image.getClientRects().length && !image.hasAttribute("alt"))
+        .map((image) => image.getAttribute("src") || "image without source");
+      return { mainCount: mains.length, pageHeadingCount: pageHeadings.length, missingImageAlt };
+    });
+    if (!audit.mainCount) violations.push(path + ": missing main landmark");
+    if (!audit.pageHeadingCount) violations.push(path + ": missing page-level h1");
+    if (audit.missingImageAlt.length) violations.push(path + ": images missing alt attributes: " + audit.missingImageAlt.join(", "));
+  }
+
+  expect(violations, violations.join("\\n")).toEqual([]);
+});

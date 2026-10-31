@@ -46,7 +46,6 @@ function splitLessonsByDuration(lessons, count = 5) {
   let accumulated = 0;
   for (let stage = 0; stage < stageCount; stage += 1) {
     const remainingGroups = stageCount - stage;
-    const remainingLessons = lessons.length - start;
     const target = remainingGroups > 0 ? (total - accumulated) / remainingGroups : 0;
     let end = start;
     let duration = 0;

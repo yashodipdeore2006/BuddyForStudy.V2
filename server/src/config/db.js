@@ -9,3 +9,7 @@ export async function connectDatabase() {
   await Promise.all([RoadmapAdmissionLease.init(), RoadmapAdmissionRateWindow.init()]);
   console.log("MongoDB connected; roadmap admission indexes ready");
 }
+
+export async function disconnectDatabase() {
+  await mongoose.disconnect();
+}

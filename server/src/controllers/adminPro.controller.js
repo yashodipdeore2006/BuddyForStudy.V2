@@ -2,7 +2,6 @@ import crypto from "crypto";
 import { lookup } from "node:dns/promises";
 import mongoose from "mongoose";
 import { z } from "zod";
-import nodemailer from "nodemailer";
 import { User } from "../models/User.js";
 import { UserFeatureOverride } from "../models/UserFeatureOverride.js";
 import { Course } from "../models/Course.js";
@@ -91,20 +90,6 @@ function safeDeliveryError(value) {
   return String(value || "").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[masked email]").replace(/https?:\/\/[^\s]+/gi, "[provider URL]").slice(0, 240);
 }
 
-function mailer() {
-  if (!env.smtpHost || !env.smtpUser || !env.smtpPass) return null;
-  return nodemailer.createTransport({ host: env.smtpHost, port: env.smtpPort, secure: env.smtpSecure, auth: { user: env.smtpUser, pass: env.smtpPass } });
-}
-
-async function audienceUsers(audience) {
-  if (audience === "active") return User.find({ isActive: true }).select("_id email name");
-  if (audience === "subscribers") {
-    const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
-    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id email name");
-  }
-  return User.find({}).select("_id email name");
-}
-
 async function mapWithConcurrency(items, worker, batchSize = 50) {
   const results = [];
   for (let index = 0; index < items.length; index += batchSize) {
@@ -112,16 +97,6 @@ async function mapWithConcurrency(items, worker, batchSize = 50) {
     results.push(...await Promise.all(batch.map(worker)));
   }
   return results;
-}
-
-async function notificationAudienceUsers(audience) {
-  if (audience === "active") return User.find({ isActive: true }).select("_id");
-  if (audience === "subscribers") {
-    const subs = await UserSubscription.find({ status: { $in: ["trialing", "active"] } }).select("user");
-    // Subscription audiences include inactive accounts too: account activity must not suppress admin communications.
-    return User.find({ _id: { $in: subs.map(s => s.user) } }).select("_id");
-  }
-  return User.find({}).select("_id");
 }
 
 export async function overview(req, res, next) {

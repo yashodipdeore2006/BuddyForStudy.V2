@@ -43,6 +43,22 @@ test("Mongo rate-limit store shares namespaced counters and returns reset time",
   assert.equal(model.records.size, 1);
 });
 
+test("separate API instances share one Mongo-backed counter for the same client window", async () => {
+  const model = fakeModel();
+  const firstInstance = new MongoRateLimitStore("auth", { model, now: () => 240_000 });
+  const secondInstance = new MongoRateLimitStore("auth", { model, now: () => 240_000 });
+  firstInstance.init({ windowMs: 15 * 60 * 1000 });
+  secondInstance.init({ windowMs: 15 * 60 * 1000 });
+
+  const first = await firstInstance.increment("client");
+  const second = await secondInstance.increment("client");
+  const third = await firstInstance.increment("client");
+
+  assert.deepEqual([first.totalHits, second.totalHits, third.totalHits], [1, 2, 3]);
+  assert.equal((await secondInstance.get("client")).totalHits, 3);
+  assert.equal(model.records.size, 1);
+});
+
 test("Mongo rate-limit store isolates namespaces and resets at a fixed-window boundary", async () => {
   const model = fakeModel();
   let now = 59_999;

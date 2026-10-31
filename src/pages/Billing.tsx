@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import PageHeader from "@/components/PageHeader";
+import ErrorState from "@/components/ErrorState";
 import { apiFetch } from "@/lib/api";
 import { ArrowDownToLine, CreditCard, ReceiptText, Search, CalendarDays, ShieldCheck, Loader2, CheckCircle2, Clock3, XCircle, AlertCircle, ArrowUpRight, MessageSquareWarning } from "lucide-react";
 import { routes } from "@/lib/routes";
@@ -74,6 +75,7 @@ export default function Billing() {
   const [trial, setTrial] = useState<TrialSummary | null>(null);
   const [decliningConversion, setDecliningConversion] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [refundId, setRefundId] = useState<string | null>(null);
   const [refundReason, setRefundReason] = useState("");
   const [submittingRefund, setSubmittingRefund] = useState(false);
@@ -88,6 +90,7 @@ export default function Billing() {
 
   async function loadBilling() {
     setLoading(true);
+    setLoadError("");
     try {
       const [paymentData, subscriptionData, refundData, issueData, trialData] = await Promise.all([apiFetch("/api/billing/payments"), apiFetch("/api/billing/me"), apiFetch("/api/billing/refunds"), apiFetch("/api/billing/issues"), apiFetch("/api/billing/trial")]);
       setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
@@ -97,7 +100,7 @@ export default function Billing() {
       setIssues(Array.isArray(issueData.issues) ? issueData.issues : []);
       setRefundMessage("");
     } catch (error) {
-      setRefundMessage(error instanceof Error ? error.message : "Unable to load billing");
+      setLoadError(error instanceof Error ? error.message : "Unable to load billing. Please try again.");
     } finally { setLoading(false); }
   }
   useEffect(() => { void loadBilling(); }, []);
@@ -163,6 +166,10 @@ export default function Billing() {
     anchor.download = "buddyforstudy-transactions.csv";
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (!loading && loadError) {
+    return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"><PageHeader title="Billing & transactions" subtitle="Manage your subscription, review every payment attempt, and track refund requests." /><div className="mt-6"><ErrorState title="Couldn’t load billing information" description={loadError} onRetry={() => void loadBilling()} /></div></div>;
   }
 
   return (

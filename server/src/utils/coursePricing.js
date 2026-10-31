@@ -181,7 +181,6 @@ export function recommendBandPrice(course, profile) {
   if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min || max > PRICE_LIMIT) {
     return { eligible: false, reason: "The configured price band is invalid." };
   }
-  const current = Number(course.pricing?.price) || 0;
   const modules = Array.isArray(course.modules) ? course.modules : [];
   const lessons = modules.flatMap((module) => Array.isArray(module.lessons) ? module.lessons : []);
   const projectCount = lessons.filter((lesson) => lesson?.type === "project").length;

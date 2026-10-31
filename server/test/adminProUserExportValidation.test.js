@@ -47,7 +47,6 @@ test("selected-user export rejects malformed IDs before querying", async () => {
 
 test("selected-user export rejects missing, short, and oversized audit reasons before querying", async () => {
   let queried = false;
-  const res = responseRecorder();
   await withUserFind(() => { queried = true; throw new Error("should not query"); }, async () => {
     for (const reason of [undefined, "", "too short", "x".repeat(501)]) {
       const invalid = responseRecorder();

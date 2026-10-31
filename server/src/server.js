@@ -57,7 +57,9 @@ app.use(cors({
     if (isAllowedClientOrigin(origin, { nodeEnv: env.nodeEnv, clientUrl: env.clientUrl })) {
       return callback(null, true);
     }
-    return callback(new Error("Origin is not allowed by the BuddyForStudy CORS policy."));
+    const error = new Error("Origin is not allowed by the BuddyForStudy CORS policy.");
+    error.status = 403;
+    return callback(error);
   },
   credentials: false
 }));

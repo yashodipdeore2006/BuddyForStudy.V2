@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 158 / 239 |
+| Verified done | 159 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 62 / 239 |
+| Not checked | 61 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -426,8 +426,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `N/A — no arbitrary URL fetch surface found in current server source` · Evidence: outbound HTTP entrypoint audit found the application fetches only the fixed Google YouTube API host in `youtubeGateway.js`; the endpoint segment is internal and callers use fixed API resource names. Razorpay operations use its fixed-host SDK. User/admin thumbnail and lesson-resource URLs are validated/stored as links and are not fetched by the server. `safeHttpUrl.js` is a parser, not a network client. No URL-to-fetch/proxy/import endpoint or user-controlled request destination was identified in the audited server routes/services. Reopen if server-side URL preview, import, proxy, webhook delivery or arbitrary tool fetching is introduced. · Finding/fix: —
 - [x] **PR-178** exclude sensitive prompts from telemetry.  
   Status: `DONE` · Evidence: `safeTelemetryError()` emits only validated error type/code/status metadata and excludes raw provider messages, prompt text, URLs and stack traces. Removed learner search queries, project/lesson descriptions and raw error messages from AI roadmap, curation, YouTube selection, advanced AI and background quiz log fields. Regression tests verify prompt/secret exclusion and unsafe metadata rejection. Implementation commits: [helper](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/a762a882f754fd435c38686d96a0cb589550820a), [tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1c231c5ae04136431abc6eec2691adcf9d4704d0), [AI log redaction](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1cb8fbc428418014fd0d7d56aaa6de87e1b936cc). Exact code candidate `1cb8fbc428418014fd0d7d56aaa6de87e1b936cc` passed backend and frontend jobs in [CI run 41183298730](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41183298730). · Finding/fix: —
-- [ ] **PR-179** test feature-flag rollback without data loss.  
-  Status: `IN PROGRESS — CI pending` · Evidence: audited `ASYNC_ROADMAP` route switching, selector fallback, combined-search behavior, trusted-channel expansion and compliance-worker gating. Added recovery regression tests verifying expired async drafts are marked failed, partially generated courses are archived private/unpublished, and Course/RoadmapDraft documents are not deleted. Added a rollback runbook: disable the frontend async client first, then the backend route, drain in-flight jobs where possible, and verify retry behavior after lease expiry. Limitation: rollback is not transparent resume for in-flight work; a process restart can fail queued/building drafts safely. Test commits: [recovery test](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/39bec04da6ec0a8b3266ba67454f76dd31f7f9ec), [route/data-preservation contract](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1b3217f6f6ce54df3fe641f787252a1936267528); [rollback runbook](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/bac3d45d31a39be6681b99fbece79b1d28fd9002). Exact test candidate CI [run 41189257798](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41189257798) is pending; do not mark complete until both jobs pass. · Finding/fix: —
+- [x] **PR-179** test feature-flag rollback without data loss.  
+  Status: `DONE` · Evidence: audited `ASYNC_ROADMAP` route switching, selector fallback, combined-search behavior, trusted-channel expansion and compliance-worker gating. Regression tests verify expired async drafts are marked failed, partially generated courses are archived private/unpublished, and Course/RoadmapDraft documents are not deleted; completed drafts/courses remain untouched. Rollback runbook documents frontend-first then backend rollback, draining active builds, lease-expiry recovery and retry expectations. Limitation: rollback does not transparently resume in-flight work; a process restart can fail queued/building drafts safely. Tests: [recovery tests](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/3bdf6c8f58537b9ded2c157285b3ef2504e84bcd). Runbook: [rollback guidance](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/bac3d45d31a39be6681b99fbece79b1d28fd9002). Exact current-main test candidate `3bdf6c8f58537b9ded2c157285b3ef2504e84bcd` passed backend and frontend in [CI run 41189317555](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41189317555). · Finding/fix: —
 
 ### J. UX and accessibility
 
@@ -632,6 +632,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - `docs/BUILD_WITH_AI_V2_ROLLOUT.md` — feature flags, rollout sequence and rollback guidance.
 - `server/src/config/productionConfigValidation.js` and `server/src/scripts/verifyDeployment.js` — production configuration/deployment checks.
 
+
+| 2026-10-31 | Exact candidate `3bdf6c8f58537b9ded2c157285b3ef2504e84bcd` | PR-175–PR-179 verified; PR-177 justified N/A | 159 | 5 | 14 | 61 | [Telemetry privacy CI 41183298730](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41183298730); [feature-flag rollback CI 41189317555](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41189317555) | Prompt injection boundaries, strict AI request validation, justified SSRF N/A, telemetry redaction, and feature-flag rollback/data-preservation regression tests passed backend and frontend CI. Rollback limitation documented: in-flight async roadmap jobs may fail safely after restart and require retry. Release gates remain branch protection, staging/provider verification, account data rights, subscription lifecycle and lint backlog. |
 
 ## Definition of done
 

@@ -36,7 +36,7 @@ jobs:
         run: |
           npm audit fix --package-lock-only --ignore-scripts --no-fund || true
           npm ci
-          npm audit --audit-level=high
+          npm audit --audit-level=moderate
       - name: Generate backend lockfile from manifest
         working-directory: server
         run: |
@@ -50,7 +50,7 @@ jobs:
         run: |
           npm audit fix --package-lock-only --ignore-scripts --no-fund || true
           npm ci
-          npm audit --audit-level=high
+          npm audit --omit=dev --audit-level=moderate
       - name: Verify backend lint and tests
         working-directory: server
         run: |

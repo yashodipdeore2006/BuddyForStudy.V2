@@ -49,6 +49,10 @@ test("deployment verification requires HTTPS API and frontend origins", async ()
     verifyDeployment({ deploymentUrl: "https://localhost:5000", frontendDeploymentUrl: frontendOrigin, fetchImpl: healthyFetcher() }),
     /loopback host/,
   );
+  await assert.rejects(
+    verifyDeployment({ deploymentUrl: "https://api.example.test/base-path", frontendDeploymentUrl: frontendOrigin, fetchImpl: healthyFetcher() }),
+    /must be an HTTPS URL without credentials, query, or fragment/,
+  );
 });
 
 test("deployment verification checks API readiness, CORS, billing, OAuth, and frontend deep links", async () => {

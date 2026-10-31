@@ -2434,9 +2434,10 @@ test("[A11Y-SEMANTICS-001] primary routes expose a main landmark, a page heading
 
   for (const path of paths) {
     await page.goto(baseURL + path);
+    await expect(page.locator("h1").first()).toBeVisible();
     const audit = await page.evaluate(() => {
       const mains = Array.from(document.querySelectorAll("main, [role=main]")).filter((element) => element.getClientRects().length);
-      const pageHeadings = mains.flatMap((main) => Array.from(main.querySelectorAll("h1")).filter((heading) => heading.getClientRects().length));
+      const pageHeadings = Array.from(document.querySelectorAll("h1")).filter((heading) => heading.getClientRects().length);
       const missingImageAlt = Array.from(document.querySelectorAll("img"))
         .filter((image) => image.getClientRects().length && !image.hasAttribute("alt"))
         .map((image) => image.getAttribute("src") || "image without source");

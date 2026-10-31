@@ -1513,7 +1513,6 @@ test.describe("learner control and state regression", () => {
 
     const dialog = page.getByRole("dialog", { name: "Unenroll from this course?" });
     const close = dialog.getByRole("button", { name: "Close dialog" });
-    const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
     await expect(close).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     await expect(dialog.getByRole("button", { name: "Unenroll", exact: true })).toBeFocused();

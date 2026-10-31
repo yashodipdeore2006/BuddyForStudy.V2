@@ -84,6 +84,7 @@ export default function Dashboard() {
   const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [progressLoadError, setProgressLoadError] = useState("");
   const [learningStats, setLearningStats] = useState<DashboardApiStats | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -118,11 +119,14 @@ export default function Dashboard() {
         );
 
         const pMap: Record<string, Progress> = {};
+        const failedProgressCount = entries.filter((entry) => entry === null).length;
+        setProgressLoadError(failedProgressCount ? `Progress for ${failedProgressCount} course${failedProgressCount === 1 ? "" : "s"} could not be loaded. Dashboard progress totals may be incomplete.` : "");
         entries.forEach((entry) => {
           if (entry) pMap[entry[0]] = entry[1];
         });
         setProgressMap(pMap);
       } catch (error) {
+        setProgressLoadError("");
         console.error('Failed to load dashboard:', error);
         setLoadError(error instanceof Error ? error.message : "Unable to load your dashboard. Please try again.");
       } finally {
@@ -167,6 +171,7 @@ export default function Dashboard() {
         <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-white">
           <div className="border-b border-slate-100 p-6"><div className="flex items-end justify-between gap-4"><div><p className="bfs-eyebrow">Momentum</p><h2 className="mt-2 text-2xl font-medium tracking-tight text-slate-950">Continue learning</h2></div><Link to={routes.myLearning()} className="hidden items-center gap-1 text-sm font-bold text-blue-600 sm:inline-flex">See all <ArrowRight className="h-4 w-4"/></Link></div></div>
           <div className="p-4 sm:p-6">
+            {progressLoadError && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><span>{progressLoadError}</span><button type="button" className="font-semibold underline underline-offset-2" onClick={() => void fetchData()}>Refresh progress</button></div>}
             {continueLearning.length===0?<EmptyState icon={<GraduationCap className="h-8 w-8"/>} title="No courses in progress" description="Enroll in a course to start your learning journey." action={<Link to={routes.explore()} className="btn-primary">Explore</Link>}/>:<div className="space-y-3">{continueLearning.slice(0,3).map(enr=>{const prog=progressMap[enr.course_id];return <div key={enr.id} className="group rounded-[24px] border border-slate-200 bg-white p-5 transition-colors hover:bg-slate-50"><div className="flex items-center gap-4"><div className="hidden h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-slate-100 sm:flex"><BookOpen className="h-6 w-6 text-slate-950"/></div><div className="min-w-0 flex-1"><h3 className="truncate font-bold text-slate-900">{enr.course?.title}</h3><p className="mt-1 text-xs text-slate-500">{prog?.completed_count||0} lessons completed</p><div className="mt-3 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{width:`${prog?.percentage||0}%`}}/></div><span className="text-xs font-bold text-slate-600">{prog?.percentage||0}%</span></div></div><Link to={routes.learn(enr.course_id)} className="btn-primary hidden flex-shrink-0 sm:inline-flex"><Play className="h-4 w-4"/>Continue</Link></div></div>})}</div>}
           </div>
         </section>

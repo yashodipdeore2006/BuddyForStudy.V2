@@ -103,3 +103,16 @@ test("expired lease recovery leaves completed drafts and courses untouched", asy
   assert.equal(courseUpdates, 0);
   assert.equal(leaseDeleted, 1);
 });
+
+test("disabling ASYNC_ROADMAP restores the synchronous route without deleting persisted roadmap data", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const routes = await readFile(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
+  const admission = await readFile(new URL("../src/services/roadmapAdmission.service.js", import.meta.url), "utf8");
+  assert.match(routes, /if \(env\.asyncRoadmap\) \{[\s\S]*?router\.post\("\/roadmap\/draft"/);
+  assert.match(routes, /\} else \{\s*router\.post\("\/roadmap",[^\n]*generateRoadmap\);\s*\}/);
+  assert.match(admission, /status: \{ \$in: \["queued", "building"\] \}/);
+  assert.match(admission, /status: "failed",[\s\S]*?errorCode: "ROADMAP_ADMISSION_LEASE_EXPIRED"/);
+  assert.match(admission, /status: "archived", isPublished: false, visibility: "private"/);
+  assert.doesNotMatch(routes, /deleteMany|findOneAndDelete|deleteOne/);
+  assert.doesNotMatch(admission, /CourseModel\.deleteMany|CourseModel\.findOneAndDelete|DraftModel\.deleteMany|DraftModel\.findOneAndDelete/);
+});

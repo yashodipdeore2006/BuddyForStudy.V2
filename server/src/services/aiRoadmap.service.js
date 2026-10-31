@@ -815,7 +815,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       title: "Final Capstone Projects",
       description: "Build portfolio-grade projects that combine the technologies learned across the roadmap.",
       skillIds: activeSkills.map((skill) => skill.id),
-      order: globalOrder++,
+      order: modules.length + 1,
       lessons: capstoneLessons
     });
   }

@@ -1,0 +1,75 @@
+name: Generate dependency remediation candidates
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/dependency-remediation-candidates.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply non-breaking frontend audit updates to lockfile
+        continue-on-error: true
+        run: |
+          npm ci
+          npm audit fix --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1 || true
+          npm audit --audit-level=high > /tmp/frontend-audit.log 2>&1 || true
+          cat /tmp/frontend-audit-fix.log
+          cat /tmp/frontend-audit.log
+          npm ci --ignore-scripts
+      - name: Upload frontend dependency candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dependency-candidate
+          path: |
+            package-lock.json
+            /tmp/frontend-audit-fix.log
+            /tmp/frontend-audit.log
+          if-no-files-found: error
+          retention-days: 2
+
+  backend-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Apply non-breaking backend audit updates to lockfile
+        working-directory: server
+        continue-on-error: true
+        run: |
+          npm ci
+          npm audit fix --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1 || true
+          npm audit --audit-level=high > /tmp/backend-audit.log 2>&1 || true
+          cat /tmp/backend-audit-fix.log
+          cat /tmp/backend-audit.log
+          npm ci --ignore-scripts
+      - name: Upload backend dependency candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dependency-candidate
+          path: |
+            server/package-lock.json
+            /tmp/backend-audit-fix.log
+            /tmp/backend-audit.log
+          if-no-files-found: error
+          retention-days: 2

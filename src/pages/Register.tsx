@@ -88,10 +88,11 @@ export default function Register() {
         )}
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Full Name</label>
+          <label htmlFor="register-name" className="mb-1.5 block text-sm font-medium text-slate-700">Full Name</label>
           <div className="relative">
             <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="register-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -104,10 +105,11 @@ export default function Register() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+          <label htmlFor="register-email" className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="register-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -120,10 +122,11 @@ export default function Register() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
+          <label htmlFor="register-password" className="mb-1.5 block text-sm font-medium text-slate-700">Password</label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="register-password"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -144,12 +147,13 @@ export default function Register() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label htmlFor="register-confirm-password" className="mb-1.5 block text-sm font-medium text-slate-700">
             Confirm Password
           </label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
+              id="register-confirm-password"
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

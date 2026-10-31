@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { User } from "../models/User.js";
 import { SubscriptionPlan } from "../models/SubscriptionPlan.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { TrialGrant } from "../models/TrialGrant.js";

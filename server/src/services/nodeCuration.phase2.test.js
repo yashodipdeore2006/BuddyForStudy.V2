@@ -33,7 +33,6 @@ before(async () => {
     return { acknowledged: true };
   };
 
-  const engine = await import("./courseCurationDecisionEngine.service.js");
   const nodeModule = await import("./nodeCuration.service.js");
   curateForNode = nodeModule.curateForNode;
   hooks = nodeModule.__nodeCurationTestHooks;

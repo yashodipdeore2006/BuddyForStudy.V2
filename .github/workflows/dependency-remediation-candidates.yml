@@ -25,7 +25,8 @@ jobs:
       - name: Apply non-breaking frontend audit updates to lockfile
         continue-on-error: true
         run: |
-          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1 || true
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1
           npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/frontend-audit-fix.log 2>&1 || true
           npm audit --audit-level=high > /tmp/frontend-audit.log 2>&1 || true
           cat /tmp/frontend-audit-fix.log
@@ -58,7 +59,8 @@ jobs:
         working-directory: server
         continue-on-error: true
         run: |
-          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1 || true
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1
           npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/backend-audit-fix.log 2>&1 || true
           npm audit --audit-level=high > /tmp/backend-audit.log 2>&1 || true
           cat /tmp/backend-audit-fix.log

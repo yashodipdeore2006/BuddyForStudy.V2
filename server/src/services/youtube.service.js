@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { safeTelemetryError } from "../utils/safeTelemetryError.js";
 import { youtubeRequest } from "./youtubeGateway.js";
 import { QuotaBudgetError } from "./quota.service.js";
 import { curateForNode } from "./nodeCuration.service.js";
@@ -232,7 +233,7 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
       const data = await (selectorTestAdapters?.searchVideos || searchVideos)(query, boundedMaxResults);
       items.push(...(data?.items || []));
     } catch (error) {
-      console.error("YouTube course search failed", { skill, query, message: error.message });
+      console.error("YouTube course search failed", safeTelemetryError(error));
     }
   }
 
@@ -308,7 +309,7 @@ async function searchRecentCreatorUploads(channelIds, knownVideoIds, maxUploadsP
         .map((item) => item.contentDetails?.videoId)
         .filter(Boolean);
     } catch (error) {
-      console.warn("YouTube creator upload expansion failed", { channelId: channel.channelId, message: error?.message || error });
+      console.warn("YouTube creator upload expansion failed", safeTelemetryError(error));
       return [];
     }
   }));
@@ -340,7 +341,7 @@ export async function searchYouTubeCurationCandidates(searchQueries, maxResultsP
       const data = await searchVideos(query, boundedResults, searchOptions);
       return { query, items: data?.items || [] };
     } catch (error) {
-      console.error("YouTube curation candidate search failed", { query, message: error?.message || error });
+      console.error("YouTube curation candidate search failed", safeTelemetryError(error));
       return { query, items: [] };
     }
   }));
@@ -460,9 +461,7 @@ async function attachProjectYouTubeVideos(project) {
       items.push(...(data?.items || []));
     } catch (error) {
       console.error("YouTube project tutorial search failed", {
-        project: project.title || project.description,
-        query,
-        message: error.message
+        ...safeTelemetryError(error)
       });
     }
   }
@@ -563,7 +562,7 @@ export async function attachYouTubeResources(course, options = {}) {
           }
           console.info("AI node curation fallback", { skillId: group.skill.canonicalSkillId, state: result.meta?.state || "empty", cacheHit: result.meta?.cacheHit || false, searchCalls: result.meta?.searchCalls || 0, quotaUnits: result.meta?.quotaUnits || 0 });
         } catch (error) {
-          console.warn("AI node curation failed; using legacy selector", { skillId: group.skill.canonicalSkillId, message: error?.message || String(error) });
+          console.warn("AI node curation failed; using legacy selector", safeTelemetryError(error));
         }
       }
 
@@ -578,7 +577,7 @@ export async function attachYouTubeResources(course, options = {}) {
           requiredTopics: group.skill.topics
         }
       }).catch((error) => {
-        console.warn("Legacy AI node selector failed", { skillId: group.skill.canonicalSkillId, message: error?.message || String(error) });
+        console.warn("Legacy AI node selector failed", safeTelemetryError(error));
         return null;
       });
       selectedGroups[index] = { group, selected: legacy ? {
@@ -688,7 +687,7 @@ export async function attachYouTubeResources(course, options = {}) {
       lesson.project.resources = ranked.map((video) => video.url);
       if (ranked.length) allSources.push(...ranked);
     } catch (error) {
-      console.error("YouTube project resource attachment failed", { project: lesson.title, message: error instanceof Error ? error.message : String(error) });
+      console.error("YouTube project resource attachment failed", safeTelemetryError(error));
       lesson.project.videos = [];
     }
   }

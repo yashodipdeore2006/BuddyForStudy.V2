@@ -526,7 +526,7 @@ test.describe("canonical learner navigation", () => {
 
   test("legacy Saved route redirects signed-in learners to Saved", async ({ page }) => {
     await mockAppApi(page, { authenticated: true });
-    await page.goto(baseURL + "/saved-courses");
+    await page.goto(baseURL + "/saved");
     await expect(page).toHaveURL(/\/saved$/);
   });
 
@@ -2184,23 +2184,26 @@ test.describe("session recovery", () => {
 
 
 test.describe("route loading and recoverable failure states", () => {
-  test("[ROUTE-DASHBOARD-ERROR-RETRY-001] dashboard API failure is not presented as empty learning data", async ({ page }) => {
-    let attempts = 0;
+  test("[ROUTE-HOME-ERROR-RETRY-001] Home shows a recoverable fatal state when every primary source fails", async ({ page }) => {
+    let failedRequests = 0;
     await mockAppApi(page, { authenticated: true });
-    await page.route("**/api/enrollments", async (route) => {
-      attempts += 1;
-      if (attempts === 1) return json(route, { message: "Enrollment service unavailable" }, 503);
-      return json(route, { enrollments: [] });
+    await page.route("**/api/**", async (route) => {
+      const pathname = new URL(route.request().url()).pathname;
+      if (["/api/enrollments", "/api/courses", "/api/achievements/me"].includes(pathname) && failedRequests < 3) {
+        failedRequests += 1;
+        return json(route, { message: "Learning service unavailable" }, 503);
+      }
+      return route.continue();
     });
 
     await page.goto(baseURL + "/home");
-    await expect(page.getByRole("heading", { name: "Couldn’t load your dashboard" })).toBeVisible();
-    await expect(page.getByRole("alert")).toContainText("Enrollment service unavailable");
-    await expect(page.getByText("No courses in progress")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Your Home didn’t load" })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("We couldn’t load your learning home");
+    await expect(page.getByText("No course in progress yet")).toHaveCount(0);
 
     await page.getByRole("button", { name: /retry/i }).click();
-    await expect(page.getByRole("heading", { name: "Welcome back, Learner." })).toBeVisible();
-    expect(attempts).toBe(2);
+    await expect(page.getByRole("heading", { name: "Welcome back, Learner" })).toBeVisible();
+    expect(failedRequests).toBe(3);
   });
 
   test("[ROUTE-SAVED-COURSES-ERROR-RETRY-001] saved courses API failure has a retry state distinct from no saved courses", async ({ page }) => {

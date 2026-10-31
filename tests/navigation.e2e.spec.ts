@@ -2223,3 +2223,23 @@ test.describe("route loading and recoverable failure states", () => {
     expect(attempts).toBe(2);
   });
 });
+
+
+test("[ROUTE-BILLING-ERROR-RETRY-001] billing failure never renders empty transaction totals as a successful response", async ({ page }) => {
+  let attempts = 0;
+  await mockAppApi(page, { authenticated: true });
+  await page.route("**/api/billing/payments", async (route) => {
+    attempts += 1;
+    if (attempts === 1) return json(route, { message: "Billing service unavailable" }, 503);
+    return json(route, { payments: [] });
+  });
+
+  await page.goto(baseURL + "/billing");
+  await expect(page.getByRole("heading", { name: "Couldn’t load billing information" })).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("Billing service unavailable");
+  await expect(page.getByText("No transactions yet")).toHaveCount(0);
+
+  await page.getByRole("button", { name: /try again/i }).click();
+  await expect(page.getByRole("heading", { name: "Billing & transactions" })).toBeVisible();
+  expect(attempts).toBe(2);
+});

@@ -102,7 +102,8 @@ async function changeActiveVersion(req, feature, version, reason) {
 export async function listPromptVersions(req, res, next) {
   try {
     const prompts = await Promise.all(AI_PROMPT_FEATURE_KEYS.map(async (feature) => {
-        const [activePrompt, versions] = await Promise.all([
+      const definition = AI_PROMPT_FEATURES[feature];
+      const [activePrompt, versions] = await Promise.all([
         getActiveAIPrompt(feature),
         AIPromptVersion.find({ feature })
           .select("feature version name contentHash notes createdBy createdAt updatedAt")

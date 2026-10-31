@@ -788,7 +788,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       title: skill.name,
       description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after prerequisites.`,
       skillIds: [skill.id],
-      order: globalOrder++,
+      order: globalOrder,
       lessons: moduleLessons
     });
   }
@@ -863,11 +863,13 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       verifiedSyllabusUnits = [];
     }
   }
-  let goalModule = null;
-  if (goal === "job_ready") goalModule = buildInterviewModule(goalProfile);
-  else if (goal === "exam") goalModule = buildExamModules(goalProfile, { syllabusUnits: verifiedSyllabusUnits });
-  else if (goal === "project") goalModule = buildProjectModule(goalProfile);
-  else goalModule = buildLearnModule(goalProfile, activeSkills);
+  const goalModule = goal === "job_ready"
+    ? buildInterviewModule(goalProfile)
+    : goal === "exam"
+      ? buildExamModules(goalProfile, { syllabusUnits: verifiedSyllabusUnits })
+      : goal === "project"
+        ? buildProjectModule(goalProfile)
+        : buildLearnModule(goalProfile, activeSkills);
   if (goalModule) {
     goalModule.order = modules.length + 1;
     modules.push(goalModule);

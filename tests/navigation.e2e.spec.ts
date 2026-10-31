@@ -2198,7 +2198,7 @@ test.describe("route loading and recoverable failure states", () => {
     await expect(page.getByRole("alert")).toContainText("Enrollment service unavailable");
     await expect(page.getByText("No courses in progress")).toHaveCount(0);
 
-    await page.getByRole("button", { name: /try again/i }).click();
+    await page.getByRole("button", { name: /retry/i }).click();
     await expect(page.getByRole("heading", { name: "Welcome back, Learner." })).toBeVisible();
     expect(attempts).toBe(2);
   });
@@ -2218,7 +2218,7 @@ test.describe("route loading and recoverable failure states", () => {
     await expect(page.getByRole("alert")).toContainText("Saved courses service unavailable");
     await expect(page.getByRole("heading", { name: "No saved courses" })).toHaveCount(0);
 
-    await page.getByRole("button", { name: /try again/i }).click();
+    await page.getByRole("button", { name: /retry/i }).click();
     await expect(page.getByRole("heading", { name: "No saved courses" })).toBeVisible();
     expect(attempts).toBe(2);
   });
@@ -2239,7 +2239,7 @@ test("[ROUTE-BILLING-ERROR-RETRY-001] billing failure never renders empty transa
   await expect(page.getByRole("alert")).toContainText("Billing service unavailable");
   await expect(page.getByText("No transactions yet")).toHaveCount(0);
 
-  await page.getByRole("button", { name: /try again/i }).click();
+  await page.getByRole("button", { name: /retry/i }).click();
   await expect(page.getByRole("heading", { name: "Billing & transactions" })).toBeVisible();
   expect(attempts).toBe(2);
 });

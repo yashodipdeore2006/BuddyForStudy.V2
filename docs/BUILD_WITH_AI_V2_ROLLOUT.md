@@ -61,6 +61,33 @@ Enable one stage at a time. Run tests and one controlled manual roadmap after ea
 4. Hold each stage long enough to capture representative traffic and compare with the baseline. If traffic is too low to establish a reliable rate, label the metric inconclusive instead of treating zero events as success.
 5. Roll back the last flag change first if quota, fallback rate, latency, node failure, or user-visible behavior regresses. Keep the legacy selector available through the observation window.
 
+
+## Rollback behavior and data preservation
+
+The rollback controls change application behavior; they are not data migrations and must not be used as a database cleanup mechanism.
+
+- `USE_CURATION_ENGINE_FOR_AI=false` returns Build with AI node selection to the legacy selector. It does not delete curated resources or course records.
+- `YT_COMBINED_SEARCH=false` restores video-only YouTube search requests. Existing course resources and cache entries are not deleted by this switch.
+- `ENABLE_TRUSTED_CHANNELS=false` disables trusted-channel expansion. It does not remove stored channel/resource metadata.
+- `ENABLE_CURATION_COMPLIANCE_WORKERS=false` stops the nightly refresh/prior-rebuild job from starting. Previously persisted resource and skill-prior records remain in storage.
+- `INTENT_V2=false` and `VITE_INTENT_V2=false` restore the legacy intent/question experience; coordinate the frontend rebuild with the server deployment.
+- `ASYNC_ROADMAP=false` removes the async draft/events/cancel/poll routes and restores the synchronous `POST /api/ai/roadmap` handler. Existing draft/course documents are not deleted by route registration.
+
+### Safe rollback order for async roadmap
+
+1. Stop new async client submissions first: set `VITE_ASYNC_ROADMAP=false` and deploy the frontend. Verify the client uses the synchronous roadmap request.
+2. Stop admitting new async drafts: set `ASYNC_ROADMAP=false` and deploy the backend. Confirm `POST /api/ai/roadmap` responds through the synchronous handler.
+3. Before restarting or scaling down the old backend process, inspect active `RoadmapDraft` records in `queued` or `building` state and allow active builds to drain where possible.
+4. If a process exits while holding an admission lease, the lease expires after the configured two-minute lease window. `recoverExpiredRoadmapAdmissions` marks the matching queued/building draft failed with `ROADMAP_ADMISSION_LEASE_EXPIRED`, clears its draft result/reference, and archives any partially generated course as private/unpublished. It does not delete the `Course` or `RoadmapDraft` document. The learner must retry the failed build.
+5. Verify completed courses remain available, partial courses are archived/private, failed drafts are retryable, and no duplicate active lease remains. Do not manually delete draft/course records as part of rollback.
+
+### Rollback limitations
+
+- This is not a zero-interruption rollback for in-flight async builds. A process restart can cause queued/building drafts to fail safely; it does not transparently resume generation.
+- The frontend and backend flags are separate build/runtime settings. A mismatched deployment can cause async API 404s or a client/server flow mismatch; follow the order above.
+- Feature-flag changes require a deployment/restart to take effect because server flags are read from environment at startup.
+- `AI_PRIVATE_COURSES_SKIP_REVIEW` is not approved as a routine rollout toggle. Keep it off until its exact consumer and private-only behavior are separately verified.
+
 ## Metrics and alert conditions
 
 Track these for every stage, ideally by roadmap and node:

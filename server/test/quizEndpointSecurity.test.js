@@ -57,7 +57,7 @@ test("course quiz submission validates answer payload shape and completeness bef
   const start = aiController.indexOf("export async function submitCourseQuiz");
   assert.ok(start >= 0, "Course quiz submission handler must exist");
   const handler = aiController.slice(start);
-  assert.ok(handler.includes("answers: z.record(z.string(), z.string()).default({})"));
+  assert.match(handler, /answers: z\.record\(z\.string\(\)\.max\(100\), z\.string\(\)\.max\(100\)\)\.default\(\{\}\)/);
   assert.ok(handler.includes("Object.keys(input.answers).length > 200"));
   const validation = handler.indexOf("normalizeQuizAnswers(questions, input.answers)");
   const invalidAnswerResponse = handler.indexOf("Answer every question using one of its available options before submitting.");

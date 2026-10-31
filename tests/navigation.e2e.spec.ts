@@ -1509,7 +1509,8 @@ test.describe("learner control and state regression", () => {
     const card = page.locator('[data-course-status="not-started"]');
     const actions = card.locator('summary[aria-label="Course actions for Unenroll Focus Course"]');
     await actions.click();
-    await card.getByRole("button", { name: "Unenroll", exact: true }).click();
+    const unenrollTrigger = card.getByRole("button", { name: "Unenroll", exact: true });
+    await unenrollTrigger.click();
 
     const dialog = page.getByRole("dialog", { name: "Unenroll from this course?" });
     const close = dialog.getByRole("button", { name: "Close dialog" });

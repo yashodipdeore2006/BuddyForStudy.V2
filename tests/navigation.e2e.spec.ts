@@ -2310,3 +2310,42 @@ test.describe("interactive control accessibility smoke audit", () => {
     expect(violations, violations.join("\\n")).toEqual([]);
   });
 });
+
+
+test.describe("form accessibility smoke audit", () => {
+  test("[A11Y-FORM-LABELS-001] visible form controls have programmatic labels on authentication and account routes", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    const paths = ["/login", "/register", "/forgot-password", "/profile", "/settings"];
+    const violations: string[] = [];
+
+    for (const path of paths) {
+      await page.goto(baseURL + path);
+      const fields = await page.locator("input:not([type=hidden]), select, textarea").evaluateAll((elements) => elements
+        .filter((element) => {
+          const node = element as HTMLElement;
+          return Boolean(node.getClientRects().length) && !(node as HTMLInputElement).disabled;
+        })
+        .map((element) => {
+          const node = element as HTMLInputElement;
+          const labelledBy = node.getAttribute("aria-labelledby");
+          const labelledText = labelledBy
+            ? labelledBy.split(/\\s+/).map((id) => document.getElementById(id)?.textContent || "").join(" ")
+            : "";
+          const wrappingLabel = node.closest("label")?.textContent || "";
+          const explicitLabels = Array.from(node.labels || []).map((label) => label.textContent || "").join(" ");
+          return {
+            name: node.getAttribute("aria-label") || labelledText || explicitLabels || wrappingLabel,
+            type: node.type || node.tagName.toLowerCase(),
+            required: node.required,
+            placeholder: node.placeholder || "",
+          };
+        }));
+
+      for (const field of fields) {
+        if (!field.name.trim()) violations.push(path + ": " + field.type + " has no programmatic label (placeholder: " + field.placeholder + ")");
+      }
+    }
+
+    expect(violations, violations.join("\\n")).toEqual([]);
+  });
+});

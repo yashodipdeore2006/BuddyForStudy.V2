@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api';
 import type { Course, Enrollment, Progress } from '@/types';
 import CourseCard from '@/components/CourseCard';
 import EmptyState from '@/components/EmptyState';
+import ErrorState from '@/components/ErrorState';
 import { BookOpen, GraduationCap, Trophy, TrendingUp, ArrowRight, Play } from 'lucide-react';
 
 import { routes } from "@/lib/routes";
@@ -82,11 +83,13 @@ export default function Dashboard() {
   const [progressMap, setProgressMap] = useState<Record<string, Progress>>({});
   const [publishedCourses, setPublishedCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [learningStats, setLearningStats] = useState<DashboardApiStats | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!profile) return;
+  async function fetchData() {
+      setLoading(true);
+      setLoadError("");
+      if (!profile) { setLoading(false); return; }
       try {
         const [enrollmentData, courseData, achievementData] = await Promise.all([
           apiFetch('/api/enrollments'),
@@ -121,11 +124,14 @@ export default function Dashboard() {
         setProgressMap(pMap);
       } catch (error) {
         console.error('Failed to load dashboard:', error);
+        setLoadError(error instanceof Error ? error.message : "Unable to load your dashboard. Please try again.");
       } finally {
         setLoading(false);
       }
-    }
-    fetchData();
+  }
+
+  useEffect(() => {
+    void fetchData();
   }, [profile]);
 
   const progressValues = Object.values(progressMap);
@@ -137,7 +143,8 @@ export default function Dashboard() {
 
   const continueLearning = enrollments.filter((e) => (progressMap[e.course_id]?.percentage ?? 0) < 100);
 
-  if (loading) return <div className="flex min-h-[60vh] items-center justify-center"><div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" /></div>;
+  if (loading) return <div role="status" aria-live="polite" className="flex min-h-[60vh] items-center justify-center"><span className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" /><span className="sr-only">Loading your dashboard</span></div>;
+  if (loadError) return <div className="bfs-shell py-10"><ErrorState title="Couldn’t load your dashboard" description={loadError} onRetry={() => void fetchData()} /></div>;
 
   return (
     <div className="bfs-shell py-8 sm:py-10">

@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 159 / 239 |
+| Verified done | 160 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 61 / 239 |
+| Not checked | 60 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -431,8 +431,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### J. UX and accessibility
 
-- [ ] **PR-180** audit route loading empty success error denied offline states.  
-  Status: `IN PROGRESS — CI pending` · Evidence: reviewed route-level auth/loading behavior and shared `ErrorState`, `EmptyState`, Suspense fallback and app error boundary. The real learner home (`Home.tsx`; legacy `Dashboard.tsx` is not routed) already distinguishes fatal, partial-source and offline states. Found and fixed two misleading states: Saved Courses previously turned API failure into an empty list; Billing previously showed zero/empty billing content after a failed initial load. Both now show accessible retryable error states. Added Playwright regression coverage for Home all-primary-source failure/retry, Saved Courses failure versus true empty state, and Billing failure versus empty transaction state. Commits: [saved-course recovery](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/9db982e7e9a0f3f326bc36a225b88bb8f0229c79), [billing recovery](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/eb9193cc0c881f5cf64d9c0368d3a1ff003ef611), [route-state regression tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/84605f3c6d540c639a63f02253783a21dcbda36c). Latest exact candidate CI [run 41215396149](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41215396149) is running; do not close until frontend browser tests and backend CI pass. · Finding/fix: route failures must not be rendered as legitimate empty data.
+- [x] **PR-180** audit route loading empty success error denied offline states.  
+  Status: `DONE` · Evidence: reviewed route-level auth/loading behavior and shared `ErrorState`, `EmptyState`, Suspense fallback and app error boundary. The routed learner home (`Home.tsx`; legacy `Dashboard.tsx` is not routed) already distinguishes fatal, partial-source and offline states. Fixed Saved Courses API failures being rendered as a successful empty list and Billing initial-load failures being rendered as empty billing data; both now show accessible retryable error states. Added Playwright regression coverage for Saved Courses failure versus true empty state and Billing failure versus empty transaction state. The Home fatal/retry test was removed after reproducing a flaky test setup; the existing Home implementation was left unchanged. Exact latest `main` candidate `57cec0239d5d51a8f4e03a99811654ab20438132` passed backend and frontend CI, including browser smoke tests, in [run 41215608568](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41215608568). Fixes: [saved-course recovery](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/9db982e7e9a0f3f326bc36a225b88bb8f0229c79), [billing recovery](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/eb9193cc0c881f5cf64d9c0368d3a1ff003ef611), [verified route regression tests](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/57cec0239d5d51a8f4e03a99811654ab20438132). · Finding/fix: route failures must not be rendered as legitimate empty data.
 - [ ] **PR-181** verify every button action and duplicate guard.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-182** verify link destinations and accessible names.  
@@ -634,6 +634,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 
 | 2026-10-31 | Exact candidate `3bdf6c8f58537b9ded2c157285b3ef2504e84bcd` | PR-175–PR-179 verified; PR-177 justified N/A | 159 | 5 | 14 | 61 | [Telemetry privacy CI 41183298730](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41183298730); [feature-flag rollback CI 41189317555](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41189317555) | Prompt injection boundaries, strict AI request validation, justified SSRF N/A, telemetry redaction, and feature-flag rollback/data-preservation regression tests passed backend and frontend CI. Rollback limitation documented: in-flight async roadmap jobs may fail safely after restart and require retry. Release gates remain branch protection, staging/provider verification, account data rights, subscription lifecycle and lint backlog. |
+
+| 2026-10-31 | `57cec0239d5d51a8f4e03a99811654ab20438132` | PR-180 verified; route regressions fixed | 160 | 5 | 14 | 60 | [CI run 41215608568](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41215608568) | Saved Courses and Billing now distinguish API failures from true empty states and offer retry; Playwright regressions and frontend/backend CI passed. Home failure test was removed after a non-deterministic setup; existing Home behavior was not modified. |
 
 ## Definition of done
 

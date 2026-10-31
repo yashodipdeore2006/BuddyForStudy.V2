@@ -51,6 +51,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const lastGPressed = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -102,6 +103,11 @@ export default function Navbar() {
     setMenuOpen(false);
     closeOverlay();
   }, [location.pathname, closeOverlay]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [menuOpen]);
 
   useEffect(() => {
     const match = location.pathname.match(/^\/courses\/([^/]+)\/?$/);
@@ -187,7 +193,24 @@ export default function Navbar() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setMenuOpen(false);
+        if (menuOpen) {
+          event.preventDefault();
+          setMenuOpen(false);
+          accountTriggerRef.current?.focus();
+        }
+        return;
+      }
+      if (menuOpen && menuRef.current?.contains(event.target as Node) && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        const items = Array.from(menuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'));
+        if (items.length) {
+          const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+          const nextIndex = event.key === "Home" ? 0
+            : event.key === "End" ? items.length - 1
+              : event.key === "ArrowDown" ? (currentIndex + 1 + items.length) % items.length
+                : (currentIndex - 1 + items.length) % items.length;
+          event.preventDefault();
+          items[nextIndex]?.focus();
+        }
         return;
       }
       if (paletteOpen || shortcutsOpen) return;
@@ -279,7 +302,7 @@ export default function Navbar() {
             {profile && !isAdmin && <NotificationMenu />}
             {profile ? (
               <div className="bfs-avatar-menu" ref={menuRef}>
-                <button type="button" className={menuOpen ? "bfs-avatar-trigger bfs-avatar-trigger--open" : "bfs-avatar-trigger"} onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label={"Open account menu for " + avatarName}>
+                <button ref={accountTriggerRef} type="button" className={menuOpen ? "bfs-avatar-trigger bfs-avatar-trigger--open" : "bfs-avatar-trigger"} onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-haspopup="menu" aria-label={"Open account menu for " + avatarName}>
                   <span className="bfs-avatar">{avatarInitial}</span>
                   <span className="bfs-avatar-trigger__name">{avatarName}</span>
                 </button>

@@ -6,8 +6,6 @@ const originalEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
 let curateForNode;
 let hooks;
 let setSelector;
-let curateNormalSearch;
-let calls = [];
 let cacheRows = new Map();
 let originalFindOne;
 let originalUpdateOne;
@@ -36,7 +34,6 @@ before(async () => {
   };
 
   const engine = await import("./courseCurationDecisionEngine.service.js");
-  curateNormalSearch = engine.curateNormalSearch;
   const nodeModule = await import("./nodeCuration.service.js");
   curateForNode = nodeModule.curateForNode;
   hooks = nodeModule.__nodeCurationTestHooks;
@@ -72,7 +69,6 @@ test("roadmap syllabus injection builds equal-weight modules without calling Gem
 
 test("node cache is isolated from normal search and a second call uses zero search quota", async () => {
   cacheRows.clear();
-  calls = [];
   let selectorCalls = 0;
   let observedOptions;
   setSelector(async (query, options) => {

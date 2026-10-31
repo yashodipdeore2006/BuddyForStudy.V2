@@ -18,10 +18,11 @@ test("expired async roadmap lease preserves records and archives only a partial 
     admissionLeaseToken: lease.leaseToken
   };
   const calls = [];
+  let pendingLease = lease;
   const LeaseModel = {
     findOne(filter) {
       assert.deepEqual(filter, { expiresAt: { $lte: now } });
-      return { sort: async () => lease };
+      return { sort: async () => { const next = pendingLease; pendingLease = null; return next; } };
     },
     async deleteOne(filter) {
       calls.push(["lease.deleteOne", filter]);
@@ -79,13 +80,14 @@ test("expired lease recovery leaves completed drafts and courses untouched", asy
   let draftUpdates = 0;
   let courseUpdates = 0;
   let leaseDeleted = 0;
+  let pendingLease = {
+    _id: "lease-ready",
+    draftId: "draft-ready",
+    userId: "user-1",
+    leaseToken: "token-ready"
+  };
   const LeaseModel = {
-    findOne: () => ({ sort: async () => ({
-      _id: "lease-ready",
-      draftId: "draft-ready",
-      userId: "user-1",
-      leaseToken: "token-ready"
-    }) }),
+    findOne: () => ({ sort: async () => { const next = pendingLease; pendingLease = null; return next; } }),
     deleteOne: async () => { leaseDeleted += 1; return { deletedCount: 1 }; }
   };
   const DraftModel = {

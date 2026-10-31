@@ -39,12 +39,14 @@ import adminPricingRoutes from "./routes/adminPricing.routes.js";
 import adminTrialsRoutes from "./routes/adminTrials.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { safeRequestLog } from "./utils/safeRequestLog.js";
+import { requestId } from "./middleware/requestId.js";
 import { notFound, errorHandler } from "./middleware/error.js";
 import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
 
 const app = express();
 // Configure the exact trusted proxy hop count for the deployment; avoid blanket trust.
 app.set("trust proxy", env.trustProxyHops);
+app.use(requestId);
 const paymentLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false, store: new MongoRateLimitStore("payments"), message: { success: false, message: "Too many payment requests. Please try again later." } });
 const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, store: new MongoRateLimitStore("webhooks") });
 

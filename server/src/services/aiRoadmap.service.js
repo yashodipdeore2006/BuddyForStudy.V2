@@ -788,7 +788,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       title: skill.name,
       description: `AI-selected ${skill.name} stage for a ${level} learner, ordered after prerequisites.`,
       skillIds: [skill.id],
-      order: globalOrder,
+      order: globalOrder++,
       lessons: moduleLessons
     });
   }

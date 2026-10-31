@@ -96,7 +96,7 @@ test("CORS allows only the configured frontend origin", { skip: !canRun }, async
     headers: { Origin: "https://untrusted.example" },
   });
   assert.equal(blocked.headers.get("access-control-allow-origin"), null);
-  assert.equal(blocked.status, 500);
+  assert.equal(blocked.status, 403);
 });
 
 test("JSON request bodies above 1 MB are rejected before route handling", { skip: !canRun }, async () => {

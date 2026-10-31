@@ -284,6 +284,7 @@ export default function MyCourses() {
   const [pendingUnenroll, setPendingUnenroll] = useState<LearningEnrollment | null>(null);
   const unenrollDialogRef = useRef<HTMLElement | null>(null);
   const unenrollTriggerRef = useRef<HTMLElement | null>(null);
+  const unenrollDialogWasOpenRef = useRef(false);
   const [unenrolling, setUnenrolling] = useState(false);
   const [actionError, setActionError] = useState("");
   const [undoEnrollment, setUndoEnrollment] = useState<LearningEnrollment | null>(null);
@@ -367,6 +368,8 @@ export default function MyCourses() {
 
   useEffect(() => {
     if (!pendingUnenroll) {
+      if (!unenrollDialogWasOpenRef.current) return;
+      unenrollDialogWasOpenRef.current = false;
       const trigger = unenrollTriggerRef.current;
       if (trigger?.isConnected && trigger.getClientRects().length && !trigger.hasAttribute("disabled")) {
         trigger.focus();
@@ -377,6 +380,7 @@ export default function MyCourses() {
       return;
     }
 
+    unenrollDialogWasOpenRef.current = true;
     const dialog = unenrollDialogRef.current;
     const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const focusFirst = () => {

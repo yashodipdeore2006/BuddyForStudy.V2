@@ -7,7 +7,6 @@ const originalFetch = globalThis.fetch;
 let quota;
 let gateway;
 let quotaUnits = 0;
-let quotaState = "ok";
 let exhausted = false;
 
 function jsonResponse(body, status = 200) {
@@ -27,7 +26,7 @@ before(async () => {
   quota.__setQuotaTestAdapters({
     getState: async () => ({ state: quota.__quotaTestHooks.stateFor(quotaUnits, exhausted), units: quotaUnits, budget: 1000, softLimitPct: 80, resetDay: "test", store: "mock" }),
     increment: async (cost) => (quotaUnits += cost),
-    markQuotaExceeded: async () => { exhausted = true; quotaState = "exhausted"; },
+    markQuotaExceeded: async () => { exhausted = true; },
   });
   gateway = await import("./youtubeGateway.js");
 });
@@ -58,7 +57,6 @@ test("quota states transition at the configured soft and hard thresholds", () =>
 
 test("degraded state refuses 100-unit search calls but allows 1-unit reads", async () => {
   quotaUnits = 800;
-  quotaState = "degraded";
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; return jsonResponse({ items: [] }); };
@@ -71,7 +69,6 @@ test("degraded state refuses 100-unit search calls but allows 1-unit reads", asy
 
 test("gateway retries transient 5xx twice, with mocked provider responses", async () => {
   quotaUnits = 0;
-  quotaState = "ok";
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
@@ -86,7 +83,6 @@ test("gateway retries transient 5xx twice, with mocked provider responses", asyn
 
 test("quotaExceeded marks the day exhausted and is never retried", async () => {
   quotaUnits = 0;
-  quotaState = "ok";
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
@@ -111,7 +107,6 @@ test("direct YouTube fetch is centralized in the gateway", async () => {
 
 test("combined search stays off by default and can be exercised with mocks when enabled", async () => {
   quotaUnits = 0;
-  quotaState = "ok";
   exhausted = false;
   const { env } = await import("../config/env.js");
   assert.equal(env.ytCombinedSearch, false);
@@ -147,7 +142,6 @@ test("combined search stays off by default and can be exercised with mocks when 
 
 test("gateway retries rate limits with bounded backoff and stops after three attempts", async () => {
   quotaUnits = 0;
-  quotaState = "ok";
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
@@ -165,7 +159,6 @@ test("gateway retries rate limits with bounded backoff and stops after three att
 
 test("gateway caps repeated network failures at three total attempts", async () => {
   quotaUnits = 0;
-  quotaState = "ok";
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
@@ -183,7 +176,6 @@ test("gateway caps repeated network failures at three total attempts", async () 
 
 test("quota counter allows no more than the remaining hard-budget units under concurrency", async () => {
   quotaUnits = 995;
-  quotaState = "ok";
   exhausted = false;
   const attempts = await Promise.allSettled(Array.from({ length: 10 }, () => quota.tryConsume(1)));
   const allowed = attempts.filter((result) => result.status === "fulfilled");

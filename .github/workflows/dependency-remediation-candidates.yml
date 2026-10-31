@@ -15,6 +15,7 @@ permissions:
 jobs:
   refresh-and-verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       mongodb:
         image: mongo:7

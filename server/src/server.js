@@ -7,7 +7,7 @@ import rateLimit from "express-rate-limit";
 import { authLimiter } from "./config/rateLimiters.js";
 import { env } from "./config/env.js";
 import { isAllowedClientOrigin } from "./config/corsPolicy.js";
-import { connectDatabase } from "./config/db.js";
+import { connectDatabase, disconnectDatabase } from "./config/db.js";
 import authRoutes from "./routes/auth.routes.js";
 import meRoutes from "./routes/me.routes.js";
 import { googleConfig } from "./controllers/auth.controller.js";
@@ -39,6 +39,7 @@ import adminTrialsRoutes from "./routes/adminTrials.routes.js";
 import { checkWorkerHeartbeat } from "./services/jobHeartbeat.service.js";
 import { safeRequestLog } from "./utils/safeRequestLog.js";
 import { notFound, errorHandler } from "./middleware/error.js";
+import { createGracefulShutdown } from "./utils/gracefulShutdown.js";
 
 const app = express();
 // Configure the exact trusted proxy hop count for the deployment; avoid blanket trust.
@@ -118,8 +119,27 @@ connectDatabase()
     }, 60 * 1000);
     workerHealthTimer.unref?.();
     void checkWorkerHeartbeat().catch((error) => console.error("[operations] initial worker heartbeat check failed", { name: error?.name || "Error", code: error?.code }));
-    app.listen(env.port, '0.0.0.0', () => {
+    const server = app.listen(env.port, "0.0.0.0", () => {
       console.log(`BuddyForStudy API running on port ${env.port}`);
+    });
+    const shutdown = createGracefulShutdown({
+      server,
+      disconnect: disconnectDatabase,
+      clearTimers: () => clearInterval(workerHealthTimer),
+      timeoutMs: Number(process.env.SHUTDOWN_TIMEOUT_MS) || 10_000,
+      logger: console,
+    });
+    process.once("SIGTERM", () => {
+      void shutdown("SIGTERM").catch((error) => {
+        console.error("[server] graceful shutdown failed", { name: error?.name || "Error", code: error?.code });
+        process.exitCode = 1;
+      });
+    });
+    process.once("SIGINT", () => {
+      void shutdown("SIGINT").catch((error) => {
+        console.error("[server] graceful shutdown failed", { name: error?.name || "Error", code: error?.code });
+        process.exitCode = 1;
+      });
     });
   })
   .catch((error) => {

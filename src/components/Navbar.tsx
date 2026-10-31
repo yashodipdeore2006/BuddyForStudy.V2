@@ -106,6 +106,13 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!menuOpen) return;
+    // Give keyboard focus to the first menu item when the account menu opens.
+    const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])');
+    firstItem?.focus();
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
     menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [menuOpen]);
 

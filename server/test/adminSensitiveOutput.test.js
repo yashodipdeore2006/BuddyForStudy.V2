@@ -12,18 +12,6 @@ function responseRecorder() {
   };
 }
 
-async function withMocks(mocks, run) {
-  const originals = [];
-  for (const [target, methods] of mocks) {
-    for (const [key, value] of Object.entries(methods)) {
-      originals.push({ target, key, original: target[key] });
-      target[key] = value;
-    }
-  }
-  try { await run(); }
-  finally { for (const { target, key, original } of originals.reverse()) target[key] = original; }
-}
-
 test("notification delivery logs mask recipient PII and redact provider email addresses and URLs", async () => {
   const rawEmail = "learner@example.test";
   const sensitiveUrl = "https://provider.example.test/secret/subscription?token=private";

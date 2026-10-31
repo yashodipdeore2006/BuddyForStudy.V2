@@ -9,6 +9,10 @@ on:
       - "package.json"
       - "server/package.json"
 
+concurrency:
+  group: dependency-lock-refresh-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 

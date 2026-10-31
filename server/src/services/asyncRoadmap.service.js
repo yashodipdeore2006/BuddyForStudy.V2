@@ -253,7 +253,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
       clearInterval(heartbeatTimer);
       await heartbeatInFlight;
       admissionRuntimes.delete(draftId);
-      await releaseRoadmapAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
+      await releaseAdmission({ draftId, leaseToken: lease.leaseToken }).catch(() => {});
     }
   });
   pump();

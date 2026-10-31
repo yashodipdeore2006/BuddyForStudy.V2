@@ -2181,6 +2181,28 @@ test.describe("learner responsive viewport regressions", () => {
 });
 
 test.describe("session recovery", () => {
+  test("[A11Y-ACCOUNT-MENU-KEYBOARD-001] account menu supports arrow keys, Home, End and Escape focus restoration", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/home");
+    const trigger = page.getByRole("button", { name: "Open account menu for Learner" });
+    await trigger.click();
+    const menu = page.getByRole("menu", { name: "Account menu" });
+    const profileItem = menu.getByRole("menuitem", { name: "Profile" });
+    const settingsItem = menu.getByRole("menuitem", { name: "Settings" });
+    const signOutItem = menu.getByRole("menuitem", { name: "Sign out" });
+
+    await expect(profileItem).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(settingsItem).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(signOutItem).toBeFocused();
+    await page.keyboard.press("Home");
+    await expect(profileItem).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
   test("[NAV-SIGNOUT-FAILURE-001] sign out clears local credentials when server logout fails", async ({ page }) => {
     let logoutRequests = 0;
     await mockAppApi(page, { authenticated: true });

@@ -16,7 +16,7 @@ The broad 1,000-request API abuse ceiling remains process-local by design. It is
 **Failure behavior:** sensitive limiters fail closed if the shared store cannot be updated. This is intentional: when MongoDB is unavailable, authentication, payment, webhook persistence and other database-backed API operations are not safe to continue. The standalone /health liveness route remains outside API routing; readiness checks report MongoDB availability.
 
 **Operations:**
-- Ensure the MongoDB application user can read/write the apiRateLimits collection and create its indexes at startup.
+- Ensure the MongoDB application user can read/write the apiratelimits collection and create its indexes at startup.
 - Monitor MongoDB write latency and rate-limit store errors alongside API 5xx metrics.
 - Do not manually delete active counters during an incident; allow TTL expiry or use the namespace-specific reset path in a controlled maintenance window.
 - The integration test server/test/mongoRateLimitStore.integration.test.js increments the same key concurrently through two independent store instances against the CI MongoDB service.

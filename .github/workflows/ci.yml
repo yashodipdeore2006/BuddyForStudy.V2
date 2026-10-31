@@ -22,7 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Audit frontend dependency vulnerabilities
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Frontend lint
         run: npm run lint
       - run: npm run typecheck
@@ -83,7 +83,7 @@ jobs:
         run: npm ci
       - run: npm ci
       - name: Audit backend dependency vulnerabilities
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
       - name: Backend lint
         run: npm run lint
       - name: Validate production config preflight with synthetic values

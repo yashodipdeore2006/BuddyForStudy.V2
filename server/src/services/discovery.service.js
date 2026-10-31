@@ -432,11 +432,11 @@ export async function getOrCreateYouTubeResourceCourse({
   }
 
   let title = query || "YouTube Course";
-  let description = "";
-  let thumbnail = "";
+  let description;
+  let thumbnail;
   let channelTitle = "";
-  let lessons = [];
-  let durationSeconds = 0;
+  let lessons;
+  let durationSeconds;
 
   if (type === "playlist") {
     const playlist = await getPlaylistCourse(id);

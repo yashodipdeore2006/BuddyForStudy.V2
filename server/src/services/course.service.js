@@ -1,7 +1,5 @@
-import mongoose from "mongoose";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
-import { Progress } from "../models/Progress.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
@@ -86,30 +84,6 @@ function normalizeSlug(value) {
 function escapeRegex(value) {
   const regexCharacters = "\\^$.*+?()[]{}|";
   return [...String(value || "")].map((char) => regexCharacters.includes(char) ? "\\" + char : char).join("");
-}
-
-function buildCourseSearchFilter(search) {
-  const query = String(search || "").trim();
-  if (!query) return null;
-
-  const regex = new RegExp(escapeRegex(query), "i");
-
-  return {
-    $or: [
-      { title: regex },
-      { description: regex },
-      { category: regex },
-      { learningOutcomes: regex },
-      { "modules.title": regex },
-      { "modules.description": regex },
-      { "modules.lessons.title": regex },
-      { "modules.lessons.description": regex },
-      { "modules.lessons.tutorial.playlistTitle": regex },
-      { "modules.lessons.tutorial.videos.title": regex },
-      { "modules.lessons.tutorial.videos.description": regex },
-      { "modules.lessons.tutorial.videos.channelTitle": regex }
-    ]
-  };
 }
 
 function buildDirectCourseSearchFilter(search) {

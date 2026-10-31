@@ -2181,3 +2181,45 @@ test.describe("session recovery", () => {
     expect(token).toBeNull();
   });
 });
+
+
+test.describe("route loading and recoverable failure states", () => {
+  test("[ROUTE-DASHBOARD-ERROR-RETRY-001] dashboard API failure is not presented as empty learning data", async ({ page }) => {
+    let attempts = 0;
+    await mockAppApi(page, { authenticated: true });
+    await page.route("**/api/enrollments", async (route) => {
+      attempts += 1;
+      if (attempts === 1) return json(route, { message: "Enrollment service unavailable" }, 503);
+      return json(route, { enrollments: [] });
+    });
+
+    await page.goto(baseURL + "/home");
+    await expect(page.getByRole("heading", { name: "Couldn’t load your dashboard" })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("Enrollment service unavailable");
+    await expect(page.getByText("No courses in progress")).toHaveCount(0);
+
+    await page.getByRole("button", { name: /try again/i }).click();
+    await expect(page.getByRole("heading", { name: "Welcome back, Learner." })).toBeVisible();
+    expect(attempts).toBe(2);
+  });
+
+  test("[ROUTE-SAVED-COURSES-ERROR-RETRY-001] saved courses API failure has a retry state distinct from no saved courses", async ({ page }) => {
+    let attempts = 0;
+    await mockAppApi(page, { authenticated: true });
+    await page.route("**/api/saved-courses", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      attempts += 1;
+      if (attempts === 1) return json(route, { message: "Saved courses service unavailable" }, 503);
+      return json(route, { savedCourses: [] });
+    });
+
+    await page.goto(baseURL + "/saved-courses");
+    await expect(page.getByRole("heading", { name: "Couldn’t load saved courses" })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("Saved courses service unavailable");
+    await expect(page.getByRole("heading", { name: "No saved courses" })).toHaveCount(0);
+
+    await page.getByRole("button", { name: /try again/i }).click();
+    await expect(page.getByRole("heading", { name: "No saved courses" })).toBeVisible();
+    expect(attempts).toBe(2);
+  });
+});

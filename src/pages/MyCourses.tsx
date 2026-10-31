@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // API records use both legacy and current field names.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -282,6 +282,8 @@ export default function MyCourses() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("recent");
   const [pendingUnenroll, setPendingUnenroll] = useState<LearningEnrollment | null>(null);
+  const unenrollDialogRef = useRef<HTMLElement | null>(null);
+  const unenrollTriggerRef = useRef<HTMLElement | null>(null);
   const [unenrolling, setUnenrolling] = useState(false);
   const [actionError, setActionError] = useState("");
   const [undoEnrollment, setUndoEnrollment] = useState<LearningEnrollment | null>(null);
@@ -357,6 +359,60 @@ export default function MyCourses() {
   const activeEnrollment = useMemo(() => enrollments
     .filter((item) => statusFor(item) === "in-progress")
     .sort((a, b) => new Date(b.updated_at || b.enrolled_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || 0).getTime())[0], [enrollments, statusFor]);
+
+  const requestUnenroll = useCallback((enrollment: LearningEnrollment) => {
+    unenrollTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPendingUnenroll(enrollment);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingUnenroll) {
+      const trigger = unenrollTriggerRef.current;
+      if (trigger?.isConnected && trigger.getClientRects().length && !trigger.hasAttribute("disabled")) {
+        trigger.focus();
+      } else {
+        document.querySelector<HTMLElement>("main h1")?.focus();
+      }
+      unenrollTriggerRef.current = null;
+      return;
+    }
+
+    const dialog = unenrollDialogRef.current;
+    const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusFirst = () => {
+      const items = Array.from(dialog?.querySelectorAll<HTMLElement>(focusableSelector) || [])
+        .filter((item) => item.getClientRects().length);
+      (items[0] || dialog)?.focus();
+    };
+    focusFirst();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!unenrolling) setPendingUnenroll(null);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter((item) => item.getClientRects().length);
+      if (!items.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [pendingUnenroll, unenrolling]);
 
   const handleUnenroll = async () => {
     if (!pendingUnenroll || unenrolling) return;
@@ -466,7 +522,7 @@ export default function MyCourses() {
           )
         ) : (
           <div className="bfs-course-grid">
-            {filtered.map((enrollment) => <CourseLearningCard key={enrollment.id} enrollment={enrollment} saved={savedIds.has(enrollment.course.id.toLowerCase())} onSavedChange={(courseId, nextSaved) => setSavedIds((previous) => { const next = new Set(previous); if (nextSaved) next.add(courseId.toLowerCase()); else next.delete(courseId.toLowerCase()); return next; })} onUnenroll={setPendingUnenroll} />)}
+            {filtered.map((enrollment) => <CourseLearningCard key={enrollment.id} enrollment={enrollment} saved={savedIds.has(enrollment.course.id.toLowerCase())} onSavedChange={(courseId, nextSaved) => setSavedIds((previous) => { const next = new Set(previous); if (nextSaved) next.add(courseId.toLowerCase()); else next.delete(courseId.toLowerCase()); return next; })} onUnenroll={requestUnenroll} />)}
           </div>
         )}
       </section>
@@ -475,7 +531,7 @@ export default function MyCourses() {
 
       {pendingUnenroll && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !unenrolling) setPendingUnenroll(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="unenroll-title" className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl">
+          <section ref={unenrollDialogRef} role="dialog" aria-modal="true" aria-labelledby="unenroll-title" tabIndex={-1} className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl">
             <div className="flex items-start justify-between gap-3">
               <div><h2 id="unenroll-title" className="text-lg font-semibold text-[var(--text)]">Unenroll from this course?</h2><p className="mt-2 text-sm text-[var(--muted)]">You can enroll again later. Your learning history may remain saved.</p></div>
               <button type="button" className="rounded-full p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]" aria-label="Close dialog" onClick={() => setPendingUnenroll(null)} disabled={unenrolling}><X size={18} /></button>

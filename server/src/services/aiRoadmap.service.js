@@ -16,6 +16,7 @@ import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemp
 import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildLearnModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
+import { safeTelemetryError } from "../utils/safeTelemetryError.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -1070,7 +1071,7 @@ async function curateInterviewEvidence(course, profile = {}) {
       if (resources.length) break;
     } catch (error) {
       // Interview resources are supplementary; retrieval failures must not fail roadmap generation.
-      console.warn("Interview evidence curation failed", { matchedLevel: fallback.matchedLevel, message: error?.message || String(error) });
+      console.warn("Interview evidence curation failed", safeTelemetryError(error));
     }
   }
   lesson.tutorial.videos = evidence;

@@ -66,6 +66,17 @@ app.use(cors({
 app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { if (req.originalUrl.startsWith("/api/webhooks/razorpay")) req.rawBody = Buffer.from(buf); } }));
 app.use(express.urlencoded({ extended: false, limit: "10kb" }));
 app.use(morgan(safeRequestLog));
+// Keep health probes available even if the shared rate-limit store is unavailable.
+app.get("/health", (_req, res) => {
+  res.json({
+    success: true,
+    service: "BuddyForStudy API",
+    status: "healthy"
+  });
+});
+
+app.use("/api/health", healthRoutes);
+
 // A learner page can legitimately request course data, enrollment state, saved
 // state and reviews in parallel. Keep a broad abuse-protection ceiling here;
 // sensitive endpoints retain their own stricter auth/payment limiters.
@@ -78,15 +89,6 @@ app.use(rateLimit({
   message: { success: false, message: "Too many requests from this connection. Please wait a few minutes and try again." }
 }));
 
-app.get("/health", (_req, res) => {
-  res.json({
-    success: true,
-    service: "BuddyForStudy API",
-    status: "healthy"
-  });
-});
-
-app.use("/api/health", healthRoutes);
 app.use("/api/public", publicSettingsRoutes);
 app.use("/api/consent", consentRoutes);
 app.get("/api/auth/google/config", googleConfig);

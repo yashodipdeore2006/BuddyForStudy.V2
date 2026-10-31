@@ -196,7 +196,7 @@ async function setCachedValue(key, kind, payload, ttlMs) {
       { upsert: true }
     );
   } catch (error) {
-    console.warn("Curation cache persistence unavailable", { kind, message: error?.message || error });
+    console.warn("Curation cache persistence unavailable", { kind, ...safeTelemetryError(error) });
   }
 }
 function languageFromQuery(query, requestedLanguage = "") {
@@ -1444,7 +1444,7 @@ async function loadLearnerFeedbackSignals(profile, candidates) {
     ]);
     for (const row of rows) result.set(row.resourceId, row);
   } catch (error) {
-    console.warn("Curation feedback signals unavailable", { message: error?.message || error });
+    console.warn("Curation feedback signals unavailable", safeTelemetryError(error));
   }
   return result;
 }
@@ -1683,7 +1683,7 @@ export async function curateNormalSearch(query, options = {}) {
       const videoIds = deduplicated.map((candidate) => String(candidate.videoId || candidate.sourceId || String(candidate.id || "").replace(/^video:/, ""))).filter(Boolean);
       skillPriors = await loadSkillResourcePriors(skillId, videoIds);
     } catch (error) {
-      console.warn("Skill resource priors unavailable", { skillId, message: error?.message || String(error) });
+      console.warn("Skill resource priors unavailable", { skillId, ...safeTelemetryError(error) });
     }
   }
   const metadataJudgment = await evaluateCandidatesWithMetadataRubric(deduplicated, selectionProfile, syllabus);
@@ -1742,7 +1742,6 @@ export async function curateNormalSearch(query, options = {}) {
   console.info("Course curation completed", {
     requestId,
     skillId,
-    query: profile.normalizedQuery,
     version: ENGINE_VERSION,
     candidates: meta.poolCandidates,
     shortlisted: meta.tierBShortlist,

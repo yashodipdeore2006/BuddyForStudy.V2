@@ -94,3 +94,27 @@ test("saved course quizzes remain available without Gemini and enrolled learners
   assert.match(handler, /aiReviewStatus: \{ \$nin: \["pending", "rejected"\] \}/);
   assert.match(handler, /revokedBy: null/);
 });
+
+
+test("AI quiz endpoints reject unknown fields and validate MongoDB identifiers before lookup", () => {
+  const generateStart = aiController.indexOf("export async function generateQuiz");
+  const practiceStart = aiController.indexOf("export async function generatePracticeQuiz");
+  const submitPracticeStart = aiController.indexOf("export async function submitPracticeQuiz");
+  const submitCourseStart = aiController.indexOf("export async function submitCourseQuiz");
+  const generate = aiController.slice(generateStart, practiceStart);
+  const practice = aiController.slice(practiceStart, submitPracticeStart);
+  const submitPractice = aiController.slice(submitPracticeStart, submitCourseStart);
+  const submitCourse = aiController.slice(submitCourseStart, aiController.indexOf("export async function generateAndSaveCourse", submitCourseStart));
+
+  for (const handler of [generate, practice]) {
+    assert.match(handler, /\.strict\(\)/);
+    assert.match(handler, /isValidObjectId\(input\.courseId\).*isValidObjectId\(input\.lessonId\)/s);
+    assert.ok(handler.indexOf("isValidObjectId") < handler.indexOf("ensureCourseLearningAccess"));
+  }
+  for (const handler of [submitPractice, submitCourse]) {
+    assert.match(handler, /\.strict\(\)/);
+    assert.match(handler, /z\.string\(\)\.max\(100\)/);
+    assert.match(handler, /Object\.keys\(input\.answers\)\.length > 200/);
+  }
+  assert.match(submitPractice, /quizBankIds: z\.array\(z\.string\(\)\.trim\(\)\.length\(24\)\)\.max\(20\)/);
+});

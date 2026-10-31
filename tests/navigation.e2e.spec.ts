@@ -1516,9 +1516,9 @@ test.describe("learner control and state regression", () => {
     const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
     await expect(close).toBeFocused();
     await page.keyboard.press("Shift+Tab");
-    await expect(cancel).toBeFocused();
-    await page.keyboard.press("Tab");
     await expect(dialog.getByRole("button", { name: "Unenroll", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(page.locator("main h1")).toBeFocused();

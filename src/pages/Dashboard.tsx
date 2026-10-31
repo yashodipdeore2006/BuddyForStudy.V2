@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 // Dashboard endpoints have legacy and current payload variants.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,7 +86,7 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState("");
   const [learningStats, setLearningStats] = useState<DashboardApiStats | null>(null);
 
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
       setLoading(true);
       setLoadError("");
       if (!profile) { setLoading(false); return; }
@@ -128,11 +128,11 @@ export default function Dashboard() {
       } finally {
         setLoading(false);
       }
-  }
+  }, [profile]);
 
   useEffect(() => {
     void fetchData();
-  }, [profile]);
+  }, [fetchData]);
 
   const progressValues = Object.values(progressMap);
   const stats = [

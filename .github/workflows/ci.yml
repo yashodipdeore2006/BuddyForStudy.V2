@@ -21,6 +21,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Audit frontend dependency vulnerabilities
+        run: npm audit --audit-level=high
       - name: Frontend lint
         run: npm run lint
       - run: npm run typecheck
@@ -80,6 +82,8 @@ jobs:
         working-directory: .
         run: npm ci
       - run: npm ci
+      - name: Audit backend dependency vulnerabilities
+        run: npm audit --audit-level=high
       - name: Backend lint
         run: npm run lint
       - name: Validate production config preflight with synthetic values

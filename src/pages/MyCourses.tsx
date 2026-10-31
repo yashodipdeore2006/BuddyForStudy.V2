@@ -362,7 +362,8 @@ export default function MyCourses() {
     .sort((a, b) => new Date(b.updated_at || b.enrolled_at || 0).getTime() - new Date(a.updated_at || a.enrolled_at || 0).getTime())[0], [enrollments, statusFor]);
 
   const requestUnenroll = useCallback((enrollment: LearningEnrollment) => {
-    unenrollTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const activeElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    unenrollTriggerRef.current = activeElement?.closest("details")?.querySelector<HTMLElement>("summary") || activeElement;
     setPendingUnenroll(enrollment);
   }, []);
 

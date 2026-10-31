@@ -1521,7 +1521,7 @@ test.describe("learner control and state regression", () => {
     await expect(close).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(page.locator("main").first()).toBeFocused();
+    await expect(actions).toBeFocused();
   });
 
   test("[DETAIL-REVIEW-FAILURE-001] failed review submission preserves input and permits retry", async ({ page }) => {

@@ -1,7 +1,6 @@
 import { User } from "../models/User.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
-import { Progress } from "../models/Progress.js";
 import { Payment } from "../models/Payment.js";
 import { UserSubscription } from "../models/UserSubscription.js";
 import { recordAuditEvent } from "../services/auditOutbox.service.js";

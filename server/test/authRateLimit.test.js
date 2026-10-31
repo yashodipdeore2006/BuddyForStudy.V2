@@ -2,7 +2,33 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import express from "express";
-import { AUTH_RATE_LIMIT_POLICY, authLimiter } from "../src/config/rateLimiters.js";
+import { AUTH_RATE_LIMIT_POLICY, createAuthLimiter } from "../src/config/rateLimiters.js";
+
+function createMemoryTestStore() {
+  const buckets = new Map();
+  let windowMs = 60_000;
+  return {
+    init(options) { windowMs = Number(options.windowMs) || windowMs; },
+    async increment(key) {
+      const now = Date.now();
+      let bucket = buckets.get(key);
+      if (!bucket || bucket.resetAt <= now) bucket = { totalHits: 0, resetAt: now + windowMs };
+      bucket.totalHits += 1;
+      buckets.set(key, bucket);
+      return { totalHits: bucket.totalHits, resetTime: new Date(bucket.resetAt) };
+    },
+    async decrement(key) {
+      const bucket = buckets.get(key);
+      if (bucket && bucket.totalHits > 0) bucket.totalHits -= 1;
+    },
+    async resetKey(key) { buckets.delete(key); },
+    async get(key) {
+      const bucket = buckets.get(key);
+      if (!bucket || bucket.resetAt <= Date.now()) return undefined;
+      return { totalHits: bucket.totalHits, resetTime: new Date(bucket.resetAt) };
+    }
+  };
+}
 
 test("authentication rate limit exposes a clear bounded policy", () => {
   assert.equal(AUTH_RATE_LIMIT_POLICY.windowMs, 15 * 60 * 1000);
@@ -17,7 +43,7 @@ test("authentication rate limit exposes a clear bounded policy", () => {
 
 test("authentication limiter returns 429 with a safe message after the configured request budget", async () => {
   const app = express();
-  app.use("/api/auth", authLimiter);
+  app.use("/api/auth", createAuthLimiter({ store: createMemoryTestStore() }));
   app.post("/api/auth/login", (_req, res) => res.status(200).json({ success: true }));
 
   const server = app.listen(0, "127.0.0.1");

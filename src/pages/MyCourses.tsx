@@ -374,7 +374,8 @@ export default function MyCourses() {
       if (trigger?.isConnected && trigger.getClientRects().length && !trigger.hasAttribute("disabled")) {
         trigger.focus();
       } else {
-        document.querySelector<HTMLElement>("main h1")?.focus();
+        const heading = document.querySelector<HTMLElement>("main h1");
+        if (heading) { heading.setAttribute("tabindex", "-1"); heading.focus(); }
       }
       unenrollTriggerRef.current = null;
       return;

@@ -5,6 +5,8 @@ on:
     branches: ["main"]
     paths:
       - ".github/workflows/dependency-remediation-candidates.yml"
+      - "package.json"
+      - "server/package.json"
 
 permissions:
   contents: read
@@ -23,8 +25,8 @@ jobs:
       - name: Apply non-breaking frontend audit updates to lockfile
         continue-on-error: true
         run: |
-          npm ci
-          npm audit fix --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1 || true
+          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/frontend-audit-fix.log 2>&1 || true
+          npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/frontend-audit-fix.log 2>&1 || true
           npm audit --audit-level=high > /tmp/frontend-audit.log 2>&1 || true
           cat /tmp/frontend-audit-fix.log
           cat /tmp/frontend-audit.log
@@ -56,8 +58,8 @@ jobs:
         working-directory: server
         continue-on-error: true
         run: |
-          npm ci
-          npm audit fix --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1 || true
+          npm install --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1 || true
+          npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/backend-audit-fix.log 2>&1 || true
           npm audit --audit-level=high > /tmp/backend-audit.log 2>&1 || true
           cat /tmp/backend-audit-fix.log
           cat /tmp/backend-audit.log

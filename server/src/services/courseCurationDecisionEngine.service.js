@@ -781,9 +781,6 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   candidate.isShort = false;
   return candidate;
 }
-function getCandidateText(candidate) {
-  return normalizeText([candidate.title, candidate.description, ...(candidate.items || []).map((item) => item.title + " " + item.description)].join(" "));
-}
 function authorityFeatures(candidates, candidate) {
   const own = candidates.filter((item) => item.channelId && item.channelId === candidate.channelId);
   const focused = own.filter((item) => (item.queryTermStats?.relevance || 0) >= 60).length;
@@ -1453,7 +1450,6 @@ function scoreFinalCandidates(candidates, profile, syllabus, feedbackMap = new M
   const preliminaryFeatures = candidates.map((candidate) => ({ candidate, features: makeFeatureSet(candidate, candidates, profile, syllabus, feedbackMap, metadataJudgeMap) }));
   const prior = median(preliminaryFeatures.map((item) => item.features.rawQuality));
   for (const { candidate, features } of preliminaryFeatures) {
-    const freshness = features.freshness.score;
     const viewsPercentile = features.engagement.viewsPercentile;
     const quality = features.rawQuality;
     const gem = quality >= 70 && features.coverage.score >= 70 && viewsPercentile <= 0.5

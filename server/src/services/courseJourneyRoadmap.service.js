@@ -57,7 +57,7 @@ function splitLessonsByDuration(lessons, count = 5) {
       end += 1;
       if (duration >= target && end > start) break;
     }
-    if (end === start) { duration = lessons[end].seconds; end += 1; }
+    if (end === start) end += 1;
     const selected = lessons.slice(start, end);
     groups.push({ title: selected.length === 1 ? selected[0].title : "Stage " + (stage + 1), lessonIds: selected.map((lesson) => lesson.id), seconds: selected.reduce((sum, lesson) => sum + lesson.seconds, 0), sourceTitle: selected[0].title });
     accumulated += groups[groups.length - 1].seconds;

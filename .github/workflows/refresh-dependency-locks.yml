@@ -1,0 +1,53 @@
+name: Refresh vulnerable dependency lockfiles
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/refresh-dependency-locks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - name: Refresh root lockfile without major upgrades
+        run: |
+          npm ci
+          npm audit fix --package-lock-only
+          npm ci
+      - name: Report root audit status
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: Refresh server lockfile without major upgrades
+        working-directory: server
+        run: |
+          npm ci
+          npm audit fix --package-lock-only
+          npm ci
+      - name: Report server audit status
+        working-directory: server
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: Collect updated lockfiles
+        if: always()
+        run: |
+          mkdir -p /tmp/lockfile-artifact/server
+          cp package-lock.json /tmp/lockfile-artifact/package-lock.json
+          cp server/package-lock.json /tmp/lockfile-artifact/server/package-lock.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: refreshed-dependency-lockfiles
+          path: /tmp/lockfile-artifact/
+          if-no-files-found: error
+          retention-days: 2

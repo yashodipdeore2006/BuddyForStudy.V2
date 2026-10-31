@@ -62,7 +62,7 @@ jobs:
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts --no-fund > /tmp/backend-audit-fix.log 2>&1
           npm audit fix --package-lock-only --ignore-scripts --no-fund >> /tmp/backend-audit-fix.log 2>&1 || true
-          npm audit --audit-level=high > /tmp/backend-audit.log 2>&1 || true
+          npm audit --omit=dev --audit-level=high > /tmp/backend-audit.log 2>&1 || true
           cat /tmp/backend-audit-fix.log
           cat /tmp/backend-audit.log
           npm ci --ignore-scripts

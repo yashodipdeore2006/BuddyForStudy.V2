@@ -2193,7 +2193,10 @@ test.describe("route loading and recoverable failure states", () => {
         failedRequests += 1;
         return json(route, { message: "Learning service unavailable" }, 503);
       }
-      return route.continue();
+      if (pathname === "/api/enrollments") return json(route, { enrollments: [] });
+      if (pathname === "/api/courses") return json(route, { courses: [] });
+      if (pathname === "/api/achievements/me") return json(route, { stats: null });
+      return route.fallback();
     });
 
     await page.goto(baseURL + "/home");
@@ -2210,7 +2213,7 @@ test.describe("route loading and recoverable failure states", () => {
     let attempts = 0;
     await mockAppApi(page, { authenticated: true });
     await page.route("**/api/saved-courses", async (route) => {
-      if (route.request().method() !== "GET") return route.continue();
+      if (route.request().method() !== "GET") return route.fallback();
       attempts += 1;
       if (attempts === 1) return json(route, { message: "Saved courses service unavailable" }, 503);
       return json(route, { savedCourses: [] });

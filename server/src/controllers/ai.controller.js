@@ -13,6 +13,7 @@ import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.se
 import { checkCourseLearningAccess } from "../utils/courseLearningAccess.js";
 import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";
 import { consumeRoadmapRequestAllowance, runWithRoadmapAdmission } from "../services/roadmapAdmission.service.js";
+import { safeTelemetryError } from "../utils/safeTelemetryError.js";
 
 const quizGenerationJobs = new Set();
 
@@ -59,7 +60,7 @@ async function queueNextLessonQuiz(courseId, lessonId) {
         { upsert: true }
       );
     } catch (error) {
-      console.error("Background lesson quiz generation failed:", error?.message || error);
+      console.error("Background lesson quiz generation failed", safeTelemetryError(error));
     } finally {
       quizGenerationJobs.delete(key);
     }

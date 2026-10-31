@@ -158,10 +158,11 @@ export async function generateRoadmap(req, res, next) {
 export async function generateQuiz(req, res, next) {
   try {
     const quizSchema = z.object({
-      courseId: z.string().trim().min(1),
-      lessonId: z.string().trim().min(1)
-    });
+      courseId: z.string().trim().length(24),
+      lessonId: z.string().trim().length(24)
+    }).strict();
     const input = quizSchema.parse(req.body);
+    if (!isValidObjectId(input.courseId) || !isValidObjectId(input.lessonId)) return failure(res, "Invalid course or lesson identifier", 400);
 
     const access = await ensureCourseLearningAccess(req, input.courseId);
     if (!access.allowed) return failure(res, access.message, access.status);
@@ -177,11 +178,12 @@ export async function generateQuiz(req, res, next) {
 export async function generatePracticeQuiz(req, res, next) {
   try {
     const practiceSchema = z.object({
-      courseId: z.string().trim().min(1),
-      lessonId: z.string().trim().min(1),
+      courseId: z.string().trim().length(24),
+      lessonId: z.string().trim().length(24),
       mode: z.enum(["generate", "reattempt"]).default("generate")
-    });
+    }).strict();
     const input = practiceSchema.parse(req.body);
+    if (!isValidObjectId(input.courseId) || !isValidObjectId(input.lessonId)) return failure(res, "Invalid course or lesson identifier", 400);
     const access = await ensureCourseLearningAccess(req, input.courseId);
     if (!access.allowed) return failure(res, access.message, access.status);
 
@@ -275,12 +277,12 @@ export async function generatePracticeQuiz(req, res, next) {
 export async function submitPracticeQuiz(req, res, next) {
   try {
     const schema = z.object({
-      courseId: z.string().trim().min(1),
-      lessonId: z.string().trim().min(1),
-      quizBankId: z.string().trim().min(1).optional(),
-      quizBankIds: z.array(z.string().trim().min(1)).max(20).default([]),
-      answers: z.record(z.string(), z.string()).default({})
-    });
+      courseId: z.string().trim().length(24),
+      lessonId: z.string().trim().length(24),
+      quizBankId: z.string().trim().length(24).optional(),
+      quizBankIds: z.array(z.string().trim().length(24)).max(20).default([]),
+      answers: z.record(z.string().max(100), z.string().max(100)).default({})
+    }).strict();
     const input = schema.parse(req.body || {});
     if (!isValidObjectId(input.courseId) || !isValidObjectId(input.lessonId)) return failure(res, "Invalid course or lesson identifier", 400);
     if (Object.keys(input.answers).length > 200) return failure(res, "Too many quiz answers were submitted", 400);
@@ -354,10 +356,10 @@ export async function submitPracticeQuiz(req, res, next) {
 export async function submitCourseQuiz(req, res, next) {
   try {
     const schema = z.object({
-      courseId: z.string().trim().min(1),
-      lessonId: z.string().trim().min(1),
-      answers: z.record(z.string(), z.string()).default({})
-    });
+      courseId: z.string().trim().length(24),
+      lessonId: z.string().trim().length(24),
+      answers: z.record(z.string().max(100), z.string().max(100)).default({})
+    }).strict();
     const input = schema.parse(req.body || {});
     if (!isValidObjectId(input.courseId) || !isValidObjectId(input.lessonId)) return failure(res, "Invalid course or lesson identifier", 400);
     if (Object.keys(input.answers).length > 200) return failure(res, "Too many quiz answers were submitted", 400);

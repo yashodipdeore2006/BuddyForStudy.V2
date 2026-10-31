@@ -1,4 +1,5 @@
 name: Generate dependency remediation candidates
+# Lockfile commits are gated by clean installs, high-severity audit checks, and source verification.
 
 on:
   push:

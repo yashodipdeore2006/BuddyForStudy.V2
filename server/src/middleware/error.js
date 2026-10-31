@@ -68,6 +68,7 @@ export function errorHandler(error, req, res, _next) {
   const isProduction = process.env.NODE_ENV === "production";
 
   console.error({
+    requestId: req.id,
     method: req.method,
     route: req.path,
     error: error?.name || "Error",
@@ -78,6 +79,7 @@ export function errorHandler(error, req, res, _next) {
 
   if (process.env.SENTRY_DSN) {
     Sentry.withScope((scope) => {
+      scope.setTag("request_id", req.id || "unknown");
       scope.setTag("route", req.path);
       scope.setTag("method", req.method);
       Sentry.captureException(error instanceof Error ? error : new Error(String(error)));

@@ -1497,7 +1497,6 @@ export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
   const projectsEnabled = options.projectsEnabled !== false;
-  const plan = options.plan || null;
   const activePrompt = await getActiveAIPrompt("build_with_ai");
   const promptVersionId = activePrompt.versionId || null;
   const topicKeys = buildTopicKeys(

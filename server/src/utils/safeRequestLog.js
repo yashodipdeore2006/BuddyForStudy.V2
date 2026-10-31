@@ -10,6 +10,7 @@ export function safeRequestLog(tokens, req, res) {
 
   // Deliberately exclude query strings, request/response bodies, IPs, referers and user agents.
   return JSON.stringify({
+    ...(typeof req?.id === "string" ? { requestId: req.id.slice(0, 36) } : {}),
     method: String(tokens.method(req, res) || "UNKNOWN").slice(0, 10),
     route,
     status,

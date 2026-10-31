@@ -14,7 +14,11 @@ export const AUTH_RATE_LIMIT_POLICY = Object.freeze({
   }
 });
 
-export const authLimiter = rateLimit({ ...AUTH_RATE_LIMIT_POLICY, store: new MongoRateLimitStore("auth") });
+export function createAuthLimiter({ store = new MongoRateLimitStore("auth") } = {}) {
+  return rateLimit({ ...AUTH_RATE_LIMIT_POLICY, store });
+}
+
+export const authLimiter = createAuthLimiter();
 
 
 export const aiRoadmapDraftLimiter = rateLimit({

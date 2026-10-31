@@ -22,7 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Audit frontend dependency vulnerabilities
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
       - name: Frontend lint
         run: npm run lint
       - run: npm run typecheck

@@ -970,13 +970,13 @@ export async function buildRoadmapPrompt({ topic, level, goals, studyTimeMinutes
   const safeGoals = boundedPromptList(goals, 10);
   const safeKnownSkills = boundedPromptList(knownSkills);
   const basePrompt = renderActivePrompt(activePrompt, {
-    // JSON encoding keeps user-controlled values as data instead of allowing
-    // quotes/newlines to escape their intended prompt field.
-    topic: JSON.stringify(safeTopic),
-    level: JSON.stringify(safeLevel || "Beginner"),
-    goals: JSON.stringify(safeGoals),
+    // Explicit untrusted-data wrappers keep user-controlled values separate from
+    // platform instructions and prevent content from closing the data boundary.
+    topic: serializeUntrustedPromptData("learner_topic", safeTopic, 1000),
+    level: serializeUntrustedPromptData("learner_level", safeLevel || "Beginner", 500),
+    goals: serializeUntrustedPromptData("learner_goals", safeGoals, 4000),
     studyTimeMinutesPerDay: String(Math.max(15, Math.min(720, Number(studyTimeMinutesPerDay) || 60))),
-    knownSkills: JSON.stringify(safeKnownSkills)
+    knownSkills: serializeUntrustedPromptData("known_skills", safeKnownSkills, 8000)
   });
   const selectedDomain = resolveRoadmapDomain({ domain, topic: safeTopic });
   const composed = composeRoadmapPrompt({ basePrompt, domain: selectedDomain, topic: safeTopic, skills: relevantSkills });

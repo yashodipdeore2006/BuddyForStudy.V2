@@ -204,10 +204,11 @@ export default function Navbar() {
         const items = Array.from(menuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'));
         if (items.length) {
           const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+          const baseIndex = currentIndex < 0 ? (event.key === "ArrowUp" ? 0 : -1) : currentIndex;
           const nextIndex = event.key === "Home" ? 0
             : event.key === "End" ? items.length - 1
-              : event.key === "ArrowDown" ? (currentIndex + 1 + items.length) % items.length
-                : (currentIndex - 1 + items.length) % items.length;
+              : event.key === "ArrowDown" ? (baseIndex + 1 + items.length) % items.length
+                : (baseIndex - 1 + items.length) % items.length;
           event.preventDefault();
           items[nextIndex]?.focus();
         }

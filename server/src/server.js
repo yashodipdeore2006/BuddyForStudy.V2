@@ -72,6 +72,7 @@ app.use(morgan(safeRequestLog));
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 1000,
+  store: new MongoRateLimitStore("api-global"),
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many requests from this connection. Please wait a few minutes and try again." }

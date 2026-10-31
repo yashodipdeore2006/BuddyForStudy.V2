@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 155 / 239 |
+| Verified done | 156 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 65 / 239 |
+| Not checked | 64 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -420,8 +420,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: exact `main` candidate `76094b20c6954e34cabb9bea5400f8527213004f` passed all four regression tests covering manual approval default, manual-mode enforcement, automatic approval provenance/readiness, and preserving learner-private async roadmaps. Backend CI reported 762/762 tests passing; frontend and backend jobs both passed in [CI run 41173752341](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41173752341).
 - [x] **PR-175** test prompt injection from user/resource content.  
   Status: `DONE` · Evidence: bounded JSON trust-boundary serializer escapes `<`, `>`, and `&`, labels untrusted fields, and caps serialized input size. Applied to learner roadmap topic/level/goals/skills, intent parsing, syllabus extraction, lesson/project/video context, YouTube candidate metadata, advanced lesson questions/summaries, and course journey metadata. Regression tests cover marker-breakout attempts, hostile learner content, bounded payloads and valid JSON serialization. Exact `main` candidate `4d912197dcd68a42b01feae9b85d54a62d9ca7f3` passed backend and frontend CI [run 41182056511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182056511). · Finding/fix: —
-- [ ] **PR-176** allowlist tools and validate server-side arguments.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-176** allowlist tools and validate server-side arguments.  
+  Status: `DONE` · Evidence: strict Zod request schemas reject unexpected fields; course/lesson identifiers are validated as Mongo ObjectIds before database lookup; answer keys/values are bounded to 100 characters and quiz bank references are capped at 20. Regression tests cover these constraints. Audit confirmed the Gemini integration currently declares no callable tools/function declarations, so there is no model-callable tool surface to allowlist; re-audit if tool calling is introduced. Exact code candidate `4a03452b27a1b985b2d30d51a5a23224d419c246` passed backend and frontend jobs in [CI run 41182881920](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182881920). · Finding/fix: —
 - [ ] **PR-177** prevent arbitrary URL fetch code execution and data access.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-178** exclude sensitive prompts from telemetry.  
@@ -639,4 +639,4 @@ The checklist is complete only when all tasks are `DONE` or have justified, appr
 
 
 | 2026-10-30 | Exact candidate `c007c8bf7d0204560edf720bf7712f0f91972cbc` | PR-154, PR-155, PR-156 and PR-158 verified | 139 | 5 | 14 | 81 | [Green CI 41090196692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692); [campaign safety tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminCampaignSafety.test.js); [manual retry tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationManualRetry.test.js); [worker heartbeat tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/jobHeartbeat.test.js); [backlog tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationBacklog.test.js) | Current main head CI completed with backend and frontend jobs successful. PR-157 remains blocked on live Render worker verification; PR-159 remains unchecked pending stronger trial-grant idempotency/audit regression coverage. Release remains NOT READY. |
-| 2026-10-31 | Exact candidate `4d912197dcd68a42b01feae9b85d54a62d9ca7f3` | PR-175 verified; PR-176 in progress | 155 | 5 | 14 | 65 | [Green full CI 41182056511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182056511) | Prompt trust-boundary serialization and regression coverage passed on exact main candidate. Server-side quiz argument hardening started after confirming the Gemini integration has no callable tools/function declarations. Release blockers remain: branch protection, staging/provider verification, data rights workflow, subscription lifecycle, lint-warning backlog. |
+| 2026-10-31 | Exact candidate `4a03452b27a1b985b2d30d51a5a23224d419c246` | PR-175 and PR-176 verified | 156 | 5 | 14 | 64 | [Green full CI 41182881920](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182881920); [prompt injection CI 41182056511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182056511) | Prompt trust-boundary controls and strict AI quiz argument validation passed backend and frontend CI. Gemini integration currently exposes no callable tools; tool allowlisting is not applicable until that surface is added. Release blockers remain: branch protection, staging/provider verification, data rights workflow, subscription lifecycle, lint-warning backlog. |

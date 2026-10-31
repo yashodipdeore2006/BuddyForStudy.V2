@@ -11,10 +11,10 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 154 / 239 |
+| Verified done | 155 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Not checked | 66 / 239 |
+| Not checked | 65 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -418,8 +418,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: failed drafts are not reused as idempotent successes; the same profile can create a fresh retry. If a course was persisted before a later generation step fails, the course is archived, remains unpublished/private, and the failed draft clears `roadmapId` and partial `result` so polling cannot expose an incomplete course as ready. Tests cover retry after a recent failed draft and cleanup after partial course persistence. Implementation: [commit `4398760`](https://github.com/yashodipdeore/BuddyForStudy.V2/commit/43987609c6a15ce5a1e0c27b5ee52bd303607fad); tests: [commit `b9ded93`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/b9ded93aee269c6c1adda2e62f7927b2124b7763) and [deterministic failure fixture `d4238ea`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/d4238ea093bba8c22127c16b5d345f408e821991). Exact candidate `d4238ea093bba8c22127c16b5d345f408e821991` passed both backend and frontend jobs in full CI [run #3691](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41100048064); backend reported 756/756 tests passing. · Finding/fix: —
 - [x] **PR-174** test AI content moderation and review policy.  
   Status: `DONE` · Evidence: exact `main` candidate `76094b20c6954e34cabb9bea5400f8527213004f` passed all four regression tests covering manual approval default, manual-mode enforcement, automatic approval provenance/readiness, and preserving learner-private async roadmaps. Backend CI reported 762/762 tests passing; frontend and backend jobs both passed in [CI run 41173752341](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41173752341).
-- [ ] **PR-175** test prompt injection from user/resource content.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-175** test prompt injection from user/resource content.  
+  Status: `DONE` · Evidence: bounded JSON trust-boundary serializer escapes `<`, `>`, and `&`, labels untrusted fields, and caps serialized input size. Applied to learner roadmap topic/level/goals/skills, intent parsing, syllabus extraction, lesson/project/video context, YouTube candidate metadata, advanced lesson questions/summaries, and course journey metadata. Regression tests cover marker-breakout attempts, hostile learner content, bounded payloads and valid JSON serialization. Exact `main` candidate `4d912197dcd68a42b01feae9b85d54a62d9ca7f3` passed backend and frontend CI [run 41182056511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182056511). · Finding/fix: —
 - [ ] **PR-176** allowlist tools and validate server-side arguments.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-177** prevent arbitrary URL fetch code execution and data access.  
@@ -639,4 +639,4 @@ The checklist is complete only when all tasks are `DONE` or have justified, appr
 
 
 | 2026-10-30 | Exact candidate `c007c8bf7d0204560edf720bf7712f0f91972cbc` | PR-154, PR-155, PR-156 and PR-158 verified | 139 | 5 | 14 | 81 | [Green CI 41090196692](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41090196692); [campaign safety tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/adminCampaignSafety.test.js); [manual retry tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationManualRetry.test.js); [worker heartbeat tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/jobHeartbeat.test.js); [backlog tests](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/notificationBacklog.test.js) | Current main head CI completed with backend and frontend jobs successful. PR-157 remains blocked on live Render worker verification; PR-159 remains unchecked pending stronger trial-grant idempotency/audit regression coverage. Release remains NOT READY. |
-| 2026-10-31 | Exact candidate `76094b20c6954e34cabb9bea5400f8527213004f` | PR-170 and PR-174 verified | 154 | 5 | 14 | 66 | [Green full CI 41173752341](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41173752341) | MongoDB-backed atomic roadmap admission/concurrency integration passed; AI content moderation/manual-vs-automatic approval and private-roadmap regression tests passed. Backend suite reported 762/762; frontend and backend jobs green. PR-170/REL-007 and PR-174 closed. Release blockers remain: branch protection, staging/provider verification, data rights workflow, subscription lifecycle, lint-warning backlog. |
+| 2026-10-31 | Exact candidate `4d912197dcd68a42b01feae9b85d54a62d9ca7f3` | PR-175 verified; PR-176 in progress | 155 | 5 | 14 | 65 | [Green full CI 41182056511](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41182056511) | Prompt trust-boundary serialization and regression coverage passed on exact main candidate. Server-side quiz argument hardening started after confirming the Gemini integration has no callable tools/function declarations. Release blockers remain: branch protection, staging/provider verification, data rights workflow, subscription lifecycle, lint-warning backlog. |

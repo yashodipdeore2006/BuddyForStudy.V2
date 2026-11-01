@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 166 / 239 |
+| Verified done | 167 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 11 / 239 |
-| Not checked | 43 / 239 |
+| Partially complete | 20 / 239 |
+| Not checked | 33 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -475,20 +475,20 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 ### K. Backend and operations
 
-- [ ] **PR-200** review Express security headers and body limits.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-200** review Express security headers and body limits.  
+  Status: `DONE` · Evidence: `httpSecurity.integration.test.js` starts the real Express server against CI MongoDB and verifies Helmet security headers, no `X-Powered-By`, the configured-origin CORS allowlist, rejection of an untrusted origin, HTTP 413 for JSON bodies over 1 MB and URL-encoded bodies over 10 KB. All four HTTP/security assertions passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). · Finding/fix: —
 - [ ] **PR-201** validate and bound API inputs.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — HIGH-RISK SCHEMAS COVERED; ROUTE-WIDE AUDIT OPEN` · Evidence: auth schemas validate identity/password/consent and bcrypt byte limits; admin course patch validators reject malformed metadata, unsafe thumbnails and invalid prices; trial campaign inputs use strict Zod schemas and bounded pagination/filters. Tests passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Every API route and payload field still needs a route-wide validation review. · Finding/fix: —
 - [ ] **PR-202** scope database queries to owner and prevent mass assignment.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — SELECTED USER-OWNED FLOWS VERIFIED` · Evidence: `userDataOwnership.test.js` checks progress reads/mutations, saved-course read/write/delete, timestamped notes and profile/consent account identity derive from the authenticated principal. Route authorization and admin permission suites also pass in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). This source-based coverage is not an exhaustive ownership/mass-assignment audit of all controllers and model mutations. · Finding/fix: —
 - [ ] **PR-203** review Mongo indexes uniqueness and performance.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — CRITICAL INDEXES REVIEWED; QUERY PERFORMANCE OPEN` · Evidence: MongoDB integration verifies unique slot/draft/user-window/idempotency indexes, TTL policy and repeatable startup initialization for RoadmapAdmissionLease, RoadmapAdmissionRateWindow and ApiRateLimit. `operationalAlert.test.js` also verifies the unique alert key. Backend CI passed [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Full collection-wide index inventory, explain plans and production query profiling remain open. · Finding/fix: —
 - [ ] **PR-204** test duplicate-key races and controlled errors.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — SELECTED RACE PATHS AND ERROR MAPPING TESTED` · Evidence: checkout lock duplicate-key contention, registration race, enrollment concurrency, payment/subscription webhook concurrency and Mongo rate-window contention have automated coverage; error middleware maps duplicate-key code `11000` to HTTP `409` without exposing database details. Backend CI passed [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Exhaustive endpoint-specific race tests and live high-concurrency load remain open. · Finding/fix: —
 - [ ] **PR-205** review transactions and compensating actions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — SELECTED OUTBOX/COMPENSATION FLOWS TESTED` · Evidence: audit outbox tests cover primary-write failure, queued retry, idempotent replay and bounded backoff; trial grant source tests cover cleanup when a subscription conflict occurs; course notification reconciliation has dedicated tests. These mechanisms are not a complete cross-model transaction strategy for every billing/enrollment/admin mutation. Backend CI passed [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). · Finding/fix: —
 - [ ] **PR-206** test database outage slow query and recovery.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — HEALTH GATES TESTED; REAL OUTAGE/RECONNECT OPEN` · Evidence: liveness is tested independently of MongoDB; readiness returns `503` while Mongoose is disconnected and `200` only when connected. Tests passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Actual socket interruption, slow query timeout, reconnect/backoff and recovery under live MongoDB failure remain untested. · Finding/fix: —
 - [ ] **PR-207** verify backup access and network restrictions.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-208** restore backup in isolation and document RPO/RTO.  
@@ -496,7 +496,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-209** test Redis outage cache invalidation and lock behavior.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-210** verify checkout lock expiry ownership and release.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — OWNERSHIP AND CONFLICT TESTED; LIVE TTL EXPIRY OPEN` · Evidence: `checkoutLock.test.js` verifies separate subscription/course lock scopes, token ownership, release filter, expiry timestamp creation and duplicate-key contention handling; backend CI passed [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). A live Mongo-backed lock-expiry/reacquisition race and provider checkout parallelism test remain open. · Finding/fix: —
 - [x] **PR-211** verify distributed rate limiting across instances.  
   Status: `DONE` · Evidence: `mongoRateLimitStore.integration.test.js` instantiates two independent Mongo-backed rate-limit stores and sends 24 concurrent increments; the final count is 24 and both instances read the same counter. Backend CI runs against MongoDB 7 and passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: —
 - [x] **PR-212** test graceful shutdown and cleanup.  
@@ -504,7 +504,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-213** verify liveness/readiness dependency semantics.  
   Status: `DONE` · Evidence: `health.controller.test.js` proves liveness remains `200` without MongoDB, readiness returns `503` when disconnected, and readiness returns `200` with `database: connected` only when Mongoose is connected. All three tests passed in backend CI [41276185066](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276185066). · Finding/fix: —
 - [ ] **PR-214** run deployment verification script.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — MOCKED VERIFIER TESTED; LIVE HOSTS REQUIRED` · Evidence: `verifyDeployment.test.js` verifies API liveness/readiness, database status, CORS origin, plan/OAuth config and frontend deep-link checks using a Fetch-compatible mock; tests passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2). The CLI cannot pass until real HTTPS API and frontend deployment URLs are provided and deployed. · Finding/fix: —
 - [ ] **PR-215** correlate API webhook and worker logs.  
   Status: `PARTIAL — API REQUEST CORRELATION TESTED; WORKER/WEBHOOK TRACE JOIN OPEN` · Evidence: middleware creates `x-request-id`; structured API logs include the request ID; regression test verifies it is preserved while route/user identifiers are redacted. Test passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Worker emits named job/heartbeat logs, but a shared trace/correlation context across API → webhook → worker and deployed log search are not proven. · Finding/fix: —
 - [ ] **PR-216** verify log retention and PII redaction.  
@@ -514,7 +514,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-218** run dependency secret and vulnerability scans.  
   Status: `DONE WITH SCOPE LIMITATION` · Evidence: root/frontend and backend dependency audits both pass in BuddyForStudy CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). A full-history Gitleaks 8.30.1 workflow is pinned to immutable action SHAs and ran successfully on the same commit [secret scan 41276636758](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636758), reporting `no leaks found`. This scan covers the Git history available to the workflow; it does not revoke secrets exposed outside the scanned repository history or replace rotation of any credential previously leaked elsewhere. · Finding/fix: —
 - [ ] **PR-219** test injection SSRF redirects unsafe HTML and traversal.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — SELECTED INJECTION/URL/HTML CONTROLS TESTED` · Evidence: prompt-injection trust-boundary tests, regex escaping, safe HTTP URL parser rejection of unsafe schemes/credentials, unsafe email HTML rejection and route security tests pass in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2). DNS rebinding, private/link-local IP SSRF, redirect chains, file/path traversal and payload fuzzing require additional dedicated tests. · Finding/fix: —
 
 ### L. Staging and launch
 
@@ -636,6 +636,9 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 
 | 2026-11-01 | Exact candidate `08f895d4047474322e32640e96a70c3b15f1e831` | PR-215 partial, PR-216 partial, PR-218 done, PR-224 partial | 166 | 5 | 14 | 43 | [Full CI 41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768); [Gitleaks 41276636758](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636758) | Full frontend/backend CI passed. Added MongoDB integration coverage for repeatable index initialization; added request-ID-aware structured API log redaction coverage; full-history Gitleaks 8.30.1 scan reports no leaks. Worker/webhook trace joining, provider log retention, and formal versioned migration tooling remain partial. |
+
+
+| 2026-11-01 | Exact candidate `08f895d4047474322e32640e96a70c3b15f1e831` | PR-200 verified; PR-201–206, PR-210, PR-214, PR-219 partial | 167 | 5 | 14 | 33 | [Full frontend/backend CI 41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768) | Live Express HTTP integration tests passed security headers, CORS allow/block, and JSON/form body limits. Added evidence for existing high-risk validation, owner-scoping, selected concurrency/compensation, readiness, checkout-lock, deployment-verifier and injection tests. Remaining scopes are explicitly partial rather than overclaimed. |
 
 ## Related project documents
 

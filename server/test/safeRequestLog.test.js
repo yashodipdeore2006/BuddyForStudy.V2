@@ -31,3 +31,33 @@ test("request log safely handles unknown response metadata", () => {
   }, { path: "/" }, {});
   assert.deepEqual(JSON.parse(output), { method: "UNKNOWN", route: "/", status: 0, responseTimeMs: 0, contentLength: null });
 });
+
+test("request IDs correlate API logs while dynamic route identifiers stay redacted", () => {
+  const requestId = "0d9233ce-7c9f-4e2a-b356-2c91b8ab1341";
+  const req = {
+    id: requestId,
+    path: "/api/courses/private-course-id/lessons/private-lesson-id",
+    originalUrl: "/api/courses/private-course-id/lessons/private-lesson-id?token=private-token",
+    ip: "203.0.113.45",
+    headers: { authorization: "Bearer private-token", referer: "https://private.example/" }
+  };
+  const tokens = {
+    method: () => "GET",
+    status: () => "200",
+    "response-time": () => "8",
+    res: () => "0"
+  };
+
+  const output = safeRequestLog(tokens, req, { statusCode: 200 });
+  assert.deepEqual(JSON.parse(output), {
+    requestId,
+    method: "GET",
+    route: "/api/courses/*",
+    status: 200,
+    responseTimeMs: 8,
+    contentLength: 0
+  });
+  for (const secret of ["private-course-id", "private-lesson-id", "private-token", "203.0.113.45", "private.example"]) {
+    assert.equal(output.includes(secret), false, "request log must omit " + secret);
+  }
+});

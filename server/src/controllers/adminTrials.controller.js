@@ -153,6 +153,7 @@ export async function grant(req, res, next) {
       const activeSub = await UserSubscription.findOne({ user: user.id, status: { $in: ["trialing", "active", "past_due"] }, $or: [{ currentPeriodEnd: null }, { currentPeriodEnd: { $gt: now } }] });
       const existingTrial = await TrialGrant.exists({ user: user.id, status: { $in: ["trialing", "converted"] } });
       if (activeSub || (input.filters.priorTrial === "never" && existingTrial)) { skipped++; continue; }
+      const previousSubscription = await UserSubscription.findOne({ user: user.id }).lean();
       try {
         const grant = await TrialGrant.create({
           user: user.id, plan: plan._id, campaignName: input.campaignName, reason: input.reason,
@@ -179,9 +180,10 @@ export async function grant(req, res, next) {
           { $set: subscriptionValues },
           { new: true }
         );
-        if (!updatedSubscription) {
+        let appliedSubscription = updatedSubscription;
+        if (!appliedSubscription) {
           try {
-            await UserSubscription.create({ user: user.id, ...subscriptionValues });
+            appliedSubscription = await UserSubscription.create({ user: user.id, ...subscriptionValues });
           } catch (subscriptionError) {
             // Another request may have created a currently active subscription after
             // our initial eligibility check. Remove this unfulfilled grant and skip.
@@ -193,11 +195,50 @@ export async function grant(req, res, next) {
             throw subscriptionError;
           }
         }
-        await recordAuditEvent({
+        const auditResult = await recordAuditEvent({
           actor: actorId(req), action: "trial.granted", targetType: "TrialGrant", targetId: String(grant._id),
           before: null, after: { userId: String(user.id), planId: String(plan._id), endsAt, conversionPlanId: input.conversionPlanId || null },
           reason: input.reason, ip: String(req.ip || "").slice(0, 100), userAgent: String(req.get("user-agent") || "").slice(0, 500)
         });
+        if (!auditResult?.recorded && !auditResult?.queued) {
+          // A grant without a durable audit event is not an acceptable success.
+          // Restore an expired/cancelled subscription only if our trial write is
+          // still the current value; never overwrite a concurrent provider change.
+          let compensated = false;
+          try {
+            if (previousSubscription) {
+              const restored = await UserSubscription.replaceOne(
+                {
+                  _id: appliedSubscription._id,
+                  user: user.id,
+                  status: "trialing",
+                  plan: plan._id,
+                  currentPeriodEnd: endsAt
+                },
+                previousSubscription
+              );
+              compensated = restored.matchedCount === 1;
+            } else {
+              const removed = await UserSubscription.deleteOne({
+                _id: appliedSubscription._id,
+                user: user.id,
+                status: "trialing",
+                plan: plan._id,
+                currentPeriodEnd: endsAt
+              });
+              compensated = removed.deletedCount === 1;
+            }
+          } catch (compensationError) {
+            await grant.updateOne({ $set: { status: "revoked", endsAt: new Date() } }).catch(() => {});
+            throw new Error("Trial grant audit persistence failed and subscription compensation also failed; manual reconciliation is required.", { cause: compensationError });
+          }
+          if (!compensated) {
+            await grant.updateOne({ $set: { status: "revoked", endsAt: new Date() } });
+            throw new Error("Trial grant audit persistence failed after a concurrent subscription change; manual reconciliation is required.");
+          }
+          await grant.deleteOne();
+          throw new Error("Trial grant was rolled back because its audit record could not be persisted.");
+        }
         granted++;
       } catch (error) {
         if (error?.code === 11000) skipped++;

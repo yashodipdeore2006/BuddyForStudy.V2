@@ -12,9 +12,9 @@
 |---|---:|
 | Total tasks | 239 |
 | Verified done | 167 / 239 |
-| Failed tasks | 5 / 239 |
+| Failed tasks | 4 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 20 / 239 |
+| Partially complete | 21 / 239 |
 | Not checked | 33 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
@@ -84,7 +84,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-019** capture CI for exact candidate SHA.  
   Status: `DONE` · Evidence: exact candidate `6afca87678f4fb181ad5d10e3c1a8226214edfd2` is green in [CI run 40312089329](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40312089329). Backend tests/lint/config preflight and frontend lint/typecheck/unit tests/production build/browser tests passed, including admin deletion confirmation, direct-route permissions, catalogue sort/pagination, loading, and offline retry. Checklist documentation changes follow the tested code candidate.
 - [ ] **PR-020** block release while required checks are red or pending.  
-  Status: `FAIL` · Evidence: branch protection is disabled and no separate release/deployment workflow enforces a candidate-CI gate; see `REL-001`. Manual go/no-go notes exist, but they do not prevent an unprotected merge/release.
+  Status: `PARTIAL — CI GATE AND RENDER CHECKS-PASS CONFIGURED; MERGE PROTECTION OPEN` · Evidence: CI now has a `Production release gate` job that fails unless both frontend and backend jobs succeed; it passed on [CI 41276721150](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276721150). Render Blueprint uses `autoDeployTrigger: checksPass` for API and worker. GitHub still reports `main.protected=false`, so GitHub does not block an unprotected merge or enforce required checks on PR merge; `REL-001` remains P1. · Finding/fix: enable required branch rules through repository admin settings.
 
 ### B. Configuration and secrets
 
@@ -563,7 +563,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 | Finding ID | Severity | Task ID(s) | Reproduction/evidence | Root cause | Fix commit | Regression test | Retest |
 |---|---|---|---|---|---|---|---|
-| REL-001 | P1 | PR-004, PR-020 | GitHub API: `main.protected=false`; no release workflow enforces candidate checks | Branch protection/ruleset is not enabled, so failing/pending checks do not prevent merges/releases | Manual repository settings required | Enable PR reviews and require frontend/backend jobs; verify red/pending jobs block merge | OPEN — settings write access unavailable through connector |
+| REL-001 | P1 | PR-004, PR-020 | GitHub API still reports `main.protected=false`; merges remain unprotected. | Implemented a `Production release gate` CI job that fails unless frontend and backend both succeed; verified green on candidate `c0ca024`. Render API and worker use `autoDeployTrigger: checksPass`. These stop deploys after failed checks when Render honors GitHub check status, but do not enforce protected-branch merge rules. | `c0ca024` (production release gate), `e5bb3c3` (Render checks-pass) | Verify branch-protection API and confirm red/pending required checks prevent merge and deployment | PARTIAL — candidate CI gate passed [41276721150](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276721150); branch protection disabled and cannot be changed through the available connector |
 | REL-002 | P2 | PR-011 | Initial strict backend lint surfaced 65 errors; discovery course code used undefined `level`; current backend lint and syntax checks pass. Root frontend lint also now reports the newer React Hooks diagnostics. | Legacy unused symbols, intentionally empty catches and React Compiler migration patterns caused lint findings. Two real API error-wrapping errors were fixed with preserved `cause`; React hooks effect/ref/purity diagnostics are warnings while focused refactoring and regression tests are pending. | `ef7aacf`, `0ca81cb`, `fd6fe03`, `f83e42f` (migration diagnostics), `8626225` (preserve network error cause) | Backend lint + tests + syntax checks; frontend lint/typecheck/unit/build | Dependency remediation [CI 41275322373](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41275322373) passed both clean installs, backend lint/tests and frontend lint/typecheck/unit/build; full current CI [41275711766](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41275711766) passed. React Hooks warning backlog remains OPEN; lint success is not equivalent to warning-free code |
 | REL-003 | P1 | PR-014 | Initial `npm ci` rejected the committed peer-dependency tree; install now succeeds with project npm config | Lockfile omitted optional MongoDB peer integrations and npm's default resolution did not match the committed tree | `c22ae9d` (`server/.npmrc`); CI now uses `npm ci` | Run clean installs for frontend/backend, then backend tests | RESOLVED — both clean installs and backend tests passed in [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017) |
 | REL-004 | P1 | PR-023, PR-024, PR-026–PR-030, PR-038 | Source validators/tests are verifiable, but deployed environment values and provider-console settings are not available in this session | Production secrets, OAuth origins, API restrictions, quotas and SMTP delivery must be confirmed in deployment/provider consoles without exposing secret values | Production config validator and env inventory | Run config preflight and deployment smoke tests; verify OAuth, Razorpay, Gemini, YouTube quota, SMTP OTP delivery and environment separation in staging | BLOCKED — do not waive for production release |
@@ -639,6 +639,9 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 
 | 2026-11-01 | Exact candidate `08f895d4047474322e32640e96a70c3b15f1e831` | PR-200 verified; PR-201–206, PR-210, PR-214, PR-219 partial | 167 | 5 | 14 | 33 | [Full frontend/backend CI 41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768) | Live Express HTTP integration tests passed security headers, CORS allow/block, and JSON/form body limits. Added evidence for existing high-risk validation, owner-scoping, selected concurrency/compensation, readiness, checkout-lock, deployment-verifier and injection tests. Remaining scopes are explicitly partial rather than overclaimed. |
+
+
+| 2026-11-01 | Candidate `c0ca0240f531ea68ccf1074b6441c189fe207b9a` | PR-020 partial | 167 | 4 | 14 | 33 | [CI 41276721150](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276721150) — frontend, backend and Production release gate successful; [Gitleaks 41276721170](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276721170) successful | Added a single status check that blocks the release gate job unless both primary CI jobs pass. Render API/worker deploys are configured for `checksPass`. GitHub branch protection remains disabled, so PR-004 stays FAIL and PR-020 is PARTIAL, not DONE. |
 
 ## Related project documents
 

@@ -261,9 +261,9 @@ function CourseLearningCard({
             <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
           </summary>
           <div className="absolute bottom-full right-0 z-20 mb-2 min-w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-            {hasRoadmap && <Link onClick={() => setMenuOpen(false)} to={routes.roadmap(course.id)} aria-label={"Open learning roadmap for " + course.title} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" aria-hidden="true" />Roadmap</Link>}
-            <Link onClick={() => setMenuOpen(false)} to={routes.course(course.id)} aria-label={"Open course information for " + course.title} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Info className="h-4 w-4" aria-hidden="true" />Course info</Link>
-            <button type="button" aria-label={"Unenroll from " + course.title} onClick={(event) => { const returnFocusTarget = event.currentTarget.closest("details")?.querySelector<HTMLElement>("summary"); setMenuOpen(false); onUnenroll(enrollment, returnFocusTarget); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" aria-hidden="true" />Unenroll</button>
+            {hasRoadmap && <Link onClick={() => setMenuOpen(false)} to={routes.roadmap(course.id)} aria-label="Roadmap" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Map className="h-4 w-4" aria-hidden="true" />Roadmap</Link>}
+            <Link onClick={() => setMenuOpen(false)} to={routes.course(course.id)} aria-label="Course info" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"><Info className="h-4 w-4" aria-hidden="true" />Course info</Link>
+            <button type="button" aria-label="Unenroll" onClick={(event) => { const returnFocusTarget = event.currentTarget.closest("details")?.querySelector<HTMLElement>("summary"); setMenuOpen(false); onUnenroll(enrollment, returnFocusTarget); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"><Trash2 className="h-4 w-4" aria-hidden="true" />Unenroll</button>
           </div>
         </details>
       </div>

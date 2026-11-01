@@ -1,0 +1,218 @@
+# Render Blueprint for the BuddyForStudy API and its always-on background worker.
+# Secrets are never committed here. Configure each sync:false variable in Render.
+# Production deploys are gated on linked GitHub checks passing.
+envVarGroups:
+  - name: buddyforstudy-production-runtime
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: USE_CURATION_ENGINE_FOR_AI
+        value: "false"
+      - key: INTENT_V2
+        value: "false"
+      - key: ASYNC_ROADMAP
+        value: "false"
+      - key: YT_COMBINED_SEARCH
+        value: "false"
+      - key: ENABLE_TRUSTED_CHANNELS
+        value: "false"
+      - key: ENABLE_CURATION_COMPLIANCE_WORKERS
+        value: "false"
+      - key: AI_PRIVATE_COURSES_SKIP_REVIEW
+        value: "false"
+      - key: YT_DAILY_QUOTA_BUDGET
+        value: "9000"
+      - key: YT_SOFT_LIMIT_PCT
+        value: "80"
+      - key: NODE_CACHE_TTL_DAYS
+        value: "14"
+      - key: NODE_CONCURRENCY
+        value: "3"
+      - key: SENTRY_TRACES_SAMPLE_RATE
+        value: "0.1"
+
+services:
+  - type: web
+    name: buddyforstudy-api
+    runtime: node
+    region: singapore
+    branch: main
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm run start
+    healthCheckPath: /api/health/ready
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: checksPass
+    envVars:
+      - fromGroup: buddyforstudy-production-runtime
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: WEB_PUSH_VAPID_PUBLIC_KEY
+        sync: false
+      - key: WEB_PUSH_VAPID_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_SUBJECT
+        sync: false
+
+  - type: worker
+    name: buddyforstudy-worker
+    runtime: node
+    region: singapore
+    branch: main
+    rootDir: server
+    buildCommand: npm ci
+    startCommand: npm run worker
+    maxShutdownDelaySeconds: 300
+    autoDeployTrigger: checksPass
+    envVars:
+      - fromGroup: buddyforstudy-production-runtime
+      - key: MONGO_URI
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: MONGO_URI
+      - key: JWT_SECRET
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: JWT_SECRET
+      - key: CLIENT_URL
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: CLIENT_URL
+      - key: API_URL
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: API_URL
+      - key: GOOGLE_CLIENT_ID
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: GOOGLE_CLIENT_ID
+      - key: GEMINI_API_KEY
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: GEMINI_API_KEY
+      - key: GEMINI_MODEL
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: GEMINI_MODEL
+      - key: YOUTUBE_API_KEY
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: YOUTUBE_API_KEY
+      - key: RAZORPAY_KEY_ID
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: RAZORPAY_KEY_ID
+      - key: RAZORPAY_KEY_SECRET
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: RAZORPAY_KEY_SECRET
+      - key: RAZORPAY_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: RAZORPAY_WEBHOOK_SECRET
+      - key: SMTP_HOST
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: SMTP_HOST
+      - key: SMTP_PORT
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: SMTP_PORT
+      - key: SMTP_SECURE
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: SMTP_SECURE
+      - key: SMTP_USER
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: SMTP_USER
+      - key: SMTP_PASS
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: SMTP_PASS
+      - key: MAIL_FROM
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: MAIL_FROM
+      - key: REDIS_URL
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: REDIS_URL
+      - key: SENTRY_DSN
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: SENTRY_DSN
+      - key: WEB_PUSH_VAPID_PUBLIC_KEY
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: WEB_PUSH_VAPID_PUBLIC_KEY
+      - key: WEB_PUSH_VAPID_PRIVATE_KEY
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: WEB_PUSH_VAPID_PRIVATE_KEY
+      - key: WEB_PUSH_SUBJECT
+        fromService:
+          type: web
+          name: buddyforstudy-api
+          envVarKey: WEB_PUSH_SUBJECT

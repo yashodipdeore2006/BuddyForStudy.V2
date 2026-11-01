@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 164 / 239 |
+| Verified done | 165 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 8 / 239 |
-| Not checked | 48 / 239 |
+| Partially complete | 9 / 239 |
+| Not checked | 46 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -501,8 +501,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: `mongoRateLimitStore.integration.test.js` instantiates two independent Mongo-backed rate-limit stores and sends 24 concurrent increments; the final count is 24 and both instances read the same counter. Backend CI runs against MongoDB 7 and passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: —
 - [x] **PR-212** test graceful shutdown and cleanup.  
   Status: `DONE` · Evidence: `gracefulShutdown.test.js` verifies idempotent SIGTERM/SIGINT handling, timers cleared, HTTP server and idle connections closed, database disconnect called once, and force-close at deadline; backend CI passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: —
-- [ ] **PR-213** verify liveness/readiness dependency semantics.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-213** verify liveness/readiness dependency semantics.  
+  Status: `DONE` · Evidence: `health.controller.test.js` proves liveness remains `200` without MongoDB, readiness returns `503` when disconnected, and readiness returns `200` with `database: connected` only when Mongoose is connected. All three tests passed in backend CI [41276185066](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276185066). · Finding/fix: —
 - [ ] **PR-214** run deployment verification script.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-215** correlate API webhook and worker logs.  
@@ -512,7 +512,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-217** alert on 5xx payments webhooks backlog and quota.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-218** run dependency secret and vulnerability scans.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — DEPENDENCY AUDITS PASS; SECRET SCANNING OPEN` · Evidence: root workflow runs `npm audit --omit=dev --audit-level=moderate`; backend runs `npm audit --audit-level=moderate`. Both audits passed in full CI [41276185066](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276185066). No independent secret-scanning job is currently enforced. · Finding/fix: —
 - [ ] **PR-219** test injection SSRF redirects unsafe HTML and traversal.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 
@@ -630,6 +630,9 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 
 | 2026-11-01 | Exact candidate `d80e7284cb8d6bcfb9166e01b2feb301c1f9110e` | PR-182, PR-199, PR-211, PR-212 verified; PR-187, PR-189, PR-190, PR-191 partial | 164 | 5 | 14 | 48 | [Full green CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542) — frontend/backend success, 113 Playwright tests | Accessibility controls/route names and production-build browser regressions passed. Mongo-backed rate-limit integration confirms two independent stores share one atomic counter under 24 concurrent requests. Graceful-shutdown tests verify idempotent signal handling, timer/connection cleanup and forced close. Heading/alt/motion/responsive checks are partial because automated evidence does not cover all routes, semantics or detailed visual/touch behavior. React Hooks lint reports 103 warnings with zero errors; warning remediation remains open. |
+
+
+| 2026-11-01 | Exact candidate `04449bd51c8ef62e991cfcb0c410f60a1daeedc1` | PR-213 verified; PR-218 partial | 165 | 5 | 14 | 46 | [Green full CI 41276185066](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276185066) — backend and frontend jobs successful; liveness/readiness tests passed | Added and passed direct health-controller tests for liveness independence and database-dependent readiness. CI's frontend/backend npm vulnerability audits are green; no separate secret-scanning gate is enabled, so PR-218 remains partial. |
 
 ## Related project documents
 

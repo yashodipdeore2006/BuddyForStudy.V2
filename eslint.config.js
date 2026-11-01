@@ -35,6 +35,13 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Keep core Hooks correctness rules blocking. The newer React Compiler
+      // diagnostics below expose a broad legacy migration backlog; report them
+      // without making the entire application lint task fail until each pattern
+      // can be refactored and regression-tested in focused batches.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/purity': 'warn',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

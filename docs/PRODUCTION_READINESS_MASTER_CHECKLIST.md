@@ -11,12 +11,12 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 160 / 239 |
+| Verified done | 164 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 4 / 239 |
-| Not checked | 56 / 239 |
-| Open findings | 6 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; REL-008 P2 accessibility regression retest; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
+| Partially complete | 8 / 239 |
+| Not checked | 48 / 239 |
+| Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
 After every task or batch, report `N completed out of 239`, plus failed, blocked and remaining counts. Update this file with date, candidate SHA, evidence/CI URL, finding ID, fix commit and retest result. A code fix is not closed until the original check passes again.
@@ -436,8 +436,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: reviewed route-level auth/loading behavior and shared `ErrorState`, `EmptyState`, Suspense fallback and app error boundary. The routed learner home (`Home.tsx`; legacy `Dashboard.tsx` is not routed) already distinguishes fatal, partial-source and offline states. Fixed Saved Courses API failures being rendered as a successful empty list and Billing initial-load failures being rendered as empty billing data; both now show accessible retryable error states. Added Playwright regression coverage for Saved Courses failure versus true empty state and Billing failure versus empty transaction state. The Home fatal/retry test was removed after reproducing a flaky test setup; the existing Home implementation was left unchanged. Exact latest `main` candidate `57cec0239d5d51a8f4e03a99811654ab20438132` passed backend and frontend CI, including browser smoke tests, in [run 41215608568](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41215608568). Fixes: [saved-course recovery](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/9db982e7e9a0f3f326bc36a225b88bb8f0229c79), [billing recovery](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/eb9193cc0c881f5cf64d9c0368d3a1ff003ef611), [verified route regression tests](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/57cec0239d5d51a8f4e03a99811654ab20438132). · Finding/fix: route failures must not be rendered as legitimate empty data.
 - [ ] **PR-181** verify every button action and duplicate guard.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-182** verify link destinations and accessible names.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-182** verify link destinations and accessible names.  
+  Status: `DONE` · Evidence: `A11Y-CONTROLS-NAMES-001` checks accessible names and rejects placeholder/unsafe link targets across primary public and learner routes; full production-build browser suite passed with 113 tests on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: signed-out auth routes are represented accurately in the browser fixture; link destinations and names retested.
 - [ ] **PR-183** verify form labels required fields and server errors.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-184** test modal focus trap Escape and focus restoration.  
@@ -447,15 +447,15 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-186** verify keyboard reachability and visible focus.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-187** verify heading hierarchy landmarks and semantics.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — PRIMARY ROUTE LANDMARK/H1 AUDIT PASSED` · Evidence: `A11Y-SEMANTICS-001` checks a visible `main` landmark and page-level `h1` on 16 primary public/learner routes; included in 113-test production-build browser run [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). Full per-component heading-level hierarchy and every admin sub-route still need manual/automated coverage. · Finding/fix: —
 - [ ] **PR-188** check text status and focus contrast against WCAG AA.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-189** verify useful alt text and decorative images.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — ALT ATTRIBUTE PRESENCE TESTED` · Evidence: accessibility smoke audit checks visible images have an `alt` attribute on primary routes; included in 113-test run [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). Semantic quality of informative alt text and correct empty alt on every decorative image still need a manual/content audit. · Finding/fix: —
 - [ ] **PR-190** verify reduced-motion support.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — GLOBAL REDUCED-MOTION PROBE PASSED` · Evidence: `A11Y-REDUCED-MOTION-001` emulates `prefers-reduced-motion: reduce` and checks animation/transition durations and scroll behavior; included in 113-test run [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). Route-by-route motion review and user-triggered animation verification remain open. · Finding/fix: —
 - [ ] **PR-191** test mobile tablet laptop and wide layouts.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — RESPONSIVE OVERFLOW CHECKS PASSED` · Evidence: existing Playwright checks cover learner routes at 360, 390, 768, 1024 and 1440 CSS px, plus admin dashboard/users/courses at 360, 768 and 1440 px; included in [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). These assert horizontal overflow only; detailed component fit, tablet interactions, zoom and touch targets remain open. · Finding/fix: —
 - [ ] **PR-192** test tables dialogs cards for clipping and overflow.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-193** test long titles names URLs prices and errors.  
@@ -470,8 +470,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-198** validate footer social About Contact FAQ Pricing legal links.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-199** run Playwright on production build and add P0/P1 regressions.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-199** run Playwright on production build and add P0/P1 regressions.  
+  Status: `DONE WITH SCOPE LIMITATION` · Evidence: CI builds Vite production output, serves it using `vite preview`, then runs navigation/admin/Google-auth/accessibility Playwright suites; 113 tests passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). API/provider responses are mocked in browser tests; live staging/payment/OAuth/SMTP behavior is covered by separate release gates. · Finding/fix: —
 
 ### K. Backend and operations
 
@@ -497,10 +497,10 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-210** verify checkout lock expiry ownership and release.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-211** verify distributed rate limiting across instances.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-212** test graceful shutdown and cleanup.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-211** verify distributed rate limiting across instances.  
+  Status: `DONE` · Evidence: `mongoRateLimitStore.integration.test.js` instantiates two independent Mongo-backed rate-limit stores and sends 24 concurrent increments; the final count is 24 and both instances read the same counter. Backend CI runs against MongoDB 7 and passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: —
+- [x] **PR-212** test graceful shutdown and cleanup.  
+  Status: `DONE` · Evidence: `gracefulShutdown.test.js` verifies idempotent SIGTERM/SIGINT handling, timers cleared, HTTP server and idle connections closed, database disconnect called once, and force-close at deadline; backend CI passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: —
 - [ ] **PR-213** verify liveness/readiness dependency semantics.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-214** run deployment verification script.  
@@ -569,8 +569,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 | REL-004 | P1 | PR-023, PR-024, PR-026–PR-030, PR-038 | Source validators/tests are verifiable, but deployed environment values and provider-console settings are not available in this session | Production secrets, OAuth origins, API restrictions, quotas and SMTP delivery must be confirmed in deployment/provider consoles without exposing secret values | Production config validator and env inventory | Run config preflight and deployment smoke tests; verify OAuth, Razorpay, Gemini, YouTube quota, SMTP OTP delivery and environment separation in staging | BLOCKED — do not waive for production release |
 | REL-005 | P2 | PR-021 | `src/lib/socialLinks.ts` had Facebook/GitHub social variables and rollout flags missing from example/types | Frontend env types and inventory drifted from actual public flags and social-link usage | `3b67883`, `d152ea3`, `f7d800b` | Frontend typecheck and current env/type inventory inspection; successful CI run [40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — current example, declarations, code and inventory agree |
 | REL-006 | P1 | PR-030 | CI run [40283675707](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40283675707) exposed malformed Web Push URL regex syntax | SMTP/Web Push/Redis config validation was added before its final regex source was syntactically valid | `51ece64` | Backend lint, synthetic production config preflight, tests and canonical-route Playwright tests pass in [CI run 40284067746](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40284067746) | RESOLVED — keep live SMTP provider delivery under REL-004 staging gate |
-| REL-002 | P2 | PR-011 | Initial strict backend lint surfaced 65 errors; discovery course code used undefined `level`; current backend lint and syntax checks pass. Root frontend lint also now reports the newer React Hooks diagnostics. | Legacy unused symbols, intentionally empty catches and React Compiler migration patterns caused lint findings. Two real API error-wrapping errors were fixed with preserved `cause`; React hooks effect/ref/purity diagnostics are warnings while focused refactoring and regression tests are pending. | `ef7aacf`, `0ca81cb`, `fd6fe03`, `f83e42f` (migration diagnostics), `8626225` (preserve network error cause) | Backend lint + tests + syntax checks; frontend lint/typecheck/unit/build | Dependency remediation [CI 41275322373](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41275322373) passed both clean installs, backend lint/tests and frontend lint/typecheck/unit/build; full current CI [41275711766](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41275711766) passed. React Hooks warning backlog remains OPEN; lint success is not equivalent to warning-free code |
 | REL-007 | P2 | PR-170 | Concurrent async roadmap admission could exceed global/per-user limits or permit duplicate capacity claims under count-then-create races | Admission capacity was not reserved atomically across API instances and request windows were not persisted atomically | `4f10ffb`, `93a8121`, `2687ce1`, `51cd4c7`, `76094b2` | MongoDB integration test races concurrent requests, checks unique global/per-user slots, persistent rate windows, lease renewal/recovery; exact `main` CI [41173752341](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41173752341) reports 762/762 backend tests and both jobs green | RESOLVED — exact candidate passed real MongoDB integration and full CI |
+| REL-008 | P2 | PR-182, PR-187 | Initial Playwright smoke runs exposed a signed-in fixture being used for public auth-page semantics checks; an intermediate menu-label edit also changed the expected exact accessible name for Unenroll. | Corrected the test fixture to report unauthenticated state for `/login` and `/register`; restored stable accessible control names and retested the complete browser suite. Remaining semantic depth limits are tracked under PR-187/PR-189/PR-190/PR-191 rather than hiding them. | `a4587df` (auth fixture), `d80e728` (stable menu names) | `A11Y-CONTROLS-NAMES-001`, full production-preview Playwright suite | CLOSED — 113 Playwright tests passed on [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542) |
 | CONTENT-001 | P2 | PR-093 | Public catalogue and standalone-module discovery did not explicitly exclude archived records from every learner-facing filter | An archived record with stale `isPublished: true` could pass the catalogue filter and a generated standalone module could be rediscovered | `04dfee75`, `bb68a8e` | [`courseVisibility.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/courseVisibility.test.js) and [`contentQuality.test.js`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/contentQuality.test.js) passed on green [CI 40475976561](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40475976561) | RESOLVED — public catalogue, detail and standalone-discovery paths now exclude `status: archived`, deleted records and unpublished courses |
 | AUTH-001 | P1 | PR-051–PR-053 | Logout previously cleared only the local browser token and issued JWTs remained valid until expiry; password change/reset did not invalidate other sessions | Tokens had no per-user revocation/version check | `0dd1377` | [authTokenRevocation.test.js](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/server/test/authTokenRevocation.test.js) tests stale/legacy/expired tokens, multi-device logout revocation and password rotation; exact-candidate CI [40289400104](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40289400104) passed | RESOLVED — token version now checked in required and optional auth middleware; logout increments it atomically; password change/reset atomically rotate it and return a fresh token |
 | DATA-001 | P1 | PR-056, PR-078 | The consent audit plan states a full account export/deletion rights workflow was not found; route/source review found no authenticated request tracker or deletion/export orchestrator | Account data rights/retention process is described generically in policy/contact copy but has no operational workflow, approved category-by-category retention schedule, legal-hold path, or verified deletion/export outcome | Proposed procedure documented in [`docs/PRIVACY_REQUESTS_AND_RETENTION.md`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/blob/main/docs/PRIVACY_REQUESTS_AND_RETENTION.md); runtime fix not yet implemented | Required: identity-verified request tracking, permission-scoped export, reviewed idempotent deletion/anonymization orchestration, retention/legal-hold handling, backup expiry, retry and post-operation verification tests | OPEN — P1 launch blocker; proposed document is not implementation evidence |
@@ -627,6 +627,9 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 
 | 2026-11-01 | Main candidate `8db2b3e082b2e3d75b4ec3de01c036e824e488f6` | Dependency lockfile refresh and deployment preparation; PR-221–PR-223 partial | 160 | 5 | 14 | 56 | [Dependency remediation CI 41275322373](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41275322373); [full CI 41275711766](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41275711766); [deployment config test](https://github.com/yashodipore2006/BuddyForStudy.V2/blob/main/tests/deploymentConfig.test.cjs) | Regenerated and committed root/server lockfiles (`b081191`) only after clean installs, backend lint/tests, frontend lint/typecheck/unit tests and production build passed. Added Vercel SPA rewrites, Render API + worker Blueprint, deployment runbook, and CI tests for deployment configuration. The four historical PR-162–PR-165 checkbox omissions are corrected. Live Vercel/Render and provider staging remain unverified. React Compiler lint warnings remain a P2 backlog. Accessibility failures found in browser CI are being corrected and require exact-head retest. |
+
+
+| 2026-11-01 | Exact candidate `d80e7284cb8d6bcfb9166e01b2feb301c1f9110e` | PR-182, PR-199, PR-211, PR-212 verified; PR-187, PR-189, PR-190, PR-191 partial | 164 | 5 | 14 | 48 | [Full green CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542) — frontend/backend success, 113 Playwright tests | Accessibility controls/route names and production-build browser regressions passed. Mongo-backed rate-limit integration confirms two independent stores share one atomic counter under 24 concurrent requests. Graceful-shutdown tests verify idempotent signal handling, timer/connection cleanup and forced close. Heading/alt/motion/responsive checks are partial because automated evidence does not cover all routes, semantics or detailed visual/touch behavior. React Hooks lint reports 103 warnings with zero errors; warning remediation remains open. |
 
 ## Related project documents
 

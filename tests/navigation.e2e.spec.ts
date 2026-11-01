@@ -104,6 +104,7 @@ async function mockAppApi(page: Page, options: {
   roadmapStages?: Array<Record<string, unknown>>;
   roadmapProgress?: Record<string, unknown> | null;
   learningEnrollments?: Array<Record<string, unknown>>;
+  unauthenticatedPaths?: string[];
   savedMutationFailure?: "save" | "remove";
   practiceQuizFailure?: boolean;
   reviewMutationFailure?: boolean;
@@ -133,8 +134,10 @@ async function mockAppApi(page: Page, options: {
     const pathname = new URL(route.request().url()).pathname;
 
     if (pathname.endsWith("/api/auth/me")) {
-      if (process.env.E2E_DEBUG === "1") console.log("[E2E] auth-me route", route.request().url(), "authenticated=", Boolean(options.authenticated));
-      return options.authenticated
+      const currentPath = new URL(page.url()).pathname;
+      const authenticated = Boolean(options.authenticated) && !(options.unauthenticatedPaths || []).includes(currentPath);
+      if (process.env.E2E_DEBUG === "1") console.log("[E2E] auth-me route", route.request().url(), "authenticated=", authenticated);
+      return authenticated
         ? json(route, { user: learner })
         : json(route, { message: "Authentication required" }, 401);
     }
@@ -2428,7 +2431,7 @@ test("[A11Y-REDUCED-MOTION-001] application motion respects the operating system
 
 
 test("[A11Y-SEMANTICS-001] primary routes expose a main landmark, a page heading and alt attributes", async ({ page }) => {
-  await mockAppApi(page, { authenticated: true });
+  await mockAppApi(page, { authenticated: true, unauthenticatedPaths: ["/login", "/register"] });
   const paths = ["/", "/about", "/contact", "/faq", "/login", "/register", "/forgot-password", "/home", "/explore", "/my-learning", "/saved", "/profile", "/settings", "/billing", "/notifications", "/pricing"];
   const violations: string[] = [];
 

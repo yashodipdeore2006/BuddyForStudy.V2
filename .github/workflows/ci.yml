@@ -112,3 +112,20 @@ jobs:
         run: node scripts/compareSelectors.js
       - name: Check all server JavaScript syntax
         run: find src -type f -name "*.js" -print0 | xargs -0 -n1 node --check
+
+  production-release-gate:
+    name: Production release gate
+    if: always()
+    needs: [frontend, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all CI jobs to pass
+        env:
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+        run: |
+          if [[ "$FRONTEND_RESULT" != "success" || "$BACKEND_RESULT" != "success" ]]; then
+            echo "::error::Production release is blocked. frontend=$FRONTEND_RESULT backend=$BACKEND_RESULT"
+            exit 1
+          fi
+          echo "Production release gate passed: frontend and backend are both successful."

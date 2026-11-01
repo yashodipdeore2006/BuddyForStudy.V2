@@ -42,3 +42,12 @@ BuddyForStudy sends browser push notifications directly through the standard Web
 - **Navigation and element map:** [User Flow and Element Map](USER_FLOW_AND_ELEMENT_MAP.md)
 
 The functional inventory maps runtime routes, learner/admin control families, API dependencies, existing tests, browser validation scenarios, and production integration gates. Treat it as a source-based audit until each control has browser and staging evidence recorded.
+
+
+## Deployment and production readiness
+
+- **Deployment runbook:** [Vercel frontend + Render API/worker](docs/DEPLOYMENT.md)
+- **Production release checklist:** [239-task readiness and release gates](docs/PRODUCTION_READINESS_MASTER_CHECKLIST.md)
+- **Deployment manifests:** [Vercel](vercel.json) · [Render Blueprint](render.yaml)
+
+The checked-in deployment files prepare the hosting configuration; they do not mean the services have been deployed or verified. Keep Build with AI v2 rollout flags off until staging validation is complete, and do not release while any P1 data-rights, branch-protection, provider or staging gate remains open.

@@ -28,6 +28,8 @@ jobs:
       - run: npm run typecheck
       - name: Course navigation unit tests
         run: npm run test:unit
+      - name: Vercel and Render deployment config tests
+        run: node --test tests/deploymentConfig.test.cjs
       - name: Build production app with synthetic canonical site URL
         env:
           VITE_PUBLIC_SITE_URL: "https://buddyforstudy.example"

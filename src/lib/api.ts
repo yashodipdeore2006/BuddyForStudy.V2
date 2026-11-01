@@ -109,9 +109,9 @@ export async function apiFetch<T = ApiResponse>(path: string, options: ApiFetchO
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error('The request was cancelled or took too long. Please try again.');
+        throw new Error('The request was cancelled or took too long. Please try again.', { cause: error });
       }
-      throw new Error(`We couldn't connect to BuddyForStudy. Check your internet connection and try again. If the problem continues, contact support.`);
+      throw new Error(`We couldn't connect to BuddyForStudy. Check your internet connection and try again. If the problem continues, contact support.`, { cause: error });
     }
 
     const data = await response.json().catch(() => ({}));

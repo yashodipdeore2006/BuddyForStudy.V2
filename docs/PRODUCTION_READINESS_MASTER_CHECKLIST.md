@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 165 / 239 |
+| Verified done | 166 / 239 |
 | Failed tasks | 5 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 9 / 239 |
-| Not checked | 46 / 239 |
+| Partially complete | 11 / 239 |
+| Not checked | 43 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, account data rights/retention workflow, and staging/operations gates remain open** |
 
@@ -506,13 +506,13 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-214** run deployment verification script.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-215** correlate API webhook and worker logs.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — API REQUEST CORRELATION TESTED; WORKER/WEBHOOK TRACE JOIN OPEN` · Evidence: middleware creates `x-request-id`; structured API logs include the request ID; regression test verifies it is preserved while route/user identifiers are redacted. Test passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Worker emits named job/heartbeat logs, but a shared trace/correlation context across API → webhook → worker and deployed log search are not proven. · Finding/fix: —
 - [ ] **PR-216** verify log retention and PII redaction.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — PII REDACTION TESTED; RETENTION OPEN` · Evidence: `safeRequestLog` omits query strings, request/response bodies, IPs, referers, user agents and dynamic path IDs. Two regression tests verify sensitive values and bearer/query tokens do not appear; backend CI passed [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). Hosting-provider retention/rotation, access control and deletion windows require the actual log platform configuration. · Finding/fix: —
 - [ ] **PR-217** alert on 5xx payments webhooks backlog and quota.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-218** run dependency secret and vulnerability scans.  
-  Status: `PARTIAL — DEPENDENCY AUDITS PASS; SECRET SCANNING OPEN` · Evidence: root workflow runs `npm audit --omit=dev --audit-level=moderate`; backend runs `npm audit --audit-level=moderate`. Both audits passed in full CI [41276185066](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276185066). No independent secret-scanning job is currently enforced. · Finding/fix: —
+- [x] **PR-218** run dependency secret and vulnerability scans.  
+  Status: `DONE WITH SCOPE LIMITATION` · Evidence: root/frontend and backend dependency audits both pass in BuddyForStudy CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). A full-history Gitleaks 8.30.1 workflow is pinned to immutable action SHAs and ran successfully on the same commit [secret scan 41276636758](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636758), reporting `no leaks found`. This scan covers the Git history available to the workflow; it does not revoke secrets exposed outside the scanned repository history or replace rotation of any credential previously leaked elsewhere. · Finding/fix: —
 - [ ] **PR-219** test injection SSRF redirects unsafe HTML and traversal.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 
@@ -527,7 +527,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-223** verify worker deployment and supervision.  
   Status: `PARTIAL — BLUEPRINT COMMITTED; HOSTED VALIDATION OPEN` · Evidence: Render Blueprint defines a separate background worker using `npm run worker`, shares required runtime variables with the API and allows up to 300 seconds for shutdown; configuration test [CI 41275711766](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41275711766) passed at candidate `8db2b3e`. Live worker supervision, heartbeat and queue processing have not been verified in Render. · Finding/fix: deployment preparation only; live operations verification required.
 - [ ] **PR-224** verify migrations/indexes repeatability and order.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — MONGOOSE INDEX INITIALIZATION IDEMPOTENCY TESTED` · Evidence: `databaseIndexes.integration.test.js` calls the same database startup/index initialization path twice against MongoDB 7, then checks that unique compound indexes, unique idempotency indexes and TTL policies have the same names/key order/options after the second initialization. The integration test passed in backend CI [41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768). A formal versioned schema-migration runner, rollback ordering and live production migration rehearsal remain open. · Finding/fix: —
 - [ ] **PR-225** verify deployed API URLs CORS and callbacks.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-226** verify TLS HTTPS redirects secure cookies HSTS.  
@@ -633,6 +633,9 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 
 
 | 2026-11-01 | Exact candidate `04449bd51c8ef62e991cfcb0c410f60a1daeedc1` | PR-213 verified; PR-218 partial | 165 | 5 | 14 | 46 | [Green full CI 41276185066](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276185066) — backend and frontend jobs successful; liveness/readiness tests passed | Added and passed direct health-controller tests for liveness independence and database-dependent readiness. CI's frontend/backend npm vulnerability audits are green; no separate secret-scanning gate is enabled, so PR-218 remains partial. |
+
+
+| 2026-11-01 | Exact candidate `08f895d4047474322e32640e96a70c3b15f1e831` | PR-215 partial, PR-216 partial, PR-218 done, PR-224 partial | 166 | 5 | 14 | 43 | [Full CI 41276636768](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636768); [Gitleaks 41276636758](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276636758) | Full frontend/backend CI passed. Added MongoDB integration coverage for repeatable index initialization; added request-ID-aware structured API log redaction coverage; full-history Gitleaks 8.30.1 scan reports no leaks. Worker/webhook trace joining, provider log retention, and formal versioned migration tooling remain partial. |
 
 ## Related project documents
 

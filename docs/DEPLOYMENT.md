@@ -46,7 +46,7 @@ Use Render **New → Blueprint** and connect this repository. Render reads the r
 | `buddyforstudy-api` | `server` | `npm ci` | `npm run start` | HTTP API |
 | `buddyforstudy-worker` | `server` | `npm ci` | `npm run worker` | Background retries, reminders, reconciliation, expiry and curation maintenance |
 
-Both use Node.js 24 (the server package engine), the Singapore region, and `main`. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected. The worker is configured with a 300-second shutdown window so it can drain in-flight maintenance before exiting.
+Both use Node.js 24 (the server package engine), the Singapore region, and `main`. The Singapore region is an initial default, not a verified optimal choice: before the first Blueprint sync, compare it with the MongoDB Atlas cluster region and select the closest supported region with acceptable database latency. Render service region changes after creation require a new service and migration plan. Confirm `TRUST_PROXY_HOPS=1` matches the actual Render proxy topology before launch. The API health check uses `/api/health/ready`, which returns success only when MongoDB is connected. The worker is configured with a 300-second shutdown window so it can drain in-flight maintenance before exiting.
 
 The worker is mandatory for scheduled reminders, delivery retries, billing reconciliation, subscription/trial expiry maintenance and the worker heartbeat used by operations monitoring. Do not deploy only the HTTP API.
 

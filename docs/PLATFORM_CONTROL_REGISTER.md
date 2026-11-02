@@ -18,7 +18,7 @@
 
 ## Required fields for each control
 
-Keep a stable ID, route/component, visible and accessible label, event/handler, preconditions, API or side effect, pending/success/failure behavior, accessibility expectation, test ID, evidence link and status. If a control only changes local state, say so explicitly.
+Keep a stable ID, route/component, visible and accessible label, event/handler, preconditions, API or side effect, loading, success and failure states, accessibility expectation, test ID, evidence link and status. If a control only changes local state, say so explicitly.
 
 ## 1. Global learner shell
 

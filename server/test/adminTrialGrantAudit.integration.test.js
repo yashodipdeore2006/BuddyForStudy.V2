@@ -169,3 +169,92 @@ test("a trial grant is compensated when both audit persistence and the retry out
   assert.equal(await UserSubscription.countDocuments({ user: scenario.learner._id }), 0);
   assert.equal(await AuditOutbox.countDocuments({ "event.action": "trial.granted" }), 0);
 });
+
+test("a paid subscription created after eligibility is rechecked is never overwritten by a trial", { skip: !canRun, timeout: 30_000 }, async () => {
+  const scenario = await createScenario("active-subscription-race");
+  const paidPlan = await SubscriptionPlan.create({
+    name: "Concurrent Paid Plan",
+    slug: "concurrent-paid-" + crypto.randomUUID(),
+    price: 499,
+    currency: "INR",
+    billingInterval: "monthly",
+    isActive: true,
+  });
+
+  const originalFindOneAndUpdate = UserSubscription.findOneAndUpdate;
+  let injected = false;
+  UserSubscription.findOneAndUpdate = async function (filter, update, options) {
+    if (!injected) {
+      injected = true;
+      await UserSubscription.create({
+        user: scenario.learner._id,
+        plan: paidPlan._id,
+        status: "active",
+        provider: "razorpay",
+        providerSubscriptionId: "sub-race-" + crypto.randomUUID(),
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      });
+    }
+    return originalFindOneAndUpdate.call(this, filter, update, options);
+  };
+
+  let result;
+  try {
+    result = await invokeGrant(scenario);
+  } finally {
+    UserSubscription.findOneAndUpdate = originalFindOneAndUpdate;
+  }
+
+  assert.equal(result.nextError, null);
+  assert.equal(result.res.body?.success, true);
+  assert.equal(result.res.body?.granted, 0);
+  assert.equal(result.res.body?.skipped, 1);
+  assert.equal(await TrialGrant.countDocuments({ user: scenario.learner._id }), 0);
+
+  const subscriptions = await UserSubscription.find({ user: scenario.learner._id }).lean();
+  assert.equal(subscriptions.length, 1);
+  assert.equal(subscriptions[0].status, "active");
+  assert.equal(String(subscriptions[0].plan), String(paidPlan._id));
+  assert.equal(subscriptions[0].provider, "razorpay");
+});
+
+test("audit failure restores a learner's previous cancelled subscription instead of deleting it", { skip: !canRun, timeout: 30_000 }, async () => {
+  const scenario = await createScenario("restore-previous-subscription");
+  const previousEndsAt = new Date(Date.now() - 60_000);
+  await UserSubscription.create({
+    user: scenario.learner._id,
+    plan: scenario.plan._id,
+    status: "cancelled",
+    provider: "razorpay",
+    providerSubscriptionId: "sub-previous-" + crypto.randomUUID(),
+    currentPeriodStart: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+    currentPeriodEnd: previousEndsAt,
+    cancelAtPeriodEnd: true,
+    cancelledAt: previousEndsAt,
+  });
+
+  const originalAuditCreate = AuditLog.create;
+  const originalOutboxCreate = AuditOutbox.create;
+  AuditLog.create = async () => { throw new Error("simulated audit collection outage"); };
+  AuditOutbox.create = async () => { throw new Error("simulated audit outbox outage"); };
+
+  let result;
+  try {
+    result = await invokeGrant(scenario);
+  } finally {
+    AuditLog.create = originalAuditCreate;
+    AuditOutbox.create = originalOutboxCreate;
+  }
+
+  assert.ok(result.nextError);
+  assert.match(result.nextError.message, /rolled back because its audit record could not be persisted/i);
+  assert.equal(await TrialGrant.countDocuments({ user: scenario.learner._id }), 0);
+
+  const restored = await UserSubscription.findOne({ user: scenario.learner._id }).lean();
+  assert.equal(restored.status, "cancelled");
+  assert.equal(restored.cancelAtPeriodEnd, true);
+  assert.equal(restored.currentPeriodEnd.getTime(), previousEndsAt.getTime());
+  assert.match(restored.providerSubscriptionId, /^sub-previous-/);
+});
+

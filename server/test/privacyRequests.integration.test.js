@@ -8,6 +8,9 @@ import {
   listMyPrivacyRequests,
   updateAdminPrivacyRequest,
 } from "../src/controllers/privacyRequests.controller.js";
+import "../src/models/Course.js";
+import "../src/models/SubscriptionPlan.js";
+import "../src/models/AIQuestionAnswer.js";
 import { User } from "../src/models/User.js";
 import { Progress } from "../src/models/Progress.js";
 import { Payment } from "../src/models/Payment.js";
@@ -188,7 +191,7 @@ test("privacy review requires identity verification before approval and persists
   await updateAdminPrivacyRequest({
     user: { userId: String(admin._id) },
     params: { requestId: created.requestId },
-    body: { status: "approved", reviewerNote: "Approved without identity verification." },
+    body: { status: "in_review", reviewerNote: "Move to review without identity verification." },
     ip: "127.0.0.1",
     get: () => "Privacy integration test",
   }, deniedApproval, (error) => { throw error; });

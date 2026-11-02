@@ -50,7 +50,8 @@ test("profile and consent mutations derive account identity from the authenticat
     source("../src/controllers/consent.controller.js")
   ]);
 
-  assert.match(meRoutes, /router\.put\("\/learning-pace", authMiddleware,/);
+  assert.match(meRoutes, /router\.use\(authMiddleware\)/);
+  assert.match(meRoutes, /router\.put\("\/learning-pace", updateLearningPace,/);
   for (const route of [
     'router.get("/status", authMiddleware, controller.status)',
     'router.post("/accept", authMiddleware, controller.acceptLegal)',

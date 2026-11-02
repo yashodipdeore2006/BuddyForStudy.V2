@@ -8,7 +8,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
     label: "Platform Administrator",
     description: "Day-to-day user, course and platform operations.",
     permissions: [
-      "dashboard.read", "saved_views.manage", "users.read", "users.manage", "users.pii.reveal",
+      "dashboard.read", "saved_views.manage", "users.read", "users.manage", "users.pii.reveal", "privacy.requests.manage",
       "courses.read", "courses.manage", "courses.publish", "pricing.manage", "operations.manage",
       "analytics.read", "plans.read", "billing.read", "payment_issues.manage", "trials.manage",
       "communications.send", "communications.manage", "notifications.read", "notifications.retry", "coupons.read",
@@ -52,7 +52,7 @@ export const ADMIN_ROLE_PROFILES = Object.freeze({
 
 export const ADMIN_PERMISSION_CATALOG = Object.freeze([
   "dashboard.read", "saved_views.manage",
-  "users.read", "users.manage", "users.pii.reveal",
+  "users.read", "users.manage", "users.pii.reveal", "privacy.requests.manage",
   "courses.read", "courses.manage", "courses.publish", "pricing.manage",
   "ai.manage", "resources.manage",
   "analytics.read",

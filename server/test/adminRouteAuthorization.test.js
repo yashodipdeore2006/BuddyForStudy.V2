@@ -138,3 +138,22 @@ test("refund provider reconciliation is restricted to finance-capable administra
   const supportWithExplicitOverride = runPermissionMiddleware(middleware, "support_manager", ["refunds.manage"]);
   assert.equal(supportWithExplicitOverride.nextCalled, true, "An explicitly granted permission should be honored");
 });
+
+test("privacy request administration is limited to privacy-governance administrators", () => {
+  const route = getRoutePermissionCases().find((candidate) =>
+    candidate.path === "/privacy-requests" && candidate.methods.includes("get")
+  );
+  assert.ok(route, "Expected the privacy request review queue");
+  assert.equal(route.permissionHandlers.length, 1);
+  const middleware = route.permissionHandlers[0];
+
+  for (const role of ["super_admin", "platform_admin"]) {
+    assert.equal(runPermissionMiddleware(middleware, role).nextCalled, true, role + " should manage privacy requests");
+  }
+  for (const role of ["ai_content_manager", "finance_manager", "support_manager", "analyst_auditor"]) {
+    const result = runPermissionMiddleware(middleware, role);
+    assert.equal(result.nextCalled, false, role + " must not access privacy request records by default");
+    assert.equal(result.statusCode, 403);
+  }
+});
+

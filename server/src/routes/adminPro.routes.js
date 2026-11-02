@@ -9,6 +9,7 @@ import * as adminRolesController from "../controllers/adminRoles.controller.js";
 import * as adminInvitationsController from "../controllers/adminInvitations.controller.js";
 import * as adminOperationsController from "../controllers/adminOperations.controller.js";
 import * as aiPromptController from "../controllers/aiPrompt.controller.js";
+import * as privacyController from "../controllers/privacyRequests.controller.js";
 
 const router = Router();
 router.use(authMiddleware, adminMiddleware);
@@ -41,6 +42,9 @@ router.get("/users/:userId/feature-overrides", adminPermissionMiddleware("users.
 router.put("/users/:userId/feature-overrides/:featureKey", adminPermissionMiddleware("users.manage"), controller.upsertUserFeatureOverride);
 router.delete("/users/:userId/feature-overrides/:featureKey", adminPermissionMiddleware("users.manage"), controller.deleteUserFeatureOverride);
 router.put("/users/:userId", adminPermissionMiddleware("users.manage"), controller.updateUser);
+
+router.get("/privacy-requests", adminPermissionMiddleware("privacy.requests.manage"), privacyController.listAdminPrivacyRequests);
+router.put("/privacy-requests/:requestId", adminPermissionMiddleware("privacy.requests.manage"), privacyController.updateAdminPrivacyRequest);
 
 router.get("/content-policies", adminPermissionMiddleware("courses.read"), controller.contentApprovalPolicies);
 router.put("/content-policies", adminPermissionMiddleware("courses.manage"), controller.updateContentApprovalPolicies);

@@ -1,6 +1,18 @@
 # Account Data Requests, Deletion & Retention — Proposed Operational Policy
 
-**Status:** Proposed procedure only; the repository currently does not implement an end-to-end user export/deletion request workflow. This document does not claim that self-service deletion, automated export, or a retention scheduler exists.
+**Status (2026-11-02): PARTIAL IMPLEMENTATION.** Authenticated JSON export, authenticated correction/deletion request intake, learner-owned request history, and permission-gated administrator review are implemented as APIs. This document does not claim that account deletion/anonymization, an approved retention schedule, backup expiry, or a retention scheduler exists.
+
+
+## Implemented API surface (partial)
+
+- `GET /api/me/data-export` returns a versioned JSON export for the authenticated account. It uses requester-scoped database queries and excludes passwords, authentication tokens, OTPs, provider credentials, private delivery internals, push endpoints/keys, and internal administrator notes.
+- `POST /api/me/privacy-requests` accepts an authenticated correction or deletion request. Duplicate active requests of the same type are returned rather than duplicated.
+- `GET /api/me/privacy-requests` returns only the authenticated learner's request history.
+- `GET /api/admin/privacy-requests` and `PUT /api/admin/privacy-requests/:requestId` provide a paginated review queue and audited status updates. These are restricted to the `privacy.requests.manage` permission, granted by default only to Super Admin and Platform Administrator roles.
+
+The export identifies itself as partial repository coverage. It does not include lesson notes held only in browser local storage, provider-side records, infrastructure logs or backups. It is not yet certified as an exhaustive legal export.
+
+**Critical safety boundary:** The request API does not delete or anonymize accounts or records. Administrators cannot mark a request fulfilled through this endpoint. A deletion request can be reviewed, placed on legal hold, approved, or moved into manual progress, but no irreversible data mutation is performed. Do not represent a request as fulfilled until the category-level retention/legal decisions, execution controls, backup expiry, retries and independent verification have been implemented and approved.
 
 ## Purpose
 

@@ -66,7 +66,7 @@ type Props = {
   seekRequest?: { seconds: number; id: number } | null;
 };
 
-export default function YouTubeEmbedPlayer({ videoId, title = "Course video", autoplay = false, className = "", onPausedAt, seekRequest }: Props) {
+function YouTubeEmbedPlayerContent({ videoId, title = "Course video", autoplay = false, className = "", onPausedAt, seekRequest }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
   const [ended, setEnded] = useState(false);
@@ -76,7 +76,6 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
   useEffect(() => { onPausedAtRef.current = onPausedAt; }, [onPausedAt]);
 
   useEffect(() => {
-    setEnded(false);
     playerRef.current = null;
     let cancelled = false;
     let player: YouTubePlayerInstance | null = null;
@@ -155,5 +154,14 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
         </div>
       )}
     </div>
+  );
+}
+
+export default function YouTubeEmbedPlayer(props: Props) {
+  return (
+    <YouTubeEmbedPlayerContent
+      key={`${props.videoId}:${props.title || "Course video"}:${props.autoplay ? "1" : "0"}`}
+      {...props}
+    />
   );
 }

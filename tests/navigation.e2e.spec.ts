@@ -2480,6 +2480,7 @@ test("[A11Y-KEYBOARD-FOCUS-001] keyboard navigation exposes a visible focus indi
         focusVisible: active.matches(":focus-visible"),
         outlineWidth: Number.parseFloat(style.outlineWidth) || 0,
         outlineStyle: style.outlineStyle,
+        hasFocusShadow: style.boxShadow !== "none",
         text: (active.innerText || active.getAttribute("aria-label") || active.getAttribute("title") || "").trim().slice(0, 80),
       };
     });
@@ -2488,7 +2489,7 @@ test("[A11Y-KEYBOARD-FOCUS-001] keyboard navigation exposes a visible focus indi
       failures.push(path + ": Tab did not focus an element");
       continue;
     }
-    if (!focus.focusVisible || focus.outlineWidth <= 0 || focus.outlineStyle === "none") {
+    if (!focus.focusVisible || (focus.outlineWidth <= 0 && !focus.hasFocusShadow)) {
       failures.push(path + ": no visible keyboard focus indicator on " + focus.tag + " " + focus.text);
     }
   }

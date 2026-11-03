@@ -1844,6 +1844,38 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
   });
 
+  test("[ROUTE-HISTORY-001] browser back, forward and refresh preserve deep-linked lesson state", async ({ page }) => {
+    const course = courseFixture("course-fixture", {
+      modules: [{
+        _id: "module-1",
+        title: "Module one",
+        lessons: [
+          { _id: "lesson-1", title: "Lesson one", type: "tutorial", description: "", duration: "5 min" },
+          { _id: "lesson-2", title: "Lesson two", type: "tutorial", description: "", duration: "7 min" },
+        ],
+      }],
+    });
+    await mockAppApi(page, { authenticated: true, enrolled: true, course });
+    await page.goto(baseURL + "/learn/course-fixture/lesson-1");
+    await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-2$/);
+    await expect(page.getByRole("heading", { name: "Lesson two", exact: true })).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-1$/);
+    await expect(page.getByRole("heading", { name: "Lesson one", exact: true })).toBeVisible();
+
+    await page.goForward();
+    await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-2$/);
+    await expect(page.getByRole("heading", { name: "Lesson two", exact: true })).toBeVisible();
+
+    await page.reload();
+    await expect(page).toHaveURL(/\/learn\/course-fixture\/lesson-2$/);
+    await expect(page.getByRole("heading", { name: "Lesson two", exact: true })).toBeVisible();
+  });
+
   test("[PLAYER-LESSON-NAV-001] previous and next follow curriculum order and update the canonical URL", async ({ page }) => {
     const course = courseFixture("course-fixture", {
       modules: [{

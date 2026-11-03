@@ -10,7 +10,7 @@ test("subscription cancellation remains successful when its notification transpo
   const route = source.slice(start, end);
 
   assert.match(source, /async function sendNotificationSafely\([\s\S]*?catch \(error\)[\s\S]*?return null;/);
-  assert.match(route, /razorpay\.cancelSubscription\(subscription\.providerSubscriptionId, true\)/);
+  assert.match(route, /razorpay\.cancelSubscription\(subscription\.providerSubscriptionId,\s*true\)/);
   assert.match(route, /await subscription\.save\(\)/);
   assert.match(route, /await sendNotificationSafely\([\s\S]*?"subscription-cancellation"\)/);
   assert.doesNotMatch(route, /await createNotificationEvent\(/);

@@ -1,5 +1,6 @@
 import { failure } from "../utils/response.js";
 import { Sentry } from "../instrument.js";
+import { recordOperationalAlert } from "../models/OperationalAlert.js";
 
 function normalizeError(error) {
   if (error?.type === "entity.parse.failed" || error instanceof SyntaxError && error?.status === 400) {
@@ -83,6 +84,20 @@ export function errorHandler(error, req, res, _next) {
       scope.setTag("route", req.path);
       scope.setTag("method", req.method);
       Sentry.captureException(error instanceof Error ? error : new Error(String(error)));
+    });
+  }
+
+  if (normalized.status >= 500) {
+    void recordOperationalAlert({
+      key: "api-http-5xx-errors",
+      severity: "critical",
+      source: "api-error-handler",
+      message: `An API request returned HTTP ${normalized.status}. Inspect sanitized request logs and error-monitoring events for the request ID.`
+    }).catch((alertError) => {
+      console.error("[operations] failed to persist API 5xx alert", {
+        requestId: req.id || "unknown",
+        errorName: alertError?.name || "Error"
+      });
     });
   }
 

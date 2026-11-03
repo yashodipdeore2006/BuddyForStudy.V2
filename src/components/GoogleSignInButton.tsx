@@ -101,8 +101,10 @@ export default function GoogleSignInButton({ onCredential, disabled = false }: G
   const [retryKey, setRetryKey] = useState(0);
   const [credentialError, setCredentialError] = useState(false);
 
-  credentialHandlerRef.current = onCredential;
-  disabledRef.current = disabled;
+  useEffect(() => {
+    credentialHandlerRef.current = onCredential;
+    disabledRef.current = disabled;
+  }, [onCredential, disabled]);
 
   useEffect(() => {
     let cancelled = false;

@@ -56,3 +56,27 @@ test("login failure is exposed through an assertive alert and stores no session"
   expect(auth.token).toBeNull();
   expect(auth.user).toBeNull();
 });
+
+
+test("login requires an email and password before making an authentication request", async ({ page }) => {
+  let loginRequests = 0;
+  await page.route("**/api/auth/login", async (route) => {
+    if (route.request().method() === "POST") loginRequests += 1;
+    return route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ success: false, message: "Invalid email or password" }),
+    });
+  });
+
+  await page.goto(\`\${baseURL}/login\`);
+  const email = page.getByLabel("Email", { exact: true });
+  const password = page.getByLabel("Password", { exact: true });
+  await expect(email).toBeRequired();
+  await expect(password).toBeRequired();
+
+  await page.getByRole("button", { name: "Sign In" }).click();
+  expect(await email.evaluate((node) => (node as HTMLInputElement).validity.valueMissing)).toBe(true);
+  expect(await password.evaluate((node) => (node as HTMLInputElement).validity.valueMissing)).toBe(true);
+  expect(loginRequests).toBe(0);
+});

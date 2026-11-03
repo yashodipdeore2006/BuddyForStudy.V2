@@ -308,21 +308,25 @@ export default function AdminUsersPro() {
   useEffect(() => {
     // Bulk selection is scoped to the visible result page. Clear it when
     // pagination or the result shape changes so stale IDs cannot be exported.
-    setSelectedIds([]);
+    const timer = window.setTimeout(() => setSelectedIds([]), 0);
+    return () => window.clearTimeout(timer);
   }, [page, pageSize, debouncedQ, status, role, authProvider, sortBy, sortOrder]);
 
   useEffect(() => {
-    const urlPage = Number(searchParams.get("page") || 1);
-    const urlLimit = Number(searchParams.get("limit") || 25);
-    setPage(Number.isInteger(urlPage) && urlPage > 0 ? urlPage : 1);
-    setQ(searchParams.get("q") || "");
-    setDebouncedQ(searchParams.get("q") || "");
-    setStatus(searchParams.get("status") || "");
-    setRole(searchParams.get("role") || "");
-    setAuthProvider(searchParams.get("authProvider") || "");
-    setSortBy(searchParams.get("sortBy") || "name");
-    setSortOrder(searchParams.get("sortOrder") === "desc" ? "desc" : "asc");
-    setPageSize([25, 50, 100].includes(urlLimit) ? urlLimit : 25);
+    const timer = window.setTimeout(() => {
+      const urlPage = Number(searchParams.get("page") || 1);
+      const urlLimit = Number(searchParams.get("limit") || 25);
+      setPage(Number.isInteger(urlPage) && urlPage > 0 ? urlPage : 1);
+      setQ(searchParams.get("q") || "");
+      setDebouncedQ(searchParams.get("q") || "");
+      setStatus(searchParams.get("status") || "");
+      setRole(searchParams.get("role") || "");
+      setAuthProvider(searchParams.get("authProvider") || "");
+      setSortBy(searchParams.get("sortBy") || "name");
+      setSortOrder(searchParams.get("sortOrder") === "desc" ? "desc" : "asc");
+      setPageSize([25, 50, 100].includes(urlLimit) ? urlLimit : 25);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [searchParams]);
 
   async function toggleUser(user: AdminUserRow, confirmed = false, reason = "") {

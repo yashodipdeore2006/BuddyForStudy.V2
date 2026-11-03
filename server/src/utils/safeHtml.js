@@ -25,12 +25,20 @@ function decodeHtmlCharacterReferences(value) {
     .replace(/&newline;/gi, "\n");
 }
 
+function normalizeUrlAttributeValue(value) {
+  let normalized = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    const codePoint = value.charCodeAt(index);
+    if (codePoint > 0x20 && codePoint !== 0x7f) normalized += character;
+  }
+  return normalized.toLowerCase();
+}
+
 function hasUnsafeUrlAttribute(source) {
   for (const match of source.matchAll(URL_ATTRIBUTE)) {
     const rawValue = match[1] ?? match[2] ?? match[3] ?? "";
-    const normalized = decodeHtmlCharacterReferences(rawValue)
-      .replace(/[\u0000-\u0020\u007f]+/g, "")
-      .toLowerCase();
+    const normalized = normalizeUrlAttributeValue(decodeHtmlCharacterReferences(rawValue));
     const separator = normalized.indexOf(":");
     if (separator > 0 && UNSAFE_URL_PROTOCOLS.has(normalized.slice(0, separator))) return true;
   }

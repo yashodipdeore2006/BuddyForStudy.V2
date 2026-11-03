@@ -69,7 +69,7 @@ test("login requires an email and password before making an authentication reque
     });
   });
 
-  await page.goto(\`\${baseURL}/login\`);
+  await page.goto(baseURL + "/login");
   const email = page.getByLabel("Email", { exact: true });
   const password = page.getByLabel("Password", { exact: true });
   await expect(email).toBeRequired();

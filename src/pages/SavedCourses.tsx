@@ -30,12 +30,11 @@ export default function SavedCourses() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setLoadError("");
+  const fetchSavedCourses = useCallback(async () => {
     try {
       const data = await apiFetch("/api/saved-courses");
       setSavedCourses((data.savedCourses || []).filter((item: Saved) => item.course));
+      setLoadError("");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Unable to load saved courses. Please try again.");
     } finally {
@@ -43,9 +42,15 @@ export default function SavedCourses() {
     }
   }, []);
 
+  const retryLoad = useCallback(() => {
+    setLoading(true);
+    setLoadError("");
+    void fetchSavedCourses();
+  }, [fetchSavedCourses]);
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void fetchSavedCourses();
+  }, [fetchSavedCourses]);
 
 
   return (
@@ -62,7 +67,7 @@ export default function SavedCourses() {
           ))}
         </div>
       ) : loadError ? (
-        <div className="mt-8"><ErrorState title="Couldn’t load saved courses" description={loadError} onRetry={() => void load()} /></div>
+        <div className="mt-8"><ErrorState title="Couldn’t load saved courses" description={loadError} onRetry={retryLoad} /></div>
       ) : savedCourses.length === 0 ? (
         <div className="mt-8">
           <EmptyState

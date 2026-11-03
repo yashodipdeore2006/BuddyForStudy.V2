@@ -1,6 +1,6 @@
 const SCRIPT_SCHEME = ["java", "script"].join("");
 const VBSCRIPT_SCHEME = ["vb", "script"].join("");
-const UNSAFE_TAG = /<\s*\/?\s*(?:script|iframe|object|embed|svg|math|form|input|button|meta|base|link|video|audio|style)\b/i;
+const UNSAFE_TAG = new RegExp("<\\s*/?\\s*(?:script|iframe|object|embed|svg|math|form|input|button|meta|base|link|video|audio|style)\\b", "i");
 const UNSAFE_EVENT_ATTRIBUTE = /\son[a-z][a-z0-9:_-]*\s*=/i;
 const UNSAFE_EMBEDDED_CONTENT = new RegExp([
   "\\bsrcdoc\\s*=",

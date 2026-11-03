@@ -1,6 +1,6 @@
 # Account Data Requests, Deletion & Retention — Proposed Operational Policy
 
-**Status (2026-11-02): PARTIAL IMPLEMENTATION.** Authenticated JSON export, authenticated correction/deletion request intake, learner-owned request history, and permission-gated administrator review are implemented as APIs. This document does not claim that account deletion/anonymization, an approved retention schedule, backup expiry, or a retention scheduler exists.
+**Status (2026-11-03): PARTIAL IMPLEMENTATION, CI-VERIFIED.** Authenticated JSON export, authenticated correction/deletion request intake, learner-owned request history, and permission-gated administrator review are implemented as APIs. This document does not claim that account deletion/anonymization, an approved retention schedule, backup expiry, or a retention scheduler exists.
 
 
 ## Implemented API surface (partial)
@@ -9,10 +9,15 @@
 - `POST /api/me/privacy-requests` accepts an authenticated correction or deletion request. Duplicate active requests of the same type are returned rather than duplicated.
 - `GET /api/me/privacy-requests` returns only the authenticated learner's request history.
 - `GET /api/admin/privacy-requests` and `PUT /api/admin/privacy-requests/:requestId` provide a paginated review queue and audited status updates. These are restricted to the `privacy.requests.manage` permission, granted by default only to Super Admin and Platform Administrator roles.
+- Denial releases the active-request uniqueness slot so a learner may submit a new request. An appeal must reacquire the slot and conflicts safely with any other active request of the same type. Failed audit persistence restores the prior status/slot state.
 
 The export identifies itself as partial repository coverage. It does not include lesson notes held only in browser local storage, provider-side records, infrastructure logs or backups. It is not yet certified as an exhaustive legal export.
 
 **Critical safety boundary:** The request API does not delete or anonymize accounts or records. Administrators cannot mark a request fulfilled through this endpoint. A deletion request can be reviewed, placed on legal hold, approved, or moved into manual progress, but no irreversible data mutation is performed. Do not represent a request as fulfilled until the category-level retention/legal decisions, execution controls, backup expiry, retries and independent verification have been implemented and approved.
+
+## Verification evidence
+
+The requester-scoped export, owner-only request history, duplicate-intake guard, identity-verification gate, permission boundary, audit persistence, denied-request resubmission and route integration are covered by the MongoDB-backed backend tests and the full CI run for commit `9ab25628` ([CI 41599233495](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41599233495)). This evidence validates the implemented API scope only; it does not certify legal completeness or prove account deletion.
 
 ## Purpose
 

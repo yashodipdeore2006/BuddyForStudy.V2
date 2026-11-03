@@ -1981,6 +1981,9 @@ test.describe("public platform pages and footer", () => {
     await expect(footer.getByRole("link", { name: "Contact us" }).first()).toHaveAttribute("href", "/contact");
     await expect(footer.getByRole("link", { name: "Help centre & FAQs" })).toHaveAttribute("href", "/faq");
     await expect(footer.getByRole("link", { name: "All policies & accessibility" })).toHaveAttribute("href", "/legal");
+    await expect(footer.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/legal/privacy-policy");
+    await expect(footer.getByRole("link", { name: "Terms of service" })).toHaveAttribute("href", "/legal/terms-of-service");
+    await expect(footer.getByRole("link", { name: "Cookie policy" })).toHaveAttribute("href", "/legal/cookie-policy");
   });
 
   test("footer uses the full platform layout for signed-in learners", async ({ page }) => {
@@ -2452,4 +2455,43 @@ test("[A11Y-SEMANTICS-001] primary routes expose a main landmark, a page heading
   }
 
   expect(violations, violations.join("\\n")).toEqual([]);
+});
+
+
+
+test("[A11Y-KEYBOARD-FOCUS-001] keyboard navigation exposes a visible focus indicator on public and learner routes", async ({ page }) => {
+  await mockAppApi(page, { authenticated: true });
+  const paths = ["/about", "/home", "/settings"];
+  const failures: string[] = [];
+
+  for (const path of paths) {
+    await page.goto(baseURL + path);
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await page.keyboard.press("Tab");
+
+    const focus = await page.evaluate(() => {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) return null;
+      const style = window.getComputedStyle(active);
+      return {
+        tag: active.tagName.toLowerCase(),
+        focusVisible: active.matches(":focus-visible"),
+        outlineWidth: Number.parseFloat(style.outlineWidth) || 0,
+        outlineStyle: style.outlineStyle,
+        text: (active.innerText || active.getAttribute("aria-label") || active.getAttribute("title") || "").trim().slice(0, 80),
+      };
+    });
+
+    if (!focus) {
+      failures.push(path + ": Tab did not focus an element");
+      continue;
+    }
+    if (!focus.focusVisible || focus.outlineWidth <= 0 || focus.outlineStyle === "none") {
+      failures.push(path + ": no visible keyboard focus indicator on " + focus.tag + " " + focus.text);
+    }
+  }
+
+  expect(failures, failures.join("\n")).toEqual([]);
 });

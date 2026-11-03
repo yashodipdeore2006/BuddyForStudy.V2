@@ -14,7 +14,7 @@ import { processScheduledAnnouncements } from "../services/announcement.service.
 import { refreshStaleVideos } from "../services/youtubeCompliance.service.js";
 import { rebuildSkillPriors } from "../services/skillResourcePrior.service.js";
 import { recoverExpiredRoadmapAdmissions } from "../services/roadmapAdmission.service.js";
-import { checkPaymentWebhookBacklog, checkYouTubeQuotaOperationalState } from "../services/operationalMonitoring.service.js";
+import { checkPaymentWebhookBacklog, checkYouTubeQuotaOperationalState, resolveRecoveredApi5xxAlert } from "../services/operationalMonitoring.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -66,10 +66,12 @@ async function runMaintenance() {
     const now = new Date();
     const recoveredRoadmapAdmissions = await recoverExpiredRoadmapAdmissions({ now });
     if (recoveredRoadmapAdmissions) console.warn("[worker] recovered expired roadmap admission leases", { count: recoveredRoadmapAdmissions });
-    const [webhookBacklog, youtubeQuota] = await Promise.all([
+    const [webhookBacklog, youtubeQuota, api5xxRecovery] = await Promise.all([
       checkPaymentWebhookBacklog(now),
-      checkYouTubeQuotaOperationalState()
+      checkYouTubeQuotaOperationalState(),
+      resolveRecoveredApi5xxAlert(now)
     ]);
+    if (api5xxRecovery.resolved) console.info("[worker] resolved API 5xx alert after the recovery window elapsed");
     if (webhookBacklog.failed || webhookBacklog.staleProcessing) {
       console.warn("[worker] Razorpay webhook backlog requires attention", {
         failed: webhookBacklog.failed,

@@ -44,24 +44,14 @@ function readChoice(): StoredChoice | null {
 
 export default function CookieConsentManager() {
   const { session } = useAuth();
-  const [ready, setReady] = useState(false);
-  const [preferences, setPreferences] = useState<CookiePreferences>(DEFAULT_PREFERENCES);
-  const [visible, setVisible] = useState(false);
+  const [storedChoice] = useState<StoredChoice | null>(() => readChoice());
+  const [preferences, setPreferences] = useState<CookiePreferences>(
+    () => storedChoice?.preferences || DEFAULT_PREFERENCES
+  );
+  const [visible, setVisible] = useState(() => !storedChoice);
   const [customizing, setCustomizing] = useState(false);
   const [syncError, setSyncError] = useState("");
   const syncedForUser = useRef<string | null>(null);
-
-  useEffect(() => {
-    const choice = readChoice();
-    if (choice) {
-      setPreferences(choice.preferences);
-      setVisible(false);
-    } else {
-      setPreferences(DEFAULT_PREFERENCES);
-      setVisible(true);
-    }
-    setReady(true);
-  }, []);
 
   useEffect(() => {
     const openSettings = () => {
@@ -76,7 +66,6 @@ export default function CookieConsentManager() {
 
   useEffect(() => {
     const userId = session?.user.id;
-    if (!ready) return;
     if (!userId) {
       syncedForUser.current = null;
       return;
@@ -120,7 +109,7 @@ export default function CookieConsentManager() {
       });
 
     return () => { active = false; };
-  }, [ready, session?.user.id]);
+  }, [session?.user.id]);
 
   const saveChoice = useCallback(async (next: CookiePreferences) => {
     const choice: StoredChoice = {

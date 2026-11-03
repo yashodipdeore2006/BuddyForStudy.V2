@@ -41,4 +41,18 @@ test("billing notification failures are swallowed after a durable transition", a
   assert.match(route, /await subscription\.save\(\)/);
   assert.match(route, /await sendNotificationSafely\([\s\S]*?"subscription-cancellation"\)/);
   assert.doesNotMatch(route, /await createNotificationEvent\(/);
+  const persistenceIndex = route.indexOf("await subscription.save()");
+  const notificationIndex = route.indexOf("await sendNotificationSafely(");
+  assert.ok(persistenceIndex >= 0 && notificationIndex > persistenceIndex,
+    "Subscription persistence must complete before optional notification dispatch");
+});
+
+test("successful billing notification dispatch returns the queued event", async () => {
+  const payload = { eventKey: "subscription-cancel-scheduled:test" };
+  const event = { id: "notification-event-test" };
+  const result = await sendBillingNotificationSafely(payload, "subscription-cancellation", async (receivedPayload) => {
+    assert.equal(receivedPayload, payload);
+    return event;
+  });
+  assert.equal(result, event);
 });

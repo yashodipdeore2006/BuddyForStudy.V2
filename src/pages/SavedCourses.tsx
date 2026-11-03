@@ -25,32 +25,33 @@ type Saved = {
   };
 };
 
+async function requestSavedCourses(): Promise<Saved[]> {
+  const data = await apiFetch<{ savedCourses?: Saved[] }>("/api/saved-courses");
+  return (data.savedCourses || []).filter((item) => item.course);
+}
+
 export default function SavedCourses() {
   const [savedCourses, setSavedCourses] = useState<Saved[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  const fetchSavedCourses = useCallback(async () => {
-    try {
-      const data = await apiFetch("/api/saved-courses");
-      setSavedCourses((data.savedCourses || []).filter((item: Saved) => item.course));
-      setLoadError("");
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Unable to load saved courses. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const retryLoad = useCallback(() => {
     setLoading(true);
     setLoadError("");
-    void fetchSavedCourses();
-  }, [fetchSavedCourses]);
+    void requestSavedCourses()
+      .then((items) => { setSavedCourses(items); setLoadError(""); })
+      .catch((error) => { setLoadError(error instanceof Error ? error.message : "Unable to load saved courses. Please try again."); })
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    void fetchSavedCourses();
-  }, [fetchSavedCourses]);
+    let active = true;
+    requestSavedCourses()
+      .then((items) => { if (active) { setSavedCourses(items); setLoadError(""); } })
+      .catch((error) => { if (active) setLoadError(error instanceof Error ? error.message : "Unable to load saved courses. Please try again."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
 
   return (

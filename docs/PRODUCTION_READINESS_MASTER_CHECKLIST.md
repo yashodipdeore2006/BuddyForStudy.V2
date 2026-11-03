@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 171 / 239 |
+| Verified done | 173 / 239 |
 | Failed tasks | 2 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 23 / 239 |
-| Not checked | 29 / 239 |
+| Partially complete | 26 / 239 |
+| Not checked | 24 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, deletion/retention execution, staging/provider verification and operations gates remain open** |
 
@@ -435,11 +435,11 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-180** audit route loading empty success error denied offline states.  
   Status: `DONE` · Evidence: reviewed route-level auth/loading behavior and shared `ErrorState`, `EmptyState`, Suspense fallback and app error boundary. The routed learner home (`Home.tsx`; legacy `Dashboard.tsx` is not routed) already distinguishes fatal, partial-source and offline states. Fixed Saved Courses API failures being rendered as a successful empty list and Billing initial-load failures being rendered as empty billing data; both now show accessible retryable error states. Added Playwright regression coverage for Saved Courses failure versus true empty state and Billing failure versus empty transaction state. The Home fatal/retry test was removed after reproducing a flaky test setup; the existing Home implementation was left unchanged. Exact latest `main` candidate `57cec0239d5d51a8f4e03a99811654ab20438132` passed backend and frontend CI, including browser smoke tests, in [run 41215608568](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41215608568). Fixes: [saved-course recovery](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/9db982e7e9a0f3f326bc36a225b88bb8f0229c79), [billing recovery](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/eb9193cc0c881f5cf64d9c0368d3a1ff003ef611), [verified route regression tests](https://github.com/yashodipore2006/BuddyForStudy.V2/commit/57cec0239d5d51a8f4e03a99811654ab20438132). · Finding/fix: route failures must not be rendered as legitimate empty data.
 - [ ] **PR-181** verify every button action and duplicate guard.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — SELECTED LEARNER ACTIONS AND DUPLICATE GUARDS TESTED` · Evidence: Playwright checks cover save/unsave mutations and recovery, cancel/confirm/undo enrollment, quiz duplicate submission prevention, and idempotent curation-feedback retries in `tests/navigation.e2e.spec.ts`; passed in [full CI run 41603916702](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41603916702). This does not yet establish that every button on every route has a verified outcome.
 - [x] **PR-182** verify link destinations and accessible names.  
   Status: `DONE` · Evidence: `A11Y-CONTROLS-NAMES-001` checks accessible names and rejects placeholder/unsafe link targets across primary public and learner routes; full production-build browser suite passed with 113 tests on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: signed-out auth routes are represented accurately in the browser fixture; link destinations and names retested.
 - [ ] **PR-183** verify form labels required fields and server errors.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — LOGIN LABELS, REQUIRED VALIDATION AND SERVER ERROR TESTED` · Evidence: `auth-accessibility.e2e.spec.ts` checks associated Email/Password labels, native `required` properties and browser validation blocking an empty POST; the login 401 regression verifies the server error is exposed through an assertive alert and does not create a session. Passed in [full CI run 41603916702](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41603916702). Registration, reset-password, profile, settings and all server-side field-error combinations remain to be audited.
 - [x] **PR-184** test modal focus trap Escape and focus restoration.  
   Status: `DONE` · Evidence: `[A11Y-UNENROLL-DIALOG-FOCUS-001]` in `tests/navigation.e2e.spec.ts` verifies Tab/Shift+Tab focus containment, Escape close, and focus restoration to the triggering course-actions control; passed in [full CI run 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029) on exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d`.
 - [x] **PR-185** test drawer/menu keyboard navigation and focus.  
@@ -463,11 +463,11 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [ ] **PR-194** test player video and quiz on touch screens.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-195** verify toast and inline feedback accessibility.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-196** verify destructive confirmation and recovery.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-197** test browser back forward refresh and deep links.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — AUTHENTICATION ERROR ANNOUNCEMENT TESTED` · Evidence: the login failure browser test verifies the 401 error is rendered in a role=alert region with `aria-live="assertive"`; required-field validation also prevents silent empty submission. Passed in [full CI run 41603916702](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41603916702). Toast timing, dismissal, and inline feedback on other routes remain open.
+- [x] **PR-196** verify destructive confirmation and recovery.  
+  Status: `DONE` · Evidence: `[LEARN-UNENROLL-001]` verifies cancellation leaves enrollment intact, confirmed unenrollment removes it, and Undo restores it with the expected DELETE/POST sequence; passed in [full CI run 41603916702](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41603916702).
+- [x] **PR-197** test browser back forward refresh and deep links.  
+  Status: `DONE` · Evidence: `[PLAYER-DEEP-LINK-001]` verifies direct lesson URLs and invalid-ID recovery; `[PLAYER-LESSON-NAV-001]` verifies curriculum navigation and canonical URL updates; `[ROUTE-HISTORY-001]` now verifies browser Back, Forward and refresh preserve the selected lesson. All passed in [full CI run 41603916702](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41603916702).
 - [x] **PR-198** validate footer social About Contact FAQ Pricing legal links.  
   Status: `DONE` · Evidence: `tests/navigation.e2e.spec.ts` verifies footer Explore, roadmap, pricing, registration, About, Contact, FAQ, Privacy, Terms, Cookie, and all-policy destinations. A synthetic social-link fixture verifies the configured HTTPS URL, `target="_blank"`, and `rel="noopener noreferrer"`; passed in [full CI run 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029) on exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d`.
 - [x] **PR-199** run Playwright on production build and add P0/P1 regressions.  
@@ -671,3 +671,4 @@ The checklist is complete only when all tasks are `DONE` or have justified, appr
 
 | 2026-11-03 | Exact candidate `9ab25628ef53bb6f52e5f897bf362827c91f4b42` | PR-056 and PR-078 moved from FAIL to PARTIAL; PR-159 remains DONE | 168 | 2 | 14 | 22 | [Full frontend/backend/release-gate CI 41599233495](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41599233495); [full-history Gitleaks 41599233536](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41599233536) | Learner-facing privacy controls provide a requester-scoped partial JSON export, correction/deletion request intake and history; admins have permission-gated, audited review APIs. MongoDB integration tests cover identity verification, duplicate requests, audit persistence, denial releasing the active slot and safe resubmission. Full CI and secret scanning passed. DATA-001 stays OPEN because legal retention schedule, data-complete export, deletion/anonymization, backup expiry and independent verification are not implemented. Branch protection, Render/production worker, provider staging and subscription lifecycle findings also remain open. |
 | 2026-11-03 | Exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d` | PR-184, PR-185, PR-198 verified; PR-186 moved to PARTIAL; keyboard focus and footer-social regressions added | 171 | 2 | 14 | 68 | [Full frontend/backend/release-gate CI 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029); [Gitleaks 41602758974](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602758974) | Exact candidate passed backend tests, frontend lint/typecheck/unit/deployment-config/production-build checks and 114 Playwright tests; secret scan passed. Release remains NOT READY: branch protection, production/provider staging, privacy deletion/retention execution, live worker verification, subscription lifecycle decisions and operational launch evidence remain open. |
+| 2026-11-03 | Exact candidate `3a71cd6e50b5c9f96d0955c71754ea9e4a954c98` | PR-196 and PR-197 verified; PR-181, PR-183 and PR-195 moved to PARTIAL; form and browser-history regressions added | 173 | 2 | 14 | 66 | [Full frontend/backend/release-gate CI 41603916702](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41603916702); [Gitleaks 41603916563](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41603916563) | Exact candidate passed backend tests, frontend lint/typecheck/unit/deployment-config/production build and 116/116 Playwright browser tests; secret scan passed. Partial statuses reflect selected coverage only. Production launch remains NOT READY due open release controls, staging/provider checks, privacy deletion/retention, live worker verification, billing lifecycle and operations evidence. |

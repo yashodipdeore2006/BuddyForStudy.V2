@@ -76,7 +76,10 @@ function AdvancedAIAssistantContent({
   }, [courseId, lessonId]);
 
   useEffect(() => {
-    void loadUsage();
+    const timer = window.setTimeout(() => {
+      void loadUsage();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadUsage]);
 
   async function generateInsight() {

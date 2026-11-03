@@ -146,7 +146,7 @@ router.post("/subscription/cancel", async (req,res,next)=>{ try {
   subscription.cancelAtPeriodEnd=true;
   subscription.currentPeriodEnd=providerSubscription?.end_at ? new Date(Number(providerSubscription.end_at)*1000) : subscription.currentPeriodEnd;
   await subscription.save();
-  await createNotificationEvent({
+  await sendNotificationSafely({
     userId: String(req.user.userId),
     title: "Subscription cancellation scheduled",
     message: `Your subscription will remain active until ${subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN") : "the end of the current billing period"}.`,

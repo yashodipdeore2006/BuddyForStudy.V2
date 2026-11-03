@@ -83,13 +83,10 @@ export default function PushNotificationPrompt() {
 
   useEffect(() => {
     if (authLoading || !userId || isAdmin || excludedRoute) {
-      setVisible(false);
-      return;
+      const hideTimer = window.setTimeout(() => setVisible(false), 0);
+      return () => window.clearTimeout(hideTimer);
     }
-    if (blockedPromptDismissed) {
-      setVisible(false);
-      return;
-    }
+    if (blockedPromptDismissed) return;
 
     let active = true;
     let displayTimer: number | undefined;
@@ -236,7 +233,7 @@ export default function PushNotificationPrompt() {
     }
   }, [busy, userId, preferences]);
 
-  if (!visible || !userId || isAdmin) return null;
+  if (!visible || authLoading || !userId || isAdmin || excludedRoute || blockedPromptDismissed) return null;
 
   return (
     <aside

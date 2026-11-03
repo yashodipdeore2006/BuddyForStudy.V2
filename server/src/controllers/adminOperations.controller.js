@@ -6,13 +6,15 @@ import { Payment } from "../models/Payment.js";
 import { PlatformSetting } from "../models/PlatformSetting.js";
 import { getTypedSettingsRegistry, validateTypedSetting } from "../utils/typedSettingsRegistry.js";
 import { checkWorkerHeartbeat } from "../services/jobHeartbeat.service.js";
+import { getState as getYouTubeQuotaState } from "../services/quota.service.js";
 import { success } from "../utils/response.js";
 
 export async function systemHealth(_req, res, next) {
   try {
     const now = new Date();
-    const [worker, auditOutbox, failedWebhooks, processingWebhooks, failedEmails, pendingEmails, failedPush, pendingPush, settings, openCriticalAlerts] = await Promise.all([
+    const [worker, youtubeQuota, auditOutbox, failedWebhooks, processingWebhooks, failedEmails, pendingEmails, failedPush, pendingPush, settings, openCriticalAlerts] = await Promise.all([
       checkWorkerHeartbeat(now),
+      getYouTubeQuotaState(),
       AuditOutbox.countDocuments({ status: { $in: ["pending", "processing"] } }),
       WebhookEvent.countDocuments({ status: "failed" }),
       WebhookEvent.countDocuments({ status: "processing" }),
@@ -39,9 +41,10 @@ export async function systemHealth(_req, res, next) {
 
     return success(res, {
       checkedAt: now.toISOString(),
-      overallStatus: worker.status === "healthy" && failedWebhooks === 0 && failedEmails === 0 && failedPush === 0 && openCriticalAlerts === 0 ? "healthy" : "needs_attention",
+      overallStatus: worker.status === "healthy" && youtubeQuota.state === "ok" && youtubeQuota.store !== "unavailable" && failedWebhooks === 0 && failedEmails === 0 && failedPush === 0 && openCriticalAlerts === 0 ? "healthy" : "needs_attention",
       openCriticalAlerts,
       worker,
+      youtubeQuota,
       queues: {
         auditOutbox: { pendingOrProcessing: auditOutbox },
         webhooks: { failed: failedWebhooks, processing: processingWebhooks },

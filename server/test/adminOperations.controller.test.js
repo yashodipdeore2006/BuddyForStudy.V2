@@ -49,3 +49,48 @@ test("audit outbox list omits the raw event payload", async () => {
   assert.equal("event" in res.body.items[0], false);
   assert.equal(JSON.stringify(res.body.items).includes("must-not-escape"), false);
 });
+
+test("system health exposes YouTube quota state and flags soft-limit degradation", async () => {
+  const { systemHealth } = await import("../src/controllers/adminOperations.controller.js");
+  const { JobHeartbeat } = await import("../src/models/JobHeartbeat.js");
+  const { OperationalAlert } = await import("../src/models/OperationalAlert.js");
+  const { Notification } = await import("../src/models/Notification.js");
+  const { PlatformSetting } = await import("../src/models/PlatformSetting.js");
+  const { __setQuotaTestAdapters } = await import("../src/services/quota.service.js");
+  const res = responseRecorder();
+  const heartbeat = {
+    jobName: "background-maintenance-worker",
+    workerStatus: "running",
+    lastHeartbeatAt: new Date(Date.now() + 1000),
+    consecutiveFailures: 0
+  };
+
+  __setQuotaTestAdapters({
+    getState: async () => ({ state: "degraded", units: 8000, budget: 9000, softLimitPct: 80, resetDay: "2026-11-03", store: "mongo" })
+  });
+  try {
+    await withMocks([
+      [JobHeartbeat, { findOne: () => ({ lean: async () => heartbeat }) }],
+      [OperationalAlert, {
+        findOneAndUpdate: async () => ({}),
+        countDocuments: async () => 0
+      }],
+      [AuditOutbox, { countDocuments: async () => 0 }],
+      [WebhookEvent, { countDocuments: async () => 0 }],
+      [Notification, { countDocuments: async () => 0 }],
+      [PlatformSetting, { find: () => ({ select() { return this; }, lean: async () => [] }) }]
+    ], async () => {
+      await systemHealth({}, res, (error) => { throw error; });
+    });
+  } finally {
+    __setQuotaTestAdapters(null);
+  }
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.youtubeQuota.state, "degraded");
+  assert.equal(res.body.youtubeQuota.units, 8000);
+  assert.equal(res.body.youtubeQuota.budget, 9000);
+  assert.equal(res.body.overallStatus, "needs_attention");
+});
+

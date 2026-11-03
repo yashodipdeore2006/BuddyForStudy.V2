@@ -344,11 +344,30 @@ export async function updateAdminPrivacyRequest(req, res, next) {
       set.identityVerifiedBy = reviewerId;
     }
 
-    const updated = await DataPrivacyRequest.findOneAndUpdate(
-      { _id: existing._id, status: existing.status },
-      { $set: set },
-      { new: true, runValidators: true }
-    );
+    const update = { $set: set };
+    if (input.status === "denied") {
+      // A denied request is closed; release the active-request slot so the
+      // learner can submit a new request after addressing the denial.
+      update.$unset = { activeRequestKey: "" };
+    } else if (input.status === "appealed") {
+      // An appeal is active again. The unique partial index prevents it from
+      // racing with another active request of the same type.
+      update.$set.activeRequestKey = String(existing.user) + ":" + existing.type;
+    }
+
+    let updated;
+    try {
+      updated = await DataPrivacyRequest.findOneAndUpdate(
+        { _id: existing._id, status: existing.status },
+        update,
+        { new: true, runValidators: true }
+      );
+    } catch (error) {
+      if (error?.code === 11000) {
+        return failure(res, "Another active request of this type already exists. Resolve it before appealing this request.", 409);
+      }
+      throw error;
+    }
     if (!updated) return failure(res, "The request changed concurrently. Refresh the queue and retry.", 409);
 
     const audit = await recordAuditEvent({
@@ -364,16 +383,21 @@ export async function updateAdminPrivacyRequest(req, res, next) {
     });
 
     if (!audit?.recorded && !audit?.queued) {
-      await DataPrivacyRequest.updateOne(
-        { _id: updated._id, status: updated.status, updatedAt: updated.updatedAt },
-        { $set: {
+      const rollbackUpdate = {
+        $set: {
           status: existing.status,
           identityVerifiedAt: existing.identityVerifiedAt,
           identityVerifiedBy: existing.identityVerifiedBy,
           reviewerNote: existing.reviewerNote,
           reviewedBy: existing.reviewedBy,
           reviewedAt: existing.reviewedAt,
-        } }
+        },
+      };
+      if (existing.activeRequestKey) rollbackUpdate.$set.activeRequestKey = existing.activeRequestKey;
+      else rollbackUpdate.$unset = { activeRequestKey: "" };
+      await DataPrivacyRequest.updateOne(
+        { _id: updated._id, status: updated.status, updatedAt: updated.updatedAt },
+        rollbackUpdate
       );
       return failure(res, "The status change was rolled back because its audit record could not be persisted.", 503);
     }

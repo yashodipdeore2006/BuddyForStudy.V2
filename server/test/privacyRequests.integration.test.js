@@ -238,3 +238,46 @@ test("privacy request validation rejects extra user IDs and underspecified delet
     assert.equal(res.statusCode, 400);
   }
 });
+
+test("denying a privacy request releases its active slot so the learner can submit a new one", {
+  skip: !canRun,
+  timeout: 30_000,
+}, async () => {
+  const owner = await createUser("denied-retry");
+  const admin = await createUser("denied-reviewer");
+  const requestBody = {
+    type: "deletion",
+    description: "Please review my account deletion request.",
+    dataCategories: ["profile", "learning"],
+  };
+  const first = response();
+  await createMyPrivacyRequest({
+    user: { userId: String(owner._id) }, body: requestBody, ip: "127.0.0.1",
+    get: () => "Privacy integration test",
+  }, first, (error) => { throw error; });
+  assert.equal(first.statusCode, 201);
+
+  const denied = response();
+  await updateAdminPrivacyRequest({
+    user: { userId: String(admin._id) },
+    params: { requestId: first.body.request.requestId },
+    body: { status: "denied", reviewerNote: "Please provide additional proof of account ownership." },
+    ip: "127.0.0.1",
+    get: () => "Privacy integration test",
+  }, denied, (error) => { throw error; });
+  assert.equal(denied.statusCode, 200);
+  assert.equal(denied.body.request.status, "denied");
+
+  const closed = await DataPrivacyRequest.findOne({ requestId: first.body.request.requestId }).lean();
+  assert.equal(closed.activeRequestKey, undefined);
+
+  const second = response();
+  await createMyPrivacyRequest({
+    user: { userId: String(owner._id) }, body: requestBody, ip: "127.0.0.1",
+    get: () => "Privacy integration test",
+  }, second, (error) => { throw error; });
+  assert.equal(second.statusCode, 201);
+  assert.notEqual(second.body.request.requestId, first.body.request.requestId);
+  assert.equal(await DataPrivacyRequest.countDocuments({ user: owner._id, type: "deletion" }), 2);
+});
+

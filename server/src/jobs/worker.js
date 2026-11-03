@@ -14,6 +14,7 @@ import { processScheduledAnnouncements } from "../services/announcement.service.
 import { refreshStaleVideos } from "../services/youtubeCompliance.service.js";
 import { rebuildSkillPriors } from "../services/skillResourcePrior.service.js";
 import { recoverExpiredRoadmapAdmissions } from "../services/roadmapAdmission.service.js";
+import { checkPaymentWebhookBacklog, checkYouTubeQuotaOperationalState } from "../services/operationalMonitoring.service.js";
 
 const intervalMs = 15 * 60 * 1000;
 let maintenanceInProgress = false;
@@ -65,6 +66,25 @@ async function runMaintenance() {
     const now = new Date();
     const recoveredRoadmapAdmissions = await recoverExpiredRoadmapAdmissions({ now });
     if (recoveredRoadmapAdmissions) console.warn("[worker] recovered expired roadmap admission leases", { count: recoveredRoadmapAdmissions });
+    const [webhookBacklog, youtubeQuota] = await Promise.all([
+      checkPaymentWebhookBacklog(now),
+      checkYouTubeQuotaOperationalState()
+    ]);
+    if (webhookBacklog.failed || webhookBacklog.staleProcessing) {
+      console.warn("[worker] Razorpay webhook backlog requires attention", {
+        failed: webhookBacklog.failed,
+        staleProcessing: webhookBacklog.staleProcessing
+      });
+    }
+    if (youtubeQuota.state !== "ok" || youtubeQuota.store === "unavailable") {
+      console.warn("[worker] YouTube quota is not fully available", {
+        state: youtubeQuota.state,
+        units: youtubeQuota.units,
+        budget: youtubeQuota.budget,
+        store: youtubeQuota.store,
+        resetDay: youtubeQuota.resetDay
+      });
+    }
     await runNightlyCurationJobs(now);
     const [subscriptions, payments, trialGrants] = await Promise.all([
       UserSubscription.updateMany(

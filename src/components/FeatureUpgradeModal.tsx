@@ -144,6 +144,7 @@ export default function FeatureUpgradeModal() {
   useEffect(() => {
     const handleFeatureGated = (event: Event) => {
       const detail = (event as CustomEvent<GateRequest>).detail || {};
+      setLoadingPlans(true);
       setRequest(detail);
       setSelectedPlanId("");
       setPreviewPlanId(null);
@@ -157,7 +158,6 @@ export default function FeatureUpgradeModal() {
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    setLoadingPlans(true);
     Promise.all([
       apiFetch("/api/billing/plans"),
       session ? apiFetch("/api/billing/me").catch(() => ({ subscription: null })) : Promise.resolve({ subscription: null }),

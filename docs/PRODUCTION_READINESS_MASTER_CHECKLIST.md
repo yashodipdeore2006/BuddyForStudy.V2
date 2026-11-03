@@ -11,11 +11,11 @@
 | Metric | Current |
 |---|---:|
 | Total tasks | 239 |
-| Verified done | 168 / 239 |
+| Verified done | 171 / 239 |
 | Failed tasks | 2 / 239 |
 | Blocked | 14 / 239 |
-| Partially complete | 22 / 239 |
-| Not checked | 33 / 239 |
+| Partially complete | 23 / 239 |
+| Not checked | 29 / 239 |
 | Open findings | 5 (REL-001 P1 release controls; REL-002 P2 lint-warning backlog; REL-004 P1 staging/provider verification; DATA-001 P1 account data rights/retention workflow; BILL-001 P2 subscription lifecycle gap) |
 | Release decision | **NOT READY — branch protection, deletion/retention execution, staging/provider verification and operations gates remain open** |
 
@@ -440,12 +440,12 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `DONE` · Evidence: `A11Y-CONTROLS-NAMES-001` checks accessible names and rejects placeholder/unsafe link targets across primary public and learner routes; full production-build browser suite passed with 113 tests on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). · Finding/fix: signed-out auth routes are represented accurately in the browser fixture; link destinations and names retested.
 - [ ] **PR-183** verify form labels required fields and server errors.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-184** test modal focus trap Escape and focus restoration.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-185** test drawer/menu keyboard navigation and focus.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-184** test modal focus trap Escape and focus restoration.  
+  Status: `DONE` · Evidence: `[A11Y-UNENROLL-DIALOG-FOCUS-001]` in `tests/navigation.e2e.spec.ts` verifies Tab/Shift+Tab focus containment, Escape close, and focus restoration to the triggering course-actions control; passed in [full CI run 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029) on exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d`.
+- [x] **PR-185** test drawer/menu keyboard navigation and focus.  
+  Status: `DONE` · Evidence: `[A11Y-ACCOUNT-MENU-KEYBOARD-001]` in `tests/navigation.e2e.spec.ts` verifies ArrowDown, Home, End, Escape, and focus restoration to the menu trigger; passed in [full CI run 41602759029](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41602759029) on exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d`.
 - [ ] **PR-186** verify keyboard reachability and visible focus.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+  Status: `PARTIAL — VISIBLE KEYBOARD FOCUS RING TESTED ON PUBLIC AND LEARNER ROUTES` · Evidence: `[A11Y-KEYBOARD-FOCUS-001]` checks keyboard focus visibility on `/about`, `/home`, and `/settings`, accepting the platform's visible outline or tokenized box-shadow focus ring; passed in [full CI run 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029). Full keyboard traversal of every interactive element and every route remains open.
 - [ ] **PR-187** verify heading hierarchy landmarks and semantics.  
   Status: `PARTIAL — PRIMARY ROUTE LANDMARK/H1 AUDIT PASSED` · Evidence: `A11Y-SEMANTICS-001` checks a visible `main` landmark and page-level `h1` on 16 primary public/learner routes; included in 113-test production-build browser run [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). Full per-component heading-level hierarchy and every admin sub-route still need manual/automated coverage. · Finding/fix: —
 - [ ] **PR-188** check text status and focus contrast against WCAG AA.  
@@ -468,8 +468,8 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
 - [ ] **PR-197** test browser back forward refresh and deep links.  
   Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
-- [ ] **PR-198** validate footer social About Contact FAQ Pricing legal links.  
-  Status: `NOT CHECKED` · Evidence: — · Finding/fix: —
+- [x] **PR-198** validate footer social About Contact FAQ Pricing legal links.  
+  Status: `DONE` · Evidence: `tests/navigation.e2e.spec.ts` verifies footer Explore, roadmap, pricing, registration, About, Contact, FAQ, Privacy, Terms, Cookie, and all-policy destinations. A synthetic social-link fixture verifies the configured HTTPS URL, `target="_blank"`, and `rel="noopener noreferrer"`; passed in [full CI run 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029) on exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d`.
 - [x] **PR-199** run Playwright on production build and add P0/P1 regressions.  
   Status: `DONE WITH SCOPE LIMITATION` · Evidence: CI builds Vite production output, serves it using `vite preview`, then runs navigation/admin/Google-auth/accessibility Playwright suites; 113 tests passed on candidate `d80e728` [CI 41276095542](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276095542). API/provider responses are mocked in browser tests; live staging/payment/OAuth/SMTP behavior is covered by separate release gates. · Finding/fix: —
 
@@ -670,3 +670,4 @@ The checklist is complete only when all tasks are `DONE` or have justified, appr
 | 2026-11-02 | Exact candidate `14a67e038b38b6fa9edb208b4afad22c207f788d` | PR-159 verified; Gitleaks historical false positive narrowly allowlisted | 168 | 4 | 14 | 33 | [Full frontend/backend/release-gate CI 41457251541](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41457251541); [full-history secret scan 41457251410](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41457251410) | MongoDB integration suite: 800 passed, 0 failed, 0 skipped; concurrent trial grants, replay, paid-subscription race and audit-failure compensation verified. Full-history Gitleaks passed after fixing ordinary documentation wording and allowlisting only the exact historical generic-api-key fingerprint. Release remains NOT READY: branch protection, privacy/data-rights workflow, staging/provider verification, worker operations and subscription lifecycle are still open. |
 
 | 2026-11-03 | Exact candidate `9ab25628ef53bb6f52e5f897bf362827c91f4b42` | PR-056 and PR-078 moved from FAIL to PARTIAL; PR-159 remains DONE | 168 | 2 | 14 | 22 | [Full frontend/backend/release-gate CI 41599233495](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41599233495); [full-history Gitleaks 41599233536](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/41599233536) | Learner-facing privacy controls provide a requester-scoped partial JSON export, correction/deletion request intake and history; admins have permission-gated, audited review APIs. MongoDB integration tests cover identity verification, duplicate requests, audit persistence, denial releasing the active slot and safe resubmission. Full CI and secret scanning passed. DATA-001 stays OPEN because legal retention schedule, data-complete export, deletion/anonymization, backup expiry and independent verification are not implemented. Branch protection, Render/production worker, provider staging and subscription lifecycle findings also remain open. |
+| 2026-11-03 | Exact candidate `bef64f633bf5d2ddd41d7208bb7e42f45b0a986d` | PR-184, PR-185, PR-198 verified; PR-186 moved to PARTIAL; keyboard focus and footer-social regressions added | 171 | 2 | 14 | 68 | [Full frontend/backend/release-gate CI 41602759029](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602759029); [Gitleaks 41602758974](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41602758974) | Exact candidate passed backend tests, frontend lint/typecheck/unit/deployment-config/production-build checks and 114 Playwright tests; secret scan passed. Release remains NOT READY: branch protection, production/provider staging, privacy deletion/retention execution, live worker verification, subscription lifecycle decisions and operational launch evidence remain open. |

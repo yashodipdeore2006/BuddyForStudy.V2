@@ -56,11 +56,7 @@ export default function StructuredPlaylists({ query }: Props) {
 
   useEffect(() => {
     const normalized = query.trim();
-    if (normalized.length < 2) {
-      setResult(null);
-      setError("");
-      return;
-    }
+    if (normalized.length < 2) return;
 
     let cancelled = false;
     setLoading(true);
@@ -124,6 +120,8 @@ export default function StructuredPlaylists({ query }: Props) {
       setEnrolling(false);
     }
   };
+
+  if (query.trim().length < 2) return null;
 
   if (loading) {
     return (

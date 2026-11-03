@@ -32,7 +32,7 @@ function isUpgradeGateError(error: unknown) {
   return error instanceof Error && /not included in your current plan|reached your Advanced AI (?:summary|question) limit for this month/i.test(error.message);
 }
 
-export default function AdvancedAIAssistant({
+function AdvancedAIAssistantContent({
   courseId,
   lessonId,
 }: {
@@ -76,10 +76,6 @@ export default function AdvancedAIAssistant({
   }, [courseId, lessonId]);
 
   useEffect(() => {
-    setOpen(false);
-    setInsight(null);
-    setAnswer(null);
-    setQuestion("");
     void loadUsage();
   }, [loadUsage]);
 
@@ -307,5 +303,21 @@ export default function AdvancedAIAssistant({
         </aside>
       </div>
     </section>
+  );
+}
+
+export default function AdvancedAIAssistant({
+  courseId,
+  lessonId,
+}: {
+  courseId: string;
+  lessonId: string;
+}) {
+  return (
+    <AdvancedAIAssistantContent
+      key={courseId + ":" + lessonId}
+      courseId={courseId}
+      lessonId={lessonId}
+    />
   );
 }

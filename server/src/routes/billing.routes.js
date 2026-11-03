@@ -11,20 +11,13 @@ import * as razorpay from "../services/razorpay.service.js";
 import { normalizeSubscriptionFeatures } from "../config/subscriptionFeatures.js";
 import { createNotificationEvent, notifyActiveAdmins } from "../services/notification.service.js";
 import { buildSubscriptionActivatedNotificationPayload } from "../services/billingNotificationPayloads.js";
+import { sendBillingNotificationSafely } from "../services/billingNotification.service.js";
 import { getRemainingRefundableAmount, validateRefundAmount, ACTIVE_REFUND_STATUSES } from "../services/refundBalance.service.js";
 
 const router = Router();
 
 async function sendNotificationSafely(payload, context) {
-  try {
-    return await createNotificationEvent(payload);
-  } catch (error) {
-    console.error("[notifications] billing event notice failed", {
-      context,
-      message: String(error?.message || "Unknown notification error").slice(0, 200)
-    });
-    return null;
-  }
+  return sendBillingNotificationSafely(payload, context, createNotificationEvent);
 }
 router.get("/plans", async (_req,res,next)=>{ try {
   const plans = await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean();

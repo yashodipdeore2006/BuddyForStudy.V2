@@ -6,7 +6,7 @@ const UNSAFE_EMBEDDED_CONTENT = new RegExp([
   "\\bsrcdoc\\s*=",
   "data\\s*:\\s*text\\/html",
   "expression\\s*\\(",
-  \`url\\s*\\(\\s*["']?\\s*(?:\${SCRIPT_SCHEME}|\${VBSCRIPT_SCHEME})\`,
+  "url\\s*\\(\\s*[\"']?\\s*(?:" + SCRIPT_SCHEME + "|" + VBSCRIPT_SCHEME + ")",
   "@import"
 ].join("|"), "i");
 const URL_ATTRIBUTE = /\b(?:href|src|action|formaction|xlink:href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;

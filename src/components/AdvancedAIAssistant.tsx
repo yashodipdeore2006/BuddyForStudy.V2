@@ -51,8 +51,6 @@ function AdvancedAIAssistantContent({
   const [open, setOpen] = useState(false);
 
   const loadUsage = useCallback(async () => {
-    setLoadingUsage(true);
-    setError("");
     try {
       const data = await apiFetch(
         "/api/advanced-ai/usage?courseId=" +

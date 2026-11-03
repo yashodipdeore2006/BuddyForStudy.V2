@@ -59,25 +59,29 @@ export default function StructuredPlaylists({ query }: Props) {
     if (normalized.length < 2) return;
 
     let cancelled = false;
-    setLoading(true);
-    setError("");
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError("");
 
-    apiFetch(`/api/discovery/course-search?q=${encodeURIComponent(normalized)}`)
-      .then((data) => {
-        if (!cancelled) setResult(data);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setResult(null);
-          setError(err instanceof Error ? err.message : "Unable to build the course");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      apiFetch(`/api/discovery/course-search?q=${encodeURIComponent(normalized)}`)
+        .then((data) => {
+          if (!cancelled) setResult(data);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setResult(null);
+            setError(err instanceof Error ? err.message : "Unable to build the course");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [query]);
 

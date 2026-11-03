@@ -1,4 +1,5 @@
 import { WebhookEvent } from "../models/WebhookEvent.js";
+import { OperationalAlert } from "../models/OperationalAlert.js";
 import { recordOperationalAlert, resolveOperationalAlert } from "../models/OperationalAlert.js";
 import { getState as getYouTubeQuotaState } from "./quota.service.js";
 
@@ -74,4 +75,26 @@ export async function checkYouTubeQuotaOperationalState(dependencies = {}) {
   }
 
   return quota;
+}
+
+
+export const API_5XX_ALERT_KEY = "api-http-5xx-errors";
+export const API_5XX_RECOVERY_WINDOW_MS = 15 * 60 * 1000;
+
+export async function resolveRecoveredApi5xxAlert(now = new Date(), dependencies = {}) {
+  const findAlert = dependencies.findAlert || (() => OperationalAlert.findOne({
+    key: API_5XX_ALERT_KEY,
+    status: { $ne: "resolved" }
+  }).select("lastSeenAt").lean());
+  const resolveAlert = dependencies.resolveAlert || resolveOperationalAlert;
+  const alert = await findAlert();
+  if (!alert?.lastSeenAt) return { resolved: false, reason: "no_open_alert" };
+
+  const lastSeenAt = new Date(alert.lastSeenAt);
+  if (Number.isNaN(lastSeenAt.getTime()) || now.getTime() - lastSeenAt.getTime() < API_5XX_RECOVERY_WINDOW_MS) {
+    return { resolved: false, reason: "recovery_window_not_elapsed" };
+  }
+
+  await resolveAlert(API_5XX_ALERT_KEY);
+  return { resolved: true, lastSeenAt };
 }

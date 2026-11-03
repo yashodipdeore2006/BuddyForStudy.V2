@@ -1971,6 +1971,9 @@ test.describe("public platform pages and footer", () => {
   });
 
   test("footer navigation points to supported destinations", async ({ page }) => {
+    await page.route("**/api/public/social-links", (route) => json(route, {
+      links: { github: "https://social.example.test/buddyforstudy" },
+    }));
     await page.goto(baseURL + "/about");
     const footer = page.locator("footer.bfs-marketing-footer");
     await expect(footer.getByRole("link", { name: /Explore courses/ })).toHaveAttribute("href", "/explore");
@@ -1984,6 +1987,12 @@ test.describe("public platform pages and footer", () => {
     await expect(footer.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/legal/privacy-policy");
     await expect(footer.getByRole("link", { name: "Terms of service" })).toHaveAttribute("href", "/legal/terms-of-service");
     await expect(footer.getByRole("link", { name: "Cookie policy" })).toHaveAttribute("href", "/legal/cookie-policy");
+
+    const social = footer.locator(".bfs-footer-socials a");
+    await expect(social).toHaveCount(1);
+    await expect(social.first()).toHaveAttribute("href", "https://social.example.test/buddyforstudy");
+    await expect(social.first()).toHaveAttribute("target", "_blank");
+    await expect(social.first()).toHaveAttribute("rel", "noopener noreferrer");
   });
 
   test("footer uses the full platform layout for signed-in learners", async ({ page }) => {

@@ -4,7 +4,7 @@ import { Target, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { apiFetch, setAuth } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, Pencil, X } from "lucide-react";
+import { Lock, Loader2, Check, AlertCircle, Bell, Smartphone, Clock3, Sun, Moon, CreditCard, UserRound, ShieldCheck, Pencil, X, Download, FileText, Send, RefreshCw } from "lucide-react";
 import { disableBrowserPush, enableBrowserPush, hasBrowserPushSubscription } from "@/lib/pushNotifications";
 import { routes } from "@/lib/routes";
 
@@ -33,6 +33,35 @@ const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   learningRemindersEnabled: true,
   pushEnabled: false,
 };
+
+
+type PrivacyRequestType = "correction" | "deletion";
+type PrivacyRequestCategory =
+  | "profile" | "learning" | "ai_interactions" | "notifications" | "preferences"
+  | "subscriptions" | "payments" | "communications" | "other";
+type PrivacyRequest = {
+  requestId: string;
+  type: PrivacyRequestType;
+  description: string;
+  dataCategories: PrivacyRequestCategory[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+};
+const PRIVACY_REQUEST_CATEGORIES: { value: PrivacyRequestCategory; label: string }[] = [
+  { value: "profile", label: "Profile and contact details" },
+  { value: "learning", label: "Courses, progress and roadmaps" },
+  { value: "ai_interactions", label: "AI questions and learning interactions" },
+  { value: "notifications", label: "Notifications and device preferences" },
+  { value: "preferences", label: "Account and cookie preferences" },
+  { value: "subscriptions", label: "Subscriptions and trial records" },
+  { value: "payments", label: "Payments, refunds and billing records" },
+  { value: "communications", label: "Email and communication preferences" },
+  { value: "other", label: "Other account information" },
+];
+function privacyStatusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
 type BrowserPushStatus = "checking" | "unsupported" | "insecure" | NotificationPermission;
 
@@ -110,6 +139,16 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
   const [savingMarketingConsent, setSavingMarketingConsent] = useState(false);
   const [marketingConsentMessage, setMarketingConsentMessage] = useState("");
   const [marketingConsentError, setMarketingConsentError] = useState("");
+  const [privacyRequests, setPrivacyRequests] = useState<PrivacyRequest[]>([]);
+  const [privacyLoading, setPrivacyLoading] = useState(true);
+  const [privacySubmitting, setPrivacySubmitting] = useState(false);
+  const [privacyExporting, setPrivacyExporting] = useState(false);
+  const [privacyType, setPrivacyType] = useState<PrivacyRequestType>("correction");
+  const [privacyDescription, setPrivacyDescription] = useState("");
+  const [privacyCategories, setPrivacyCategories] = useState<PrivacyRequestCategory[]>(["profile"]);
+  const [privacyError, setPrivacyError] = useState("");
+  const [privacyMessage, setPrivacyMessage] = useState("");
+
 
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
   const [loadingNotifs, setLoadingNotifs] = useState(true);
@@ -137,6 +176,21 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
     setContactLearningGoal(profile?.learning_goal || "");
     setMarketingEmailConsent(profile?.marketing_email_consent === true);
   }, [profile?.phone_number, profile?.city, profile?.learning_goal, profile?.marketing_email_consent]);
+
+
+  useEffect(() => {
+    let active = true;
+    setPrivacyLoading(true);
+    apiFetch<{ requests: PrivacyRequest[] }>("/api/me/privacy-requests")
+      .then((data) => {
+        if (active) setPrivacyRequests(Array.isArray(data.requests) ? data.requests : []);
+      })
+      .catch((error) => {
+        if (active) setPrivacyError(error instanceof Error ? error.message : "Unable to load privacy requests.");
+      })
+      .finally(() => { if (active) setPrivacyLoading(false); });
+    return () => { active = false; };
+  }, [session?.user.id]);
 
   useEffect(() => {
     let active = true;
@@ -276,6 +330,84 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
       setContactError(error instanceof Error ? error.message : "Unable to save contact details.");
     } finally {
       setSavingContact(false);
+    }
+  };
+
+
+  const downloadAccountData = async () => {
+    setPrivacyExporting(true);
+    setPrivacyError("");
+    setPrivacyMessage("");
+    try {
+      const data = await apiFetch<Record<string, unknown>>("/api/me/data-export", { cache: "no-store" });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "buddyforstudy-account-export-" + new Date().toISOString().slice(0, 10) + ".json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setPrivacyMessage("Your account export was prepared. Review the included coverage and limitations in the downloaded file.");
+    } catch (error) {
+      setPrivacyError(error instanceof Error ? error.message : "Unable to prepare your account export. Please retry.");
+    } finally {
+      setPrivacyExporting(false);
+    }
+  };
+
+  const togglePrivacyCategory = (category: PrivacyRequestCategory) => {
+    setPrivacyCategories((current) => current.includes(category)
+      ? current.filter((value) => value !== category)
+      : [...current, category]);
+  };
+
+  const submitPrivacyRequest = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (privacyDescription.trim().length < 10) {
+      setPrivacyError("Please provide at least 10 characters describing your request.");
+      return;
+    }
+    setPrivacySubmitting(true);
+    setPrivacyError("");
+    setPrivacyMessage("");
+    try {
+      const data = await apiFetch<{ request: PrivacyRequest; duplicate: boolean }>("/api/me/privacy-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          type: privacyType,
+          description: privacyDescription.trim(),
+          dataCategories: privacyCategories,
+        }),
+      });
+      if (data.request) {
+        setPrivacyRequests((current) => [
+          data.request,
+          ...current.filter((request) => request.requestId !== data.request.requestId),
+        ]);
+      }
+      setPrivacyDescription("");
+      setPrivacyMessage(data.duplicate
+        ? "You already have an active request of this type. Its current status is shown below."
+        : "Your request was submitted for identity verification and review. This does not immediately delete or change account data.");
+    } catch (error) {
+      setPrivacyError(error instanceof Error ? error.message : "Unable to submit your privacy request. Please retry.");
+    } finally {
+      setPrivacySubmitting(false);
+    }
+  };
+
+  const refreshPrivacyRequests = async () => {
+    setPrivacyLoading(true);
+    setPrivacyError("");
+    try {
+      const data = await apiFetch<{ requests: PrivacyRequest[] }>("/api/me/privacy-requests", { cache: "no-store" });
+      setPrivacyRequests(Array.isArray(data.requests) ? data.requests : []);
+    } catch (error) {
+      setPrivacyError(error instanceof Error ? error.message : "Unable to refresh privacy requests.");
+    } finally {
+      setPrivacyLoading(false);
     }
   };
 
@@ -709,6 +841,111 @@ export default function Settings({ embedded = false }: { embedded?: boolean }) {
           <a href="/legal/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-violet-700 underline underline-offset-2">Privacy policy</a>
           <a href="/legal/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-violet-700 underline underline-offset-2">Terms of service</a>
         </div>
+
+      <section id="data-rights" className="mt-8 scroll-mt-28 rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-900/[0.025] sm:p-8">
+        <div className="flex items-start gap-3">
+          <FileText className="mt-0.5 h-5 w-5 text-slate-400" />
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Your data & privacy requests</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-500">Download a copy of the account data currently available in BuddyForStudy, or submit a correction or deletion request for review.</p>
+          </div>
+        </div>
+
+        {privacyError && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{privacyError}</p>}
+        {privacyMessage && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{privacyMessage}</p>}
+
+        <div className="mt-5 rounded-2xl border border-slate-200 p-4 sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900">Download your account data</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-500">The JSON export is scoped to your signed-in account and excludes passwords, tokens, OTPs and provider credentials.</p>
+            </div>
+            <button type="button" onClick={() => void downloadAccountData()} disabled={privacyExporting} className="btn-primary shrink-0">
+              {privacyExporting ? <><Loader2 className="h-4 w-4 animate-spin" />Preparing…</> : <><Download className="h-4 w-4" />Download data</>}
+            </button>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-amber-800">Coverage note: this export is a partial repository inventory. It does not include lesson notes kept only in this browser, provider-side records, infrastructure logs or backups. Check the file’s known limitations before relying on it as a complete archive.</p>
+        </div>
+
+        <form onSubmit={submitPrivacyRequest} className="mt-5 rounded-2xl border border-slate-200 p-4 sm:p-5">
+          <h3 className="text-sm font-bold text-slate-900">Submit a privacy request</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">Requests are linked to your authenticated account. The team may need to verify your identity and review legal or financial retention obligations.</p>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">Request type
+            <select value={privacyType} onChange={(event) => setPrivacyType(event.target.value as PrivacyRequestType)} className="input-field mt-1.5">
+              <option value="correction">Correct my account data</option>
+              <option value="deletion">Request account deletion</option>
+            </select>
+          </label>
+          <fieldset className="mt-4">
+            <legend className="text-sm font-semibold text-slate-700">Data categories</legend>
+            <p className="mt-1 text-xs text-slate-500">Choose the areas relevant to your request.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {PRIVACY_REQUEST_CATEGORIES.map((category) => (
+                <label key={category.value} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={privacyCategories.includes(category.value)}
+                    onChange={() => togglePrivacyCategory(category.value)}
+                    className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  {category.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="mt-4 block text-sm font-semibold text-slate-700">Describe what you need
+            <textarea
+              value={privacyDescription}
+              onChange={(event) => setPrivacyDescription(event.target.value)}
+              minLength={10}
+              maxLength={1500}
+              rows={4}
+              required
+              className="input-field mt-1.5"
+              placeholder={privacyType === "deletion"
+                ? "Please explain that you are requesting account deletion and mention any data categories or records involved."
+                : "Describe the account information that needs correction and the requested change."}
+            />
+          </label>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-xl text-xs leading-5 text-slate-500">Submitting a deletion request does not immediately delete or anonymize your account, payments, or learning records. You can track review progress below.</p>
+            <button type="submit" disabled={privacySubmitting || privacyDescription.trim().length < 10} className="btn-primary shrink-0">
+              {privacySubmitting ? <><Loader2 className="h-4 w-4 animate-spin" />Submitting…</> : <><Send className="h-4 w-4" />Submit request</>}
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Your request history</h3>
+              <p className="mt-1 text-xs text-slate-500">Only requests belonging to this signed-in account are shown.</p>
+            </div>
+            <button type="button" onClick={() => void refreshPrivacyRequests()} disabled={privacyLoading} className="btn-secondary">
+              {privacyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Refresh
+            </button>
+          </div>
+          {privacyLoading ? (
+            <div className="mt-3 flex items-center gap-2 rounded-xl bg-slate-50 p-4 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading requests…</div>
+          ) : privacyRequests.length ? (
+            <div className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200">
+              {privacyRequests.map((request) => (
+                <div key={request.requestId} className="flex flex-wrap items-start justify-between gap-3 p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900">{request.type === "deletion" ? "Account deletion request" : "Data correction request"}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{request.description}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">Submitted {new Date(request.createdAt).toLocaleString("en-IN")}</p>
+                    <p className="mt-1 break-all text-[11px] text-slate-400">Reference: {request.requestId}</p>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{privacyStatusLabel(request.status)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">You have not submitted a privacy request.</p>
+          )}
+        </div>
+      </section>
       </section>
     </div>
   );

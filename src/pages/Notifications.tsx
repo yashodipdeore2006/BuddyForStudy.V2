@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, BookOpen, TrendingUp, Award, Info, CreditCard, CheckCheck, Loader2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
@@ -40,22 +40,22 @@ export default function Notifications() {
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState("");
 
-  const loadNotifications = async () => {
-    setError("");
+  const loadNotifications = useCallback(async () => {
     try {
       const data = await apiFetch("/api/notifications?limit=100");
       setNotifications(data.notifications || []);
       setUnreadCount(Number(data.unreadCount || 0));
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load notifications.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     void loadNotifications();
-  }, []);
+  }, [loadNotifications]);
 
   const markRead = async (notificationId: string) => {
     try {

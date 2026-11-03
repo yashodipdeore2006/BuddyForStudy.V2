@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bell, BookOpen, TrendingUp, Award, Info, CreditCard, CheckCheck, Loader2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
@@ -15,6 +15,10 @@ type NotificationRecord = {
   readAt?: string | null;
   link?: string | null;
 };
+
+async function requestNotifications() {
+  return apiFetch<{ notifications?: NotificationRecord[]; unreadCount?: number }>("/api/notifications?limit=100");
+}
 
 const iconByType: Record<string, typeof Bell> = {
   course: BookOpen,
@@ -40,22 +44,21 @@ export default function Notifications() {
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState("");
 
-  const loadNotifications = useCallback(async () => {
-    try {
-      const data = await apiFetch("/api/notifications?limit=100");
-      setNotifications(data.notifications || []);
-      setUnreadCount(Number(data.unreadCount || 0));
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load notifications.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    void loadNotifications();
-  }, [loadNotifications]);
+    let active = true;
+    requestNotifications()
+      .then((data) => {
+        if (!active) return;
+        setNotifications(data.notifications || []);
+        setUnreadCount(Number(data.unreadCount || 0));
+        setError("");
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Unable to load notifications.");
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const markRead = async (notificationId: string) => {
     try {

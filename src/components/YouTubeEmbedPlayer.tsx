@@ -69,14 +69,14 @@ type Props = {
 export default function YouTubeEmbedPlayer({ videoId, title = "Course video", autoplay = false, className = "", onPausedAt, seekRequest }: Props) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
-  const [endedState, setEndedState] = useState({ videoId, ended: false });
-  const ended = endedState.videoId === videoId && endedState.ended;
+  const [ended, setEnded] = useState(false);
   const onPausedAtRef = useRef(onPausedAt);
   const seekRequestRef = useRef(seekRequest);
   useEffect(() => { seekRequestRef.current = seekRequest; }, [seekRequest]);
   useEffect(() => { onPausedAtRef.current = onPausedAt; }, [onPausedAt]);
 
   useEffect(() => {
+    setEnded(false);
     playerRef.current = null;
     let cancelled = false;
     let player: YouTubePlayerInstance | null = null;
@@ -111,7 +111,7 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
           },
           onStateChange: (event) => {
             if (cancelled || !window.YT) return;
-            setEndedState({ videoId, ended: event.data === window.YT.PlayerState.ENDED });
+            setEnded(event.data === window.YT.PlayerState.ENDED);
             if (event.data === window.YT.PlayerState.PAUSED) {
               const seconds = Number(event.target?.getCurrentTime?.());
               if (Number.isFinite(seconds)) onPausedAtRef.current?.(Math.floor(seconds));
@@ -137,7 +137,7 @@ export default function YouTubeEmbedPlayer({ videoId, title = "Course video", au
   }, [seekRequest]);
 
   const replay = () => {
-    setEndedState({ videoId, ended: false });
+    setEnded(false);
     playerRef.current?.seekTo(0, true);
     playerRef.current?.playVideo();
   };

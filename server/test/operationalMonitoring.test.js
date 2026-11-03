@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   checkPaymentWebhookBacklog,
   checkYouTubeQuotaOperationalState,
+  resolveRecoveredApi5xxAlert,
+  API_5XX_ALERT_KEY,
+  API_5XX_RECOVERY_WINDOW_MS,
   WEBHOOK_STALE_PROCESSING_AFTER_MS
 } from "../src/services/operationalMonitoring.service.js";
 
@@ -98,3 +101,37 @@ test("healthy YouTube quota state resolves the quota alert", async () => {
   assert.equal(recorded.length, 0);
   assert.deepEqual(resolved, ["youtube-daily-quota-degraded"]);
 });
+
+test("API 5xx alert resolves after the full recovery window without new errors", async () => {
+  const now = new Date("2026-11-03T12:00:00.000Z");
+  const resolved = [];
+  const result = await resolveRecoveredApi5xxAlert(now, {
+    findAlert: async () => ({ lastSeenAt: new Date("2026-11-03T11:44:00.000Z") }),
+    resolveAlert: async (key) => resolved.push(key)
+  });
+
+  assert.equal(API_5XX_ALERT_KEY, "api-http-5xx-errors");
+  assert.equal(API_5XX_RECOVERY_WINDOW_MS, 15 * 60 * 1000);
+  assert.equal(result.resolved, true);
+  assert.deepEqual(resolved, [API_5XX_ALERT_KEY]);
+});
+
+test("API 5xx alert remains open while errors are inside the recovery window", async () => {
+  const result = await resolveRecoveredApi5xxAlert(new Date("2026-11-03T12:00:00.000Z"), {
+    findAlert: async () => ({ lastSeenAt: new Date("2026-11-03T11:50:00.000Z") }),
+    resolveAlert: async () => { throw new Error("recent 5xx alert must not be resolved"); }
+  });
+
+  assert.equal(result.resolved, false);
+  assert.equal(result.reason, "recovery_window_not_elapsed");
+});
+
+test("missing API 5xx alert is a no-op", async () => {
+  const result = await resolveRecoveredApi5xxAlert(new Date("2026-11-03T12:00:00.000Z"), {
+    findAlert: async () => null,
+    resolveAlert: async () => { throw new Error("no alert exists to resolve"); }
+  });
+  assert.equal(result.resolved, false);
+  assert.equal(result.reason, "no_open_alert");
+});
+

@@ -22,3 +22,9 @@ test("CSS-based embedded execution and HTML data URLs are rejected", () => {
   assert.equal(hasUnsafeEmailMarkup('<p style="width:expression(alert(1))">x</p>'), true);
   assert.equal(hasUnsafeEmailMarkup('<a href="data:text/html,hello">open</a>'), true);
 });
+test("HTML-entity-obfuscated dangerous URL schemes are rejected", () => {
+  assert.equal(hasUnsafeEmailMarkup('<a href="java&#x73;cript:alert(1)">click</a>'), true);
+  assert.equal(hasUnsafeEmailMarkup('<a href="java&Tab;script&colon;alert(1)">click</a>'), true);
+  assert.equal(hasUnsafeEmailMarkup('<img src="data&#58;text/html,hello">'), true);
+  assert.equal(hasUnsafeEmailMarkup('<a href="https://example.com/receipt">receipt</a>'), false);
+});

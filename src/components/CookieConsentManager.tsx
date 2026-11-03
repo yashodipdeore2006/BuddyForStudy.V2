@@ -144,8 +144,6 @@ export default function CookieConsentManager() {
     }
   }, [session?.user.id]);
 
-  if (!ready) return null;
-
   return (
     <>
       {!visible && syncError && (

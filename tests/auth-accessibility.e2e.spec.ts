@@ -72,8 +72,8 @@ test("login requires an email and password before making an authentication reque
   await page.goto(baseURL + "/login");
   const email = page.getByLabel("Email", { exact: true });
   const password = page.getByLabel("Password", { exact: true });
-  await expect(email).toBeRequired();
-  await expect(password).toBeRequired();
+  await expect(email).toHaveJSProperty("required", true);
+  await expect(password).toHaveJSProperty("required", true);
 
   await page.getByRole("button", { name: "Sign In" }).click();
   expect(await email.evaluate((node) => (node as HTMLInputElement).validity.valueMissing)).toBe(true);

@@ -1509,10 +1509,12 @@ export async function generateAIRoadmap(input, options = {}) {
   const promptVersionId = activePrompt.versionId || null;
   const topicKeys = buildTopicKeys(
     input.topic,
-    "industry-ready-v2",
+    "industry-ready-v3-contextual-python-path",
     personalized ? JSON.stringify(input.goals || []) : "",
     personalized ? JSON.stringify(input.knownSkills || []) : "",
-    personalized ? String(input.studyTimeMinutesPerDay || 60) : ""
+    personalized ? String(input.studyTimeMinutesPerDay || 60) : "",
+    personalized ? String(input.intentProfile?.outcome || "") : "",
+    personalized ? JSON.stringify(input.intentProfile?.preferences || {}) : ""
   );
   const templateProfile = personalized
     ? { ...input, canonicalTopic: input.canonicalTopic || input.topic, language: input.language || "en", outcome: input.intentProfile?.outcome || "", preferences: input.intentProfile?.preferences || {} }

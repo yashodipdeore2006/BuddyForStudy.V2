@@ -1057,8 +1057,30 @@ export default function Courses() {
                               const value = Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value);
                               return (
                                 <button key={assumption.field} type="button" className="rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-900 hover:bg-violet-100" onClick={() => {
-                                  if (assumption.field === "scope" || assumption.field === "goal") setIntentQuestionIndex(0);
-                                  else {
+                                  if (assumption.field === "goal") {
+                                    setIntentResult((current) => current ? {
+                                      ...current,
+                                      questionPlan: [{
+                                        id: "goal",
+                                        type: "single",
+                                        text: "What are you working toward?",
+                                        options: ["Job-ready", "Exam or certification", "Build a project", "Learn a skill", "Freelancing", "Switch careers", "Personal interest"],
+                                        optional: true,
+                                        why: "This determines which purpose-specific learning path and outcomes we prioritize.",
+                                        changes: ["skills", "projects", "assessment"]
+                                      }, ...current.questionPlan.filter((question) => question.id !== "goal")]
+                                    } : current);
+                                    setIntentAnswers((previous) => {
+                                      const next = { ...previous };
+                                      delete next.goal;
+                                      delete next.goalPurpose;
+                                      return next;
+                                    });
+                                    setIntentQuestionIndex(0);
+                                  } else if (assumption.field === "scope") {
+                                    const index = activeIntentQuestions.findIndex((question) => question.id === "depth");
+                                    if (index >= 0) setIntentQuestionIndex(index);
+                                  } else {
                                     const index = activeIntentQuestions.findIndex((question) => question.id === questionId);
                                     if (index >= 0) setIntentQuestionIndex(index);
                                   }

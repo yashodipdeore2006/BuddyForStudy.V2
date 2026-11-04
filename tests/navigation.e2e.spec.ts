@@ -884,6 +884,24 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
   });
 
+  test("[BUILD-WITH-AI-FORM-001] course search opens the four-step adaptive roadmap intake", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.goto(baseURL + "/explore");
+    await expect(page.getByRole("heading", { name: "Find a course" })).toBeVisible();
+
+    await page.getByRole("textbox", { name: "Search courses" }).fill("React and Node.js Full Stack");
+    await page.getByRole("button", { name: "Build with AI" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("Topic or course name")).toHaveValue("React and Node.js Full Stack");
+    await expect(dialog.getByText("Layer 1 · Core foundation")).toBeVisible();
+    await expect(dialog.getByText("Why are you learning it?")).toBeVisible();
+    await expect(dialog.getByText("What can you already do?")).toBeVisible();
+    await expect(dialog.getByText("Live form schema")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Analyze topic and continue" })).toBeEnabled();
+  });
+
   test("[EXP-YOUTUBE-QUOTA-FALLBACK-001] quota exhaustion keeps local courses usable and shows a safe recovery message", async ({ page }) => {
     const localCourse = courseFixture("local-js-course", { title: "JavaScript Foundations", category: "Development" });
     await mockAppApi(page, {

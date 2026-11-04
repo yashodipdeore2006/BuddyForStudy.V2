@@ -1,7 +1,6 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { env } from "../config/env.js";
-import { parseIntent, IntentQuery, normalizeIntentQuery } from "../services/intent.service.js";
+import { parseIntent } from "../services/intent.service.js";
 import { IntentQuestionEvent } from "../models/IntentQuestionEvent.js";
 import { failure, success } from "../utils/response.js";
 export async function parseIntentController(req, res, next) {
@@ -17,7 +16,6 @@ export async function parseIntentController(req, res, next) {
 }
 
 const questionEventSchema = z.object({
-  topic: IntentQuery,
   questionId: z.string().trim().min(1).max(80),
   packId: z.string().trim().max(60).default("core"),
   event: z.enum(["shown", "answered", "skipped", "abandoned"]),
@@ -31,7 +29,6 @@ export async function trackIntentQuestionEventController(req, res, next) {
     if (!userId) return failure(res, "Authentication required.", 401);
     await IntentQuestionEvent.create({
       userId,
-      topicKey: createHash("sha256").update(normalizeIntentQuery(payload.topic)).digest("hex"),
       questionId: payload.questionId,
       packId: payload.packId || "core",
       event: payload.event,

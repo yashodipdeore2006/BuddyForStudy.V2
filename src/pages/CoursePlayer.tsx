@@ -146,7 +146,7 @@ export default function CoursePlayer() {
   const { session } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(courseId));
   const [completing, setCompleting] = useState(false);
   const [togglingLessonIds, setTogglingLessonIds] = useState<Set<string>>(() => new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -706,10 +706,13 @@ export default function CoursePlayer() {
   };
 
 
-  const pageLoading = Boolean(courseId) && loading;
   const pageError = courseId ? error : "Invalid course";
 
-  if (pageLoading) {
+
+
+
+
+  if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" /></div>;
   }
 

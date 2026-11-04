@@ -152,9 +152,21 @@ export function getSkillChecklist(topic: string): string[] {
 }
 
 export function getNicheQuestions(topic: string): BuildWithAiQuestion[] {
-  return buildWithAiQuestionPacks.find((pack) => pack.match.test(String(topic || "")))?.questions || [];
+  const matchingPacks = buildWithAiQuestionPacks.filter((pack) => pack.match.test(String(topic || "")));
+  const seenQuestionIds = new Set<string>();
+  return matchingPacks.flatMap((pack) => pack.questions).filter((question) => {
+    if (seenQuestionIds.has(question.id)) return false;
+    seenQuestionIds.add(question.id);
+    return true;
+  });
 }
 
 export function getNicheDisclaimer(topic: string): string | undefined {
-  return buildWithAiQuestionPacks.find((pack) => pack.match.test(String(topic || "")))?.disclaimer;
+  const disclaimers = [...new Set(
+    buildWithAiQuestionPacks
+      .filter((pack) => pack.match.test(String(topic || "")))
+      .map((pack) => pack.disclaimer)
+      .filter((disclaimer): disclaimer is string => Boolean(disclaimer))
+  )];
+  return disclaimers.length ? disclaimers.join(" ") : undefined;
 }

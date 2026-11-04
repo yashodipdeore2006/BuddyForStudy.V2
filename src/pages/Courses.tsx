@@ -945,7 +945,7 @@ export default function Courses() {
                       {currentIntentQuestion ? (
                         <section className="space-y-3" aria-live="polite">
                           <h3 className="text-base font-bold text-slate-950">{currentIntentQuestion.text}</h3>
-                          {currentIntentQuestion.why && <p className="text-xs text-slate-500">Why we ask: {currentIntentQuestion.why} <span className="font-medium">Changes: {(currentIntentQuestion.changes || []).join(', ')}</span></p>}
+                          <p className="text-xs text-slate-500">Why we ask: {currentIntentQuestion.why || "Your answer helps personalize the order and depth of your learning path."} <span className="font-medium">Changes: {(currentIntentQuestion.changes || (currentIntentQuestion.id === "knownSkills" ? ["starting skills", "roadmap order"] : currentIntentQuestion.id === "time" || currentIntentQuestion.id === "studyDays" ? ["schedule"] : currentIntentQuestion.id === "language" ? ["resources"] : ["skills", "depth"])) .join(", ")}</span></p>
                           {currentIntentQuestion.options?.length ? (
                             <div className="flex flex-wrap gap-2">
                               {[...currentIntentQuestion.options, 'Not sure, pick for me'].slice(0, 7).map((option) => (

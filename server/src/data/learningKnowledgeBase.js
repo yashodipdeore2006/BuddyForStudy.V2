@@ -15,7 +15,33 @@ const SKILLS = {
   mongodb: skill({ id:"mongodb", name:"MongoDB", category:"database", topics:["documents","collections","CRUD","queries","indexes","aggregation","Mongoose"], project:"Build a MongoDB CRUD API using Mongoose", searchQueries:["MongoDB full course beginners CRUD aggregation Mongoose","MongoDB complete course Mongoose Node.js"], durationMinutes:{min:120,max:600} })
 };
 
+
+const PYTHON_SKILLS = {
+  python: SKILLS.python,
+  python-control-flow: skill({ id:"python-control-flow", name:"Python Control Flow and Functions", category:"language", topics:["conditions","for and while loops","loop control","function definitions","parameters and return values","scope","lambda and comprehensions"], project:"Build a command-line quiz application with reusable functions", searchQueries:["Python control flow loops functions complete course tutorial","Python functions loops beginner full tutorial with exercises"], durationMinutes:{min:90,max:360}, prerequisites:["python"] }),
+  python-data-structures: skill({ id:"python-data-structures", name:"Python Data Structures and Problem Solving", category:"language", topics:["strings","lists","tuples","sets","dictionaries","sorting","searching","time complexity basics"], project:"Build a contact book using dictionaries, lists and file persistence", searchQueries:["Python data structures lists dictionaries sets tuples full course","Python data structures problem solving beginner tutorial"], durationMinutes:{min:120,max:420}, prerequisites:["python-control-flow"] }),
+  python-oop: skill({ id:"python-oop", name:"Object-Oriented Python", category:"language", topics:["classes and objects","constructors","instance and class attributes","inheritance","encapsulation","polymorphism","composition","dataclasses"], project:"Build an object-oriented library management system", searchQueries:["Python OOP complete course classes inheritance polymorphism projects","Python object oriented programming full tutorial"], durationMinutes:{min:120,max:420}, prerequisites:["python-data-structures"] }),
+  python-files: skill({ id:"python-files", name:"Python Files, Exceptions and Modules", category:"language", topics:["text and binary files","CSV and JSON","pathlib","try except finally","custom exceptions","modules and packages","virtual environments","pip"], project:"Build a file organizer that reads CSV/JSON and handles errors safely", searchQueries:["Python file handling exceptions modules packages complete course","Python CSV JSON file handling pathlib tutorial"], durationMinutes:{min:90,max:360}, prerequisites:["python-oop"] }),
+  python-tooling: skill({ id:"python-tooling", name:"Python Tooling, Testing and APIs", category:"tooling", topics:["venv and pip","debugging","logging","pytest basics","HTTP requests","JSON APIs","environment variables","type hints"], project:"Build and test a Python API client with logging and configuration", searchQueries:["Python pytest testing requests API logging complete tutorial","Python virtual environments pip debugging testing full course"], durationMinutes:{min:120,max:420}, prerequisites:["python-files"] }),
+  python-automation: skill({ id:"python-automation", name:"Python Automation and Practical Applications", category:"applied", topics:["automating repetitive tasks","working with folders","Excel and CSV automation","web requests","scheduling scripts","data validation","CLI tools"], project:"Automate a weekly report from CSV and Excel files", searchQueries:["Python automation projects complete course files Excel CSV","Python practical automation full tutorial beginner projects"], durationMinutes:{min:120,max:480}, prerequisites:["python-tooling"] })
+};
+
 const CAREER_PATHS = {
+  python: {
+    id:"python",
+    aliases:["python","python programming","learn python","python developer","python full course"],
+    title:"Python Programming: Complete Beginner-to-Practical Course",
+    description:"A structured Python curriculum covering syntax, control flow, data structures, functions, OOP, files, testing, APIs and practical automation projects.",
+    category:"Programming",
+    careerOutcome:"Write, test and automate real Python applications",
+    skillOrder:["python","python-control-flow","python-data-structures","python-oop","python-files","python-tooling","python-automation"],
+    capstone:{
+      title:"Python Automation Portfolio Capstone",
+      description:"Build a tested Python application that imports real CSV/Excel data, validates and transforms it, produces useful reports, and documents its setup and usage.",
+      objectives:["Design a modular Python application","Use collections, functions and classes","Read and validate CSV/Excel/JSON data","Handle errors and log useful diagnostics","Write automated tests","Package and document the application"]
+    }
+  },
+
   mern: {
     id:"mern",
     aliases:["mern","mern stack","mern stack development","mern stack developer","mern stack roadmap"],
@@ -34,7 +60,7 @@ const CAREER_PATHS = {
 
 const ALIASES = new Map();
 for (const path of Object.values(CAREER_PATHS)) for (const alias of path.aliases) ALIASES.set(alias, path.id);
-for (const item of Object.values(SKILLS)) ALIASES.set(item.name.toLowerCase(), item.id);
+for (const item of Object.values(SKILLS)) if (!ALIASES.has(item.name.toLowerCase())) ALIASES.set(item.name.toLowerCase(), item.id);
 
 export function resolveLearningPath(query) {
   const normalized = String(query || "").trim().toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").replace(/\s+/g, " ");

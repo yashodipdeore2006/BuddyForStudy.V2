@@ -557,12 +557,16 @@ export default function Courses() {
       ];
       const parsedGoal = String(result.profile?.goal || result.inferredGoal || "learn");
       const selectedPurpose = String(intentAnswers.goalPurpose || (parsedGoal === "job_ready" ? "career" : parsedGoal === "exam" ? "exam" : parsedGoal === "project" ? "project" : "hobby"));
-      const purposePacks = getPurposeQuestions(selectedPurpose).filter((question) => !alreadyAnswered(question.id));
+      const purposePacks = getPurposeQuestions(selectedPurpose).filter((question) => !retiredIds.includes(question.id) && !alreadyAnswered(question.id));
       const selectedPackQuestionIds = new Set([...purposePacks, ...niche].map((question) => question.id));
       const merged = [
         ...purposePacks,
         ...niche.filter((question) => !purposePacks.some((purposeQuestion) => purposeQuestion.id === question.id)),
-        ...enrichedPlan.filter((question) => !selectedPackQuestionIds.has(question.id)),
+        ...enrichedPlan.filter((question) =>
+          !selectedPackQuestionIds.has(question.id) &&
+          !(question.id === "role" && purposePacks.some((packQuestion) => packQuestion.id === "targetRole")) &&
+          !(question.id === "examType" && niche.some((packQuestion) => packQuestion.id === "targetExamName"))
+        ),
         ...coreExtras.filter((question) => !selectedPackQuestionIds.has(question.id) && !alreadyAnswered(question.id))
       ];
       setIntentResult({ ...result, questionPlan: merged });
@@ -648,9 +652,10 @@ export default function Courses() {
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const purposeQuestionIds = new Set([
-    "role", "company", "examType", "examDate", "syllabus", "projectIdea",
-    "careerStage", "interviewDate", "portfolioStatus", "freelanceService", "clientType",
-    "switchExperience", "switchTarget", "examPreparationStyle", "projectAudience", "learningMotivation"
+    "role", "company", "targetRole", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
+    "portfolioStatus", "clientAcquisition", "freelancePortfolio", "freelanceService",
+    "switchExperience", "switchTarget", "examPreparationType", "examTimeline",
+    "projectAudience", "hobbyFocus", "learningMotivation"
   ]);
   const purposeIntentQuestions = activeIntentQuestions.filter((question) => purposeQuestionIds.has(question.id));
   const nicheIntentQuestions = activeIntentQuestions.filter((question) => !purposeQuestionIds.has(question.id) && !coreQuestionIds.has(question.id));
@@ -847,7 +852,7 @@ export default function Courses() {
             })}
           </div>
         )}
-        {(question.type === "text" || question.type === "paste") && (
+        {(question.type === "text" || question.type === "paste" || question.allowText) && (
           <div className="space-y-2">
             <textarea
               rows={question.type === "paste" ? 5 : 2}
@@ -913,7 +918,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: String(intentAnswers.deadline ?? intentResult.profile?.deadline ?? '') || null,
-        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'careerStage', 'portfolioStatus', 'interviewDate', 'freelanceService', 'clientType', 'switchExperience', 'switchTarget', 'examPreparationStyle', 'projectAudience', 'learningMotivation', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
+        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
         topic,

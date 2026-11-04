@@ -1449,8 +1449,24 @@ export default function Courses() {
                           <p className="mt-1 text-xs text-slate-400">Map your primary objective, current skills and realistic study schedule.</p>
                         </div>
 
+                        <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 p-3">
+                          <span className="mb-2 block text-xs font-medium text-slate-400">🚀 Fast-fill with test personas</span>
+                          <div className="flex flex-wrap gap-2">
+                            {BUILD_WITH_AI_PRESETS.map((preset) => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => loadBuildWithAiPreset(preset)}
+                                className="rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition hover:border-indigo-500/60 hover:bg-slate-700 hover:text-white"
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         <div className="space-y-2">
-                          <label htmlFor="ai-topic" className="block text-sm font-semibold text-slate-800">Topic or course name</label>
+                          <label htmlFor="ai-topic" className="block text-sm font-semibold text-slate-200">Topic or course name</label>
                           <input
                             id="ai-topic"
                             autoFocus
@@ -1467,7 +1483,25 @@ export default function Courses() {
                             placeholder="e.g. React and Node.js, Python, Data Analytics, AWS…"
                             className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
                           />
-                          <p className="text-xs text-slate-500">We use this topic to detect the learning domain and load relevant questions.</p>
+                          <p className="text-xs text-slate-400">We use this topic to detect the learning domain and load relevant questions.</p>
+                          {aiTopic.trim() && (
+                            <div className="mt-3 flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-950/40 p-3 text-xs text-indigo-200">
+                              <span className="mt-0.5 text-indigo-400" aria-hidden="true">✦</span>
+                              <div>
+                                {getNichePackName(aiTopic) !== "AI Custom Domain Pack" ? (
+                                  <>
+                                    <p className="font-semibold text-indigo-300">We assumed niche: <strong className="text-white">{getNichePackName(aiTopic)}</strong></p>
+                                    <p className="mt-0.5 text-[11px] text-slate-400">Specialized domain questions will be loaded in Layer 3.</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="font-semibold text-purple-300">Custom domain detected: <strong className="text-white">{aiTopic}</strong></p>
+                                    <p className="mt-0.5 text-[11px] text-slate-400">The AI intent engine will generate focused clarification questions for this topic.</p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -1486,16 +1520,8 @@ export default function Courses() {
 
                         <fieldset className="space-y-2">
                           <legend className="text-sm font-semibold text-slate-800">Why are you learning it?</legend>
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {[
-                              { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth" },
-                              { id: "exam", purpose: "exam", label: "Exam / Certification", goal: "Prepare for an exam or certification" },
-                              { id: "project", purpose: "project", label: "Build a project", goal: "Create a project or deliverable" },
-                              { id: "learn", purpose: "hobby", label: "Practical skills", goal: "Build practical skills" },
-                              { id: "project", purpose: "freelance", label: "Freelancing", goal: "Create a project or deliverable" },
-                              { id: "job_ready", purpose: "career_switch", label: "Career switch", goal: "Career or professional growth" },
-                              { id: "learn", purpose: "hobby", label: "Personal interest", goal: "Explore a personal interest" }
-                            ].map((option) => {
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {BUILD_WITH_AI_PURPOSE_OPTIONS.map((option) => {
                               const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || (aiGoalTouched ? "" : "learn"));
                               const selectedPurpose = String(intentAnswers.goalPurpose || (intentResult?.profile?.goal === "job_ready" ? "career" : intentResult?.profile?.goal === "exam" ? "exam" : intentResult?.profile?.goal === "project" ? "project" : aiGoalTouched ? "" : "hobby"));
                               const selected = aiGoal === option.goal && selectedGoal === option.id && selectedPurpose === option.purpose;
@@ -1510,10 +1536,11 @@ export default function Courses() {
                                     setIntentAnswers((previous) => ({ ...previous, goal: option.id, goalPurpose: option.purpose }));
                                   }}
                                   className={selected
-                                    ? "min-h-12 rounded-xl border border-violet-500 bg-violet-50 px-3 py-2 text-left text-xs font-semibold text-violet-900 ring-1 ring-violet-500/20"
-                                    : "min-h-12 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:border-violet-400 hover:bg-violet-50"}
+                                    ? "min-h-16 rounded-xl border border-indigo-500 bg-indigo-600/20 px-3 py-2.5 text-left text-xs font-semibold text-white ring-1 ring-indigo-500/30"
+                                    : "min-h-16 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-left text-xs font-semibold text-slate-300 transition hover:border-indigo-500/60 hover:bg-slate-800"}
                                 >
-                                  {selected ? "✓ " : ""}{option.label}
+                                  <span className="block">{selected ? "✓ " : ""}{option.label}</span>
+                                  <span className={selected ? "mt-1 block text-[10px] font-normal leading-4 text-indigo-100/80" : "mt-1 block text-[10px] font-normal leading-4 text-slate-500"}>{option.description}</span>
                                 </button>
                               );
                             })}

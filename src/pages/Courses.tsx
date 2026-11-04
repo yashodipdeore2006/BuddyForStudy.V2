@@ -9,7 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
-import { getNicheQuestions } from "@/data/buildWithAiQuestionPacks";
+import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
@@ -508,21 +508,24 @@ export default function Courses() {
       const retiredIds = Array.isArray(retired.retiredQuestionIds) ? retired.retiredQuestionIds : [];
       setRetiredIntentQuestionIds(retiredIds);
       const niche = getNicheQuestions(query).filter((question) => !retiredIds.includes(question.id));
-      const skillOptions = /python/.test(query.toLowerCase())
-        ? ["Python syntax and variables", "Conditions and loops", "Functions", "Lists, tuples and dictionaries", "Object-oriented programming", "Files and exceptions", "Modules and packages"]
-        : /javascript|mern|react|node|web development/.test(query.toLowerCase())
-          ? ["HTML and CSS", "JavaScript fundamentals", "DOM and browser APIs", "React or frontend", "Node.js and APIs", "Databases", "Git and GitHub"]
-          : [];
-      const enrichedPlan = (result.questionPlan || []).map((question) => question.id === "knownSkills" && skillOptions.length
-        ? { ...question, type: "checklist" as const, options: skillOptions, why: "Tick only skills you can already use; those stages will be skipped.", changes: ["starting skills", "roadmap order"] }
-        : question);
+      const skillOptions = getSkillChecklist(query);
+      const enrichedPlan = (result.questionPlan || []).map((question) => {
+        if (question.id === "knownSkills" && skillOptions.length) {
+          return { ...question, type: "checklist" as const, options: skillOptions, why: "Tick only skills you can already use; those stages will be skipped.", changes: ["starting skills", "roadmap order"] };
+        }
+        if (question.id === "goal") {
+          return { ...question, options: [...(question.options || []), "Freelancing", "Switch careers", "Personal interest"] };
+        }
+        return question;
+      });
       const coreExtras: IntentQuestion[] = [
         { id: "studyDays", type: "single", text: "How many days each week can you study?", options: ["2 days", "3 days", "4 days", "5 days", "6 days", "7 days"], optional: true, why: "This turns your daily time into a realistic weekly study schedule.", changes: ["schedule"] },
         { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] },
         { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
       const knownIds = new Set(enrichedPlan.map((question) => question.id));
-      const merged = [...enrichedPlan, ...coreExtras.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
+      const purposePacks = ["career", "freelance", "career_switch", "exam", "project", "hobby"].flatMap((purpose) => getPurposeQuestions(purpose));
+      const merged = [...enrichedPlan, ...coreExtras.filter((question) => !knownIds.has(question.id)), ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
       setIntentResult({ ...result, questionPlan: merged });
       setIntentQuestionIndex(0);
       setIntentAnswers({});
@@ -544,10 +547,11 @@ export default function Courses() {
   };
 
   const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
+  const intentPurpose = String(intentAnswers.goalPurpose || (intentGoal === "job_ready" ? "career" : intentGoal === "exam" ? "exam" : intentGoal === "project" ? "project" : "hobby"));
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
     !retiredIntentQuestionIds.includes(question.id) &&
     !(question.id === 'goal' && Boolean(intentAnswers.goal)) &&
-    (!question.when || question.when === 'goal=' + intentGoal)
+    (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
   const trackIntentQuestionEvent = (question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
@@ -595,14 +599,27 @@ export default function Courses() {
       setIntentAnswers((previous) => ({ ...previous, knownSkills: next.join(", ") }));
       return;
     }
+    const purposeMap: Record<string, { goal: string; purpose: string }> = {
+      "Job-ready": { goal: "job_ready", purpose: "career" },
+      "Exam or certification": { goal: "exam", purpose: "exam" },
+      "Build a project": { goal: "project", purpose: "project" },
+      "Learn a skill": { goal: "learn", purpose: "hobby" },
+      "Freelancing": { goal: "project", purpose: "freelance" },
+      "Switch careers": { goal: "job_ready", purpose: "career_switch" },
+      "Personal interest": { goal: "learn", purpose: "hobby" }
+    };
     const mapped = question.id === 'goal'
-      ? ({ 'Job-ready': 'job_ready', 'Exam or certification': 'exam', 'Build a project': 'project', 'Learn a skill': 'learn' } as Record<string, string>)[value] || value
+      ? purposeMap[value]?.goal || value
       : question.id === 'depth'
         ? (value === 'Complete learning path' ? 'broad' : 'narrow')
         : question.id === 'language'
           ? ({ English: 'en', Hindi: 'hi', Marathi: 'mr' } as Record<string, string>)[value] || value
           : value;
-    setIntentAnswers((previous) => ({ ...previous, [question.id]: mapped }));
+    setIntentAnswers((previous) => ({
+      ...previous,
+      [question.id]: mapped,
+      ...(question.id === "goal" && purposeMap[value] ? { goalPurpose: purposeMap[value].purpose } : {})
+    }));
     if (question.id === 'goal') setIntentQuestionIndex(0);
     else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   };
@@ -670,7 +687,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: String(intentAnswers.deadline ?? intentResult.profile?.deadline ?? '') || null,
-        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
+        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'careerStage', 'portfolioStatus', 'freelanceService', 'clientType', 'switchExperience', 'switchTarget', 'examPreparationStyle', 'projectAudience', 'learningMotivation'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
         topic,

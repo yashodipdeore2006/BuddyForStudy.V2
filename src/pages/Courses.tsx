@@ -583,7 +583,6 @@ export default function Courses() {
     void apiFetch('/api/intent/events', {
       method: 'POST',
       body: JSON.stringify({
-        topic: aiTopic.trim().slice(0, 200),
         questionId: question.id,
         packId: question.id.startsWith('domain_') ? 'dynamic_domain' : 'core_or_niche',
         event,

@@ -902,6 +902,61 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByRole("button", { name: "Analyze topic and continue" })).toBeEnabled();
   });
 
+  test("[BUILD-WITH-AI-WIZARD-002] purpose and domain packs move through review before roadmap generation", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.route("**/api/intent/parse", async (route) => {
+      await json(route, {
+        valid: true,
+        profile: {
+          topic: "React and Node.js Full Stack",
+          domain: "programming",
+          scope: "broad",
+          goal: "job_ready",
+          level: "Beginner",
+          knownSkills: [],
+          minutesPerDay: 60,
+          language: "en",
+          targetRole: null,
+          targetCompany: null,
+          examName: null,
+          examDate: null,
+          syllabusText: null,
+          projectIdea: null,
+          deadline: null,
+          outcome: "",
+          preferences: {},
+        },
+        confidences: {},
+        domain: "programming",
+        scope: "broad",
+        options: { roles: [], exams: [], projectIdeas: [] },
+        questionPlan: [],
+      });
+    });
+    await page.goto(baseURL + "/explore");
+    await page.getByRole("textbox", { name: "Search courses" }).fill("React and Node.js Full Stack");
+    await page.getByRole("button", { name: "Build with AI" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Job / Career" }).click();
+    await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
+
+    await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
+    await expect(dialog.getByText("What is your target role and company type?")).toBeVisible();
+    await expect(dialog.getByText("Do you have an upcoming interview or target date?")).toBeVisible();
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+
+    await expect(dialog.getByText("Layer 3 · Domain pack")).toBeVisible();
+    await expect(dialog.getByText("What do you want to build primarily?")).toBeVisible();
+    await expect(dialog.getByText("Do you need algorithmic DSA practice?")).toBeVisible();
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+
+    await expect(dialog.getByText("Final strategy · Review")).toBeVisible();
+    await expect(dialog.getByText("Your personalized blueprint")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Generate roadmap" })).toBeEnabled();
+  });
+
   test("[EXP-YOUTUBE-QUOTA-FALLBACK-001] quota exhaustion keeps local courses usable and shows a safe recovery message", async ({ page }) => {
     const localCourse = courseFixture("local-js-course", { title: "JavaScript Foundations", category: "Development" });
     await mockAppApi(page, {

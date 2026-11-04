@@ -37,6 +37,9 @@ jobs:
       - name: Build production app with synthetic canonical site URL
         env:
           VITE_PUBLIC_SITE_URL: "https://buddyforstudy.example"
+          # Exercise the new intake in CI only; production rollout flags remain operator-controlled.
+          VITE_INTENT_V2: "true"
+          VITE_ASYNC_ROADMAP: "false"
         run: npm run build
       - name: Install Playwright for browser smoke tests
         run: |

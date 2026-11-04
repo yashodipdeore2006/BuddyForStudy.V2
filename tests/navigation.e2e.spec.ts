@@ -957,7 +957,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByText("Layer 3 · Domain pack")).toBeVisible();
     await expect(dialog.getByText("What do you want to build primarily?")).toBeVisible();
     await expect(dialog.getByText("Do you need algorithmic DSA practice?")).toBeVisible();
-    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await dialog.getByRole("button", { name: "Review roadmap", exact: true }).click();
     await expect.poll(() => questionEvents.some((event) => event.event === "skipped" && event.packId === "domain_programming")).toBe(true);
 
     await expect(dialog.getByText("Final strategy · Review")).toBeVisible();

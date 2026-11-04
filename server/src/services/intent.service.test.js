@@ -71,7 +71,7 @@ test("all questions can be skipped and legacy goal mapping stays compatible", ()
   assert.equal(mapLegacyGoal(["Create something"]), "project");
   assert.equal(mapLegacyGoal(["Build practical skills"]), "learn");
   assert.deepEqual(staticIntentPlan("Python").profile, {
-    topic:"Python",domain:"general",scope:"narrow",goal:null,level:"Beginner",knownSkills:[],minutesPerDay:60,deadline:null,language:"en",targetRole:null,targetCompany:null,examName:null,examDate:null,syllabusText:null,projectIdea:null
+    topic:"Python",domain:"general",scope:"narrow",goal:null,level:"Beginner",knownSkills:[],minutesPerDay:60,deadline:null,language:"en",targetRole:null,targetCompany:null,examName:null,examDate:null,syllabusText:null,projectIdea:null,outcome:"",preferences:{}
   });
 });
 test("parseIntent caches valid LLM output for normalized queries and timeout returns static plan", async () => {

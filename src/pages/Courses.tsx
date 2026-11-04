@@ -584,6 +584,19 @@ export default function Courses() {
       })
     }).catch(() => {});
   }, [session, aiTopic, intentQuestionIndex]);
+  const clearIntentAssumption = (field: string) => {
+    setIntentResult((current) => {
+      if (!current?.assumptions?.length) return current;
+      const assumptions = current.assumptions.filter((item) => item.field !== field);
+      return { ...current, assumptions, assumed: assumptions.length > 0 };
+    });
+  };
+  const assumptionFieldForQuestion: Record<string, string> = {
+    goal: "goal", depth: "scope", role: "targetRole", company: "targetCompany",
+    examType: "examName", examDate: "examDate", syllabus: "syllabusText",
+    projectIdea: "projectIdea", time: "minutesPerDay", language: "language",
+    knownSkills: "knownSkills", deadline: "deadline"
+  };
   const intentWasOpenRef = useRef(false);
   useEffect(() => {
     if (aiOpen) {
@@ -606,6 +619,7 @@ export default function Courses() {
   const chooseIntentOption = (question: IntentQuestion, value: string) => {
     if (question.id !== "knownSkills") trackIntentQuestionEvent(question, "answered");
     if (value === "Not sure, pick for me" && question.id !== "knownSkills") {
+      clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
       setIntentAnswers((previous) => {
         const next = { ...previous };
         if (question.id === "goal") next.goal = "learn";
@@ -618,6 +632,7 @@ export default function Courses() {
     }
     if (question.id === "knownSkills") {
       if (value === "Not sure, pick for me") {
+        clearIntentAssumption("knownSkills");
         setIntentAnswers((previous) => ({ ...previous, knownSkills: "" }));
         setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
         return;
@@ -646,6 +661,7 @@ export default function Courses() {
             ? ({ "New to this": "Beginner", "Know the basics": "Intermediate", "Experienced — go deeper": "Advanced" } as Record<string, string>)[value] || value
             : value;
     if (question.id === "level") setAiLevel(mapped as CourseLevel);
+    clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
     setIntentAnswers((previous) => ({
       ...previous,
       [question.id]: mapped,
@@ -685,6 +701,7 @@ export default function Courses() {
   const commitIntentTextAnswer = (question: IntentQuestion) => {
     const rawAnswer = String(intentAnswers[question.id] || '').trim();
     trackIntentQuestionEvent(question, rawAnswer ? "answered" : "skipped");
+    if (rawAnswer) clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
     if (question.id === 'role' && rawAnswer) {
       const tokens = (value: string) => new Set(value.toLowerCase().split(/[^a-z0-9+#.]+/).filter((token) => token.length > 1));
       const answerTokens = tokens(rawAnswer);

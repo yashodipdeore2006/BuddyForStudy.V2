@@ -138,8 +138,23 @@ export function getPurposeQuestions(purpose: string): BuildWithAiQuestion[] {
 
 export function getSkillChecklist(topic: string): string[] {
   const normalized = String(topic || "").toLowerCase();
-  if (/python/.test(normalized)) return ["Python syntax and variables", "Conditions and loops", "Functions", "Lists, tuples and dictionaries", "Object-oriented programming", "Files and exceptions", "Modules and packages"];
-  if (/javascript|mern|react|node|web development|java|programming|full.?stack/.test(normalized)) return ["HTML and CSS", "Programming fundamentals", "Language syntax and control flow", "Functions and data structures", "Frameworks and libraries", "APIs and databases", "Git and GitHub"];
+  // These values intentionally match canonical knowledge-base skill names so
+  // buildCourse can safely skip only stages the learner explicitly knows.
+  if (/python/.test(normalized)) return [
+    "Python",
+    "Python Control Flow and Functions",
+    "Python Data Structures and Problem Solving",
+    "Object-Oriented Python",
+    "Python Files, Exceptions and Modules",
+    "Python Tooling, Testing and APIs",
+    "Python Automation and Practical Applications"
+  ];
+  if (/c\+\+/.test(normalized)) return ["C++"];
+  if (/javascript|mern|react|node|express|web development|full.?stack/.test(normalized)) {
+    return ["HTML", "CSS", "JavaScript", "React", "Node.js", "Express.js", "MongoDB", "Git & GitHub"];
+  }
+  if (/java\b/.test(normalized)) return ["Java programming fundamentals", "Object-oriented programming", "Collections and generics", "Exception handling", "JDBC and databases", "Spring Boot"];
+  if (/programming|mobile app|backend|frontend/.test(normalized)) return ["Programming fundamentals", "Object-oriented programming", "Data structures", "API development", "Database fundamentals", "Git and version control"];
   if (/ai|llm|nlp|data analytics|data science|machine learning|artificial intelligence|power bi|sql|statistics/.test(normalized)) return ["Spreadsheets and formulas", "SQL queries", "Statistics basics", "Python for data", "Data visualization", "Power BI or Tableau", "Machine learning basics"];
   if (/digital marketing|seo|marketing|social media|advertising|copywriting/.test(normalized)) return ["Marketing fundamentals", "SEO basics", "Social media management", "Paid advertising", "Email campaigns", "Analytics and reporting", "Content strategy"];
   if (/figma|ui.?ux|design|photography|video editing|premiere|davinci|photoshop|illustrator|blender/.test(normalized)) return ["Design fundamentals", "Figma or design tools", "Typography and layout", "Image editing", "Video editing", "Color and composition", "Portfolio workflow"];

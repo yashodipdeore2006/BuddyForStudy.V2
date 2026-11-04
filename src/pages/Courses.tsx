@@ -1499,8 +1499,8 @@ export default function Courses() {
                             >
                               <option value="Project-first">Project-first (build as you learn)</option>
                               <option value="Theory-first">Theory first, then practice</option>
-                              <option value="Short-videos">Short videos with frequent practice</option>
-                              <option value="Detailed tutorials">Long, detailed tutorials</option>
+                              <option value="Short videos with frequent practice">Short videos with frequent practice</option>
+                              <option value="Long, detailed tutorials">Long, detailed tutorials</option>
                             </select>
                           </label>
                           <label htmlFor="ai-deadline-v2" className="block text-sm font-semibold text-slate-800 sm:col-span-2">

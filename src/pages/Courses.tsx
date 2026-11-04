@@ -813,8 +813,10 @@ export default function Courses() {
 
   const commitIntentTextAnswer = (question: IntentQuestion, advance = true) => {
     const rawAnswer = String(intentAnswers[question.id] || '').trim();
-    trackIntentQuestionEvent(question, rawAnswer ? "answered" : "skipped");
-    if (rawAnswer) clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
+    if (rawAnswer) {
+      trackIntentQuestionEvent(question, "answered");
+      clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
+    }
     if (question.id === 'role' && rawAnswer) {
       const tokens = (value: string) => new Set(value.toLowerCase().split(/[^a-z0-9+#.]+/).filter((token) => token.length > 1));
       const answerTokens = tokens(rawAnswer);
@@ -1825,6 +1827,11 @@ export default function Courses() {
                     return;
                   }
                   if (intentWizardStep < 4) {
+                    if (intentWizardStep === 2 || intentWizardStep === 3) {
+                      visibleWizardQuestions
+                        .filter((question) => !String(intentAnswers[question.id] || "").trim())
+                        .forEach((question, index) => trackIntentQuestionEvent(question, "skipped", index));
+                    }
                     setIntentWizardStep((step) => Math.min(4, step + 1));
                     return;
                   }

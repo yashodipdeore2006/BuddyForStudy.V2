@@ -528,12 +528,28 @@ export default function Courses() {
       const merged = [...enrichedPlan, ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id)), ...coreExtras.filter((question) => !knownIds.has(question.id))];
       setIntentResult({ ...result, questionPlan: merged });
       setIntentQuestionIndex(0);
-      setIntentAnswers({});
       if (!result.valid) {
+        setIntentAnswers({});
         setAiError('That does not look like a learning topic yet. Try Python, Data Analytics, an exam name, or a project idea.');
         return;
       }
       const profile = result.profile || {};
+      const timeLabels: Record<number, string> = { 15: "15 min", 30: "30 min", 60: "1 hour", 120: "2 hours", 180: "3+ hours" };
+      setIntentAnswers({
+        role: String(profile.targetRole || ""),
+        company: String(profile.targetCompany || ""),
+        examType: String(profile.examName || ""),
+        examDate: String(profile.examDate || ""),
+        syllabus: String(profile.syllabusText || ""),
+        projectIdea: String(profile.projectIdea || ""),
+        depth: String(profile.scope || ""),
+        level: String(profile.level || ""),
+        time: timeLabels[Number(profile.minutesPerDay || 60)] || "",
+        language: ({ en: "English", hi: "Hindi", mr: "Marathi" } as Record<string, string>)[String(profile.language || "en")] || String(profile.language || ""),
+        knownSkills: Array.isArray(profile.knownSkills) ? profile.knownSkills.join(", ") : "",
+        deadline: String(profile.deadline || ""),
+        goalPurpose: String(profile.preferences?.goalPurpose || "")
+      });
       if (profile.level) setAiLevel(profile.level as CourseLevel);
       if (profile.minutesPerDay) setAiStudyTime(Number(profile.minutesPerDay));
       if (Array.isArray(profile.knownSkills)) setAiKnownSkills(profile.knownSkills.join(', '));
@@ -625,7 +641,10 @@ export default function Courses() {
         ? (value === 'Complete learning path' ? 'broad' : 'narrow')
         : question.id === 'language'
           ? ({ English: 'en', Hindi: 'hi', Marathi: 'mr' } as Record<string, string>)[value] || value
-          : value;
+          : question.id === 'level'
+            ? ({ "New to this": "Beginner", "Know the basics": "Intermediate", "Experienced — go deeper": "Advanced" } as Record<string, string>)[value] || value
+            : value;
+    if (question.id === "level") setAiLevel(mapped as CourseLevel);
     setIntentAnswers((previous) => ({
       ...previous,
       [question.id]: mapped,
@@ -684,6 +703,7 @@ export default function Courses() {
       const legacyGoal = ({ job_ready: 'Career or work growth', exam: 'Exam or certification', project: 'Create something', learn: 'Build practical skills' } as Record<string, string>)[selectedGoal] || aiGoal;
       const intentProfile = INTENT_V2 && intentResult?.valid ? {
         ...intentResult.profile,
+        level: String(intentAnswers.level || intentResult.profile?.level || aiLevel) as CourseLevel,
         topic,
         goal: selectedGoal,
         targetRole: String(intentAnswers.role ?? intentResult.profile?.targetRole ?? '') || null,
@@ -1003,13 +1023,12 @@ export default function Courses() {
                           <p className="font-semibold">We inferred some details. Review or edit them before building.</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {(intentResult.assumptions || []).map((assumption) => {
-                              const questionIds: Record<string, string> = { goal: "goal", scope: "depth", targetRole: "role", targetCompany: "company", examName: "examType", examDate: "examDate", syllabusText: "syllabus", projectIdea: "projectIdea", minutesPerDay: "time", knownSkills: "knownSkills", language: "language", deadline: "deadline" };
+                              const questionIds: Record<string, string> = { goal: "goal", scope: "depth", level: "level", targetRole: "role", targetCompany: "company", examName: "examType", examDate: "examDate", syllabusText: "syllabus", projectIdea: "projectIdea", minutesPerDay: "time", knownSkills: "knownSkills", language: "language", deadline: "deadline" };
                               const questionId = questionIds[assumption.field];
                               const label = assumption.field.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
                               const value = Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value);
                               return (
                                 <button key={assumption.field} type="button" className="rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-900 hover:bg-violet-100" onClick={() => {
-                                  if (assumption.field === "level") return;
                                   if (assumption.field === "scope" || assumption.field === "goal") setIntentQuestionIndex(0);
                                   else {
                                     const index = activeIntentQuestions.findIndex((question) => question.id === questionId);
@@ -1021,7 +1040,6 @@ export default function Courses() {
                               );
                             })}
                           </div>
-                          <p className="mt-2 text-xs">Course level can be changed using the level selector above.</p>
                         </div>
                       )}
                       {intentAnswers.role && (

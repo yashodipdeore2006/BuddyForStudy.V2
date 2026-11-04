@@ -698,7 +698,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: String(intentAnswers.deadline ?? intentResult.profile?.deadline ?? '') || null,
-        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'careerStage', 'portfolioStatus', 'freelanceService', 'clientType', 'switchExperience', 'switchTarget', 'examPreparationStyle', 'projectAudience', 'learningMotivation'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
+        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'careerStage', 'portfolioStatus', 'interviewDate', 'freelanceService', 'clientType', 'switchExperience', 'switchTarget', 'examPreparationStyle', 'projectAudience', 'learningMotivation'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
         topic,

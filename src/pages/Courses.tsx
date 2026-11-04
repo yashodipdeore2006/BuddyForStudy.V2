@@ -556,8 +556,16 @@ export default function Courses() {
         { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
       const knownIds = new Set(enrichedPlan.map((question) => question.id));
-      const purposePacks = ["career", "freelance", "career_switch", "exam", "project", "hobby"].flatMap((purpose) => getPurposeQuestions(purpose)).filter((question) => !alreadyAnswered(question.id));
-      const merged = [...enrichedPlan, ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id)), ...coreExtras.filter((question) => !knownIds.has(question.id) && !alreadyAnswered(question.id))];
+      const parsedGoal = String(result.profile?.goal || result.inferredGoal || "learn");
+      const selectedPurpose = String(intentAnswers.goalPurpose || (parsedGoal === "job_ready" ? "career" : parsedGoal === "exam" ? "exam" : parsedGoal === "project" ? "project" : "hobby"));
+      const purposePacks = getPurposeQuestions(selectedPurpose).filter((question) => !alreadyAnswered(question.id));
+      const selectedPackQuestionIds = new Set([...purposePacks, ...niche].map((question) => question.id));
+      const merged = [
+        ...purposePacks,
+        ...niche.filter((question) => !purposePacks.some((purposeQuestion) => purposeQuestion.id === question.id)),
+        ...enrichedPlan.filter((question) => !selectedPackQuestionIds.has(question.id)),
+        ...coreExtras.filter((question) => !selectedPackQuestionIds.has(question.id) && !alreadyAnswered(question.id))
+      ];
       setIntentResult({ ...result, questionPlan: merged });
       setIntentQuestionIndex(0);
       if (!result.valid) {

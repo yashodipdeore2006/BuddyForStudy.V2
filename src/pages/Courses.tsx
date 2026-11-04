@@ -9,15 +9,98 @@ import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
-import { getNicheQuestions, getNicheDisclaimer, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
+import { getNicheQuestions, getNicheDisclaimer, getNichePackName, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 
-const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
+// The adaptive four-step intake is now the default Build with AI experience.
+ // Keep the wizard available even when older local .env files still contain VITE_INTENT_V2=false.
+const INTENT_V2 = true;
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };
 type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null; outcome?: string; preferences?: Record<string, string> };
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; assumptions?: { field: string; value: unknown }[]; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
+
+type BuildWithAiPreset = {
+  label: string;
+  topic: string;
+  endGoal: string;
+  skills: string[];
+  level: CourseLevel;
+  purpose: string;
+  goal: string;
+  minutesPerDay: number;
+  daysPerWeek: string;
+  language: string;
+  learningStyle: string;
+  answers: Record<string, string>;
+};
+
+const BUILD_WITH_AI_PRESETS: BuildWithAiPreset[] = [
+  {
+    label: "🚀 Full-Stack Web Dev (Job Hunter)",
+    topic: "React & Node.js Fullstack Web Development",
+    endGoal: "Build and deploy a scalable SaaS app and prepare for a frontend engineer job.",
+    skills: ["HTML", "CSS", "JavaScript"],
+    level: "Intermediate",
+    purpose: "career",
+    goal: "Career or professional growth",
+    minutesPerDay: 180,
+    daysPerWeek: "5",
+    language: "en",
+    learningStyle: "Project-first",
+    answers: {
+      targetRole: "Entry-level (Tech Startup)",
+      jobTimeline: "1–3 months",
+      buildTarget: "Modern website or web app",
+      dsaNeeded: "Yes, preparing for tech interviews"
+    }
+  },
+  {
+    label: "📈 Stock Investor in India (Hobby)",
+    topic: "Stock Market Investing in India",
+    endGoal: "Understand long-term investing, market risk and portfolio fundamentals independently.",
+    skills: ["Basic Math", "Budgeting"],
+    level: "Beginner",
+    purpose: "hobby",
+    goal: "Explore a personal interest",
+    minutesPerDay: 60,
+    daysPerWeek: "3",
+    language: "en",
+    learningStyle: "Theory-first",
+    answers: {
+      hobbyFocus: "Deep master-class theory",
+      marketRegion: "India (NSE / BSE)",
+      investingStyle: "Long-term wealth building (index funds / ETFs)"
+    }
+  },
+  {
+    label: "🏋️ Home Calisthenics (Fitness Beginner)",
+    topic: "Calisthenics & Bodyweight Strength",
+    endGoal: "Learn safe foundational movements, build strength progressively and improve daily mobility.",
+    skills: ["Beginner movement"],
+    level: "Beginner",
+    purpose: "hobby",
+    goal: "Explore a personal interest",
+    minutesPerDay: 60,
+    daysPerWeek: "4",
+    language: "en",
+    learningStyle: "Short videos with frequent practice",
+    answers: {
+      hobbyFocus: "Fun projects fast",
+      fitnessEquipment: "Bodyweight / minimal space"
+    }
+  }
+];
+
+const BUILD_WITH_AI_PURPOSE_OPTIONS = [
+  { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth", description: "Build role-ready skills and prepare for interviews." },
+  { id: "exam", purpose: "exam", label: "Exam / Certification", goal: "Prepare for an exam or certification", description: "Map the syllabus, revision blocks and mock tests." },
+  { id: "project", purpose: "freelance", label: "Freelancing", goal: "Create a project or deliverable", description: "Build a sellable service, portfolio and client workflow." },
+  { id: "learn", purpose: "hobby", label: "Hobby / Personal Interest", goal: "Explore a personal interest", description: "Learn at a sustainable pace driven by curiosity." },
+  { id: "job_ready", purpose: "career_switch", label: "Career Switch", goal: "Career or professional growth", description: "Bridge your current experience into a new role." },
+  { id: "project", purpose: "project", label: "Build a Project", goal: "Create a project or deliverable", description: "Turn the topic into a practical, reviewable deliverable." }
+] as const;
 
 const AI_GOAL_OPTIONS = [
   { value: 'Build practical skills', label: 'Build practical skills', description: 'Learn by doing and applying' },

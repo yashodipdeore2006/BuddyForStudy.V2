@@ -507,7 +507,14 @@ export default function Courses() {
       const retired = await apiFetch<{ retiredQuestionIds?: string[] }>('/api/intent/questions/retired').catch(() => ({ retiredQuestionIds: [] }));
       const retiredIds = Array.isArray(retired.retiredQuestionIds) ? retired.retiredQuestionIds : [];
       setRetiredIntentQuestionIds(retiredIds);
-      const niche = getNicheQuestions(query).filter((question) => !retiredIds.includes(question.id));
+      const alreadyAnswered = (questionId: string) => {
+        const preferences = result.profile?.preferences || {};
+        if (preferences[questionId] !== undefined && String(preferences[questionId]).trim()) return true;
+        if (questionId === "targetRole" && result.profile?.targetRole) return true;
+        if (questionId === "deadline" && result.profile?.deadline) return true;
+        return false;
+      };
+      const niche = getNicheQuestions(query).filter((question) => !retiredIds.includes(question.id) && !alreadyAnswered(question.id));
       const skillOptions = getSkillChecklist(query);
       const enrichedPlan = (result.questionPlan || []).map((question) => {
         if (question.id === "knownSkills" && skillOptions.length) {
@@ -524,8 +531,8 @@ export default function Courses() {
         { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
       const knownIds = new Set(enrichedPlan.map((question) => question.id));
-      const purposePacks = ["career", "freelance", "career_switch", "exam", "project", "hobby"].flatMap((purpose) => getPurposeQuestions(purpose));
-      const merged = [...enrichedPlan, ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id)), ...coreExtras.filter((question) => !knownIds.has(question.id))];
+      const purposePacks = ["career", "freelance", "career_switch", "exam", "project", "hobby"].flatMap((purpose) => getPurposeQuestions(purpose)).filter((question) => !alreadyAnswered(question.id));
+      const merged = [...enrichedPlan, ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id)), ...coreExtras.filter((question) => !knownIds.has(question.id) && !alreadyAnswered(question.id))];
       setIntentResult({ ...result, questionPlan: merged });
       setIntentQuestionIndex(0);
       if (!result.valid) {

@@ -504,12 +504,20 @@ export default function Courses() {
         showFeatureUpgrade: true,
       }) as IntentParse;
       const niche = getNicheQuestions(query);
+      const skillOptions = /python/.test(query.toLowerCase())
+        ? ["Python syntax and variables", "Conditions and loops", "Functions", "Lists, tuples and dictionaries", "Object-oriented programming", "Files and exceptions", "Modules and packages"]
+        : /javascript|mern|react|node|web development/.test(query.toLowerCase())
+          ? ["HTML and CSS", "JavaScript fundamentals", "DOM and browser APIs", "React or frontend", "Node.js and APIs", "Databases", "Git and GitHub"]
+          : [];
+      const enrichedPlan = (result.questionPlan || []).map((question) => question.id === "knownSkills" && skillOptions.length
+        ? { ...question, type: "checklist" as const, options: skillOptions, why: "Tick only skills you can already use; those stages will be skipped.", changes: ["starting skills", "roadmap order"] }
+        : question);
       const coreExtras: IntentQuestion[] = [
         { id: "studyDays", type: "single", text: "How many days each week can you study?", options: ["2 days", "3 days", "4 days", "5 days", "6 days", "7 days"], optional: true, why: "This turns your daily time into a realistic weekly study schedule.", changes: ["schedule"] },
         { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] }
       ];
-      const knownIds = new Set((result.questionPlan || []).map((question) => question.id));
-      const merged = [...(result.questionPlan || []), ...coreExtras.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
+      const knownIds = new Set(enrichedPlan.map((question) => question.id));
+      const merged = [...enrichedPlan, ...coreExtras.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
       setIntentResult({ ...result, questionPlan: merged.slice(0, 8) });
       setIntentQuestionIndex(0);
       setIntentAnswers({});
@@ -538,6 +546,17 @@ export default function Courses() {
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
   const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   const chooseIntentOption = (question: IntentQuestion, value: string) => {
+    if (question.id === "knownSkills") {
+      if (value === "Not sure, pick for me") {
+        setIntentAnswers((previous) => ({ ...previous, knownSkills: "" }));
+        setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+        return;
+      }
+      const selected = String(intentAnswers.knownSkills || "").split(",").map((item) => item.trim()).filter(Boolean);
+      const next = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value];
+      setIntentAnswers((previous) => ({ ...previous, knownSkills: next.join(", ") }));
+      return;
+    }
     const mapped = question.id === 'goal'
       ? ({ 'Job-ready': 'job_ready', 'Exam or certification': 'exam', 'Build a project': 'project', 'Learn a skill': 'learn' } as Record<string, string>)[value] || value
       : question.id === 'depth'
@@ -953,7 +972,7 @@ export default function Courses() {
                               ))}
                             </div>
                           ) : null}
-                          {currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' || currentIntentQuestion.type === 'checklist' ? (
+                          {currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' ? (
                             <textarea rows={currentIntentQuestion.type === 'paste' ? 5 : 2} maxLength={currentIntentQuestion.id === 'syllabus' ? 20000 : 1200} value={String(intentAnswers[currentIntentQuestion.id] || '')} onChange={(event) => setIntentAnswers((previous) => ({ ...previous, [currentIntentQuestion.id]: event.target.value }))} placeholder={currentIntentQuestion.id === 'syllabus' ? 'Paste syllabus units here…' : 'Type your answer (optional)…'} className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
                           ) : null}
                           <div className="flex flex-wrap justify-between gap-2 pt-2">

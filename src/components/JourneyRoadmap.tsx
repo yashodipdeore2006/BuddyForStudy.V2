@@ -22,6 +22,7 @@ function JourneyRoadmapContent({ courseId, enrolled, onViewLessons, onEnroll, on
   const [roadLength, setRoadLength] = useState(0);
   const [lengths, setLengths] = useState<number[]>([]);
   const [motionEnabled, setMotionEnabled] = useState(true);
+  const [markerPoint, setMarkerPoint] = useState<Point>({ x: 180, y: 40 });
   const [currentTime, setCurrentTime] = useState<number | null>(null);
   const pathRef = useRef<SVGPathElement | null>(null);
   const markerRef = useRef<SVGGElement | null>(null);
@@ -89,6 +90,8 @@ function JourneyRoadmapContent({ courseId, enrolled, onViewLessons, onEnroll, on
       frameRef.current = requestAnimationFrame(() => {
         displayDistanceRef.current = target;
         setDisplayDistance(target);
+        const point = pathRef.current?.getPointAtLength(Math.max(0, Math.min(roadLength, target)));
+        if (point) setMarkerPoint({ x: point.x, y: point.y });
         previousPositionRef.current = targetPosition;
         frameRef.current = null;
       });
@@ -109,8 +112,11 @@ function JourneyRoadmapContent({ courseId, enrolled, onViewLessons, onEnroll, on
     const animate = (now: number) => {
       const p = Math.min(1, (now - started) / duration);
       const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-      displayDistanceRef.current = from + delta * eased;
-      setDisplayDistance(from + delta * eased);
+      const nextDistance = from + delta * eased;
+      displayDistanceRef.current = nextDistance;
+      setDisplayDistance(nextDistance);
+      const point = pathRef.current?.getPointAtLength(Math.max(0, Math.min(roadLength, nextDistance)));
+      if (point) setMarkerPoint({ x: point.x, y: point.y });
       if (p < 1) frameRef.current = requestAnimationFrame(animate);
       else {
         frameRef.current = null;
@@ -148,7 +154,7 @@ function JourneyRoadmapContent({ courseId, enrolled, onViewLessons, onEnroll, on
   if (!data || !data.stages.length) return <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">Roadmap not available yet.</div>;
   const activeStageIndex = Math.min(data.stages.length - 1, Math.floor(targetPosition));
   const activeStage = data.stages[activeStageIndex];
-  const svgPoint = pathRef.current?.getPointAtLength(Math.max(0, Math.min(roadLength, displayDistance))) || points[0];
+  const svgPoint = markerPoint;
   const decorations = scenery[data.theme as keyof typeof scenery] || scenery.trail;
   return <div className="quest-roadmap mx-auto w-full max-w-[1920px] pb-10 text-slate-900 dark:text-slate-100">
     <div className="quest-roadmap__stats mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">

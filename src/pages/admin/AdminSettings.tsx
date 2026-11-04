@@ -114,7 +114,10 @@ export default function AdminSettings() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function saveAdvancedAI() {
     if (advancedAIReason.trim().length < 10 || advancedAIReason.trim().length > 500) {

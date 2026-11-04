@@ -61,6 +61,36 @@ export const buildWithAiQuestionPacks: QuestionPack[] = [
     questions: [
       { id: "languageGoal", type: "single", text: "Which skill matters most?", options: ["Speaking", "Listening", "Reading", "Writing", "Test preparation"], optional: true, why: "This sets the balance of practice activities and assessments.", changes: ["skills", "assessment"] }
     ]
+  },
+
+  {
+    id: "office_skills",
+    match: /excel|power bi|project management|office skills|spreadsheet/i,
+    questions: [
+      { id: "officeToolVersion", type: "single", text: "Which tool or version do you use?", options: ["Microsoft Excel", "Google Sheets", "Power BI", "Tableau", "Pick for me"], optional: true, why: "The exact tool changes the interface, formulas and practice files.", changes: ["resources", "projects"] },
+      { id: "officeTask", type: "single", text: "Which task do you most want to improve?", options: ["Reports and dashboards", "Data cleaning", "Formulas and automation", "Project planning", "Pick for me"], optional: true, why: "Task-based lessons are more useful than a generic feature tour.", changes: ["skills", "projects"] }
+    ]
+  },
+  {
+    id: "music_art",
+    match: /music|guitar|piano|drawing|painting|illustration|singing/i,
+    questions: [
+      { id: "creativeMedium", type: "single", text: "Which instrument or medium will you practice with?", options: ["Guitar", "Piano or keyboard", "Voice", "Drawing or painting", "Digital art", "Pick for me"], optional: true, why: "This selects practice exercises and resources for your medium.", changes: ["resources", "projects"] }
+    ]
+  },
+  {
+    id: "personal_finance",
+    match: /personal finance|budgeting|investing|financial literacy/i,
+    questions: [
+      { id: "financeGoal", type: "single", text: "What is your learning goal?", options: ["Budgeting and saving", "Understand long-term investing", "Understand markets and risk", "Personal finance basics", "Pick for me"], optional: true, why: "This selects educational topics and examples; the course is for learning, not personal financial advice.", changes: ["skills", "resources"] }
+    ]
+  },
+  {
+    id: "fitness_wellness",
+    match: /fitness|exercise|workout|yoga|mobility/i,
+    questions: [
+      { id: "practiceSetup", type: "single", text: "What practice setup do you have?", options: ["No equipment", "Home basics", "Gym access", "Yoga mat or open space", "Pick for me"], optional: true, why: "This keeps demonstrations matched to the equipment and space available. Educational content only; seek qualified guidance when needed.", changes: ["resources", "projects"] }
+    ]
   }
 ];
 

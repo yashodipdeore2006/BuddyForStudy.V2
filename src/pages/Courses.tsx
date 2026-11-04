@@ -189,6 +189,7 @@ export default function Courses() {
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
   const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+  const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
 
   const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
   const [aiCustomGoal, setAiCustomGoal] = useState('');
@@ -503,7 +504,10 @@ export default function Courses() {
         body: JSON.stringify({ query }),
         showFeatureUpgrade: true,
       }) as IntentParse;
-      const niche = getNicheQuestions(query);
+      const retired = await apiFetch<{ retiredQuestionIds?: string[] }>('/api/intent/questions/retired').catch(() => ({ retiredQuestionIds: [] }));
+      const retiredIds = Array.isArray(retired.retiredQuestionIds) ? retired.retiredQuestionIds : [];
+      setRetiredIntentQuestionIds(retiredIds);
+      const niche = getNicheQuestions(query).filter((question) => !retiredIds.includes(question.id));
       const skillOptions = /python/.test(query.toLowerCase())
         ? ["Python syntax and variables", "Conditions and loops", "Functions", "Lists, tuples and dictionaries", "Object-oriented programming", "Files and exceptions", "Modules and packages"]
         : /javascript|mern|react|node|web development/.test(query.toLowerCase())
@@ -514,11 +518,12 @@ export default function Courses() {
         : question);
       const coreExtras: IntentQuestion[] = [
         { id: "studyDays", type: "single", text: "How many days each week can you study?", options: ["2 days", "3 days", "4 days", "5 days", "6 days", "7 days"], optional: true, why: "This turns your daily time into a realistic weekly study schedule.", changes: ["schedule"] },
-        { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] }
+        { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] },
+        { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
       const knownIds = new Set(enrichedPlan.map((question) => question.id));
       const merged = [...enrichedPlan, ...coreExtras.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
-      setIntentResult({ ...result, questionPlan: merged.slice(0, 8) });
+      setIntentResult({ ...result, questionPlan: merged });
       setIntentQuestionIndex(0);
       setIntentAnswers({});
       if (!result.valid) {
@@ -540,12 +545,34 @@ export default function Courses() {
 
   const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
+    !retiredIntentQuestionIds.includes(question.id) &&
     !(question.id === 'goal' && Boolean(intentAnswers.goal)) &&
     (!question.when || question.when === 'goal=' + intentGoal)
   ).slice(0, 8);
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
-  const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  const trackIntentQuestionEvent = (question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
+    if (!session || !aiTopic.trim()) return;
+    void apiFetch('/api/intent/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        topic: aiTopic.trim().slice(0, 200),
+        questionId: question.id,
+        packId: question.id.startsWith('domain_') ? 'dynamic_domain' : 'core_or_niche',
+        event,
+        position: Math.max(0, Math.min(20, position))
+      })
+    }).catch(() => {});
+  };
+  useEffect(() => {
+    if (!aiOpen || !intentResult?.valid || !currentIntentQuestion) return;
+    trackIntentQuestionEvent(currentIntentQuestion, "shown", intentQuestionIndex);
+  }, [aiOpen, intentResult?.valid, currentIntentQuestion?.id, intentQuestionIndex]);
+  const skipIntentQuestion = () => {
+    if (currentIntentQuestion) trackIntentQuestionEvent(currentIntentQuestion, "skipped");
+    setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  };
   const chooseIntentOption = (question: IntentQuestion, value: string) => {
+    if (question.id !== "knownSkills") trackIntentQuestionEvent(question, "answered");
     if (value === "Not sure, pick for me" && question.id !== "knownSkills") {
       setIntentAnswers((previous) => {
         const next = { ...previous };
@@ -582,6 +609,7 @@ export default function Courses() {
 
   const commitIntentTextAnswer = (question: IntentQuestion) => {
     const rawAnswer = String(intentAnswers[question.id] || '').trim();
+    trackIntentQuestionEvent(question, rawAnswer ? "answered" : "skipped");
     if (question.id === 'role' && rawAnswer) {
       const tokens = (value: string) => new Set(value.toLowerCase().split(/[^a-z0-9+#.]+/).filter((token) => token.length > 1));
       const answerTokens = tokens(rawAnswer);
@@ -641,6 +669,7 @@ export default function Courses() {
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
+        deadline: String(intentAnswers.deadline ?? intentResult.profile?.deadline ?? '') || null,
         preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
@@ -910,7 +939,7 @@ export default function Courses() {
               </div>
               <button
                 type="button"
-                onClick={() => setAiOpen(false)}
+                onClick={() => { if (currentIntentQuestion) trackIntentQuestionEvent(currentIntentQuestion, "abandoned"); setAiOpen(false); }}
                 disabled={aiLoading}
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                 aria-label="Close AI learning planner"

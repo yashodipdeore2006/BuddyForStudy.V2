@@ -898,6 +898,8 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByText("Layer 1 · Core foundation")).toBeVisible();
     await expect(dialog.getByText("Why are you learning it?")).toBeVisible();
     await expect(dialog.getByText("What can you already do?")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Practical skills/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(dialog.getByRole("button", { name: /Personal interest/ })).toHaveAttribute("aria-pressed", "false");
     await expect(dialog.getByText("Live form schema")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Analyze topic and continue" })).toBeEnabled();
   });

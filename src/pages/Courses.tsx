@@ -1324,8 +1324,9 @@ export default function Courses() {
                               { id: "job_ready", purpose: "career_switch", label: "Career switch", goal: "Career or professional growth" },
                               { id: "learn", purpose: "hobby", label: "Personal interest", goal: "Explore a personal interest" }
                             ].map((option) => {
-                              const selected = String(intentAnswers.goal || intentResult?.profile?.goal || (aiGoalTouched ? "" : "learn")) === option.id
-                                && String(intentAnswers.goalPurpose || (intentResult?.profile?.goal === "job_ready" ? "career" : intentResult?.profile?.goal === "exam" ? "exam" : intentResult?.profile?.goal === "project" ? "project" : aiGoalTouched ? "" : "hobby")) === option.purpose;
+                              const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || (aiGoalTouched ? "" : "learn"));
+                              const selectedPurpose = String(intentAnswers.goalPurpose || (intentResult?.profile?.goal === "job_ready" ? "career" : intentResult?.profile?.goal === "exam" ? "exam" : intentResult?.profile?.goal === "project" ? "project" : aiGoalTouched ? "" : "hobby"));
+                              const selected = aiGoal === option.goal && selectedGoal === option.id && selectedPurpose === option.purpose;
                               return (
                                 <button
                                   key={option.label}

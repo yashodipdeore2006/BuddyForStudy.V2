@@ -554,17 +554,6 @@ export default function Courses() {
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
-  const intentWasOpenRef = useRef(false);
-  useEffect(() => {
-    if (aiOpen) {
-      intentWasOpenRef.current = true;
-      return;
-    }
-    if (intentWasOpenRef.current && intentResult?.valid && currentIntentQuestion) {
-      trackIntentQuestionEvent(currentIntentQuestion, "abandoned", intentQuestionIndex);
-    }
-    intentWasOpenRef.current = false;
-  }, [aiOpen]);
   const trackIntentQuestionEvent = (question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
     if (!session || !aiTopic.trim()) return;
     void apiFetch('/api/intent/events', {
@@ -578,6 +567,17 @@ export default function Courses() {
       })
     }).catch(() => {});
   };
+  const intentWasOpenRef = useRef(false);
+  useEffect(() => {
+    if (aiOpen) {
+      intentWasOpenRef.current = true;
+      return;
+    }
+    if (intentWasOpenRef.current && intentResult?.valid && currentIntentQuestion) {
+      trackIntentQuestionEvent(currentIntentQuestion, "abandoned", intentQuestionIndex);
+    }
+    intentWasOpenRef.current = false;
+  }, [aiOpen]);
   useEffect(() => {
     if (!aiOpen || !intentResult?.valid || !currentIntentQuestion) return;
     trackIntentQuestionEvent(currentIntentQuestion, "shown", intentQuestionIndex);

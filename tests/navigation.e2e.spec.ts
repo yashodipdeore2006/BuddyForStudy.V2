@@ -951,14 +951,14 @@ test.describe("learner control and state regression", () => {
     await dialog.getByRole("button", { name: "Job / Career" }).click();
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
-    await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
+    await expect(dialog.getByText(/Layer 2 · Purpose Pack/)).toBeVisible();
     await expect(dialog.getByText("What is your target role and company type?")).toBeVisible();
     await expect(dialog.getByText("Do you have an upcoming interview or target date?")).toBeVisible();
     await expect(dialog.getByText("Helps align your portfolio projects and interview-preparation modules with your target role.")).toBeVisible();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
     await expect.poll(() => questionEvents.some((event) => event.event === "skipped" && event.packId === "purpose_career")).toBe(true);
 
-    await expect(dialog.getByText("Layer 3 · Domain pack")).toBeVisible();
+    await expect(dialog.getByText("Layer 3: Programming & Web Dev")).toBeVisible();
     await expect(dialog.getByText("What do you want to build primarily?")).toBeVisible();
     await expect(dialog.getByText("Do you need algorithmic DSA practice?")).toBeVisible();
     await dialog.getByRole("button", { name: "Review roadmap", exact: true }).click();
@@ -1012,7 +1012,7 @@ test.describe("learner control and state regression", () => {
     await dialog.getByLabel("Resource language").selectOption("hi");
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
-    await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
+    await expect(dialog.getByText(/Layer 2 · Purpose Pack/)).toBeVisible();
     await dialog.getByRole("button", { name: "Back", exact: true }).click();
     await expect(dialog.getByRole("button", { name: "Advanced", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(dialog.getByRole("button", { name: "Complete learning path", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -1081,14 +1081,14 @@ test.describe("learner control and state regression", () => {
     await outcome.fill("Build and deploy a production-ready backend API.");
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
-    await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
+    await expect(dialog.getByText(/Layer 2 · Purpose Pack/)).toBeVisible();
     const roleQuestion = dialog.locator("section").filter({ hasText: "What is your target role and company type?" }).first();
     await roleQuestion.locator("textarea").fill("Frontend Engineer");
     await roleQuestion.getByRole("button", { name: "Save answer" }).click();
     await dialog.getByRole("button", { name: "Within 1 month (crash course)" }).click();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
 
-    await expect(dialog.getByText("Layer 3 · Domain pack")).toBeVisible();
+    await expect(dialog.getByText("Layer 3: Programming & Web Dev")).toBeVisible();
     const buildQuestion = dialog.locator("section").filter({ hasText: "What do you want to build primarily?" }).first();
     await buildQuestion.getByRole("button", { name: "Backend API and database" }).click();
     const dsaQuestion = dialog.locator("section").filter({ hasText: "Do you need algorithmic DSA practice?" }).first();

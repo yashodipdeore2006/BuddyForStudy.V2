@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { env } from "../config/env.js";
-import { parseIntent } from "../services/intent.service.js";
+import { parseIntent, IntentQuery } from "../services/intent.service.js";
 import { IntentQuestionEvent } from "../models/IntentQuestionEvent.js";
 import { failure, success } from "../utils/response.js";
 export async function parseIntentController(req, res, next) {

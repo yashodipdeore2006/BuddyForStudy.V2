@@ -895,11 +895,13 @@ test.describe("learner control and state regression", () => {
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel("Topic or course name")).toHaveValue("React and Node.js Full Stack");
-    await expect(dialog.getByText("Layer 1 · Core foundation")).toBeVisible();
+    await expect(dialog.getByText("Layer 1: Core Foundation")).toBeVisible();
     await expect(dialog.getByText("Why are you learning it?")).toBeVisible();
     await expect(dialog.getByText("What can you already do?")).toBeVisible();
-    await expect(dialog.getByRole("button", { name: /Practical skills/ })).toHaveAttribute("aria-pressed", "true");
-    await expect(dialog.getByRole("button", { name: /Personal interest/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(dialog.getByRole("button", { name: /Job \/ Career/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(dialog.getByRole("button", { name: /Hobby \/ Personal Interest/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(dialog.getByText("Fast-fill with test personas")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Full-Stack Web Dev \(Job Hunter\)/ })).toBeVisible();
     await expect(dialog.getByText("Live form schema")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Analyze topic and continue" })).toBeEnabled();
   });
@@ -950,9 +952,9 @@ test.describe("learner control and state regression", () => {
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
     await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
-    await expect(dialog.getByText("Which job role are you targeting?")).toBeVisible();
-    await expect(dialog.getByText("Which company environment are you aiming for?")).toBeVisible();
+    await expect(dialog.getByText("What is your target role and company type?")).toBeVisible();
     await expect(dialog.getByText("Do you have an upcoming interview or target date?")).toBeVisible();
+    await expect(dialog.getByText("Helps align your portfolio projects and interview-preparation modules with your target role.")).toBeVisible();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
     await expect.poll(() => questionEvents.some((event) => event.event === "skipped" && event.packId === "purpose_career")).toBe(true);
 
@@ -1016,6 +1018,99 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByRole("button", { name: "Complete learning path", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(dialog.getByLabel("Time per day")).toHaveValue("30");
     await expect(dialog.getByLabel("Resource language")).toHaveValue("hi");
+  });
+
+  test("[BUILD-WITH-AI-PAYLOAD-004] four-layer demo answers reach the real roadmap-generation profile", async ({ page }) => {
+    let submittedProfile: Record<string, unknown> | null = null;
+    await mockAppApi(page, { authenticated: true });
+    await page.route("**/api/intent/parse", async (route) => {
+      await json(route, {
+        valid: true,
+        profile: {
+          topic: "React and Node.js Full Stack",
+          domain: "programming",
+          scope: "broad",
+          goal: "learn",
+          level: "Beginner",
+          knownSkills: [],
+          minutesPerDay: 60,
+          language: "en",
+          targetRole: null,
+          targetCompany: null,
+          examName: null,
+          examDate: null,
+          syllabusText: null,
+          projectIdea: null,
+          deadline: null,
+          outcome: "",
+          preferences: {},
+        },
+        confidences: {},
+        domain: "programming",
+        scope: "broad",
+        options: { roles: [], exams: [], projectIdeas: [] },
+        questionPlan: [],
+      });
+    });
+    await page.route("**/api/ai/roadmap", async (route) => {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        submittedProfile = (body.profile || body) as Record<string, unknown>;
+      }
+      await json(route, {
+        course: {
+          _id: "generated-ai-course",
+          id: "generated-ai-course",
+          title: "Personalized React and Node.js Roadmap",
+          description: "A demo course generated from the learner's adaptive intake.",
+          level: "Beginner",
+          duration: "Self-paced",
+          isPublished: false,
+          modules: [],
+        },
+        personalization: { studyTimeMinutesPerDay: 60, goals: ["Career or work growth"], skippedSkills: [], rationale: [] },
+      });
+    });
+
+    await page.goto(baseURL + "/explore");
+    await page.getByRole("textbox", { name: "Search courses" }).fill("React and Node.js Full Stack");
+    await page.getByRole("button", { name: "Build with AI" }).click();
+    const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
+
+    const outcome = dialog.getByLabel("In one sentence, what should you be able to do at the end?");
+    await outcome.fill("Build and deploy a production-ready backend API.");
+    await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
+
+    await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
+    const roleQuestion = dialog.locator("section").filter({ hasText: "What is your target role and company type?" }).first();
+    await roleQuestion.locator("textarea").fill("Frontend Engineer");
+    await roleQuestion.getByRole("button", { name: "Save answer" }).click();
+    await dialog.getByRole("button", { name: "Within 1 month (crash course)" }).click();
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+
+    await expect(dialog.getByText("Layer 3 · Domain pack")).toBeVisible();
+    const buildQuestion = dialog.locator("section").filter({ hasText: "What do you want to build primarily?" }).first();
+    await buildQuestion.getByRole("button", { name: "Backend API and database" }).click();
+    const dsaQuestion = dialog.locator("section").filter({ hasText: "Do you need algorithmic DSA practice?" }).first();
+    await dsaQuestion.getByRole("button", { name: "Yes, preparing for tech interviews" }).click();
+    await dialog.getByRole("button", { name: "Review roadmap", exact: true }).click();
+
+    await expect(dialog.getByText("Your personalized blueprint")).toBeVisible();
+    await dialog.getByRole("button", { name: "Generate roadmap" }).click();
+    await expect.poll(() => submittedProfile).not.toBeNull();
+    const intentProfile = submittedProfile?.intentProfile as Record<string, unknown>;
+    const preferences = intentProfile?.preferences as Record<string, string>;
+    expect(intentProfile?.goal).toBe("job_ready");
+    expect(intentProfile?.targetRole).toBe("Frontend Engineer");
+    expect(intentProfile?.outcome).toBe("Build and deploy a production-ready backend API.");
+    expect(preferences).toMatchObject({
+      goalPurpose: "career",
+      jobTimeline: "Within 1 month (crash course)",
+      buildTarget: "Backend API and database",
+      dsaNeeded: "Yes, preparing for tech interviews",
+    });
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Personalized React and Node.js Roadmap" })).toBeVisible();
   });
 
   test("[EXP-YOUTUBE-QUOTA-FALLBACK-001] quota exhaustion keeps local courses usable and shows a safe recovery message", async ({ page }) => {

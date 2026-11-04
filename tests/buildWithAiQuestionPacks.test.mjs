@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 // Node 24's built-in type stripping runs this erasable TypeScript module directly.
 import {
   getNicheDisclaimer,
+  getNichePackName,
   getNicheQuestions,
   getPurposeQuestions,
   getSkillChecklist,
@@ -53,4 +54,25 @@ test("purpose packs are specific and optional for each supported learning purpos
     assert.ok(questions.length > 0, purpose + " purpose pack should exist");
     assert.ok(questions.every((question) => question.optional));
   }
+});
+test("purpose packs mirror the Roadmap Studio demo's career, exam, freelance, hobby and switch questions", () => {
+  const career = getPurposeQuestions("career");
+  assert.equal(career[0].id, "targetRole");
+  assert.equal(career[0].text, "What is your target role and company type?");
+  assert.equal(career[0].allowText, true);
+  assert.equal(career[1].id, "jobTimeline");
+
+  assert.deepEqual(getPurposeQuestions("exam").map((question) => question.id), ["examPreparationType", "examTimeline"]);
+  assert.deepEqual(getPurposeQuestions("freelance").map((question) => question.id), ["freelanceClient", "freelancePortfolio"]);
+  assert.deepEqual(getPurposeQuestions("hobby").map((question) => question.id), ["hobbyFocus"]);
+  assert.deepEqual(getPurposeQuestions("career_switch").map((question) => question.id), ["currentBackground"]);
+  assert.ok(getPurposeQuestions("career_switch")[0].allowText);
+});
+
+test("niche detection exposes the demo's domain labels and safe unknown-domain fallback label", () => {
+  assert.equal(getNichePackName("React and Node.js"), "Programming & Web Dev");
+  assert.equal(getNichePackName("LLM engineering"), "AI, Data & Machine Learning");
+  assert.equal(getNichePackName("Stock Market Investing in India"), "Personal Finance & Investing");
+  assert.equal(getNichePackName("Calisthenics and mobility"), "Health, Fitness & Wellness");
+  assert.equal(getNichePackName("Unmapped subject: beekeeping"), "AI Custom Domain Pack");
 });

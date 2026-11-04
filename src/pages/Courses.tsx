@@ -634,9 +634,10 @@ export default function Courses() {
 
   const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
   const intentPurpose = String(intentAnswers.goalPurpose || (intentGoal === "job_ready" ? "career" : intentGoal === "exam" ? "exam" : intentGoal === "project" ? "project" : "hobby"));
+  const coreQuestionIds = new Set(["goal", "depth", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
     !retiredIntentQuestionIds.includes(question.id) &&
-    !(question.id === 'goal' && Boolean(intentAnswers.goal)) &&
+    !coreQuestionIds.has(question.id) &&
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const purposeQuestionIds = new Set([
@@ -644,7 +645,6 @@ export default function Courses() {
     "careerStage", "interviewDate", "portfolioStatus", "freelanceService", "clientType",
     "switchExperience", "switchTarget", "examPreparationStyle", "projectAudience", "learningMotivation"
   ]);
-  const coreQuestionIds = new Set(["goal", "depth", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
   const purposeIntentQuestions = activeIntentQuestions.filter((question) => purposeQuestionIds.has(question.id));
   const nicheIntentQuestions = activeIntentQuestions.filter((question) => !purposeQuestionIds.has(question.id) && !coreQuestionIds.has(question.id));
   const visibleWizardQuestions = intentWizardStep === 2 ? purposeIntentQuestions : intentWizardStep === 3 ? nicheIntentQuestions : [];

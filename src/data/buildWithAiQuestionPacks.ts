@@ -107,26 +107,28 @@ export const buildWithAiQuestionPacks: QuestionPack[] = [
 
 export const buildWithAiPurposePacks: Record<string, BuildWithAiQuestion[]> = {
   career: [
-    { id: "careerStage", type: "single", text: "Where are you in your career journey?", options: ["Student", "Fresher", "Experienced professional", "Switching careers"], optional: true, when: "purpose=career", why: "This sets the starting point and avoids repeating skills you already use.", changes: ["skills", "depth"] },
-    { id: "interviewDate", type: "text", text: "Do you have a target interview or application date?", optional: true, when: "purpose=career", why: "A target date helps prioritize interview practice and portfolio milestones.", changes: ["schedule", "assessment"] },
+    { id: "targetRole", type: "single", text: "What is your target role and company type?", options: ["Entry-level (Tech Startup)", "Mid / Senior (Enterprise)", "MNC / Big Tech", "Remote global job"], allowText: true, optional: true, when: "purpose=career", why: "This aligns portfolio projects, interview preparation and the expected hiring context.", changes: ["interview module", "DSA / aptitude priority"] },
+    { id: "jobTimeline", type: "single", text: "Do you have an upcoming interview or target date?", options: ["Within 1 month (crash course)", "1–3 months", "3–6 months", "No strict deadline"], optional: true, when: "purpose=career", why: "This controls schedule density and when mock interviews are introduced.", changes: ["pacing", "schedule"] },
     { id: "portfolioStatus", type: "single", text: "What best describes your project portfolio?", options: ["I have no portfolio yet", "I have practice projects", "I have deployed projects", "I have professional experience"], optional: true, when: "purpose=career", why: "Portfolio status determines which practical deliverables are most useful.", changes: ["projects"] }
   ],
   freelance: [
-    { id: "freelanceService", type: "single", text: "Which service do you want to offer to clients?", options: ["Web or app development", "Design", "Data and automation", "Marketing", "Writing or content", "Not sure yet"], optional: true, when: "purpose=freelance", why: "This focuses the roadmap on a sellable service and relevant portfolio work.", changes: ["skills", "projects"] },
-    { id: "clientType", type: "single", text: "Who would you prefer to work with?", options: ["Individuals", "Startups", "Small businesses", "Larger companies", "Not sure yet"], optional: true, when: "purpose=freelance", why: "Client type changes project scope, communication and delivery examples.", changes: ["projects"] }
+    { id: "clientAcquisition", type: "single", text: "Where do you plan to acquire clients?", options: ["Marketplaces (Upwork / Fiverr)", "Direct outreach / cold email", "Local businesses", "Personal brand / social media"], optional: true, when: "purpose=freelance", why: "This tailors lessons around platform optimization, outreach and client proposals.", changes: ["client skills", "proposal templates"] },
+    { id: "freelancePortfolio", type: "single", text: "Do you already have showcase projects?", options: ["No, need to build from scratch", "Have basic ones, need polishing", "Yes, need specialized case studies"], optional: true, when: "purpose=freelance", why: "This determines the portfolio milestones and case-study depth.", changes: ["portfolio milestones", "project weight"] },
+    { id: "freelanceService", type: "single", text: "Which service do you want to offer to clients?", options: ["Web or app development", "Design", "Data and automation", "Marketing", "Writing or content", "Not sure yet"], optional: true, when: "purpose=freelance", why: "This focuses the roadmap on a sellable service and relevant portfolio work.", changes: ["skills", "projects"] }
   ],
   career_switch: [
     { id: "switchExperience", type: "single", text: "What experience can you build on?", options: ["Student or recent graduate", "Some professional experience", "Experienced in another field", "Returning to work"], optional: true, when: "purpose=career_switch", why: "Transferable experience helps avoid starting from zero unnecessarily.", changes: ["skills", "depth"] },
     { id: "switchTarget", type: "text", text: "Which role or field do you want to move into?", optional: true, when: "purpose=career_switch", why: "A clear destination makes the transition roadmap more specific.", changes: ["skills", "projects"] }
   ],
   exam: [
-    { id: "examPreparationStyle", type: "single", text: "How should exam preparation be balanced?", options: ["Concepts first", "Practice questions first", "Mock tests and revision", "Balanced preparation"], optional: true, when: "purpose=exam", why: "This changes the balance between explanations, drills and timed practice.", changes: ["assessment", "resources"] }
+    { id: "examPreparationType", type: "single", text: "What is the status of your preparation?", options: ["First attempt (full syllabus)", "Retake / revision only", "Mock test and practice focused"], optional: true, when: "purpose=exam", why: "This determines whether the path covers full theory or prioritizes revision and practice papers.", changes: ["syllabus mapping", "revision blocks"] },
+    { id: "examTimeline", type: "single", text: "When is your target exam date?", options: ["Less than 30 days", "1 to 3 months", "6+ months away"], optional: true, when: "purpose=exam", why: "This controls the revision schedule and mock-test frequency.", changes: ["backward schedule", "mock frequency"] }
   ],
   project: [
     { id: "projectAudience", type: "single", text: "Who is this project for?", options: ["Personal portfolio", "College or academic submission", "A real client or business", "A startup or product idea"], optional: true, when: "purpose=project", why: "Audience determines scope, quality bar and delivery requirements.", changes: ["projects", "assessment"] }
   ],
   hobby: [
-    { id: "learningMotivation", type: "single", text: "What would make this learning experience successful?", options: ["Enjoy the process", "Create something personal", "Build a consistent habit", "Reach an intermediate level"], optional: true, when: "purpose=hobby", why: "This sets a sustainable pace and a meaningful outcome.", changes: ["schedule", "projects"] }
+    { id: "hobbyFocus", type: "single", text: "Which aspect excites you the most?", options: ["Fun projects fast", "Deep master-class theory", "Creative experimentation", "Relaxed casual pace"], optional: true, when: "purpose=hobby", why: "This keeps learning enjoyable without adding unnecessary academic pressure.", changes: ["resource style", "practice rigor"] }
   ]
 };
 

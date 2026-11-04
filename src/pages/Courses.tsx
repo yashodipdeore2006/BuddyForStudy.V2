@@ -6,7 +6,7 @@ import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } fr
 import CourseCard from '@/components/CourseCard';
 import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink, Briefcase, Compass, HeartHandshake, RefreshCw, Rocket } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
 import { getNicheQuestions, getNicheDisclaimer, getNichePackName, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
@@ -94,12 +94,12 @@ const BUILD_WITH_AI_PRESETS: BuildWithAiPreset[] = [
 ];
 
 const BUILD_WITH_AI_PURPOSE_OPTIONS = [
-  { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth", description: "Build role-ready skills and prepare for interviews." },
-  { id: "exam", purpose: "exam", label: "Exam / Certification", goal: "Prepare for an exam or certification", description: "Map the syllabus, revision blocks and mock tests." },
-  { id: "project", purpose: "freelance", label: "Freelancing", goal: "Create a project or deliverable", description: "Build a sellable service, portfolio and client workflow." },
-  { id: "learn", purpose: "hobby", label: "Hobby / Personal Interest", goal: "Explore a personal interest", description: "Learn at a sustainable pace driven by curiosity." },
-  { id: "job_ready", purpose: "career_switch", label: "Career Switch", goal: "Career or professional growth", description: "Bridge your current experience into a new role." },
-  { id: "project", purpose: "project", label: "Build a Project", goal: "Create a project or deliverable", description: "Turn the topic into a practical, reviewable deliverable." }
+  { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth", description: "Build role-ready skills and prepare for interviews.", icon: Briefcase },
+  { id: "exam", purpose: "exam", label: "Exam / Certification", goal: "Prepare for an exam or certification", description: "Map the syllabus, revision blocks and mock tests.", icon: GraduationCap },
+  { id: "project", purpose: "freelance", label: "Freelancing", goal: "Create a project or deliverable", description: "Build a sellable service, portfolio and client workflow.", icon: Compass },
+  { id: "learn", purpose: "hobby", label: "Hobby / Personal Interest", goal: "Explore a personal interest", description: "Learn at a sustainable pace driven by curiosity.", icon: HeartHandshake },
+  { id: "job_ready", purpose: "career_switch", label: "Career Switch", goal: "Career or professional growth", description: "Bridge your current experience into a new role.", icon: RefreshCw },
+  { id: "project", purpose: "project", label: "Build a Project", goal: "Create a project or deliverable", description: "Turn the topic into a practical, reviewable deliverable.", icon: Rocket }
 ] as const;
 
 const AI_GOAL_OPTIONS = [
@@ -1531,6 +1531,7 @@ export default function Courses() {
                           <legend className="text-sm font-semibold text-slate-200">Why are you learning it?</legend>
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {BUILD_WITH_AI_PURPOSE_OPTIONS.map((option) => {
+                              const PurposeIcon = option.icon;
                               const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || (aiGoalTouched ? "" : "learn"));
                               const selectedPurpose = String(intentAnswers.goalPurpose || (intentResult?.profile?.goal === "job_ready" ? "career" : intentResult?.profile?.goal === "exam" ? "exam" : intentResult?.profile?.goal === "project" ? "project" : aiGoalTouched ? "" : "hobby"));
                               const selected = aiGoal === option.goal && selectedGoal === option.id && selectedPurpose === option.purpose;
@@ -1548,7 +1549,7 @@ export default function Courses() {
                                     ? "min-h-16 rounded-xl border border-indigo-500 bg-indigo-600/20 px-3 py-2.5 text-left text-xs font-semibold text-white ring-1 ring-indigo-500/30"
                                     : "min-h-16 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-left text-xs font-semibold text-slate-300 transition hover:border-indigo-500/60 hover:bg-slate-800"}
                                 >
-                                  <span className="block">{selected ? "✓ " : ""}{option.label}</span>
+                                  <span className="flex items-center gap-2"><PurposeIcon className={selected ? "h-4 w-4 shrink-0 text-indigo-200" : "h-4 w-4 shrink-0 text-slate-400"} />{selected ? "✓ " : ""}{option.label}</span>
                                   <span className={selected ? "mt-1 block text-[10px] font-normal leading-4 text-indigo-100/80" : "mt-1 block text-[10px] font-normal leading-4 text-slate-400"}>{option.description}</span>
                                 </button>
                               );
@@ -1611,7 +1612,7 @@ export default function Courses() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-2">
                             <label className="text-sm font-semibold text-slate-200">What can you already do?</label>
-                            <span className="text-[10px] font-medium text-slate-500">Select all that apply</span>
+                            <span className="text-[10px] font-medium text-slate-400">Select all that apply</span>
                           </div>
                           {getSkillChecklist(aiTopic).length > 0 ? (
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1631,7 +1632,7 @@ export default function Courses() {
                                     }}
                                     className={selected
                                       ? "flex items-center justify-between rounded-lg border border-indigo-500 bg-indigo-600/20 px-3 py-2 text-left text-xs font-semibold text-white"
-                                      : "flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-left text-xs text-slate-700 hover:border-violet-400"}
+                                      : "flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-left text-xs text-slate-300 hover:border-violet-400"}
                                   >
                                     <span>{skill}</span>
                                     {selected && <span aria-hidden="true">✓</span>}
@@ -1742,8 +1743,8 @@ export default function Courses() {
                     {intentWizardStep === 2 && (
                       <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-950 p-5 shadow-sm sm:p-6">
                         <div className="border-b border-slate-800/80 pb-4">
-                          <p className="text-xs font-bold uppercase tracking-wider text-purple-300">Layer 2 · Purpose pack</p>
-                          <h3 className="mt-1 text-xl font-bold text-white">Context and objectives</h3>
+                          <p className="text-xs font-bold uppercase tracking-wider text-purple-300">Layer 2 · Purpose Pack ({BUILD_WITH_AI_PURPOSE_OPTIONS.find((option) => option.purpose === intentPurpose)?.label || "Learning Purpose"})</p>
+                          <h3 className="mt-1 text-xl font-bold text-white">Context & Objectives</h3>
                           <p className="mt-1 text-sm text-slate-400">These questions depend on whether you are learning for a job, exam, project, freelancing or personal interest.</p>
                         </div>
                         {purposeIntentQuestions.length ? (
@@ -1759,8 +1760,8 @@ export default function Courses() {
                     {intentWizardStep === 3 && (
                       <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-950 p-5 shadow-sm sm:p-6">
                         <div className="border-b border-slate-800/80 pb-4">
-                          <p className="text-xs font-bold uppercase tracking-wider text-pink-300">Layer 3 · Domain pack</p>
-                          <h3 className="mt-1 text-xl font-bold text-white">{getNichePackName(aiTopic) === "AI Custom Domain Pack" ? "AI Custom Domain Pack" : getNichePackName(aiTopic)}</h3>
+                          <p className="text-xs font-bold uppercase tracking-wider text-pink-300">Layer 3: {getNichePackName(aiTopic)}</p>
+                          <h3 className="mt-1 text-xl font-bold text-white">Domain-Specific Fine Tuning</h3>
                           <p className="mt-1 text-sm text-slate-400">Choose the tools, focus areas and practice setup that best match this subject.</p>
                         </div>
                         {getNicheDisclaimer(aiTopic) && (
@@ -2006,7 +2007,7 @@ export default function Courses() {
                   setAiOpen(false);
                 }}
                 disabled={aiLoading}
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-950 px-4 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
               >
                 {INTENT_V2 && intentResult?.valid && intentWizardStep > 1 ? "Back" : "Cancel"}
               </button>

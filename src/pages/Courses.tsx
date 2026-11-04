@@ -568,33 +568,37 @@ export default function Courses() {
         : inferredGoal === "job_ready" ? "career" : inferredGoal === "exam" ? "exam" : inferredGoal === "project" ? "project" : "hobby");
       const parsedKnownSkills = Array.isArray(profile.knownSkills) ? profile.knownSkills.join(", ") : "";
       const parsedLanguage = ({ en: "English", hi: "Hindi", mr: "Marathi" } as Record<string, string>)[String(profile.language || "en")] || String(profile.language || "English");
-      setIntentAnswers({
+      const mergedAnswers: Record<string, string> = {
         role: String(profile.targetRole || ""),
         company: String(profile.targetCompany || ""),
         examType: String(profile.examName || ""),
         examDate: String(profile.examDate || ""),
         syllabus: String(profile.syllabusText || ""),
         projectIdea: String(profile.projectIdea || ""),
-        depth: aiScope || String(profile.scope || "broad"),
+        depth: String(profile.scope || "broad"),
         level: String(profile.level || aiLevel),
-        time: timeLabels[Number(aiStudyTime || profile.minutesPerDay || 60)] || "1 hour",
-        language: aiLanguagePref || parsedLanguage,
-        knownSkills: aiKnownSkills || parsedKnownSkills,
+        time: timeLabels[Number(profile.minutesPerDay || 60)] || "1 hour",
+        language: parsedLanguage,
+        knownSkills: parsedKnownSkills,
         deadline: String(profile.deadline || ""),
         goal: selectedGoal,
         goalPurpose: selectedPurpose,
-        studyDays: aiStudyDays,
-        lessonStyle: aiLessonStyle,
+        studyDays: String(profile.preferences?.studyDays || aiStudyDays),
+        lessonStyle: String(profile.preferences?.lessonStyle || aiLessonStyle),
         ...Object.fromEntries(Object.entries(profile.preferences || {}).map(([key, value]) => [key, String(value)])),
-        ...intentAnswers,
-        goal: intentAnswers.goal || selectedGoal,
-        goalPurpose: intentAnswers.goalPurpose || selectedPurpose,
-        depth: intentAnswers.depth || aiScope || String(profile.scope || "broad"),
-        time: intentAnswers.time || timeLabels[Number(aiStudyTime || profile.minutesPerDay || 60)] || "1 hour",
-        language: intentAnswers.language || aiLanguagePref || parsedLanguage,
-        knownSkills: intentAnswers.knownSkills || aiKnownSkills || parsedKnownSkills,
-        studyDays: intentAnswers.studyDays || aiStudyDays,
-        lessonStyle: intentAnswers.lessonStyle || aiLessonStyle
+        ...intentAnswers
+      };
+      setIntentAnswers({
+        ...mergedAnswers,
+        goal: mergedAnswers.goal || selectedGoal,
+        goalPurpose: mergedAnswers.goalPurpose || selectedPurpose,
+        depth: mergedAnswers.depth || aiScope,
+        level: mergedAnswers.level || aiLevel,
+        time: mergedAnswers.time || timeLabels[Number(aiStudyTime)] || "1 hour",
+        language: mergedAnswers.language || aiLanguagePref,
+        knownSkills: mergedAnswers.knownSkills || aiKnownSkills || parsedKnownSkills,
+        studyDays: mergedAnswers.studyDays || aiStudyDays,
+        lessonStyle: mergedAnswers.lessonStyle || aiLessonStyle
       });
       if (profile.level && !aiLevelTouched) setAiLevel(profile.level as CourseLevel);
       if (!aiKnownSkills && parsedKnownSkills) setAiKnownSkills(parsedKnownSkills);
@@ -870,7 +874,7 @@ export default function Courses() {
         level: String(intentAnswers.level || intentResult.profile?.level || aiLevel) as CourseLevel,
         topic,
         goal: selectedGoal,
-        targetRole: String(intentAnswers.role ?? intentAnswers.targetRole ?? intentResult.profile?.targetRole ?? '') || null,
+        targetRole: String(intentAnswers.role || intentAnswers.targetRole || intentResult.profile?.targetRole || '') || null,
         targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
         examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,
         examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,

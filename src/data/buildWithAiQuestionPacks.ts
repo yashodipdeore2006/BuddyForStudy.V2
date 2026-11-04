@@ -14,6 +14,7 @@ type QuestionPack = {
   id: string;
   match: RegExp;
   questions: BuildWithAiQuestion[];
+  knownSkills?: string[];
 };
 
 // Keep domain packs declarative: a new niche can be added as another pack entry.
@@ -93,6 +94,49 @@ export const buildWithAiQuestionPacks: QuestionPack[] = [
     ]
   }
 ];
+
+
+export const buildWithAiPurposePacks: Record<string, BuildWithAiQuestion[]> = {
+  career: [
+    { id: "careerStage", type: "single", text: "Where are you in your career journey?", options: ["Student", "Fresher", "Experienced professional", "Switching careers"], optional: true, when: "purpose=career", why: "This sets the starting point and avoids repeating skills you already use.", changes: ["skills", "depth"] },
+    { id: "portfolioStatus", type: "single", text: "What best describes your project portfolio?", options: ["I have no portfolio yet", "I have practice projects", "I have deployed projects", "I have professional experience"], optional: true, when: "purpose=career", why: "Portfolio status determines which practical deliverables are most useful.", changes: ["projects"] }
+  ],
+  freelance: [
+    { id: "freelanceService", type: "single", text: "Which service do you want to offer to clients?", options: ["Web or app development", "Design", "Data and automation", "Marketing", "Writing or content", "Not sure yet"], optional: true, when: "purpose=freelance", why: "This focuses the roadmap on a sellable service and relevant portfolio work.", changes: ["skills", "projects"] },
+    { id: "clientType", type: "single", text: "Who would you prefer to work with?", options: ["Individuals", "Startups", "Small businesses", "Larger companies", "Not sure yet"], optional: true, when: "purpose=freelance", why: "Client type changes project scope, communication and delivery examples.", changes: ["projects"] }
+  ],
+  career_switch: [
+    { id: "switchExperience", type: "single", text: "What experience can you build on?", options: ["Student or recent graduate", "Some professional experience", "Experienced in another field", "Returning to work"], optional: true, when: "purpose=career_switch", why: "Transferable experience helps avoid starting from zero unnecessarily.", changes: ["skills", "depth"] },
+    { id: "switchTarget", type: "text", text: "Which role or field do you want to move into?", optional: true, when: "purpose=career_switch", why: "A clear destination makes the transition roadmap more specific.", changes: ["skills", "projects"] }
+  ],
+  exam: [
+    { id: "examPreparationStyle", type: "single", text: "How should exam preparation be balanced?", options: ["Concepts first", "Practice questions first", "Mock tests and revision", "Balanced preparation"], optional: true, when: "purpose=exam", why: "This changes the balance between explanations, drills and timed practice.", changes: ["assessment", "resources"] }
+  ],
+  project: [
+    { id: "projectAudience", type: "single", text: "Who is this project for?", options: ["Personal portfolio", "College or academic submission", "A real client or business", "A startup or product idea"], optional: true, when: "purpose=project", why: "Audience determines scope, quality bar and delivery requirements.", changes: ["projects", "assessment"] }
+  ],
+  hobby: [
+    { id: "learningMotivation", type: "single", text: "What would make this learning experience successful?", options: ["Enjoy the process", "Create something personal", "Build a consistent habit", "Reach an intermediate level"], optional: true, when: "purpose=hobby", why: "This sets a sustainable pace and a meaningful outcome.", changes: ["schedule", "projects"] }
+  ]
+};
+
+export function getPurposeQuestions(purpose: string): BuildWithAiQuestion[] {
+  return buildWithAiPurposePacks[purpose] || [];
+}
+
+export function getSkillChecklist(topic: string): string[] {
+  const normalized = String(topic || "").toLowerCase();
+  if (/python/.test(normalized)) return ["Python syntax and variables", "Conditions and loops", "Functions", "Lists, tuples and dictionaries", "Object-oriented programming", "Files and exceptions", "Modules and packages"];
+  if (/javascript|mern|react|node|web development/.test(normalized)) return ["HTML and CSS", "JavaScript fundamentals", "DOM and browser APIs", "React or frontend", "Node.js and APIs", "Databases", "Git and GitHub"];
+  if (/data analytics|data science|machine learning|artificial intelligence|power bi|excel|sql/.test(normalized)) return ["Spreadsheets and formulas", "SQL queries", "Statistics basics", "Python for data", "Data visualization", "Power BI or Tableau", "Machine learning basics"];
+  if (/digital marketing|seo|marketing|social media|advertising/.test(normalized)) return ["Marketing fundamentals", "SEO basics", "Social media management", "Paid advertising", "Email campaigns", "Analytics and reporting", "Content strategy"];
+  if (/figma|design|photography|video editing|premiere|davinci/.test(normalized)) return ["Design fundamentals", "Figma or design tools", "Typography and layout", "Image editing", "Video editing", "Color and composition", "Portfolio workflow"];
+  if (/cloud|aws|azure|security|network|ccna|comptia/.test(normalized)) return ["Networking fundamentals", "Linux or command line", "Cloud basics", "Identity and access", "Security fundamentals", "Virtual machines or labs", "Monitoring and troubleshooting"];
+  if (/english|spanish|french|german|language|ielts|toefl/.test(normalized)) return ["Basic vocabulary", "Grammar fundamentals", "Reading practice", "Listening practice", "Speaking practice", "Writing practice", "Exam strategies"];
+  if (/excel|power bi|project management|office skills|spreadsheet/.test(normalized)) return ["Spreadsheet basics", "Formulas and functions", "Data cleaning", "Pivot tables", "Charts and dashboards", "Automation", "Reporting"];
+  if (/music|guitar|piano|drawing|painting|illustration|singing/.test(normalized)) return ["Basic technique", "Foundational theory", "Guided exercises", "Practice routines", "Intermediate techniques", "Creative exercises", "Personal project"];
+  return [];
+}
 
 export function getNicheQuestions(topic: string): BuildWithAiQuestion[] {
   return buildWithAiQuestionPacks.find((pack) => pack.match.test(String(topic || "")))?.questions || [];

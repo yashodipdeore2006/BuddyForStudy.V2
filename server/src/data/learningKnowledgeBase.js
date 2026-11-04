@@ -84,7 +84,7 @@ export function resolveLearningPath(query) {
   return null;
 }
 
-export function getSkill(id) { return SKILLS[id] || null; }
+export function getSkill(id) { return SKILLS[id] || PYTHON_SKILLS[id] || null; }
 
 export function listSupportedTopics() {
   return [...Object.values(CAREER_PATHS).map((path)=>path.title), ...Object.values(SKILLS).map((item)=>item.name)];

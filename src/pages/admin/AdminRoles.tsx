@@ -49,7 +49,10 @@ export default function AdminRoles() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function saveRole(admin: Administrator) {
     const adminRole = selectedRoles[admin._id] || admin.adminRole;

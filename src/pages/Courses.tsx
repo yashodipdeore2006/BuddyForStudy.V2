@@ -548,7 +548,8 @@ export default function Courses() {
         language: ({ en: "English", hi: "Hindi", mr: "Marathi" } as Record<string, string>)[String(profile.language || "en")] || String(profile.language || ""),
         knownSkills: Array.isArray(profile.knownSkills) ? profile.knownSkills.join(", ") : "",
         deadline: String(profile.deadline || ""),
-        goalPurpose: String(profile.preferences?.goalPurpose || "")
+        goalPurpose: String(profile.preferences?.goalPurpose || ""),
+        ...Object.fromEntries(Object.entries(profile.preferences || {}).map(([key, value]) => [key, String(value)]))
       });
       if (profile.level) setAiLevel(profile.level as CourseLevel);
       if (profile.minutesPerDay) setAiStudyTime(Number(profile.minutesPerDay));
@@ -652,6 +653,33 @@ export default function Courses() {
     }));
     if (question.id === 'goal') setIntentQuestionIndex(0);
     else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+  };
+
+  const isIntentOptionSelected = (question: IntentQuestion, option: string) => {
+    if (option === "Not sure, pick for me") return false;
+    if (question.id === "knownSkills") return String(intentAnswers.knownSkills || "").split(",").map((item) => item.trim()).includes(option);
+    if (question.id === "goal") {
+      const purpose = String(intentAnswers.goalPurpose || "");
+      if (purpose === "freelance" && option === "Freelancing") return true;
+      if (purpose === "career_switch" && option === "Switch careers") return true;
+      if (purpose === "hobby" && option === "Personal interest") return true;
+      const goal = String(intentAnswers.goal || intentResult?.profile?.goal || "");
+      const labels: Record<string, string> = { job_ready: "Job-ready", exam: "Exam or certification", project: "Build a project", learn: "Learn a skill" };
+      return labels[goal] === option;
+    }
+    const answer = String(intentAnswers[question.id] ?? "");
+    if (question.id === "depth") return (answer || String(intentResult?.profile?.scope || "")) === (option === "Complete learning path" ? "broad" : "narrow");
+    if (question.id === "language") {
+      const language = answer || String(intentResult?.profile?.language || "");
+      return ({ en: "English", hi: "Hindi", mr: "Marathi" } as Record<string, string>)[language] === option || language === option;
+    }
+    if (question.id === "time") {
+      const minutes = answer || String(intentResult?.profile?.minutesPerDay || "");
+      const labels: Record<string, string> = { "15": "15 min", "30": "30 min", "60": "1 hour", "120": "2 hours", "180": "3+ hours" };
+      return labels[minutes] === option || minutes === option;
+    }
+    if (answer) return answer === option;
+    return String(intentResult?.profile?.preferences?.[question.id] || "") === option;
   };
 
   const commitIntentTextAnswer = (question: IntentQuestion) => {
@@ -1085,9 +1113,12 @@ export default function Courses() {
                           <p className="text-xs text-slate-500">Why we ask: {currentIntentQuestion.why || "Your answer helps personalize the order and depth of your learning path."} <span className="font-medium">Changes: {(currentIntentQuestion.changes || (currentIntentQuestion.id === "knownSkills" ? ["starting skills", "roadmap order"] : currentIntentQuestion.id === "time" || currentIntentQuestion.id === "studyDays" ? ["schedule"] : currentIntentQuestion.id === "language" ? ["resources"] : ["skills", "depth"])) .join(", ")}</span></p>
                           {currentIntentQuestion.options?.length ? (
                             <div className="flex flex-wrap gap-2">
-                              {[...currentIntentQuestion.options, 'Not sure, pick for me'].slice(0, 8).map((option) => (
-                                <button key={option} type="button" aria-pressed={currentIntentQuestion.id === "knownSkills" && String(intentAnswers.knownSkills || "").split(", ").includes(option)} onClick={() => chooseIntentOption(currentIntentQuestion, option)} className={currentIntentQuestion.id === "knownSkills" && String(intentAnswers.knownSkills || "").split(", ").includes(option) ? "rounded-full border border-violet-500 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-800 ring-1 ring-violet-500/20" : "rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-violet-500 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30"}>{currentIntentQuestion.id === "knownSkills" && String(intentAnswers.knownSkills || "").split(", ").includes(option) ? "✓ " : ""}{option}</button>
-                              ))}
+                              {[...currentIntentQuestion.options, 'Not sure, pick for me'].slice(0, 8).map((option) => {
+                                const selected = isIntentOptionSelected(currentIntentQuestion, option);
+                                return (
+                                  <button key={option} type="button" aria-pressed={selected} onClick={() => chooseIntentOption(currentIntentQuestion, option)} className={selected ? "rounded-full border border-violet-500 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-800 ring-1 ring-violet-500/20" : "rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-violet-500 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30"}>{selected ? "✓ " : ""}{option}</button>
+                                );
+                              })}
                             </div>
                           ) : null}
                           {currentIntentQuestion.type === 'text' || currentIntentQuestion.type === 'paste' ? (

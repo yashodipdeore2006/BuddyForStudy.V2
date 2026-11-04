@@ -181,6 +181,8 @@ export default function CoursePlayer() {
   const curationFeedbackInFlightRef = useRef(new Set<string>());
   const curationFeedbackSentRef = useRef(new Set<string>());
   const curationFeedbackSubmissionIdsRef = useRef(new Map<string, string>());
+  const [curationFeedbackInFlightKeys, setCurationFeedbackInFlightKeys] = useState<Set<string>>(() => new Set());
+  const [curationFeedbackSentKeys, setCurationFeedbackSentKeys] = useState<Set<string>>(() => new Set());
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
   const [noteTimestamp, setNoteTimestamp] = useState("");
   const [pausedTimestampSeconds, setPausedTimestampSeconds] = useState<number | null>(null);
@@ -218,6 +220,7 @@ export default function CoursePlayer() {
 
     const isLearnerFeedback = event === "helpful" || event === "outdated" || event === "wrong_level";
     curationFeedbackInFlightRef.current.add(key);
+    setCurationFeedbackInFlightKeys((current) => new Set(current).add(key));
     try {
       await apiFetch("/api/ai/curation-feedback", {
         method: "POST",
@@ -232,6 +235,7 @@ export default function CoursePlayer() {
         })
       });
       curationFeedbackSentRef.current.add(key);
+      setCurationFeedbackSentKeys((current) => new Set(current).add(key));
       if (isLearnerFeedback) {
         setCurationFeedbackError("");
         setCurationFeedbackNotice("Thanks for your feedback.");
@@ -246,6 +250,11 @@ export default function CoursePlayer() {
       // Automatic completion/abandonment feedback is best-effort and never blocks progress.
     } finally {
       curationFeedbackInFlightRef.current.delete(key);
+      setCurationFeedbackInFlightKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   }, [course, currentLesson, courseId]);
 
@@ -266,11 +275,7 @@ export default function CoursePlayer() {
   }, [lessonId, progress?.completed_lessons]);
 
   useEffect(() => {
-    if (!courseId) {
-      setError("Invalid course");
-      setLoading(false);
-      return;
-    }
+    if (!courseId) return;
     async function load() {
       try {
         const courseData = await apiFetch(`/api/courses/${courseId}/learn`);
@@ -295,22 +300,28 @@ export default function CoursePlayer() {
   }, [courseId]);
 
   useEffect(() => {
-    setNotesStorageReady(false);
-    if (!timestampNotesKey) {
-      setTimestampNotes([]);
-      setLoadedNotesKey("");
-      return;
-    }
-    setTimestampNotes(loadTimestampedCourseNotes(timestampNotesKey));
-    setLoadedNotesKey(timestampNotesKey);
-    setNotesStorageReady(true);
+    const timer = window.setTimeout(() => {
+      setNotesStorageReady(false);
+      if (!timestampNotesKey) {
+        setTimestampNotes([]);
+        setLoadedNotesKey("");
+        return;
+      }
+      setTimestampNotes(loadTimestampedCourseNotes(timestampNotesKey));
+      setLoadedNotesKey(timestampNotesKey);
+      setNotesStorageReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [timestampNotesKey]);
 
   useEffect(() => {
     if (!notesStorageReady || !timestampNotesKey || loadedNotesKey !== timestampNotesKey) return;
-    if (!saveTimestampedCourseNotes(timestampNotesKey, timestampNotes)) {
-      setNoteError("Notes could not be saved in this browser. Check available storage and try again.");
-    }
+    const timer = window.setTimeout(() => {
+      if (!saveTimestampedCourseNotes(timestampNotesKey, timestampNotes)) {
+        setNoteError("Notes could not be saved in this browser. Check available storage and try again.");
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadedNotesKey, notesStorageReady, timestampNotes, timestampNotesKey]);
 
   const siblingLessonTitles = allLessons.map((lesson) => lesson.title);
@@ -368,27 +379,35 @@ export default function CoursePlayer() {
 
 
   useEffect(() => {
-    setNoteTimestamp("");
-    setNoteDraft("");
-    setNoteError("");
-    setNoteNotice("");
+    const timer = window.setTimeout(() => {
+      setNoteTimestamp("");
+      setNoteDraft("");
+      setNoteError("");
+      setNoteNotice("");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [courseId, lessonId]);
 
   useEffect(() => {
-    setPracticeQuizData(null);
-    setPracticeQuizAnswers({});
-    setPracticeQuizSubmitted(false);
-    setPracticeQuizError("");
+    const timer = window.setTimeout(() => {
+      setPracticeQuizData(null);
+      setPracticeQuizAnswers({});
+      setPracticeQuizSubmitted(false);
+      setPracticeQuizError("");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [courseId, lessonId]);
 
   useEffect(() => {
     if (currentLesson?.lesson.type !== "quiz" || !courseId || !lessonId) {
-      setQuizData(null);
-      setQuizAnswers({});
-      setQuizSubmitted(false);
-      setQuizScore(null);
-      setQuizPassed(false);
-      return;
+      const timer = window.setTimeout(() => {
+        setQuizData(null);
+        setQuizAnswers({});
+        setQuizSubmitted(false);
+        setQuizScore(null);
+        setQuizPassed(false);
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
 
     async function loadQuiz() {
@@ -544,8 +563,12 @@ export default function CoursePlayer() {
     if (!courseId || !lessonId || currentLesson?.lesson.type === "quiz" || practiceQuizLoading) return;
     const attemptKey = courseId + ":" + lessonId;
     if (practiceAutoAttemptRef.current === attemptKey) return;
-    practiceAutoAttemptRef.current = attemptKey;
-    if (!practiceQuizData) void handleGeneratePracticeQuiz("generate");
+    const timer = window.setTimeout(() => {
+      if (practiceAutoAttemptRef.current === attemptKey || practiceQuizData) return;
+      practiceAutoAttemptRef.current = attemptKey;
+      void handleGeneratePracticeQuiz("generate");
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [lessonTab, courseId, lessonId, currentLesson?.lesson.type, practiceQuizLoading, practiceQuizData, handleGeneratePracticeQuiz]);
 
 
@@ -683,7 +706,10 @@ export default function CoursePlayer() {
   };
 
 
-  if (loading) {
+  const pageLoading = Boolean(courseId) && loading;
+  const pageError = courseId ? error : "Invalid course";
+
+  if (pageLoading) {
     return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" /></div>;
   }
 
@@ -692,7 +718,7 @@ export default function CoursePlayer() {
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
         <AlertCircle className="mx-auto h-12 w-12 text-slate-400" />
         <h1 className="mt-4 text-2xl font-bold text-slate-900">
-          {error || "Course Not Found"}
+          {pageError || "Course Not Found"}
         </h1>
         <Link to={courseId ? routes.course(courseId) : routes.explore()} className="btn-primary mt-6">
           View Course
@@ -987,9 +1013,9 @@ export default function CoursePlayer() {
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-300">
                         <span>Is this resource useful?</span>
                         <div className="flex gap-2">
-                          <button type="button" disabled={curationFeedbackInFlightRef.current.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentRef.current.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("helpful", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Helpful</button>
-                          <button type="button" disabled={curationFeedbackInFlightRef.current.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentRef.current.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("outdated", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Outdated</button>
-                          <button type="button" disabled={curationFeedbackInFlightRef.current.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentRef.current.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("wrong_level", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Wrong level</button>
+                          <button type="button" disabled={curationFeedbackInFlightKeys.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("helpful", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Helpful</button>
+                          <button type="button" disabled={curationFeedbackInFlightKeys.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("outdated", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Outdated</button>
+                          <button type="button" disabled={curationFeedbackInFlightKeys.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("wrong_level", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Wrong level</button>
                         </div>
                         {curationFeedbackError && (
                           <p role="alert" className="basis-full pt-2 text-xs text-rose-300">
@@ -1646,9 +1672,9 @@ export default function CoursePlayer() {
         </aside>
       </div>
 
-      {error && (
+      {pageError && (
         <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white shadow-lg">
-          {error}
+          {pageError}
         </div>
       )}
     </div>

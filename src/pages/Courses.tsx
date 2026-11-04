@@ -516,6 +516,68 @@ export default function Courses() {
     setAiError(null);
   };
 
+  const loadBuildWithAiPreset = (preset: BuildWithAiPreset) => {
+    const goalByPurpose: Record<string, string> = {
+      career: "job_ready",
+      exam: "exam",
+      freelance: "project",
+      hobby: "learn",
+      career_switch: "job_ready",
+      project: "project"
+    };
+    const goalId = goalByPurpose[preset.purpose] || "learn";
+    const timeLabel: Record<number, string> = {
+      15: "15 min", 30: "30 min", 60: "1 hour", 90: "1.5 hours",
+      120: "2 hours", 180: "3+ hours", 210: "3-4 hours", 240: "4 hours",
+      300: "5+ hours", 360: "6 hours", 480: "8 hours", 720: "12 hours"
+    };
+    const depth = preset.level === "Beginner" ? "broad" : "broad";
+    setAiTopic(preset.topic);
+    setAiCustomGoal(preset.endGoal);
+    setAiKnownSkills(preset.skills.join(", "));
+    setAiLevel(preset.level);
+    setAiLevelTouched(true);
+    setAiGoal(preset.goal);
+    setAiGoalTouched(true);
+    setAiStudyTime(preset.minutesPerDay);
+    setAiStudyDays(preset.daysPerWeek);
+    setAiScope(depth);
+    setAiLanguagePref(preset.language);
+    setAiLessonStyle(preset.learningStyle);
+    setIntentResult(null);
+    setIntentWizardStep(1);
+    setAiError(null);
+    setIntentAnswers({
+      goal: goalId,
+      goalPurpose: preset.purpose,
+      level: preset.level,
+      depth,
+      knownSkills: preset.skills.join(", "),
+      time: timeLabel[preset.minutesPerDay] || "1 hour",
+      language: preset.language,
+      studyDays: preset.daysPerWeek,
+      lessonStyle: preset.learningStyle,
+      ...preset.answers
+    });
+  };
+
+  const tapCount = useMemo(() => {
+    const coreCount = [
+      aiTopic.trim(),
+      aiCustomGoal.trim(),
+      aiKnownSkills.trim(),
+      aiScope,
+      intentPurpose,
+      String(aiStudyTime),
+      aiLessonStyle
+    ].filter(Boolean).length;
+    const coreIds = new Set(["goal", "goalPurpose", "depth", "level", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
+    const additionalAnswers = Object.entries(intentAnswers).filter(([key, value]) =>
+      !coreIds.has(key) && String(value || "").trim().length > 0
+    ).length;
+    return coreCount + additionalAnswers;
+  }, [aiTopic, aiCustomGoal, aiKnownSkills, aiScope, intentPurpose, aiStudyTime, aiLessonStyle, intentAnswers]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("build") !== "1") return;

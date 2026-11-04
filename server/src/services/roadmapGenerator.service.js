@@ -39,7 +39,8 @@ function buildCourse({ path, level }) {
               preferredLanguage: "en"
             }
         },
-        {
+      },
+      {
           id: lessonId(item.id, "project"),
           title: item.practiceProject,
           description: "Apply the concepts from this stage in a practical project.",

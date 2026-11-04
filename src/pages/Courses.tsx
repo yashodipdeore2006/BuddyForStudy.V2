@@ -596,7 +596,10 @@ export default function Courses() {
         ? selectedGoalChoice.purpose
         : inferredGoal === "job_ready" ? "career" : inferredGoal === "exam" ? "exam" : inferredGoal === "project" ? "project" : "hobby");
       const parsedKnownSkills = Array.isArray(profile.knownSkills) ? profile.knownSkills.join(", ") : "";
-      const parsedLanguage = ({ en: "English", hi: "Hindi", mr: "Marathi" } as Record<string, string>)[String(profile.language || "en")] || String(profile.language || "English");
+      const parsedLanguageCode = ["en", "hi", "mr"].includes(String(profile.language || "en"))
+        ? String(profile.language || "en")
+        : "en";
+      const parsedStudyMinutes = Number(profile.minutesPerDay || 60);
       const mergedAnswers: Record<string, string> = {
         role: String(profile.targetRole || ""),
         company: String(profile.targetCompany || ""),
@@ -607,7 +610,7 @@ export default function Courses() {
         depth: String(profile.scope || "broad"),
         level: String(profile.level || aiLevel),
         time: timeLabels[Number(profile.minutesPerDay || 60)] || "1 hour",
-        language: parsedLanguage,
+        language: parsedLanguageCode,
         knownSkills: parsedKnownSkills,
         deadline: String(profile.deadline || ""),
         goal: selectedGoal,
@@ -631,6 +634,8 @@ export default function Courses() {
       });
       if (profile.level && !aiLevelTouched) setAiLevel(profile.level as CourseLevel);
       if (!aiKnownSkills && parsedKnownSkills) setAiKnownSkills(parsedKnownSkills);
+      if (!intentAnswers.time && Number.isFinite(parsedStudyMinutes)) setAiStudyTime(parsedStudyMinutes);
+      if (!intentAnswers.language) setAiLanguagePref(parsedLanguageCode);
       if (profile.preferences?.studyDays && !intentAnswers.studyDays) setAiStudyDays(String(profile.preferences.studyDays));
       if (profile.preferences?.lessonStyle && !intentAnswers.lessonStyle) setAiLessonStyle(String(profile.preferences.lessonStyle));
       const goalValues: Record<string, string> = { job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' };

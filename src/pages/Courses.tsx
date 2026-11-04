@@ -1023,7 +1023,7 @@ export default function Courses() {
                           <p className="font-semibold">We inferred some details. Review or edit them before building.</p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             {(intentResult.assumptions || []).map((assumption) => {
-                              const questionIds: Record<string, string> = { goal: "goal", scope: "depth", level: "level", targetRole: "role", targetCompany: "company", examName: "examType", examDate: "examDate", syllabusText: "syllabus", projectIdea: "projectIdea", minutesPerDay: "time", knownSkills: "knownSkills", language: "language", deadline: "deadline" };
+                              const questionIds: Record<string, string> = { goal: "goal", scope: "depth", targetRole: "role", targetCompany: "company", examName: "examType", examDate: "examDate", syllabusText: "syllabus", projectIdea: "projectIdea", minutesPerDay: "time", knownSkills: "knownSkills", language: "language", deadline: "deadline" };
                               const questionId = questionIds[assumption.field];
                               const label = assumption.field.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
                               const value = Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value);
@@ -1058,6 +1058,18 @@ export default function Courses() {
                           </button>
                         </div>
                       )}
+                      <label htmlFor="ai-level-v2" className="block max-w-xs text-sm font-semibold text-slate-800">
+                        Starting level
+                        <select id="ai-level-v2" value={aiLevel} onChange={(event) => {
+                          const nextLevel = event.target.value as CourseLevel;
+                          setAiLevel(nextLevel);
+                          setIntentAnswers((previous) => ({ ...previous, level: nextLevel }));
+                        }} className="mt-1.5 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900">
+                          <option value="Beginner">New to this</option>
+                          <option value="Intermediate">Know the basics</option>
+                          <option value="Advanced">Experienced — go deeper</option>
+                        </select>
+                      </label>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
                           <span>{Math.min(intentQuestionIndex + 1, activeIntentQuestions.length)} of {activeIntentQuestions.length || 1}</span>

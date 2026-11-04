@@ -437,8 +437,26 @@ export default function Courses() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("build") !== "1") return;
-    setAiTopic(searchQuery.trim() || catalogQuery.trim());
+    const requestedTopic = searchQuery.trim() || catalogQuery.trim();
+    setAiTopic(requestedTopic);
     setAiOpen(true);
+    setAiError(null);
+    setAiRoadmap(null);
+    setIntentResult(null);
+    setIntentAnswers({});
+    setIntentQuestionIndex(0);
+    setIntentWizardStep(1);
+    setAiCustomGoal("");
+    setAiGoal("Build practical skills");
+    setAiGoalTouched(false);
+    setAiLevel("Beginner");
+    setAiLevelTouched(false);
+    setAiStudyTime(60);
+    setAiStudyDays("5");
+    setAiScope("broad");
+    setAiLanguagePref("en");
+    setAiLessonStyle("Project-first");
+    setAiKnownSkills("");
     params.delete("build");
     const remaining = params.toString();
     navigate({ pathname: location.pathname, search: remaining ? "?" + remaining : "" }, { replace: true });
@@ -663,10 +681,12 @@ export default function Courses() {
       return;
     }
     if (intentWasOpenRef.current && intentResult?.valid) {
-      visibleWizardQuestions.forEach((question, index) => trackIntentQuestionEvent(question, "abandoned", index));
+      visibleWizardQuestions
+        .filter((question) => !String(intentAnswers[question.id] || "").trim())
+        .forEach((question, index) => trackIntentQuestionEvent(question, "abandoned", index));
     }
     intentWasOpenRef.current = false;
-  }, [aiOpen, intentResult?.valid, visibleWizardQuestionKey, trackIntentQuestionEvent]);
+  }, [aiOpen, intentResult?.valid, visibleWizardQuestionKey, trackIntentQuestionEvent, intentAnswers]);
   useEffect(() => {
     if (!aiOpen || !intentResult?.valid) return;
     visibleWizardQuestions.forEach((question, index) => trackIntentQuestionEvent(question, "shown", index));
@@ -874,7 +894,7 @@ export default function Courses() {
         level: String(intentAnswers.level || intentResult.profile?.level || aiLevel) as CourseLevel,
         topic,
         goal: selectedGoal,
-        targetRole: String(intentAnswers.role || intentAnswers.targetRole || intentResult.profile?.targetRole || '') || null,
+        targetRole: String(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole || '') || null,
         targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
         examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,
         examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,
@@ -1031,9 +1051,26 @@ export default function Courses() {
               <button
                 type="button"
                 onClick={() => {
-                  setAiTopic(searchQuery.trim() || catalogQuery.trim());
+                  const requestedTopic = searchQuery.trim() || catalogQuery.trim();
+                  setAiTopic(requestedTopic);
                   setAiOpen(true);
                   setAiError(null);
+                  setAiRoadmap(null);
+                  setIntentResult(null);
+                  setIntentAnswers({});
+                  setIntentQuestionIndex(0);
+                  setIntentWizardStep(1);
+                  setAiCustomGoal("");
+                  setAiGoal("Build practical skills");
+                  setAiGoalTouched(false);
+                  setAiLevel("Beginner");
+                  setAiLevelTouched(false);
+                  setAiStudyTime(60);
+                  setAiStudyDays("5");
+                  setAiScope("broad");
+                  setAiLanguagePref("en");
+                  setAiLessonStyle("Project-first");
+                  setAiKnownSkills("");
                 }}
                 disabled={aiLoading}
                 className="btn-secondary h-11 justify-center rounded-xl px-4 disabled:cursor-not-allowed disabled:opacity-60"

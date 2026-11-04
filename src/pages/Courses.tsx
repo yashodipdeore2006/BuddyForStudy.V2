@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, type FormEvent } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -554,7 +554,7 @@ export default function Courses() {
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
-  const trackIntentQuestionEvent = (question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
+  const trackIntentQuestionEvent = useCallback((question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
     if (!session || !aiTopic.trim()) return;
     void apiFetch('/api/intent/events', {
       method: 'POST',
@@ -566,7 +566,7 @@ export default function Courses() {
         position: Math.max(0, Math.min(20, position))
       })
     }).catch(() => {});
-  };
+  }, [session, aiTopic, intentQuestionIndex]);
   const intentWasOpenRef = useRef(false);
   useEffect(() => {
     if (aiOpen) {
@@ -577,11 +577,11 @@ export default function Courses() {
       trackIntentQuestionEvent(currentIntentQuestion, "abandoned", intentQuestionIndex);
     }
     intentWasOpenRef.current = false;
-  }, [aiOpen]);
+  }, [aiOpen, intentResult?.valid, currentIntentQuestion?.id, trackIntentQuestionEvent, intentQuestionIndex]);
   useEffect(() => {
     if (!aiOpen || !intentResult?.valid || !currentIntentQuestion) return;
     trackIntentQuestionEvent(currentIntentQuestion, "shown", intentQuestionIndex);
-  }, [aiOpen, intentResult?.valid, currentIntentQuestion?.id, intentQuestionIndex, aiTopic]);
+  }, [aiOpen, intentResult?.valid, currentIntentQuestion?.id, intentQuestionIndex, trackIntentQuestionEvent]);
   const skipIntentQuestion = () => {
     if (currentIntentQuestion) trackIntentQuestionEvent(currentIntentQuestion, "skipped");
     setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));

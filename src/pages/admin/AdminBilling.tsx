@@ -192,10 +192,10 @@ export default function AdminBilling() {
     await Promise.all([loadRefunds(), loadPayments(), loadIssues(), loadPermissions()]);
   }, [loadRefunds, loadPayments, loadIssues, loadPermissions]);
 
-  useEffect(() => { void loadRefunds(); }, [loadRefunds]);
-  useEffect(() => { void loadPayments(); }, [loadPayments]);
-  useEffect(() => { void loadIssues(); }, [loadIssues]);
-  useEffect(() => { void loadPermissions(); }, [loadPermissions]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadAll(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadAll]);
 
   function openRefundAction(item: Refund, status: "approved" | "rejected") {
     setActionError("");

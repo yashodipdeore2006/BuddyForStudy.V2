@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const intentQuestionEventSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-  topic: { type: String, required: true, maxlength: 200 },
+  topicKey: { type: String, required: true, maxlength: 64 },
   questionId: { type: String, required: true, maxlength: 80 },
   packId: { type: String, default: "core", maxlength: 60 },
   event: { type: String, enum: ["shown", "answered", "skipped", "abandoned"], required: true },

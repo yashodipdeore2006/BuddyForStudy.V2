@@ -37,7 +37,8 @@ jobs:
       - name: Build production app with synthetic canonical site URL
         env:
           VITE_PUBLIC_SITE_URL: "https://buddyforstudy.example"
-          # Exercise the new intake in CI only; production rollout flags remain operator-controlled.
+          # Exercise the adaptive four-step Build with AI wizard and E2E coverage in CI.
+          # Production rollout flags remain separately controlled by Vercel and Render environments.
           VITE_INTENT_V2: "true"
           VITE_ASYNC_ROADMAP: "false"
         run: npm run build

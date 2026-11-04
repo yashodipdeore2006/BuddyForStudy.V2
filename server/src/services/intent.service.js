@@ -181,8 +181,12 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
       const applicableQuestions = normalized.questionPlan.filter((item) => !item.when || item.when === "goal=" + goal);
       normalized.questionPlan = [...safeQuestions, ...applicableQuestions].slice(0, 8);
     }
-    normalized.assumed = Boolean(profile.goal && (confidences.goal ?? 0) < 0.8);
-    if (normalized.assumed) normalized.inferredGoal = profile.goal;
+    const assumptionFields = ["goal", "scope", "level", "knownSkills", "minutesPerDay", "language", "targetRole", "targetCompany", "examName", "examDate", "syllabusText", "projectIdea", "deadline", "outcome"];
+    normalized.assumptions = assumptionFields
+      .filter((field) => (confidences[field] ?? 0) < 0.8 && profile[field] !== null && profile[field] !== undefined && profile[field] !== "" && !(Array.isArray(profile[field]) && profile[field].length === 0))
+      .map((field) => ({ field, value: profile[field] }));
+    normalized.assumed = normalized.assumptions.length > 0;
+    if ((confidences.goal ?? 0) < 0.8 && profile.goal) normalized.inferredGoal = profile.goal;
     if (!normalized.valid) return { ...normalized, profile: null, questionPlan: [], assumed: false, fallback: false };
     await model.updateOne({ normalizedQuery }, { $set: {
       normalizedQuery, result: normalized, createdAt: now, expiresAt: new Date(now.getTime() + TTL_MS)

@@ -12,11 +12,24 @@ import { routes } from "@/lib/routes";
 
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
-type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string };
+type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };
 type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null };
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
+
+function getNicheQuestions(topic: string): IntentQuestion[] {
+  const value = topic.toLowerCase();
+  if (/python|javascript|java|programming|web development|react|node|backend|frontend|full.?stack/.test(value)) return [
+    { id: "buildTarget", type: "single", text: "What do you want to create with this skill?", options: ["Website or web app", "Backend or API", "Mobile app", "Automation or scripts", "Data analysis or AI"], optional: true, why: "The end product determines which frameworks, tools and projects come first.", changes: ["skills", "projects"] },
+    { id: "includeDsa", type: "single", text: "Should this path include interview-style DSA practice?", options: ["Yes, include DSA", "No, focus on building", "A little of both"], optional: true, why: "This controls whether problem-solving and interview practice are included.", changes: ["skills", "assessment"] }
+  ];
+  if (/data analytics|data science|machine learning|artificial intelligence|power bi|excel|sql/.test(value)) return [
+    { id: "targetRole", type: "single", text: "Which outcome best matches your goal?", options: ["Data analyst", "Data scientist", "ML engineer", "AI app builder", "Business intelligence analyst"], optional: true, why: "The target role changes tool sequence and project depth.", changes: ["skills", "projects"] },
+    { id: "mathComfort", type: "single", text: "How comfortable are you with mathematics?", options: ["No maths background", "School-level maths", "College-level maths", "Comfortable with statistics"], optional: true, why: "This sets the prerequisite pace for statistics and model concepts.", changes: ["depth", "schedule"] }
+  ];
+  return [];
+}
 
 const AI_GOAL_OPTIONS = [
   { value: 'Build practical skills', label: 'Build practical skills', description: 'Learn by doing and applying' },
@@ -502,7 +515,9 @@ export default function Courses() {
         body: JSON.stringify({ query }),
         showFeatureUpgrade: true,
       }) as IntentParse;
-      setIntentResult(result);
+      const niche = getNicheQuestions(query);
+      const knownIds = new Set((result.questionPlan || []).map((question) => question.id));
+      setIntentResult({ ...result, questionPlan: [...(result.questionPlan || []), ...niche.filter((question) => !knownIds.has(question.id))].slice(0, 8) });
       setIntentQuestionIndex(0);
       setIntentAnswers({});
       if (!result.valid) {
@@ -526,7 +541,7 @@ export default function Courses() {
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
     !(question.id === 'goal' && Boolean(intentAnswers.goal)) &&
     (!question.when || question.when === 'goal=' + intentGoal)
-  );
+  ).slice(0, 8);
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
   const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   const chooseIntentOption = (question: IntentQuestion, value: string) => {
@@ -601,7 +616,9 @@ export default function Courses() {
         scope: intentAnswers.depth ? (intentAnswers.depth === 'broad' || intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
         minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
-        knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50)
+        knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
+        outcome: aiCustomGoal.trim(),
+        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
         topic,
@@ -935,9 +952,10 @@ export default function Courses() {
                       {currentIntentQuestion ? (
                         <section className="space-y-3" aria-live="polite">
                           <h3 className="text-base font-bold text-slate-950">{currentIntentQuestion.text}</h3>
+                          {currentIntentQuestion.why && <p className="text-xs text-slate-500">Why we ask: {currentIntentQuestion.why} <span className="font-medium">Changes: {(currentIntentQuestion.changes || []).join(', ')}</span></p>}
                           {currentIntentQuestion.options?.length ? (
                             <div className="flex flex-wrap gap-2">
-                              {currentIntentQuestion.options.map((option) => (
+                              {[...currentIntentQuestion.options, 'Not sure, pick for me'].slice(0, 7).map((option) => (
                                 <button key={option} type="button" onClick={() => chooseIntentOption(currentIntentQuestion, option)} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-violet-500 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30">{option}</button>
                               ))}
                             </div>

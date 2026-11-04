@@ -673,7 +673,9 @@ export default function Courses() {
         "Create a project or deliverable": { goal: "project", purpose: "project" },
         "Build practical skills": { goal: "learn", purpose: "hobby" },
         "Master the fundamentals": { goal: "learn", purpose: "hobby" },
-        "Explore a personal interest": { goal: "learn", purpose: "hobby" }
+        "Explore a personal interest": { goal: "learn", purpose: "hobby" },
+        "Freelancing": { goal: "project", purpose: "freelance" },
+        "Career switch": { goal: "job_ready", purpose: "career_switch" }
       };
       const selectedGoalChoice = goalChoices[aiGoal] || goalChoices["Build practical skills"];
       const inferredGoal = String(profile.goal || result.inferredGoal || "learn");
@@ -744,8 +746,8 @@ export default function Courses() {
   ).slice(0, 8);
   const purposeQuestionIds = new Set([
     "role", "company", "targetRole", "companyType", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
-    "portfolioStatus", "clientAcquisition", "freelancePortfolio", "freelanceService",
-    "switchExperience", "switchTarget", "examPreparationType", "examTimeline",
+    "portfolioStatus", "clientAcquisition", "freelanceClient", "freelancePortfolio", "freelanceService",
+    "switchExperience", "switchTarget", "currentBackground", "examPreparationType", "examTimeline",
     "projectAudience", "hobbyFocus", "learningMotivation"
   ]);
   const purposeIntentQuestions = activeIntentQuestions.filter((question) => purposeQuestionIds.has(question.id));
@@ -756,8 +758,8 @@ export default function Courses() {
     if (!session || !aiTopic.trim()) return;
     const purposeQuestion = [
       "role", "company", "targetRole", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
-      "portfolioStatus", "clientAcquisition", "freelancePortfolio", "freelanceService",
-      "switchExperience", "switchTarget", "examPreparationType", "examTimeline", "projectAudience",
+      "portfolioStatus", "clientAcquisition", "freelanceClient", "freelancePortfolio", "freelanceService",
+      "switchExperience", "switchTarget", "currentBackground", "examPreparationType", "examTimeline", "projectAudience",
       "hobbyFocus", "learningMotivation"
     ].includes(question.id);
     void apiFetch('/api/intent/events', {
@@ -778,7 +780,7 @@ export default function Courses() {
     });
   };
   const assumptionFieldForQuestion: Record<string, string> = {
-    goal: "goal", depth: "scope", role: "targetRole", company: "targetCompany",
+    goal: "goal", depth: "scope", role: "targetRole", targetRole: "targetRole", company: "targetCompany",
     examType: "examName", examDate: "examDate", syllabus: "syllabusText",
     projectIdea: "projectIdea", time: "minutesPerDay", language: "language",
     knownSkills: "knownSkills", deadline: "deadline"
@@ -1012,7 +1014,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: boundedProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline, 40) || null,
-        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'companyType', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key]).slice(0, 500)]))
+        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'companyType', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelanceClient', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'currentBackground', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key]).slice(0, 500)]))
       } : undefined;
       const profile = {
         topic,

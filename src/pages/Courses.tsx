@@ -607,8 +607,8 @@ export default function Courses() {
         examDate: String(profile.examDate || ""),
         syllabus: String(profile.syllabusText || ""),
         projectIdea: String(profile.projectIdea || ""),
-        depth: String(profile.scope || "broad"),
-        level: String(profile.level || aiLevel),
+        depth: intentAnswers.depth || (Number(result.confidences?.scope ?? 0) >= 0.8 ? String(profile.scope || aiScope) : aiScope),
+        level: intentAnswers.level || (Number(result.confidences?.level ?? 0) >= 0.8 ? String(profile.level || aiLevel) : aiLevel),
         time: timeLabels[Number(profile.minutesPerDay || 60)] || "1 hour",
         language: parsedLanguageCode,
         knownSkills: parsedKnownSkills,
@@ -666,18 +666,24 @@ export default function Courses() {
   const nicheIntentQuestions = activeIntentQuestions.filter((question) => !purposeQuestionIds.has(question.id) && !coreQuestionIds.has(question.id));
   const visibleWizardQuestions = intentWizardStep === 2 ? purposeIntentQuestions : intentWizardStep === 3 ? nicheIntentQuestions : [];
   const visibleWizardQuestionKey = visibleWizardQuestions.map((question) => question.id).join("|");
-  const trackIntentQuestionEvent = useCallback((question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
+  const trackIntentQuestionEvent = useCallback((question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = Math.max(0, (intentResult?.questionPlan || []).findIndex((item) => item.id === question.id))) => {
     if (!session || !aiTopic.trim()) return;
+    const purposeQuestion = [
+      "role", "company", "targetRole", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
+      "portfolioStatus", "clientAcquisition", "freelancePortfolio", "freelanceService",
+      "switchExperience", "switchTarget", "examPreparationType", "examTimeline", "projectAudience",
+      "hobbyFocus", "learningMotivation"
+    ].includes(question.id);
     void apiFetch('/api/intent/events', {
       method: 'POST',
       body: JSON.stringify({
         questionId: question.id,
-        packId: question.id.startsWith('domain_') ? 'dynamic_domain' : 'core_or_niche',
+        packId: purposeQuestion ? `purpose_${intentPurpose}` : `domain_${intentResult?.domain || "general"}`,
         event,
         position: Math.max(0, Math.min(20, position))
       })
     }).catch(() => {});
-  }, [session, aiTopic, intentQuestionIndex]);
+  }, [session, aiTopic, intentResult?.questionPlan, intentPurpose, intentResult?.domain]);
   const clearIntentAssumption = (field: string) => {
     setIntentResult((current) => {
       if (!current?.assumptions?.length) return current;
@@ -720,7 +726,7 @@ export default function Courses() {
         } else if (question.id === "depth") next.depth = "narrow";
         else if (question.id === "language") next.language = "en";
         else if (question.id === "time") next.time = "1 hour";
-        else next[question.id] = "";
+        else next[question.id] = "Not sure, pick for me";
         return next;
       });
       if (advance) {
@@ -773,7 +779,7 @@ export default function Courses() {
   };
 
   const isIntentOptionSelected = (question: IntentQuestion, option: string) => {
-    if (option === "Not sure, pick for me") return false;
+    if (option === "Not sure, pick for me") return String(intentAnswers[question.id] || "") === option;
     if (question.id === "knownSkills") return String(intentAnswers.knownSkills || "").split(",").map((item) => item.trim()).includes(option);
     if (question.id === "goal") {
       const purpose = String(intentAnswers.goalPurpose || "");
@@ -906,23 +912,27 @@ export default function Courses() {
     try {
       const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn');
       const legacyGoal = ({ job_ready: 'Career or work growth', exam: 'Exam or certification', project: 'Create something', learn: 'Build practical skills' } as Record<string, string>)[selectedGoal] || aiGoal;
+      const cleanProfileAnswer = (value: unknown) => {
+        const answer = String(value ?? "").trim();
+        return answer === "Not sure, pick for me" ? "" : answer;
+      };
       const intentProfile = INTENT_V2 && intentResult?.valid ? {
         ...intentResult.profile,
         level: String(intentAnswers.level || intentResult.profile?.level || aiLevel) as CourseLevel,
         topic,
         goal: selectedGoal,
-        targetRole: String(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole || '') || null,
-        targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
-        examName: String(intentAnswers.examType || intentAnswers.targetExamName || intentResult.profile?.examName || '') || null,
-        examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,
-        syllabusText: String(intentAnswers.syllabus ?? intentResult.profile?.syllabusText ?? '') || null,
-        projectIdea: String(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea ?? '') || null,
+        targetRole: cleanProfileAnswer(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole) || null,
+        targetCompany: cleanProfileAnswer(intentAnswers.company ?? intentResult.profile?.targetCompany) || null,
+        examName: cleanProfileAnswer(intentAnswers.examType || intentAnswers.targetExamName || intentResult.profile?.examName) || null,
+        examDate: cleanProfileAnswer(intentAnswers.examDate ?? intentResult.profile?.examDate) || null,
+        syllabusText: cleanProfileAnswer(intentAnswers.syllabus ?? intentResult.profile?.syllabusText) || null,
+        projectIdea: cleanProfileAnswer(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea) || null,
         scope: intentAnswers.depth ? (intentAnswers.depth === 'broad' || intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
         minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180, '3-4 hours': 210, '5+ hours': 300 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
-        deadline: String(intentAnswers.deadline ?? intentResult.profile?.deadline ?? '') || null,
+        deadline: cleanProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline) || null,
         preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
@@ -1455,8 +1465,11 @@ export default function Courses() {
                               }}
                               className="mt-1.5 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900"
                             >
+                              <option value={15}>15 Minutes / day</option>
+                              <option value={30}>30 Minutes / day</option>
                               <option value={60}>1 Hour / day</option>
                               <option value={120}>2 Hours / day</option>
+                              <option value={180}>3+ Hours / day</option>
                               <option value={210}>3–4 Hours / day</option>
                               <option value={300}>Full-time (5+ hrs)</option>
                             </select>

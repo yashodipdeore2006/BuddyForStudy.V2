@@ -533,10 +533,16 @@ export default function Courses() {
       const retiredIds = Array.isArray(retired.retiredQuestionIds) ? retired.retiredQuestionIds : [];
       setRetiredIntentQuestionIds(retiredIds);
       const alreadyAnswered = (questionId: string) => {
-        const preferences = result.profile?.preferences || {};
+        const profile = result.profile || {};
+        const preferences = profile.preferences || {};
         if (preferences[questionId] !== undefined && String(preferences[questionId]).trim()) return true;
-        if (questionId === "targetRole" && result.profile?.targetRole) return true;
-        if (questionId === "deadline" && result.profile?.deadline) return true;
+        if (["role", "targetRole", "aiRole"].includes(questionId) && profile.targetRole) return true;
+        if (["company", "targetCompany"].includes(questionId) && profile.targetCompany) return true;
+        if (["examType", "targetExamName"].includes(questionId) && profile.examName) return true;
+        if (questionId === "examDate" && profile.examDate) return true;
+        if (questionId === "syllabus" && profile.syllabusText) return true;
+        if (questionId === "projectIdea" && profile.projectIdea) return true;
+        if (questionId === "deadline" && profile.deadline) return true;
         return false;
       };
       const niche = getNicheQuestions(query).filter((question) => !retiredIds.includes(question.id) && !alreadyAnswered(question.id));
@@ -867,7 +873,7 @@ export default function Courses() {
           <div className="space-y-2">
             <textarea
               rows={question.type === "paste" ? 5 : 2}
-              maxLength={question.id === "syllabus" ? 20000 : 1200}
+              maxLength={question.id === "syllabus" ? 20000 : question.id === "projectIdea" ? 200 : ["role", "targetRole", "company", "examType", "targetExamName", "examDate", "deadline", "switchTarget", "interviewDate"].includes(question.id) ? 120 : 500}
               value={currentAnswer}
               onChange={(event) => {
                 setIntentAnswers((previous) => ({ ...previous, [question.id]: event.target.value }));
@@ -916,24 +922,25 @@ export default function Courses() {
         const answer = String(value ?? "").trim();
         return answer === "Not sure, pick for me" ? "" : answer;
       };
+      const boundedProfileAnswer = (value: unknown, maxLength: number) => cleanProfileAnswer(value).slice(0, maxLength);
       const intentProfile = INTENT_V2 && intentResult?.valid ? {
         ...intentResult.profile,
         level: String(intentAnswers.level || intentResult.profile?.level || aiLevel) as CourseLevel,
         topic,
         goal: selectedGoal,
-        targetRole: cleanProfileAnswer(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole) || null,
-        targetCompany: cleanProfileAnswer(intentAnswers.company ?? intentResult.profile?.targetCompany) || null,
-        examName: cleanProfileAnswer(intentAnswers.examType || intentAnswers.targetExamName || intentResult.profile?.examName) || null,
-        examDate: cleanProfileAnswer(intentAnswers.examDate ?? intentResult.profile?.examDate) || null,
-        syllabusText: cleanProfileAnswer(intentAnswers.syllabus ?? intentResult.profile?.syllabusText) || null,
-        projectIdea: cleanProfileAnswer(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea) || null,
+        targetRole: boundedProfileAnswer(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole, 120) || null,
+        targetCompany: boundedProfileAnswer(intentAnswers.company ?? intentResult.profile?.targetCompany, 120) || null,
+        examName: boundedProfileAnswer(intentAnswers.examType || intentAnswers.targetExamName || intentResult.profile?.examName, 120) || null,
+        examDate: boundedProfileAnswer(intentAnswers.examDate ?? intentResult.profile?.examDate, 40) || null,
+        syllabusText: boundedProfileAnswer(intentAnswers.syllabus ?? intentResult.profile?.syllabusText, 20000) || null,
+        projectIdea: boundedProfileAnswer(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea, 200) || null,
         scope: intentAnswers.depth ? (intentAnswers.depth === 'broad' || intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
         minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180, '3-4 hours': 210, '5+ hours': 300 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
-        deadline: cleanProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline) || null,
-        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
+        deadline: boundedProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline, 40) || null,
+        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key]).slice(0, 500)]))
       } : undefined;
       const profile = {
         topic,

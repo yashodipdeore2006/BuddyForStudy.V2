@@ -556,8 +556,8 @@ export default function Courses() {
         { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
       const parsedGoal = String(result.profile?.goal || result.inferredGoal || "learn");
-      const selectedPurpose = String(intentAnswers.goalPurpose || (parsedGoal === "job_ready" ? "career" : parsedGoal === "exam" ? "exam" : parsedGoal === "project" ? "project" : "hobby"));
-      const purposePacks = getPurposeQuestions(selectedPurpose).filter((question) => !retiredIds.includes(question.id) && !alreadyAnswered(question.id));
+      const purposePackId = String(intentAnswers.goalPurpose || (parsedGoal === "job_ready" ? "career" : parsedGoal === "exam" ? "exam" : parsedGoal === "project" ? "project" : "hobby"));
+      const purposePacks = getPurposeQuestions(purposePackId).filter((question) => !retiredIds.includes(question.id) && !alreadyAnswered(question.id));
       const selectedPackQuestionIds = new Set([...purposePacks, ...niche].map((question) => question.id));
       const merged = [
         ...purposePacks,

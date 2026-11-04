@@ -691,6 +691,12 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     return true;
   });
 
+  const lessonStyle = String(intentProfile?.preferences?.lessonStyle || "");
+  const styleDuration = lessonStyle.startsWith("Short videos")
+    ? { minMinutes: 15, targetMinutes: 30, maxMinutes: 60 }
+    : lessonStyle.startsWith("Long, detailed")
+      ? { minMinutes: 90, targetMinutes: 180, maxMinutes: 360 }
+      : null;
   const modules = [];
   let globalOrder = 1;
 
@@ -717,15 +723,15 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
           searchQueries: [query, ...skill.searchQueries.filter((item) => item !== query)].slice(0, 3),
           requiredTopics: topicChunk,
           durationMinutes: {
-            minMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
-            targetMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
-            maxMinutes: Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length))
+            minMinutes: styleDuration?.minMinutes ?? Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
+            targetMinutes: styleDuration?.targetMinutes ?? Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
+            maxMinutes: styleDuration?.maxMinutes ?? Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length))
           },
           searchPolicy: {
             contentType: "complete-course",
-            minDurationMinutes: Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
-            targetDurationMinutes: Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
-            maxDurationMinutes: Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length)),
+            minDurationMinutes: styleDuration?.minMinutes ?? Math.max(30, Math.round(skill.courseDuration.minMinutes / topicChunks.length)),
+            targetDurationMinutes: styleDuration?.targetMinutes ?? Math.max(45, Math.round(skill.courseDuration.targetMinutes / topicChunks.length)),
+            maxDurationMinutes: styleDuration?.maxMinutes ?? Math.max(60, Math.round(skill.courseDuration.maxMinutes / topicChunks.length)),
             excludeShorts: true,
             requireEmbeddable: true,
             preferProjectBased: true,

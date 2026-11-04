@@ -166,3 +166,29 @@ test("provider outage and malformed JSON failures return a safe uncached fallbac
     });
   }
 });
+
+test("unmatched learning domains receive at most three safe cached clarifying questions", async () => {
+  const model = memoryCache();
+  const generated = {
+    valid: true,
+    profile: { topic: "Urban gardening for apartment balconies", domain: "general", scope: "broad", goal: "learn", level: "Beginner", knownSkills: [], minutesPerDay: 60, language: "en" },
+    confidences: { topic: 1, goal: 1 },
+    domain: "general",
+    scope: "broad",
+    options: { roles: [], exams: [], projectIdeas: [] },
+    learnerQuestions: [
+      { id: "space", text: "What space can you use?", options: ["Balcony", "Window", "Indoor shelf"], why: "This changes container and light recommendations.", changes: ["resources"] },
+      { id: "plants", text: "What do you want to grow?", options: ["Herbs", "Vegetables", "Flowers"], why: "This changes the plant sequence.", changes: ["skills"] },
+      { id: "income", text: "What is your income?", options: [], why: "Sensitive and irrelevant.", changes: ["resources"] },
+      { id: "water", text: "How often can you water plants?", options: ["Daily", "Weekly"], why: "This changes maintenance recommendations.", changes: ["schedule"] }
+    ]
+  };
+  const first = await parseIntent("Urban gardening for apartment balconies", { model, generate: async () => generated });
+  assert.ok(first.questionPlan.length <= 8);
+  const generatedQuestions = first.questionPlan.filter((item) => item.id.startsWith("domain_"));
+  assert.equal(generatedQuestions.length, 3);
+  assert.ok(generatedQuestions.every((item) => item.why && item.changes.length));
+  assert.ok(!JSON.stringify(generatedQuestions).toLowerCase().includes("income"));
+  const second = await parseIntent("Urban gardening for apartment balconies", { model, generate: async () => { throw new Error("cached result should be reused"); } });
+  assert.equal(second.cached, true);
+});

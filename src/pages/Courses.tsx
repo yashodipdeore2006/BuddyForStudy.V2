@@ -554,6 +554,17 @@ export default function Courses() {
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
+  const intentWasOpenRef = useRef(false);
+  useEffect(() => {
+    if (aiOpen) {
+      intentWasOpenRef.current = true;
+      return;
+    }
+    if (intentWasOpenRef.current && intentResult?.valid && currentIntentQuestion) {
+      trackIntentQuestionEvent(currentIntentQuestion, "abandoned", intentQuestionIndex);
+    }
+    intentWasOpenRef.current = false;
+  }, [aiOpen]);
   const trackIntentQuestionEvent = (question: IntentQuestion, event: "shown" | "answered" | "skipped" | "abandoned", position = intentQuestionIndex) => {
     if (!session || !aiTopic.trim()) return;
     void apiFetch('/api/intent/events', {
@@ -570,7 +581,7 @@ export default function Courses() {
   useEffect(() => {
     if (!aiOpen || !intentResult?.valid || !currentIntentQuestion) return;
     trackIntentQuestionEvent(currentIntentQuestion, "shown", intentQuestionIndex);
-  }, [aiOpen, intentResult?.valid, currentIntentQuestion?.id, intentQuestionIndex]);
+  }, [aiOpen, intentResult?.valid, currentIntentQuestion?.id, intentQuestionIndex, aiTopic]);
   const skipIntentQuestion = () => {
     if (currentIntentQuestion) trackIntentQuestionEvent(currentIntentQuestion, "skipped");
     setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
@@ -956,7 +967,7 @@ export default function Courses() {
               </div>
               <button
                 type="button"
-                onClick={() => { if (currentIntentQuestion) trackIntentQuestionEvent(currentIntentQuestion, "abandoned"); setAiOpen(false); }}
+                onClick={() => setAiOpen(false)}
                 disabled={aiLoading}
                 className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
                 aria-label="Close AI learning planner"

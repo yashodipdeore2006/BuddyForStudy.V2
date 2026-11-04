@@ -60,7 +60,7 @@ function courseLessonCount(course: Course): number | null {
   return Number.isFinite(course.lesson_count) ? Number(course.lesson_count) : null;
 }
 
-export default function CourseCard({
+function CourseCardContent({
   course,
   variant = "catalog",
   reason,
@@ -87,11 +87,6 @@ export default function CourseCard({
   const [saved, setSaved] = useState(initiallySaved);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [enrollmentState, setEnrollmentState] = useState<EnrollmentState>(
-    initiallyCompleted ? "completed" : initiallyEnrolled ? "active" : "not-enrolled",
-  );
-  const [progress, setProgress] = useState(Math.max(0, Math.min(100, progressPercentage ?? 0)));
-  const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const [actionNotice, setActionNotice] = useState("");
   const [shareNotice, setShareNotice] = useState("");
@@ -111,11 +106,7 @@ export default function CourseCard({
 
   useEffect(() => {
     let active = true;
-    setSaved(initiallySaved);
-    if (!session?.user?.id) {
-      setEnrollmentState(initiallyCompleted ? "completed" : initiallyEnrolled ? "active" : "not-enrolled");
-      return () => { active = false; };
-    }
+    if (!session?.user?.id) return () => { active = false; };
     apiFetch("/api/saved-courses")
       .then((data) => {
         if (!active) return;
@@ -126,15 +117,19 @@ export default function CourseCard({
         if (active) setActionError("Saved status is temporarily unavailable.");
       });
     return () => { active = false; };
-  }, [course.id, initiallyCompleted, initiallyEnrolled, initiallySaved, session?.user?.id]);
+  }, [course.id, initiallySaved, session?.user?.id]);
 
-  useEffect(() => {
-    if (courseState.loading) return;
-    setEnrollmentState(courseState.isCompleted ? "completed" : courseState.isEnrolled ? "active" : "not-enrolled");
-    setProgress(courseState.progressPct);
-    setNextLessonId(courseState.nextLessonId);
-    if (courseState.error) setActionError(courseState.error);
-  }, [courseState.loading, courseState.isCompleted, courseState.isEnrolled, courseState.progressPct, courseState.nextLessonId, courseState.error, lessonCount]);
+  const initialEnrollmentState: EnrollmentState = initiallyCompleted
+    ? "completed"
+    : initiallyEnrolled ? "active" : "not-enrolled";
+  const enrollmentState: EnrollmentState = !session?.user?.id || courseState.loading
+    ? initialEnrollmentState
+    : courseState.isCompleted ? "completed" : courseState.isEnrolled ? "active" : "not-enrolled";
+  const progress = !session?.user?.id || courseState.loading
+    ? Math.max(0, Math.min(100, progressPercentage ?? 0))
+    : courseState.progressPct;
+  const nextLessonId = session?.user?.id && !courseState.loading ? courseState.nextLessonId : null;
+  const displayedActionError = actionError || courseState.error || "";
 
   // Missing/unknown pricing must not make a course look free. The card still opens details for review.
   const paid = course.pricing?.mode !== "free";
@@ -337,7 +332,7 @@ export default function CourseCard({
 
       </div>
 
-      {actionError && <div className="bfs-course-card__error" role="alert"><span>{actionError}</span>{courseState.error && <button type="button" className="bfs-course-card__undo" onClick={() => { setActionError(""); setCourseStateRetry((value) => value + 1); }} disabled={courseState.loading}>{USER_INTENTS.retry.label}</button>}</div>}
+      {displayedActionError && <div className="bfs-course-card__error" role="alert"><span>{displayedActionError}</span>{courseState.error && <button type="button" className="bfs-course-card__undo" onClick={() => { setActionError(""); setCourseStateRetry((value) => value + 1); }} disabled={courseState.loading}>{USER_INTENTS.retry.label}</button>}</div>}
       {actionNotice && <div className="bfs-course-card__status" role="status">{actionNotice}{undoSavedTo !== null && <button type="button" className="bfs-course-card__undo" onClick={() => void handleUndoSave()} disabled={saving}>{USER_INTENTS.undo.label}</button>}</div>}
       {shareNotice && <div className="bfs-course-card__status" role="status">{shareNotice}</div>}
       <div className="bfs-course-card__action-row">
@@ -365,6 +360,13 @@ export default function CourseCard({
   );
 }
 
+
+
+export default function CourseCard(props: CourseCardProps) {
+  const { session } = useAuth();
+  const identity = String(props.course.id) + ":" + (session?.user?.id || "anonymous");
+  return <CourseCardContent key={identity} {...props} />;
+}
 
 /**
  * Loading placeholder for all CourseCard variants.

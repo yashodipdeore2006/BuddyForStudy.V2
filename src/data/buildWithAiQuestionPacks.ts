@@ -107,31 +107,46 @@ export const buildWithAiQuestionPacks: QuestionPack[] = [
 
 export const buildWithAiPurposePacks: Record<string, BuildWithAiQuestion[]> = {
   career: [
-    { id: "targetRole", type: "text", text: "Which job role are you targeting?", optional: true, when: "purpose=career", why: "A concrete target role makes the skill sequence, portfolio projects and interview plan more relevant.", changes: ["skills", "interview module", "projects"] },
-    { id: "companyType", type: "single", text: "Which company environment are you aiming for?", options: ["Early-stage startup", "Mid-sized product company", "MNC / Big Tech", "Enterprise / consulting", "Remote global company", "Not sure, pick for me"], optional: true, when: "purpose=career", why: "Hiring expectations and project depth vary across company environments.", changes: ["interview focus", "portfolio standard"] },
-    { id: "jobTimeline", type: "single", text: "Do you have an upcoming interview or target date?", options: ["Within 1 month (crash course)", "1–3 months", "3–6 months", "No strict deadline"], optional: true, when: "purpose=career", why: "This controls schedule density and when mock interviews are introduced.", changes: ["pacing", "schedule"] },
-    { id: "portfolioStatus", type: "single", text: "What best describes your project portfolio?", options: ["I have no portfolio yet", "I have practice projects", "I have deployed projects", "I have professional experience"], optional: true, when: "purpose=career", why: "Portfolio status determines which practical deliverables are most useful.", changes: ["projects"] }
-  ],
-  freelance: [
-    { id: "clientAcquisition", type: "single", text: "Where do you plan to acquire clients?", options: ["Marketplaces (Upwork / Fiverr)", "Direct outreach / cold email", "Local businesses", "Personal brand / social media"], optional: true, when: "purpose=freelance", why: "This tailors lessons around platform optimization, outreach and client proposals.", changes: ["client skills", "proposal templates"] },
-    { id: "freelancePortfolio", type: "single", text: "Do you already have showcase projects?", options: ["No, need to build from scratch", "Have basic ones, need polishing", "Yes, need specialized case studies"], optional: true, when: "purpose=freelance", why: "This determines the portfolio milestones and case-study depth.", changes: ["portfolio milestones", "project weight"] },
-    { id: "freelanceService", type: "single", text: "Which service do you want to offer to clients?", options: ["Web or app development", "Design", "Data and automation", "Marketing", "Writing or content", "Not sure yet"], optional: true, when: "purpose=freelance", why: "This focuses the roadmap on a sellable service and relevant portfolio work.", changes: ["skills", "projects"] }
-  ],
-  career_switch: [
-    { id: "switchExperience", type: "single", text: "What experience can you build on?", options: ["Student or recent graduate", "Some professional experience", "Experienced in another field", "Returning to work"], optional: true, when: "purpose=career_switch", why: "Transferable experience helps avoid starting from zero unnecessarily.", changes: ["skills", "depth"] },
-    { id: "switchTarget", type: "text", text: "Which role or field do you want to move into?", optional: true, when: "purpose=career_switch", why: "A clear destination makes the transition roadmap more specific.", changes: ["skills", "projects"] }
+    { id: "targetRole", type: "single", text: "What is your target role and company type?", options: ["Entry-level (Tech Startup)", "Mid / Senior (Enterprise)", "MNC / Big Tech", "Remote Global Job"], allowText: true, optional: true, when: "purpose=career", why: "Helps align your portfolio projects and interview-preparation modules with your target role.", changes: ["interview module", "DSA / aptitude priority"] },
+    { id: "jobTimeline", type: "single", text: "Do you have an upcoming interview or target date?", options: ["Within 1 month (crash course)", "1–3 months", "3–6 months", "No strict deadline"], optional: true, when: "purpose=career", why: "Determines daily study load, schedule density and mock-interview placement.", changes: ["pacing", "schedule density"] }
   ],
   exam: [
-    { id: "examPreparationType", type: "single", text: "What is the status of your preparation?", options: ["First attempt (full syllabus)", "Retake / revision only", "Mock test and practice focused"], optional: true, when: "purpose=exam", why: "This determines whether the path covers full theory or prioritizes revision and practice papers.", changes: ["syllabus mapping", "revision blocks"] },
-    { id: "examTimeline", type: "single", text: "When is your target exam date?", options: ["Less than 30 days", "1 to 3 months", "6+ months away"], optional: true, when: "purpose=exam", why: "This controls the revision schedule and mock-test frequency.", changes: ["backward schedule", "mock frequency"] }
+    { id: "examPreparationType", type: "single", text: "What is the status of your preparation?", options: ["First attempt (full syllabus)", "Retake / revision only", "Mock test and practice focused"], optional: true, when: "purpose=exam", why: "Determines whether the roadmap covers the full theory or prioritizes revision and practice papers.", changes: ["syllabus mapping", "revision blocks"] },
+    { id: "examTimeline", type: "single", text: "When is your target exam date?", options: ["Less than 30 days", "1 to 3 months", "6+ months away"], optional: true, when: "purpose=exam", why: "Controls the backward study schedule, revision frequency and mock-test cadence.", changes: ["backward schedule", "mock frequency"] }
   ],
-  project: [
-    { id: "projectAudience", type: "single", text: "Who is this project for?", options: ["Personal portfolio", "College or academic submission", "A real client or business", "A startup or product idea"], optional: true, when: "purpose=project", why: "Audience determines scope, quality bar and delivery requirements.", changes: ["projects", "assessment"] }
+  freelance: [
+    { id: "freelanceClient", type: "single", text: "Where do you plan to acquire clients?", options: ["Marketplaces (Upwork / Fiverr)", "Direct outreach / cold email", "Local businesses", "Personal brand / social media"], optional: true, when: "purpose=freelance", why: "Tailors lessons around platform optimization, outreach, pricing concepts and client proposals.", changes: ["client skills", "proposal templates"] },
+    { id: "freelancePortfolio", type: "single", text: "Do you already have showcase projects?", options: ["No, need to build from scratch", "Have basic ones, need polishing", "Yes, need specialized case studies"], optional: true, when: "purpose=freelance", why: "Determines portfolio milestones and how much weight to place on case-study projects.", changes: ["portfolio milestones", "project weight"] }
   ],
   hobby: [
-    { id: "hobbyFocus", type: "single", text: "Which aspect excites you the most?", options: ["Fun projects fast", "Deep master-class theory", "Creative experimentation", "Relaxed casual pace"], optional: true, when: "purpose=hobby", why: "This keeps learning enjoyable without adding unnecessary academic pressure.", changes: ["resource style", "practice rigor"] }
+    { id: "hobbyFocus", type: "single", text: "Which aspect excites you the most?", options: ["Fun projects fast", "Deep master-class theory", "Creative experimentation", "Relaxed casual pace"], optional: true, when: "purpose=hobby", why: "Keeps learning enjoyable without adding unnecessary academic pressure or burnout.", changes: ["resource style", "practice rigor"] }
+  ],
+  career_switch: [
+    { id: "currentBackground", type: "single", text: "What is your current background or toolset?", options: ["Non-technical background", "Tech-adjacent (QA, Support, PM)", "Different engineering discipline", "Excel / Data background"], allowText: true, optional: true, when: "purpose=career_switch", why: "Helps identify transferable skills and bridge only the concepts you still need.", changes: ["bridge module", "transferable skills"] }
+  ],
+  project: [
+    { id: "projectAudience", type: "single", text: "Who is this project for?", options: ["Personal portfolio", "College or academic submission", "A real client or business", "A startup or product idea"], optional: true, when: "purpose=project", why: "Audience determines the scope, quality bar and delivery requirements.", changes: ["projects", "assessment"] }
   ]
 };
+
+const NICHE_PACK_LABELS: Record<string, string> = {
+  programming_web: "Programming & Web Dev",
+  ai_data: "AI, Data & Machine Learning",
+  marketing: "Digital Marketing & Business",
+  personal_finance: "Personal Finance & Investing",
+  design_media: "Design, Video & Photography",
+  music_art: "Music & Creative Arts",
+  language_learning: "Languages & Exam Prep",
+  cloud_it: "IT Certifications, Cloud & Security",
+  academics: "School & Entrance Exams",
+  office_skills: "Office Productivity & Tools",
+  fitness_wellness: "Health, Fitness & Wellness"
+};
+
+export function getNichePackName(topic: string): string {
+  const matching = buildWithAiQuestionPacks.find((pack) => pack.match.test(String(topic || "")));
+  return matching ? NICHE_PACK_LABELS[matching.id] || matching.id : "AI Custom Domain Pack";
+}
 
 export function getPurposeQuestions(purpose: string): BuildWithAiQuestion[] {
   return buildWithAiPurposePacks[purpose] || [];

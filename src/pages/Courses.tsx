@@ -9,6 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
+import { getNicheQuestions } from "@/data/buildWithAiQuestionPacks";
 
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
@@ -17,19 +18,6 @@ type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broa
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
-
-function getNicheQuestions(topic: string): IntentQuestion[] {
-  const value = topic.toLowerCase();
-  if (/python|javascript|java|programming|web development|react|node|backend|frontend|full.?stack/.test(value)) return [
-    { id: "buildTarget", type: "single", text: "What do you want to create with this skill?", options: ["Website or web app", "Backend or API", "Mobile app", "Automation or scripts", "Data analysis or AI"], optional: true, why: "The end product determines which frameworks, tools and projects come first.", changes: ["skills", "projects"] },
-    { id: "includeDsa", type: "single", text: "Should this path include interview-style DSA practice?", options: ["Yes, include DSA", "No, focus on building", "A little of both"], optional: true, why: "This controls whether problem-solving and interview practice are included.", changes: ["skills", "assessment"] }
-  ];
-  if (/data analytics|data science|machine learning|artificial intelligence|power bi|excel|sql/.test(value)) return [
-    { id: "targetRole", type: "single", text: "Which outcome best matches your goal?", options: ["Data analyst", "Data scientist", "ML engineer", "AI app builder", "Business intelligence analyst"], optional: true, why: "The target role changes tool sequence and project depth.", changes: ["skills", "projects"] },
-    { id: "mathComfort", type: "single", text: "How comfortable are you with mathematics?", options: ["No maths background", "School-level maths", "College-level maths", "Comfortable with statistics"], optional: true, why: "This sets the prerequisite pace for statistics and model concepts.", changes: ["depth", "schedule"] }
-  ];
-  return [];
-}
 
 const AI_GOAL_OPTIONS = [
   { value: 'Build practical skills', label: 'Build practical skills', description: 'Learn by doing and applying' },

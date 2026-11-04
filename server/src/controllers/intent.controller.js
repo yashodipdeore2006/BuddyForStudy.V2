@@ -26,7 +26,7 @@ const questionEventSchema = z.object({
 export async function trackIntentQuestionEventController(req, res, next) {
   try {
     const payload = questionEventSchema.parse(req.body);
-    const userId = req.user?._id || req.user?.id;
+    const userId = req.user?.userId || req.user?._id || req.user?.id;
     if (!userId) return failure(res, "Authentication required.", 401);
     await IntentQuestionEvent.create({
       userId,

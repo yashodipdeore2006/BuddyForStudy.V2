@@ -165,10 +165,10 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
     normalized.questionPlan = buildQuestionPlan(normalized);
     const knownPack = /python|javascript|java|programming|web development|react|node|backend|frontend|full.?stack|data analytics|data science|machine learning|artificial intelligence|power bi|excel|sql|digital marketing|seo|marketing|social media|figma|design|photography|video editing|cloud|aws|azure|security|network|certification|ccna|comptia|english|spanish|french|german|language|ielts|toefl|music|guitar|piano|drawing|painting|personal finance|budgeting|investing|fitness|exercise|workout|yoga|mobility/i.test(profile.topic);
     if (!knownPack && Array.isArray(result.learnerQuestions)) {
-      const safeQuestions = result.learnerQuestions.slice(0, 3).filter((item) =>
+      const safeQuestions = result.learnerQuestions.filter((item) =>
         item && typeof item.text === "string" &&
         !/(health condition|medical condition|income|salary|race|religion|gender identity|diagnos|disability)/i.test(item.text)
-      ).map((item, index) => ({
+      ).slice(0, 3).map((item, index) => ({
         id: "domain_" + index + "_" + String(item.id || "clarifier").toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 32),
         type: "single",
         text: item.text.slice(0, 180),

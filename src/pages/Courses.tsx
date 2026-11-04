@@ -812,7 +812,15 @@ export default function Courses() {
     "switchExperience", "switchTarget", "currentBackground", "examPreparationType", "examTimeline",
     "projectAudience", "hobbyFocus", "learningMotivation"
   ]);
-  const purposeIntentQuestions = activeIntentQuestions.filter((question) => purposeQuestionIds.has(question.id));
+  const selectedPurposePackQuestions = getPurposeQuestions(intentPurpose)
+    .filter((question) => !retiredIntentQuestionIds.includes(question.id));
+  const purposeIntentQuestions = [
+    ...selectedPurposePackQuestions,
+    ...activeIntentQuestions.filter((question) =>
+      purposeQuestionIds.has(question.id) &&
+      !selectedPurposePackQuestions.some((packQuestion) => packQuestion.id === question.id)
+    )
+  ].slice(0, 8);
   const nicheIntentQuestions = activeIntentQuestions.filter((question) => !purposeQuestionIds.has(question.id) && !coreQuestionIds.has(question.id));
   const visibleWizardQuestions = intentWizardStep === 2 ? purposeIntentQuestions : intentWizardStep === 3 ? nicheIntentQuestions : [];
   const visibleWizardQuestionKey = visibleWizardQuestions.map((question) => question.id).join("|");

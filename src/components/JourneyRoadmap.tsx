@@ -77,7 +77,55 @@ function JourneyRoadmapContent({ courseId, enrolled, onViewLessons, onEnroll, on
   }, []);
   useEffect(() => { const road = pathRef.current; if (!road || !data?.stages.length) { setLengths([]); setRoadLength(0); return; } const total = road.getTotalLength(); const found = [0]; for (let i = 1; i < points.length; i += 1) { let low = 0; let high = total; for (let step = 0; step < 40; step += 1) { const mid = (low + high) / 2; if (road.getPointAtLength(mid).y < points[i].y) low = mid; else high = mid; } found.push((low + high) / 2); } setRoadLength(total); setLengths(found); }, [data?.stages.length, pathD, points]);
   const distanceFor = useCallback((position: number) => { if (!lengths.length) return 0; const last = lengths.length - 1; if (position >= last) return lengths[last]; const k = Math.max(0, Math.floor(position)); const w = position - k; return lengths[k] + (lengths[k + 1] - lengths[k]) * w; }, [lengths]);
-  useEffect(() => { if (!lengths.length || !roadLength) return; const target = distanceFor(targetPosition); const oldPosition = previousPositionRef.current; const oldDistance = distanceFor(oldPosition); if (!motionEnabled) { displayDistanceRef.current = target; setDisplayDistance(target); previousPositionRef.current = targetPosition; introRef.current = true; return; } if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); const first = !introRef.current; introRef.current = true; const from = first ? 0 : displayDistanceRef.current || oldDistance; const delta = target - from; const duration = Math.min(1600, Math.max(500, Math.abs(delta) * 1.3)); const started = performance.now(); const animate = (now: number) => { const p = Math.min(1, (now - started) / duration); const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; displayDistanceRef.current = from + delta * eased; setDisplayDistance(from + delta * eased); if (p < 1) frameRef.current = requestAnimationFrame(animate); else { frameRef.current = null; previousPositionRef.current = targetPosition; markerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); } }; frameRef.current = requestAnimationFrame(animate); return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); }; }, [lengths, targetPosition, motionEnabled, roadLength, distanceFor]);
+  useEffect(() => {
+    if (!lengths.length || !roadLength) return;
+    const target = distanceFor(targetPosition);
+    const oldPosition = previousPositionRef.current;
+    const oldDistance = distanceFor(oldPosition);
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+
+    if (!motionEnabled) {
+      introRef.current = true;
+      frameRef.current = requestAnimationFrame(() => {
+        displayDistanceRef.current = target;
+        setDisplayDistance(target);
+        previousPositionRef.current = targetPosition;
+        frameRef.current = null;
+      });
+      return () => {
+        if (frameRef.current !== null) {
+          cancelAnimationFrame(frameRef.current);
+          frameRef.current = null;
+        }
+      };
+    }
+
+    const first = !introRef.current;
+    introRef.current = true;
+    const from = first ? 0 : displayDistanceRef.current || oldDistance;
+    const delta = target - from;
+    const duration = Math.min(1600, Math.max(500, Math.abs(delta) * 1.3));
+    const started = performance.now();
+    const animate = (now: number) => {
+      const p = Math.min(1, (now - started) / duration);
+      const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      displayDistanceRef.current = from + delta * eased;
+      setDisplayDistance(from + delta * eased);
+      if (p < 1) frameRef.current = requestAnimationFrame(animate);
+      else {
+        frameRef.current = null;
+        previousPositionRef.current = targetPosition;
+        markerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    };
+    frameRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
+  }, [lengths, targetPosition, motionEnabled, roadLength, distanceFor]);
   useEffect(() => {
     if (selected === null) return;
     dialogRef.current?.querySelector<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])")?.focus();

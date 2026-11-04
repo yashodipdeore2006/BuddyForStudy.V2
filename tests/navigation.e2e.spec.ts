@@ -948,7 +948,8 @@ test.describe("learner control and state regression", () => {
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
     await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
-    await expect(dialog.getByText("What is your target role and company type?")).toBeVisible();
+    await expect(dialog.getByText("Which job role are you targeting?")).toBeVisible();
+    await expect(dialog.getByText("Which company environment are you aiming for?")).toBeVisible();
     await expect(dialog.getByText("Do you have an upcoming interview or target date?")).toBeVisible();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
     await expect.poll(() => questionEvents.some((event) => event.event === "skipped" && event.packId === "purpose_career")).toBe(true);

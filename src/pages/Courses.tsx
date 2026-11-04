@@ -662,7 +662,7 @@ export default function Courses() {
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
   ).slice(0, 8);
   const purposeQuestionIds = new Set([
-    "role", "company", "targetRole", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
+    "role", "company", "targetRole", "companyType", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
     "portfolioStatus", "clientAcquisition", "freelancePortfolio", "freelanceService",
     "switchExperience", "switchTarget", "examPreparationType", "examTimeline",
     "projectAudience", "hobbyFocus", "learningMotivation"
@@ -941,7 +941,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: boundedProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline, 40) || null,
-        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key]).slice(0, 500)]))
+        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'companyType', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key]).slice(0, 500)]))
       } : undefined;
       const profile = {
         topic,

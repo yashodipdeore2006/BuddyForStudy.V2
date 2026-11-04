@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { resolveLearningPath, getSkill } from "../src/data/learningKnowledgeBase.js";
 
 test("Python resolves to a complete multi-stage curriculum rather than a single-video skill", () => {
-  for (const query of ["Python", "Python course", "Python for beginners", "Python programming course"]) {
+  for (const query of ["Python", "Python course", "Python for beginners", "Python programming course", "Python for a TCS interview"]) {
     const resolved = resolveLearningPath(query);
     assert.equal(resolved?.type, "career", query);
     assert.equal(resolved.path.id, "python");

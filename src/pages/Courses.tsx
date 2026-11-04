@@ -525,7 +525,7 @@ export default function Courses() {
       ];
       const knownIds = new Set(enrichedPlan.map((question) => question.id));
       const purposePacks = ["career", "freelance", "career_switch", "exam", "project", "hobby"].flatMap((purpose) => getPurposeQuestions(purpose));
-      const merged = [...enrichedPlan, ...coreExtras.filter((question) => !knownIds.has(question.id)), ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
+      const merged = [...enrichedPlan, ...purposePacks.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id)), ...coreExtras.filter((question) => !knownIds.has(question.id))];
       setIntentResult({ ...result, questionPlan: merged });
       setIntentQuestionIndex(0);
       setIntentAnswers({});

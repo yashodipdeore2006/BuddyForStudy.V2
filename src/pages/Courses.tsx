@@ -555,7 +555,6 @@ export default function Courses() {
         { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] },
         { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
-      const knownIds = new Set(enrichedPlan.map((question) => question.id));
       const parsedGoal = String(result.profile?.goal || result.inferredGoal || "learn");
       const selectedPurpose = String(intentAnswers.goalPurpose || (parsedGoal === "job_ready" ? "career" : parsedGoal === "exam" ? "exam" : parsedGoal === "project" ? "project" : "hobby"));
       const purposePacks = getPurposeQuestions(selectedPurpose).filter((question) => !alreadyAnswered(question.id));

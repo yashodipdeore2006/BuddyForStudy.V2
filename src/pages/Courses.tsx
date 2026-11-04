@@ -13,7 +13,7 @@ import { routes } from "@/lib/routes";
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };
-type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null };
+type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null; outcome?: string; preferences?: Record<string, string> };
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -516,8 +516,13 @@ export default function Courses() {
         showFeatureUpgrade: true,
       }) as IntentParse;
       const niche = getNicheQuestions(query);
+      const coreExtras: IntentQuestion[] = [
+        { id: "studyDays", type: "single", text: "How many days each week can you study?", options: ["2 days", "3 days", "4 days", "5 days", "6 days", "7 days"], optional: true, why: "This turns your daily time into a realistic weekly study schedule.", changes: ["schedule"] },
+        { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] }
+      ];
       const knownIds = new Set((result.questionPlan || []).map((question) => question.id));
-      setIntentResult({ ...result, questionPlan: [...(result.questionPlan || []), ...niche.filter((question) => !knownIds.has(question.id))].slice(0, 8) });
+      const merged = [...(result.questionPlan || []), ...coreExtras.filter((question) => !knownIds.has(question.id)), ...niche.filter((question) => !knownIds.has(question.id))];
+      setIntentResult({ ...result, questionPlan: merged.slice(0, 8) });
       setIntentQuestionIndex(0);
       setIntentAnswers({});
       if (!result.valid) {
@@ -618,7 +623,7 @@ export default function Courses() {
         language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
-        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
+        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
         topic,

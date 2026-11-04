@@ -23,8 +23,21 @@ function buildCourse({ path, level }) {
             searchQuery: item.searchQueries[0],
             searchQueries: item.searchQueries,
             requiredTopics: item.topics,
-            durationMinutes: item.durationMinutes
-          }
+            durationMinutes: {
+              minMinutes: Number(item.durationMinutes?.min || 30),
+              targetMinutes: Math.round((Number(item.durationMinutes?.min || 30) + Number(item.durationMinutes?.max || 180)) / 2),
+              maxMinutes: Number(item.durationMinutes?.max || 180)
+            },
+            searchPolicy: {
+              contentType: "complete-course",
+              minDurationMinutes: Number(item.durationMinutes?.min || 30),
+              targetDurationMinutes: Math.round((Number(item.durationMinutes?.min || 30) + Number(item.durationMinutes?.max || 180)) / 2),
+              maxDurationMinutes: Number(item.durationMinutes?.max || 180),
+              excludeShorts: true,
+              requireEmbeddable: true,
+              preferProjectBased: true,
+              preferredLanguage: "en"
+            }
         },
         {
           id: lessonId(item.id, "project"),

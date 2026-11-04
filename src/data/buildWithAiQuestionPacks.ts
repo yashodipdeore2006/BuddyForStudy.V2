@@ -14,7 +14,6 @@ type QuestionPack = {
   id: string;
   match: RegExp;
   questions: BuildWithAiQuestion[];
-  knownSkills?: string[];
 };
 
 // Keep domain packs declarative: a new niche can be added as another pack entry.
@@ -29,7 +28,7 @@ export const buildWithAiQuestionPacks: QuestionPack[] = [
   },
   {
     id: "ai_data",
-    match: /data analytics|data science|machine learning|artificial intelligence|power bi|excel|sql/i,
+    match: /data analytics|data science|machine learning|artificial intelligence|power bi|sql/i,
     questions: [
       { id: "targetRole", type: "single", text: "Which outcome best matches your goal?", options: ["Data analyst", "Data scientist", "ML engineer", "AI app builder", "Business intelligence analyst"], optional: true, why: "The target role changes tool sequence and project depth.", changes: ["skills", "projects"] },
       { id: "mathComfort", type: "single", text: "How comfortable are you with mathematics?", options: ["No maths background", "School-level maths", "College-level maths", "Comfortable with statistics"], optional: true, why: "This sets the prerequisite pace for statistics and model concepts.", changes: ["depth", "schedule"] }
@@ -128,7 +127,7 @@ export function getSkillChecklist(topic: string): string[] {
   const normalized = String(topic || "").toLowerCase();
   if (/python/.test(normalized)) return ["Python syntax and variables", "Conditions and loops", "Functions", "Lists, tuples and dictionaries", "Object-oriented programming", "Files and exceptions", "Modules and packages"];
   if (/javascript|mern|react|node|web development/.test(normalized)) return ["HTML and CSS", "JavaScript fundamentals", "DOM and browser APIs", "React or frontend", "Node.js and APIs", "Databases", "Git and GitHub"];
-  if (/data analytics|data science|machine learning|artificial intelligence|power bi|excel|sql/.test(normalized)) return ["Spreadsheets and formulas", "SQL queries", "Statistics basics", "Python for data", "Data visualization", "Power BI or Tableau", "Machine learning basics"];
+  if (/data analytics|data science|machine learning|artificial intelligence|power bi|sql/.test(normalized)) return ["Spreadsheets and formulas", "SQL queries", "Statistics basics", "Python for data", "Data visualization", "Power BI or Tableau", "Machine learning basics"];
   if (/digital marketing|seo|marketing|social media|advertising/.test(normalized)) return ["Marketing fundamentals", "SEO basics", "Social media management", "Paid advertising", "Email campaigns", "Analytics and reporting", "Content strategy"];
   if (/figma|design|photography|video editing|premiere|davinci/.test(normalized)) return ["Design fundamentals", "Figma or design tools", "Typography and layout", "Image editing", "Video editing", "Color and composition", "Portfolio workflow"];
   if (/cloud|aws|azure|security|network|ccna|comptia/.test(normalized)) return ["Networking fundamentals", "Linux or command line", "Cloud basics", "Identity and access", "Security fundamentals", "Virtual machines or labs", "Monitoring and troubleshooting"];

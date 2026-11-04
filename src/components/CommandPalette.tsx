@@ -41,7 +41,9 @@ function mapCourse(value: unknown): Course {
   } as Course;
 }
 
-export default function CommandPalette({ open, onClose, initialQuery = "" }: { open: boolean; onClose: () => void; initialQuery?: string }) {
+type CommandPaletteProps = { open: boolean; onClose: () => void; initialQuery?: string };
+
+function CommandPaletteContent({ onClose, initialQuery = "" }: Omit<CommandPaletteProps, "open">) {
   const navigate = useNavigate();
   const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,33 +52,26 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorQuery, setErrorQuery] = useState("");
+  const [resultsQuery, setResultsQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
-    if (!open) return;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    setQuery(initialQuery);
-    setActiveIndex(0);
     const focusId = window.setTimeout(() => inputRef.current?.focus(), 0);
     return () => {
       window.clearTimeout(focusId);
       document.body.style.overflow = previousOverflow;
       previousFocus.current?.focus();
     };
-  }, [initialQuery, open]);
+  }, []);
 
   useEffect(() => {
-    if (!open) return;
     const text = query.trim();
-    if (!text) {
-      setCourses([]);
-      setError("");
-      setLoading(false);
-      return;
-    }
+    if (!text) return;
     let active = true;
     const timer = window.setTimeout(async () => {
       setLoading(true);
@@ -85,10 +80,13 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
         const data = await apiFetch("/api/courses?q=" + encodeURIComponent(text) + "&limit=8");
         if (!active) return;
         setCourses((data.courses ?? data.items ?? []).map(mapCourse).filter((course: Course) => course.id));
+        setResultsQuery(text);
       } catch (err) {
         if (active) {
           setCourses([]);
+          setResultsQuery(text);
           setError(err instanceof Error ? err.message : "Search is temporarily unavailable. Try again.");
+          setErrorQuery(text);
         }
       } finally {
         if (active) setLoading(false);
@@ -98,14 +96,17 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
       active = false;
       window.clearTimeout(timer);
     };
-  }, [open, query, retryKey]);
+  }, [query, retryKey]);
 
-  const commands = useMemo(() => query.trim() ? [] : PAGE_COMMANDS, [query]);
-  const itemCount = commands.length + courses.length;
-
-  useEffect(() => {
-    setActiveIndex((current) => itemCount ? Math.min(current, itemCount - 1) : 0);
-  }, [itemCount]);
+  const normalizedQuery = query.trim();
+  const commands = useMemo(() => normalizedQuery ? [] : PAGE_COMMANDS, [normalizedQuery]);
+  const visibleCourses = resultsQuery === normalizedQuery ? courses : [];
+  const visibleError = errorQuery === normalizedQuery ? error : "";
+  const visibleLoading = Boolean(normalizedQuery) && (
+    loading || (resultsQuery !== normalizedQuery && errorQuery !== normalizedQuery)
+  );
+  const itemCount = commands.length + visibleCourses.length;
+  const safeActiveIndex = itemCount ? Math.min(activeIndex, itemCount - 1) : 0;
 
   const activate = (index: number) => {
     if (index < commands.length) {
@@ -114,7 +115,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
       navigate(command.href || routes.home());
       return;
     }
-    const course = courses[index - commands.length];
+    const course = visibleCourses[index - commands.length];
     if (!course) return;
     onClose();
     navigate(routes.course(course.id));
@@ -138,7 +139,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
     }
     if (event.key === "Enter" && itemCount) {
       event.preventDefault();
-      activate(activeIndex);
+      activate(safeActiveIndex);
       return;
     }
     if (event.key === "Tab" && dialogRef.current) {
@@ -161,9 +162,7 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
     }
   };
 
-  if (!open) return null;
-
-  return (
+    return (
     <div className="bfs-command-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="bfs-command-title" className="bfs-command-dialog" onKeyDown={handleKeyDown}>
         <h2 id="bfs-command-title" className="bfs-sr-only">Search BuddyForStudy</h2>
@@ -177,14 +176,14 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
           {!query.trim() && <p className="bfs-command-group-label">Pages and actions</p>}
           {commands.map((command, index) => {
             const Icon = command.icon;
-            return <button key={command.id} type="button" role="option" aria-selected={activeIndex === index} className="bfs-command-item" onMouseEnter={() => setActiveIndex(index)} onClick={() => activate(index)}>
+            return <button key={command.id} type="button" role="option" aria-selected={safeActiveIndex === index} className="bfs-command-item" onMouseEnter={() => setActiveIndex(index)} onClick={() => activate(index)}>
               <span className="bfs-command-item-icon"><Icon size={18} aria-hidden="true" /></span>
               <span className="bfs-command-item-copy"><strong>{command.title}</strong><small>{command.description}</small></span>
               {activeIndex === index && <ArrowRight size={16} aria-hidden="true" />}
             </button>;
           })}
-          {query.trim() && courses.length > 0 && <p className="bfs-command-group-label">Courses</p>}
-          {courses.map((course, courseIndex) => {
+          {normalizedQuery && visibleCourses.length > 0 && <p className="bfs-command-group-label">Courses</p>}
+          {visibleCourses.map((course, courseIndex) => {
             const index = commands.length + courseIndex;
             return <button key={course.id} type="button" role="option" aria-selected={activeIndex === index} className="bfs-command-item" onMouseEnter={() => setActiveIndex(index)} onClick={() => activate(index)}>
               <span className="bfs-command-item-icon">{course.thumbnail ? <img src={course.thumbnail} alt="" /> : <BookOpen size={18} aria-hidden="true" />}</span>
@@ -192,12 +191,22 @@ export default function CommandPalette({ open, onClose, initialQuery = "" }: { o
               {activeIndex === index && <ArrowRight size={16} aria-hidden="true" />}
             </button>;
           })}
-          {loading && <p className="bfs-command-message" role="status"><LoaderCircle className="bfs-spin" size={16} /> Searching courses…</p>}
-          {error && <div className="bfs-command-message bfs-command-message--error" role="alert"><span>{error}</span><button type="button" className="bfs-command-retry" onClick={() => setRetryKey((value) => value + 1)}>{USER_INTENTS.retry.label}</button></div>}
-          {!loading && query.trim() && !error && !courses.length && <p className="bfs-command-message">No courses found. Try another search.</p>}
+          {visibleLoading && <p className="bfs-command-message" role="status"><LoaderCircle className="bfs-spin" size={16} /> Searching courses…</p>}
+          {visibleError && <div className="bfs-command-message bfs-command-message--error" role="alert"><span>{visibleError}</span><button type="button" className="bfs-command-retry" onClick={() => setRetryKey((value) => value + 1)}>{USER_INTENTS.retry.label}</button></div>}
+          {!visibleLoading && normalizedQuery && !visibleError && resultsQuery === normalizedQuery && !visibleCourses.length && <p className="bfs-command-message">No courses found. Try another search.</p>}
         </div>
         <footer className="bfs-command-footer"><span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span><span><kbd>Enter</kbd> to open</span><span><kbd>Ctrl</kbd> <kbd>K</kbd> to search</span></footer>
       </div>
     </div>
+  );
+}
+export default function CommandPalette(props: CommandPaletteProps) {
+  if (!props.open) return null;
+  return (
+    <CommandPaletteContent
+      key={props.initialQuery || ""}
+      onClose={props.onClose}
+      initialQuery={props.initialQuery}
+    />
   );
 }

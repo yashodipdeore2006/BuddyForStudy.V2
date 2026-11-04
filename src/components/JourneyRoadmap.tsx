@@ -23,6 +23,7 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
   const [roadLength, setRoadLength] = useState(0);
   const [lengths, setLengths] = useState<number[]>([]);
   const [motionEnabled, setMotionEnabled] = useState(true);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
   const pathRef = useRef<SVGPathElement | null>(null);
   const markerRef = useRef<SVGGElement | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
@@ -38,7 +39,14 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
   const xp = (data?.progress?.completedLessonIds.length || 0) * 50;
   const weightedCompletion = data?.stages.length ? Math.min(1, (data.progress?.position || 0) / data.stages.length) : 0;
   const hoursLeft = Math.max(0, (data?.totalHours || 0) * (1 - weightedCompletion));
-  const finishDate = new Date(Date.now() + Math.ceil(hoursLeft / Math.max(1, pace) * 86400000));
+  const finishDate = currentTime === null
+    ? null
+    : new Date(currentTime + Math.ceil(hoursLeft / Math.max(1, pace) * 86400000));
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCurrentTime(Date.now()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => { let active = true; setLoading(true); setError(""); setData(null); apiFetch("/api/courses/" + encodeURIComponent(courseId) + "/roadmap").then((result) => { if (active) { const roadmap = result.roadmap as JourneyData; setData(roadmap); setPace(roadmap.progress?.paceHoursPerDay || 1); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load the journey roadmap."); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [courseId, enrolled, session?.user?.id]);
   useEffect(() => { const query = window.matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setMotionEnabled(!query.matches); sync(); query.addEventListener("change", sync); return () => query.removeEventListener("change", sync); }, []);
@@ -74,7 +82,7 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
       <Stat label="Rank" value={isEnrolled ? rankNames[rankIndex] : "Preview"} />
       <Stat label="XP earned" value={isEnrolled ? String(xp) : "—"} />
       <Stat label="Time left" value={isEnrolled ? hoursLeft.toFixed(1) + " h" : "—"} />
-      <Stat label="Finish by" value={isEnrolled ? finishDate.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—"} />
+      <Stat label="Finish by" value={isEnrolled ? finishDate ? finishDate.toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "Calculating…" : "—"} />
     </div>
     {isEnrolled && <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm ring-1 ring-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/90 dark:ring-white/5"><label htmlFor="journey-pace" className="text-sm font-medium">Daily learning pace</label><select id="journey-pace" value={pace} onChange={(event) => void changePace(Number(event.target.value))} className="input-field w-32 text-sm">{[1, 2, 3, 4].map((hours) => <option key={hours} value={hours}>{hours} h/day</option>)}</select></div>}
     <nav aria-label="Quest stages" className="mb-4 overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/85 p-3 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/85">

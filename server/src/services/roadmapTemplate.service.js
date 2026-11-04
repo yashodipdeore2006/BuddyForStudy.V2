@@ -5,11 +5,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function normalizeTemplateTopic(value) {
   return String(value || "").normalize("NFKC").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9+#.]+/g, " ").replace(/\s+/g, " ").trim();
 }
-export function buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion }) {
+export function buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion, outcome, preferences }) {
   const stable = JSON.stringify({
     canonicalTopic: normalizeTemplateTopic(canonicalTopic), goal: String(goal || "learn").trim().toLowerCase(),
     level: String(level || "Beginner"), language: String(language || "en").trim().toLowerCase(),
-    promptVersion: String(promptVersion || "builtin-v1")
+    promptVersion: String(promptVersion || "builtin-v1"),
+    outcome: String(outcome || "").trim().toLowerCase(),
+    preferences: Object.fromEntries(Object.entries(preferences || {}).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => [String(key), String(value).trim()]))
   });
   return createHash("sha256").update(stable).digest("hex");
 }
@@ -18,7 +20,7 @@ export async function findRoadmapTemplate({ profile, promptVersion, model = Road
   const goal = profile.goal || (Array.isArray(profile.goals) && profile.goals.length ? profile.goals.join(",") : "learn");
   const level = profile.level || "Beginner", language = profile.language || "en";
   const version = String(promptVersion || "builtin-v1");
-  const key = buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion: version });
+  const key = buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion: version, outcome: profile.outcome, preferences: profile.preferences });
   const cached = await model.findOne({ key, expiresAt: { $gt: now } }).lean();
   return cached?.roadmap && typeof cached.roadmap === "object" ? { roadmap: cached.roadmap, cached: true, key } : null;
 }

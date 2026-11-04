@@ -1355,42 +1355,59 @@ export default function Courses() {
             aria-modal="true"
             aria-labelledby="ai-builder-title"
             aria-describedby="ai-builder-description"
-            className="flex max-h-[min(94dvh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            className="flex max-h-[min(94dvh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-2xl"
           >
-            <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
-              <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[.14em] text-violet-700">AI learning planner</p>
-                <h2 id="ai-builder-title" className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
-                  Create your learning roadmap
-                </h2>
-                <p id="ai-builder-description" className="mt-1 text-sm leading-5 text-slate-600">
-                  A guided four-step setup that adapts to your goal, learning domain and starting skills.
-                </p>
+            <header className="flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-900 px-5 py-3 sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/20">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-bold tracking-tight text-white">
+                    Roadmap Studio
+                    <span className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-indigo-300">3-Layer Engine</span>
+                  </p>
+                  <h2 id="ai-builder-title" className="mt-0.5 text-base font-semibold text-slate-100 sm:text-lg">Create your learning roadmap</h2>
+                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-400">Smart Adaptive Intake Questionnaire</p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setAiOpen(false)}
-                disabled={aiLoading}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-                aria-label="Close AI learning planner"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="hidden rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-1.5 text-right text-[10px] sm:block">
+                  <span className="text-slate-400">Tap Budget:</span>
+                  <strong className="ml-2 font-mono text-amber-300">{tapCount} / ~8 Taps</strong>
+                </div>
+                <div className="hidden text-right text-[10px] text-slate-400 sm:block">
+                  <span>Step</span>
+                  <strong className="ml-1 text-slate-100">{intentWizardStep} of 4</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiOpen(false)}
+                  disabled={aiLoading}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+                  aria-label="Close AI learning planner"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </header>
+            <div className="h-1 w-full bg-slate-800/80">
+              <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300" style={{ width: `${(intentWizardStep / 4) * 100}%` }} />
+            </div>
 
             {aiUsage && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-xs sm:px-6">
-                <span className="font-semibold text-slate-700">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/70 px-5 py-2.5 text-xs sm:px-6">
+                <span className="font-semibold text-slate-200">
                   {aiUsage.plan?.name || 'Current'} plan
                   {aiUsage.features?.aiCourseBuilder ? ' · AI builder available' : ' · Check plan access'}
                 </span>
-                <span className="text-slate-500">
+                <span className="text-slate-400">
                   Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? '—'}
                 </span>
               </div>
             )}
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-slate-950 px-5 py-5 sm:px-6">
               {INTENT_V2 ? (
                 <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
                   <div className="space-y-5 xl:col-span-7">
@@ -1425,11 +1442,11 @@ export default function Courses() {
                     </div>
 
                     {intentWizardStep === 1 && (
-                      <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                        <div className="border-b border-slate-100 pb-4">
-                          <p className="text-xs font-bold uppercase tracking-wider text-violet-700">Layer 1 · Core foundation</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-950">What do you want to learn?</h3>
-                          <p className="mt-1 text-sm text-slate-500">Set your outcome, starting point and realistic study schedule.</p>
+                      <section className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl sm:p-6">
+                        <div className="border-b border-slate-800/80 pb-4">
+                          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-400"><span aria-hidden="true">▱</span> Layer 1: Core Foundation</p>
+                          <h3 className="mt-1 text-xl font-bold text-white">What do you want to learn?</h3>
+                          <p className="mt-1 text-xs text-slate-400">Map your primary objective, current skills and realistic study schedule.</p>
                         </div>
 
                         <div className="space-y-2">
@@ -1726,7 +1743,7 @@ export default function Courses() {
                     )}
 
                     {intentWizardStep === 4 && (
-                      <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                      <section className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl sm:p-6">
                         <div className="border-b border-slate-100 pb-4">
                           <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Final strategy · Review</p>
                           <h3 className="mt-1 text-xl font-bold text-slate-950">Your personalized blueprint</h3>

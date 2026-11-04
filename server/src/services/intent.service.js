@@ -184,7 +184,7 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
         ? prioritizedQuestions.filter((item) => item.id !== "depth").slice(0, 8)
         : prioritizedQuestions;
     }
-    const assumptionFields = ["goal", "scope", "level", "knownSkills", "minutesPerDay", "language", "targetRole", "targetCompany", "examName", "examDate", "syllabusText", "projectIdea", "deadline", "outcome"];
+    const assumptionFields = ["goal", "scope", "knownSkills", "minutesPerDay", "language", "targetRole", "targetCompany", "examName", "examDate", "syllabusText", "projectIdea", "deadline", "outcome"];
     normalized.assumptions = assumptionFields
       .filter((field) => confidences[field] !== undefined && confidences[field] < 0.8 && profile[field] !== null && profile[field] !== undefined && profile[field] !== "" && !(Array.isArray(profile[field]) && profile[field].length === 0))
       .map((field) => ({ field, value: profile[field] }));

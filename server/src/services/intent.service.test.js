@@ -124,7 +124,9 @@ test("ambiguous learning intent asks a clarifying goal instead of silently assum
   });
 
   assert.equal(result.valid, true);
-  assert.equal(result.assumed, false);
+  assert.equal(result.assumed, true);
+  assert.ok(result.assumptions.some((item) => item.field === "scope"));
+  assert.equal(result.assumptions.some((item) => item.field === "goal"), false);
   assert.ok(result.questionPlan.some((item) => item.id === "goal"));
   assert.equal(model.entries.size, 1);
 });

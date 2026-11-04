@@ -98,7 +98,8 @@ export const buildWithAiQuestionPacks: QuestionPack[] = [
 export const buildWithAiPurposePacks: Record<string, BuildWithAiQuestion[]> = {
   career: [
     { id: "careerStage", type: "single", text: "Where are you in your career journey?", options: ["Student", "Fresher", "Experienced professional", "Switching careers"], optional: true, when: "purpose=career", why: "This sets the starting point and avoids repeating skills you already use.", changes: ["skills", "depth"] },
-    { id: "portfolioStatus", type: "single", text: "What best describes your project portfolio?", options: ["I have no portfolio yet", "I have practice projects", "I have deployed projects", "I have professional experience"], optional: true, when: "purpose=career", why: "Portfolio status determines which practical deliverables are most useful.", changes: ["projects"] }
+    { id: "portfolioStatus", type: "single", text: "What best describes your project portfolio?", options: ["I have no portfolio yet", "I have practice projects", "I have deployed projects", "I have professional experience"], optional: true, when: "purpose=career", why: "Portfolio status determines which practical deliverables are most useful.", changes: ["projects"] },
+    { id: "interviewDate", type: "text", text: "Do you have a target interview or application date?", optional: true, when: "purpose=career", why: "A target date helps prioritize interview practice and portfolio milestones.", changes: ["schedule", "assessment"] }
   ],
   freelance: [
     { id: "freelanceService", type: "single", text: "Which service do you want to offer to clients?", options: ["Web or app development", "Design", "Data and automation", "Marketing", "Writing or content", "Not sure yet"], optional: true, when: "purpose=freelance", why: "This focuses the roadmap on a sellable service and relevant portfolio work.", changes: ["skills", "projects"] },

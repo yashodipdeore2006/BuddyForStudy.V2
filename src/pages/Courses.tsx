@@ -270,12 +270,12 @@ export default function Courses() {
   const [aiTopic, setAiTopic] = useState('');
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
-  const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+  const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({ goal: "job_ready", goalPurpose: "career" });
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
 
-  const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
-  const [aiGoalTouched, setAiGoalTouched] = useState(false);
+  const [aiGoal, setAiGoal] = useState<string>('Career or professional growth');
+  const [aiGoalTouched, setAiGoalTouched] = useState(true);
   const [aiLevelTouched, setAiLevelTouched] = useState(false);
   const [aiCustomGoal, setAiCustomGoal] = useState('');
   const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
@@ -570,11 +570,11 @@ export default function Courses() {
     setAiError(null);
     setAiRoadmap(null);
     setIntentResult(null);
-    setIntentAnswers({});
+    setIntentAnswers({ goal: "job_ready", goalPurpose: "career" });
     setIntentWizardStep(1);
     setAiCustomGoal("");
-    setAiGoal("Build practical skills");
-    setAiGoalTouched(false);
+    setAiGoal("Career or professional growth");
+    setAiGoalTouched(true);
     setAiLevel("Beginner");
     setAiLevelTouched(false);
     setAiStudyTime(60);
@@ -1235,11 +1235,11 @@ export default function Courses() {
                   setAiError(null);
                   setAiRoadmap(null);
                   setIntentResult(null);
-                  setIntentAnswers({});
-                                setIntentWizardStep(1);
+                  setIntentAnswers({ goal: "job_ready", goalPurpose: "career" });
+                  setIntentWizardStep(1);
                   setAiCustomGoal("");
-                  setAiGoal("Build practical skills");
-                  setAiGoalTouched(false);
+                  setAiGoal("Career or professional growth");
+                  setAiGoalTouched(true);
                   setAiLevel("Beginner");
                   setAiLevelTouched(false);
                   setAiStudyTime(60);
@@ -1476,7 +1476,10 @@ export default function Courses() {
                               setAiTopic(event.target.value);
                               if (intentResult) {
                                 setIntentResult(null);
-                                setIntentAnswers({});
+                                setIntentAnswers((previous) => ({
+                                  goal: previous.goal || "job_ready",
+                                  goalPurpose: previous.goalPurpose || "career"
+                                }));
                                 setIntentWizardStep(1);
                               }
                             }}

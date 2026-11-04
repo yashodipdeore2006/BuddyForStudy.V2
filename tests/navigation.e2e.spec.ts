@@ -957,6 +957,57 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByRole("button", { name: "Generate roadmap" })).toBeEnabled();
   });
 
+  test("[BUILD-WITH-AI-PROFILE-003] explicit core choices survive intent parsing and prefill all supported study-time values", async ({ page }) => {
+    await mockAppApi(page, { authenticated: true });
+    await page.route("**/api/intent/parse", async (route) => {
+      await json(route, {
+        valid: true,
+        profile: {
+          topic: "React and Node.js Full Stack",
+          domain: "programming",
+          scope: "narrow",
+          goal: "learn",
+          level: "Beginner",
+          knownSkills: [],
+          minutesPerDay: 60,
+          language: "en",
+          targetRole: null,
+          targetCompany: null,
+          examName: null,
+          examDate: null,
+          syllabusText: null,
+          projectIdea: null,
+          deadline: null,
+          outcome: "",
+          preferences: {},
+        },
+        confidences: { scope: 0.99, level: 0.99, minutesPerDay: 0.99, language: 0.99 },
+        domain: "programming",
+        scope: "narrow",
+        options: { roles: [], exams: [], projectIdeas: [] },
+        questionPlan: [],
+      });
+    });
+
+    await page.goto(baseURL + "/explore");
+    await page.getByRole("textbox", { name: "Search courses" }).fill("React and Node.js Full Stack");
+    await page.getByRole("button", { name: "Build with AI" }).click();
+    const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
+
+    await dialog.getByRole("button", { name: "Advanced", exact: true }).click();
+    await dialog.getByRole("button", { name: "Complete learning path", exact: true }).click();
+    await dialog.getByLabel("Time per day").selectOption("30");
+    await dialog.getByLabel("Resource language").selectOption("hi");
+    await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
+
+    await expect(dialog.getByText("Layer 2 · Purpose pack")).toBeVisible();
+    await dialog.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Advanced", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(dialog.getByRole("button", { name: "Complete learning path", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(dialog.getByLabel("Time per day")).toHaveValue("30");
+    await expect(dialog.getByLabel("Resource language")).toHaveValue("hi");
+  });
+
   test("[EXP-YOUTUBE-QUOTA-FALLBACK-001] quota exhaustion keeps local courses usable and shows a safe recovery message", async ({ page }) => {
     const localCourse = courseFixture("local-js-course", { title: "JavaScript Foundations", category: "Development" });
     await mockAppApi(page, {

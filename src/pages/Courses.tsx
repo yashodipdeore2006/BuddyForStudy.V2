@@ -561,23 +561,6 @@ export default function Courses() {
     });
   };
 
-  const tapCount = useMemo(() => {
-    const coreCount = [
-      aiTopic.trim(),
-      aiCustomGoal.trim(),
-      aiKnownSkills.trim(),
-      aiScope,
-      intentPurpose,
-      String(aiStudyTime),
-      aiLessonStyle
-    ].filter(Boolean).length;
-    const coreIds = new Set(["goal", "goalPurpose", "depth", "level", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
-    const additionalAnswers = Object.entries(intentAnswers).filter(([key, value]) =>
-      !coreIds.has(key) && String(value || "").trim().length > 0
-    ).length;
-    return coreCount + additionalAnswers;
-  }, [aiTopic, aiCustomGoal, aiKnownSkills, aiScope, intentPurpose, aiStudyTime, aiLessonStyle, intentAnswers]);
-
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("build") !== "1") return;
@@ -800,6 +783,23 @@ export default function Courses() {
 
   const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
   const intentPurpose = String(intentAnswers.goalPurpose || (intentGoal === "job_ready" ? "career" : intentGoal === "exam" ? "exam" : intentGoal === "project" ? "project" : "hobby"));
+  const tapCount = useMemo(() => {
+    const coreCount = [
+      aiTopic.trim(),
+      aiCustomGoal.trim(),
+      aiKnownSkills.trim(),
+      aiScope,
+      intentPurpose,
+      String(aiStudyTime),
+      aiLessonStyle
+    ].filter(Boolean).length;
+    const coreIds = new Set(["goal", "goalPurpose", "depth", "level", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
+    const additionalAnswers = Object.entries(intentAnswers).filter(([key, value]) =>
+      !coreIds.has(key) && String(value || "").trim().length > 0
+    ).length;
+    return coreCount + additionalAnswers;
+  }, [aiTopic, aiCustomGoal, aiKnownSkills, aiScope, intentPurpose, aiStudyTime, aiLessonStyle, intentAnswers]);
+
   const coreQuestionIds = new Set(["goal", "depth", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
     !retiredIntentQuestionIds.includes(question.id) &&

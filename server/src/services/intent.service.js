@@ -167,7 +167,7 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
     if (!knownPack && Array.isArray(result.learnerQuestions)) {
       const safeQuestions = result.learnerQuestions.filter((item) =>
         item && typeof item.text === "string" &&
-        !/(health condition|medical condition|income|salary|race|religion|gender identity|diagnos|disability)/i.test(item.text)
+        !/(health|medical|income|salary|race|religion|gender identity|diagnos|disability|sexual orientation|political affiliation|ethnicity)/i.test(JSON.stringify(item))
       ).slice(0, 3).map((item, index) => ({
         id: "domain_" + index + "_" + String(item.id || "clarifier").toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 32),
         type: "single",

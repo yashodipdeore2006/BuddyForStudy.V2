@@ -29,7 +29,7 @@ const PYTHON_SKILLS = {
 const CAREER_PATHS = {
   python: {
     id:"python",
-    aliases:["python","python programming","learn python","python developer","python full course"],
+    aliases:["python","python course","python programming","python programming course","learn python","python for beginners","python basics","python developer","python full course"],
     title:"Python Programming: Complete Beginner-to-Practical Course",
     description:"A structured Python curriculum covering syntax, control flow, data structures, functions, OOP, files, testing, APIs and practical automation projects.",
     category:"Programming",

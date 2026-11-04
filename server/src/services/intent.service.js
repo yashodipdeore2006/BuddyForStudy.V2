@@ -20,7 +20,9 @@ export const IntentProfile = z.object({
   examName: z.string().max(120).nullable().default(null),
   examDate: z.string().max(40).nullable().default(null),
   syllabusText: z.string().max(20000).nullable().default(null),
-  projectIdea: z.string().max(200).nullable().default(null)
+  projectIdea: z.string().max(200).nullable().default(null),
+  outcome: z.string().max(500).default(""),
+  preferences: z.record(z.string().max(500)).default({})
 });
 export const IntentQuery = z.string().trim().min(2).max(200);
 export const INTENT_CACHE_TTL_DAYS = 30;
@@ -39,9 +41,9 @@ export function staticIntentPlan(query) {
     topic, domain: "general", scope: "narrow", goal: null, level: "Beginner",
     knownSkills: [], minutesPerDay: 60, deadline: null, language: "en",
     targetRole: null, targetCompany: null, examName: null, examDate: null,
-    syllabusText: null, projectIdea: null
+    syllabusText: null, projectIdea: null, outcome: "", preferences: {}
   };
-  const confidences = { topic: 1, domain: 0, scope: 0, goal: 0, level: 0, knownSkills: 0, minutesPerDay: 0, deadline: 0, language: 0, targetRole: 0, targetCompany: 0, examName: 0, examDate: 0, syllabusText: 0, projectIdea: 0 };
+  const confidences = { topic: 1, domain: 0, scope: 0, goal: 0, level: 0, knownSkills: 0, minutesPerDay: 0, deadline: 0, language: 0, targetRole: 0, targetCompany: 0, examName: 0, examDate: 0, syllabusText: 0, projectIdea: 0, outcome: 0, preferences: 0 };
   return {
     valid: true, profile, confidences, domain: "general", scope: "narrow",
     options: { roles: [], exams: [], projectIdeas: [] },
@@ -116,9 +118,9 @@ function intentResponseSchema() {
         knownSkills: { type: "array", items: { type: "string" } }, minutesPerDay: { type: "integer" },
         deadline: { type: "string", nullable: true }, language: { type: "string" }, targetRole: { type: "string", nullable: true },
         targetCompany: { type: "string", nullable: true }, examName: { type: "string", nullable: true }, examDate: { type: "string", nullable: true },
-        syllabusText: { type: "string", nullable: true }, projectIdea: { type: "string", nullable: true }
+        syllabusText: { type: "string", nullable: true }, projectIdea: { type: "string", nullable: true }, outcome: { type: "string" }, preferences: { type: "object", additionalProperties: { type: "string" } }
       }, required: ["topic", "domain", "scope", "goal", "level", "knownSkills", "minutesPerDay", "language"] },
-      confidences: { type: "object", properties: Object.fromEntries(["topic","domain","scope","goal","level","knownSkills","minutesPerDay","deadline","language","targetRole","targetCompany","examName","examDate","syllabusText","projectIdea"].map((key) => [key, { type: "number" }])) },
+      confidences: { type: "object", properties: Object.fromEntries(["topic","domain","scope","goal","level","knownSkills","minutesPerDay","deadline","language","targetRole","targetCompany","examName","examDate","syllabusText","projectIdea","outcome","preferences"].map((key) => [key, { type: "number" }])) },
       domain: { type: "string" }, scope: { type: "string", enum: ["narrow", "broad"] },
       options: { type: "object", properties: { roles: { type: "array", items: { type: "string" } }, exams: { type: "array", items: { type: "string" } }, projectIdeas: { type: "array", items: { type: "string" } } } }
     }, required: ["valid", "profile", "confidences", "domain", "scope", "options"]

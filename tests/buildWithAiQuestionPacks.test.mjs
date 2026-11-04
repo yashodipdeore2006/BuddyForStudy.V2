@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+// Node 24's built-in type stripping runs this erasable TypeScript module directly.
 import {
   getNicheDisclaimer,
   getNicheQuestions,

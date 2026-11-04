@@ -15,7 +15,7 @@ const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };
 type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null; outcome?: string; preferences?: Record<string, string> };
-type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; inferredGoal?: string; fallback?: boolean };
+type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; assumptions?: { field: string; value: unknown }[]; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
@@ -1000,8 +1000,28 @@ export default function Courses() {
                     <>
                       {intentResult.assumed && (
                         <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
-                          We assumed: {intentResult.inferredGoal === 'job_ready' ? 'job-ready' : intentResult.inferredGoal || intentGoal}{intentResult.profile?.targetCompany ? ', ' + intentResult.profile.targetCompany : ''}. Change?
-                          <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentAnswers((previous) => ({ ...previous, goal: '' })); setIntentQuestionIndex(0); }}>Change</button>
+                          <p className="font-semibold">We inferred some details. Review or edit them before building.</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(intentResult.assumptions || []).map((assumption) => {
+                              const questionIds: Record<string, string> = { goal: "goal", scope: "depth", targetRole: "role", targetCompany: "company", examName: "examType", examDate: "examDate", syllabusText: "syllabus", projectIdea: "projectIdea", minutesPerDay: "time", knownSkills: "knownSkills", language: "language", deadline: "deadline" };
+                              const questionId = questionIds[assumption.field];
+                              const label = assumption.field.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
+                              const value = Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value);
+                              return (
+                                <button key={assumption.field} type="button" className="rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-900 hover:bg-violet-100" onClick={() => {
+                                  if (assumption.field === "level") return;
+                                  if (assumption.field === "scope" || assumption.field === "goal") setIntentQuestionIndex(0);
+                                  else {
+                                    const index = activeIntentQuestions.findIndex((question) => question.id === questionId);
+                                    if (index >= 0) setIntentQuestionIndex(index);
+                                  }
+                                }}>
+                                  {label}: {value.slice(0, 64)} · Edit
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="mt-2 text-xs">Course level can be changed using the level selector above.</p>
                         </div>
                       )}
                       {intentAnswers.role && (

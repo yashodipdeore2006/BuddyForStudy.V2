@@ -966,6 +966,10 @@ export default function Courses() {
                     <input id="ai-topic" autoFocus maxLength={200} value={aiTopic} onChange={(event) => setAiTopic(event.target.value)} placeholder="e.g. Python for a TCS interview, Data Analytics, or a project idea…" className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
                     <p className="mt-1 text-xs text-slate-500">Start with a topic or outcome. We will ask only the questions that are still needed.</p>
                   </div>
+                  <div>
+                    <label htmlFor="ai-outcome" className="mb-1.5 block text-sm font-semibold text-slate-800">In one sentence, what do you want to be able to do at the end? <span className="font-normal text-slate-500">Optional</span></label>
+                    <textarea id="ai-outcome" rows={2} maxLength={500} value={aiCustomGoal} onChange={(event) => setAiCustomGoal(event.target.value)} placeholder="e.g. Build and deploy a Python automation tool that processes Excel reports…" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
+                  </div>
                   {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
                 </div>
               ) : (

@@ -72,7 +72,10 @@ export default function AdminRoadmaps() {
     }
   }, [status, appliedQuery, page, limit]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const clearDetail = useCallback(() => {
     detailRequestRef.current += 1;

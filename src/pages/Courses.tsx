@@ -1459,7 +1459,7 @@ export default function Courses() {
                               value={aiStudyTime}
                               onChange={(event) => {
                                 const value = Number(event.target.value);
-                                const labels: Record<number, string> = { 60: "1 hour", 120: "2 hours", 210: "3-4 hours", 300: "5+ hours" };
+                                const labels: Record<number, string> = { 15: "15 min", 30: "30 min", 60: "1 hour", 120: "2 hours", 180: "3+ hours", 210: "3-4 hours", 300: "5+ hours" };
                                 setAiStudyTime(value);
                                 setIntentAnswers((previous) => ({ ...previous, time: labels[value] }));
                               }}

@@ -622,8 +622,13 @@ export default function Courses() {
       clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
       setIntentAnswers((previous) => {
         const next = { ...previous };
-        if (question.id === "goal") next.goal = "learn";
-        else delete next[question.id];
+        if (question.id === "goal") {
+          next.goal = "learn";
+          next.goalPurpose = "hobby";
+        } else if (question.id === "depth") next.depth = "narrow";
+        else if (question.id === "language") next.language = "en";
+        else if (question.id === "time") next.time = "1 hour";
+        else next[question.id] = "";
         return next;
       });
       if (question.id === "goal") setIntentQuestionIndex(0);

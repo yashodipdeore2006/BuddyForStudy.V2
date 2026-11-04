@@ -1267,8 +1267,8 @@ export default function Courses() {
                           { number: 4, label: "Review" }
                         ].map((item) => (
                           <div key={item.number} className="space-y-1.5">
-                            <div className={\`h-1.5 rounded-full ${intentWizardStep >= item.number ? "bg-violet-600" : "bg-slate-100"}\`} />
-                            <p className={\`text-[10px] font-semibold ${intentWizardStep === item.number ? "text-violet-700" : intentWizardStep > item.number ? "text-slate-700" : "text-slate-400"}\`}>{item.number}. {item.label}</p>
+                            <div className={`h-1.5 rounded-full ${intentWizardStep >= item.number ? "bg-violet-600" : "bg-slate-100"}`} />
+                            <p className={`text-[10px] font-semibold ${intentWizardStep === item.number ? "text-violet-700" : intentWizardStep > item.number ? "text-slate-700" : "text-slate-400"}`}>{item.number}. {item.label}</p>
                           </div>
                         ))}
                       </div>

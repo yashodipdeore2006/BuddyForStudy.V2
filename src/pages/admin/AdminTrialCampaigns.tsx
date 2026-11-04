@@ -39,7 +39,10 @@ export default function AdminTrialCampaigns() {
     } catch (e) { setError(e instanceof Error ? e.message : "Unable to load trial campaigns."); }
     finally { setLoading(false); }
   }, [planId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters(current => ({ ...current, [key]: value }));

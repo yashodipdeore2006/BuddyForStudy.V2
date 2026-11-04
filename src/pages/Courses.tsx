@@ -187,7 +187,6 @@ export default function Courses() {
   const [aiTopic, setAiTopic] = useState('');
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
-  const [intentQuestionIndex, setIntentQuestionIndex] = useState(0);
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);

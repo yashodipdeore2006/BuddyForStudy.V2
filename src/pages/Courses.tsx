@@ -9,7 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
-import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
+import { getNicheQuestions, getNicheDisclaimer, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 
 const INTENT_V2 = import.meta.env.VITE_INTENT_V2 === "true";
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
@@ -896,7 +896,7 @@ export default function Courses() {
         goal: selectedGoal,
         targetRole: String(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole || '') || null,
         targetCompany: String(intentAnswers.company ?? intentResult.profile?.targetCompany ?? '') || null,
-        examName: String(intentAnswers.examType ?? intentResult.profile?.examName ?? '') || null,
+        examName: String(intentAnswers.examType || intentAnswers.targetExamName || intentResult.profile?.examName || '') || null,
         examDate: String(intentAnswers.examDate ?? intentResult.profile?.examDate ?? '') || null,
         syllabusText: String(intentAnswers.syllabus ?? intentResult.profile?.syllabusText ?? '') || null,
         projectIdea: String(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea ?? '') || null,
@@ -906,7 +906,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: String(intentAnswers.deadline ?? intentResult.profile?.deadline ?? '') || null,
-        preferences: Object.fromEntries(['buildTarget', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'careerStage', 'portfolioStatus', 'interviewDate', 'freelanceService', 'clientType', 'switchExperience', 'switchTarget', 'examPreparationStyle', 'projectAudience', 'learningMotivation', 'marketingChannel', 'creativeTool', 'labAccess', 'languageGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'financeGoal', 'practiceSetup'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
+        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'careerStage', 'portfolioStatus', 'interviewDate', 'freelanceService', 'clientType', 'switchExperience', 'switchTarget', 'examPreparationStyle', 'projectAudience', 'learningMotivation', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key])]))
       } : undefined;
       const profile = {
         topic,
@@ -1529,6 +1529,11 @@ export default function Courses() {
                           <h3 className="mt-1 text-xl font-bold text-slate-950">Domain-specific fine tuning</h3>
                           <p className="mt-1 text-sm text-slate-500">Choose the tools, focus areas and practice setup that best match this subject.</p>
                         </div>
+                        {getNicheDisclaimer(aiTopic) && (
+                          <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                            <span className="font-semibold">Safety and learning note:</span> {getNicheDisclaimer(aiTopic)}
+                          </div>
+                        )}
                         {nicheIntentQuestions.length ? (
                           <div className="space-y-3">{nicheIntentQuestions.map((question) => renderIntentQuestion(question, "niche"))}</div>
                         ) : (

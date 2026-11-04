@@ -687,6 +687,11 @@ export default function Courses() {
         { id: "lessonStyle", type: "single", text: "How do you prefer to learn?", options: ["Short videos and frequent practice", "Long, detailed tutorials", "Project-first", "Theory first, then practice"], optional: true, why: "This changes resource length and the balance between explanation and hands-on work.", changes: ["resources", "projects"] },
         { id: "deadline", type: "text", text: "Do you have a target date to finish this learning path?", optional: true, why: "A target date helps pace the weekly workload without overloading your schedule.", changes: ["schedule"] }
       ];
+      const hasAiDomainClarifiers = enrichedPlan.some((question) => question.id.startsWith("domain_"));
+      const customDomainFallback: IntentQuestion[] = niche.length || hasAiDomainClarifiers ? [] : [
+        { id: "custom_focus", type: "single", text: `Which core sub-area of ${query} do you want to focus on first?`, options: ["Practical fundamentals", "Advanced techniques", "Project-based applications", "Not sure, pick for me"], optional: true, why: "This narrows resource curation and determines the first skills in your roadmap.", changes: ["resource curation", "skills path"] },
+        { id: "custom_tool", type: "single", text: `Do you have a specific tool, platform or framework for ${query}?`, options: ["Standard / beginner setup", "Industry-standard tools", "Browser-based tools only", "Not sure, pick for me"], optional: true, why: "This tailors setup guides and tutorials to the tools you can actually access.", changes: ["environment setup", "resources"] }
+      ];
       const parsedGoal = String(result.profile?.goal || result.inferredGoal || "learn");
       const purposePackId = String(intentAnswers.goalPurpose || (parsedGoal === "job_ready" ? "career" : parsedGoal === "exam" ? "exam" : parsedGoal === "project" ? "project" : "hobby"));
       const purposePacks = getPurposeQuestions(purposePackId).filter((question) => !retiredIds.includes(question.id) && !alreadyAnswered(question.id));
@@ -694,6 +699,7 @@ export default function Courses() {
       const merged = [
         ...purposePacks,
         ...niche.filter((question) => !purposePacks.some((purposeQuestion) => purposeQuestion.id === question.id)),
+        ...customDomainFallback,
         ...enrichedPlan.filter((question) =>
           !selectedPackQuestionIds.has(question.id) &&
           !(question.id === "role" && purposePacks.some((packQuestion) => packQuestion.id === "targetRole")) &&

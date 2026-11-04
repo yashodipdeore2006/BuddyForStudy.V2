@@ -102,7 +102,10 @@ export default function AdminSupport() {
     }
   }, [filter, page, limit, search]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   async function update(issue: Issue, status: Issue["status"], assignment = assignments[issue._id] ?? assigneeId(issue.assignedTo), confirmed = false, reasonOverride?: string) {
     if (!canManage) {

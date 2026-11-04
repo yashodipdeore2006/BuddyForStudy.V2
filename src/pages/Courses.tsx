@@ -443,7 +443,6 @@ export default function Courses() {
     setAiRoadmap(null);
     setIntentResult(null);
     setIntentAnswers({});
-    setIntentQuestionIndex(0);
     setIntentWizardStep(1);
     setAiCustomGoal("");
     setAiGoal("Build practical skills");
@@ -575,8 +574,7 @@ export default function Courses() {
         ...coreExtras.filter((question) => !selectedPackQuestionIds.has(question.id) && !alreadyAnswered(question.id))
       ];
       setIntentResult({ ...result, questionPlan: merged });
-      setIntentQuestionIndex(0);
-      if (!result.valid) {
+        if (!result.valid) {
         setIntentAnswers({});
         setAiError('That does not look like a learning topic yet. Try Python, Data Analytics, an exam name, or a project idea.');
         return;
@@ -719,7 +717,7 @@ export default function Courses() {
     if (!aiOpen || !intentResult?.valid) return;
     visibleWizardQuestions.forEach((question, index) => trackIntentQuestionEvent(question, "shown", index));
   }, [aiOpen, intentResult?.valid, intentWizardStep, visibleWizardQuestionKey, trackIntentQuestionEvent]);
-  const chooseIntentOption = (question: IntentQuestion, value: string, advance = true) => {
+  const chooseIntentOption = (question: IntentQuestion, value: string) => {
     if (question.id !== "knownSkills") trackIntentQuestionEvent(question, "answered");
     if (value === "Not sure, pick for me" && question.id !== "knownSkills") {
       clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
@@ -734,17 +732,12 @@ export default function Courses() {
         else next[question.id] = "Not sure, pick for me";
         return next;
       });
-      if (advance) {
-        if (question.id === "goal") setIntentQuestionIndex(0);
-        else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
-      }
       return;
     }
     if (question.id === "knownSkills") {
       if (value === "Not sure, pick for me") {
         clearIntentAssumption("knownSkills");
         setIntentAnswers((previous) => ({ ...previous, knownSkills: "" }));
-        if (advance) setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
         return;
       }
       const selected = String(intentAnswers.knownSkills || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -777,10 +770,6 @@ export default function Courses() {
       [question.id]: mapped,
       ...(question.id === "goal" && purposeMap[value] ? { goalPurpose: purposeMap[value].purpose } : {})
     }));
-    if (advance) {
-      if (question.id === 'goal') setIntentQuestionIndex(0);
-      else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
-    }
   };
 
   const isIntentOptionSelected = (question: IntentQuestion, option: string) => {
@@ -810,7 +799,7 @@ export default function Courses() {
     return String(intentResult?.profile?.preferences?.[question.id] || "") === option;
   };
 
-  const commitIntentTextAnswer = (question: IntentQuestion, advance = true) => {
+  const commitIntentTextAnswer = (question: IntentQuestion) => {
     const rawAnswer = String(intentAnswers[question.id] || '').trim();
     if (rawAnswer) {
       trackIntentQuestionEvent(question, "answered");
@@ -833,7 +822,6 @@ export default function Courses() {
         : rawAnswer;
       setIntentAnswers((previous) => ({ ...previous, [question.id]: answer }));
     }
-    if (advance) setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   };
 
   const renderIntentQuestion = (question: IntentQuestion, accent: "purpose" | "niche") => {
@@ -861,7 +849,7 @@ export default function Courses() {
                   key={option}
                   type="button"
                   aria-pressed={selected}
-                  onClick={() => chooseIntentOption(question, option, false)}
+                  onClick={() => chooseIntentOption(question, option)}
                   className={`min-h-10 rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${selected ? selectedClass : idleClass}`}
                 >
                   {selected ? "✓ " : ""}{option}
@@ -883,7 +871,7 @@ export default function Courses() {
               placeholder={question.id === "syllabus" ? "Paste syllabus units here…" : "Type an answer (optional)…"}
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
             />
-            <button type="button" onClick={() => commitIntentTextAnswer(question, false)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <button type="button" onClick={() => commitIntentTextAnswer(question)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               Save answer
             </button>
           </div>
@@ -1093,8 +1081,7 @@ export default function Courses() {
                   setAiRoadmap(null);
                   setIntentResult(null);
                   setIntentAnswers({});
-                  setIntentQuestionIndex(0);
-                  setIntentWizardStep(1);
+                                setIntentWizardStep(1);
                   setAiCustomGoal("");
                   setAiGoal("Build practical skills");
                   setAiGoalTouched(false);

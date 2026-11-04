@@ -729,7 +729,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
             excludeShorts: true,
             requireEmbeddable: true,
             preferProjectBased: true,
-            preferredLanguage: "en"
+            preferredLanguage: language || "en"
           }
         }
       });
@@ -874,7 +874,8 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     goalModule.order = modules.length + 1;
     modules.push(goalModule);
   }
-  const schedule = buildSchedule(modules, { minutesPerDay: studyTimeMinutesPerDay || 60, deadline: goal === "exam" ? (goalProfile.examDate || deadline) : deadline, examDate: goalProfile.examDate, now: new Date() });
+  const studyDaysPerWeek = Number(String(intentProfile?.preferences?.studyDays || "").match(/[2-7]/)?.[0]) || 6;
+  const schedule = buildSchedule(modules, { minutesPerDay: studyTimeMinutesPerDay || 60, studyDaysPerWeek, deadline: goal === "exam" ? (goalProfile.examDate || deadline) : deadline, examDate: goalProfile.examDate, now: new Date() });
   modules.splice(0, modules.length, ...schedule.modules);
   return {
     course: {

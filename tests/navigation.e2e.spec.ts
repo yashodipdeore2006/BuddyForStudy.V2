@@ -903,6 +903,11 @@ test.describe("learner control and state regression", () => {
   });
 
   test("[BUILD-WITH-AI-WIZARD-002] purpose and domain packs move through review before roadmap generation", async ({ page }) => {
+    const questionEvents: Array<{ questionId?: string; packId?: string; event?: string; position?: number }> = [];
+    page.on("request", (request) => {
+      if (request.method() !== "POST" || new URL(request.url()).pathname !== "/api/intent/events") return;
+      try { questionEvents.push(request.postDataJSON()); } catch { /* Ignore malformed analytics payloads. */ }
+    });
     await mockAppApi(page, { authenticated: true });
     await page.route("**/api/intent/parse", async (route) => {
       await json(route, {
@@ -946,11 +951,13 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByText("What is your target role and company type?")).toBeVisible();
     await expect(dialog.getByText("Do you have an upcoming interview or target date?")).toBeVisible();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect.poll(() => questionEvents.some((event) => event.event === "skipped" && event.packId === "purpose_career")).toBe(true);
 
     await expect(dialog.getByText("Layer 3 · Domain pack")).toBeVisible();
     await expect(dialog.getByText("What do you want to build primarily?")).toBeVisible();
     await expect(dialog.getByText("Do you need algorithmic DSA practice?")).toBeVisible();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect.poll(() => questionEvents.some((event) => event.event === "skipped" && event.packId === "domain_programming")).toBe(true);
 
     await expect(dialog.getByText("Final strategy · Review")).toBeVisible();
     await expect(dialog.getByText("Your personalized blueprint")).toBeVisible();

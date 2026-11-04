@@ -31,21 +31,26 @@ function normalizeLessonId(value: unknown): string | null {
 
 export function useCourseState(courseId: string | undefined, course?: Course | null, enabled = true, refreshKey = 0): CourseState {
   const [remote, setRemote] = useState<CourseState>(initialState);
+  const [remoteRequestKey, setRemoteRequestKey] = useState("");
   const lessons = useMemo(() => course ? getAllLessonsFlat(course.modules) : [], [course]);
   const lessonKey = lessons.map((lesson) => String(lesson.id)).join("|");
   const hasRoadmap = lessons.length > 0;
+  const hasPreview = lessons.some((lesson) => {
+    const previewMetadata = lesson as unknown as { isPreview?: boolean; is_preview?: boolean };
+    return previewMetadata.isPreview === true || previewMetadata.is_preview === true;
+  });
+  const requestKey = [
+    courseId || "",
+    course?.id || "",
+    course?.is_published === false ? "unpublished" : "published",
+    enabled ? "enabled" : "disabled",
+    lessonKey,
+    String(refreshKey),
+  ].join(":");
 
   useEffect(() => {
+    if (!enabled || !courseId) return undefined;
     let current = true;
-    if (!enabled) {
-      setRemote({ ...initialState, loading: false, hasRoadmap, isPublished: course?.is_published !== false, error: null });
-      return () => { current = false; };
-    }
-    if (!courseId) {
-      setRemote({ ...initialState, loading: false, error: "A course id is required." });
-      return () => { current = false; };
-    }
-    setRemote((previous) => ({ ...previous, loading: true, error: null }));
 
     void (async () => {
       let enrollment: Record<string, unknown> | null = null;
@@ -87,21 +92,45 @@ export function useCourseState(courseId: string | undefined, course?: Course | n
       const progressPct = Math.min(100, Math.max(0, Number(progress?.percentage ?? (totalLessons ? completedLessons / totalLessons * 100 : 0)) || 0));
       const isCompleted = String(enrollment?.status ?? "").toLowerCase() === "completed" || (totalLessons > 0 && progressPct >= 100);
 
-      if (current) setRemote({
-        loading: false, isEnrolled, isCompleted, progressPct, completedLessons, totalLessons,
-        nextLessonId: isCompleted || !nextLesson ? null : normalizeLessonId(nextLesson.id),
-        hasRoadmap, hasPreview: lessons.some((lesson) => {
-          const previewMetadata = lesson as unknown as { isPreview?: boolean; is_preview?: boolean };
-          return previewMetadata.isPreview === true || previewMetadata.is_preview === true;
-        }),
-        isPublished: course?.is_published !== false, error: errorMessage,
-      });
+      if (current) {
+        setRemote({
+          loading: false, isEnrolled, isCompleted, progressPct, completedLessons, totalLessons,
+          nextLessonId: isCompleted || !nextLesson ? null : normalizeLessonId(nextLesson.id),
+          hasRoadmap, hasPreview,
+          isPublished: course?.is_published !== false, error: errorMessage,
+        });
+        setRemoteRequestKey(requestKey);
+      }
     })().catch((error) => {
-      if (current) setRemote({ ...initialState, loading: false, hasRoadmap, isPublished: course?.is_published !== false, error: error instanceof Error ? error.message : "Course state is unavailable." });
+      if (current) {
+        setRemote({
+          ...initialState,
+          loading: false,
+          hasRoadmap,
+          hasPreview,
+          isPublished: course?.is_published !== false,
+          error: error instanceof Error ? error.message : "Course state is unavailable.",
+        });
+        setRemoteRequestKey(requestKey);
+      }
     });
 
     return () => { current = false; };
-  }, [courseId, course?.id, course?.is_published, enabled, hasRoadmap, lessonKey, lessons, refreshKey]);
+  }, [requestKey, courseId, course?.is_published, enabled, hasRoadmap, hasPreview, lessonKey, lessons, refreshKey]);
 
-  return { ...remote, hasRoadmap: course ? hasRoadmap : remote.hasRoadmap, isPublished: course ? course.is_published !== false : remote.isPublished };
+  if (!enabled) {
+    return { ...initialState, loading: false, hasRoadmap, hasPreview, isPublished: course?.is_published !== false, error: null };
+  }
+  if (!courseId) {
+    return { ...initialState, loading: false, error: "A course id is required." };
+  }
+  if (remoteRequestKey !== requestKey) {
+    return { ...initialState, loading: true, hasRoadmap, hasPreview, isPublished: course?.is_published !== false };
+  }
+  return {
+    ...remote,
+    hasRoadmap: course ? hasRoadmap : remote.hasRoadmap,
+    hasPreview: course ? hasPreview : remote.hasPreview,
+    isPublished: course ? course.is_published !== false : remote.isPublished,
+  };
 }

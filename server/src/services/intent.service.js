@@ -180,7 +180,10 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
       }));
       const goal = profile.goal || "learn";
       const applicableQuestions = normalized.questionPlan.filter((item) => !item.when || item.when === "goal=" + goal);
-      normalized.questionPlan = [...safeQuestions, ...applicableQuestions].slice(0, 8);
+      const prioritizedQuestions = [...safeQuestions, ...applicableQuestions];
+      normalized.questionPlan = prioritizedQuestions.length > 8
+        ? prioritizedQuestions.filter((item) => item.id !== "depth").slice(0, 8)
+        : prioritizedQuestions;
     }
     const assumptionFields = ["goal", "scope", "level", "knownSkills", "minutesPerDay", "language", "targetRole", "targetCompany", "examName", "examDate", "syllabusText", "projectIdea", "deadline", "outcome"];
     normalized.assumptions = assumptionFields

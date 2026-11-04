@@ -12,7 +12,7 @@ function memoryCache() {
 }
 function parsed({ goal = null, confidences = {}, profile = {}, options = {} } = {}) {
   const base = { topic: "Python", domain: "software_web", scope: "broad", goal, level: "Beginner", knownSkills: [], minutesPerDay: 60, language: "en", targetRole: null, targetCompany: null, examName: null, examDate: null, syllabusText: null, projectIdea: null, deadline: null };
-  const result = { valid: true, profile: { ...base, ...profile }, confidences: { topic: 1, ...confidences }, domain: "software_web", scope: "broad", options };
+  const result = { valid: true, profile: { ...base, ...profile }, confidences: { topic: 1, level: 1, ...confidences }, domain: "software_web", scope: "broad", options };
   result.assumed = Boolean(goal && (result.confidences.goal ?? 0) < 0.8);
   if (result.assumed) result.inferredGoal = goal;
   result.questionPlan = buildQuestionPlan(result);
@@ -24,6 +24,11 @@ test("Python for everything, then job-ready asks role and company in order", () 
   const result = parsed({ goal: "job_ready", confidences: { goal: 1, targetRole: 0, targetCompany: 0 } });
   assert.deepEqual(ids(result), ["role", "company", "depth", "knownSkills", "time", "language"]);
 });
+test("low-confidence starting level is included as an editable question", () => {
+  const result = parsed({ goal: "learn", confidences: { goal: 1, level: 0.3, scope: 1, knownSkills: 1, minutesPerDay: 1, language: 1 } });
+  assert.deepEqual(ids(result), ["level"]);
+});
+
 test("default profile values do not suppress low-confidence questions", () => {
   const result = parsed({ goal: "learn", confidences: { goal: 1, scope: 0, knownSkills: 0, minutesPerDay: 0, language: 0 } });
   assert.deepEqual(ids(result), ["depth", "knownSkills", "time", "language"]);

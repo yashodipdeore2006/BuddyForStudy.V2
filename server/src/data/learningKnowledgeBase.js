@@ -64,7 +64,9 @@ for (const item of Object.values(SKILLS)) if (!ALIASES.has(item.name.toLowerCase
 
 export function resolveLearningPath(query) {
   const normalized = String(query || "").trim().toLowerCase().replace(/[^a-z0-9+#.]+/g, " ").replace(/\s+/g, " ");
-  const pathId = ALIASES.get(normalized);
+  const pathId = /\\bpython\\b/.test(normalized) && !/data analytics|data analysis|data science/.test(normalized)
+    ? "python"
+    : ALIASES.get(normalized);
   if (pathId && CAREER_PATHS[pathId]) return { type:"career", path:CAREER_PATHS[pathId] };
   const skillId = ALIASES.get(normalized);
   if (skillId && SKILLS[skillId]) {

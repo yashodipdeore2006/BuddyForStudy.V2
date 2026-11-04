@@ -546,6 +546,17 @@ export default function Courses() {
   const currentIntentQuestion = activeIntentQuestions[intentQuestionIndex];
   const skipIntentQuestion = () => setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
   const chooseIntentOption = (question: IntentQuestion, value: string) => {
+    if (value === "Not sure, pick for me" && question.id !== "knownSkills") {
+      setIntentAnswers((previous) => {
+        const next = { ...previous };
+        if (question.id === "goal") next.goal = "learn";
+        else delete next[question.id];
+        return next;
+      });
+      if (question.id === "goal") setIntentQuestionIndex(0);
+      else setIntentQuestionIndex((index) => Math.min(index + 1, activeIntentQuestions.length));
+      return;
+    }
     if (question.id === "knownSkills") {
       if (value === "Not sure, pick for me") {
         setIntentAnswers((previous) => ({ ...previous, knownSkills: "" }));

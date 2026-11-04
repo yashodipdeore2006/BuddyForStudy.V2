@@ -80,7 +80,6 @@ export function buildQuestionPlan(parsed) {
   if (!hasKnownValue("syllabusText")) addUnlessKnown("syllabusText", question("syllabus", "paste", "Paste your syllabus if you have it.", [], "goal=exam", true));
   if (!hasKnownValue("projectIdea")) addUnlessKnown("projectIdea", question("projectIdea", "text", "What would you like to build?", parsed.options?.projectIdeas, "goal=project", true));
   if (!hasKnownValue("scope")) addUnlessKnown("scope", question("depth", "single", "How deep should we go?", ["Quick overview", "Complete learning path"], null));
-  if (!hasKnownValue("level")) addUnlessKnown("level", question("level", "single", "Where are you starting from?", ["New to this", "Know the basics", "Experienced — go deeper"], null));
   if (!hasKnownValue("knownSkills")) addUnlessKnown("knownSkills", question("knownSkills", "text", "What do you already know?", [], null, true));
   if (!hasKnownValue("minutesPerDay")) addUnlessKnown("minutesPerDay", question("time", "time", "How much time can you study each day?", ["15 min", "30 min", "1 hour", "2 hours", "3+ hours"], null));
   if (!hasKnownValue("language")) addUnlessKnown("language", question("language", "single", "Which language should resources use?", ["English", "Hindi", "Marathi", "Other"], null));

@@ -29,7 +29,7 @@ export async function getOrCreateRoadmapTemplate({ profile, promptVersion, gener
   const goal = profile.goal || (Array.isArray(profile.goals) && profile.goals.length ? profile.goals.join(",") : "learn");
   const level = profile.level || "Beginner", language = profile.language || "en";
   const version = String(promptVersion || "builtin-v1");
-  const key = buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion: version });
+  const key = buildRoadmapTemplateKey({ canonicalTopic, goal, level, language, promptVersion: version, outcome: profile.outcome, preferences: profile.preferences });
   const cached = await findRoadmapTemplate({ profile, promptVersion: version, model, now });
   if (cached) return cached;
   const roadmap = await generate();

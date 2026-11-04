@@ -177,7 +177,9 @@ export async function parseIntent(query, { model = IntentParseCache, generate = 
         why: String(item.why || "This helps select relevant learning resources.").slice(0, 180),
         changes: Array.isArray(item.changes) ? item.changes.filter((lever) => ["skills", "depth", "resources", "schedule", "projects", "assessment", "language"].includes(lever)).slice(0, 4) : ["resources"]
       }));
-      normalized.questionPlan = [...normalized.questionPlan, ...safeQuestions].slice(0, 8);
+      const goal = profile.goal || "learn";
+      const applicableQuestions = normalized.questionPlan.filter((item) => !item.when || item.when === "goal=" + goal);
+      normalized.questionPlan = [...safeQuestions, ...applicableQuestions].slice(0, 8);
     }
     normalized.assumed = Boolean(profile.goal && (confidences.goal ?? 0) < 0.8);
     if (normalized.assumed) normalized.inferredGoal = profile.goal;

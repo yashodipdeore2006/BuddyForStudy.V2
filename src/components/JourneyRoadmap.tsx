@@ -11,8 +11,7 @@ type Point = { x: number; y: number };
 const scenery = { trail: ["☀", "🌿", "🌲", "⛰", "🏔", "✦"] };
 const rankNames = ["Explorer", "Apprentice", "Builder", "Specialist", "Expert", "Master"];
 
-export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEnroll, onContinue, nextLessonTitle, completed = false }: Props) {
-  const { session } = useAuth();
+function JourneyRoadmapContent({ courseId, enrolled, onViewLessons, onEnroll, onContinue, nextLessonTitle, completed = false, userId }: Props & { userId?: string }) {
   const [data, setData] = useState<JourneyData | null>(null);
   const isEnrolled = enrolled ?? Boolean(data?.progress);
   const [loading, setLoading] = useState(true);
@@ -48,8 +47,34 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
     return () => window.clearTimeout(timer);
   }, []);
 
-  useEffect(() => { let active = true; setLoading(true); setError(""); setData(null); apiFetch("/api/courses/" + encodeURIComponent(courseId) + "/roadmap").then((result) => { if (active) { const roadmap = result.roadmap as JourneyData; setData(roadmap); setPace(roadmap.progress?.paceHoursPerDay || 1); } }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Unable to load the journey roadmap."); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [courseId, enrolled, session?.user?.id]);
-  useEffect(() => { const query = window.matchMedia("(prefers-reduced-motion: reduce)"); const sync = () => setMotionEnabled(!query.matches); sync(); query.addEventListener("change", sync); return () => query.removeEventListener("change", sync); }, []);
+  useEffect(() => {
+    let active = true;
+    apiFetch("/api/courses/" + encodeURIComponent(courseId) + "/roadmap")
+      .then((result) => {
+        if (active) {
+          const roadmap = result.roadmap as JourneyData;
+          setData(roadmap);
+          setPace(roadmap.progress?.paceHoursPerDay || 1);
+        }
+      })
+      .catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Unable to load the journey roadmap.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [courseId, enrolled, userId]);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setMotionEnabled(!query.matches);
+    const timer = window.setTimeout(sync, 0);
+    query.addEventListener("change", sync);
+    return () => {
+      window.clearTimeout(timer);
+      query.removeEventListener("change", sync);
+    };
+  }, []);
   useEffect(() => { const road = pathRef.current; if (!road || !data?.stages.length) { setLengths([]); setRoadLength(0); return; } const total = road.getTotalLength(); const found = [0]; for (let i = 1; i < points.length; i += 1) { let low = 0; let high = total; for (let step = 0; step < 40; step += 1) { const mid = (low + high) / 2; if (road.getPointAtLength(mid).y < points[i].y) low = mid; else high = mid; } found.push((low + high) / 2); } setRoadLength(total); setLengths(found); }, [data?.stages.length, pathD, points]);
   const distanceFor = useCallback((position: number) => { if (!lengths.length) return 0; const last = lengths.length - 1; if (position >= last) return lengths[last]; const k = Math.max(0, Math.floor(position)); const w = position - k; return lengths[k] + (lengths[k + 1] - lengths[k]) * w; }, [lengths]);
   useEffect(() => { if (!lengths.length || !roadLength) return; const target = distanceFor(targetPosition); const oldPosition = previousPositionRef.current; const oldDistance = distanceFor(oldPosition); if (!motionEnabled) { displayDistanceRef.current = target; setDisplayDistance(target); previousPositionRef.current = targetPosition; introRef.current = true; return; } if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); const first = !introRef.current; introRef.current = true; const from = first ? 0 : displayDistanceRef.current || oldDistance; const delta = target - from; const duration = Math.min(1600, Math.max(500, Math.abs(delta) * 1.3)); const started = performance.now(); const animate = (now: number) => { const p = Math.min(1, (now - started) / duration); const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; displayDistanceRef.current = from + delta * eased; setDisplayDistance(from + delta * eased); if (p < 1) frameRef.current = requestAnimationFrame(animate); else { frameRef.current = null; previousPositionRef.current = targetPosition; markerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); } }; frameRef.current = requestAnimationFrame(animate); return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); }; }, [lengths, targetPosition, motionEnabled, roadLength, distanceFor]);
@@ -124,3 +149,15 @@ export default function JourneyRoadmap({ courseId, enrolled, onViewLessons, onEn
 }
 
 function Stat({ label, value }: { label: string; value: string }) { return <div className="group relative overflow-hidden rounded-2xl border border-white/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[.035] transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:ring-white/5 sm:p-5"><div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-indigo-500 opacity-80" /><p className="text-[11px] font-semibold uppercase tracking-[.13em] text-slate-500 dark:text-slate-400">{label}</p><p className="mt-2 truncate text-base font-bold tracking-tight text-slate-950 dark:text-white sm:text-lg">{value}</p></div>; }
+export default function JourneyRoadmap(props: Props) {
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const enrollmentKey = props.enrolled === undefined ? "auto" : props.enrolled ? "enrolled" : "not-enrolled";
+  return (
+    <JourneyRoadmapContent
+      key={props.courseId + ":" + enrollmentKey + ":" + (userId || "anonymous")}
+      {...props}
+      userId={userId}
+    />
+  );
+}

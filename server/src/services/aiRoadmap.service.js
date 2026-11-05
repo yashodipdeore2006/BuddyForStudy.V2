@@ -1461,13 +1461,8 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     };
   }
 
-  // Existing saved quizzes are returned before this check. Only new AI
-  // generation needs the external provider to be configured.
-  if (!client) {
-    const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to generate quizzes.");
-    error.status = 503;
-    throw error;
-  }
+  // Missing provider configuration is handled by the same validated template
+  // fallback as provider timeouts and malformed structured responses.
 
   let usageReserved = false;
   if (userId) {
@@ -1513,6 +1508,11 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
   let questions = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
+      if (!client) {
+        const error = new Error("Gemini AI is not configured for quiz generation");
+        error.status = 503;
+        throw error;
+      }
       const response = await withQuizTimeout(client.models.generateContent({
         model: env.geminiModel,
         contents: prompt,
@@ -1716,7 +1716,9 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
 export const __aiRoadmapTestHooks = Object.freeze({
   isBroadPythonTopic,
   ensurePythonStages,
-  buildTopicFallback
+  buildTopicFallback,
+  buildTemplateQuizQuestions,
+  validateQuizQuestions
 });
 
 export async function generateAIRoadmap(input, options = {}) {

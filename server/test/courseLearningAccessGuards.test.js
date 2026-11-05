@@ -80,7 +80,7 @@ test("completion API returns the complete progress state and supports marking a 
 });
 
 test("first quiz submission completes the quiz lesson and sidebar completion circles toggle independently", () => {
-  const player = readFileSync(new URL("../../src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
+  const player = readFileSync(new URL("../../client/src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
   const submitStart = player.indexOf("const handleQuizSubmit = async () =>");
   const submitEnd = player.indexOf("\n\n\n  if (loading)", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "Expected lesson quiz submit handler");

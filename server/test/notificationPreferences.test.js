@@ -57,8 +57,8 @@ test("mark-read endpoint reports whether it performed the unread transition", as
   const { fileURLToPath } = await import("node:url");
   const here = path.dirname(fileURLToPath(import.meta.url));
   const controller = fs.readFileSync(path.join(here, "../src/controllers/notification.controller.js"), "utf8");
-  const userPage = fs.readFileSync(path.join(here, "../../src/pages/Notifications.tsx"), "utf8");
-  const adminPage = fs.readFileSync(path.join(here, "../../src/pages/admin/AdminNotifications.tsx"), "utf8");
+  const userPage = fs.readFileSync(path.join(here, "../../client/src/pages/Notifications.tsx"), "utf8");
+  const adminPage = fs.readFileSync(path.join(here, "../../client/src/pages/admin/AdminNotifications.tsx"), "utf8");
   assert.match(controller, /user: req\.user\.userId, readAt: null/);
   assert.match(controller, /wasUnread: true/);
   assert.match(controller, /wasUnread: false/);

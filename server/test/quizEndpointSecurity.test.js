@@ -6,7 +6,7 @@ const aiController = readFileSync(new URL("../src/controllers/ai.controller.js",
 const aiRoadmapService = readFileSync(new URL("../src/services/aiRoadmap.service.js", import.meta.url), "utf8");
 const courseController = readFileSync(new URL("../src/controllers/course.controller.js", import.meta.url), "utf8");
 const aiRoutes = readFileSync(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
-const player = readFileSync(new URL("../../src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
+const player = readFileSync(new URL("../../client/src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
 const attemptModel = readFileSync(new URL("../src/models/CourseQuizAttempt.js", import.meta.url), "utf8");
 
 test("AI quiz endpoints return sanitized question projections instead of stored answer keys", () => {

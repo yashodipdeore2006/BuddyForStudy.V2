@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const appPath = new URL("../../src/App.tsx", import.meta.url);
-const layoutPath = new URL("../../src/pages/admin/AdminLayout.tsx", import.meta.url);
+const appPath = new URL("../../client/src/App.tsx", import.meta.url);
+const layoutPath = new URL("../../client/src/pages/admin/AdminLayout.tsx", import.meta.url);
 
 test("every application admin page is mapped to an explicit shared-layout permission", async () => {
   const [app, layout] = await Promise.all([

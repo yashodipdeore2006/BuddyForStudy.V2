@@ -79,7 +79,7 @@ test("default generated pricing is consistent with the admin studio even before 
   const discoveryController = fs.readFileSync(path.join(here, "../src/controllers/discovery.controller.js"), "utf8");
   const discoveryService = fs.readFileSync(path.join(here, "../src/services/discovery.service.js"), "utf8");
   const courseService = fs.readFileSync(path.join(here, "../src/services/course.service.js"), "utf8");
-  const youtubeFallback = fs.readFileSync(path.join(here, "../../src/components/YouTubeSearchFallback.tsx"), "utf8");
+  const youtubeFallback = fs.readFileSync(path.join(here, "../../client/src/components/YouTubeSearchFallback.tsx"), "utf8");
   assert.match(courseModel, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
   assert.match(pricingController, /resolveGeneratedCoursePricingPolicy\(setting\?\.value\)/);
   assert.match(discoveryController, /level: z\.enum\(\["Beginner", "Intermediate", "Advanced"\]\)\.optional\(\)/);

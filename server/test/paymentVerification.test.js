@@ -109,7 +109,7 @@ test("failure webhooks update only retryable payment source states", () => {
 
 test("course payment verification restores enrollment on success and idempotent retry", () => {
   const controller = readFileSync(new URL("../src/controllers/payment.controller.js", import.meta.url), "utf8");
-  const courseDetails = readFileSync(new URL("../../src/pages/CourseDetails.tsx", import.meta.url), "utf8");
+  const courseDetails = readFileSync(new URL("../../client/src/pages/CourseDetails.tsx", import.meta.url), "utf8");
 
   assert.match(controller, /async function restorePurchasedCourseEnrollment\(payment, userId, enrollUser = enroll\)/);
   assert.match(controller, /Payment already verified; course access restored/);
@@ -160,8 +160,8 @@ test("subscription checkout only reuses a pending provider checkout for the same
 
 test("billing value summaries keep different currencies separate", () => {
   const controller = readFileSync(new URL("../src/controllers/adminPro.controller.js", import.meta.url), "utf8");
-  const learnerBilling = readFileSync(new URL("../../src/pages/Billing.tsx", import.meta.url), "utf8");
-  const adminBilling = readFileSync(new URL("../../src/pages/admin/AdminBilling.tsx", import.meta.url), "utf8");
+  const learnerBilling = readFileSync(new URL("../../client/src/pages/Billing.tsx", import.meta.url), "utf8");
+  const adminBilling = readFileSync(new URL("../../client/src/pages/admin/AdminBilling.tsx", import.meta.url), "utf8");
 
   assert.match(controller, /paidTotalsByCurrency: Object\.fromEntries\(paidValues\.map/);
   assert.match(controller, /status: \{ \$in: \["paid", "partially_refunded", "refunded"\] \}/);
@@ -185,7 +185,7 @@ test("course checkout refuses to reuse pending orders when the current price or 
 });
 
 test("quiz progress-save failures preserve graded results instead of replacing the course player", () => {
-  const player = readFileSync(new URL("../../src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
+  const player = readFileSync(new URL("../../client/src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
   const submitStart = player.indexOf("const handleQuizSubmit");
   const submitEnd = player.indexOf("\n\n  if (loading)", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "Expected course quiz submit handler");

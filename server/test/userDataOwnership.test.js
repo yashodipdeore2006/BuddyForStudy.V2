@@ -36,7 +36,7 @@ test("saved-course queries and writes are scoped to the authenticated user", asy
 });
 
 test("timestamped lesson notes are namespaced by user and course to prevent cross-account leakage", async () => {
-  const notes = await source("../../src/lib/courseNotes.ts");
+  const notes = await source("../../client/src/lib/courseNotes.ts");
   assert.ok(notes.includes("function courseTimestampNotesKey(userId: string, courseId: string)"));
   assert.ok(notes.includes('"bfs-course-timestamped-notes:" + (userId || "anonymous") + ":" + courseId'));
   assert.ok(notes.includes("localStorage.getItem(key)"));

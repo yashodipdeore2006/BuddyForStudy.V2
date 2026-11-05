@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const vercel = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8"));
-const render = fs.readFileSync(path.join(root, "render.yaml"), "utf8");
+const render = fs.readFileSync(path.join(root, "..", "render.yaml"), "utf8");
 
 test("Vercel config builds the Vite app and serves client-side routes directly", () => {
   assert.equal(vercel.framework, "vite");

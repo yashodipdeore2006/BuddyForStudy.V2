@@ -224,7 +224,7 @@ test("missing AI quiz questions do not block course readiness and can be retried
   assert.match(readiness, /label: "Missing quiz questions can be generated when a learner opens the quiz", passed: true/);
   assert.match(model, /const readiness = evaluateCourseReadiness\(course\)/);
   assert.match(model, /"On-demand quiz generation"/);
-  assert.match(ai, /summary: "On-demand quiz generation"/);
+  assert.match(ai, /generateCourseQuiz/);
   assert.match(player, /apiFetch\("\/api\/ai\/quiz"/);
   assert.match(player, /setQuizRetryCount\(\(count\) => count \+ 1\)/);
   assert.match(player, /Retry quiz generation/);

@@ -24,7 +24,7 @@ export const domainPlaybooks = Object.freeze({
 });
 export function resolveRoadmapDomain({ domain, topic } = {}) {
   const requested = String(domain || "").trim().toLowerCase().replace(/-/g, "_");
-  if (Object.hasOwn(domainPlaybooks, requested)) return requested;
+  if (Object.hasOwn(domainPlaybooks, requested) && requested !== "general") return requested;
   const value = String(topic || "").toLowerCase();
   if (/data analytics|data analyst|business intelligence|power bi|tableau|pandas|data cleaning/.test(value)) return "data";
   if (/exam|certification|syllabus|test preparation/.test(value)) return "exam";

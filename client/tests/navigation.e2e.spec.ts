@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 
 const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:4173";
 
@@ -846,6 +846,43 @@ test.describe("canonical learner navigation", () => {
 });
 
 
+async function completeProgressiveBuildWithAiIntake(
+  dialog: Locator,
+  options: {
+    outcome?: string;
+    purpose?: string;
+    level?: string;
+    scope?: string;
+    timePerDay?: string;
+    language?: string;
+  } = {},
+) {
+  await dialog.getByLabel("In one sentence, what should you be able to do at the end?").fill(
+    options.outcome || "Build a practical project and apply the skills."
+  );
+  await dialog.getByRole("button", { name: "Next question", exact: true }).click();
+
+  await expect(dialog.getByRole("button", { name: options.purpose || "Job / Career", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: options.purpose || "Job / Career", exact: true }).click();
+
+  await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();
+  await dialog.getByRole("button", { name: options.level || "Advanced", exact: true }).click();
+  await dialog.getByRole("button", { name: options.scope || "Complete learning path", exact: true }).click();
+  await dialog.getByRole("button", { name: "Next question", exact: true }).click();
+
+  // Prior knowledge is optional. Continue to the study schedule.
+  await dialog.getByRole("button", { name: "Next question", exact: true }).click();
+  await dialog.getByLabel("Time per day").selectOption(options.timePerDay || "60");
+  await dialog.getByRole("button", { name: "Next question", exact: true }).click();
+
+  await dialog.getByLabel("Resource language").selectOption(options.language || "en");
+  await dialog.getByRole("button", { name: "Next question", exact: true }).click();
+
+  // The target completion date is optional; analyze the completed core intake.
+  await expect(dialog.getByLabel("Target completion date")).toBeVisible();
+  await dialog.getByRole("button", { name: "Analyze answers", exact: true }).click();
+}
+
 test.describe("learner control and state regression", () => {
   test("[EXP-SEARCH-001] search, filters and clear filters synchronize with the catalog request", async ({ page }) => {
     const catalogCourses = [
@@ -884,7 +921,7 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => catalogQueries.some((query) => !query.has("q") && !query.has("level") && !query.has("category"))).toBe(true);
   });
 
-  test("[BUILD-WITH-AI-FORM-001] course search opens the four-step adaptive roadmap intake", async ({ page }) => {
+  test("[BUILD-WITH-AI-FORM-001] prefilled course search opens the progressive intake at the outcome question", async ({ page }) => {
     await mockAppApi(page, { authenticated: true });
     await page.goto(baseURL + "/explore");
     await expect(page.getByRole("heading", { name: "Find a course" })).toBeVisible();
@@ -894,19 +931,15 @@ test.describe("learner control and state regression", () => {
 
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByLabel("Topic or course name")).toHaveValue("React and Node.js Full Stack");
-    await expect(dialog.getByText("Roadmap Studio · Adaptive intake")).toBeVisible();
-    await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();
-    await expect(dialog.getByText("How far do you want to go?", { exact: true })).toBeVisible();
-    await expect(dialog.getByText("Why are you learning it?", { exact: true })).toBeVisible();
-    await expect(dialog.getByText("What can you already do?", { exact: true })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: /Job \/ Career/ })).toHaveAttribute("aria-pressed", "false");
-    await expect(dialog.getByRole("button", { name: /Hobby \/ Personal Interest/ })).toHaveAttribute("aria-pressed", "true");
-    await expect(dialog.getByText("What do you want to learn?")).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Analyze topic and continue" })).toBeEnabled();
+    await expect(dialog.getByText("What should you be able to do?", { exact: true })).toBeVisible();
+    await expect(dialog.getByLabel("In one sentence, what should you be able to do at the end?")).toBeVisible();
+    await expect(dialog.getByLabel("Topic or course name")).toHaveCount(0);
+    await expect(dialog.getByRole("group", { name: "Starting level" })).toHaveCount(0);
+    await expect(dialog.getByText("Why are you learning it?", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Next question", exact: true })).toBeEnabled();
   });
 
-  test("[BUILD-WITH-AI-WIZARD-002] purpose and domain packs move through review before roadmap generation", async ({ page }) => {
+  test("[BUILD-WITH-AI-WIZARD-002] purpose and domain packs follow the progressive core intake", async ({ page }) => {
     const questionEvents: Array<{ questionId?: string; packId?: string; event?: string; position?: number }> = [];
     page.on("request", (request) => {
       if (request.method() !== "POST" || new URL(request.url()).pathname !== "/api/intent/events") return;
@@ -948,8 +981,7 @@ test.describe("learner control and state regression", () => {
 
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Job / Career" }).click();
-    await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
+    await completeProgressiveBuildWithAiIntake(dialog);
 
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();
     await expect(dialog.getByText("Context & Objectives")).toBeVisible();
@@ -970,7 +1002,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByRole("button", { name: "Generate roadmap" })).toBeEnabled();
   });
 
-  test("[BUILD-WITH-AI-PROFILE-003] explicit core choices survive intent parsing and prefill all supported study-time values", async ({ page }) => {
+  test("[BUILD-WITH-AI-PROFILE-003] core choices persist through parsing and appear in the roadmap review", async ({ page }) => {
     await mockAppApi(page, { authenticated: true });
     await page.route("**/api/intent/parse", async (route) => {
       await json(route, {
@@ -1006,23 +1038,25 @@ test.describe("learner control and state regression", () => {
     await page.getByRole("textbox", { name: "Search courses" }).fill("React and Node.js Full Stack");
     await page.getByRole("button", { name: "Build with AI" }).click();
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
-
-    await dialog.getByRole("button", { name: "Advanced", exact: true }).click();
-    await dialog.getByRole("button", { name: "Complete learning path", exact: true }).click();
-    await dialog.getByLabel("Time per day").selectOption("30");
-    await dialog.getByLabel("Resource language").selectOption("hi");
-    await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
+    await completeProgressiveBuildWithAiIntake(dialog, {
+      level: "Advanced",
+      scope: "Complete learning path",
+      timePerDay: "30",
+      language: "hi",
+    });
 
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();
-    await expect(dialog.getByText("Context & Objectives")).toBeVisible();
-    await dialog.getByRole("button", { name: "Back", exact: true }).click();
-    await expect(dialog.getByRole("button", { name: "Advanced", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await expect(dialog.getByRole("button", { name: "Complete learning path", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await expect(dialog.getByLabel("Time per day")).toHaveValue("30");
-    await expect(dialog.getByLabel("Resource language")).toHaveValue("hi");
+    await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+    await dialog.getByRole("button", { name: "Review roadmap", exact: true }).click();
+
+    await expect(dialog.getByText("Your personalized blueprint")).toBeVisible();
+    await expect(dialog.getByText("React and Node.js Full Stack · Advanced", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Complete learning path", { exact: true })).toBeVisible();
+    await expect(dialog.getByText(/30 minutes\/day/)).toBeVisible();
+    await expect(dialog.getByText("hi", { exact: true })).toBeVisible();
   });
 
-  test("[BUILD-WITH-AI-PAYLOAD-004] four-layer demo answers reach the real roadmap-generation profile", async ({ page }) => {
+  test("[BUILD-WITH-AI-PAYLOAD-004] progressive intake and demo answers reach the roadmap-generation profile", async ({ page }) => {
     let submittedProfile: Record<string, unknown> | null = null;
     await mockAppApi(page, { authenticated: true });
     await page.route("**/api/intent/parse", async (route) => {
@@ -1064,8 +1098,8 @@ test.describe("learner control and state regression", () => {
           _id: "generated-ai-course",
           id: "generated-ai-course",
           title: "Personalized React and Node.js Roadmap",
-          description: "A demo course generated from the learner's adaptive intake.",
-          level: "Beginner",
+          description: "A demo course generated from the learner's progressive intake.",
+          level: "Advanced",
           duration: "Self-paced",
           isPublished: false,
           modules: [],
@@ -1079,13 +1113,13 @@ test.describe("learner control and state regression", () => {
     await page.getByRole("button", { name: "Build with AI" }).click();
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
 
-    await dialog.getByRole("button", { name: "Job / Career" }).click();
-    const outcome = dialog.getByLabel("In one sentence, what should you be able to do at the end?");
-    await outcome.fill("Build and deploy a production-ready backend API.");
-    await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
+    await completeProgressiveBuildWithAiIntake(dialog, {
+      outcome: "Build and deploy a production-ready backend API.",
+      level: "Advanced",
+      scope: "Complete learning path",
+    });
 
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();
-    await expect(dialog.getByText("Context & Objectives")).toBeVisible();
     const roleQuestion = dialog.locator("section").filter({ hasText: "What is your target role and company type?" }).first();
     await roleQuestion.locator("textarea").fill("Frontend Engineer");
     await roleQuestion.getByRole("button", { name: "Save answer" }).click();
@@ -1107,6 +1141,8 @@ test.describe("learner control and state regression", () => {
     expect(intentProfile?.goal).toBe("job_ready");
     expect(intentProfile?.targetRole).toBe("Frontend Engineer");
     expect(intentProfile?.outcome).toBe("Build and deploy a production-ready backend API.");
+    expect(intentProfile?.level).toBe("Advanced");
+    expect(intentProfile?.scope).toBe("broad");
     expect(preferences).toMatchObject({
       goalPurpose: "career",
       jobTimeline: "Within 1 month (crash course)",

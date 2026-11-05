@@ -897,9 +897,9 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByLabel("Topic or course name")).toHaveValue("React and Node.js Full Stack");
     await expect(dialog.getByText("Roadmap Studio · Adaptive intake")).toBeVisible();
     await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();
-    await expect(dialog.getByText("How far do you want to go?")).toBeVisible();
-    await expect(dialog.getByText("Why are you learning it?")).toBeVisible();
-    await expect(dialog.getByText("What can you already do?")).toBeVisible();
+    await expect(dialog.getByText("How far do you want to go?", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Why are you learning it?", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("What can you already do?", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("button", { name: /Job \/ Career/ })).toHaveAttribute("aria-pressed", "true");
     await expect(dialog.getByRole("button", { name: /Hobby \/ Personal Interest/ })).toHaveAttribute("aria-pressed", "false");
     await expect(dialog.getByText("What do you want to learn?")).toBeVisible();
@@ -1079,6 +1079,7 @@ test.describe("learner control and state regression", () => {
     await page.getByRole("button", { name: "Build with AI" }).click();
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
 
+    await dialog.getByRole("button", { name: "Job / Career" }).click();
     const outcome = dialog.getByLabel("In one sentence, what should you be able to do at the end?");
     await outcome.fill("Build and deploy a production-ready backend API.");
     await dialog.getByRole("button", { name: "Job / Career" }).click();

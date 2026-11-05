@@ -862,7 +862,7 @@ async function completeProgressiveBuildWithAiIntake(
   );
   await dialog.getByRole("button", { name: "Next question", exact: true }).click();
 
-  await expect(dialog.getByRole("button", { name: options.purpose || "Job / Career", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: options.purpose || "Job / Career" })).toBeVisible();
   await dialog.getByRole("button", { name: options.purpose || "Job / Career", exact: true }).click();
 
   await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();

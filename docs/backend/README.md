@@ -112,7 +112,7 @@ The command validates only configuration shape and policy; it does not connect t
 
 ## Environment variable inventory
 
-See [Environment Variable Inventory](../ENVIRONMENT_VARIABLES.md) for frontend/public values, backend secrets, production requirements, feature flags, bootstrap-only variables, and deployment smoke-test inputs.
+See [Environment Variable Inventory](../docs/ENVIRONMENT_VARIABLES.md) for frontend/public values, backend secrets, production requirements, feature flags, bootstrap-only variables, and deployment smoke-test inputs.
 
 ## Regression and CI checks
 

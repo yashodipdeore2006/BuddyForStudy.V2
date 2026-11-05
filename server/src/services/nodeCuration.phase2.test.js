@@ -103,3 +103,45 @@ test("node cache is isolated from normal search and a second call uses zero sear
     setSelector(null);
   }
 });
+
+
+test("personalized roadmap cache scopes isolate different learners and profiles", () => {
+  const base = {
+    canonicalSkillId: "python-data-structures",
+    mode: "full_course",
+    level: "Beginner",
+    language: "en",
+    boundsHash: "bounds"
+  };
+  assert.notEqual(
+    hooks.nodeCacheKey({ ...base, cacheScope: "learner-a:career" }),
+    hooks.nodeCacheKey({ ...base, cacheScope: "learner-b:exam" })
+  );
+});
+
+test("curated playlist mapping preserves each video's audio-language metadata", () => {
+  const mapped = hooks.mapResource({
+    id: "playlist:python-series",
+    playlistId: "python-series",
+    sourceType: "playlist",
+    title: "Python complete learning series",
+    description: "A structured Python course",
+    items: [
+      { videoId: "python-lesson-1", title: "Python basics", durationSeconds: 3600, defaultAudioLanguage: "en" },
+      { videoId: "python-lesson-2", title: "Python functions", durationSeconds: 4200, defaultAudioLanguage: "ta" }
+    ]
+  });
+  assert.equal(mapped.items.length, 2);
+  assert.equal(mapped.items[0].defaultAudioLanguage, "en");
+  assert.equal(mapped.items[1].defaultAudioLanguage, "ta");
+});
+
+test("playlist metadata language is not mistaken for spoken audio language", () => {
+  const mapped = hooks.mapResource({
+    id: "video:python-metadata",
+    videoId: "python-metadata",
+    title: "Python tutorial",
+    defaultLanguage: "en"
+  });
+  assert.equal(mapped.defaultAudioLanguage, "");
+});

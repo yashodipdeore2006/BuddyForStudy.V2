@@ -3,7 +3,7 @@ import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { env } from "../config/env.js";
 import { generateAIRoadmap } from "./aiRoadmap.service.js";
 import { Course } from "../models/Course.js";
-import { assessCourseResourceQuality } from "./learningResourceQuality.js";
+import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learningResourceQuality.js";
 import { curateForNode } from "./nodeCuration.service.js";
 import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, releaseQueuedRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
 
@@ -128,6 +128,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   const completedCourse = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   const topic = String(profile.topic || "");
   const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
+  const metrics = getCourseResourceMetrics(completedCourse);
   if (completePath) {
     const quality = assessCourseResourceQuality(completedCourse, { completePath: true });
     if (!quality.acceptable) {
@@ -137,6 +138,10 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
       throw error;
     }
   }
+  return {
+    ...metrics,
+    resourceLanguage: String(profile.language || profile.intentProfile?.language || "en").slice(0, 20)
+  };
 }
 
 export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {
@@ -222,10 +227,26 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
           { $set: { roadmapId: courseId, result, status: "building", updatedAt: new Date() } }
         );
         await addEvent(draft, { type: "skeleton", state: "building", draftId, roadmapId: String(courseId), result });
-        await resolveCourseNodes({ draft, courseId, userId, profile, assertLease });
+        const resourceMetrics = await resolveCourseNodes({ draft, courseId, userId, profile, assertLease });
         await assertLease();
         const completed = await RoadmapDraft.findById(draft._id).lean();
-        const finalResult = { ...(completed?.result || result), status: "ready", roadmapId: String(courseId) };
+        const previousPersonalization = completed?.result?.personalization || result.personalization || {};
+        const finalResult = {
+          ...(completed?.result || result),
+          status: "ready",
+          roadmapId: String(courseId),
+          personalization: {
+            ...previousPersonalization,
+            resourceVideoMinutes: resourceMetrics.videoWatchMinutes,
+            resourceLanguage: resourceMetrics.resourceLanguage,
+            resourceCoverage: {
+              tutorialLessonCount: resourceMetrics.tutorialLessonCount,
+              lessonsWithResources: resourceMetrics.lessonsWithResources,
+              uniqueVideoCount: resourceMetrics.uniqueVideoCount,
+              coverageRatio: resourceMetrics.coverageRatio
+            }
+          }
+        };
         const finalized = await RoadmapDraft.updateOne(
           { _id: draft._id, status: "building", admissionLeaseToken: lease.leaseToken },
           { $set: { status: "ready", result: finalResult, updatedAt: new Date() } }

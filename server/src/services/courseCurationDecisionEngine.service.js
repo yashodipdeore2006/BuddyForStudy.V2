@@ -545,21 +545,24 @@ function hasStructureEvidence(candidate) {
   }
   return Boolean(candidate.hasChapters || hasSyllabusEvidence(candidate));
 }
+function hasObviousIndicScript(candidate) {
+  const text = [candidate?.title, candidate?.description, ...(candidate?.items || []).flatMap((item) => [item.title, item.description])]
+    .filter(Boolean).join(" ");
+  const indicCharacters = (text.match(/[\u0900-\u0d7f]/g) || []).length;
+  const letters = (text.match(/[\p{L}]/gu) || []).length;
+  return indicCharacters >= 3 && indicCharacters / Math.max(1, letters) > 0.08;
+}
+
 function languageAllowed(candidate, profile) {
-  const expected = String(profile.language || "en").toLowerCase();
-  if (Array.isArray(candidate.items) && candidate.items.length) {
-    const declared = candidate.items.map((item) => String(item.defaultAudioLanguage || "").toLowerCase()).filter(Boolean);
-    if (declared.length) {
-      const matching = declared.filter((language) => language === expected || language.startsWith(expected + "-")).length;
-      return matching / declared.length >= 0.8;
-    }
-    // Search API language/region settings are used upstream. When per-video
-    // language metadata is absent, do not falsely reject a relevant resource.
-    return true;
-  }
-  const actual = String(candidate.defaultAudioLanguage || "").toLowerCase();
-  if (!actual) return true;
-  return actual === expected || actual.startsWith(expected + "-");
+  const expected = String(profile.language || "en").toLowerCase().split("-")[0];
+  const declared = Array.isArray(candidate.items) && candidate.items.length
+    ? candidate.items.map((item) => String(item.defaultAudioLanguage || "").toLowerCase()).filter(Boolean)
+    : [String(candidate.defaultAudioLanguage || "").toLowerCase()].filter(Boolean);
+  if (declared.some((language) => language !== expected && !language.startsWith(expected + "-"))) return false;
+  if (expected === "en" && hasObviousIndicScript(candidate)) return false;
+  // Some YouTube uploads do not declare their audio language. In that case, retain
+  // relevanceLanguage search and visible-script checks as best-effort evidence.
+  return true;
 }
 function passesHardGates(candidate, profile) {
   if (!candidate || !candidate.title) return { passed: false, reason: "missing_metadata" };

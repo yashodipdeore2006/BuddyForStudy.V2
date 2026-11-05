@@ -1709,8 +1709,12 @@ export async function generateAIRoadmap(input, options = {}) {
   const resourceSearchContext = [
     goalSearchLabel,
     intentProfile.targetRole || input.targetRole || "",
-    goalCode === "exam" ? (intentProfile.examName || input.examName || "") : ""
-  ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 180);
+    intentProfile.targetCompany || input.targetCompany || "",
+    goalCode === "exam" ? (intentProfile.examName || input.examName || "") : "",
+    goalCode === "project" ? (intentProfile.projectIdea || input.projectIdea || "") : "",
+    intentProfile.outcome || input.outcome || "",
+    intentProfile.scope === "broad" ? "complete learning path" : ""
+  ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
   const resourceCacheScope = personalized
     ? createHash("sha256").update(String(userId || "anonymous") + ":" + JSON.stringify(topicKeys)).digest("hex")
     : "";

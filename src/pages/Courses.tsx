@@ -218,7 +218,7 @@ export default function Courses() {
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
 
-  const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
+  const [aiGoal, setAiGoal] = useState<string>('Explore a personal interest');
   const [aiGoalTouched, setAiGoalTouched] = useState(false);
   const [aiLevelTouched, setAiLevelTouched] = useState(false);
   const [aiCustomGoal, setAiCustomGoal] = useState('');
@@ -472,7 +472,7 @@ export default function Courses() {
     setIntentAnswers({});
     setIntentWizardStep(1);
     setAiCustomGoal("");
-    setAiGoal("Build practical skills");
+    setAiGoal("Explore a personal interest");
     setAiGoalTouched(false);
     setAiLevel("Beginner");
     setAiLevelTouched(false);
@@ -974,7 +974,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: boundedProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline, 40) || null,
-        preferences: Object.fromEntries(Object.entries(intentAnswers).filter(([key, value]) => !['goal', 'goalPurpose', 'depth', 'level', 'knownSkills', 'time', 'language', 'studyDays', 'lessonStyle', 'deadline'].includes(key) && value !== undefined && String(value).trim().length > 0).slice(0, 40).map(([key, value]) => [key, String(value).trim().slice(0, 500)]))
+        preferences: Object.fromEntries(Object.entries(intentAnswers).filter(([key, value]) => !['goal', 'depth', 'level', 'knownSkills', 'time', 'language', 'studyDays', 'lessonStyle', 'deadline'].includes(key) && value !== undefined && String(value).trim().length > 0).slice(0, 40).map(([key, value]) => [key, String(value).trim().slice(0, 500)]))
       } : undefined;
       const profile = {
         topic,

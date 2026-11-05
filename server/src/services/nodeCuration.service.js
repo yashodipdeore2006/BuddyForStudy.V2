@@ -120,6 +120,9 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
   const cached = await readNodeCache(key);
   if (cached) return { ...cached, meta: { ...cached.meta, cacheHit: true, searchCalls: 0, quotaUnits: 0 } };
 
+  const selectorCacheScope = cacheScope
+    ? `node:${canonicalSkillId}:${digest(cacheScope)}`
+    : `node:${canonicalSkillId}`;
   const callSelector = async (overrides) => selectorForNode(query, {
     level,
     language,
@@ -127,7 +130,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
     overrides,
     maxQueries: 8,
     extraQueries,
-    cacheScope: `node:${canonicalSkillId}`,
+    cacheScope: selectorCacheScope,
     skillId: canonicalSkillId
   });
   const requestMetrics = { requestId: `node:${canonicalSkillId}`, skillId: canonicalSkillId, searchCalls: 0, quotaUnits: 0 };

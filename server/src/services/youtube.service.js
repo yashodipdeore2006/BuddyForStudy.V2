@@ -107,10 +107,36 @@ const YOUTUBE_LOCALES_BY_LANGUAGE = {
   te: { relevanceLanguage: "te", regionCode: "IN" }
 };
 
+const LANGUAGE_ALIASES = Object.freeze({
+  english: "en", hindi: "hi", marathi: "mr", bengali: "bn", tamil: "ta",
+  telugu: "te", spanish: "es", french: "fr", german: "de", portuguese: "pt",
+  japanese: "ja", korean: "ko", arabic: "ar"
+});
+
+export function normalizeYouTubeLanguage(language = "en") {
+  const raw = String(language || "en").trim().toLowerCase().replace(/_/g, "-");
+  const primary = raw.split("-")[0];
+  return LANGUAGE_ALIASES[raw] || LANGUAGE_ALIASES[primary] || primary || "en";
+}
+
 export function getYouTubeSearchOptions(language = "en", languageExplicit = false) {
-  const code = String(language || "en").trim().toLowerCase();
+  const code = normalizeYouTubeLanguage(language);
   if (!languageExplicit) return { ...YOUTUBE_LOCALES_BY_LANGUAGE.en };
   return { ...(YOUTUBE_LOCALES_BY_LANGUAGE[code] || { relevanceLanguage: code, regionCode: "IN" }) };
+}
+
+function candidateLanguageMatches(video, expectedLanguage = "en") {
+  const expected = normalizeYouTubeLanguage(expectedLanguage);
+  const rawActual = String(video?.defaultAudioLanguage || video?.defaultLanguage || "").trim().toLowerCase();
+  const actual = rawActual ? normalizeYouTubeLanguage(rawActual) : "";
+  if (actual && actual !== "und" && actual !== "unknown") return actual === expected;
+  if (expected === "en") {
+    const sample = String(video?.snippet?.title || video?.title || "") + " " + String(video?.snippet?.description || video?.description || "");
+    const foreignScript = (sample.match(/[\u0900-\u0d7f]/g) || []).length;
+    const letters = (sample.match(/[\p{L}]/gu) || []).length;
+    if (foreignScript >= 3 && foreignScript / Math.max(1, letters) > 0.08) return false;
+  }
+  return true;
 }
 
 async function searchVideos(query,maxResults=10,searchOptions={}){
@@ -173,7 +199,7 @@ function isPublicEmbeddableCandidate(video) {
     video.embeddable === true
   );
 }
-export const __youtubeSelectorTestUtils = { isPublicEmbeddableCandidate };
+export const __youtubeSelectorTestUtils = { isPublicEmbeddableCandidate, candidateLanguageMatches, normalizeYouTubeLanguage };
 
 function toCandidate(video,channel){
   if(!video)return null;
@@ -222,7 +248,7 @@ export async function getYouTubeVideoResource(videoId) {
 
 export function __setYouTubeSelectorAdaptersForTests(adapters = null) { selectorTestAdapters = adapters; }
 
-export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy, maxResultsPerQuery = 20 }) {
+export async function searchBestYouTubeCourse({ skill, searchQueries, searchPolicy, language = searchPolicy?.preferredLanguage || "en", maxResultsPerQuery = 20 }) {
   if (!env.youtubeApiKey) return null;
 
   const queries = (searchQueries || []).slice(0, 3);
@@ -230,7 +256,7 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
   const items = [];
   for (const query of queries) {
     try {
-      const data = await (selectorTestAdapters?.searchVideos || searchVideos)(query, boundedMaxResults);
+      const data = await (selectorTestAdapters?.searchVideos || searchVideos)(query, boundedMaxResults, getYouTubeSearchOptions(language, true));
       items.push(...(data?.items || []));
     } catch (error) {
       console.error("YouTube course search failed", safeTelemetryError(error));
@@ -253,7 +279,8 @@ export async function searchBestYouTubeCourse({ skill, searchQueries, searchPoli
       isPublicEmbeddableCandidate(video) &&
       (!searchPolicy?.excludeShorts || !video.isShort) &&
       video.durationSeconds >= minDuration * 60 &&
-      video.durationSeconds <= maxDuration * 60
+      video.durationSeconds <= maxDuration * 60 &&
+      candidateLanguageMatches(video, language)
     );
 
   if (!candidates.length) return null;
@@ -414,7 +441,7 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
     excludeShorts: true,
     requireEmbeddable: true,
     preferProjectBased: false,
-    preferredLanguage: "en",
+    preferredLanguage: normalizeYouTubeLanguage(language),
     requiredTopics: [normalizedQuery]
   };
 
@@ -450,14 +477,14 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
     .sort((a, b) => b.score - a.score)
     .slice(0, Math.max(1, Math.min(Number(maxResults) || 30, 50)));
 }
-async function attachProjectYouTubeVideos(project) {
+async function attachProjectYouTubeVideos(project, language = "en") {
   const queries = (project.videoSearchQueries || []).filter(Boolean).slice(0, 2);
   if (!queries.length || !env.youtubeApiKey) return [];
 
   const items = [];
   for (const query of queries) {
     try {
-      const data = await searchVideos(query, 12);
+      const data = await searchVideos(query, 12, getYouTubeSearchOptions(language, true));
       items.push(...(data?.items || []));
     } catch (error) {
       console.error("YouTube project tutorial search failed", {
@@ -492,7 +519,8 @@ async function attachProjectYouTubeVideos(project) {
       isPublicEmbeddableCandidate(video) &&
       !video.isShort &&
       video.durationSeconds >= policy.minDurationMinutes * 60 &&
-      video.durationSeconds <= policy.maxDurationMinutes * 60
+      video.durationSeconds <= policy.maxDurationMinutes * 60 &&
+      candidateLanguageMatches(video, language)
     );
 
   const lesson = {
@@ -518,20 +546,27 @@ export async function attachYouTubeResources(course, options = {}) {
     return [];
   }
   const allSources = [];
-  const tutorialGroups = new Map();
+  const groups = [];
   const projectRequests = [];
   for (const module of course.modules || []) {
     for (const lesson of module.lessons || []) {
       if (lesson.type === "tutorial") {
-        const skillId = String(module.skillIds?.[0] || module.canonicalSkillId || module.title || lesson.skillId || lesson.title);
-        if (!tutorialGroups.has(skillId)) tutorialGroups.set(skillId, { skill: {
-          id: skillId,
-          canonicalSkillId: skillId,
-          name: String(module.title || lesson.skillName || lesson.title),
-          topics: [...new Set((module.lessons || []).filter((item) => item.type === "tutorial").flatMap((item) => item.tutorial?.requiredTopics || []))],
-          searchQueries: [...new Set((module.lessons || []).filter((item) => item.type === "tutorial").flatMap((item) => item.tutorial?.searchQueries || []))].slice(0, 2)
-        }, module, lessons: [] });
-        tutorialGroups.get(skillId).lessons.push(lesson);
+        // Curate each planned lesson independently. One search result must never
+        // stand in for an entire skill/module while sibling lessons remain empty.
+        const baseSkillId = String(module.skillIds?.[0] || module.canonicalSkillId || module.title || lesson.skillId || lesson.title);
+        const lessonIdentity = String(lesson._id || lesson.id || lesson.title || groups.length);
+        const skillId = (baseSkillId + ":" + lessonIdentity).slice(0, 160);
+        const topics = [...new Set((lesson.tutorial?.requiredTopics || [lesson.title, module.title]).map((item) => String(item || "").trim()).filter(Boolean))];
+        const queries = [...new Set([
+          lesson.tutorial?.searchQuery,
+          ...(lesson.tutorial?.searchQueries || []),
+          (options.topic || course.title || module.title) + " " + lesson.title + " tutorial"
+        ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 3);
+        groups.push({
+          skill: { id: skillId, canonicalSkillId: skillId, name: String(lesson.title || module.title), topics, searchQueries: queries },
+          module,
+          lessons: [lesson]
+        });
       } else if (lesson.type === "project" && lesson.project?.videoSearchQueries?.length) {
         projectRequests.push({ lesson });
       }
@@ -539,7 +574,6 @@ export async function attachYouTubeResources(course, options = {}) {
   }
 
   const useSharedEngine = options.useCurationEngineForAi ?? env.useCurationEngineForAi;
-  const groups = [...tutorialGroups.values()];
   let cursor = 0;
   const selectedGroups = new Array(groups.length);
   async function worker() {
@@ -548,9 +582,10 @@ export async function attachYouTubeResources(course, options = {}) {
       const group = groups[index];
       if (useSharedEngine) {
         try {
-          const targetMinutes = Math.max(...group.lessons.map((lesson) => Number(lesson.tutorial?.durationMinutes?.targetMinutes || lesson.tutorial?.searchPolicy?.targetDurationMinutes || 60)));
-          const minMinutes = Math.min(...group.lessons.map((lesson) => Number(lesson.tutorial?.durationMinutes?.minMinutes || lesson.tutorial?.searchPolicy?.minDurationMinutes || 30)));
-          const maxMinutes = Math.max(...group.lessons.map((lesson) => Number(lesson.tutorial?.durationMinutes?.maxMinutes || lesson.tutorial?.searchPolicy?.maxDurationMinutes || 120)));
+          const lesson = group.lessons[0];
+          const targetMinutes = Number(lesson.tutorial?.durationMinutes?.targetMinutes || lesson.tutorial?.searchPolicy?.targetDurationMinutes || 60);
+          const minMinutes = Number(lesson.tutorial?.durationMinutes?.minMinutes || lesson.tutorial?.searchPolicy?.minDurationMinutes || 30);
+          const maxMinutes = Number(lesson.tutorial?.durationMinutes?.maxMinutes || lesson.tutorial?.searchPolicy?.maxDurationMinutes || 180);
           const result = await curateForNode({
             skill: group.skill,
             profile: { topic: options.topic || course.title || "", level: options.level || course.level || "Beginner", language: options.language || "en" },
@@ -570,12 +605,14 @@ export async function attachYouTubeResources(course, options = {}) {
         skill: group.skill.name,
         searchQueries: group.skill.searchQueries.length ? group.skill.searchQueries : [group.skill.name + " complete course tutorial"],
         searchPolicy: {
-          minDurationMinutes: Math.min(...group.lessons.map((lesson) => Number(lesson.tutorial?.searchPolicy?.minDurationMinutes || 30))),
-          maxDurationMinutes: Math.max(...group.lessons.map((lesson) => Number(lesson.tutorial?.searchPolicy?.maxDurationMinutes || 120))),
+          minDurationMinutes: Number(group.lessons[0].tutorial?.searchPolicy?.minDurationMinutes || 30),
+          maxDurationMinutes: Number(group.lessons[0].tutorial?.searchPolicy?.maxDurationMinutes || 180),
           requireEmbeddable: true,
           excludeShorts: true,
-          requiredTopics: group.skill.topics
-        }
+          requiredTopics: group.skill.topics,
+          preferredLanguage: normalizeYouTubeLanguage(options.language || "en")
+        },
+        language: options.language || "en"
       }).catch((error) => {
         console.warn("Legacy AI node selector failed", safeTelemetryError(error));
         return null;
@@ -615,6 +652,8 @@ export async function attachYouTubeResources(course, options = {}) {
       chapters: selected.chapters || [],
       fetchedAt: selected.fetchedAt || new Date(),
       reason: selected.reason || (engine === "shared" ? "Shared course curation engine" : "Legacy selector fallback"),
+      description: selected.description || "",
+      defaultAudioLanguage: selected.defaultAudioLanguage || "",
       url: selected.url || "",
       alternatives: alternatives.slice(0, 2).map((item) => ({
         videoId: item.videoId || "", playlistId: item.playlistId || "", title: item.title || "",
@@ -682,7 +721,7 @@ export async function attachYouTubeResources(course, options = {}) {
   // The legacy path for project lessons is intentionally unchanged.
   for (const { lesson } of projectRequests) {
     try {
-      const ranked = await attachProjectYouTubeVideos({ ...lesson.project, title: lesson.title });
+      const ranked = await attachProjectYouTubeVideos({ ...lesson.project, title: lesson.title }, options.language || "en");
       lesson.project.videos = ranked;
       lesson.project.resources = ranked.map((video) => video.url);
       if (ranked.length) allSources.push(...ranked);

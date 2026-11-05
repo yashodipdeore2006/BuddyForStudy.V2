@@ -55,3 +55,29 @@ test("English resource preference rejects obvious Indic-script titles when audio
     { passed: false, reason: "language_mismatch" }
   );
 });
+
+test("explicit English preference rejects candidates with unknown audio language", () => {
+  assert.deepEqual(
+    evaluateCurationHardGates({ ...interviewCandidate }, { ...profile, nodeType: "interview", language: "en", languageExplicit: true }),
+    { passed: false, reason: "language_mismatch" }
+  );
+});
+
+test("explicit English preference requires every playlist item to have matching audio language", () => {
+  const playlist = {
+    ...interviewCandidate,
+    sourceType: "playlist",
+    itemCount: 2,
+    durationSeconds: 7200,
+    integrity: 1,
+    hasStructure: true,
+    items: [
+      { title: "Lesson 1", defaultAudioLanguage: "en" },
+      { title: "Lesson 2", defaultAudioLanguage: "" }
+    ]
+  };
+  assert.deepEqual(
+    evaluateCurationHardGates(playlist, { ...profile, nodeType: "interview", language: "en", languageExplicit: true, minPlaylistSeconds: 60, minPlaylistItems: 2 }),
+    { passed: false, reason: "language_mismatch" }
+  );
+});

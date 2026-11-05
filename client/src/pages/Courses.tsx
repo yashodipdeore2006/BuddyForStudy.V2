@@ -1614,7 +1614,7 @@ export default function Courses() {
                     if (coreQuestionStep < 7) {
                       if (coreQuestionStep === 0 && aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
                       setAiError(null);
-                      setCoreQuestionStep((step) => Math.min(6, step + 1));
+                      setCoreQuestionStep((step) => Math.min(7, step + 1));
                       return;
                     }
                     void startIntentFlow();

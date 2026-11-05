@@ -78,7 +78,9 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
           const curated = await curateForNode({
             skill: { id: lesson.canonicalSkillId || lesson.title, canonicalSkillId: lesson.canonicalSkillId || lesson.title, name: lesson.title, topics: [lesson.title] },
             profile: { topic: profile.topic, level: profile.level || profile.intentProfile?.level || "Beginner", language: profile.language || profile.intentProfile?.language || "en" },
-            durationPolicy
+            durationPolicy,
+            // Node-cache entries must never leak personalized resource choices across learners.
+            cacheScope: createHash("sha256").update(String(userId) + ":" + JSON.stringify(profile)).digest("hex")
           });
           await assertLease();
           const state = curated.meta?.state || (curated.best ? (curated.meta?.lowConfidence ? "low_confidence" : "ready") : "failed");

@@ -453,11 +453,11 @@ export default function Courses() {
     setAiError(null);
     setAiRoadmap(null);
     setIntentResult(null);
-    setIntentAnswers({ goal: "job_ready", goalPurpose: "career" });
+    setIntentAnswers({});
     setIntentWizardStep(1);
     setAiCustomGoal("");
     setAiGoal("Career or professional growth");
-    setAiGoalTouched(true);
+    setAiGoalTouched(false);
     setAiLevel("Beginner");
     setAiLevelTouched(false);
     setAiStudyTime(60);
@@ -692,7 +692,7 @@ export default function Courses() {
       purposeQuestionIds.has(question.id) &&
       !selectedPurposePackQuestions.some((packQuestion) => packQuestion.id === question.id)
     )
-  ].slice(0, 8);
+  ].slice(0, 4);
   const nicheIntentQuestions = activeIntentQuestions.filter((question) => !purposeQuestionIds.has(question.id) && !coreQuestionIds.has(question.id));
   const visibleWizardQuestions = intentWizardStep === 2 ? purposeIntentQuestions : intentWizardStep === 3 ? nicheIntentQuestions : [];
   const visibleWizardQuestionKey = visibleWizardQuestions.map((question) => question.id).join("|");
@@ -1108,11 +1108,9 @@ export default function Courses() {
                   setAiRoadmap(null);
                   setIntentResult(null);
                   setIntentAnswers({});
-                  setAiGoalTouched(false);
                   setIntentWizardStep(1);
                   setAiCustomGoal("");
                   setAiGoal("Career or professional growth");
-                  setAiGoalTouched(true);
                   setAiLevel("Beginner");
                   setAiLevelTouched(false);
                   setAiStudyTime(60);

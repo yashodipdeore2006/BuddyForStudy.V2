@@ -75,9 +75,28 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             targetMinutes: Number(searchPolicy.targetDurationMinutes) || 60,
             maxMinutes: Number(searchPolicy.maxDurationMinutes) || 180
           };
+          const intent = profile.intentProfile || {};
+          const learnerContext = [
+            profile.topic,
+            intent.goal || profile.goal,
+            intent.targetRole,
+            intent.targetCompany,
+            intent.examName,
+            intent.projectIdea,
+            intent.outcome
+          ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
           const curated = await curateForNode({
-            skill: { id: lesson.canonicalSkillId || lesson.title, canonicalSkillId: lesson.canonicalSkillId || lesson.title, name: lesson.title, topics: [lesson.title] },
-            profile: { topic: profile.topic, level: profile.level || profile.intentProfile?.level || "Beginner", language: profile.language || profile.intentProfile?.language || "en" },
+            skill: {
+              id: lesson.canonicalSkillId || lesson.title,
+              canonicalSkillId: lesson.canonicalSkillId || lesson.title,
+              name: lesson.title,
+              topics: [lesson.title],
+              searchQueries: learnerContext ? [
+                learnerContext + " " + lesson.title + " structured course tutorial",
+                String(profile.topic || "") + " " + lesson.title + " " + String(intent.goal || profile.goal || "learn") + " practical lesson"
+              ] : []
+            },
+            profile: { topic: profile.topic, level: profile.level || intent.level || "Beginner", language: profile.language || intent.language || "en" },
             durationPolicy,
             // Node-cache entries must never leak personalized resource choices across learners.
             cacheScope: createHash("sha256").update(String(userId) + ":" + JSON.stringify(profile)).digest("hex")

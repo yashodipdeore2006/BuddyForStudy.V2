@@ -9,6 +9,10 @@ export function getCourseResourceMetrics(course) {
   );
   const uniqueVideos = new Map();
   let lessonsWithResources = 0;
+  const plannedVideoMinutes = tutorialLessons.reduce((sum, lesson) => {
+    const policy = lesson?.tutorial?.searchPolicy || lesson?.tutorial?.durationMinutes || {};
+    return sum + Math.max(0, Number(policy.targetDurationMinutes ?? policy.targetMinutes) || 0);
+  }, 0);
 
   for (const lesson of tutorialLessons) {
     const resources = lessonVideos(lesson).filter((video) => String(video?.videoId || "").trim());
@@ -46,11 +50,16 @@ export function assessCourseResourceQuality(course, { completePath = false } = {
   const minimumCoverage = completePath ? 1 : 0.5;
   const enoughCoverage = metrics.tutorialLessonCount > 0 && metrics.coverageRatio >= minimumCoverage;
   const enoughDistinctResources = metrics.uniqueVideoCount >= Math.min(minimumVideos, metrics.tutorialLessonCount);
+  // A complete personalized path must have meaningful video coverage, not merely
+  // one tiny video attached to otherwise long scheduled study time.
+  const minimumRuntimeRatio = completePath && metrics.plannedVideoMinutes > 0 ? 0.5 : 0;
+  const enoughRuntime = metrics.resourceRuntimeRatio >= minimumRuntimeRatio;
   return {
     ...metrics,
     minimumVideos: Math.min(minimumVideos, metrics.tutorialLessonCount),
     minimumCoverage,
-    acceptable: enoughCoverage && enoughDistinctResources,
+    minimumRuntimeRatio,
+    acceptable: enoughCoverage && enoughDistinctResources && enoughRuntime,
     reason: !metrics.tutorialLessonCount
       ? "no_tutorial_lessons"
       : !enoughCoverage

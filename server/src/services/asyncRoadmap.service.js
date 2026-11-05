@@ -150,14 +150,12 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   const topic = String(profile.topic || "");
   const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
   const metrics = getCourseResourceMetrics(completedCourse);
-  if (completePath) {
-    const quality = assessCourseResourceQuality(completedCourse, { completePath: true });
-    if (!quality.acceptable) {
-      const error = new Error("The roadmap did not meet the minimum resource coverage and language quality. Please retry the build.");
-      error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
-      error.resourceQuality = quality;
-      throw error;
-    }
+  const quality = assessCourseResourceQuality(completedCourse, { completePath });
+  if (quality.tutorialLessonCount > 0 && !quality.acceptable) {
+    const error = new Error("The personalized roadmap did not meet the minimum resource coverage, runtime, and language requirements. Please retry the build.");
+    error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
+    error.resourceQuality = quality;
+    throw error;
   }
   return {
     ...metrics,

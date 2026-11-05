@@ -127,7 +127,7 @@ export function getYouTubeSearchOptions(language = "en", languageExplicit = fals
 
 function candidateLanguageMatches(video, expectedLanguage = "en") {
   const expected = normalizeYouTubeLanguage(expectedLanguage);
-  const rawActual = String(video?.defaultAudioLanguage || video?.defaultLanguage || "").trim().toLowerCase();
+  const rawActual = String(video?.defaultAudioLanguage || "").trim().toLowerCase();
   const actual = rawActual ? normalizeYouTubeLanguage(rawActual) : "";
   if (actual && actual !== "und" && actual !== "unknown") return actual === expected;
   if (expected === "en") {
@@ -562,8 +562,13 @@ export async function attachYouTubeResources(course, options = {}) {
           ...(lesson.tutorial?.searchQueries || []),
           (options.topic || course.title || module.title) + " " + lesson.title + " tutorial"
         ].map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 3);
+        const contextualQuery = [options.topic || course.title, options.resourceSearchContext, lesson.title, "tutorial"]
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+          .join(" ");
+        if (contextualQuery) queries.push(contextualQuery);
         groups.push({
-          skill: { id: skillId, canonicalSkillId: skillId, name: String(lesson.title || module.title), topics, searchQueries: queries },
+          skill: { id: skillId, canonicalSkillId: skillId, name: String(lesson.title || module.title), topics, searchQueries: [...new Set(queries)].slice(0, 3) },
           module,
           lessons: [lesson]
         });
@@ -589,7 +594,8 @@ export async function attachYouTubeResources(course, options = {}) {
           const result = await curateForNode({
             skill: group.skill,
             profile: { topic: options.topic || course.title || "", level: options.level || course.level || "Beginner", language: options.language || "en" },
-            durationPolicy: { minMinutes, targetMinutes, maxMinutes }
+            durationPolicy: { minMinutes, targetMinutes, maxMinutes },
+            cacheScope: options.resourceCacheScope || ""
           });
           if (result.best) {
             selectedGroups[index] = { group, result, selected: result.best, alternatives: result.alternatives || [], engine: "shared" };
@@ -673,7 +679,7 @@ export async function attachYouTubeResources(course, options = {}) {
         channelTitle: item.channelTitle || selected.channelTitle || "",
         durationSeconds: Number(item.durationSeconds || 0),
         thumbnail: item.thumbnail || selected.thumbnail || "",
-        defaultAudioLanguage: item.defaultAudioLanguage || item.defaultLanguage || "",
+        defaultAudioLanguage: item.defaultAudioLanguage || "",
         chapters: extractCurationChapters(item.description || ""),
         fetchedAt: new Date(),
         reason: "Ordered item from selected learning path",

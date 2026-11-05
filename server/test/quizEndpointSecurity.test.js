@@ -118,3 +118,22 @@ test("AI quiz endpoints reject unknown fields and validate MongoDB identifiers b
   }
   assert.match(submitPractice, /quizBankIds: z\.array\(z\.string\(\)\.trim\(\)\.length\(24\)\)\.max\(20\)/);
 });
+
+
+test("lesson quiz generation uses background jobs and the player polls without blocking the request", () => {
+  assert.match(aiController, /setImmediate\(async \(\) => \{/);
+  assert.match(aiController, /Lesson quiz generation started/);
+  assert.match(aiController, /Lesson practice questions are being prepared in the background/);
+  assert.match(aiController, /quizGenerationJobs\.delete\(jobKey\)/);
+  assert.match(player, /attempt < 60 && data\?\.generating/);
+  assert.match(player, /data = await apiFetch\("\/api\/ai\/quiz"/);
+});
+
+test("quiz generation enforces structured output, bounded retries, timeout and a template fallback", () => {
+  assert.match(aiRoadmapService, /responseMimeType: "application\/json"/);
+  assert.match(aiRoadmapService, /responseSchema: quizResponseSchema/);
+  assert.match(aiRoadmapService, /attempt <= 2/);
+  assert.match(aiRoadmapService, /withQuizTimeout\(client\.models\.generateContent/);
+  assert.match(aiRoadmapService, /buildTemplateQuizQuestions/);
+  assert.match(aiRoadmapService, /usedTemplateFallback/);
+});

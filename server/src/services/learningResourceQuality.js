@@ -37,8 +37,13 @@ export function getCourseResourceMetrics(course) {
 
 export function assessCourseResourceQuality(course, { completePath = false } = {}) {
   const metrics = getCourseResourceMetrics(course);
-  const minimumVideos = metrics.tutorialLessonCount >= 3 ? (completePath ? 3 : 2) : 1;
-  const minimumCoverage = completePath ? 0.6 : 0.5;
+  // A complete path is only complete when every tutorial lesson has a resource,
+  // and every lesson is backed by a distinct video. One generic video cannot
+  // make several modules appear resource-complete.
+  const minimumVideos = metrics.tutorialLessonCount >= 3
+    ? (completePath ? metrics.tutorialLessonCount : 2)
+    : 1;
+  const minimumCoverage = completePath ? 1 : 0.5;
   const enoughCoverage = metrics.tutorialLessonCount > 0 && metrics.coverageRatio >= minimumCoverage;
   const enoughDistinctResources = metrics.uniqueVideoCount >= Math.min(minimumVideos, metrics.tutorialLessonCount);
   return {

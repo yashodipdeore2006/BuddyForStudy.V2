@@ -27,7 +27,7 @@ test("legacy video selection rejects explicitly non-English audio", () => {
   }, "en"), true);
 });
 
-test("legacy English selection rejects obvious Indic-script metadata when audio tags are absent", () => {
+test("explicit English selection rejects unverified spoken-language metadata", () => {
   assert.equal(__youtubeSelectorTestUtils.candidateLanguageMatches({
     title: "Python full course தமிழில்",
     description: "Complete Python training"
@@ -35,7 +35,7 @@ test("legacy English selection rejects obvious Indic-script metadata when audio 
   assert.equal(__youtubeSelectorTestUtils.candidateLanguageMatches({
     title: "Python full course for beginners",
     description: "Complete Python training in English"
-  }, "English"), true);
+  }, "English"), false, "English title/description cannot prove spoken audio language");
 });
 
 

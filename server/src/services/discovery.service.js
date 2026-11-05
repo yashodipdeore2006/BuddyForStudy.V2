@@ -891,7 +891,7 @@ async function getPlaylistCourseUnsafe(playlistId) {
         channelId: video.snippet?.channelId || playlist.snippet?.channelId || "",
         thumbnail: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.default?.url || "",
         publishedAt: video.snippet?.publishedAt || null,
-        defaultAudioLanguage: video.snippet?.defaultAudioLanguage || video.snippet?.defaultLanguage || "",
+        defaultAudioLanguage: video.snippet?.defaultAudioLanguage || "",
         durationSeconds: seconds,
         duration: formatDuration(seconds),
         viewCount: Number(video.statistics?.viewCount || 0),

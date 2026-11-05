@@ -148,7 +148,7 @@ test("private lesson assistance requires an active, non-revoked enrollment", asy
 });
 test("AI roadmap builds a structured fallback for topics outside the curated knowledge base", async () => {
   const ai = await read("../src/services/aiRoadmap.service.js");
-  assert.match(ai, /function buildTopicFallback\(topic, level = "Beginner"\)/);
+  assert.match(ai, /function buildTopicFallback\(topic, level = "Beginner", profile = \{\}\)/);
   assert.match(ai, /"ciber security"/);
   assert.match(ai, /fallback = buildTopicFallback\(input\.topic, input\.level\)/);
   assert.match(ai, /fallback\.sources = options\.asyncBuild \? \[\] : await attachYouTubeResources\(fallback\.course\)/);

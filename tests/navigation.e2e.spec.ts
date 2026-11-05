@@ -1087,7 +1087,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();
     await expect(dialog.getByText("Context & Objectives")).toBeVisible();
     const roleQuestion = dialog.locator("section").filter({ hasText: "What is your target role and company type?" }).first();
-    await roleQuestion.locator("input").fill("Frontend Engineer");
+    await roleQuestion.locator("textarea").fill("Frontend Engineer");
     await roleQuestion.getByRole("button", { name: "Save answer" }).click();
     await dialog.getByRole("button", { name: "Within 1 month (crash course)" }).click();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();

@@ -1970,6 +1970,12 @@ export default function Courses() {
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">{aiRoadmap.personalization.studyTimeMinutesPerDay} min/day</span>
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
+                {Number.isFinite(Number(aiRoadmap.personalization.estimatedStudyMinutes)) && Number(aiRoadmap.personalization.estimatedStudyMinutes) > 0 && (
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {aiRoadmap.personalization.estimatedStudyMinutes} min</span>
+                )}
+                {Number.isFinite(Number(aiRoadmap.personalization.resourceVideoMinutes)) && (
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {aiRoadmap.personalization.resourceVideoMinutes} min</span>
+                )}
                 {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>)}
               </div>
               <p className="mt-3 text-xs leading-5 text-slate-500">

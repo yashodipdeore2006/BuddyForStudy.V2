@@ -150,7 +150,7 @@ test("AI roadmap builds a structured fallback for topics outside the curated kno
   const ai = await read("../src/services/aiRoadmap.service.js");
   assert.match(ai, /function buildTopicFallback\(topic, level = "Beginner", profile = \{\}\)/);
   assert.match(ai, /"ciber security"/);
-  assert.match(ai, /fallback = buildTopicFallback\(input\.topic, input\.level\)/);
+  assert.match(ai, /fallback = buildTopicFallback\(input\.topic, input\.level, input\)/);
   assert.match(ai, /fallback\.sources = options\.asyncBuild \? \[\] : await attachYouTubeResources\(fallback\.course\)/);
   assert.match(ai, /type: "tutorial"/);
   assert.match(ai, /type: "quiz"/);

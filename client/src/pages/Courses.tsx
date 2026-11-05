@@ -217,6 +217,7 @@ export default function Courses() {
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
+  const [coreQuestionStep, setCoreQuestionStep] = useState(0);
 
   const [aiGoal, setAiGoal] = useState<string>('Explore a personal interest');
   const [aiGoalTouched, setAiGoalTouched] = useState(false);
@@ -471,6 +472,7 @@ export default function Courses() {
     setIntentResult(null);
     setIntentAnswers({});
     setIntentWizardStep(1);
+    setCoreQuestionStep(0);
     setAiCustomGoal("");
     setAiGoal("Explore a personal interest");
     setAiGoalTouched(false);
@@ -1128,6 +1130,7 @@ export default function Courses() {
                   setIntentResult(null);
                   setIntentAnswers({});
                   setIntentWizardStep(1);
+    setCoreQuestionStep(0);
                   setAiCustomGoal("");
                   setAiGoal("Explore a personal interest");
                   setAiGoalTouched(false);
@@ -1301,7 +1304,8 @@ export default function Courses() {
                     {intentResult && !intentResult.valid && (
                       <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                         We could not confidently identify this as a learning topic. Edit the topic below and try again.
-                        <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentResult(null); setAiError(null); setIntentWizardStep(1); }}>Retry topic</button>
+                        <button type="button" className="ml-2 font-semibold underline" onClick={() => { setIntentResult(null); setAiError(null); setIntentWizardStep(1);
+    setCoreQuestionStep(0); }}>Retry topic</button>
                       </div>
                     )}
 
@@ -1329,282 +1333,77 @@ export default function Courses() {
                     </div>
 
                     {intentWizardStep === 1 && (
-                      <section className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-xl sm:p-6">
+                      <section className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-xl sm:p-6" aria-live="polite">
                         <div className="border-b border-slate-200/80 pb-4">
-                          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-400"><span aria-hidden="true">▱</span> Your learning goal</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-900">What do you want to learn?</h3>
-                          <p className="mt-1 text-xs text-slate-600">Map your primary objective, current skills and realistic study schedule.</p>
+                          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-500"><span aria-hidden="true">▱</span> Your learning goal</p>
+                          <h3 className="mt-1 text-xl font-bold text-slate-900">{["What do you want to learn?","What should you be able to do?","What is your learning purpose?","Where are you starting from?","What do you already know?","What study schedule works for you?","How do you prefer to learn?"][coreQuestionStep] || "Review your learning preferences"}</h3>
+                          <p className="mt-1 text-xs text-slate-600">One focused question at a time. Your answers shape a more relevant learning path.</p>
+                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{width:`${Math.min(100, ((coreQuestionStep + 1) / 7) * 100)}%`}} /></div>
+                          <p className="mt-1 text-right text-[10px] font-semibold text-slate-500">Question {Math.min(coreQuestionStep + 1, 7)} of 7</p>
                         </div>
 
-                        <div className="space-y-2">
-                          <label htmlFor="ai-topic" className="block text-sm font-semibold text-slate-800">Topic or course name</label>
-                          <input
-                            id="ai-topic"
-                            autoFocus
-                            maxLength={200}
-                            value={aiTopic}
-                            onChange={(event) => {
-                              setAiTopic(event.target.value);
-                              if (intentResult) {
-                                setIntentResult(null);
-                                setIntentAnswers({});
-                                setAiGoalTouched(false);
-                                setAiLevelTouched(false);
-                                setAiKnownSkills("");
-                                setIntentWizardStep(1);
-                              }
-                            }}
-                            placeholder="e.g. React and Node.js, Python, Data Analytics, AWS…"
-                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                          />
-                          <p className="text-xs text-slate-600">We use this topic to detect the learning domain and load relevant questions.</p>
-                          {aiTopic.trim() && (
-                            <div className="mt-3 flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-50 p-3 text-xs text-indigo-800">
-                              <span className="mt-0.5 text-indigo-400" aria-hidden="true">✦</span>
-                              <div>
-                                {getNichePackName(aiTopic) !== "AI Custom Domain Pack" ? (
-                                  <>
-                                    <p className="font-semibold text-indigo-700">We assumed niche: <strong className="text-slate-900">{getNichePackName(aiTopic)}</strong></p>
-                                    <p className="mt-0.5 text-[11px] text-slate-600">Specialized domain questions will be loaded in Layer 3.</p>
-                                  </>
-                                ) : (
-                                  <>
-                                    <p className="font-semibold text-purple-700">Custom domain detected: <strong className="text-slate-900">{aiTopic}</strong></p>
-                                    <p className="mt-0.5 text-[11px] text-slate-600">The AI intent engine will generate focused clarification questions for this topic.</p>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-2">
-                          <label htmlFor="ai-outcome" className="block text-sm font-semibold text-slate-800">In one sentence, what should you be able to do at the end?</label>
-                          <textarea
-                            id="ai-outcome"
-                            rows={2}
-                            maxLength={500}
-                            value={aiCustomGoal}
-                            onChange={(event) => setAiCustomGoal(event.target.value)}
-                            placeholder="e.g. Build and deploy a full-stack application and prepare for developer interviews…"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-600 focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
-                          />
-                          <p className="text-[11px] text-slate-600">Why we ask: this shapes the course projects, resource searches and final capstone.</p>
-                        </div>
-
-                        <fieldset className="space-y-2">
-                          <legend className="text-sm font-semibold text-slate-800">Why are you learning it?</legend>
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            {BUILD_WITH_AI_PURPOSE_OPTIONS.map((option) => {
-                              const PurposeIcon = option.icon;
-                              const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || (aiGoalTouched ? "" : "learn"));
-                              const selectedPurpose = String(intentAnswers.goalPurpose || (intentResult?.profile?.goal === "job_ready" ? "career" : intentResult?.profile?.goal === "exam" ? "exam" : intentResult?.profile?.goal === "project" ? "project" : aiGoalTouched ? "" : "hobby"));
-                              const selected = aiGoal === option.goal && selectedGoal === option.id && selectedPurpose === option.purpose;
-                              return (
-                                <button
-                                  key={option.label}
-                                  type="button"
-                                  aria-pressed={selected}
-                                  onClick={() => {
-                                    setAiGoal(option.goal);
-                                    setAiGoalTouched(true);
-                                    setIntentAnswers((previous) => ({ ...previous, goal: option.id, goalPurpose: option.purpose }));
-                                  }}
-                                  className={selected
-                                    ? "min-h-16 rounded-xl border border-indigo-500 bg-indigo-600/20 px-3 py-2.5 text-left text-xs font-semibold text-slate-900 ring-1 ring-indigo-500/30"
-                                    : "min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-slate-700 transition hover:border-indigo-500/60 hover:bg-slate-100"}
-                                >
-                                  <span className="flex items-center gap-2"><PurposeIcon className={selected ? "h-4 w-4 shrink-0 text-indigo-800" : "h-4 w-4 shrink-0 text-slate-600"} />{selected ? "✓ " : ""}{option.label}</span>
-                                  <span className={selected ? "mt-1 block text-[10px] font-normal leading-4 text-indigo-900/80" : "mt-1 block text-[10px] font-normal leading-4 text-slate-600"}>{option.description}</span>
-                                </button>
-                              );
-                            })}
+                        {coreQuestionStep === 0 && (
+                          <div className="space-y-2">
+                            <label htmlFor="ai-topic" className="block text-sm font-semibold text-slate-800">Topic or course name</label>
+                            <input id="ai-topic" autoFocus maxLength={200} value={aiTopic} onChange={(event) => { setAiTopic(event.target.value); if (intentResult) { setIntentResult(null); setIntentAnswers({}); setAiGoalTouched(false); setAiLevelTouched(false); setAiKnownSkills(""); setIntentWizardStep(1);
+    setCoreQuestionStep(0); } }} onKeyDown={(event) => { if (event.key === "Enter" && aiTopic.trim().length >= 2) { event.preventDefault(); setCoreQuestionStep(1); } }} placeholder="e.g. React and Node.js, Python, Data Analytics, AWS…" className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+                            <p className="text-xs text-slate-600">Enter a skill, subject, exam, or outcome. Press Enter to continue.</p>
+                            {aiTopic.trim() && <p className="rounded-lg bg-indigo-50 p-3 text-xs text-indigo-800">{getNichePackName(aiTopic) !== "AI Custom Domain Pack" ? `We’ll tailor follow-up questions for ${getNichePackName(aiTopic)}.` : "We’ll identify the right learning domain from your topic."}</p>}
                           </div>
-                        </fieldset>
+                        )}
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <fieldset className="space-y-2">
-                            <legend className="text-sm font-semibold text-slate-800">Starting level</legend>
-                            <div className="grid grid-cols-3 gap-2">
-                              {levels.map((level) => (
-                                <button
-                                  key={level}
-                                  type="button"
-                                  aria-pressed={aiLevel === level}
-                                  onClick={() => {
-                                    setAiLevel(level);
-                                    setAiLevelTouched(true);
-                                    setIntentAnswers((previous) => ({ ...previous, level }));
-                                  }}
-                                  className={aiLevel === level
-                                    ? "rounded-lg border border-indigo-500 bg-indigo-600/20 px-2 py-2.5 text-xs font-semibold text-slate-900"
-                                    : "rounded-lg border border-slate-200 bg-white px-2 py-2.5 text-xs font-semibold text-slate-700 hover:border-indigo-400"}
-                                >
-                                  {level}
-                                </button>
-                              ))}
-                            </div>
-                          </fieldset>
-                          <fieldset className="space-y-2">
-                            <legend className="text-sm font-semibold text-slate-800">How far do you want to go?</legend>
-                            <div className="grid grid-cols-2 gap-2">
-                              {[
-                                { value: "narrow", label: "Quick overview" },
-                                { value: "broad", label: "Complete learning path" }
-                              ].map((option) => {
-                                const selected = String(intentAnswers.depth || aiScope) === option.value;
-                                return (
-                                  <button
-                                    key={option.value}
-                                    type="button"
-                                    aria-pressed={selected}
-                                    onClick={() => {
-                                      setAiScope(option.value as "narrow" | "broad");
-                                      setIntentAnswers((previous) => ({ ...previous, depth: option.value }));
-                                    }}
-                                    className={selected
-                                      ? "rounded-lg border border-indigo-500 bg-indigo-600/20 px-2 py-2.5 text-xs font-semibold text-slate-900"
-                                      : "rounded-lg border border-slate-200 bg-white px-2 py-2.5 text-xs font-semibold text-slate-700 hover:border-indigo-400"}
-                                  >
-                                    {option.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </fieldset>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <label className="text-sm font-semibold text-slate-800">What can you already do?</label>
-                            <span className="text-[10px] font-medium text-slate-600">Select all that apply</span>
+                        {coreQuestionStep === 1 && (
+                          <div className="space-y-2">
+                            <label htmlFor="ai-outcome" className="block text-sm font-semibold text-slate-800">In one sentence, what should you be able to do at the end?</label>
+                            <textarea id="ai-outcome" autoFocus rows={3} maxLength={500} value={aiCustomGoal} onChange={(event) => setAiCustomGoal(event.target.value)} placeholder="e.g. Build and deploy a full-stack application and prepare for developer interviews…" className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15" />
+                            <p className="text-xs text-slate-600">This is optional. Add a specific outcome or continue to choose your purpose.</p>
                           </div>
-                          {getSkillChecklist(aiTopic).length > 0 ? (
+                        )}
+
+                        {coreQuestionStep === 2 && (
+                          <fieldset className="space-y-2">
+                            <legend className="text-sm font-semibold text-slate-800">Why are you learning it?</legend>
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                              {getSkillChecklist(aiTopic).map((skill) => {
-                                const selected = aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).includes(skill);
-                                return (
-                                  <button
-                                    key={skill}
-                                    type="button"
-                                    aria-pressed={selected}
-                                    onClick={() => {
-                                      const current = aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean);
-                                      const next = current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill];
-                                      const value = next.join(", ");
-                                      setAiKnownSkills(value);
-                                      setIntentAnswers((previous) => ({ ...previous, knownSkills: value }));
-                                    }}
-                                    className={selected
-                                      ? "flex items-center justify-between rounded-lg border border-indigo-500 bg-indigo-600/20 px-3 py-2 text-left text-xs font-semibold text-slate-900"
-                                      : "flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs text-slate-700 hover:border-violet-400"}
-                                  >
-                                    <span>{skill}</span>
-                                    {selected && <span aria-hidden="true">✓</span>}
-                                  </button>
-                                );
+                              {BUILD_WITH_AI_PURPOSE_OPTIONS.map((option) => {
+                                const PurposeIcon = option.icon;
+                                const selected = aiGoal === option.goal && String(intentAnswers.goal || "learn") === option.id && String(intentAnswers.goalPurpose || "hobby") === option.purpose;
+                                return <button key={option.label} type="button" aria-pressed={selected} onClick={() => { setAiGoal(option.goal); setAiGoalTouched(true); setIntentAnswers((previous) => ({...previous, goal: option.id, goalPurpose: option.purpose})); setCoreQuestionStep(3); }} className={selected ? "min-h-16 rounded-xl border border-indigo-500 bg-indigo-50 px-3 py-2.5 text-left text-xs font-semibold text-slate-900 ring-1 ring-indigo-500/30" : "min-h-16 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:border-indigo-400"}><span className="flex items-center gap-2"><PurposeIcon className="h-4 w-4 shrink-0 text-indigo-700"/>{option.label}</span><span className="mt-1 block text-[10px] font-normal leading-4 text-slate-600">{option.description}</span></button>;
                               })}
                             </div>
-                          ) : (
-                            <textarea
-                              rows={2}
-                              maxLength={1200}
-                              value={aiKnownSkills}
-                              onChange={(event) => {
-                                setAiKnownSkills(event.target.value);
-                                setIntentAnswers((previous) => ({ ...previous, knownSkills: event.target.value }));
-                              }}
-                              placeholder="List any subjects, concepts, tools or experience you already have. Leave blank to start from scratch."
-                              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-violet-600 focus:ring-2 focus:ring-violet-600/15"
-                            />
-                          )}
-                          <p className="text-[11px] text-slate-600">Known skills will be used to skip introductory lessons where appropriate.</p>
-                        </div>
+                          </fieldset>
+                        )}
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <label htmlFor="ai-study-time-v2" className="block text-sm font-semibold text-slate-800">
-                            Time per day
-                            <select
-                              id="ai-study-time-v2"
-                              value={aiStudyTime}
-                              onChange={(event) => {
-                                const value = Number(event.target.value);
-                                const labels: Record<number, string> = { 15: "15 min", 30: "30 min", 60: "1 hour", 120: "2 hours", 180: "3+ hours", 210: "3-4 hours", 300: "5+ hours" };
-                                setAiStudyTime(value);
-                                setIntentAnswers((previous) => ({ ...previous, time: labels[value] }));
-                              }}
-                              className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                            >
-                              <option value={15}>15 Minutes / day</option>
-                              <option value={30}>30 Minutes / day</option>
-                              <option value={60}>1 Hour / day</option>
-                              <option value={120}>2 Hours / day</option>
-                              <option value={180}>3+ Hours / day</option>
-                              <option value={210}>3–4 Hours / day</option>
-                              <option value={300}>Full-time (5+ hrs)</option>
-                            </select>
-                          </label>
-                          <label htmlFor="ai-study-days-v2" className="block text-sm font-semibold text-slate-800">
-                            Days per week
-                            <select
-                              id="ai-study-days-v2"
-                              value={aiStudyDays}
-                              onChange={(event) => {
-                                setAiStudyDays(event.target.value);
-                                setIntentAnswers((previous) => ({ ...previous, studyDays: event.target.value }));
-                              }}
-                              className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                            >
-                              {["2", "3", "4", "5", "6", "7"].map((days) => <option key={days} value={days}>{days} days / week</option>)}
-                            </select>
-                          </label>
-                          <label htmlFor="ai-language-v2" className="block text-sm font-semibold text-slate-800">
-                            Resource language
-                            <select
-                              id="ai-language-v2"
-                              value={intentAnswers.language || aiLanguagePref}
-                              onChange={(event) => {
-                                setAiLanguagePref(event.target.value);
-                                setIntentAnswers((previous) => ({ ...previous, language: event.target.value }));
-                              }}
-                              className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                            >
-                              <option value="en">English</option>
-                              <option value="hi">Hindi</option>
-                              <option value="mr">Marathi</option>
-                            </select>
-                          </label>
-                          <label htmlFor="ai-lesson-style-v2" className="block text-sm font-semibold text-slate-800">
-                            Learning style
-                            <select
-                              id="ai-lesson-style-v2"
-                              value={intentAnswers.lessonStyle || aiLessonStyle}
-                              onChange={(event) => {
-                                setAiLessonStyle(event.target.value);
-                                setIntentAnswers((previous) => ({ ...previous, lessonStyle: event.target.value }));
-                              }}
-                              className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                            >
-                              <option value="Project-first">Project-first (build as you learn)</option>
-                              <option value="Theory-first">Theory first, then practice</option>
-                              <option value="Short videos with frequent practice">Short videos with frequent practice</option>
-                              <option value="Long, detailed tutorials">Long, detailed tutorials</option>
-                            </select>
-                          </label>
-                          <label htmlFor="ai-deadline-v2" className="block text-sm font-semibold text-slate-800 sm:col-span-2">
-                            Target completion date <span className="font-normal text-slate-500">Optional</span>
-                            <input
-                              id="ai-deadline-v2"
-                              type="date"
-                              value={intentAnswers.deadline || ""}
-                              onChange={(event) => setIntentAnswers((previous) => ({ ...previous, deadline: event.target.value }))}
-                              className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"
-                            />
-                          </label>
-                        </div>
+                        {coreQuestionStep === 3 && (
+                          <div className="space-y-4">
+                            <fieldset className="space-y-2"><legend className="text-sm font-semibold text-slate-800">Starting level</legend><div className="grid grid-cols-3 gap-2">{levels.map((level) => <button key={level} type="button" aria-pressed={aiLevel === level} onClick={() => {setAiLevel(level);setAiLevelTouched(true);setIntentAnswers((previous)=>({...previous,level}));}} className={aiLevel===level?"rounded-lg border border-indigo-500 bg-indigo-50 px-2 py-3 text-xs font-semibold text-slate-900":"rounded-lg border border-slate-200 bg-white px-2 py-3 text-xs font-semibold text-slate-700 hover:border-indigo-400"}>{level}</button>)}</div></fieldset>
+                            <fieldset className="space-y-2"><legend className="text-sm font-semibold text-slate-800">How far do you want to go?</legend><div className="grid grid-cols-2 gap-2">{[{value:"narrow",label:"Quick overview"},{value:"broad",label:"Complete learning path"}].map((option)=><button key={option.value} type="button" aria-pressed={String(intentAnswers.depth||aiScope)===option.value} onClick={()=>{setAiScope(option.value as "narrow"|"broad");setIntentAnswers((previous)=>({...previous,depth:option.value}));}} className={String(intentAnswers.depth||aiScope)===option.value?"rounded-lg border border-indigo-500 bg-indigo-50 px-3 py-3 text-xs font-semibold text-slate-900":"rounded-lg border border-slate-200 bg-white px-3 py-3 text-xs font-semibold text-slate-700 hover:border-indigo-400"}>{option.label}</button>)}</div></fieldset>
+                          </div>
+                        )}
+
+                        {coreQuestionStep === 4 && (
+                          <div className="space-y-3">
+                            <p className="text-sm font-semibold text-slate-800">Select the skills you can already use. You can leave this blank to start from the foundations.</p>
+                            {getSkillChecklist(aiTopic).length > 0 ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{getSkillChecklist(aiTopic).map((skill)=><button key={skill} type="button" aria-pressed={aiKnownSkills.split(/[,;\n]/).map((item)=>item.trim()).includes(skill)} onClick={()=>{const current=aiKnownSkills.split(/[,;\n]/).map((item)=>item.trim()).filter(Boolean);const next=current.includes(skill)?current.filter((item)=>item!==skill):[...current,skill];const value=next.join(", ");setAiKnownSkills(value);setIntentAnswers((previous)=>({...previous,knownSkills:value}));}} className={aiKnownSkills.split(/[,;\n]/).map((item)=>item.trim()).includes(skill)?"flex items-center justify-between rounded-lg border border-indigo-500 bg-indigo-50 px-3 py-3 text-left text-xs font-semibold text-slate-900":"flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-3 text-left text-xs text-slate-700 hover:border-indigo-400"}><span>{skill}</span>{aiKnownSkills.split(/[,;\n]/).map((item)=>item.trim()).includes(skill)&&<span>✓</span>}</button>)}</div> : <textarea autoFocus rows={3} maxLength={1200} value={aiKnownSkills} onChange={(event)=>{setAiKnownSkills(event.target.value);setIntentAnswers((previous)=>({...previous,knownSkills:event.target.value}));}} placeholder="List subjects, concepts, tools or experience you already have…" className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900"/>}
+                            <p className="text-xs text-slate-600">Selected skills can be used to skip introductory lessons.</p>
+                          </div>
+                        )}
+
+                        {coreQuestionStep === 5 && (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <label htmlFor="ai-study-time-v2" className="block text-sm font-semibold text-slate-800">Time per day<select id="ai-study-time-v2" value={aiStudyTime} onChange={(event)=>{const value=Number(event.target.value);const labels:Record<number,string>={15:"15 min",30:"30 min",60:"1 hour",120:"2 hours",180:"3+ hours",210:"3-4 hours",300:"5+ hours"};setAiStudyTime(value);setIntentAnswers((previous)=>({...previous,time:labels[value]}));}} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"><option value={15}>15 Minutes / day</option><option value={30}>30 Minutes / day</option><option value={60}>1 Hour / day</option><option value={120}>2 Hours / day</option><option value={180}>3+ Hours / day</option><option value={210}>3–4 Hours / day</option><option value={300}>Full-time (5+ hrs)</option></select></label>
+                            <label htmlFor="ai-study-days-v2" className="block text-sm font-semibold text-slate-800">Days per week<select id="ai-study-days-v2" value={aiStudyDays} onChange={(event)=>{setAiStudyDays(event.target.value);setIntentAnswers((previous)=>({...previous,studyDays:event.target.value}));}} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">{["2","3","4","5","6","7"].map((days)=><option key={days} value={days}>{days} days / week</option>)}</select></label>
+                          </div>
+                        )}
+
+                        {coreQuestionStep === 6 && (
+                          <div className="space-y-4">
+                            <label htmlFor="ai-language-v2" className="block text-sm font-semibold text-slate-800">Resource language<select id="ai-language-v2" value={intentAnswers.language||aiLanguagePref} onChange={(event)=>{setAiLanguagePref(event.target.value);setIntentAnswers((previous)=>({...previous,language:event.target.value}));}} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label>
+                            <label htmlFor="ai-lesson-style-v2" className="block text-sm font-semibold text-slate-800">Learning style<select id="ai-lesson-style-v2" value={intentAnswers.lessonStyle||aiLessonStyle} onChange={(event)=>{setAiLessonStyle(event.target.value);setIntentAnswers((previous)=>({...previous,lessonStyle:event.target.value}));}} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"><option value="Project-first">Project-first (build as you learn)</option><option value="Theory-first">Theory first, then practice</option><option value="Short videos with frequent practice">Short videos with frequent practice</option><option value="Long, detailed tutorials">Long, detailed tutorials</option></select></label>
+                            <label htmlFor="ai-deadline-v2" className="block text-sm font-semibold text-slate-800">Target completion date <span className="font-normal text-slate-500">Optional</span><input id="ai-deadline-v2" type="date" value={intentAnswers.deadline||""} onChange={(event)=>setIntentAnswers((previous)=>({...previous,deadline:event.target.value}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"/></label>
+                          </div>
+                        )}
                       </section>
                     )}
-
                     {intentWizardStep === 2 && (
                       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                         <div className="border-b border-slate-200/80 pb-4">
@@ -1855,6 +1654,10 @@ export default function Courses() {
               <button
                 type="button"
                 onClick={() => {
+                  if (INTENT_V2 && !intentResult?.valid && coreQuestionStep > 0) {
+                    setCoreQuestionStep((step) => Math.max(0, step - 1));
+                    return;
+                  }
                   if (INTENT_V2 && intentResult?.valid && intentWizardStep > 1) {
                     setIntentWizardStep((step) => Math.max(1, step - 1));
                     return;
@@ -1864,7 +1667,7 @@ export default function Courses() {
                 disabled={aiLoading}
                 className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:opacity-50"
               >
-                {INTENT_V2 && intentResult?.valid && intentWizardStep > 1 ? "Back" : "Cancel"}
+                {INTENT_V2 && ((!intentResult?.valid && coreQuestionStep > 0) || (intentResult?.valid && intentWizardStep > 1)) ? "Back" : "Cancel"}
               </button>
               <button
                 type="button"
@@ -1874,6 +1677,12 @@ export default function Courses() {
                     return;
                   }
                   if (!intentResult || !intentResult.valid) {
+                    if (coreQuestionStep < 6) {
+                      if (coreQuestionStep === 0 && aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
+                      setAiError(null);
+                      setCoreQuestionStep((step) => Math.min(6, step + 1));
+                      return;
+                    }
                     void startIntentFlow();
                     return;
                   }
@@ -1899,7 +1708,7 @@ export default function Courses() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? "Analyze topic and continue" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
+                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? coreQuestionStep < 6 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
                   </>
                 )}
               </button>

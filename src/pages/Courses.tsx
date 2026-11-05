@@ -1242,7 +1242,7 @@ export default function Courses() {
                     
                   </p>
                   <h2 id="ai-builder-title" className="mt-0.5 text-base font-semibold text-slate-900 sm:text-lg">Create your learning roadmap</h2>
-                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">Smart Adaptive Intake Questionnaire</p>
+                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">A few focused questions to build a plan that fits you</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
@@ -1651,11 +1651,11 @@ export default function Courses() {
                           ))}
                         </div>
                         <div className="space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-50 p-4">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700">Active roadmap modifiers</h4>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700">How your answers shape your plan</h4>
                           <ul className="space-y-2 text-xs text-slate-700">
                             <li>✓ Prior knowledge: {aiKnownSkills || "No prior skills selected; start from the foundations."}</li>
-                            <li>✓ Resource search: query language and learning style will guide resource curation.</li>
-                            <li>✓ Practice design: selected purpose and domain answers will shape projects and assessments.</li>
+                            <li>✓ Learning resources: your language and learning style guide the tutorials we select.</li>
+                            <li>✓ Practice: your goal and subject-specific answers shape projects and assessments.</li>
                             <li>✓ Schedule: study time and days per week will guide lesson pacing.</li>
                           </ul>
                         </div>
@@ -1663,9 +1663,9 @@ export default function Courses() {
                           <details className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <summary className="cursor-pointer text-sm font-semibold text-slate-800">Review all additional answers</summary>
                             <dl className="mt-3 space-y-2">
-                              {Object.entries(intentAnswers).filter(([key, value]) => Boolean(value) && !["knownSkills"].includes(key)).map(([key, value]) => (
+                              {Object.entries(intentAnswers).filter(([key, value]) => Boolean(value) && !coreQuestionIds.has(key)).map(([key, value]) => (
                                 <div key={key} className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2 text-xs">
-                                  <dt className="font-medium text-slate-600">{key.replace(/([A-Z])/g, " $1")}</dt>
+                                  <dt className="font-medium text-slate-600">{intentResult?.questionPlan.find((question) => question.id === key)?.text || key.replace(/([A-Z])/g, " $1")}</dt>
                                   <dd className="max-w-[65%] text-right font-semibold text-slate-800">{String(value)}</dd>
                                 </div>
                               ))}
@@ -1691,7 +1691,7 @@ export default function Courses() {
                         </div>
                         <div>
                           <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Learning goal</dt>
-                          <dd className="mt-1 text-sm font-medium capitalize text-slate-800">{String(intentPurpose || "To be determined").replace(/_/g, " ")}</dd>
+                          <dd className="mt-1 text-sm font-medium capitalize text-slate-800">{(BUILD_WITH_AI_PURPOSE_OPTIONS.find((option) => option.purpose === intentPurpose)?.label || "To be determined")}</dd>
                         </div>
                         <div>
                           <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Starting level</dt>

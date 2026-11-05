@@ -24,7 +24,7 @@ test("audience preview masks sample emails and reports channel reach after prefe
   assert.match(controller, /selectedChannels = parseAnnouncementChannels\(audienceInput\.channels\)/);
   assert.match(controller, /selected: !selectedChannels \|\| selectedChannels\.includes\("email"\)/);
   assert.match(controller, /email: maskEmail\(user\.email\)/);
-  const communications = await read("../../src/pages/admin/AdminCommunications.tsx");
+  const communications = await read("../../client/src/pages/admin/AdminCommunications.tsx");
   assert.match(communications, /Not selected/);
   assert.match(communications, /channels \}\s*:\s*\{\}/);
   assert.match(prefs, /emailAnnouncementsConsentAt: \{ type: Date, default: null \}/);
@@ -86,7 +86,7 @@ test("scheduled announcements can be cancelled only before the worker starts and
 test("delivery log is paginated, masks recipients and retries only failed channel attempts with a reason", async () => {
   const controller = await read("../src/controllers/adminPro.controller.js");
   const routes = await read("../src/routes/adminPro.routes.js");
-  const page = await read("../../src/pages/admin/AdminDeliveries.tsx");
+  const page = await read("../../client/src/pages/admin/AdminDeliveries.tsx");
   assert.match(controller, /export async function deliveryLog/);
   assert.match(controller, /email: maskEmail\(item\.user\.email\)/);
   assert.match(controller, /export async function retryDeliveryLog/);
@@ -108,7 +108,7 @@ test("delivery log is paginated, masks recipients and retries only failed channe
 test("template preview validates placeholders and test send targets only the signed-in administrator with audit reason", async () => {
   const controller = await read("../src/controllers/messageTemplate.controller.js");
   const routes = await read("../src/routes/adminPro.routes.js");
-  const page = await read("../../src/pages/admin/AdminCommunications.tsx");
+  const page = await read("../../client/src/pages/admin/AdminCommunications.tsx");
   assert.match(controller, /export async function previewMessageTemplate/);
   assert.match(controller, /unknownPlaceholders/);
   assert.match(controller, /export async function testSendMessageTemplate/);

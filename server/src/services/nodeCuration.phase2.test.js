@@ -78,12 +78,13 @@ test("duration retry never lowers the learner's minimum video or playlist runtim
     };
   });
   try {
-    await curateForNode({
+    const result = await curateForNode({
       skill: { id: "python-stage", name: "Python Foundations", topics: ["syntax"] },
       profile: { topic: "Python", level: "Beginner", language: "en" },
       durationPolicy: { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 }
     });
     assert.equal(calls, 2);
+    assert.equal(result.best, null, "a selector response below the minimum runtime must never be attached");
     assert.equal(observed[0].minVideoSeconds, 3600);
     assert.equal(observed[1].minVideoSeconds, 3600);
     assert.equal(observed[1].minPlaylistSeconds, 3600);

@@ -129,14 +129,10 @@ function candidateLanguageMatches(video, expectedLanguage = "en") {
   const expected = normalizeYouTubeLanguage(expectedLanguage);
   const rawActual = String(video?.defaultAudioLanguage || "").trim().toLowerCase();
   const actual = rawActual ? normalizeYouTubeLanguage(rawActual) : "";
-  if (actual && actual !== "und" && actual !== "unknown") return actual === expected;
-  if (expected === "en") {
-    const sample = String(video?.snippet?.title || video?.title || "") + " " + String(video?.snippet?.description || video?.description || "");
-    const foreignScript = (sample.match(/[\u0900-\u0d7f]/g) || []).length;
-    const letters = (sample.match(/[\p{L}]/gu) || []).length;
-    if (foreignScript >= 3 && foreignScript / Math.max(1, letters) > 0.08) return false;
-  }
-  return true;
+  // Search relevance and title/description language are not proof of spoken audio.
+  // Explicit language preferences require YouTube's actual defaultAudioLanguage tag.
+  if (!actual || actual === "und" || actual === "unknown") return false;
+  return actual === expected;
 }
 
 async function searchVideos(query,maxResults=10,searchOptions={}){
@@ -210,7 +206,7 @@ function toCandidate(video,channel){
   return {
     videoId:video.id,title,description,tags:video.snippet?.tags||[],channelId:video.snippet?.channelId||"",
     channelTitle:video.snippet?.channelTitle||"",publishedAt:video.snippet?.publishedAt||null,
-    defaultAudioLanguage:video.snippet?.defaultAudioLanguage||video.snippet?.defaultLanguage||"",
+    defaultAudioLanguage:video.snippet?.defaultAudioLanguage||"",
     durationSeconds,duration:video.contentDetails?.duration||"",
     viewCount:Number(video.statistics?.viewCount||0),likeCount:Number(video.statistics?.likeCount||0),
     commentCount:Number(video.statistics?.commentCount||0),
@@ -603,8 +599,15 @@ export async function attachYouTubeResources(course, options = {}) {
           }
           console.info("AI node curation fallback", { skillId: group.skill.canonicalSkillId, state: result.meta?.state || "empty", cacheHit: result.meta?.cacheHit || false, searchCalls: result.meta?.searchCalls || 0, quotaUnits: result.meta?.quotaUnits || 0 });
         } catch (error) {
-          console.warn("AI node curation failed; using legacy selector", safeTelemetryError(error));
+          console.warn("AI node curation failed; legacy fallback is disabled for personalized roadmaps", safeTelemetryError(error));
         }
+      }
+
+      // Build with AI must not downgrade to the permissive legacy selector.
+      // An unavailable verified match is safer than returning a short or language-unknown video.
+      if (useSharedEngine) {
+        selectedGroups[index] = { group, selected: null, alternatives: [], engine: "shared" };
+        continue;
       }
 
       const legacy = await searchBestYouTubeCourse({

@@ -1659,7 +1659,7 @@ export default function Courses() {
                             <li>✓ Schedule: study time and days per week will guide lesson pacing.</li>
                           </ul>
                         </div>
-                        {Object.keys(intentAnswers).some((key) => Boolean(intentAnswers[key])) && (
+                        {Object.entries(intentAnswers).some(([key, value]) => Boolean(value) && !coreQuestionIds.has(key)) && (
                           <details className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <summary className="cursor-pointer text-sm font-semibold text-slate-800">Review all additional answers</summary>
                             <dl className="mt-3 space-y-2">

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learningResourceQuality.js";
+import { assessCourseResourceQuality } from "./learningResourceQuality.js";
 
 function courseWithVideos(videoIdsByLesson) {
   return {

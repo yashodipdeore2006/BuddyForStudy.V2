@@ -5,7 +5,7 @@ import { attachYouTubeResources, normalizeYouTubeLanguage } from "./youtube.serv
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { normalizeMultiVideoLessons } from "./course.service.js";
 import { consumeUsage, releaseUsage } from "./aiUsage.service.js";
 import { readPlanLimit, getActivePlanForUser } from "./subscriptionEntitlement.service.js";
@@ -1685,6 +1685,21 @@ export async function generateAIRoadmap(input, options = {}) {
     personalized ? JSON.stringify(contextualPreferences) : "",
     personalized ? resourceLanguage : ""
   );
+  const goalCode = String(intentProfile.goal || "").toLowerCase();
+  const goalSearchLabel = ({
+    job_ready: "career-ready",
+    exam: "exam preparation",
+    project: "project-based learning",
+    learn: "foundational learning"
+  })[goalCode] || "";
+  const resourceSearchContext = [
+    goalSearchLabel,
+    intentProfile.targetRole || input.targetRole || "",
+    goalCode === "exam" ? (intentProfile.examName || input.examName || "") : ""
+  ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 180);
+  const resourceCacheScope = personalized
+    ? createHash("sha256").update(String(userId || "anonymous") + ":" + JSON.stringify(topicKeys)).digest("hex")
+    : "";
   const templateProfile = personalized
     ? {
         ...input,
@@ -1775,7 +1790,14 @@ export async function generateAIRoadmap(input, options = {}) {
     // Async mode persists the complete lesson skeleton first; independent node jobs attach resources later.
     const sources = options.asyncBuild
       ? []
-      : await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: resourceLanguage, useCurationEngineForAi: true });
+      : await attachYouTubeResources(built.course, {
+          topic: input.topic,
+          level: input.level,
+          language: resourceLanguage,
+          resourceSearchContext,
+          resourceCacheScope,
+          useCurationEngineForAi: true
+        });
     if (!options.asyncBuild) {
       await curateInterviewEvidence(built.course, { ...input, level: input.level, language: resourceLanguage });
       applyInterviewEvidence(built.course);
@@ -1869,7 +1891,14 @@ export async function generateAIRoadmap(input, options = {}) {
       }
       fallback.sources = options.asyncBuild
         ? []
-        : await attachYouTubeResources(fallback.course, { topic: input.topic, level: input.level, language: resourceLanguage, useCurationEngineForAi: true });
+        : await attachYouTubeResources(fallback.course, {
+            topic: input.topic,
+            level: input.level,
+            language: resourceLanguage,
+            resourceSearchContext,
+            resourceCacheScope,
+            useCurationEngineForAi: true
+          });
       if (!options.asyncBuild) {
         normalizeMultiVideoLessons(fallback.course);
         const fallbackQuality = assessCourseResourceQuality(fallback.course, {

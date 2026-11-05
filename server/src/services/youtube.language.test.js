@@ -37,3 +37,11 @@ test("legacy English selection rejects obvious Indic-script metadata when audio 
     description: "Complete Python training in English"
   }, "English"), true);
 });
+
+
+test("metadata language is not treated as proof of spoken audio language", () => {
+  assert.equal(__youtubeSelectorTestUtils.candidateLanguageMatches({
+    title: "Python tutorial",
+    defaultLanguage: "ta"
+  }, "en"), true);
+});

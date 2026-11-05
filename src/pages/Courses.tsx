@@ -1111,6 +1111,7 @@ export default function Courses() {
                   setIntentWizardStep(1);
                   setAiCustomGoal("");
                   setAiGoal("Career or professional growth");
+                  setAiGoalTouched(false);
                   setAiLevel("Beginner");
                   setAiLevelTouched(false);
                   setAiStudyTime(60);

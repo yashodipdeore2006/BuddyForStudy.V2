@@ -8,7 +8,7 @@ This document records changes under validation for the next release. It is **not
 
 - Pinned the repository, backend package metadata, local `.nvmrc`, and CI to Node.js 24.x.
 - Updated GitHub Actions checkout/setup-node actions to Node 24-compatible releases.
-- Added blocking backend ESLint and JavaScript syntax checks, plus clean `npm ci` installs for frontend and backend.
+- Added blocking backend and frontend ESLint checks and JavaScript syntax checks, plus clean `npm ci` installs for frontend and backend. Frontend lint no longer uses `continue-on-error`.
 - Scoped frontend lint to frontend TypeScript files; backend lint runs separately from the server working directory.
 - Restricted CI's `GITHUB_TOKEN` to `contents: read` and disabled persisted checkout credentials.
 - Fixed the normal discovery-course creation path to use a defined default course level rather than an undefined identifier.
@@ -16,6 +16,9 @@ This document records changes under validation for the next release. It is **not
 - Preserved the quiz result view when the progress persistence request fails; the separate lesson-completion immediate-UI-refresh behavior still requires explicit end-to-end verification.
 
 ### Verification evidence
+
+- Exact release-control candidate [`615a87d`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/615a87df3ea619e63147f33e2c7f5740570903b4) passed full frontend/backend CI and the production release-gate job in [run 42031851603](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42031851603). Frontend lint passed with failure blocking enabled; typecheck, unit tests, Vercel deployment config tests, production build and Playwright browser smoke tests passed. Backend lint, production config preflight, MongoDB test suite, mock selector comparison and JavaScript syntax checks passed.
+- Full-history Gitleaks scan passed on the same candidate in [run 42031851612](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/42031851612).
 
 - CI run: [40280687017](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40280687017) on candidate commit `5da983f86a0979f0b8b69b2452210688b02fb610`.
 - Frontend: clean install, lint, typecheck, course-navigation unit tests, production build, and Playwright navigation/admin smoke tests passed.

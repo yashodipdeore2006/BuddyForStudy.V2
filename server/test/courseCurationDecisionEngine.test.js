@@ -285,7 +285,7 @@ test("ranking slots cap creators at two results and deduplicate resources", () =
 test("feedback endpoint, route, and learner controls are connected", async () => {
   const controller = await readFile(new URL("../src/controllers/discovery.controller.js", import.meta.url), "utf8");
   const routes = await readFile(new URL("../src/routes/discovery.routes.js", import.meta.url), "utf8");
-  const ui = await readFile(new URL("../../src/components/YouTubeSearchFallback.tsx", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../../client/src/components/YouTubeSearchFallback.tsx", import.meta.url), "utf8");
   const service = await readFile(new URL("../src/services/courseCurationDecisionEngine.service.js", import.meta.url), "utf8");
 
   assert.ok(controller.includes("export async function recordCurationFeedback"));

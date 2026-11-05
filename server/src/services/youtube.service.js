@@ -673,6 +673,7 @@ export async function attachYouTubeResources(course, options = {}) {
         channelTitle: item.channelTitle || selected.channelTitle || "",
         durationSeconds: Number(item.durationSeconds || 0),
         thumbnail: item.thumbnail || selected.thumbnail || "",
+        defaultAudioLanguage: item.defaultAudioLanguage || item.defaultLanguage || "",
         chapters: extractCurationChapters(item.description || ""),
         fetchedAt: new Date(),
         reason: "Ordered item from selected learning path",

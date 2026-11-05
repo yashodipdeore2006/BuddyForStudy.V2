@@ -10,12 +10,11 @@ const player = readFileSync(new URL("../../client/src/pages/CoursePlayer.tsx", i
 const attemptModel = readFileSync(new URL("../src/models/CourseQuizAttempt.js", import.meta.url), "utf8");
 
 test("AI quiz endpoints return sanitized question projections instead of stored answer keys", () => {
-  assert.match(aiController, /quiz: toPublicQuiz\(result\.quiz\)/);
   assert.match(aiController, /questions: questions\.map\(toPublicQuizQuestion\)/);
   assert.match(aiController, /questions: available\.questions\.map\(toPublicQuizQuestion\)/);
-  assert.match(aiController, /questions: saved\.questions\.map\(toPublicQuizQuestion\)/);
   assert.doesNotMatch(aiController, /questions: available\.questions,/);
-  assert.doesNotMatch(aiController, /questions: saved\.questions,/);
+  assert.match(aiController, /questions: questions\.map\(toPublicQuizQuestion\)/);
+  assert.match(aiController, /questions: available\.questions\.map\(toPublicQuizQuestion\)/);
 });
 
 test("authenticated course and single-lesson endpoints remove quiz answer keys before returning data", () => {

@@ -1129,7 +1129,7 @@ export default function Courses() {
                   setIntentAnswers({});
                   setIntentWizardStep(1);
                   setAiCustomGoal("");
-                  setAiGoal("Build practical skills");
+                  setAiGoal("Explore a personal interest");
                   setAiGoalTouched(false);
                   setAiLevel("Beginner");
                   setAiLevelTouched(false);

@@ -211,8 +211,8 @@ export default function Courses() {
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
 
-  const [aiGoal, setAiGoal] = useState<string>('Career or professional growth');
-  const [aiGoalTouched, setAiGoalTouched] = useState(true);
+  const [aiGoal, setAiGoal] = useState<string>('Build practical skills');
+  const [aiGoalTouched, setAiGoalTouched] = useState(false);
   const [aiLevelTouched, setAiLevelTouched] = useState(false);
   const [aiCustomGoal, setAiCustomGoal] = useState('');
   const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
@@ -465,7 +465,7 @@ export default function Courses() {
     setIntentAnswers({});
     setIntentWizardStep(1);
     setAiCustomGoal("");
-    setAiGoal("Career or professional growth");
+    setAiGoal("Build practical skills");
     setAiGoalTouched(false);
     setAiLevel("Beginner");
     setAiLevelTouched(false);
@@ -1122,7 +1122,7 @@ export default function Courses() {
                   setIntentAnswers({});
                   setIntentWizardStep(1);
                   setAiCustomGoal("");
-                  setAiGoal("Career or professional growth");
+                  setAiGoal("Build practical skills");
                   setAiGoalTouched(false);
                   setAiLevel("Beginner");
                   setAiLevelTouched(false);

@@ -418,15 +418,25 @@ export default function CoursePlayer() {
       setQuizSubmitted(false);
       setQuizScore(null);
       try {
-        const data = await apiFetch("/api/ai/quiz", {
+        let data = await apiFetch("/api/ai/quiz", {
           method: "POST",
           body: JSON.stringify({ courseId, lessonId }),
         });
+        for (let attempt = 0; attempt < 60 && data?.generating; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 750));
+          data = await apiFetch("/api/ai/quiz", {
+            method: "POST",
+            body: JSON.stringify({ courseId, lessonId }),
+          });
+        }
         if (!data?.quiz?.questions?.length) {
-          setQuizError("No questions are available yet. BuddyForStudy will try to generate them again when you retry.");
+          setQuizError(data?.generating
+            ? "Quiz generation is taking longer than expected. Retry in a moment; your lesson progress is safe."
+            : "No questions are available yet. BuddyForStudy will try to generate them again when you retry.");
           return;
         }
         setQuizData(data.quiz);
+        if (data.fallback) setQuizError("AI quiz generation was unavailable, so a basic lesson-based practice quiz was created.");
       } catch (err) {
         setQuizError(err instanceof Error ? err.message : "Unable to load this quiz. Try again.");
       } finally {

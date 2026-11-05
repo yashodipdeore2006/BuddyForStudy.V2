@@ -14,6 +14,7 @@ export const mockMernYouTubeVideos = [
     likes: 42000,
     subscribers: 620000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN stack", "MongoDB", "Express", "React", "Node.js", "full course"]
   },
   {
@@ -27,6 +28,7 @@ export const mockMernYouTubeVideos = [
     likes: 26000,
     subscribers: 340000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN", "beginner", "React", "Express", "MongoDB", "Node"]
   },
   {
@@ -40,6 +42,7 @@ export const mockMernYouTubeVideos = [
     likes: 15000,
     subscribers: 180000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN stack", "bootcamp", "full course", "project"]
   },
   {
@@ -53,6 +56,7 @@ export const mockMernYouTubeVideos = [
     likes: 8100,
     subscribers: 92000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN", "REST API", "Express", "Mongoose", "React"]
   },
   {
@@ -66,6 +70,7 @@ export const mockMernYouTubeVideos = [
     likes: 22000,
     subscribers: 255000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN stack", "authentication", "testing", "full course"]
   },
   {
@@ -79,6 +84,7 @@ export const mockMernYouTubeVideos = [
     likes: 5400,
     subscribers: 54000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["React", "Express", "MongoDB", "Node.js", "MERN"]
   },
   {
@@ -92,6 +98,7 @@ export const mockMernYouTubeVideos = [
     likes: 31000,
     subscribers: 480000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN stack", "beginner", "advanced", "tutorial"]
   },
   {
@@ -105,6 +112,7 @@ export const mockMernYouTubeVideos = [
     likes: 11200,
     subscribers: 130000,
     publishedAt: "2099-01-01T00:00:00.000Z",
+    defaultAudioLanguage: "en",
     tags: ["MERN", "full stack", "API", "database", "deployment"]
   }
 ];

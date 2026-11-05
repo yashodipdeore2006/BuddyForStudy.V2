@@ -1348,6 +1348,46 @@ function validateQuizQuestions(questions, expectedCount) {
   return valid.slice(0, expectedCount);
 }
 
+function buildTemplateQuizQuestions({ module, lesson, courseTitle, requestedCount }) {
+  const topics = [
+    ...(lesson?.quiz?.focusTopics || []),
+    ...(lesson?.tutorial?.requiredTopics || []),
+    ...(module?.title ? [module.title] : []),
+    ...(lesson?.title ? [lesson.title] : []),
+    ...(lesson?.description ? [lesson.description] : [])
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const uniqueTopics = [...new Set(topics)].slice(0, requestedCount);
+  while (uniqueTopics.length < requestedCount) uniqueTopics.push(`Core concept ${uniqueTopics.length + 1} in ${lesson?.title || module?.title || courseTitle}`);
+  return uniqueTopics.map((topic, index) => ({
+    id: `template-q-${index + 1}`,
+    topic,
+    question: `Which approach best demonstrates understanding of "${topic}" in this lesson?`,
+    options: [
+      { id: "option-1", text: `Apply ${topic} to the lesson objective and verify the result.` },
+      { id: "option-2", text: "Ignore the lesson requirements and use an unrelated technique." },
+      { id: "option-3", text: "Skip the concept and assume the expected result without checking." },
+      { id: "option-4", text: "Replace the concept with an unrelated tool without considering the task." }
+    ],
+    correctOptionId: "option-1",
+    explanation: "The best answer applies the lesson concept directly to its stated objective and checks the outcome."
+  }));
+}
+
+function withQuizTimeout(promise, timeoutMs = 20000) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error("Quiz provider request timed out");
+        error.code = "QUIZ_PROVIDER_TIMEOUT";
+        error.status = 504;
+        reject(error);
+      }, timeoutMs);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
 export async function generateCourseQuiz({ courseId, lessonId, userId = null, practiceOnly = false, excludeQuestions = [] }) {
   const publicCourseAccess = {
     isPublished: true,
@@ -1469,44 +1509,63 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     `Learning context: ${serializeUntrustedPromptData("lesson_resource_context", context, 24000)}`
   ].join("\n");
 
-  try {
-  const response = await client.models.generateContent({
-    model: env.geminiModel,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: quizResponseSchema,
-      thinkingConfig: { thinkingLevel: "MINIMAL" },
-      maxOutputTokens: Math.max(5000, requestedCount * 550)
+  let generationError = null;
+  let questions = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const response = await withQuizTimeout(client.models.generateContent({
+        model: env.geminiModel,
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: quizResponseSchema,
+          thinkingConfig: { thinkingLevel: "MINIMAL" },
+          maxOutputTokens: Math.max(5000, requestedCount * 550)
+        }
+      }), 20000);
+      let parsed;
+      try {
+        parsed = JSON.parse(response.text || "");
+      } catch {
+        const error = new Error("Gemini quiz provider returned invalid structured data");
+        error.status = 502;
+        throw error;
+      }
+      questions = validateQuizQuestions(parsed?.questions, requestedCount).map((question, index) => ({
+        id: normalizeId(question.id || `q-${index + 1}`) || `q-${index + 1}`,
+        topic: String(question.topic || located.lesson.quiz.focusTopics?.[index % Math.max(1, located.lesson.quiz.focusTopics?.length || 1)] || "").trim(),
+        question: String(question.question).trim(),
+        options: question.options.slice(0, 4).map((option, optionIndex) => ({
+          id: normalizeId(option.id || `option-${optionIndex + 1}`) || `option-${optionIndex + 1}`,
+          text: String(option.text).trim()
+        })),
+        correctOptionId: normalizeId(question.correctOptionId),
+        explanation: String(question.explanation || "").trim()
+      }));
+      break;
+    } catch (error) {
+      generationError = error;
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 350));
     }
-  });
-
-  let parsed;
-  try {
-    parsed = JSON.parse(response.text);
-  } catch {
-    const error = new Error("Gemini quiz provider returned invalid structured data");
-    error.status = 502;
-    throw error;
   }
 
-  const questions = validateQuizQuestions(parsed?.questions, requestedCount).map((question, index) => ({
-    id: normalizeId(question.id || `q-${index + 1}`) || `q-${index + 1}`,
-    topic: String(question.topic || located.lesson.quiz.focusTopics?.[index % Math.max(1, located.lesson.quiz.focusTopics?.length || 1)] || "").trim(),
-    question: String(question.question).trim(),
-    options: question.options.slice(0, 4).map((option, optionIndex) => ({
-      id: normalizeId(option.id || `option-${optionIndex + 1}`) || `option-${optionIndex + 1}`,
-      text: String(option.text).trim()
-    })),
-    correctOptionId: normalizeId(question.correctOptionId),
-    explanation: String(question.explanation || "").trim()
-  }));
+  let usedTemplateFallback = false;
+  if (!questions) {
+    questions = buildTemplateQuizQuestions({ module: located.module, lesson: located.lesson, courseTitle: course.title, requestedCount });
+    usedTemplateFallback = true;
+    if (usageReserved && userId) {
+      await releaseUsage({ userId, feature: "ai_quiz_generations", period: "month", amount: 1 }).catch(() => {});
+      usageReserved = false;
+    }
+  }
 
   if (practiceOnly) {
     return {
       courseId: String(course._id),
       lessonId: String(located.lesson._id),
-      quiz: { scope: "lesson", questionCount: questions.length, passingScore: 70, focusTopics: [], questions, generatedAt: new Date() }
+      fallback: usedTemplateFallback,
+      fallbackReason: usedTemplateFallback ? String(generationError?.code || generationError?.status || "provider_error") : undefined,
+      quiz: { scope: "lesson", title: usedTemplateFallback ? "Lesson Practice Quiz (Template)" : "Lesson Practice Quiz", questionCount: questions.length, passingScore: 70, focusTopics: [], questions, generatedAt: new Date() }
     };
   }
 
@@ -1514,27 +1573,18 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
   located.lesson.quiz.generatedAt = new Date();
   course.$locals.revisionContext = {
     source: "system",
-    summary: "On-demand quiz generation",
-    reason: "Generate missing quiz questions when a learner opens the quiz"
+    summary: usedTemplateFallback ? "Template fallback quiz generation" : "On-demand quiz generation",
+    reason: usedTemplateFallback ? "AI provider failed validation or timed out; generated a safe template quiz" : "Generate missing quiz questions when a learner opens the quiz"
   };
   await course.save();
 
   return {
     courseId: String(course._id),
     lessonId: String(located.lesson._id),
+    fallback: usedTemplateFallback,
+    fallbackReason: usedTemplateFallback ? String(generationError?.code || generationError?.status || "provider_error") : undefined,
     quiz: located.lesson.quiz.toObject ? located.lesson.quiz.toObject() : located.lesson.quiz
   };
-  } catch (error) {
-    if (usageReserved && userId) {
-      await releaseUsage({ userId, feature: "ai_quiz_generations", period: "month", amount: 1 }).catch(() => {});
-    }
-    if (/429|RESOURCE_EXHAUSTED|quota/i.test(String(error?.message || ""))) {
-      const e = new Error("Quiz generation is temporarily unavailable because the Gemini API quota has been reached.");
-      e.status = 429;
-      throw e;
-    }
-    throw error;
-  }
 }
 
 

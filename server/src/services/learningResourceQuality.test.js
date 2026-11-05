@@ -42,6 +42,26 @@ test("duplicating one video across lessons does not inflate distinct resource co
   assert.equal(result.reason, "not_enough_distinct_videos");
 });
 
+test("one short video cannot satisfy a long personalized lesson runtime", () => {
+  const course = {
+    modules: [{
+      lessons: [{
+        type: "tutorial",
+        tutorial: {
+          searchPolicy: { targetDurationMinutes: 210 },
+          videos: [{ videoId: "short-python", durationSeconds: 30 * 60 }]
+        }
+      }]
+    }]
+  };
+  const result = assessCourseResourceQuality(course, { completePath: true });
+  assert.equal(result.videoWatchMinutes, 30);
+  assert.equal(result.plannedVideoMinutes, 210);
+  assert.equal(result.resourceRuntimeRatio, 0.143);
+  assert.equal(result.acceptable, false);
+  assert.equal(result.reason, "insufficient_video_runtime");
+});
+
 test("a curated playlist contributes its distinct playable items", () => {
   const course = {
     modules: [{

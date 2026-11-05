@@ -35,6 +35,8 @@ export function getCourseResourceMetrics(course) {
     lessonsWithResources,
     uniqueVideoCount,
     videoWatchMinutes,
+    plannedVideoMinutes,
+    resourceRuntimeRatio: plannedVideoMinutes ? Number((videoWatchMinutes / plannedVideoMinutes).toFixed(3)) : 1,
     coverageRatio: Number(coverageRatio.toFixed(3))
   };
 }
@@ -53,7 +55,7 @@ export function assessCourseResourceQuality(course, { completePath = false } = {
   // A complete personalized path must have meaningful video coverage, not merely
   // one tiny video attached to otherwise long scheduled study time.
   const minimumRuntimeRatio = completePath && metrics.plannedVideoMinutes > 0 ? 0.5 : 0;
-  const enoughRuntime = metrics.resourceRuntimeRatio >= minimumRuntimeRatio;
+  const enoughRuntime = minimumRuntimeRatio === 0 || metrics.resourceRuntimeRatio >= minimumRuntimeRatio;
   return {
     ...metrics,
     minimumVideos: Math.min(minimumVideos, metrics.tutorialLessonCount),
@@ -66,6 +68,8 @@ export function assessCourseResourceQuality(course, { completePath = false } = {
         ? "insufficient_lesson_coverage"
         : !enoughDistinctResources
           ? "not_enough_distinct_videos"
-          : null
+          : !enoughRuntime
+            ? "insufficient_video_runtime"
+            : null
   };
 }

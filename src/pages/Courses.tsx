@@ -114,6 +114,13 @@ type AiRoadmap = {
     isPublished?: boolean;
     modules?: AiModule[];
   };
+  schedule?: {
+    scheduleWarning?: string | null;
+    requiredDailyMinutes?: number;
+    availableDays?: number | null;
+    deadline?: string | null;
+    estimatedMinutes?: number;
+  };
   personalization?: {
     studyTimeMinutesPerDay?: number;
     estimatedStudyMinutes?: number;
@@ -1961,6 +1968,19 @@ export default function Courses() {
               <button type="button" className="btn-secondary mt-3" onClick={() => void checkGeneratedCourseStatus()} disabled={aiEnrolling}>
                 {aiEnrolling ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking status…</> : "Check access status"}
               </button>
+            </div>
+          )}
+
+          {aiRoadmap.schedule?.scheduleWarning && (
+            <div role="alert" className="mx-5 mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 sm:mx-7">
+              <p className="font-bold text-amber-950">Your target schedule may be unrealistic</p>
+              <p className="mt-1 text-sm leading-6 text-amber-900">{aiRoadmap.schedule.scheduleWarning}</p>
+              {Number(aiRoadmap.schedule.requiredDailyMinutes) > 0 && (
+                <p className="mt-2 text-sm font-semibold text-amber-950">
+                  Estimated time required: {Math.ceil(Number(aiRoadmap.schedule.requiredDailyMinutes))} minutes per study day.
+                </p>
+              )}
+              <p className="mt-1 text-xs leading-5 text-amber-800">You can adjust your daily study time or target date and regenerate a more achievable plan.</p>
             </div>
           )}
 

@@ -181,7 +181,7 @@ test("quick reference permits a short ordinary video; duration alone is not a Sh
   assert.equal(decision.passed, true, decision.reason);
 });
 
-test("explicit-language searches keep relevant videos when YouTube omits audio-language metadata", () => {
+test("explicit-language searches reject videos with unknown spoken-audio metadata", () => {
   const profile = classifyCurationIntent("React course in Hindi");
   const candidate = baseCandidate({
     title: "React Complete Course in Hindi",
@@ -191,7 +191,8 @@ test("explicit-language searches keep relevant videos when YouTube omits audio-l
     queryTermStats: { relevance: 100, titleRelevance: 100 }
   });
   const decision = evaluateCurationHardGates(candidate, profile);
-  assert.equal(decision.passed, true, decision.reason);
+  assert.equal(decision.passed, false);
+  assert.equal(decision.reason, "language_mismatch");
 });
 
 test("quick-reference title and syntax cues count as structure without requiring timestamps", () => {

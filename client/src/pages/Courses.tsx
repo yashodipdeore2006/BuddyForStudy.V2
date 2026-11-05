@@ -472,7 +472,7 @@ export default function Courses() {
     setIntentResult(null);
     setIntentAnswers({});
     setIntentWizardStep(1);
-    setCoreQuestionStep(0);
+    setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
     setAiCustomGoal("");
     setAiGoal("Explore a personal interest");
     setAiGoalTouched(false);
@@ -886,7 +886,7 @@ export default function Courses() {
           <h3 className="text-sm font-semibold text-slate-900">{question.text}</h3>
           {question.optional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Optional</span>}
         </div>
-        {question.why && <p className="text-xs leading-5 text-slate-600">Why we ask: {question.why}</p>}
+        
         {options.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">
             {options.slice(0, 9).map((option) => {
@@ -923,9 +923,6 @@ export default function Courses() {
             </button>
           </div>
         )}
-        {question.changes?.length ? (
-          <p className="text-[11px] text-slate-500">Changes: <span className="font-semibold text-slate-600">{question.changes.join(", ")}</span></p>
-        ) : null}
       </section>
     );
   };
@@ -1130,7 +1127,7 @@ export default function Courses() {
                   setIntentResult(null);
                   setIntentAnswers({});
                   setIntentWizardStep(1);
-    setCoreQuestionStep(0);
+                  setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
                   setAiCustomGoal("");
                   setAiGoal("Explore a personal interest");
                   setAiGoalTouched(false);
@@ -1238,7 +1235,7 @@ export default function Courses() {
 
       {aiOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-6"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-2 backdrop-blur-[2px] sm:p-4"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !aiLoading) setAiOpen(false);
           }}
@@ -1249,9 +1246,9 @@ export default function Courses() {
             aria-modal="true"
             aria-labelledby="ai-builder-title"
             aria-describedby="ai-builder-description"
-            className="flex max-h-[min(94dvh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl"
+            className="flex max-h-[min(84dvh,760px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl"
           >
-            <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 sm:px-6">
+            <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 shadow-lg shadow-indigo-500/20">
                   <Sparkles className="h-5 w-5 text-white" />
@@ -1285,22 +1282,10 @@ export default function Courses() {
               <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300" style={{ width: `${(intentWizardStep / 4) * 100}%` }} />
             </div>
 
-            {aiUsage && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-5 py-2.5 text-xs sm:px-6">
-                <span className="font-semibold text-slate-800">
-                  {aiUsage.plan?.name || 'Current'} plan
-                  {aiUsage.features?.aiCourseBuilder ? ' · AI builder available' : ' · Check plan access'}
-                </span>
-                <span className="text-slate-600">
-                  Builds/month: {aiUsage.plan?.limits?.ai_course_builds_per_month ?? '—'}
-                </span>
-              </div>
-            )}
-
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-white px-5 py-5 sm:px-6">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3 sm:px-5">
               {INTENT_V2 ? (
-                <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-                  <div className="space-y-5 xl:col-span-7">
+                <div className="mx-auto w-full max-w-2xl">
+                  <div className="space-y-3">
                     {intentResult && !intentResult.valid && (
                       <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                         We could not confidently identify this as a learning topic. Edit the topic below and try again.
@@ -1309,37 +1294,14 @@ export default function Courses() {
                       </div>
                     )}
 
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-700">Roadmap Studio · Adaptive intake</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-900">Step {intentWizardStep} of 4</p>
-                        </div>
-                        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200">A few focused questions</span>
-                      </div>
-                      <div className="mt-4 grid grid-cols-4 gap-2" aria-label="Form progress">
-                        {[
-                          { number: 1, label: "Core" },
-                          { number: 2, label: "Purpose" },
-                          { number: 3, label: "Domain" },
-                          { number: 4, label: "Review" }
-                        ].map((item) => (
-                          <div key={item.number} className="space-y-1.5">
-                            <div className={`h-1.5 rounded-full ${intentWizardStep >= item.number ? "bg-indigo-500" : "bg-slate-100"}`} />
-                            <p className={`text-[10px] font-semibold ${intentWizardStep === item.number ? "text-indigo-700" : intentWizardStep > item.number ? "text-slate-700" : "text-slate-500"}`}>{item.number}. {item.label}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
                     {intentWizardStep === 1 && (
                       <section className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-xl sm:p-6" aria-live="polite">
                         <div className="border-b border-slate-200/80 pb-4">
                           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-indigo-500"><span aria-hidden="true">▱</span> Your learning goal</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-900">{["What do you want to learn?","What should you be able to do?","What is your learning purpose?","Where are you starting from?","What do you already know?","What study schedule works for you?","How do you prefer to learn?"][coreQuestionStep] || "Review your learning preferences"}</h3>
+                          <h3 className="mt-1 text-xl font-bold text-slate-900">{["What do you want to learn?","What should you be able to do?","What is your learning purpose?","Where are you starting from?","What do you already know?","What study schedule works for you?","How do you prefer to learn?","When do you want to finish?"][coreQuestionStep] || "Review your learning preferences"}</h3>
                           <p className="mt-1 text-xs text-slate-600">One focused question at a time. Your answers shape a more relevant learning path.</p>
-                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{width:`${Math.min(100, ((coreQuestionStep + 1) / 7) * 100)}%`}} /></div>
-                          <p className="mt-1 text-right text-[10px] font-semibold text-slate-500">Question {Math.min(coreQuestionStep + 1, 7)} of 7</p>
+                          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-indigo-500 transition-all" style={{width:`${Math.min(100, ((coreQuestionStep + (coreQuestionStep === 0 || !aiTopic.trim() ? 1 : 0)) / (aiTopic.trim() && coreQuestionStep > 0 ? 7 : 8)) * 100)}%`}} /></div>
+                          <p className="mt-1 text-right text-[10px] font-semibold text-slate-500">Question {coreQuestionStep > 0 && aiTopic.trim() ? coreQuestionStep : coreQuestionStep + 1} of {aiTopic.trim() && coreQuestionStep > 0 ? 7 : 8}</p>
                         </div>
 
                         {coreQuestionStep === 0 && (
@@ -1396,20 +1358,25 @@ export default function Courses() {
                         )}
 
                         {coreQuestionStep === 6 && (
-                          <div className="space-y-4">
+                          <div className="grid gap-4 sm:grid-cols-2">
                             <label htmlFor="ai-language-v2" className="block text-sm font-semibold text-slate-800">Resource language<select id="ai-language-v2" value={intentAnswers.language||aiLanguagePref} onChange={(event)=>{setAiLanguagePref(event.target.value);setIntentAnswers((previous)=>({...previous,language:event.target.value}));}} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"><option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option></select></label>
                             <label htmlFor="ai-lesson-style-v2" className="block text-sm font-semibold text-slate-800">Learning style<select id="ai-lesson-style-v2" value={intentAnswers.lessonStyle||aiLessonStyle} onChange={(event)=>{setAiLessonStyle(event.target.value);setIntentAnswers((previous)=>({...previous,lessonStyle:event.target.value}));}} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"><option value="Project-first">Project-first (build as you learn)</option><option value="Theory-first">Theory first, then practice</option><option value="Short videos with frequent practice">Short videos with frequent practice</option><option value="Long, detailed tutorials">Long, detailed tutorials</option></select></label>
-                            <label htmlFor="ai-deadline-v2" className="block text-sm font-semibold text-slate-800">Target completion date <span className="font-normal text-slate-500">Optional</span><input id="ai-deadline-v2" type="date" value={intentAnswers.deadline||""} onChange={(event)=>setIntentAnswers((previous)=>({...previous,deadline:event.target.value}))} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"/></label>
                           </div>
                         )}
-                      </section>
-                    )}
+
+                        {coreQuestionStep === 7 && (
+                          <div className="space-y-2">
+                            <label htmlFor="ai-deadline-v2" className="block text-sm font-semibold text-slate-800">Target completion date <span className="font-normal text-slate-500">Optional</span></label>
+                            <input id="ai-deadline-v2" type="date" value={intentAnswers.deadline||""} onChange={(event)=>setIntentAnswers((previous)=>({...previous,deadline:event.target.value}))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900"/>
+                            <p className="text-xs text-slate-500">Skip this if you prefer a self-paced learning plan.</p>
+                          </div>
+                        )}
                     {intentWizardStep === 2 && (
                       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                         <div className="border-b border-slate-200/80 pb-4">
                           <p className="text-xs font-bold uppercase tracking-wider text-purple-700">Your learning purpose</p>
                           <h3 className="mt-1 text-xl font-bold text-slate-900">Context & Objectives</h3>
-                          <p className="mt-1 text-sm text-slate-600">These questions depend on whether you are learning for a job, exam, project, freelancing or personal interest.</p>
+                          
                         </div>
                         {purposeIntentQuestions.length ? (
                           <div className="space-y-3">{purposeIntentQuestions.map((question) => renderIntentQuestion(question, "purpose"))}</div>
@@ -1426,7 +1393,7 @@ export default function Courses() {
                         <div className="border-b border-slate-200/80 pb-4">
                           <p className="text-xs font-bold uppercase tracking-wider text-pink-700">About {getNichePackName(aiTopic)}</p>
                           <h3 className="mt-1 text-xl font-bold text-slate-900">Make it relevant to your subject</h3>
-                          <p className="mt-1 text-sm text-slate-600">Choose the tools, focus areas and practice setup that best match this subject.</p>
+                          
                         </div>
                         {getNicheDisclaimer(aiTopic) && (
                           <div role="note" className="rounded-xl border border-amber-500/30 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
@@ -1494,40 +1461,7 @@ export default function Courses() {
                     {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
                   </div>
 
-                  <aside className="space-y-4 xl:col-span-5">
-                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                      <div className="border-b border-slate-200 px-4 py-3">
-                        <p className="text-sm font-bold text-slate-900">Your learning plan</p>
-                        <p className="mt-0.5 text-xs text-slate-600">A live summary of the choices shaping your recommendations.</p>
-                      </div>
-                      <dl className="space-y-3 p-4">
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Topic</dt>
-                          <dd className="mt-1 break-words text-sm font-semibold text-slate-900">{aiTopic || "Add a topic to get started"}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Learning goal</dt>
-                          <dd className="mt-1 text-sm font-medium capitalize text-slate-800">{(BUILD_WITH_AI_PURPOSE_OPTIONS.find((option) => option.purpose === intentPurpose)?.label || "To be determined")}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Starting level</dt>
-                          <dd className="mt-1 text-sm font-medium text-slate-800">{aiLevel}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Study availability</dt>
-                          <dd className="mt-1 text-sm font-medium text-slate-800">{aiStudyTime} minutes/day · {aiStudyDays} days/week</dd>
-                        </div>
-                        <div>
-                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Prior knowledge</dt>
-                          <dd className="mt-1 text-sm font-medium text-slate-800">{aiKnownSkills.trim() || "We’ll start with the foundations."}</dd>
-                        </div>
-                      </dl>
-                    </div>
-                    <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
-                      <p className="text-sm font-semibold text-violet-950">Recommendations that fit your goal</p>
-                      <p className="mt-1 text-xs leading-5 text-violet-900">Your answers guide the skill sequence, lesson depth, learning resources, projects and weekly pace. You can skip optional questions.</p>
-                    </div>
-                  </aside>               </div>
+          </aside>               </div>
               ) : (
 
                 <>
@@ -1650,7 +1584,7 @@ export default function Courses() {
 
               )}
             </div>
-            <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <button
                 type="button"
                 onClick={() => {
@@ -1677,7 +1611,7 @@ export default function Courses() {
                     return;
                   }
                   if (!intentResult || !intentResult.valid) {
-                    if (coreQuestionStep < 6) {
+                    if (coreQuestionStep < 7) {
                       if (coreQuestionStep === 0 && aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
                       setAiError(null);
                       setCoreQuestionStep((step) => Math.min(6, step + 1));
@@ -1708,7 +1642,7 @@ export default function Courses() {
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? coreQuestionStep < 6 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
+                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? coreQuestionStep < 7 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
                   </>
                 )}
               </button>

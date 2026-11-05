@@ -40,3 +40,18 @@ test("interview node still enforces safety and other hard gates", () => {
   assert.equal(evaluateCurationHardGates({ ...interviewCandidate, isShort: true }, { ...profile, nodeType: "interview" }).reason, "short_form");
   assert.equal(evaluateCurationHardGates({ ...interviewCandidate, durationSeconds: 10 }, { ...profile, nodeType: "interview" }).reason, "runtime_outside_mode");
 });
+
+
+test("English resource preference rejects explicitly non-English audio metadata", () => {
+  assert.deepEqual(
+    evaluateCurationHardGates({ ...interviewCandidate, defaultAudioLanguage: "ta" }, { ...profile, nodeType: "interview", language: "en" }),
+    { passed: false, reason: "language_mismatch" }
+  );
+});
+
+test("English resource preference rejects obvious Indic-script titles when audio metadata is absent", () => {
+  assert.deepEqual(
+    evaluateCurationHardGates({ ...interviewCandidate, title: "Python Interview Questions தமிழில்" }, { ...profile, nodeType: "interview", language: "en" }),
+    { passed: false, reason: "language_mismatch" }
+  );
+});

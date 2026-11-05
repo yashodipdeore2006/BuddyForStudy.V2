@@ -138,11 +138,6 @@ type AiRoadmap = {
   };
 };
 
-type AiUsage = {
-  plan?: { name?: string; limits?: { ai_course_builds_per_month?: number | null } };
-  features?: { aiCourseBuilder?: boolean };
-};
-
 type SearchDiscovery = {
   mode?: string;
   query: string;
@@ -230,7 +225,6 @@ export default function Courses() {
   const [aiLanguagePref, setAiLanguagePref] = useState("en");
   const [aiLessonStyle, setAiLessonStyle] = useState("Project-first");
   const [aiKnownSkills, setAiKnownSkills] = useState('');
-  const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
   const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
@@ -488,17 +482,6 @@ export default function Courses() {
     const remaining = params.toString();
     navigate({ pathname: location.pathname, search: remaining ? "?" + remaining : "" }, { replace: true });
   }, [location.pathname, location.search, navigate, catalogQuery, searchQuery]);
-
-  useEffect(() => {
-    if (!aiOpen || !session) {
-      setAiUsage(null);
-      return;
-    }
-
-    apiFetch('/api/ai/usage')
-      .then((data) => setAiUsage(data))
-      .catch(() => setAiUsage(null));
-  }, [aiOpen, session]);
 
   useEffect(() => {
     if (!aiOpen) return;

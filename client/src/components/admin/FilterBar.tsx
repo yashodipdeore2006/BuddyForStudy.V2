@@ -7,12 +7,20 @@ export function FilterBar({ children, className = "", searchValue, onSearchChang
   searchLabel?: string; chips?: FilterChip[]; onReset?: () => void; resultCount?: number; debounceMs?: number;
 }) {
   const [localSearch, setLocalSearch] = useState(searchValue || "");
-  useEffect(() => setLocalSearch(searchValue || ""), [searchValue]);
+  const [previousSearchValue, setPreviousSearchValue] = useState(searchValue);
+
+  // Synchronize external resets during render rather than scheduling an effect-driven render.
+  if (searchValue !== previousSearchValue) {
+    setPreviousSearchValue(searchValue);
+    setLocalSearch(searchValue || "");
+  }
+
   useEffect(() => {
     if (!onSearchChange) return;
     const timer = window.setTimeout(() => onSearchChange(localSearch), Math.max(0, debounceMs));
     return () => window.clearTimeout(timer);
   }, [localSearch, onSearchChange, debounceMs]);
+
   return <section className={["admin-filter-bar", className].filter(Boolean).join(" ")} aria-label="List filters">
     {onSearchChange && <label className="admin-filter-bar__search"><span className="sr-only">{searchLabel}</span><input type="search" value={localSearch} onChange={(event) => setLocalSearch(event.target.value)} placeholder={searchLabel} aria-label={searchLabel} /><button type="button" aria-label="Clear search" onClick={() => setLocalSearch("")} disabled={!localSearch}>×</button></label>}
     {children}

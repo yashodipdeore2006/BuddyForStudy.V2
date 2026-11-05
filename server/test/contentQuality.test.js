@@ -177,7 +177,7 @@ test("course catalogue returns real module and lesson counts without loading ful
   const service = await read("../src/services/course.service.js");
   const page = await read("../../client/src/pages/Courses.tsx");
   const card = await read("../../client/src/components/CourseCard.tsx");
-  const types = await read("../../src/types/index.ts");
+  const types = await read("../../client/src/types/index.ts");
   assert.match(service, /function courseContentCountsStage\(\)/);
   assert.match(service, /moduleCount: \{ \$size: \{ \$ifNull: \["\$modules", \[\]\] \} \}/);
   assert.match(service, /lessonCount: \{/);

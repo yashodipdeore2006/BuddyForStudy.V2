@@ -437,7 +437,7 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
     excludeShorts: true,
     requireEmbeddable: true,
     preferProjectBased: false,
-    preferredLanguage: normalizeYouTubeLanguage(language),
+    preferredLanguage: normalizeYouTubeLanguage("en"),
     requiredTopics: [normalizedQuery]
   };
 

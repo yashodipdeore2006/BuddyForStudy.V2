@@ -896,7 +896,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel("Topic or course name")).toHaveValue("React and Node.js Full Stack");
     await expect(dialog.getByText("Roadmap Studio · Adaptive intake")).toBeVisible();
-    await expect(dialog.getByText("Starting level")).toBeVisible();
+    await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();
     await expect(dialog.getByText("How far do you want to go?")).toBeVisible();
     await expect(dialog.getByText("Why are you learning it?")).toBeVisible();
     await expect(dialog.getByText("What can you already do?")).toBeVisible();
@@ -1086,7 +1086,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();
     await expect(dialog.getByText("Context & Objectives")).toBeVisible();
     const roleQuestion = dialog.locator("section").filter({ hasText: "What is your target role and company type?" }).first();
-    await roleQuestion.locator("textarea").fill("Frontend Engineer");
+    await roleQuestion.locator("input").fill("Frontend Engineer");
     await roleQuestion.getByRole("button", { name: "Save answer" }).click();
     await dialog.getByRole("button", { name: "Within 1 month (crash course)" }).click();
     await dialog.getByRole("button", { name: "Continue", exact: true }).click();

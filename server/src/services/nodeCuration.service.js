@@ -81,7 +81,7 @@ function mapResource(resource, reason = "Selected by shared course curation engi
     duration: String(entry.duration || ""),
     thumbnail: String(entry.thumbnail || resource.thumbnail || ""),
     url: String(entry.url || (entry.videoId ? `https://www.youtube.com/watch?v=${entry.videoId}` : "")),
-    defaultAudioLanguage: String(entry.defaultAudioLanguage || entry.defaultLanguage || ""),
+    defaultAudioLanguage: String(entry.defaultAudioLanguage || ""),
     publishedAt: entry.publishedAt || null
   })).filter((entry) => entry.videoId);
   return {

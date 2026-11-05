@@ -29,16 +29,16 @@ async function ensureCourseLearningAccess(req, courseId) {
   });
 }
 
-async function queueNextLessonQuiz(courseId, lessonId) {
-  const key = `${courseId}:${lessonId}`;
+async function queueNextLessonQuiz(courseId, lessonId, userId = null, excludedQuestions = null) {
+  const key = `${courseId}:${lessonId}:practice`;
   if (quizGenerationJobs.has(key)) return;
   quizGenerationJobs.add(key);
   setImmediate(async () => {
     try {
       const bank = await QuizBank.find({ course: courseId, lesson: lessonId, isHidden: { $ne: true } }).lean();
-      const excluded = bank.flatMap((item) => item.questions || []).map((question) => question.question).slice(0, 150);
+      const excluded = excludedQuestions || bank.flatMap((item) => item.questions || []).map((question) => question.question).slice(0, 150);
       const { generateCourseQuiz } = await import("../services/aiRoadmap.service.js");
-      const generated = await generateCourseQuiz({ courseId, lessonId, practiceOnly: true, excludeQuestions: excluded });
+      const generated = await generateCourseQuiz({ courseId, lessonId, userId, practiceOnly: true, excludeQuestions: excluded });
       const questions = generated.quiz.questions || [];
       const fingerprint = createHash("sha256").update(questions.map((question) => String(question.question).trim().toLowerCase()).sort().join("|")).digest("hex");
       const automaticallyApproved = await isAutomaticContentApproval("aiQuizzes");
@@ -168,8 +168,15 @@ export async function generateQuiz(req, res, next) {
     const access = await ensureCourseLearningAccess(req, input.courseId);
     if (!access.allowed) return failure(res, access.message, access.status);
 
-    const result = await generateCourseQuiz({ ...input, userId: req.user.userId });
-    return success(res, { ...result, quiz: toPublicQuiz(result.quiz) }, "Quiz generated successfully");
+    const jobKey = `${input.courseId}:${input.lessonId}:course`;
+    if (quizGenerationJobs.has(jobKey)) return success(res, { courseId: input.courseId, lessonId: input.lessonId, generating: true }, "Lesson quiz is being prepared");
+    quizGenerationJobs.add(jobKey);
+    setImmediate(async () => {
+      try { await generateCourseQuiz({ ...input, userId: req.user.userId }); }
+      catch (error) { console.error("Background course quiz generation failed", safeTelemetryError(error)); }
+      finally { quizGenerationJobs.delete(jobKey); }
+    });
+    return success(res, { courseId: input.courseId, lessonId: input.lessonId, generating: true }, "Lesson quiz generation started");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);
@@ -217,58 +224,9 @@ export async function generatePracticeQuiz(req, res, next) {
       return success(res, { courseId: input.courseId, lessonId: input.lessonId, pendingReview: true }, "AI practice questions are waiting for administrator approval");
     }
 
-    const jobKey = `${input.courseId}:${input.lessonId}`;
-    if (quizGenerationJobs.has(jobKey)) {
-      return success(res, { courseId: input.courseId, lessonId: input.lessonId, generating: true }, "New lesson questions are being prepared");
-    }
-
     const excluded = bank.flatMap((item) => item.questions.map((question) => question.question)).slice(0, 150);
-    const generated = await generateCourseQuiz({
-      courseId: input.courseId,
-      lessonId: input.lessonId,
-      userId: req.user.userId,
-      practiceOnly: true,
-      excludeQuestions: excluded
-    });
-    const questions = generated.quiz.questions || [];
-    const fingerprint = createHash("sha256")
-      .update(questions.map((question) => String(question.question).trim().toLowerCase()).sort().join("|"))
-      .digest("hex");
-
-    const automaticallyApproved = await isAutomaticContentApproval("aiQuizzes");
-    let saved;
-    try {
-      saved = await QuizBank.create({
-        ...filter,
-        fingerprint,
-        title: generated.quiz.title || "Lesson Practice Quiz",
-        questions,
-        generatedBy: req.user.userId,
-        moderationStatus: automaticallyApproved ? "approved" : "pending",
-        moderationNote: automaticallyApproved ? "Automatically approved by the platform content policy." : "",
-        moderatedAt: automaticallyApproved ? new Date() : null
-      });
-    } catch (error) {
-      if (error?.code !== 11000) throw error;
-      saved = await QuizBank.findOne({
-        ...filter,
-        attempts: { $not: { $elemMatch: { user: req.user.userId } } }
-      }).sort({ generatedAt: 1 });
-      if (!saved) {
-        const unavailable = new Error("AI generated a duplicate quiz set. Please try Generate More again.");
-        unavailable.status = 503;
-        throw unavailable;
-      }
-    }
-
-    if (saved.moderationStatus !== "approved") {
-      return success(res, { courseId: input.courseId, lessonId: input.lessonId, pendingReview: true, reviewStatus: saved.moderationStatus || "pending" }, "AI practice questions are waiting for administrator approval");
-    }
-    return success(res, {
-      courseId: input.courseId, lessonId: input.lessonId,
-      quiz: { scope: "lesson", title: saved.title, questionCount: saved.questions.length, passingScore: 70, questions: saved.questions.map(toPublicQuizQuestion), quizBankId: String(saved._id) },
-      reused: false
-    }, "Lesson practice quiz ready");
+    await queueNextLessonQuiz(input.courseId, input.lessonId, req.user.userId, excluded);
+    return success(res, { courseId: input.courseId, lessonId: input.lessonId, generating: true }, "Lesson practice questions are being prepared in the background");
   } catch (e) {
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
     next(e);

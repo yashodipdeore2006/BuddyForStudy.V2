@@ -3,6 +3,7 @@ import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { env } from "../config/env.js";
 import { generateAIRoadmap } from "./aiRoadmap.service.js";
 import { Course } from "../models/Course.js";
+import { assessCourseResourceQuality } from "./learningResourceQuality.js";
 import { curateForNode } from "./nodeCuration.service.js";
 import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, releaseQueuedRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
 
@@ -68,7 +69,12 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
         );
         await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: "queued", roadmapId: String(courseId) });
         try {
-          const durationPolicy = lesson.durationPolicy || { minMinutes: 15, targetMinutes: 60, maxMinutes: 180 };
+          const searchPolicy = lesson.tutorial?.searchPolicy || {};
+          const durationPolicy = lesson.durationPolicy || {
+            minMinutes: Number(searchPolicy.minDurationMinutes) || 15,
+            targetMinutes: Number(searchPolicy.targetDurationMinutes) || 60,
+            maxMinutes: Number(searchPolicy.maxDurationMinutes) || 180
+          };
           const curated = await curateForNode({
             skill: { id: lesson.canonicalSkillId || lesson.title, canonicalSkillId: lesson.canonicalSkillId || lesson.title, name: lesson.title, topics: [lesson.title] },
             profile: { topic: profile.topic, level: profile.level || profile.intentProfile?.level || "Beginner", language: profile.language || profile.intentProfile?.language || "en" },
@@ -76,16 +82,26 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
           });
           await assertLease();
           const state = curated.meta?.state || (curated.best ? (curated.meta?.lowConfidence ? "low_confidence" : "ready") : "failed");
-          const video = curated.best ? { ...curated.best, state, alternatives: curated.alternatives || [] } : null;
+          const best = curated.best ? { ...curated.best, state, alternatives: curated.alternatives || [] } : null;
+          const playlistItems = Array.isArray(best?.items) ? best.items.filter((item) => item.videoId) : [];
+          const videos = playlistItems.length
+            ? playlistItems.map((item) => ({
+                ...item,
+                playlistId: best.playlistId || "",
+                state,
+                reason: "Part of the selected curated playlist: " + String(best.title || "").slice(0, 160),
+                alternatives: curated.alternatives || []
+              }))
+            : best ? [best] : [];
           const path = lesson.type === "project" ? "project.videos" : "tutorial.videos";
           const set = { "modules.$[module].lessons.$[lesson].buildState": state };
-          if (video) set[`modules.$[module].lessons.$[lesson].${path}`] = [video];
+          if (videos.length) set[`modules.$[module].lessons.$[lesson].${path}`] = videos;
           await Course.updateOne(
             { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
             { $set: set },
             { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
           );
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: curated.best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaUnits: curated.meta?.quotaUnits || 0 } });
+          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
         } catch (error) {
           if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
           await assertLease();
@@ -108,6 +124,19 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
     }
   });
   await Promise.all(workers);
+
+  const completedCourse = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
+  const topic = String(profile.topic || "");
+  const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
+  if (completePath) {
+    const quality = assessCourseResourceQuality(completedCourse, { completePath: true });
+    if (!quality.acceptable) {
+      const error = new Error("The roadmap did not meet the minimum resource coverage and language quality. Please retry the build.");
+      error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
+      error.resourceQuality = quality;
+      throw error;
+    }
+  }
 }
 
 export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {

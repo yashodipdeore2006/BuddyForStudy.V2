@@ -142,7 +142,16 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
     result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(bounds));
     searchCalls = Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);
     quotaUnits = Number(result?.meta?.quotaUnits ?? requestMetrics.quotaUnits ?? 0);
-    let resources = Array.isArray(result?.resources) ? result.resources : [];
+    const filterByDurationPolicy = (items) => (Array.isArray(items) ? items : []).filter((resource) => {
+      const isPlaylist = resource?.sourceType === "playlist" || Boolean(resource?.playlistId);
+      const runtime = Math.max(0, Number(resource?.durationSeconds) || 0);
+      if (isPlaylist) {
+        const itemCount = Number(resource?.itemCount || resource?.items?.length || 0);
+        return itemCount >= bounds.minPlaylistItems && runtime >= bounds.minPlaylistSeconds;
+      }
+      return runtime >= bounds.minVideoSeconds && runtime <= bounds.maxVideoSeconds;
+    });
+    let resources = filterByDurationPolicy(result?.resources);
     if (!resources.length) {
       widened = true;
       const widenedBounds = {
@@ -155,7 +164,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
       result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(widenedBounds));
       searchCalls += Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);
       quotaUnits += Number(result?.meta?.quotaUnits ?? requestMetrics.quotaUnits ?? 0);
-      resources = Array.isArray(result?.resources) ? result.resources : [];
+      resources = filterByDurationPolicy(result?.resources);
     }
     const ranked = resources.map((resource) => ({ raw: resource, score: scoreOf(resource) })).sort((a, b) => b.score - a.score);
     const best = mapResource(ranked[0]?.raw, widened ? "Selected after widening duration bounds" : "Selected by shared course curation engine");

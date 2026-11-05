@@ -43,7 +43,7 @@ function buildInjectedSyllabus(skill) {
   };
 }
 function nodeCacheKey({ canonicalSkillId, mode, level, language, boundsHash, cacheScope = "" }) {
-  return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, mode, level, normalizeYouTubeLanguage(language), boundsHash, cacheScope].join("|"))}`;
+  return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, mode, level, normalizeLanguageCode(language), boundsHash, cacheScope].join("|"))}`;
 }
 async function readNodeCache(key) {
   if (nodeCacheTestAdapters?.read) return nodeCacheTestAdapters.read(key);
@@ -114,7 +114,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
   const syllabus = buildInjectedSyllabus(skill);
   const bounds = durationBounds(durationPolicy);
   const level = ["Beginner", "Intermediate", "Advanced"].includes(profile.level) ? profile.level : "Beginner";
-  const language = normalizeYouTubeLanguage(profile.language || "en");
+  const language = normalizeLanguageCode(profile.language || "en");
   const boundsHash = digest(JSON.stringify(bounds));
   const key = nodeCacheKey({ canonicalSkillId, mode: bounds.mode, level, language, boundsHash, cacheScope });
   const cached = await readNodeCache(key);

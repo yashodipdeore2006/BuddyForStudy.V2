@@ -676,7 +676,7 @@ export default function Courses() {
       if (!intentAnswers.language) setAiLanguagePref(parsedLanguageCode);
       if (profile.preferences?.studyDays && !intentAnswers.studyDays) setAiStudyDays(String(profile.preferences.studyDays));
       if (profile.preferences?.lessonStyle && !intentAnswers.lessonStyle) setAiLessonStyle(String(profile.preferences.lessonStyle));
-      const goalValues: Record<string, string> = { job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Build practical skills' };
+      const goalValues: Record<string, string> = { job_ready: 'Career or professional growth', exam: 'Prepare for an exam or certification', project: 'Create a project or deliverable', learn: 'Explore a personal interest' };
       if (profile.goal && !aiGoalTouched) setAiGoal(goalValues[profile.goal] || 'Build practical skills');
       setIntentWizardStep(2);
     } catch (error) {

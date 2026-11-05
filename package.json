@@ -9,7 +9,7 @@
     "lint": "eslint src vite.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test:unit": "node --test tests/courseNav.test.cjs tests/buildWithAiQuestionPacks.test.mjs"
+    "test:unit": "node --test tests/courseNav.test.cjs tests/buildWithAiQuestionPacks.test.mjs tests/courseSearchPolicy.test.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.446.0",

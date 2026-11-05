@@ -95,6 +95,7 @@ async function runMock() {
       channelId: `mock-channel-${index}`,
       channelTitle: `Mock Academy ${index}`,
       publishedAt: "2025-01-01T00:00:00Z",
+      defaultAudioLanguage: "en",
       thumbnails: { high: { url: "https://example.invalid/mock.jpg" } }
     },
     contentDetails: { duration: `PT${Math.max(1, Math.round(skill.durationPolicy.targetMinutes + (index ? Math.min(15, (skill.durationPolicy.maxMinutes - skill.durationPolicy.targetMinutes) / 2) : 0)))}M` },

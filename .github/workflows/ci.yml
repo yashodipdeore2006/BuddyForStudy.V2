@@ -33,7 +33,6 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
       - name: Frontend lint
         run: npm run lint
-        continue-on-error: true
       - run: npm run typecheck
       - name: Frontend unit tests
         run: npm run test:unit

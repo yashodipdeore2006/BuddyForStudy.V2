@@ -1639,23 +1639,48 @@ export async function generateAIRoadmap(input, options = {}) {
   const projectsEnabled = options.projectsEnabled !== false;
   const activePrompt = await getActiveAIPrompt("build_with_ai");
   const promptVersionId = activePrompt.versionId || null;
+  const resourceLanguage = normalizeYouTubeLanguage(input.intentProfile?.language || input.language || "en");
+  const intentProfile = input.intentProfile || {};
+  const contextualPreferences = {
+    ...(intentProfile.preferences || {}),
+    ...(intentProfile.targetRole || input.targetRole ? { targetRole: intentProfile.targetRole || input.targetRole } : {}),
+    ...(intentProfile.targetCompany || input.targetCompany ? { targetCompany: intentProfile.targetCompany || input.targetCompany } : {}),
+    ...(intentProfile.examName || input.examName ? { examName: intentProfile.examName || input.examName } : {}),
+    ...(intentProfile.examDate || input.examDate ? { examDate: intentProfile.examDate || input.examDate } : {}),
+    ...(intentProfile.syllabusText || input.syllabusText ? { syllabusText: intentProfile.syllabusText || input.syllabusText } : {}),
+    ...(intentProfile.projectIdea || input.projectIdea ? { projectIdea: intentProfile.projectIdea || input.projectIdea } : {}),
+    ...(intentProfile.deadline || input.deadline ? { deadline: intentProfile.deadline || input.deadline } : {}),
+    ...(intentProfile.scope ? { learningScope: intentProfile.scope } : {})
+  };
+  const normalizedIntentProfile = { ...intentProfile, language: resourceLanguage, preferences: contextualPreferences };
   const topicKeys = buildTopicKeys(
     input.topic,
-    "industry-ready-v3-contextual-python-path",
+    "industry-ready-v4-personalized-resources",
     personalized ? JSON.stringify(input.goals || []) : "",
     personalized ? JSON.stringify(input.knownSkills || []) : "",
     personalized ? String(input.studyTimeMinutesPerDay || 60) : "",
-    personalized ? String(input.intentProfile?.outcome || "") : "",
-    personalized ? JSON.stringify(input.intentProfile?.preferences || {}) : ""
+    personalized ? String(intentProfile.outcome || "") : "",
+    personalized ? JSON.stringify(contextualPreferences) : "",
+    personalized ? resourceLanguage : ""
   );
   const templateProfile = personalized
-    ? { ...input, canonicalTopic: input.canonicalTopic || input.topic, language: input.language || "en", outcome: input.intentProfile?.outcome || "", preferences: input.intentProfile?.preferences || {} }
-    : { ...input, canonicalTopic: input.canonicalTopic || input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: input.language || "en" };
+    ? {
+        ...input,
+        goal: intentProfile.goal || input.goal || (Array.isArray(input.goals) ? input.goals[0] : "learn"),
+        intentProfile: normalizedIntentProfile,
+        canonicalTopic: input.canonicalTopic || input.topic,
+        language: resourceLanguage,
+        outcome: intentProfile.outcome || "",
+        preferences: contextualPreferences
+      }
+    : { ...input, canonicalTopic: input.canonicalTopic || input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: resourceLanguage };
   const templatePromptVersion = activePrompt.versionId || activePrompt.version || "builtin-v1";
-  // Check the user-independent template before legacy course reuse. A template hit must be
-  // personalized afresh so one learner never receives another learner's saved course.
+  // Reuse generic curriculum templates only; do not return a prior learner's persisted
+  // personalized Course document to another Build with AI request.
   const cachedTemplate = await findRoadmapTemplate({ profile: templateProfile, promptVersion: templatePromptVersion });
-  const existing = cachedTemplate ? null : await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
+  const existing = personalized || cachedTemplate
+    ? null
+    : await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
   if (!options.asyncBuild && existing && (courseHasTutorialVideos(existing) || !env.youtubeApiKey)) {
     const cached = cachedRoadmapFromCourse(existing, input);
     if (!projectsEnabled) {
@@ -1687,8 +1712,8 @@ export async function generateAIRoadmap(input, options = {}) {
   }
 
   const generationInput = personalized
-    ? input
-    : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60 };
+    ? { ...input, language: resourceLanguage, intentProfile: normalizedIntentProfile }
+    : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: resourceLanguage };
 
   try {
     const templateResult = await getOrCreateRoadmapTemplate({
@@ -1696,14 +1721,14 @@ export async function generateAIRoadmap(input, options = {}) {
       promptVersion: templatePromptVersion,
       generate: () => generateWithGemini({
         ...generationInput,
-        // Known skills and schedule belong to personalization, not the cached Gemini template.
+        // Known skills and study schedule are applied after retrieving the generic curriculum.
         knownSkills: [],
         studyTimeMinutesPerDay: 60
       }, activePrompt)
     });
     const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
     const ai = personalizedTemplate.roadmap;
-    const built = await buildCourse(ai, { ...personalizedTemplate.profile, intentProfile: input.intentProfile, targetRole: input.targetRole, targetCompany: input.targetCompany, examName: input.examName, examDate: input.examDate, syllabusText: input.syllabusText, projectIdea: input.projectIdea, deadline: input.deadline });
+    const built = await buildCourse(ai, { ...personalizedTemplate.profile, language: resourceLanguage, intentProfile: normalizedIntentProfile, targetRole: input.targetRole, targetCompany: input.targetCompany, examName: input.examName, examDate: input.examDate, syllabusText: input.syllabusText, projectIdea: input.projectIdea, deadline: input.deadline });
     built.personalization.knownSkills = personalizedTemplate.personalization.knownSkills;
     built.personalization.skippedSkills = personalizedTemplate.personalization.skippedSkills;
     built.personalization.estimatedStudyDays = personalizedTemplate.personalization.estimatedStudyDays;
@@ -1716,12 +1741,36 @@ export async function generateAIRoadmap(input, options = {}) {
     // Async mode persists the complete lesson skeleton first; independent node jobs attach resources later.
     const sources = options.asyncBuild
       ? []
-      : await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: input.language || "en" });
+      : await attachYouTubeResources(built.course, { topic: input.topic, level: input.level, language: resourceLanguage, useCurationEngineForAi: true });
     if (!options.asyncBuild) {
-      await curateInterviewEvidence(built.course, { ...input, level: input.level, language: input.language || "en" });
+      await curateInterviewEvidence(built.course, { ...input, level: input.level, language: resourceLanguage });
       applyInterviewEvidence(built.course);
       normalizeMultiVideoLessons(built.course);
     }
+    const resourceMetrics = options.asyncBuild ? null : getCourseResourceMetrics(built.course);
+    const requireCompleteResources = intentProfile.scope === "broad" || isBroadPythonTopic(input.topic);
+    const resourceQuality = options.asyncBuild ? null : assessCourseResourceQuality(built.course, { completePath: requireCompleteResources });
+    if (!options.asyncBuild && requireCompleteResources && !resourceQuality.acceptable) {
+      const error = new Error("We could not verify enough distinct, language-matched learning resources for this complete path. No incomplete course was saved. Please retry the build.");
+      error.status = 503;
+      error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
+      error.resourceQuality = resourceQuality;
+      throw error;
+    }
+    built.personalization = {
+      ...built.personalization,
+      estimatedStudyMinutes: Number(built.schedule?.estimatedMinutes || built.personalization?.estimatedStudyMinutes || 0),
+      resourceLanguage,
+      ...(resourceMetrics ? {
+        resourceVideoMinutes: resourceMetrics.videoWatchMinutes,
+        resourceCoverage: {
+          tutorialLessonCount: resourceMetrics.tutorialLessonCount,
+          lessonsWithResources: resourceMetrics.lessonsWithResources,
+          uniqueVideoCount: resourceMetrics.uniqueVideoCount,
+          coverageRatio: resourceMetrics.coverageRatio
+        }
+      } : {})
+    };
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
 
     const course = await Course.create({
@@ -1763,6 +1812,12 @@ export async function generateAIRoadmap(input, options = {}) {
       cached: templateResult.cached
     };
   } catch (error) {
+    if (error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT") {
+      if (reservation && userId) {
+        await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
+      }
+      throw error;
+    }
     if (error?.status === 429 || /quota|resource_exhausted|rate limit/i.test(String(error?.message || ""))) {
       if (reservation && userId) {
         await releaseUsage({ userId, feature: "ai_course_builds", period: "month", amount: 1 }).catch(() => {});
@@ -1777,12 +1832,30 @@ export async function generateAIRoadmap(input, options = {}) {
       } catch (knowledgeBaseError) {
         if (knowledgeBaseError?.status !== 404) throw knowledgeBaseError;
         fallback = buildTopicFallback(input.topic, input.level);
-        fallback.sources = options.asyncBuild ? [] : await attachYouTubeResources(fallback.course);
+      }
+      fallback.sources = options.asyncBuild
+        ? []
+        : await attachYouTubeResources(fallback.course, { topic: input.topic, level: input.level, language: resourceLanguage, useCurationEngineForAi: true });
+      if (!options.asyncBuild) {
+        normalizeMultiVideoLessons(fallback.course);
+        const fallbackQuality = assessCourseResourceQuality(fallback.course, {
+          completePath: intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)
+        });
+        if ((intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)) && !fallbackQuality.acceptable) {
+          const qualityError = new Error("We could not verify enough distinct, language-matched learning resources for this complete path. No incomplete course was saved. Please retry the build.");
+          qualityError.status = 503;
+          qualityError.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
+          qualityError.resourceQuality = fallbackQuality;
+          throw qualityError;
+        }
       }
 
       const fallbackPersonalization = {
         goals: input.goals || [],
         studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
+        estimatedStudyMinutes: Number(fallback.personalization?.estimatedStudyMinutes || 0),
+        resourceLanguage,
+        ...(options.asyncBuild ? {} : { resourceVideoMinutes: getCourseResourceMetrics(fallback.course).videoWatchMinutes }),
         knownSkills: input.knownSkills || [],
         skippedSkills: [],
         rationale: [

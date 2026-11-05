@@ -1532,12 +1532,25 @@ function courseHasTutorialVideos(course) {
   );
 }
 
-function buildTopicFallback(topic, level = "Beginner") {
+function buildTopicFallback(topic, level = "Beginner", profile = {}) {
   const rawTopic = String(topic || "").trim();
   const normalized = rawTopic.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const cybersecurityAliases = new Set(["ciber security", "cyber security", "cybersecurity", "cyber sec"]);
   const canonicalTopic = cybersecurityAliases.has(normalized) ? "Cybersecurity" : rawTopic.replace(/\s+/g, " ");
-  const cyber = /cyber ?security|information security|ethical hacking|network security|soc|penetration testing/i.test(canonicalTopic);
+  const python = isBroadPythonTopic(canonicalTopic);
+  const known = (profile.knownSkills || []).map((item) => String(item || "").trim().toLowerCase());
+  const pythonStages = [
+    { id: "python-foundations", name: "Python Foundations and Environment", topics: ["Python installation and interpreter", "syntax, variables and data types", "input and output", "operators and expressions", "running scripts and using an editor"], project: "Write a command-line program that validates user input and produces a useful result.", known: /^(python|python programming|python basics|python fundamentals)$/i, searchQueries: ["Python fundamentals setup syntax variables data types complete beginner tutorial"] },
+    { id: "python-control-flow-functions", name: "Python Control Flow and Functions", topics: ["Boolean conditions", "for and while loops", "functions and return values", "parameters and scope", "reusable functions"], project: "Build a menu-driven program using functions, loops, and validation.", known: /control flow|conditionals?|loops?|functions?|recursion/i, searchQueries: ["Python control flow if else loops functions complete tutorial"] },
+    { id: "python-data-structures", name: "Python Data Structures and Problem Solving", topics: ["strings", "lists", "tuples and sets", "dictionaries", "searching, sorting and problem decomposition"], project: "Create a command-line inventory or contact manager using Python collections.", known: /data structures|problem solving|collections?|lists?|dictionaries|tuples?|sets?|strings/i, searchQueries: ["Python lists tuples sets dictionaries data structures complete tutorial"] },
+    { id: "python-object-oriented", name: "Object-Oriented Python", topics: ["classes and objects", "constructors", "inheritance and composition", "encapsulation", "dataclasses"], project: "Model a small library or booking workflow with classes.", known: /object.?oriented|\boop\b|classes|inheritance|encapsulation/i, searchQueries: ["Python object oriented programming classes objects inheritance complete tutorial"] },
+    { id: "python-files-exceptions-modules", name: "Python Files, Exceptions and Modules", topics: ["text and CSV files", "JSON handling", "exceptions", "imports and modules", "packages and virtual environments"], project: "Build a file-backed expense tracker with JSON or CSV storage.", known: /files?|exceptions?|modules?|packages?|json|csv|virtual environments/i, searchQueries: ["Python file handling exceptions modules packages complete tutorial"] },
+    { id: "python-tooling-testing-apis", name: "Python Tooling, Testing and APIs", topics: ["pip and dependencies", "standard library", "REST APIs and JSON", "type hints", "unit testing and debugging"], project: "Consume a public API and write automated tests for the data-processing functions.", known: /tooling|testing|apis?|pip|standard library|type hints|http requests|pytest/i, searchQueries: ["Python pip virtual environments unit testing REST API complete tutorial"] },
+    { id: "python-automation-practical-applications", name: "Python Automation and Practical Applications", topics: ["command-line arguments", "file and folder automation", "repeatable workflows", "logging and configuration", "end-to-end application structure"], project: "Deliver a documented Python automation tool with tests.", known: /automation|practical applications|scripting|command.?line|capstone/i, searchQueries: ["Python automation scripting practical applications complete tutorial"] }
+  ];
+  const remainingPythonStages = pythonStages.filter((stage) => !known.some((value) =>
+    stage.known.test(value) || (stage.id === "python-foundations" && /^python\b/.test(value))
+  ));
   const stages = cyber ? [
     { id: "security-foundations", name: "Security Foundations", topics: ["confidentiality integrity availability", "threats vulnerabilities and risk", "security controls", "security ethics and legal boundaries"], project: "Create a personal security baseline and threat model" },
     { id: "networking-linux", name: "Networking and Linux Fundamentals", topics: ["TCP IP and common ports", "DNS HTTP HTTPS and TLS", "Linux command line", "processes permissions and logs"], project: "Build a safe home lab and document network traffic" },
@@ -1545,7 +1558,9 @@ function buildTopicFallback(topic, level = "Beginner") {
     { id: "web-security", name: "Web and Application Security", topics: ["OWASP Top 10", "authentication and session security", "input validation", "secure configuration and secrets"], project: "Review a deliberately vulnerable training application and document fixes" },
     { id: "ethical-testing", name: "Ethical Security Testing", topics: ["scoping and authorization", "reconnaissance in a lab", "vulnerability validation", "responsible reporting"], project: "Write a lab-only vulnerability assessment with remediation steps" },
     { id: "security-capstone", name: "Cybersecurity Capstone", topics: ["risk prioritization", "defense in depth", "monitoring plan", "incident playbook"], project: "Produce a defensive security portfolio with a threat model, lab evidence and response playbook" }
-  ] : [
+  ] : python ? remainingPythonStages.map((stage) => ({
+    id: stage.id, name: stage.name, topics: stage.topics, project: stage.project, searchQueries: stage.searchQueries
+  })) : [
     { id: "foundations", name: rawTopic + " Foundations", topics: ["core terminology and concepts in " + canonicalTopic, "how the field is organized", "common use cases and outcomes"], project: "Create a concept map and glossary for " + canonicalTopic },
     { id: "core-concepts", name: "Core Concepts and Methods", topics: ["essential principles of " + canonicalTopic, "common methods and workflows", "tools and environments used in the field"], project: "Complete a guided beginner exercise in " + canonicalTopic },
     { id: "practical-workflows", name: "Tools and Practical Workflows", topics: ["set up a learning environment", "follow a repeatable workflow", "validate results and troubleshoot errors"], project: "Document a repeatable workflow for " + canonicalTopic },
@@ -1570,10 +1585,10 @@ function buildTopicFallback(topic, level = "Beginner") {
           tutorial: {
             content: "Core topics: " + stage.topics.join(", ") + ".",
             searchQuery: query,
-            searchQueries: [query, canonicalTopic + " " + stage.topics.slice(0, 2).join(" ") + " full tutorial"],
+            searchQueries: stage.searchQueries || [query, canonicalTopic + " " + stage.topics.slice(0, 2).join(" ") + " full tutorial"],
             requiredTopics: stage.topics,
-            durationMinutes: { minMinutes: 30, targetMinutes: 90, maxMinutes: 240 },
-            searchPolicy: { contentType: "complete-course", minDurationMinutes: 20, targetDurationMinutes: 60, maxDurationMinutes: 240, excludeShorts: true, requireEmbeddable: true, preferProjectBased: true, preferredLanguage: "en" }
+            durationMinutes: python ? { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 } : { minMinutes: 30, targetMinutes: 90, maxMinutes: 240 },
+            searchPolicy: { contentType: "complete-course", minDurationMinutes: python ? 45 : 20, targetDurationMinutes: python ? 90 : 60, maxDurationMinutes: python ? 210 : 240, excludeShorts: true, requireEmbeddable: true, preferProjectBased: true, preferredLanguage: normalizeYouTubeLanguage(profile.intentProfile?.language || profile.language || "en") }
           }
         },
         {
@@ -1609,9 +1624,9 @@ function buildTopicFallback(topic, level = "Beginner") {
     careerOutcome: "Build practical, demonstrable skills in " + canonicalTopic + ".",
     skillGraph: stages.map((stage, index) => ({ id: stage.id, name: stage.name, category: canonicalTopic, importance: "core", prerequisites: index ? [stages[index - 1].id] : [], practiceProject: stage.project })),
     course: {
-      title: canonicalTopic + " Learning Roadmap",
+      title: python ? "Python Complete Learning Path" : canonicalTopic + " Learning Roadmap",
       description: "A structured learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
-      category: cyber ? "Cybersecurity" : "AI Course Search",
+      category: cyber ? "Cybersecurity" : python ? "Programming" : "AI Course Search",
       level,
       duration: (stages.length * 1.5) + "+ weeks",
       learningOutcomes: [
@@ -1623,9 +1638,9 @@ function buildTopicFallback(topic, level = "Beginner") {
     },
     personalization: {
       goals: [],
-      studyTimeMinutesPerDay: 60,
-      knownSkills: [],
-      skippedSkills: [],
+      studyTimeMinutesPerDay: Number(profile.studyTimeMinutesPerDay || profile.intentProfile?.minutesPerDay || 60),
+      knownSkills: profile.knownSkills || [],
+      skippedSkills: profile.knownSkills || [],
       rationale: ["The configured AI provider and curated knowledge base could not supply a topic-specific path, so a structured topic fallback was created.", "Verify tutorial availability and complete each practical exercise before advancing."]
     },
     sources: [],
@@ -1712,8 +1727,8 @@ export async function generateAIRoadmap(input, options = {}) {
   }
 
   const generationInput = personalized
-    ? { ...input, language: resourceLanguage, intentProfile: normalizedIntentProfile }
-    : { ...input, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: resourceLanguage };
+    ? { ...templateProfile, intentProfile: normalizedIntentProfile }
+    : { ...templateProfile, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: resourceLanguage };
 
   try {
     const templateResult = await getOrCreateRoadmapTemplate({
@@ -1831,7 +1846,7 @@ export async function generateAIRoadmap(input, options = {}) {
         fallback = await generateKnowledgeBaseCoursePlan({ topic: input.topic, level: input.level });
       } catch (knowledgeBaseError) {
         if (knowledgeBaseError?.status !== 404) throw knowledgeBaseError;
-        fallback = buildTopicFallback(input.topic, input.level);
+        fallback = buildTopicFallback(input.topic, input.level, input);
       }
       fallback.sources = options.asyncBuild
         ? []

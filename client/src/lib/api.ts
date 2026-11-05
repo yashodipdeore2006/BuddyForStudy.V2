@@ -1,4 +1,6 @@
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+// During local Vite development, use the same-origin /api proxy. This avoids browser CORS
+// and localhost IPv4/IPv6 resolution differences on Windows. Production keeps the configured API URL.
+const API_URL = (import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL || "http://localhost:5000")).replace(/\/$/, "");
 
 
 type CachedGet = { expiresAt: number; data: unknown };

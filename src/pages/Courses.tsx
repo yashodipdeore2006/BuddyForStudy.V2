@@ -768,7 +768,7 @@ export default function Courses() {
         setIntentAnswers((previous) => ({ ...previous, [question.id]: "" }));
         return;
       }
-      const selected = answer === "Not sure, pick for me" ? [] : answer.split(/[,\\n]/).map((item) => item.trim()).filter(Boolean);
+      const selected = answer === "Not sure, pick for me" ? [] : answer.split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
       const next = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value];
       clearIntentAssumption(question.id);
       setIntentAnswers((previous) => ({ ...previous, [question.id]: next.join(", ") }));
@@ -803,7 +803,7 @@ export default function Courses() {
 
   const isIntentOptionSelected = (question: IntentQuestion, option: string) => {
     if (option === "Not sure, pick for me") return String(intentAnswers[question.id] || "") === option;
-    if (question.id === "knownSkills" || question.type === "multi" || question.type === "checklist") return String(intentAnswers[question.id] || "").split(/[,\\n]/).map((item) => item.trim()).includes(option);
+    if (question.id === "knownSkills" || question.type === "multi" || question.type === "checklist") return String(intentAnswers[question.id] || "").split(/[,\n]/).map((item) => item.trim()).includes(option);
     if (question.id === "goal") {
       const purpose = String(intentAnswers.goalPurpose || "");
       if (purpose === "freelance" && option === "Freelancing") return true;

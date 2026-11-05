@@ -1537,6 +1537,7 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
   const normalized = rawTopic.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const cybersecurityAliases = new Set(["ciber security", "cyber security", "cybersecurity", "cyber sec"]);
   const canonicalTopic = cybersecurityAliases.has(normalized) ? "Cybersecurity" : rawTopic.replace(/\s+/g, " ");
+  const cyber = /cyber ?security|information security|ethical hacking|network security|soc|penetration testing/i.test(canonicalTopic);
   const python = isBroadPythonTopic(canonicalTopic);
   const known = (profile.knownSkills || []).map((item) => String(item || "").trim().toLowerCase());
   const pythonStages = [
@@ -1648,6 +1649,12 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
   };
 }
 
+export const __aiRoadmapTestHooks = Object.freeze({
+  isBroadPythonTopic,
+  ensurePythonStages,
+  buildTopicFallback
+});
+
 export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
@@ -1743,7 +1750,19 @@ export async function generateAIRoadmap(input, options = {}) {
     });
     const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
     const ai = personalizedTemplate.roadmap;
-    const built = await buildCourse(ai, { ...personalizedTemplate.profile, language: resourceLanguage, intentProfile: normalizedIntentProfile, targetRole: input.targetRole, targetCompany: input.targetCompany, examName: input.examName, examDate: input.examDate, syllabusText: input.syllabusText, projectIdea: input.projectIdea, deadline: input.deadline });
+    const built = await buildCourse(ai, {
+      ...personalizedTemplate.profile,
+      knownSkills: personalizedTemplate.personalization.knownSkills || input.knownSkills || [],
+      language: resourceLanguage,
+      intentProfile: normalizedIntentProfile,
+      targetRole: input.targetRole,
+      targetCompany: input.targetCompany,
+      examName: input.examName,
+      examDate: input.examDate,
+      syllabusText: input.syllabusText,
+      projectIdea: input.projectIdea,
+      deadline: input.deadline
+    });
     built.personalization.knownSkills = personalizedTemplate.personalization.knownSkills;
     built.personalization.skippedSkills = personalizedTemplate.personalization.skippedSkills;
     built.personalization.estimatedStudyDays = personalizedTemplate.personalization.estimatedStudyDays;

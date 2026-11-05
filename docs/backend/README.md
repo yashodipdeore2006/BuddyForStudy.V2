@@ -56,19 +56,25 @@ GOOGLE_CLIENT_ID=
 - `/api/admin`
 - `/api/ai`
 
-## AI course generation
+## AI learning features
 
-`POST /api/ai/course` is admin-only.
+The current backend AI integrations use Google's Gemini API through the `@google/genai` SDK. Roadmap generation, course/lesson quiz generation, and advanced AI learning assistance read their provider configuration from the shared server environment.
 
-Required:
+Required environment variables for these features:
 
 ```
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-6-luna
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
 YOUTUBE_API_KEY=
 ```
 
-The AI service searches YouTube for candidate learning videos, then uses the OpenAI Responses API to construct a structured BuddyForStudy course plan. Generated source URLs are returned with the course plan.
+- `GEMINI_API_KEY` authenticates server-side Gemini requests.
+- `GEMINI_MODEL` selects the configured Gemini model; the code default is `gemini-3.8-flash`.
+- `YOUTUBE_API_KEY` is used by learning-resource discovery where YouTube search is enabled.
+
+The backend validates and handles generated AI content before it is used by learning workflows. Keep provider keys on the server; never expose them through `VITE_*` variables or commit them to the repository.
+
+For lesson quiz generation, see the quiz-generation service and its tests in `server/src/services/` and `server/test/`.
 
 Never commit real API keys or MongoDB credentials.
 
@@ -98,4 +104,4 @@ The verifier checks API liveness, database readiness, public billing plans, Goog
 
 ## Regression and CI checks
 
-The GitHub Actions workflow runs frontend lint as an advisory check (the existing frontend currently has lint debt), then requires TypeScript type-checking and a production build. Backend CI installs dependencies, runs the full Node test suite against MongoDB, and syntax-checks server JavaScript. The backend lockfile currently needs regeneration before CI can safely switch to `npm ci`. The suite includes admin route permission coverage, audit redaction bounds, subscription entitlement boundaries, refund/payment validation, and webhook transition regressions.
+The GitHub Actions workflow runs frontend lint as an advisory check (the existing frontend currently has lint debt), then requires TypeScript type-checking, frontend unit tests, a production build, and browser navigation smoke tests. Backend CI currently uses `npm install`, runs the full Node test suite against MongoDB, and syntax-checks server JavaScript. The backend lockfile should be regenerated and verified before changing CI to `npm ci`. The suite includes admin route permission coverage, audit redaction bounds, subscription entitlement boundaries, refund/payment validation, and webhook transition regressions.

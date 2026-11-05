@@ -68,7 +68,8 @@ function youtubeVideoDetails(video) {
       publishedAt: video.publishedAt,
       tags: video.tags,
       thumbnails: { high: { url: "https://mock.example.test/" + video.id + ".jpg" } },
-      defaultLanguage: "en"
+      defaultLanguage: "en",
+      defaultAudioLanguage: video.defaultAudioLanguage || ""
     },
     contentDetails: { duration: video.duration },
     statistics: {

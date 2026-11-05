@@ -761,15 +761,17 @@ export default function Courses() {
       });
       return;
     }
-    if (question.id === "knownSkills") {
+    if (question.id === "knownSkills" || question.type === "multi" || question.type === "checklist") {
+      const answer = String(intentAnswers[question.id] || "");
       if (value === "Not sure, pick for me") {
-        clearIntentAssumption("knownSkills");
-        setIntentAnswers((previous) => ({ ...previous, knownSkills: "" }));
+        clearIntentAssumption(question.id);
+        setIntentAnswers((previous) => ({ ...previous, [question.id]: "" }));
         return;
       }
-      const selected = String(intentAnswers.knownSkills || "").split(",").map((item) => item.trim()).filter(Boolean);
+      const selected = answer === "Not sure, pick for me" ? [] : answer.split(/[,\\n]/).map((item) => item.trim()).filter(Boolean);
       const next = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value];
-      setIntentAnswers((previous) => ({ ...previous, knownSkills: next.join(", ") }));
+      clearIntentAssumption(question.id);
+      setIntentAnswers((previous) => ({ ...previous, [question.id]: next.join(", ") }));
       return;
     }
     const purposeMap: Record<string, { goal: string; purpose: string }> = {
@@ -801,7 +803,7 @@ export default function Courses() {
 
   const isIntentOptionSelected = (question: IntentQuestion, option: string) => {
     if (option === "Not sure, pick for me") return String(intentAnswers[question.id] || "") === option;
-    if (question.id === "knownSkills") return String(intentAnswers.knownSkills || "").split(",").map((item) => item.trim()).includes(option);
+    if (question.id === "knownSkills" || question.type === "multi" || question.type === "checklist") return String(intentAnswers[question.id] || "").split(/[,\\n]/).map((item) => item.trim()).includes(option);
     if (question.id === "goal") {
       const purpose = String(intentAnswers.goalPurpose || "");
       if (purpose === "freelance" && option === "Freelancing") return true;

@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
 import { generateCoursePlan as generateKnowledgeBaseCoursePlan } from "./roadmapGenerator.service.js";
-import { attachYouTubeResources } from "./youtube.service.js";
+import { attachYouTubeResources, normalizeYouTubeLanguage } from "./youtube.service.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { buildTopicKeys, findRecentGeneratedCourse } from "./generatedCourseCache.service.js";
@@ -17,6 +17,7 @@ import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModu
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
 import { safeTelemetryError } from "../utils/safeTelemetryError.js";
+import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learningResourceQuality.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -643,9 +644,139 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
   return result;
 }
 
+function isBroadPythonTopic(topic) {
+  const value = String(topic || "").normalize("NFKC").toLowerCase().trim();
+  if (!/\bpython\b/.test(value)) return false;
+  return !/\b(pandas|numpy|data analytics|data analyst|list comprehension|dictionary comprehension|regular expressions|regex|specific function|specific error|debugging|django|flask|fastapi|machine learning|web scraping)\b/.test(value);
+}
+
+function ensurePythonStages(skills, topic, knownSkills = []) {
+  if (!isBroadPythonTopic(topic)) return skills || [];
+  const stages = [
+    {
+      id: "python-foundations",
+      name: "Python Foundations and Environment",
+      topics: ["Python installation and interpreter", "syntax, variables and data types", "input and output", "operators and expressions", "running scripts and using an editor"],
+      searchQueries: ["Python fundamentals setup syntax variables data types complete beginner tutorial", "Python beginner programming foundations hands-on tutorial"],
+      matches: /^(python|python programming)$|python (?:basics|fundamentals|foundations|setup|environment|syntax|variables)|programming fundamentals/i,
+      known: /^(python|python programming|python basics|python fundamentals)$/i,
+      projectPlacement: "none",
+      practiceProject: "Write a small command-line program that accepts input, validates it, and prints a useful result."
+    },
+    {
+      id: "python-control-flow-functions",
+      name: "Python Control Flow and Functions",
+      topics: ["Boolean conditions and branching", "for and while loops", "function definitions and return values", "parameters, scope and recursion", "writing reusable functions"],
+      searchQueries: ["Python control flow if else loops functions complete tutorial", "Python functions loops practical exercises beginner"],
+      matches: /control flow|conditionals?|loops?|functions?|function scope|recursion/i,
+      known: /control flow|conditionals?|loops?|functions?|recursion/i,
+      projectPlacement: "skill",
+      practiceProject: "Build a menu-driven program using functions, loops, validation, and clear error messages."
+    },
+    {
+      id: "python-data-structures",
+      name: "Python Data Structures and Problem Solving",
+      topics: ["strings and common string operations", "lists and list methods", "tuples and sets", "dictionaries and nested data", "searching, sorting and problem decomposition"],
+      searchQueries: ["Python lists tuples sets dictionaries data structures complete tutorial", "Python data structures problem solving coding exercises"],
+      matches: /data structures|problem solving|collections?|lists?|dictionaries|tuples?|sets?|strings/i,
+      known: /data structures|problem solving|collections?|lists?|dictionaries|tuples?|sets?|strings/i,
+      projectPlacement: "milestone",
+      practiceProject: "Create a command-line inventory or contact manager using Python collections."
+    },
+    {
+      id: "python-object-oriented",
+      name: "Object-Oriented Python",
+      topics: ["classes and objects", "constructors and instance state", "inheritance and composition", "encapsulation and properties", "dataclasses and clean object design"],
+      searchQueries: ["Python object oriented programming classes objects inheritance complete tutorial", "Python OOP practical project tutorial"],
+      matches: /object.?oriented|\boop\b|classes|inheritance|encapsulation|dataclasses/i,
+      known: /object.?oriented|\boop\b|classes|inheritance|encapsulation|dataclasses/i,
+      projectPlacement: "skill",
+      practiceProject: "Model a small library, booking, or banking workflow with classes and tested business rules."
+    },
+    {
+      id: "python-files-exceptions-modules",
+      name: "Python Files, Exceptions and Modules",
+      topics: ["reading and writing text and CSV files", "JSON data handling", "exceptions and defensive error handling", "imports and modules", "packages and virtual environments"],
+      searchQueries: ["Python file handling exceptions modules packages complete tutorial", "Python files CSV JSON exception handling practical tutorial"],
+      matches: /files?|exceptions?|modules?|packages?|json|csv|virtual environments/i,
+      known: /files?|exceptions?|modules?|packages?|json|csv|virtual environments/i,
+      projectPlacement: "milestone",
+      practiceProject: "Build a file-backed expense tracker with JSON or CSV storage and safe error handling."
+    },
+    {
+      id: "python-tooling-testing-apis",
+      name: "Python Tooling, Testing and APIs",
+      topics: ["pip and dependency management", "standard library and HTTP requests", "working with REST APIs and JSON", "type hints and code quality", "unit testing and debugging"],
+      searchQueries: ["Python pip virtual environments unit testing REST API complete tutorial", "Python requests REST API pytest testing practical tutorial"],
+      matches: /tooling|testing|apis?|pip|standard library|type hints|http requests|pytest/i,
+      known: /tooling|testing|apis?|pip|standard library|type hints|http requests|pytest/i,
+      projectPlacement: "skill",
+      practiceProject: "Consume a public API, validate its response, and write automated tests for the data-processing functions."
+    },
+    {
+      id: "python-automation-practical-applications",
+      name: "Python Automation and Practical Applications",
+      topics: ["command-line arguments and scripts", "working with folders and batch files", "scheduling and repeatable workflows", "logging and configuration", "end-to-end application structure"],
+      searchQueries: ["Python automation scripting practical applications complete tutorial", "Python real world automation project from scratch"],
+      matches: /automation|practical applications|scripting|command.?line|capstone|end.?to.?end applications/i,
+      known: /automation|practical applications|scripting|command.?line|capstone/i,
+      projectPlacement: "capstone",
+      practiceProject: "Deliver a documented automation tool that solves a real repetitive task and includes tests."
+    }
+  ];
+
+  const knownValues = (knownSkills || []).map((item) => String(item || "").trim().toLowerCase()).filter(Boolean);
+  const result = [...(skills || [])];
+  let previousId = null;
+
+  for (const stage of stages) {
+    const existingIndex = result.findIndex((skill) =>
+      stage.matches.test([skill.id, skill.name, ...(skill.topics || [])].join(" "))
+    );
+    const known = knownValues.some((value) => stage.known.test(value) || (stage.id === "python-foundations" && /^python\b/.test(value)));
+    if (existingIndex >= 0) {
+      const existing = result[existingIndex];
+      if (known) result.splice(existingIndex, 1);
+      else previousId = normalizeId(existing.id || existing.name);
+      continue;
+    }
+    if (known) continue;
+
+    const topics = stage.topics;
+    result.push({
+      id: stage.id,
+      name: stage.name,
+      category: "Python Programming",
+      importance: "Critical",
+      prerequisites: previousId ? [previousId] : [],
+      topics,
+      searchQueries: stage.searchQueries,
+      courseDuration: { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 },
+      practiceProject: stage.practiceProject,
+      projectPlacement: stage.projectPlacement,
+      projectPlan: {
+        scenario: "Apply " + stage.name + " to a small, realistic Python workflow.",
+        whyThisProject: "Use the concepts in working code and produce evidence of practical understanding.",
+        features: topics.slice(0, 5).map((item) => "Implement " + item),
+        architecture: ["Separate input, processing and output responsibilities", "Validate data at system boundaries", "Document setup and execution"],
+        milestones: ["Plan the solution", "Implement the core workflow", "Test edge cases", "Document the result"],
+        testingChecklist: ["Test normal and invalid inputs", "Check boundary conditions", "Document known limitations"],
+        industrySkills: ["Readable code", "Debugging", "Testing", "Documentation"],
+        githubWorkflow: ["Create a repository", "Commit working milestones", "Write a README", "Include test instructions"],
+        videoSearchQueries: stage.searchQueries
+      },
+      quizPolicy: { lessonQuestionCount: 5, moduleQuestionCount: 8, passingScore: 70 }
+    });
+    previousId = stage.id;
+  }
+
+  return result;
+}
+
 export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language, intentProfile, targetRole, targetCompany, examName, examDate, syllabusText, projectIdea, deadline }, { resolveSkill = resolveCanonicalSkill, logger = console, syllabusUnits = [] } = {}) {
   const webEnrichedSkills = ensureWebIndustryStage(ai.skills || [], topic, ai);
-  const enrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
+  const analyticsEnrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
+  const enrichedSkills = ensurePythonStages(analyticsEnrichedSkills, topic, knownSkills);
   const graph = validateSkillGraph(enrichedSkills, { logger });
   const domainId = resolveRoadmapDomain({ domain, topic });
   const resolved = [];
@@ -912,6 +1043,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     personalization: {
       goals,
       studyTimeMinutesPerDay: studyTimeMinutesPerDay || 60,
+      estimatedStudyMinutes: Number(schedule.estimatedMinutes || 0),
       knownSkills: knownSkills || [],
       skippedSkills,
       rationale: [

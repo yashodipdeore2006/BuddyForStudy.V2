@@ -11,14 +11,14 @@ The Blueprint targets the `main` branch and sets Render's `autoDeployTrigger: ch
 
 ## 1. Vercel frontend
 
-Import the repository into Vercel and set the project root to the repository root.
+Import the repository into Vercel and set the project root to `client/`. The frontend package manifest, lockfile, and `vercel.json` are all inside that directory; the repository root intentionally has no npm package manifest.
 
 | Setting | Value |
 |---|---|
 | Framework preset | Vite |
 | Production branch | `main` |
-| Install command | `npm ci` |
-| Build command | `npm run build` |
+| Install command | `npm ci` (runs in `client/`) |
+| Build command | `npm run build` (runs in `client/`) |
 | Output directory | `dist` |
 
 Set these Vercel environment variables for Production (and separately for Preview/Staging):

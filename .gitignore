@@ -1,26 +1,34 @@
-logs
+# Dependencies and generated output
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+dist-ssr/
+coverage/
+playwright-report/
+test-results/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Logs and temporary files
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
+vite.config.ts.timestamp-*.mjs
 
-node_modules
-dist
-dist-ssr
-*.local
-
+# Editor and OS files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env
-
-# Vite temporary config bundles generated during dev-server startup
-vite.config.ts.timestamp-*.mjs

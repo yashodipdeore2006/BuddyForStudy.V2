@@ -114,7 +114,7 @@ test("content approval policies are typed, permission-gated and independently co
   const registry = await read("../src/utils/typedSettingsRegistry.js");
   const controller = await read("../src/controllers/adminPro.controller.js");
   const routes = await read("../src/routes/adminPro.routes.js");
-  const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
+  const page = await read("../../client/src/pages/admin/AdminContentQuality.tsx");
 
   for (const key of [
     "content_approval_ai_courses",
@@ -176,9 +176,9 @@ test("existing enrolled learners can resume unlisted courses while pending or re
 
 test("course catalogue returns real module and lesson counts without loading full modules", async () => {
   const service = await read("../src/services/course.service.js");
-  const page = await read("../../src/pages/Courses.tsx");
-  const card = await read("../../src/components/CourseCard.tsx");
-  const types = await read("../../src/types/index.ts");
+  const page = await read("../../client/src/pages/Courses.tsx");
+  const card = await read("../../client/src/components/CourseCard.tsx");
+  const types = await read("../../client/src/types/index.ts");
   assert.match(service, /function courseContentCountsStage\(\)/);
   assert.match(service, /moduleCount: \{ \$size: \{ \$ifNull: \["\$modules", \[\]\] \} \}/);
   assert.match(service, /lessonCount: \{/);
@@ -190,7 +190,7 @@ test("course catalogue returns real module and lesson counts without loading ful
 
 
 test("content quality admin page exposes lifecycle, review, moderation, roadmaps and link checking", async () => {
-  const page = await read("../../src/pages/admin/AdminContentQuality.tsx");
+  const page = await read("../../client/src/pages/admin/AdminContentQuality.tsx");
   for (const phrase of ["Approve & publish if ready", "Soft delete", "Roll back", "Moderation decision saved", "Run link check", "Roadmaps"]) assert.ok(page.includes(phrase), "missing UI control: " + phrase);
 });
 
@@ -218,7 +218,7 @@ test("admin roadmap inventory unions saved plans and AI-generated courses with b
 
 test("missing AI quiz questions do not block course readiness and can be retried from the player", async () => {
   const readiness = await read("../src/utils/courseReadiness.js");
-  const player = await read("../../src/pages/CoursePlayer.tsx");
+  const player = await read("../../client/src/pages/CoursePlayer.tsx");
   const model = await read("../src/models/Course.js");
   const ai = await read("../src/services/aiRoadmap.service.js");
   assert.match(readiness, /label: "Missing quiz questions can be generated when a learner opens the quiz", passed: true/);

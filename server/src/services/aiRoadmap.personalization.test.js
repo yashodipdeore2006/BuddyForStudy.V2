@@ -49,3 +49,28 @@ test("fallback builder keeps broad Python personalized and cyber fallback valid"
   assert.equal(cyber.course.category, "Cybersecurity");
   assert.equal(cyber.course.modules.length, 6);
 });
+
+
+test("quiz template fallback produces the requested count with one valid correct option per question", () => {
+  const questions = __aiRoadmapTestHooks.buildTemplateQuizQuestions({
+    module: { title: "Python Functions" },
+    lesson: { title: "Function Parameters", quiz: { focusTopics: ["positional arguments", "keyword arguments"] } },
+    courseTitle: "Python",
+    requestedCount: 5
+  });
+  assert.equal(questions.length, 5);
+  assert.equal(new Set(questions.map((item) => item.id)).size, 5);
+  for (const question of questions) {
+    assert.equal(question.options.length, 4);
+    assert.equal(question.options.filter((option) => option.id === question.correctOptionId).length, 1);
+    assert.ok(question.question.includes(question.topic));
+    assert.ok(question.explanation.length > 0);
+  }
+  assert.equal(__aiRoadmapTestHooks.validateQuizQuestions(questions, 5).length, 5);
+});
+
+test("quiz schema validator rejects malformed options and missing answer keys", () => {
+  assert.throws(() => __aiRoadmapTestHooks.validateQuizQuestions([
+    { id: "q1", question: "Bad question", options: [{ id: "a", text: "Only one" }], correctOptionId: "a" }
+  ], 1), /fewer valid quiz questions/i);
+});

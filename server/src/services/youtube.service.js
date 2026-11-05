@@ -568,7 +568,7 @@ export async function attachYouTubeResources(course, options = {}) {
           .join(" ");
         if (contextualQuery) queries.push(contextualQuery);
         groups.push({
-          skill: { id: skillId, canonicalSkillId: skillId, name: String(lesson.title || module.title), topics, searchQueries: [...new Set(queries)].slice(0, 3) },
+          skill: { id: skillId, canonicalSkillId: skillId, name: String(lesson.title || module.title), topics, searchQueries: [...new Set([contextualQuery, ...queries])].slice(0, 3) },
           module,
           lessons: [lesson]
         });

@@ -17,6 +17,13 @@ function digest(value) {
 function normalized(value) {
   return String(value || "").normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{M}\p{N}+#.]+/gu, " ").trim().replace(/\s+/g, " ");
 }
+function normalizeLanguageCode(value) {
+  const raw = String(value || "en").trim().toLowerCase().replace(/_/g, "-");
+  const primary = raw.split("-")[0];
+  const aliases = { english: "en", hindi: "hi", marathi: "mr", bengali: "bn", tamil: "ta", telugu: "te", spanish: "es", french: "fr", german: "de", portuguese: "pt", japanese: "ja", korean: "ko", arabic: "ar" };
+  return aliases[raw] || aliases[primary] || primary || "en";
+}
+
 function durationBounds(durationPolicy = {}) {
   const minMinutes = Math.max(1, Number(durationPolicy.minMinutes) || 30);
   const targetMinutes = Math.max(minMinutes, Number(durationPolicy.targetMinutes) || minMinutes);

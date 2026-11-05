@@ -21,78 +21,6 @@ type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences:
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
 
-type BuildWithAiPreset = {
-  label: string;
-  topic: string;
-  endGoal: string;
-  skills: string[];
-  level: CourseLevel;
-  purpose: string;
-  goal: string;
-  minutesPerDay: number;
-  daysPerWeek: string;
-  language: string;
-  learningStyle: string;
-  answers: Record<string, string>;
-};
-
-const BUILD_WITH_AI_PRESETS: BuildWithAiPreset[] = [
-  {
-    label: "🚀 Full-Stack Web Dev (Job Hunter)",
-    topic: "React & Node.js Fullstack Web Development",
-    endGoal: "Build and deploy a scalable SaaS app and prepare for a frontend engineer job.",
-    skills: ["HTML", "CSS", "JavaScript"],
-    level: "Intermediate",
-    purpose: "career",
-    goal: "Career or professional growth",
-    minutesPerDay: 180,
-    daysPerWeek: "5",
-    language: "en",
-    learningStyle: "Project-first",
-    answers: {
-      targetRole: "Entry-level (Tech Startup)",
-      jobTimeline: "1–3 months",
-      buildTarget: "Modern website or web app",
-      dsaNeeded: "Yes, preparing for tech interviews"
-    }
-  },
-  {
-    label: "📈 Stock Investor in India (Hobby)",
-    topic: "Stock Market Investing in India",
-    endGoal: "Understand long-term investing, market risk and portfolio fundamentals independently.",
-    skills: ["Basic Math", "Budgeting"],
-    level: "Beginner",
-    purpose: "hobby",
-    goal: "Explore a personal interest",
-    minutesPerDay: 60,
-    daysPerWeek: "3",
-    language: "en",
-    learningStyle: "Theory-first",
-    answers: {
-      hobbyFocus: "Deep master-class theory",
-      marketRegion: "India (NSE / BSE)",
-      investingStyle: "Long-term wealth building (index funds / ETFs)"
-    }
-  },
-  {
-    label: "🏋️ Home Calisthenics (Fitness Beginner)",
-    topic: "Calisthenics & Bodyweight Strength",
-    endGoal: "Learn safe foundational movements, build strength progressively and improve daily mobility.",
-    skills: ["Beginner movement"],
-    level: "Beginner",
-    purpose: "hobby",
-    goal: "Explore a personal interest",
-    minutesPerDay: 60,
-    daysPerWeek: "4",
-    language: "en",
-    learningStyle: "Short videos with frequent practice",
-    answers: {
-      hobbyFocus: "Fun projects fast",
-      fitnessEquipment: "Bodyweight / minimal space"
-    }
-  }
-];
-
 const BUILD_WITH_AI_PURPOSE_OPTIONS = [
   { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth", description: "Build role-ready skills and prepare for interviews.", icon: Briefcase },
   { id: "exam", purpose: "exam", label: "Exam / Certification", goal: "Prepare for an exam or certification", description: "Map the syllabus, revision blocks and mock tests.", icon: GraduationCap },
@@ -516,51 +444,6 @@ export default function Courses() {
     setAiError(null);
   };
 
-  const loadBuildWithAiPreset = (preset: BuildWithAiPreset) => {
-    const goalByPurpose: Record<string, string> = {
-      career: "job_ready",
-      exam: "exam",
-      freelance: "project",
-      hobby: "learn",
-      career_switch: "job_ready",
-      project: "project"
-    };
-    const goalId = goalByPurpose[preset.purpose] || "learn";
-    const timeLabel: Record<number, string> = {
-      15: "15 min", 30: "30 min", 60: "1 hour", 90: "1.5 hours",
-      120: "2 hours", 180: "3+ hours", 210: "3-4 hours", 240: "4 hours",
-      300: "5+ hours", 360: "6 hours", 480: "8 hours", 720: "12 hours"
-    };
-    const depth = "broad" as const;
-    setAiTopic(preset.topic);
-    setAiCustomGoal(preset.endGoal);
-    setAiKnownSkills(preset.skills.join(", "));
-    setAiLevel(preset.level);
-    setAiLevelTouched(true);
-    setAiGoal(preset.goal);
-    setAiGoalTouched(true);
-    setAiStudyTime(preset.minutesPerDay);
-    setAiStudyDays(preset.daysPerWeek);
-    setAiScope(depth);
-    setAiLanguagePref(preset.language);
-    setAiLessonStyle(preset.learningStyle);
-    setIntentResult(null);
-    setIntentWizardStep(1);
-    setAiError(null);
-    setIntentAnswers({
-      goal: goalId,
-      goalPurpose: preset.purpose,
-      level: preset.level,
-      depth,
-      knownSkills: preset.skills.join(", "),
-      time: timeLabel[preset.minutesPerDay] || "1 hour",
-      language: preset.language,
-      studyDays: preset.daysPerWeek,
-      lessonStyle: preset.learningStyle,
-      ...preset.answers
-    });
-  };
-
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("build") !== "1") return;
@@ -789,23 +672,6 @@ export default function Courses() {
 
   const intentGoal = String(Object.prototype.hasOwnProperty.call(intentAnswers, 'goal') ? intentAnswers.goal : (intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn'));
   const intentPurpose = String(intentAnswers.goalPurpose || (intentGoal === "job_ready" ? "career" : intentGoal === "exam" ? "exam" : intentGoal === "project" ? "project" : "hobby"));
-  const tapCount = useMemo(() => {
-    const coreCount = [
-      aiTopic.trim(),
-      aiCustomGoal.trim(),
-      aiKnownSkills.trim(),
-      aiScope,
-      intentPurpose,
-      String(aiStudyTime),
-      aiLessonStyle
-    ].filter(Boolean).length;
-    const coreIds = new Set(["goal", "goalPurpose", "depth", "level", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
-    const additionalAnswers = Object.entries(intentAnswers).filter(([key, value]) =>
-      !coreIds.has(key) && String(value || "").trim().length > 0
-    ).length;
-    return coreCount + additionalAnswers;
-  }, [aiTopic, aiCustomGoal, aiKnownSkills, aiScope, intentPurpose, aiStudyTime, aiLessonStyle, intentAnswers]);
-
   const coreQuestionIds = new Set(["goal", "depth", "knownSkills", "time", "language", "studyDays", "lessonStyle", "deadline"]);
   const activeIntentQuestions = (intentResult?.questionPlan || []).filter((question) =>
     !retiredIntentQuestionIds.includes(question.id) &&
@@ -991,16 +857,16 @@ export default function Courses() {
       ? (question.options.includes("Not sure, pick for me") ? question.options : [...question.options, "Not sure, pick for me"])
       : [];
     const selectedClass = accent === "purpose"
-      ? "border-purple-500 bg-purple-600/20 text-white ring-1 ring-purple-500/30"
-      : "border-pink-500 bg-pink-600/20 text-white ring-1 ring-pink-500/30";
-    const idleClass = "border-slate-700 bg-slate-950 text-slate-300 hover:border-violet-400 hover:bg-slate-800";
+      ? "border-violet-500 bg-violet-50 text-violet-950 ring-1 ring-violet-500/20"
+      : "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-950 ring-1 ring-fuchsia-400/20";
+    const idleClass = "border-slate-200 bg-white text-slate-700 hover:border-violet-400 hover:bg-violet-50";
     return (
-      <section key={question.id} className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+      <section key={question.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-100">{question.text}</h3>
-          {question.optional && <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-400">Optional</span>}
+          <h3 className="text-sm font-semibold text-slate-900">{question.text}</h3>
+          {question.optional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Optional</span>}
         </div>
-        {question.why && <p className="text-xs leading-5 text-slate-400">Why we ask: {question.why}</p>}
+        {question.why && <p className="text-xs leading-5 text-slate-600">Why we ask: {question.why}</p>}
         {options.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">
             {options.slice(0, 9).map((option) => {
@@ -1030,9 +896,9 @@ export default function Courses() {
                 if (event.target.value.trim()) clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
               }}
               placeholder={question.id === "syllabus" ? "Paste syllabus units here…" : "Type an answer (optional)…"}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
-            <button type="button" onClick={() => commitIntentTextAnswer(question)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">
+            <button type="button" onClick={() => commitIntentTextAnswer(question)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               Save answer
             </button>
           </div>
@@ -1351,7 +1217,7 @@ export default function Courses() {
 
       {aiOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-white/50 p-3 backdrop-blur-[2px] sm:p-6"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-[2px] sm:p-6"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !aiLoading) setAiOpen(false);
           }}
@@ -1463,10 +1329,10 @@ export default function Courses() {
                               setAiTopic(event.target.value);
                               if (intentResult) {
                                 setIntentResult(null);
-                                setIntentAnswers((previous) => ({
-                                  goal: previous.goal,
-                                  goalPurpose: previous.goalPurpose
-                                }));
+                                setIntentAnswers({});
+                                setAiGoalTouched(false);
+                                setAiLevelTouched(false);
+                                setAiKnownSkills("");
                                 setIntentWizardStep(1);
                               }
                             }}

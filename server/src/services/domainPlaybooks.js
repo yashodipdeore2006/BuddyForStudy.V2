@@ -5,6 +5,12 @@ export const domainPlaybooks = Object.freeze({
     "Also teach software engineering fundamentals that transfer across stacks: clean code, debugging strategy, API contracts/documentation, data modeling, security, testing strategy, deployment, observability, performance trade-offs, and basic system design when relevant.",
     "At the END of a web/full-stack curriculum, provide 1-2 portfolio-grade capstone projects that combine the major technologies. For MERN, these must be full-stack MERN applications. Generate one strong YouTube search query per capstone for a long-form project build tutorial."
   ].join("\n"),
+  programming: [
+    "For broad programming-language requests such as Python, Java, JavaScript, or C++, generate a complete prerequisite-ordered curriculum, not one generic skill or one video.",
+    "For Python, cover environment/setup and syntax, control flow and functions, data structures and problem solving, object-oriented programming, files/exceptions/modules, packages/testing/APIs, and automation or practical applications. Omit or move past stages the learner explicitly marks as already known.",
+    "Target 6-9 distinct skill modules for a broad beginner or complete-learning-path request. Every module needs multiple concrete topics, a lesson-specific search query, a knowledge check, and practical exercises; add projects at meaningful milestones.",
+    "Search separately for each lesson/module. Prefer structured playlists with multiple playable lessons or focused long-form tutorials that match the requested language, level, and topic. Never present one short video as a complete multi-hour course."
+  ].join("\n"),
   data: [
     "Preserve the user's requested topic precisely. Do not silently replace Data Analytics with Data Science, or substitute a neighboring discipline just because the topics overlap.",
     "If the request is a course-search phrase such as 'data analytics full course', interpret 'full course' as a completeness preference, not as a different subject.",
@@ -24,7 +30,9 @@ export function resolveRoadmapDomain({ domain, topic } = {}) {
   if (/exam|certification|syllabus|test preparation/.test(value)) return "exam";
   if (/language|english speaking|grammar|vocabulary|spanish|french/.test(value)) return "language";
   if (/design|drawing|photography|music|creative|video editing/.test(value)) return "creative";
-  if (/mern|mean|full.?stack|web development|frontend|backend|react|node\.js|express|next\.js|java full stack|\.net|web app|software engineering|programming|developer/.test(value)) return "software_web";
+  if (/mern|mean|full.?stack|web development|frontend|backend|react|node\.js|express|next\.js|java full stack|\.net|web app/.test(value)) return "software_web";
+  if (/\bpython\b|\bjavascript\b|\btypescript\b|\bjava\b|\bc\+\+\b|\bc\b|programming|coding|software engineering|developer/.test(value)) return "programming";
+  if (/software engineering/.test(value)) return "software_web";
   return "general";
 }
 

@@ -677,7 +677,7 @@ export default function Courses() {
     !retiredIntentQuestionIds.includes(question.id) &&
     !coreQuestionIds.has(question.id) &&
     (!question.when || question.when === 'goal=' + intentGoal || question.when === 'purpose=' + intentPurpose)
-  ).slice(0, 8);
+  ).slice(0, 4);
   const purposeQuestionIds = new Set([
     "role", "company", "targetRole", "companyType", "jobTimeline", "examType", "examDate", "syllabus", "projectIdea",
     "portfolioStatus", "clientAcquisition", "freelanceClient", "freelancePortfolio", "freelanceService",
@@ -956,7 +956,7 @@ export default function Courses() {
         knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
         outcome: aiCustomGoal.trim(),
         deadline: boundedProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline, 40) || null,
-        preferences: Object.fromEntries(['buildTarget', 'dsaNeeded', 'includeDsa', 'mathComfort', 'studyDays', 'lessonStyle', 'goalPurpose', 'companyType', 'jobTimeline', 'portfolioStatus', 'clientAcquisition', 'freelanceClient', 'freelancePortfolio', 'freelanceService', 'switchExperience', 'switchTarget', 'currentBackground', 'examPreparationType', 'examTimeline', 'projectAudience', 'hobbyFocus', 'marketingChannel', 'aiRole', 'creativeTool', 'primaryTool', 'labAccess', 'cloudVendor', 'languageGoal', 'langGoal', 'officeToolVersion', 'officeTask', 'creativeMedium', 'instrumentOwned', 'financeGoal', 'marketRegion', 'investingStyle', 'fitnessEquipment', 'practiceSetup', 'targetExamName', 'custom_focus', 'custom_tool'].filter((key) => intentAnswers[key]).map((key) => [key, String(intentAnswers[key]).slice(0, 500)]))
+        preferences: Object.fromEntries(Object.entries(intentAnswers).filter(([key, value]) => !['goal', 'goalPurpose', 'depth', 'level', 'knownSkills', 'time', 'language', 'studyDays', 'lessonStyle', 'deadline'].includes(key) && value !== undefined && String(value).trim().length > 0).slice(0, 40).map(([key, value]) => [key, String(value).trim().slice(0, 500)]))
       } : undefined;
       const profile = {
         topic,

@@ -5,7 +5,7 @@ import { curateNormalSearch, extractCurationChapters } from "./courseCurationDec
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { QuotaBudgetError } from "./quota.service.js";
 
-const ENGINE_VERSION = "node-curation-v1";
+const ENGINE_VERSION = "node-curation-v2";
 const LOW_CONFIDENCE_THRESHOLD = 45;
 let selectorForNode = curateNormalSearch;
 let nodeCacheTestAdapters = null;
@@ -27,7 +27,7 @@ function durationBounds(durationPolicy = {}) {
     minVideoSeconds: minMinutes * 60,
     maxVideoSeconds: maxMinutes * 60,
     minPlaylistSeconds: minMinutes * 60,
-    minPlaylistItems: 2,
+    minPlaylistItems: mode === "full_course" ? 8 : mode === "crash_course" ? 4 : 2,
     halfLifeDays: Number(durationPolicy.halfLifeDays) > 0 ? Number(durationPolicy.halfLifeDays) : undefined
   };
 }
@@ -147,9 +147,10 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
       widened = true;
       const widenedBounds = {
         ...bounds,
-        minVideoSeconds: Math.floor(bounds.minVideoSeconds * 0.5),
+        minVideoSeconds: bounds.minVideoSeconds,
         maxVideoSeconds: Math.ceil(bounds.maxVideoSeconds * 1.5),
-        minPlaylistSeconds: Math.floor(bounds.minPlaylistSeconds * 0.5)
+        minPlaylistSeconds: bounds.minPlaylistSeconds,
+        minPlaylistItems: bounds.minPlaylistItems
       };
       result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(widenedBounds));
       searchCalls += Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);

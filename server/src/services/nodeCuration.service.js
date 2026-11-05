@@ -42,8 +42,8 @@ function buildInjectedSyllabus(skill) {
     modules: names.slice(0, 15).map((name) => ({ name, weight: 1, keyConcepts: [name], prerequisites: [] }))
   };
 }
-function nodeCacheKey({ canonicalSkillId, mode, level, language, boundsHash }) {
-  return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, mode, level, language, boundsHash].join("|"))}`;
+function nodeCacheKey({ canonicalSkillId, mode, level, language, boundsHash, cacheScope = "" }) {
+  return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, mode, level, normalizeYouTubeLanguage(language), boundsHash, cacheScope].join("|"))}`;
 }
 async function readNodeCache(key) {
   if (nodeCacheTestAdapters?.read) return nodeCacheTestAdapters.read(key);
@@ -72,22 +72,38 @@ function mapResource(resource, reason = "Selected by shared course curation engi
   const videoId = resource.videoId || item.videoId || (String(resource.id || "").startsWith("video:") ? String(resource.id).slice(6) : "");
   const playlistId = resource.playlistId || (String(resource.id || "").startsWith("playlist:") ? String(resource.id).slice(9) : "");
   const chapters = extractCurationChapters(resource.description || item.description || "");
+  const items = (Array.isArray(resource.items) ? resource.items : []).map((entry) => ({
+    videoId: String(entry.videoId || entry.id || ""),
+    title: String(entry.title || ""),
+    description: String(entry.description || ""),
+    channelTitle: String(entry.channelTitle || resource.channelTitle || ""),
+    durationSeconds: Math.max(0, Number(entry.durationSeconds) || 0),
+    duration: String(entry.duration || ""),
+    thumbnail: String(entry.thumbnail || resource.thumbnail || ""),
+    url: String(entry.url || (entry.videoId ? `https://www.youtube.com/watch?v=${entry.videoId}` : "")),
+    defaultAudioLanguage: String(entry.defaultAudioLanguage || entry.defaultLanguage || ""),
+    publishedAt: entry.publishedAt || null
+  })).filter((entry) => entry.videoId);
   return {
     videoId,
     playlistId,
+    sourceType: resource.sourceType || (playlistId ? "playlist" : "video"),
     title: String(resource.title || item.title || ""),
+    description: String(resource.description || item.description || ""),
     channelTitle: String(resource.channelTitle || item.channelTitle || ""),
+    defaultAudioLanguage: String(resource.defaultAudioLanguage || item.defaultAudioLanguage || ""),
     durationSeconds: Math.max(0, Number(resource.durationSeconds || item.durationSeconds) || 0),
     thumbnail: String(resource.thumbnail || item.thumbnail || ""),
     chapters: chapters.map((chapter) => ({ title: chapter.title, timestampSeconds: chapter.timestampSeconds, timestampLabel: chapter.timestampLabel })),
+    items,
     fetchedAt: new Date(),
     reason,
-    url: resource.sourceUrl || resource.url || item.url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : ""),
+    url: resource.sourceUrl || resource.url || item.url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : playlistId ? `https://www.youtube.com/playlist?list=${playlistId}` : ""),
     score: scoreOf(resource)
   };
 }
 
-export async function curateForNode({ skill, profile = {}, durationPolicy = {} }) {
+export async function curateForNode({ skill, profile = {}, durationPolicy = {}, cacheScope = "" }) {
   const skillName = String(skill?.name || "").trim();
   if (skillName.length < 2) return { best: null, alternatives: [], meta: { cacheHit: false, searchCalls: 0, quotaUnits: 0, lowConfidence: true, state: "failed" } };
   const canonicalSkillId = String(skill.canonicalSkillId || skill.id || normalized(skillName).replace(/\s+/g, "-")).slice(0, 160);
@@ -98,9 +114,9 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {} }
   const syllabus = buildInjectedSyllabus(skill);
   const bounds = durationBounds(durationPolicy);
   const level = ["Beginner", "Intermediate", "Advanced"].includes(profile.level) ? profile.level : "Beginner";
-  const language = String(profile.language || "en").slice(0, 10);
+  const language = normalizeYouTubeLanguage(profile.language || "en");
   const boundsHash = digest(JSON.stringify(bounds));
-  const key = nodeCacheKey({ canonicalSkillId, mode: bounds.mode, level, language, boundsHash });
+  const key = nodeCacheKey({ canonicalSkillId, mode: bounds.mode, level, language, boundsHash, cacheScope });
   const cached = await readNodeCache(key);
   if (cached) return { ...cached, meta: { ...cached.meta, cacheHit: true, searchCalls: 0, quotaUnits: 0 } };
 
@@ -169,6 +185,7 @@ export const __nodeCurationTestHooks = Object.freeze({
   buildInjectedSyllabus,
   durationBounds,
   nodeCacheKey,
+  mapResource,
   scoreOf,
   GENERIC_SKILL
 });

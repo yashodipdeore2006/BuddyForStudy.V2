@@ -210,7 +210,7 @@ test("timestamped notes are separated by account and course", () => {
 test("course pages expose timestamped notes, lesson-state labels, and source duration metadata", () => {
   const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
   const courseDetails = fs.readFileSync(path.join(root, "src/pages/CourseDetails.tsx"), "utf8");
-  const preview = fs.readFileSync(path.join(root, "server/src/utils/coursePreview.js"), "utf8");
+  const preview = fs.readFileSync(path.join(root, "../server/src/utils/coursePreview.js"), "utf8");
   const navbar = fs.readFileSync(path.join(root, "src/components/Navbar.tsx"), "utf8");
   assert.match(player, /Timestamped notes/);
   assert.match(player, /cleanPlayerLessonTitle\(lesson\.title/);
@@ -224,7 +224,7 @@ test("course pages expose timestamped notes, lesson-state labels, and source dur
 
 test("subscription pricing preserves admin sort order and never ranks plans by incomparable currency amounts", () => {
   const pricingPage = fs.readFileSync(path.join(root, "src/pages/Pricing.tsx"), "utf8");
-  const billingRoutes = fs.readFileSync(path.join(root, "server/src/routes/billing.routes.js"), "utf8");
+  const billingRoutes = fs.readFileSync(path.join(root, "../server/src/routes/billing.routes.js"), "utf8");
   assert.match(billingRoutes, /SubscriptionPlan\.find\(\{isActive:true\}\)\.sort\(\{sortOrder:1,createdAt:1\}\)/);
   assert.match(pricingPage, /setPlans\(Array\.isArray\(data\.plans\) \? data\.plans : \[\]\)/);
   assert.doesNotMatch(pricingPage, /Number\(b\.price \|\| 0\) - Number\(a\.price \|\| 0\)/);

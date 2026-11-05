@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateAIRoadmap } from "../services/aiRoadmap.service.js";
+import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.service.js";
 import { failure, success } from "../utils/response.js";
 import { getEntitlement, canAccessCourse } from "../services/subscriptionEntitlement.service.js";
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
@@ -8,7 +8,7 @@ import { QuizBank } from "../models/QuizBank.js";
 import { Course } from "../models/Course.js";
 import { CourseQuizAttempt } from "../models/CourseQuizAttempt.js";
 import { isValidObjectId } from "../utils/ids.js";
-import { gradeQuizSubmission, normalizeQuizAnswers, toPublicQuiz, toPublicQuizQuestion } from "../utils/quizSecurity.js";
+import { gradeQuizSubmission, normalizeQuizAnswers, toPublicQuizQuestion } from "../utils/quizSecurity.js";
 import { isAutomaticContentApproval } from "../services/contentApprovalPolicy.service.js";
 import { checkCourseLearningAccess } from "../utils/courseLearningAccess.js";
 import { IntentProfile, normalizeIntentInput } from "../services/intent.service.js";

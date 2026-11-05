@@ -900,8 +900,8 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByText("How far do you want to go?", { exact: true })).toBeVisible();
     await expect(dialog.getByText("Why are you learning it?", { exact: true })).toBeVisible();
     await expect(dialog.getByText("What can you already do?", { exact: true })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: /Job \/ Career/ })).toHaveAttribute("aria-pressed", "true");
-    await expect(dialog.getByRole("button", { name: /Hobby \/ Personal Interest/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(dialog.getByRole("button", { name: /Job \/ Career/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(dialog.getByRole("button", { name: /Hobby \/ Personal Interest/ })).toHaveAttribute("aria-pressed", "true");
     await expect(dialog.getByText("What do you want to learn?")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Analyze topic and continue" })).toBeEnabled();
   });
@@ -1082,7 +1082,6 @@ test.describe("learner control and state regression", () => {
     await dialog.getByRole("button", { name: "Job / Career" }).click();
     const outcome = dialog.getByLabel("In one sentence, what should you be able to do at the end?");
     await outcome.fill("Build and deploy a production-ready backend API.");
-    await dialog.getByRole("button", { name: "Job / Career" }).click();
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();

@@ -1820,8 +1820,8 @@ export async function generateAIRoadmap(input, options = {}) {
     const resourceMetrics = options.asyncBuild ? null : getCourseResourceMetrics(built.course);
     const requireCompleteResources = intentProfile.scope === "broad" || isBroadPythonTopic(input.topic);
     const resourceQuality = options.asyncBuild ? null : assessCourseResourceQuality(built.course, { completePath: requireCompleteResources });
-    if (!options.asyncBuild && requireCompleteResources && !resourceQuality.acceptable) {
-      const error = new Error("We could not verify enough distinct, language-matched learning resources for this complete path. No incomplete course was saved. Please retry the build.");
+    if (!options.asyncBuild && resourceQuality.tutorialLessonCount > 0 && !resourceQuality.acceptable) {
+      const error = new Error("We could not verify enough distinct, language-matched learning resources for this personalized roadmap. No incomplete course was saved. Please retry the build.");
       error.status = 503;
       error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
       error.resourceQuality = resourceQuality;
@@ -1918,8 +1918,8 @@ export async function generateAIRoadmap(input, options = {}) {
         const fallbackQuality = assessCourseResourceQuality(fallback.course, {
           completePath: intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)
         });
-        if ((intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)) && !fallbackQuality.acceptable) {
-          const qualityError = new Error("We could not verify enough distinct, language-matched learning resources for this complete path. No incomplete course was saved. Please retry the build.");
+        if (fallbackQuality.tutorialLessonCount > 0 && !fallbackQuality.acceptable) {
+          const qualityError = new Error("We could not verify enough distinct, language-matched learning resources for this personalized roadmap. No incomplete course was saved. Please retry the build.");
           qualityError.status = 503;
           qualityError.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
           qualityError.resourceQuality = fallbackQuality;

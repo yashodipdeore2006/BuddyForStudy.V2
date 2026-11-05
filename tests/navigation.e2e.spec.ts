@@ -1081,6 +1081,7 @@ test.describe("learner control and state regression", () => {
 
     const outcome = dialog.getByLabel("In one sentence, what should you be able to do at the end?");
     await outcome.fill("Build and deploy a production-ready backend API.");
+    await dialog.getByRole("button", { name: "Job / Career" }).click();
     await dialog.getByRole("button", { name: "Analyze topic and continue" }).click();
 
     await expect(dialog.getByText("Your learning purpose")).toBeVisible();

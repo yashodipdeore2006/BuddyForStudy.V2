@@ -43,5 +43,5 @@ test("metadata language is not treated as proof of spoken audio language", () =>
   assert.equal(__youtubeSelectorTestUtils.candidateLanguageMatches({
     title: "Python tutorial",
     defaultLanguage: "ta"
-  }, "en"), true);
+  }, "en"), false, "metadata language is not spoken-audio evidence");
 });

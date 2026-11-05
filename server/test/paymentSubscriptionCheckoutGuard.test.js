@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Payment } from "../src/models/Payment.js";
 import { UserSubscription } from "../src/models/UserSubscription.js";
 import { SubscriptionPlan } from "../src/models/SubscriptionPlan.js";
+import { CheckoutLock } from "../src/models/CheckoutLock.js";
 import { createSubscriptionOrder } from "../src/controllers/payment.controller.js";
 
 function makeResponse() {
@@ -44,6 +45,11 @@ test("subscription order creation reuses an existing pending provider checkout",
     [UserSubscription, {
       findOne: async () => null,
     }],
+    [CheckoutLock, {
+      findOneAndUpdate: async () => null,
+      create: async () => ({ key: "subscription:507f1f77bcf86cd799439013" }),
+      deleteOne: async () => ({ deletedCount: 1 }),
+    }],
     [Payment, {
       findOne: () => ({
         select() {
@@ -51,15 +57,15 @@ test("subscription order creation reuses an existing pending provider checkout",
             populate() {
               return {
                 lean: async () => ({
-              _id: "507f1f77bcf86cd799439011",
-              providerOrderId: "sub_pending_123",
-              plan: {
-                _id: "507f1f77bcf86cd799439012",
-                name: "Pro",
-                price: 199,
-                currency: "INR",
-                billingInterval: "monthly",
-              },
+                  _id: "507f1f77bcf86cd799439011",
+                  providerOrderId: "sub_pending_123",
+                  plan: {
+                    _id: "507f1f77bcf86cd799439012",
+                    name: "Pro",
+                    price: 199,
+                    currency: "INR",
+                    billingInterval: "monthly",
+                  },
                 }),
               };
             },

@@ -1371,6 +1371,9 @@ export default function Courses() {
                             <p className="text-xs text-slate-500">Skip this if you prefer a self-paced learning plan.</p>
                           </div>
                         )}
+                      </section>
+                    )}
+
                     {intentWizardStep === 2 && (
                       <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                         <div className="border-b border-slate-200/80 pb-4">
@@ -1461,7 +1464,7 @@ export default function Courses() {
                     {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
                   </div>
 
-          </aside>               </div>
+                </div>
               ) : (
 
                 <>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateAIRoadmap, generateCourseQuiz } from "../services/aiRoadmap.service.js";
+import { generateAIRoadmap } from "../services/aiRoadmap.service.js";
 import { failure, success } from "../utils/response.js";
 import { getEntitlement, canAccessCourse } from "../services/subscriptionEntitlement.service.js";
 import { getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";

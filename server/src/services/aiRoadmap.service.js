@@ -736,8 +736,21 @@ function ensurePythonStages(skills, topic, knownSkills = []) {
     const known = knownValues.some((value) => stage.known.test(value) || (stage.id === "python-foundations" && /^python\b/.test(value)));
     if (existingIndex >= 0) {
       const existing = result[existingIndex];
-      if (known) result.splice(existingIndex, 1);
-      else previousId = normalizeId(existing.id || existing.name);
+      if (known) {
+        result.splice(existingIndex, 1);
+      } else {
+        existing.topics = [...new Set([...(stage.topics || []), ...(existing.topics || [])])].slice(0, 16);
+        existing.searchQueries = [...new Set([...(stage.searchQueries || []), ...(existing.searchQueries || [])])].slice(0, 3);
+        const duration = existing.courseDuration || {};
+        existing.courseDuration = {
+          minMinutes: Math.max(60, Number(duration.minMinutes) || 0),
+          targetMinutes: Math.max(120, Number(duration.targetMinutes) || 0),
+          maxMinutes: Math.max(210, Number(duration.maxMinutes) || 0)
+        };
+        existing.projectPlacement = existing.projectPlacement || stage.projectPlacement;
+        existing.practiceProject = existing.practiceProject || stage.practiceProject;
+        previousId = normalizeId(existing.id || existing.name);
+      }
       continue;
     }
     if (known) continue;
@@ -833,7 +846,8 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
 
   for (let skillIndex = 0; skillIndex < activeSkills.length; skillIndex += 1) {
     const skill = activeSkills[skillIndex];
-    const topicChunks = splitTopics(skill.topics, skill.topics.length > 10 ? 4 : 5);
+    const shortVideoPreference = String(intentProfile?.preferences?.lessonStyle || "").startsWith("Short videos");
+    const topicChunks = splitTopics(skill.topics, shortVideoPreference ? 2 : skill.topics.length > 10 ? 4 : 5);
     const moduleLessons = [];
     let lessonOrder = 1;
 

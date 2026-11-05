@@ -11,7 +11,7 @@ import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./yout
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.7";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.8";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -555,13 +555,15 @@ function hasObviousIndicScript(candidate) {
 
 function languageAllowed(candidate, profile) {
   const expected = String(profile.language || "en").toLowerCase().split("-")[0];
-  const declared = Array.isArray(candidate.items) && candidate.items.length
-    ? candidate.items.map((item) => String(item.defaultAudioLanguage || "").toLowerCase()).filter(Boolean)
-    : [String(candidate.defaultAudioLanguage || "").toLowerCase()].filter(Boolean);
-  if (declared.some((language) => language !== expected && !language.startsWith(expected + "-"))) return false;
+  const hasItems = Array.isArray(candidate.items) && candidate.items.length > 0;
+  const declared = hasItems
+    ? candidate.items.map((item) => String(item.defaultAudioLanguage || "").toLowerCase().split("-")[0])
+    : [String(candidate.defaultAudioLanguage || "").toLowerCase().split("-")[0]];
+  // When a learner explicitly chooses a resource language, unknown audio language
+  // is not evidence of a match. For playlists, every playable item must be verified.
+  if (profile.languageExplicit && declared.some((language) => !language || language === "und" || language === "unknown")) return false;
+  if (declared.some((language) => language && language !== "und" && language !== "unknown" && language !== expected)) return false;
   if (expected === "en" && hasObviousIndicScript(candidate)) return false;
-  // Some YouTube uploads do not declare their audio language. In that case, retain
-  // relevanceLanguage search and visible-script checks as best-effort evidence.
   return true;
 }
 function passesHardGates(candidate, profile) {

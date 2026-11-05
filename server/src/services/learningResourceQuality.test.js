@@ -7,7 +7,7 @@ function courseWithVideos(videoIdsByLesson) {
     modules: [{
       lessons: videoIdsByLesson.map((ids, index) => ({
         type: "tutorial",
-        title: \`Lesson \${index + 1}\`,
+        title: "Lesson " + (index + 1),
         tutorial: {
           videos: ids.map((videoId) => ({ videoId, durationSeconds: 1800 }))
         }
@@ -25,19 +25,21 @@ test("one short video cannot satisfy a multi-lesson complete learning path", () 
   assert.equal(result.reason, "insufficient_lesson_coverage");
 });
 
-test("distinct resources and sufficient lesson coverage satisfy a complete path", () => {
-  const course = courseWithVideos([["v1"], ["v2"], ["v3"], ["v4"], []]);
+test("complete paths require a resource in every lesson and a distinct video per lesson", () => {
+  const course = courseWithVideos([["v1"], ["v2"], ["v3"], ["v4"], ["v5"]]);
   const result = assessCourseResourceQuality(course, { completePath: true });
-  assert.equal(result.uniqueVideoCount, 4);
-  assert.equal(result.coverageRatio, 0.8);
+  assert.equal(result.uniqueVideoCount, 5);
+  assert.equal(result.coverageRatio, 1);
   assert.equal(result.acceptable, true);
 });
 
-test("duplicate video IDs do not inflate resource count or watch time", () => {
+test("duplicating one video across lessons does not inflate distinct resource coverage", () => {
   const course = courseWithVideos([["same"], ["same"], ["same"]]);
-  const result = getCourseResourceMetrics(course);
+  const result = assessCourseResourceQuality(course, { completePath: true });
   assert.equal(result.uniqueVideoCount, 1);
   assert.equal(result.videoWatchMinutes, 30);
+  assert.equal(result.acceptable, false);
+  assert.equal(result.reason, "not_enough_distinct_videos");
 });
 
 test("a curated playlist contributes its distinct playable items", () => {

@@ -138,7 +138,7 @@ test("timestamped lesson note timestamps parse and format consistently", () => {
 test("course pages expose timestamped notes, lesson-state labels, and source duration metadata", () => {
   const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
   const courseDetails = fs.readFileSync(path.join(root, "src/pages/CourseDetails.tsx"), "utf8");
-  const preview = fs.readFileSync(path.join(root, "server/src/utils/coursePreview.js"), "utf8");
+  const preview = fs.readFileSync(path.join(root, "../server/src/utils/coursePreview.js"), "utf8");
   const navbar = fs.readFileSync(path.join(root, "src/components/Navbar.tsx"), "utf8");
   assert.match(player, /Timestamped notes/);
   assert.match(player, /cleanPlayerLessonTitle\(lesson\.title/);

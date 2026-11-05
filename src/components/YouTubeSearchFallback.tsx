@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import YouTubeEmbedPlayer from "@/components/YouTubeEmbedPlayer";
 import { getYouTubeEmbedUrl } from "@/lib/youtubeEmbed";
+import { filterCourseSearchFallbackResults, isBroadCourseSearch } from "@/lib/courseSearchPolicy";
 import {
   BookOpen,
   Bookmark,
@@ -202,48 +203,27 @@ export default function YouTubeSearchFallback({
   const { session } = useAuth();
   const navigate = useNavigate();
 
-  const builtCourses = useMemo<BuiltCourse[]>(() => {
-    const playlistCourses: BuiltCourse[] = playlists.slice(0, 30).map((playlist, index) => ({
-      id: `playlist-course-${playlist.playlistId}`,
-      title: playlist.title,
-      description: `BuddyForStudy course built from the #${index + 1} ranked YouTube playlist for “${query}”.`,
-      thumbnail: playlist.thumbnail,
-      channelTitle: playlist.channelTitle,
-      sourceType: "playlist",
-      sourceId: playlist.playlistId,
-      lessons: [],
-      itemCount: playlist.itemCount,
-    }));
+  const fallbackResults = useMemo(
+    () => filterCourseSearchFallbackResults(query, courses, playlists),
+    [query, courses, playlists],
+  );
+  const fallbackVideos = fallbackResults.videos;
+  const fallbackPlaylists = fallbackResults.playlists;
 
-    if (playlistCourses.length >= 30) return playlistCourses;
-
-    const usedResourceIds = new Set(playlistCourses.map((course) => course.sourceId));
-    const videoCourses: BuiltCourse[] = courses
-      .filter((video) => !usedResourceIds.has(video.videoId))
-      .slice(0, Math.max(0, 30 - playlistCourses.length))
-      .map((video, index) => ({
-        id: `video-course-${video.videoId}`,
-        title: `${query} Course ${index + playlistCourses.length + 1}`,
-        description: `BuddyForStudy course built from the #${index + playlistCourses.length + 1} ranked YouTube learning resource.`,
-        thumbnail: video.thumbnail,
-        channelTitle: video.channelTitle,
-        sourceType: "video",
-        sourceId: video.videoId,
-        lessons: [{
-          videoId: video.videoId,
-          title: video.title,
-          description: video.description,
-          channelTitle: video.channelTitle,
-          duration: video.duration,
-          durationSeconds: video.durationSeconds,
-          thumbnail: video.thumbnail,
-          embedUrl: toEmbedUrl(video.videoId),
-        }],
-        itemCount: 1,
-      }));
-
-    return [...playlistCourses, ...videoCourses];
-  }, [courses, playlists, query]);
+  // A YouTube video is a resource, not a multi-lesson course. Only structured
+  // playlists become fallback course cards; qualifying long videos stay in the
+  // separate video-results section with their real titles and durations.
+  const builtCourses = useMemo<BuiltCourse[]>(() => fallbackPlaylists.slice(0, 30).map((playlist, index) => ({
+    id: `playlist-course-${playlist.playlistId}`,
+    title: playlist.title,
+    description: `BuddyForStudy course built from the #${index + 1} ranked YouTube playlist for “${query}”.`,
+    thumbnail: playlist.thumbnail,
+    channelTitle: playlist.channelTitle,
+    sourceType: "playlist",
+    sourceId: playlist.playlistId,
+    lessons: [],
+    itemCount: playlist.itemCount,
+  })), [fallbackPlaylists, query]);
 
   const requireSignIn = () => {
     navigate("/login", {
@@ -478,7 +458,7 @@ export default function YouTubeSearchFallback({
   };
 
   const currentLesson = viewer?.course.lessons[viewer.lessonIndex];
-  const hasAnything = curatedResources !== undefined ? curatedResources.length > 0 : builtCourses.length > 0 || courses.length > 0 || playlists.length > 0;
+  const hasAnything = curatedResources !== undefined ? curatedResources.length > 0 : builtCourses.length > 0 || fallbackVideos.length > 0;
   const discoveryWarning = /quota|daily.?limit/i.test(error)
     ? "YouTube is temporarily unavailable because its daily API quota has been reached. Your BuddyForStudy courses remain available."
     : error;
@@ -491,7 +471,9 @@ export default function YouTubeSearchFallback({
           No BuddyForStudy or YouTube results found
         </p>
         <p className="mt-1 text-sm text-slate-500">
-          Try a broader term or use Build with AI.
+          {isBroadCourseSearch(query)
+            ? "For broad topics, we only show full-course videos (3+ hours) or structured playlists (8+ lessons). Try a specific skill or use Build with AI for a complete personalized roadmap."
+            : "Try a broader term or use Build with AI."}
         </p>
       </div>
     );
@@ -683,10 +665,10 @@ export default function YouTubeSearchFallback({
             </div>
           )}
 
-          {courses.length > 0 && (
+          {fallbackVideos.length > 0 && (
             <div className="mt-8">
               <div className="bfs-course-grid mt-4">
-                {courses.map((course, index) => (
+                {fallbackVideos.map((course, index) => (
                   <article
                     key={course.videoId}
                     className="bfs-course-card group flex h-full min-h-[400px] min-w-0 flex-col overflow-hidden rounded-[32px] border border-slate-200 bg-white text-left transition-colors duration-200 hover:bg-slate-50"

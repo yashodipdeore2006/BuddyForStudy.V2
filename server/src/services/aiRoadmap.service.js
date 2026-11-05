@@ -1555,7 +1555,6 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
     usedTemplateFallback = true;
     if (usageReserved && userId) {
       await releaseUsage({ userId, feature: "ai_quiz_generations", period: "month", amount: 1 }).catch(() => {});
-      usageReserved = false;
     }
   }
 

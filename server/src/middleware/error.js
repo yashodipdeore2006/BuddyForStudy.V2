@@ -3,6 +3,26 @@ import { Sentry } from "../instrument.js";
 import { recordOperationalAlert } from "../models/OperationalAlert.js";
 
 function normalizeError(error) {
+  // Resource-quality rejection is an expected, actionable Build with AI outcome.
+  // Preserve its 503 status and return only aggregate metrics (never provider payloads).
+  if (error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT") {
+    const quality = error.resourceQuality && typeof error.resourceQuality === "object"
+      ? error.resourceQuality
+      : {};
+    return {
+      status: 503,
+      message: "We could not verify enough suitable learning resources for this roadmap. Please try again later.",
+      errors: {
+        code: "AI_RESOURCE_QUALITY_INSUFFICIENT",
+        tutorialLessonCount: Number(quality.tutorialLessonCount) || 0,
+        lessonsWithResources: Number(quality.lessonsWithResources) || 0,
+        uniqueVideoCount: Number(quality.uniqueVideoCount) || 0,
+        coverageRatio: Number(quality.coverageRatio) || 0,
+        minimumCoverage: Number(quality.minimumCoverage) || 0,
+        reason: typeof quality.reason === "string" ? quality.reason : "resource_quality_rejected"
+      }
+    };
+  }
   if (error?.type === "entity.parse.failed" || error instanceof SyntaxError && error?.status === 400) {
     return { status: 400, message: "The request contains invalid JSON. Please check the submitted information." };
   }
@@ -105,7 +125,8 @@ export function errorHandler(error, req, res, _next) {
   // stack traces, provider responses, DB internals, or raw exception messages.
   const errors = normalized.errors && (
     !isProduction ||
-    error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths"
+    error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths" ||
+    error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT"
   ) ? normalized.errors : undefined;
   return failure(res, normalized.message, normalized.status, errors);
 }

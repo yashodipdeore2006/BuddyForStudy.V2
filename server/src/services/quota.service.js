@@ -108,9 +108,9 @@ export async function tryConsume(cost) {
   const before = await getState();
   if (before.store === "unavailable") throw new QuotaBudgetError("degraded", "Quota storage unavailable; refusing provider request");
   if (before.state === "exhausted") throw new QuotaBudgetError("exhausted");
-  if (before.state === "degraded" && amount >= YOUTUBE_API_COST.search) {
-    throw new QuotaBudgetError("degraded", "Search requests are disabled above the soft quota limit");
-  }
+  // The soft limit is an observability/throttling signal, not a search kill switch.
+  // Keep core discovery working while there is still hard-budget capacity. The
+  // configured daily budget remains the hard stop and preserves the safety reserve.
   if (before.units + amount > before.budget) throw new QuotaBudgetError("exhausted");
 
   if (testAdapters?.increment) {

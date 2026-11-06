@@ -5,7 +5,7 @@ import { curateNormalSearch, extractCurationChapters } from "./courseCurationDec
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { QuotaBudgetError } from "./quota.service.js";
 
-const ENGINE_VERSION = "node-curation-v3";
+const ENGINE_VERSION = "node-curation-v4";
 const LOW_CONFIDENCE_THRESHOLD = 45;
 let selectorForNode = curateNormalSearch;
 let nodeCacheTestAdapters = null;
@@ -118,7 +118,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
   const query = GENERIC_SKILL.test(skillName) && profile.topic
     ? `${String(profile.topic).trim()} ${skillName}`
     : skillName;
-  const extraQueries = (Array.isArray(skill.searchQueries) ? skill.searchQueries : []).map((item) => String(item || "").trim()).filter(Boolean).slice(0, 2);
+  const extraQueries = (Array.isArray(skill.searchQueries) ? skill.searchQueries : []).map((item) => String(item || "").trim()).filter(Boolean).slice(0, 1);
   const syllabus = buildInjectedSyllabus(skill);
   const bounds = durationBounds(durationPolicy);
   const level = ["Beginner", "Intermediate", "Advanced"].includes(profile.level) ? profile.level : "Beginner";
@@ -136,7 +136,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
     language,
     syllabus,
     overrides,
-    maxQueries: 8,
+    maxQueries: 2,
     extraQueries,
     cacheScope: selectorCacheScope,
     skillId: canonicalSkillId
@@ -160,20 +160,9 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
       return runtime >= bounds.minVideoSeconds && runtime <= bounds.maxVideoSeconds;
     });
     let resources = filterByDurationPolicy(result?.resources);
-    if (!resources.length) {
-      widened = true;
-      const widenedBounds = {
-        ...bounds,
-        minVideoSeconds: Math.min(bounds.minVideoSeconds, 15 * 60),
-        maxVideoSeconds: Math.ceil(bounds.maxVideoSeconds * 1.5),
-        minPlaylistSeconds: Math.min(bounds.minPlaylistSeconds, 30 * 60),
-        minPlaylistItems: Math.min(bounds.minPlaylistItems, 2)
-      };
-      result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(widenedBounds));
-      searchCalls += Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);
-      quotaUnits += Number(result?.meta?.quotaUnits ?? requestMetrics.quotaUnits ?? 0);
-      resources = filterByDurationPolicy(result?.resources);
-    }
+    // Do not repeat provider searches for a node that returned no qualified match.
+    // The first pass is intentionally quota-bounded; a retry can multiply API cost
+    // across every lesson in a personalized roadmap.
     const ranked = resources.map((resource) => ({ raw: resource, score: scoreOf(resource) })).sort((a, b) => b.score - a.score);
     const best = mapResource(ranked[0]?.raw, widened ? "Selected after widening duration bounds" : "Selected by shared course curation engine");
     const alternatives = ranked.slice(1, 3).map(({ raw }) => mapResource(raw, "Alternative from shared course curation engine")).filter(Boolean);

@@ -44,6 +44,44 @@ test("failed async roadmap finalization returns a safe retryable response scoped
   assert.equal(JSON.stringify(res.result.body).includes("QUOTA_EXHAUSTED"), false);
 });
 
+test("failed async resource curation returns safe quota diagnostics to the learner", async () => {
+  const draftId = "550e8400-e29b-41d4-a716-446655440000";
+  const userId = "507f1f77bcf86cd799439011";
+  const draft = {
+    draftId,
+    userId,
+    status: "failed",
+    errorCode: "AI_RESOURCE_QUALITY_INSUFFICIENT",
+    errorMessage: "Build with AI has reached today's verified YouTube resource-search limit. Your roadmap was not saved. Please retry after the daily quota reset.",
+    errorDetails: {
+      code: "AI_RESOURCE_QUALITY_INSUFFICIENT",
+      tutorialLessonCount: 12,
+      lessonsWithResources: 0,
+      uniqueVideoCount: 0,
+      coverageRatio: 0,
+      minimumCoverage: 0.5,
+      reason: "insufficient_lesson_coverage",
+      quotaState: "exhausted",
+      quotaUnits: 10641,
+      quotaBudget: 9000,
+      quotaResetDay: "2026-11-06"
+    }
+  };
+  const res = makeResponse();
+  await finalizeDraft({ user: { userId }, body: { draftId } }, res, (error) => { throw error; }, {
+    authorize: async () => true,
+    getDraftForUser: async () => draft,
+    waitForDraft: async () => draft
+  });
+
+  assert.equal(res.result.statusCode, 503);
+  assert.equal(res.result.body.message, draft.errorMessage);
+  assert.equal(res.result.body.errors.quotaState, "exhausted");
+  assert.equal(res.result.body.errors.quotaUnits, 10641);
+  assert.equal(res.result.body.errors.quotaBudget, 9000);
+  assert.equal(res.result.body.errors.quotaResetDay, "2026-11-06");
+});
+
 test("roadmap draft controller returns safe 429/503 responses for capacity limits", async () => {
   const request = {
     user: { userId: "507f191e810c19729de860ea" },

@@ -11,7 +11,7 @@ import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./yout
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.8";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.9";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -248,10 +248,10 @@ export function classifyCurationIntent(query, options = {}) {
     languageExplicit: language.explicit,
     halfLifeDays: halfLifeForTopic(normalized),
     targetRuntimeSeconds: mode === "quick_reference" ? 30 * 60 : mode === "crash_course" ? 3 * 3600 : 20 * 3600,
-    minVideoSeconds: mode === "quick_reference" ? 0 : mode === "crash_course" ? 60 * 60 : 3 * 3600,
+    minVideoSeconds: mode === "quick_reference" ? 0 : mode === "crash_course" ? 20 * 60 : 30 * 60,
     maxVideoSeconds: mode === "quick_reference" ? 60 * 60 : mode === "crash_course" ? 5 * 3600 : Number.MAX_SAFE_INTEGER,
-    minPlaylistSeconds: mode === "quick_reference" ? 0 : mode === "crash_course" ? 60 * 60 : 5 * 3600,
-    minPlaylistItems: mode === "full_course" ? 8 : mode === "crash_course" ? 2 : 1
+    minPlaylistSeconds: mode === "quick_reference" ? 0 : mode === "crash_course" ? 30 * 60 : 60 * 60,
+    minPlaylistItems: mode === "full_course" ? 3 : mode === "crash_course" ? 2 : 1
   };
 }
 function fallbackSyllabus(topic) {

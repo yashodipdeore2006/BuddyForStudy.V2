@@ -1740,7 +1740,8 @@ export const __aiRoadmapTestHooks = Object.freeze({
   buildTopicFallback,
   buildTemplateQuizQuestions,
   validateQuizQuestions,
-  normalizeGeminiProviderError
+  normalizeGeminiProviderError,
+  buildSharedRoadmapTemplateProfile
 });
 
 async function createResourceQualityError(quality) {
@@ -1762,7 +1763,20 @@ async function createResourceQualityError(quality) {
   return error;
 }
 
-export async function generateAIRoadmap(input, options = {}) {
+export function buildSharedRoadmapTemplateProfile(profile = {}) {
+  const topic = String(profile.topic || profile.canonicalTopic || "").trim();
+  return {
+    topic,
+    canonicalTopic: String(profile.canonicalTopic || topic).trim(),
+    goal: "learn",
+    level: String(profile.level || "Beginner"),
+    language: normalizeYouTubeLanguage(profile.language || "en"),
+    outcome: "",
+    preferences: {}
+  };
+}
+
+async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
   const projectsEnabled = options.projectsEnabled !== false;
@@ -1827,15 +1841,15 @@ export async function generateAIRoadmap(input, options = {}) {
     : { ...input, canonicalTopic: input.canonicalTopic || input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: resourceLanguage };
   // Store a reusable curriculum blueprint, not a learner-specific prompt result.
   // Goal modules, known skills, schedule and project details are applied after lookup.
-  const sharedTemplateProfile = {
+  const sharedTemplateProfile = buildSharedRoadmapTemplateProfile({
     topic: input.topic,
     canonicalTopic: input.canonicalTopic || input.topic,
-    goal: "learn",
-    level: input.level || "Beginner",
+    level: input.level,
     language: resourceLanguage,
-    outcome: "",
-    preferences: {}
-  };
+    goal: intentProfile.goal,
+    outcome: intentProfile.outcome,
+    preferences: contextualPreferences
+  });
   const templateGenerationInput = {
     topic: input.topic,
     level: input.level || "Beginner",

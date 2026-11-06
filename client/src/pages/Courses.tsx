@@ -869,6 +869,14 @@ export default function Courses() {
           <h3 className="text-sm font-semibold text-slate-900">{question.text}</h3>
           {question.optional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Optional</span>}
         </div>
+        {question.why && (
+          <p className="text-xs leading-5 text-slate-600">{question.why}</p>
+        )}
+        {question.changes?.length ? (
+          <p className="text-[10px] font-medium text-slate-500">
+            Shapes: {question.changes.join(" · ")}
+          </p>
+        ) : null}
         
         {options.length > 0 && (
           <div className="grid gap-2 sm:grid-cols-2">

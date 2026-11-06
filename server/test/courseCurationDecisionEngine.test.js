@@ -123,16 +123,16 @@ test("intent profile defaults to full course and parses crash, reference, level 
   assert.equal(normal.mode, "full_course");
   assert.equal(normal.level, "Beginner");
   assert.equal(normal.language, "en");
-  assert.equal(normal.minVideoSeconds, 3 * 60 * 60);
-  assert.equal(normal.minPlaylistSeconds, 5 * 60 * 60);
-  assert.equal(normal.minPlaylistItems, 8);
+  assert.equal(normal.minVideoSeconds, 30 * 60);
+  assert.equal(normal.minPlaylistSeconds, 60 * 60);
+  assert.equal(normal.minPlaylistItems, 3);
 
   const crash = classifyCurationIntent("React crash course in Hindi for intermediate learners");
   assert.equal(crash.mode, "crash_course");
   assert.equal(crash.level, "Intermediate");
   assert.equal(crash.language, "hi");
   assert.equal(crash.languageExplicit, true);
-  assert.equal(crash.minVideoSeconds, 60 * 60);
+  assert.equal(crash.minVideoSeconds, 20 * 60);
 
   const reference = classifyCurationIntent("SQL quick reference");
   assert.equal(reference.mode, "quick_reference");
@@ -226,7 +226,7 @@ test("hard gates reject short-form markers, private videos, wrong runtime and we
     evaluateCurationHardGates(baseCandidate({
       title: "Data Analytics Full Course",
       description: "Data Analytics syllabus and modules",
-      durationSeconds: 2 * 60 * 60,
+      durationSeconds: 20 * 60,
       hasChapters: true,
       chapterCount: 12
     }), courseProfile).reason,

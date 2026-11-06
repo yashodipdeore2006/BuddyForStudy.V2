@@ -5,7 +5,7 @@ import { curateNormalSearch, extractCurationChapters } from "./courseCurationDec
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { QuotaBudgetError } from "./quota.service.js";
 
-const ENGINE_VERSION = "node-curation-v2";
+const ENGINE_VERSION = "node-curation-v3";
 const LOW_CONFIDENCE_THRESHOLD = 45;
 let selectorForNode = curateNormalSearch;
 let nodeCacheTestAdapters = null;
@@ -31,10 +31,11 @@ function durationBounds(durationPolicy = {}) {
   const mode = targetMinutes >= 180 ? "full_course" : targetMinutes >= 60 ? "crash_course" : "quick_reference";
   return {
     mode,
-    minVideoSeconds: minMinutes * 60,
+    // Study-plan duration is not a minimum length for one YouTube lesson.
+    minVideoSeconds: Math.min(minMinutes * 60, 30 * 60),
     maxVideoSeconds: maxMinutes * 60,
-    minPlaylistSeconds: minMinutes * 60,
-    minPlaylistItems: mode === "full_course" ? 8 : mode === "crash_course" ? 4 : 2,
+    minPlaylistSeconds: Math.min(minMinutes * 60, 45 * 60),
+    minPlaylistItems: mode === "full_course" ? 3 : mode === "crash_course" ? 2 : 2,
     halfLifeDays: Number(durationPolicy.halfLifeDays) > 0 ? Number(durationPolicy.halfLifeDays) : undefined
   };
 }
@@ -163,10 +164,10 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
       widened = true;
       const widenedBounds = {
         ...bounds,
-        minVideoSeconds: bounds.minVideoSeconds,
+        minVideoSeconds: Math.min(bounds.minVideoSeconds, 15 * 60),
         maxVideoSeconds: Math.ceil(bounds.maxVideoSeconds * 1.5),
-        minPlaylistSeconds: bounds.minPlaylistSeconds,
-        minPlaylistItems: bounds.minPlaylistItems
+        minPlaylistSeconds: Math.min(bounds.minPlaylistSeconds, 30 * 60),
+        minPlaylistItems: Math.min(bounds.minPlaylistItems, 2)
       };
       result = await withYouTubeRequestMetrics(requestMetrics, () => callSelector(widenedBounds));
       searchCalls += Number(result?.meta?.searchCalls ?? requestMetrics.searchCalls ?? 0);

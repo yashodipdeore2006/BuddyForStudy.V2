@@ -1033,7 +1033,7 @@ test.describe("learner control and state regression", () => {
 
     await expect(dialog.getByLabel("In one sentence, what should you be able to do at the end?")).toBeVisible();
     await dialog.getByRole("button", { name: "Next question", exact: true }).click();
-    await dialog.getByRole("button", { name: "Hobby / Personal Interest", exact: true }).click();
+    await dialog.getByRole("button", { name: /^Hobby \/ Personal Interest/ }).click();
     await dialog.getByRole("button", { name: "Advanced", exact: true }).click();
     await dialog.getByRole("button", { name: "Complete learning path", exact: true }).click();
     await dialog.getByRole("button", { name: "Next question", exact: true }).click();

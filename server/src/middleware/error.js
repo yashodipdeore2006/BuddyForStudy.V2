@@ -25,7 +25,7 @@ function normalizeError(error) {
         quotaState: ["ok", "degraded", "exhausted"].includes(quality.quotaState) ? quality.quotaState : "unknown",
         quotaUnits: Number.isFinite(Number(quality.quotaUnits)) ? Number(quality.quotaUnits) : null,
         quotaBudget: Number.isFinite(Number(quality.quotaBudget)) ? Number(quality.quotaBudget) : null,
-        quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quality.quotaResetDay || "")) ? quality.quotaResetDay : null
+        quotaResetDay: /^\d{4}-\d{2}-\d{2}$/.test(String(quality.quotaResetDay || "")) ? quality.quotaResetDay : null
       }
     };
   }

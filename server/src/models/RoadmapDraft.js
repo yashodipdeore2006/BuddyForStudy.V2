@@ -10,6 +10,8 @@ const roadmapDraftSchema = new mongoose.Schema({
   roadmapId: { type: mongoose.Schema.Types.ObjectId, ref: "Course", default: null },
   result: { type: mongoose.Schema.Types.Mixed, default: null },
   errorCode: { type: String, default: "" },
+  errorMessage: { type: String, default: "", maxlength: 500 },
+  errorDetails: { type: mongoose.Schema.Types.Mixed, default: null },
   idempotencyKey: { type: String, default: "", index: true },
   admissionLeaseToken: { type: String, default: "", select: false },
   events: { type: [mongoose.Schema.Types.Mixed], default: [] },

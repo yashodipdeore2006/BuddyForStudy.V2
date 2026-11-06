@@ -1728,7 +1728,7 @@ async function createResourceQualityError(quality) {
     quotaState: ["ok", "degraded", "exhausted"].includes(quota?.state) ? quota.state : "unknown",
     quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
     quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
-    quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
+    quotaResetDay: /^\d{4}-\d{2}-\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
   };
   const exhausted = quotaDetails.quotaState === "exhausted";
   const error = new Error(exhausted

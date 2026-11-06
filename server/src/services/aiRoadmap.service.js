@@ -1876,6 +1876,13 @@ export async function generateAIRoadmap(input, options = {}) {
     const requireCompleteResources = intentProfile.scope === "broad" || isBroadPythonTopic(input.topic);
     const resourceQuality = options.asyncBuild ? null : assessCourseResourceQuality(built.course, { completePath: requireCompleteResources });
     if (!options.asyncBuild && resourceQuality.tutorialLessonCount > 0 && !resourceQuality.acceptable) {
+      // Keep the user-facing error concise, but retain the exact quality-gate
+      // measurements in server logs so failed builds can be diagnosed safely.
+      console.warn("AI roadmap resource quality rejected", {
+        resourceLanguage,
+        completePath: requireCompleteResources,
+        ...resourceQuality
+      });
       const error = new Error("We could not verify enough distinct, language-matched learning resources for this personalized roadmap. No incomplete course was saved. Please retry the build.");
       error.status = 503;
       error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";

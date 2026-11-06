@@ -1,5 +1,4 @@
 import { env } from "../config/env.js";
-import { cacheGetNumber, cacheIncrementWithExpiry, cacheSetRaw } from "../config/cache.js";
 import { YouTubeQuotaUsage } from "../models/YouTubeQuotaUsage.js";
 
 export const YOUTUBE_API_COST = Object.freeze({ search: 100, default: 1 });
@@ -53,13 +52,8 @@ async function readMongo(dayKey) {
 async function readState() {
   const dayKey = getPacificQuotaDay();
   if (exhaustedInProcessDay === dayKey) return { dayKey, units: env.ytDailyQuotaBudget, exhausted: true, store: "process" };
-  const redisKey = `youtube:quota:${dayKey}:units`;
-  const exhaustedKey = `youtube:quota:${dayKey}:exhausted`;
-  const redisUnits = await cacheGetNumber(redisKey);
-  if (redisUnits !== null && Number.isFinite(redisUnits)) {
-    const exhausted = (await cacheGetNumber(exhaustedKey)) === 1;
-    return { dayKey, units: redisUnits, exhausted, store: "redis" };
-  }
+  // Mongo is the single source of truth for quota reservations. Mixing Redis and
+  // Mongo counters can undercount or double-count when one store times out.
   const mongo = await readMongo(dayKey);
   return { dayKey, ...mongo, store: "mongo" };
 }
@@ -78,27 +72,42 @@ export async function getState() {
   }
 }
 
-async function incrementMongo(dayKey, cost) {
+async function reserveMongoQuota(dayKey, cost, budget) {
+  // Ensure the row exists first. Handle concurrent first-use upserts against the
+  // unique dayKey index; the following conditional update is the actual reservation.
+  try {
+    await YouTubeQuotaUsage.updateOne(
+      { dayKey },
+      { $setOnInsert: { dayKey, units: 0, exhausted: false } },
+      { upsert: true }
+    );
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+  }
+
+  // The budget check and increment happen in one atomic MongoDB operation.
+  // A read-then-$inc sequence can overshoot when multiple app workers race.
   const row = await YouTubeQuotaUsage.findOneAndUpdate(
-    { dayKey },
-    { $inc: { units: cost }, $setOnInsert: { dayKey, exhausted: false } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-  return Number(row?.units || 0);
+    { dayKey, exhausted: { $ne: true }, units: { $lte: budget - cost } },
+    { $inc: { units: cost } },
+    { new: true }
+  ).lean();
+  return row ? Number(row.units || 0) : null;
 }
 
 export async function markQuotaExceeded() {
   if (testAdapters?.markQuotaExceeded) return testAdapters.markQuotaExceeded();
   const dayKey = getPacificQuotaDay();
   exhaustedInProcessDay = dayKey;
-  const redisKey = `youtube:quota:${dayKey}:exhausted`;
-  const ttl = secondsUntilPacificReset();
-  const redisStored = await cacheSetRaw(redisKey, 1, ttl);
   try {
-    await YouTubeQuotaUsage.updateOne({ dayKey }, { $set: { exhausted: true }, $setOnInsert: { units: 0 } }, { upsert: true });
+    await YouTubeQuotaUsage.updateOne(
+      { dayKey },
+      { $set: { exhausted: true }, $setOnInsert: { units: 0 } },
+      { upsert: true }
+    );
   } catch {
-    // The in-process latch still blocks calls until the Pacific reset if both stores fail.
-    if (!redisStored) console.error("YouTube quota exhaustion could not be persisted; process-local guard remains active");
+    // The process-local latch still blocks calls until the Pacific reset.
+    console.error("YouTube quota exhaustion could not be persisted; process-local guard remains active");
   }
 }
 
@@ -111,40 +120,51 @@ export async function tryConsume(cost) {
     error.details = before;
     throw error;
   }
-  if (before.state === "exhausted") {
-    const error = new QuotaBudgetError("exhausted");
-    error.details = before;
-    throw error;
-  }
-  // The soft limit is an observability/throttling signal, not a search kill switch.
-  // Keep core discovery working while there is still hard-budget capacity. The
-  // configured daily budget remains the hard stop and preserves the safety reserve.
-  if (before.units + amount > before.budget) {
+  if (before.state === "exhausted" || before.units + amount > before.budget) {
     const error = new QuotaBudgetError("exhausted");
     error.details = before;
     throw error;
   }
 
-  if (testAdapters?.increment) {
-    const units = await testAdapters.increment(amount);
-    const state = stateFor(units);
-    if (units > before.budget) throw new QuotaBudgetError("exhausted");
-    return { allowed: true, cost: amount, units, state, resetDay: getPacificQuotaDay() };
-  }
-
-  const dayKey = getPacificQuotaDay();
+  // Tests use the same atomic-reservation contract as production. Keep a narrow
+  // compatibility seam for older test fixtures while production always uses Mongo.
   let units;
-  const redisKey = `youtube:quota:${dayKey}:units`;
-  const redisUnits = await cacheIncrementWithExpiry(redisKey, amount, secondsUntilPacificReset());
-  if (redisUnits !== null) {
-    units = redisUnits;
-  } else {
-    units = await incrementMongo(dayKey, amount);
+  const dayKey = getPacificQuotaDay();
+  try {
+    if (testAdapters?.consumeWithinBudget) {
+      units = await testAdapters.consumeWithinBudget(amount, before.budget);
+    } else if (testAdapters?.increment) {
+      units = await testAdapters.increment(amount);
+      if (units > before.budget) units = null;
+    } else {
+      units = await reserveMongoQuota(dayKey, amount, before.budget);
+    }
+  } catch {
+    const error = new QuotaBudgetError("degraded", "Quota storage unavailable; refusing provider request");
+    error.details = { ...before, state: "degraded", store: "unavailable" };
+    throw error;
   }
 
-  const state = stateFor(units);
-  if (units > before.budget) throw new QuotaBudgetError("exhausted");
-  return { allowed: true, cost: amount, units, state, resetDay: dayKey };
+  if (units === null || units === undefined) {
+    let latest = before;
+    try {
+      latest = testAdapters?.getState
+        ? await testAdapters.getState()
+        : { ...await readMongo(dayKey), budget: before.budget, store: "mongo", resetDay: dayKey };
+    } catch {}
+    const error = new QuotaBudgetError("exhausted");
+    error.details = {
+      ...latest,
+      state: "exhausted",
+      units: Number(latest.units ?? before.budget),
+      budget: before.budget,
+      store: latest.store || "mongo",
+      resetDay: latest.resetDay || dayKey
+    };
+    throw error;
+  }
+
+  return { allowed: true, cost: amount, units, state: stateFor(units), resetDay: dayKey };
 }
 
 export function __setQuotaTestAdapters(adapters = null) { testAdapters = adapters; }

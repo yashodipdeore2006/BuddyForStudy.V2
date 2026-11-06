@@ -106,12 +106,24 @@ export async function tryConsume(cost) {
   const amount = Number(cost);
   if (!Number.isFinite(amount) || amount <= 0) throw new TypeError("Quota cost must be a positive number");
   const before = await getState();
-  if (before.store === "unavailable") throw new QuotaBudgetError("degraded", "Quota storage unavailable; refusing provider request");
-  if (before.state === "exhausted") throw new QuotaBudgetError("exhausted");
+  if (before.store === "unavailable") {
+    const error = new QuotaBudgetError("degraded", "Quota storage unavailable; refusing provider request");
+    error.details = before;
+    throw error;
+  }
+  if (before.state === "exhausted") {
+    const error = new QuotaBudgetError("exhausted");
+    error.details = before;
+    throw error;
+  }
   // The soft limit is an observability/throttling signal, not a search kill switch.
   // Keep core discovery working while there is still hard-budget capacity. The
   // configured daily budget remains the hard stop and preserves the safety reserve.
-  if (before.units + amount > before.budget) throw new QuotaBudgetError("exhausted");
+  if (before.units + amount > before.budget) {
+    const error = new QuotaBudgetError("exhausted");
+    error.details = before;
+    throw error;
+  }
 
   if (testAdapters?.increment) {
     const units = await testAdapters.increment(amount);

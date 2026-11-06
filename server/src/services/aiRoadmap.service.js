@@ -1148,6 +1148,22 @@ export async function buildRoadmapPrompt({ topic, level, goals, studyTimeMinutes
   ].join("\n");
 }
 
+function normalizeGeminiProviderError(error) {
+  const status = Number(error?.status || error?.statusCode || 0);
+  const providerMessage = String(error?.message || "");
+  const quotaFailure = status === 429 && /quota|resource_exhausted|generate_content.*requests/i.test(providerMessage);
+  if (!quotaFailure) return error;
+
+  const normalized = new Error(
+    "Gemini's daily generation quota has been exhausted for this API key. Wait for Google's quota reset or enable billing/increase the Gemini API quota, then retry. Your roadmap was not created."
+  );
+  normalized.status = 503;
+  normalized.code = "AI_PROVIDER_QUOTA_EXHAUSTED";
+  normalized.provider = "gemini";
+  normalized.retryable = true;
+  return normalized;
+}
+
 async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay, knownSkills, domain, intentProfile }, activePrompt) {
   if (!client) {
     const error = new Error("Gemini AI is not configured. Add GEMINI_API_KEY to build a personalized roadmap.");
@@ -1159,16 +1175,21 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
   const prompt = await buildRoadmapPrompt({ topic, level, goals, studyTimeMinutesPerDay, knownSkills, domain, intentProfile }, activePrompt, relevantSkills);
   const finalPrompt = prompt + "\n\nPLATFORM OUTPUT CONTRACT: Return one valid JSON object matching the supplied response schema, with no markdown fences or surrounding commentary. Do not invent URLs or claim a resource has been found; resource retrieval is handled by the platform after the curriculum is generated.";
 
-  const response = await client.models.generateContent({
-    model: env.geminiModel,
-    contents: finalPrompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: roadmapSchema,
-      thinkingConfig: { thinkingLevel: "MINIMAL" },
-      maxOutputTokens: 12000
-    }
-  });
+  let response;
+  try {
+    response = await client.models.generateContent({
+      model: env.geminiModel,
+      contents: finalPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: roadmapSchema,
+        thinkingConfig: { thinkingLevel: "MINIMAL" },
+        maxOutputTokens: 12000
+      }
+    });
+  } catch (error) {
+    throw normalizeGeminiProviderError(error);
+  }
 
   let value;
   try {
@@ -1718,7 +1739,8 @@ export const __aiRoadmapTestHooks = Object.freeze({
   ensurePythonStages,
   buildTopicFallback,
   buildTemplateQuizQuestions,
-  validateQuizQuestions
+  validateQuizQuestions,
+  normalizeGeminiProviderError
 });
 
 async function createResourceQualityError(quality) {
@@ -1803,10 +1825,36 @@ export async function generateAIRoadmap(input, options = {}) {
         preferences: contextualPreferences
       }
     : { ...input, canonicalTopic: input.canonicalTopic || input.topic, goals: [], knownSkills: [], studyTimeMinutesPerDay: 60, language: resourceLanguage };
+  // Store a reusable curriculum blueprint, not a learner-specific prompt result.
+  // Goal modules, known skills, schedule and project details are applied after lookup.
+  const sharedTemplateProfile = {
+    topic: input.topic,
+    canonicalTopic: input.canonicalTopic || input.topic,
+    goal: "learn",
+    level: input.level || "Beginner",
+    language: resourceLanguage,
+    outcome: "",
+    preferences: {}
+  };
+  const templateGenerationInput = {
+    topic: input.topic,
+    level: input.level || "Beginner",
+    goals: [],
+    studyTimeMinutesPerDay: 60,
+    knownSkills: [],
+    domain: intentProfile.domain || input.domain || "general",
+    intentProfile: {
+      topic: input.topic,
+      level: input.level || "Beginner",
+      language: resourceLanguage,
+      outcome: "",
+      preferences: {}
+    }
+  };
   const templatePromptVersion = activePrompt.versionId || activePrompt.version || "builtin-v1";
-  // Reuse generic curriculum templates only; do not return a prior learner's persisted
-  // personalized Course document to another Build with AI request.
-  const cachedTemplate = await findRoadmapTemplate({ profile: templateProfile, promptVersion: templatePromptVersion });
+  // Reuse generic curriculum templates across learners without sharing a persisted
+  // personalized Course document or any learner's profile/progress.
+  const cachedTemplate = await findRoadmapTemplate({ profile: sharedTemplateProfile, promptVersion: templatePromptVersion });
   const existing = personalized || cachedTemplate
     ? null
     : await findRecentGeneratedCourse({ mode: "ai", topicKeys, exactQuery: input.topic, includeUnpublished: true, promptVersionId });
@@ -1846,14 +1894,9 @@ export async function generateAIRoadmap(input, options = {}) {
 
   try {
     const templateResult = await getOrCreateRoadmapTemplate({
-      profile: generationInput,
+      profile: sharedTemplateProfile,
       promptVersion: templatePromptVersion,
-      generate: () => generateWithGemini({
-        ...generationInput,
-        // Known skills and study schedule are applied after retrieving the generic curriculum.
-        knownSkills: [],
-        studyTimeMinutesPerDay: 60
-      }, activePrompt)
+      generate: () => generateWithGemini(templateGenerationInput, activePrompt)
     });
     const personalizedTemplate = personalizeRoadmapTemplate(templateResult.roadmap, generationInput);
     const ai = personalizedTemplate.roadmap;

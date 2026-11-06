@@ -70,7 +70,7 @@ test("duration policy performs one bounded search without widening or retrying",
         id: "video:strict-duration",
         videoId: "strict-duration",
         title: "Python complete tutorial",
-        durationSeconds: 1800,
+        durationSeconds: 1799,
         score: 90,
         finalScore: 90
       }],

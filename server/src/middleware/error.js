@@ -29,6 +29,17 @@ function normalizeError(error) {
       }
     };
   }
+  if (error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED") {
+    return {
+      status: 503,
+      message: "Gemini's daily generation quota has been exhausted for this API key. Wait for Google's quota reset or enable billing/increase the Gemini API quota, then retry. Your roadmap was not created.",
+      errors: {
+        code: "AI_PROVIDER_QUOTA_EXHAUSTED",
+        provider: "gemini",
+        retryable: true
+      }
+    };
+  }
   if (error?.type === "entity.parse.failed" || error instanceof SyntaxError && error?.status === 400) {
     return { status: 400, message: "The request contains invalid JSON. Please check the submitted information." };
   }
@@ -132,7 +143,8 @@ export function errorHandler(error, req, res, _next) {
   const errors = normalized.errors && (
     !isProduction ||
     error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths" ||
-    error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT"
+    error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT" ||
+    error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED"
   ) ? normalized.errors : undefined;
   return failure(res, normalized.message, normalized.status, errors);
 }

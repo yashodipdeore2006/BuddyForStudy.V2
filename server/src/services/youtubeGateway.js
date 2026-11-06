@@ -1,5 +1,5 @@
 import { env } from "../config/env.js";
-import { recordYouTubeRequest, getCurrentYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
+import { recordYouTubeRequest, recordYouTubeRequestRefused, getCurrentYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { tryConsume, getState, markQuotaExceeded, QuotaBudgetError } from "./quota.service.js";
 
 const COST = Object.freeze({ search: 100, default: 1 });
@@ -26,7 +26,7 @@ export async function youtubeRequest(endpoint, params = {}) {
       recordYouTubeRequest(endpoint, budget.state);
     } catch (error) {
       if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
-        recordYouTubeRequest(endpoint, error.state);
+        recordYouTubeRequestRefused(endpoint, error.state, cost);
         const request = getCurrentYouTubeRequestMetrics();
       console.info("YouTube request refused", { requestId: request?.requestId || null, skillId: request?.skillId || null, endpoint, quotaState: error.state, quotaCost: cost });
       }

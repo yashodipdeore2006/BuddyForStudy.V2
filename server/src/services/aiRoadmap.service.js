@@ -1776,7 +1776,7 @@ export function buildSharedRoadmapTemplateProfile(profile = {}) {
   };
 }
 
-async function generateAIRoadmap(input, options = {}) {
+export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
   const projectsEnabled = options.projectsEnabled !== false;

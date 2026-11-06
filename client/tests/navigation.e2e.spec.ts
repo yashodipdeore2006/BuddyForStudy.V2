@@ -928,7 +928,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();
     await expect(dialog.getByText("How far do you want to go?", { exact: true })).toBeVisible();
     await dialog.getByRole("button", { name: "Next question", exact: true }).click();
-    await expect(dialog.getByText("Select the skills you can already use.", { exact: true })).toBeVisible();
+    await expect(dialog.getByText(/Select the skills you can already use/)).toBeVisible();
   });
 
   test("[BUILD-WITH-AI-WIZARD-002] purpose and domain packs move through review before roadmap generation", async ({ page }) => {

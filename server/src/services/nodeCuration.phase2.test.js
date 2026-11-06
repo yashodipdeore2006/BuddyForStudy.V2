@@ -52,13 +52,13 @@ after(() => {
 test("duration policy maps to bounded modes and limits", () => {
   assert.deepEqual(hooks.durationBounds({ minMinutes: 30, targetMinutes: 180, maxMinutes: 240 }), {
     mode: "full_course", minVideoSeconds: 1800, maxVideoSeconds: 14400,
-    minPlaylistSeconds: 1800, minPlaylistItems: 8, halfLifeDays: undefined
+    minPlaylistSeconds: 1800, minPlaylistItems: 3, halfLifeDays: undefined
   });
   assert.equal(hooks.durationBounds({ minMinutes: 10, targetMinutes: 59, maxMinutes: 59 }).mode, "quick_reference");
   assert.equal(hooks.durationBounds({ minMinutes: 30, targetMinutes: 60, maxMinutes: 90 }).mode, "crash_course");
 });
 
-test("duration retry never lowers the learner's minimum video or playlist runtime", async () => {
+test("duration policy performs one bounded search without widening or retrying", async () => {
   cacheRows.clear();
   let calls = 0;
   const observed = [];
@@ -83,12 +83,11 @@ test("duration retry never lowers the learner's minimum video or playlist runtim
       profile: { topic: "Python", level: "Beginner", language: "en" },
       durationPolicy: { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 }
     });
-    assert.equal(calls, 2);
+    assert.equal(calls, 1, "a failed node must not launch a second quota-consuming search");
     assert.equal(result.best, null, "a selector response below the minimum runtime must never be attached");
-    assert.equal(observed[0].minVideoSeconds, 3600);
-    assert.equal(observed[1].minVideoSeconds, 3600);
-    assert.equal(observed[1].minPlaylistSeconds, 3600);
-    assert.equal(observed[1].minPlaylistItems, 4);
+    assert.equal(observed[0].minVideoSeconds, 1800);
+    assert.equal(observed[0].minPlaylistSeconds, 2700);
+    assert.equal(observed[0].minPlaylistItems, 2);
   } finally {
     setSelector(null);
   }
@@ -124,7 +123,7 @@ test("node cache is isolated from normal search and a second call uses zero sear
     assert.deepEqual(observedOptions.syllabus.modules.map((item) => item.weight), [1, 1]);
     assert.equal(observedOptions.overrides.minVideoSeconds, 1800);
     assert.equal(observedOptions.overrides.maxVideoSeconds, 14400);
-    assert.equal(observedOptions.overrides.minPlaylistItems, 8);
+    assert.equal(observedOptions.overrides.minPlaylistItems, 3);
     assert.equal(first.meta.searchCalls, 2);
     assert.equal(first.meta.quotaUnits, 200);
     const second = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });

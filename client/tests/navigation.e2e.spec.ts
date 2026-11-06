@@ -890,7 +890,7 @@ test.describe("learner control and state regression", () => {
     await expect(dialog.getByLabel("In one sentence, what should you be able to do at the end?")).toBeVisible();
     await dialog.getByRole("button", { name: "Next question", exact: true }).click();
     await expect(dialog.getByText("Why are you learning it?", { exact: true })).toBeVisible();
-    await dialog.getByRole("button", { name: purposeLabel, exact: true }).click();
+    await dialog.getByRole("button", { name: new RegExp("^" + purposeLabel) }).click();
 
     // Complete the remaining core questions: starting level/depth, prior skills,
     // study time, language/style, and target date.
@@ -913,7 +913,7 @@ test.describe("learner control and state regression", () => {
 
     const dialog = page.getByRole("dialog", { name: "Create your learning roadmap" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByText("Roadmap Studio · Adaptive intake")).toBeVisible();
+    await expect(dialog.getByText("Roadmap Studio", { exact: true })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "What should you be able to do?" })).toBeVisible();
     await expect(dialog.getByLabel("In one sentence, what should you be able to do at the end?")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Next question", exact: true })).toBeEnabled();
@@ -922,8 +922,8 @@ test.describe("learner control and state regression", () => {
     // to outcome and then asks for learning purpose.
     await dialog.getByRole("button", { name: "Next question", exact: true }).click();
     await expect(dialog.getByText("Why are you learning it?", { exact: true })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Job / Career", exact: true })).toHaveAttribute("aria-pressed", "false");
-    await expect(dialog.getByRole("button", { name: "Hobby / Personal Interest", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(dialog.getByRole("button", { name: /^Job \/ Career/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(dialog.getByRole("button", { name: /^Hobby \/ Personal Interest/ })).toHaveAttribute("aria-pressed", "true");
     await dialog.getByRole("button", { name: "Next question", exact: true }).click();
     await expect(dialog.getByRole("group", { name: "Starting level" })).toBeVisible();
     await expect(dialog.getByText("How far do you want to go?", { exact: true })).toBeVisible();

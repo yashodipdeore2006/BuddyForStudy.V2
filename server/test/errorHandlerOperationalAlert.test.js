@@ -59,6 +59,49 @@ test("HTTP 5xx creates one sanitized operational alert without exposing route or
   assert.equal(captured.options.upsert, true);
 });
 
+test("AI resource-quality rejection preserves actionable 503 details without leaking provider data", async () => {
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  const res = responseRecorder();
+  let alertWrites = 0;
+  const error = Object.assign(new Error("internal provider response must not leak"), {
+    status: 503,
+    code: "AI_RESOURCE_QUALITY_INSUFFICIENT",
+    resourceQuality: {
+      tutorialLessonCount: 12,
+      lessonsWithResources: 0,
+      uniqueVideoCount: 0,
+      coverageRatio: 0,
+      minimumCoverage: 0.75,
+      reason: "insufficient_lesson_coverage",
+      providerResponse: "secret"
+    }
+  });
+  try {
+    await withMock(OperationalAlert, "findOneAndUpdate", async () => { alertWrites += 1; return {}; }, async () => {
+      errorHandler(error, {
+        id: "request-ai-quality-123",
+        method: "POST",
+        path: "/api/ai/roadmap",
+        get: () => ""
+      }, res, () => {});
+      await Promise.resolve();
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.success, false);
+  assert.match(res.body.message, /suitable learning resources/i);
+  assert.equal(res.body.errors.code, "AI_RESOURCE_QUALITY_INSUFFICIENT");
+  assert.equal(res.body.errors.tutorialLessonCount, 12);
+  assert.equal(res.body.errors.lessonsWithResources, 0);
+  assert.equal(res.body.errors.reason, "insufficient_lesson_coverage");
+  assert.equal("providerResponse" in res.body.errors, false);
+  assert.equal(alertWrites, 1);
+});
+
 test("expected 4xx validation failures do not create API 5xx alerts", async () => {
   const originalConsoleError = console.error;
   console.error = () => {};

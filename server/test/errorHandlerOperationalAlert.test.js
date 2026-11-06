@@ -74,6 +74,10 @@ test("AI resource-quality rejection preserves actionable 503 details without lea
       coverageRatio: 0,
       minimumCoverage: 0.75,
       reason: "insufficient_lesson_coverage",
+      quotaState: "exhausted",
+      quotaUnits: 10641,
+      quotaBudget: 9000,
+      quotaResetDay: "2026-11-06",
       providerResponse: "secret"
     }
   });
@@ -93,11 +97,15 @@ test("AI resource-quality rejection preserves actionable 503 details without lea
 
   assert.equal(res.statusCode, 503);
   assert.equal(res.body.success, false);
-  assert.match(res.body.message, /suitable learning resources/i);
+  assert.match(res.body.message, /daily verified YouTube resource-search limit/i);
   assert.equal(res.body.errors.code, "AI_RESOURCE_QUALITY_INSUFFICIENT");
   assert.equal(res.body.errors.tutorialLessonCount, 12);
   assert.equal(res.body.errors.lessonsWithResources, 0);
   assert.equal(res.body.errors.reason, "insufficient_lesson_coverage");
+  assert.equal(res.body.errors.quotaState, "exhausted");
+  assert.equal(res.body.errors.quotaUnits, 10641);
+  assert.equal(res.body.errors.quotaBudget, 9000);
+  assert.equal(res.body.errors.quotaResetDay, "2026-11-06");
   assert.equal("providerResponse" in res.body.errors, false);
   assert.equal(alertWrites, 1);
 });

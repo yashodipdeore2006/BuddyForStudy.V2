@@ -110,6 +110,44 @@ test("AI resource-quality rejection preserves actionable 503 details without lea
   assert.equal(alertWrites, 1);
 });
 
+test("Gemini daily quota exhaustion returns a safe actionable 503 instead of generic rate-limit copy", async () => {
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  const res = responseRecorder();
+  let alertWrites = 0;
+  const providerPayload = '{"error":{"code":429,"status":"RESOURCE_EXHAUSTED","message":"Free Tier quota exceeded"}}';
+  try {
+    await withMock(OperationalAlert, "findOneAndUpdate", async () => { alertWrites += 1; return {}; }, async () => {
+      errorHandler(Object.assign(new Error("Gemini's daily generation quota has been exhausted for this API key."), {
+        status: 503,
+        code: "AI_PROVIDER_QUOTA_EXHAUSTED",
+        provider: "gemini",
+        providerResponse: providerPayload
+      }), {
+        id: "request-gemini-quota-123",
+        method: "POST",
+        path: "/api/ai/roadmap",
+        get: () => ""
+      }, res, () => {});
+      await Promise.resolve();
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.success, false);
+  assert.match(res.body.message, /Gemini's daily generation quota/i);
+  assert.doesNotMatch(res.body.message, /too many requests/i);
+  assert.deepEqual(res.body.errors, {
+    code: "AI_PROVIDER_QUOTA_EXHAUSTED",
+    provider: "gemini",
+    retryable: true
+  });
+  assert.equal(JSON.stringify(res.body).includes(providerPayload), false);
+  assert.equal(alertWrites, 1);
+});
+
 test("expected 4xx validation failures do not create API 5xx alerts", async () => {
   const originalConsoleError = console.error;
   console.error = () => {};

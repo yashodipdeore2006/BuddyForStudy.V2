@@ -1766,8 +1766,11 @@ export async function generateAIRoadmap(input, options = {}) {
     intentProfile.outcome || input.outcome || "",
     intentProfile.scope === "broad" ? "complete learning path" : ""
   ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
+  // Learning resources are reusable across learners with the same curriculum
+  // context. Keep the roadmap and progress personalized, but do not partition
+  // verified YouTube resource caches by user ID.
   const resourceCacheScope = personalized
-    ? createHash("sha256").update(String(userId || "anonymous") + ":" + JSON.stringify(topicKeys)).digest("hex")
+    ? createHash("sha256").update(JSON.stringify(topicKeys)).digest("hex")
     : "";
   const templateProfile = personalized
     ? {

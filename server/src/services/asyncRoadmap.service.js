@@ -6,6 +6,7 @@ import { Course } from "../models/Course.js";
 import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learningResourceQuality.js";
 import { curateForNode } from "./nodeCuration.service.js";
 import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, releaseQueuedRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
+import { getState as getYouTubeQuotaState } from "./quota.service.js";
 
 const queue = [];
 const listeners = new Map();
@@ -17,6 +18,66 @@ const MAX_ACTIVE_DRAFTS_PER_USER = 2;
 const MAX_USER_DRAFTS_PER_WINDOW = 5;
 const HEARTBEAT_MS = 15000;
 const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
+
+function hashResourceContext(profile = {}) {
+  const intent = profile.intentProfile || {};
+  const normalize = (value) => String(value || "").normalize("NFKC").trim().toLowerCase().replace(/\\s+/g, " ");
+  const context = {
+    topic: normalize(profile.topic),
+    level: normalize(profile.level || intent.level || "Beginner"),
+    language: normalize(profile.language || intent.language || "en"),
+    goal: normalize(intent.goal || profile.goal || "learn"),
+    scope: normalize(intent.scope || ""),
+    targetRole: normalize(intent.targetRole),
+    targetCompany: normalize(intent.targetCompany),
+    examName: normalize(intent.examName),
+    projectIdea: normalize(intent.projectIdea),
+    outcome: normalize(intent.outcome)
+  };
+  return createHash("sha256").update(JSON.stringify(context)).digest("hex");
+}
+
+async function buildResourceQualityFailure(quality) {
+  let quota = null;
+  try { quota = await getYouTubeQuotaState(); } catch {}
+  const quotaState = ["ok", "degraded", "exhausted"].includes(quota?.state) ? quota.state : "unknown";
+  const errorDetails = {
+    code: "AI_RESOURCE_QUALITY_INSUFFICIENT",
+    tutorialLessonCount: Number(quality.tutorialLessonCount) || 0,
+    lessonsWithResources: Number(quality.lessonsWithResources) || 0,
+    uniqueVideoCount: Number(quality.uniqueVideoCount) || 0,
+    coverageRatio: Number(quality.coverageRatio) || 0,
+    minimumCoverage: Number(quality.minimumCoverage) || 0,
+    reason: typeof quality.reason === "string" ? quality.reason : "resource_quality_rejected",
+    quotaState,
+    quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
+    quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
+    quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
+  };
+  const error = new Error(quotaState === "exhausted"
+    ? "Build with AI has reached today's verified YouTube resource-search limit. Your roadmap was not saved. Please retry after the daily quota reset."
+    : "We could not verify enough suitable learning resources for this roadmap. Please try again later.");
+  error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
+  error.resourceQuality = errorDetails;
+  return error;
+}
+
+function serializeRoadmapFailure(error) {
+  if (error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT") {
+    return {
+      errorCode: "AI_RESOURCE_QUALITY_INSUFFICIENT",
+      errorMessage: String(error.message || "We could not verify enough suitable learning resources for this roadmap. Please try again later."),
+      errorDetails: error.resourceQuality && typeof error.resourceQuality === "object" ? error.resourceQuality : {
+        code: "AI_RESOURCE_QUALITY_INSUFFICIENT"
+      }
+    };
+  }
+  return {
+    errorCode: String(error?.code || "ROADMAP_BUILD_FAILED").slice(0, 100),
+    errorMessage: "Roadmap build failed. Please retry.",
+    errorDetails: null
+  };
+}
 
 export function stableProfileKey(userId, profile) {
   const stable = JSON.stringify({ userId: String(userId), profile });
@@ -98,8 +159,9 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             },
             profile: { topic: profile.topic, level: profile.level || intent.level || "Beginner", language: profile.language || intent.language || "en" },
             durationPolicy,
-            // Node-cache entries must never leak personalized resource choices across learners.
-            cacheScope: createHash("sha256").update(String(userId) + ":" + JSON.stringify(profile)).digest("hex")
+            // Cache verified resources by curriculum context, not user identity.
+            // The cache remains isolated by topic, role/goal, level, language and exam/project context.
+            cacheScope: hashResourceContext(profile)
           });
           await assertLease();
           const state = curated.meta?.state || (curated.best ? (curated.meta?.lowConfidence ? "low_confidence" : "ready") : "failed");
@@ -152,10 +214,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   const metrics = getCourseResourceMetrics(completedCourse);
   const quality = assessCourseResourceQuality(completedCourse, { completePath });
   if (quality.tutorialLessonCount > 0 && !quality.acceptable) {
-    const error = new Error("The personalized roadmap did not meet the minimum resource coverage, runtime, and language requirements. Please retry the build.");
-    error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
-    error.resourceQuality = quality;
-    throw error;
+    throw await buildResourceQualityFailure(quality);
   }
   return {
     ...metrics,
@@ -268,7 +327,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
         };
         const finalized = await RoadmapDraft.updateOne(
           { _id: draft._id, status: "building", admissionLeaseToken: lease.leaseToken },
-          { $set: { status: "ready", result: finalResult, updatedAt: new Date() } }
+          { $set: { status: "ready", result: finalResult, errorCode: "", errorMessage: "", errorDetails: null, updatedAt: new Date() } }
         );
         if (!finalized.modifiedCount) throw Object.assign(new Error("Roadmap draft ownership changed"), { code: "ROADMAP_ADMISSION_LEASE_LOST" });
         await addEvent(draft, { type: "done", state: "ready", draftId, roadmapId: String(courseId) });
@@ -288,17 +347,24 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
           status: { $in: ["queued", "building"] },
           admissionLeaseToken: lease.leaseToken
         };
+        const failure = serializeRoadmapFailure(error);
         await RoadmapDraft.updateOne(failureFilter, {
           $set: {
             status: "failed",
-            errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"),
+            ...failure,
             roadmapId: null,
             result: null,
             updatedAt: new Date()
           }
         }).catch(() => {});
         if (error?.code !== "ROADMAP_ADMISSION_LEASE_LOST") {
-          await addEvent(draft, { type: "error", state: "failed", draftId, message: "Roadmap build failed. Please retry." });
+          await addEvent(draft, {
+            type: "error",
+            state: "failed",
+            draftId,
+            message: failure.errorMessage,
+            details: failure.errorDetails
+          });
         }
       }
     } catch (error) {
@@ -311,7 +377,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
         {
           $set: {
             status: "failed",
-            errorCode: String(error?.code || "ROADMAP_BUILD_FAILED"),
+            ...serializeRoadmapFailure(error),
             roadmapId: null,
             result: null,
             updatedAt: new Date()
@@ -407,5 +473,14 @@ export async function getRoadmapPoll(draftId, userId) {
     roadmapId: String(course._id),
     course: { ...draft.result.course, ...course, _id: String(course._id), modules: course.modules }
   } : draft.result || null;
-  return { draftId, roadmapId: draft.roadmapId ? String(draft.roadmapId) : null, status: draft.status, nodes, result, events: draft.events || [] };
+  return {
+    draftId,
+    roadmapId: draft.roadmapId ? String(draft.roadmapId) : null,
+    status: draft.status,
+    nodes,
+    result,
+    errorMessage: draft.status === "failed" ? String(draft.errorMessage || "Roadmap build failed. Please retry.") : "",
+    errorDetails: draft.status === "failed" && draft.errorDetails && typeof draft.errorDetails === "object" ? draft.errorDetails : null,
+    events: draft.events || []
+  };
 }

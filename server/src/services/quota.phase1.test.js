@@ -25,7 +25,11 @@ before(async () => {
   quota = await import("./quota.service.js");
   quota.__setQuotaTestAdapters({
     getState: async () => ({ state: quota.__quotaTestHooks.stateFor(quotaUnits, exhausted), units: quotaUnits, budget: 1000, softLimitPct: 80, resetDay: "test", store: "mock" }),
-    increment: async (cost) => (quotaUnits += cost),
+    consumeWithinBudget: async (cost, budget) => {
+      if (quotaUnits + cost > budget || exhausted) return null;
+      quotaUnits += cost;
+      return quotaUnits;
+    },
     markQuotaExceeded: async () => { exhausted = true; },
   });
   gateway = await import("./youtubeGateway.js");
@@ -55,16 +59,19 @@ test("quota states transition at the configured soft and hard thresholds", () =>
   assert.equal(quota.__quotaTestHooks.stateFor(1, true), "exhausted");
 });
 
-test("degraded state refuses 100-unit search calls but allows 1-unit reads", async () => {
+test("degraded soft-limit state permits search while hard quota capacity remains", async () => {
   quotaUnits = 800;
   exhausted = false;
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; return jsonResponse({ items: [] }); };
-  await assert.rejects(gateway.youtubeRequest("search", { part: "snippet", q: "MERN" }), (error) => error.name === "QuotaBudgetError" && error.state === "degraded");
-  assert.equal(calls, 0);
+  const search = await gateway.youtubeRequest("search", { part: "snippet", q: "MERN" });
+  assert.deepEqual(search.items, []);
+  assert.equal(quotaUnits, 900);
+  assert.equal(calls, 1);
   const result = await gateway.youtubeRequest("videos", { part: "snippet", id: "mock-video" });
   assert.deepEqual(result.items, []);
-  assert.equal(calls, 1);
+  assert.equal(quotaUnits, 901);
+  assert.equal(calls, 2);
 });
 
 test("gateway retries transient 5xx twice, with mocked provider responses", async () => {
@@ -184,7 +191,7 @@ test("quota counter allows no more than the remaining hard-budget units under co
   assert.equal(allowed.length, 5);
   assert.equal(rejected.length, 5);
   assert.ok(rejected.every((result) => result.reason.name === "QuotaBudgetError"));
-  assert.equal(quotaUnits, 1005, "rejected attempts remain counted so the counter fails closed");
+  assert.equal(quotaUnits, 1000, "rejected reservations must not overshoot the hard budget");
   assert.equal((await quota.getState()).state, "exhausted");
 });
 

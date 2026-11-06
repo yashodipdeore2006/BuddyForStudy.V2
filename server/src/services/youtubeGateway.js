@@ -28,7 +28,17 @@ export async function youtubeRequest(endpoint, params = {}) {
       if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
         recordYouTubeRequestRefused(endpoint, error.state, cost);
         const request = getCurrentYouTubeRequestMetrics();
-      console.info("YouTube request refused", { requestId: request?.requestId || null, skillId: request?.skillId || null, endpoint, quotaState: error.state, quotaCost: cost });
+      console.info("YouTube request refused", {
+        requestId: request?.requestId || null,
+        skillId: request?.skillId || null,
+        endpoint,
+        quotaState: error.state,
+        quotaCost: cost,
+        quotaUnits: error.details?.units ?? null,
+        quotaBudget: error.details?.budget ?? null,
+        quotaStore: error.details?.store ?? "unknown",
+        reason: error.message
+      });
       }
       throw error;
     }

@@ -85,3 +85,24 @@ test("a curated playlist contributes its distinct playable items", () => {
   assert.equal(result.videoWatchMinutes, 75);
   assert.equal(result.acceptable, true);
 });
+
+
+test("a mostly covered personalized path can build with a small number of unavailable lessons", () => {
+  const course = courseWithVideos([
+    ["v1"], ["v2"], ["v3"], ["v4"], []
+  ]);
+  const result = assessCourseResourceQuality(course, { completePath: true });
+  assert.equal(result.coverageRatio, 0.8);
+  assert.equal(result.uniqueVideoCount, 4);
+  assert.equal(result.acceptable, true);
+});
+
+test("complete personalized paths still reject insufficient distinct resource coverage", () => {
+  const course = courseWithVideos([
+    ["v1"], ["v2"], ["v3"], [], []
+  ]);
+  const result = assessCourseResourceQuality(course, { completePath: true });
+  assert.equal(result.coverageRatio, 0.6);
+  assert.equal(result.acceptable, false);
+  assert.equal(result.reason, "insufficient_lesson_coverage");
+});

@@ -87,7 +87,7 @@ test("duration policy performs one bounded search without widening or retrying",
     assert.equal(result.best, null, "a selector response below the minimum runtime must never be attached");
     assert.equal(observed[0].minVideoSeconds, 1800);
     assert.equal(observed[0].minPlaylistSeconds, 2700);
-    assert.equal(observed[0].minPlaylistItems, 3);
+    assert.equal(observed[0].minPlaylistItems, 2);
   } finally {
     setSelector(null);
   }

@@ -63,6 +63,13 @@ async function buildResourceQualityFailure(quality) {
 }
 
 function serializeRoadmapFailure(error) {
+  if (error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED") {
+    return {
+      errorCode: "AI_PROVIDER_QUOTA_EXHAUSTED",
+      errorMessage: String(error.message || "Gemini's daily generation quota has been exhausted. Retry after the provider quota resets."),
+      errorDetails: { code: "AI_PROVIDER_QUOTA_EXHAUSTED", provider: "gemini", retryable: true }
+    };
+  }
   if (error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT") {
     return {
       errorCode: "AI_RESOURCE_QUALITY_INSUFFICIENT",

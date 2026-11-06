@@ -67,11 +67,13 @@ export async function finalizeDraft(req, res, next, dependencies = {}) {
     if (draft?.status === "ready") return success(res, draft.result, "Learning roadmap generated successfully");
     if (draft?.status === "failed") {
       const resourceFailure = draft.errorCode === "AI_RESOURCE_QUALITY_INSUFFICIENT";
+      const providerQuotaFailure = draft.errorCode === "AI_PROVIDER_QUOTA_EXHAUSTED";
+      const actionableFailure = resourceFailure || providerQuotaFailure;
       return failure(
         res,
         String(draft.errorMessage || "Roadmap build failed. Please retry."),
-        resourceFailure ? 503 : 502,
-        { draftId, retryable: true, ...(resourceFailure && draft.errorDetails && typeof draft.errorDetails === "object" ? draft.errorDetails : {}) }
+        actionableFailure ? 503 : 502,
+        { draftId, retryable: true, ...(actionableFailure && draft.errorDetails && typeof draft.errorDetails === "object" ? draft.errorDetails : {}) }
       );
     }
     if (draft?.status === "cancelled") return failure(res, "Roadmap build was cancelled. Start a new draft to continue.", 409, { draftId, retryable: true });

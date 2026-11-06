@@ -74,3 +74,47 @@ test("quiz schema validator rejects malformed options and missing answer keys", 
     { id: "q1", question: "Bad question", options: [{ id: "a", text: "Only one" }], correctOptionId: "a" }
   ], 1), /fewer valid quiz questions/i);
 });
+
+
+test("Gemini daily free-tier quota errors become actionable provider-unavailable errors", () => {
+  const providerError = Object.assign(new Error(JSON.stringify({
+    error: {
+      code: 429,
+      status: "RESOURCE_EXHAUSTED",
+      message: "You exceeded your current quota. Generate content requests per day limit exceeded on Free Tier."
+    }
+  })), { status: 429 });
+  const normalized = __aiRoadmapTestHooks.normalizeGeminiProviderError(providerError);
+  assert.notEqual(normalized, providerError);
+  assert.equal(normalized.status, 503);
+  assert.equal(normalized.code, "AI_PROVIDER_QUOTA_EXHAUSTED");
+  assert.equal(normalized.provider, "gemini");
+  assert.match(normalized.message, /daily generation quota/i);
+  assert.doesNotMatch(normalized.message, /RESOURCE_EXHAUSTED|Free Tier|current quota/i);
+
+  const unrelatedRateLimit = Object.assign(new Error("Too many requests"), { status: 429 });
+  assert.equal(__aiRoadmapTestHooks.normalizeGeminiProviderError(unrelatedRateLimit), unrelatedRateLimit);
+});
+
+test("shared curriculum template cache ignores learner-specific personalization fields", () => {
+  const first = __aiRoadmapTestHooks.buildSharedRoadmapTemplateProfile({
+    topic: "React and Node.js Full Stack",
+    level: "Intermediate",
+    language: "en",
+    goal: "job_ready",
+    outcome: "Prepare for a backend developer role",
+    preferences: { targetRole: "Backend Developer", learningScope: "broad" }
+  });
+  const second = __aiRoadmapTestHooks.buildSharedRoadmapTemplateProfile({
+    topic: "React and Node.js Full Stack",
+    level: "Intermediate",
+    language: "en",
+    goal: "project",
+    outcome: "Build a SaaS product",
+    preferences: { projectIdea: "Inventory system", learningScope: "narrow" }
+  });
+  assert.deepEqual(first, second);
+  assert.equal(first.goal, "learn");
+  assert.deepEqual(first.preferences, {});
+  assert.equal(first.outcome, "");
+});

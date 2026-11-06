@@ -82,6 +82,34 @@ test("failed async resource curation returns safe quota diagnostics to the learn
   assert.equal(res.result.body.errors.quotaResetDay, "2026-11-06");
 });
 
+test("failed async Gemini quota response preserves the safe provider guidance", async () => {
+  const draftId = "550e8400-e29b-41d4-a716-446655440000";
+  const userId = "507f1f77bcf86cd799439011";
+  const draft = {
+    draftId,
+    userId,
+    status: "failed",
+    errorCode: "AI_PROVIDER_QUOTA_EXHAUSTED",
+    errorMessage: "Gemini's daily generation quota has been exhausted for this API key. Wait for Google's quota reset or enable billing/increase the Gemini API quota, then retry. Your roadmap was not created.",
+    errorDetails: { code: "AI_PROVIDER_QUOTA_EXHAUSTED", provider: "gemini", retryable: true }
+  };
+  const res = makeResponse();
+  await finalizeDraft({ user: { userId }, body: { draftId } }, res, (error) => { throw error; }, {
+    authorize: async () => true,
+    getDraftForUser: async () => draft,
+    waitForDraft: async () => draft
+  });
+
+  assert.equal(res.result.statusCode, 503);
+  assert.equal(res.result.body.message, draft.errorMessage);
+  assert.deepEqual(res.result.body.errors, {
+    draftId,
+    retryable: true,
+    code: "AI_PROVIDER_QUOTA_EXHAUSTED",
+    provider: "gemini"
+  });
+});
+
 test("roadmap draft controller returns safe 429/503 responses for capacity limits", async () => {
   const request = {
     user: { userId: "507f191e810c19729de860ea" },

@@ -21,7 +21,7 @@ const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 
 function hashResourceContext(profile = {}) {
   const intent = profile.intentProfile || {};
-  const normalize = (value) => String(value || "").normalize("NFKC").trim().toLowerCase().replace(/\\s+/g, " ");
+  const normalize = (value) => String(value || "").normalize("NFKC").trim().toLowerCase().replace(/\s+/g, " ");
   const context = {
     topic: normalize(profile.topic),
     level: normalize(profile.level || intent.level || "Beginner"),
@@ -52,7 +52,7 @@ async function buildResourceQualityFailure(quality) {
     quotaState,
     quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
     quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
-    quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
+    quotaResetDay: /^\d{4}-\d{2}-\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
   };
   const error = new Error(quotaState === "exhausted"
     ? "Build with AI has reached today's verified YouTube resource-search limit. Your roadmap was not saved. Please retry after the daily quota reset."

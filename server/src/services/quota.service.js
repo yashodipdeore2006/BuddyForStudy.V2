@@ -78,7 +78,8 @@ async function reserveMongoQuota(dayKey, cost, budget) {
   try {
     await YouTubeQuotaUsage.updateOne(
       { dayKey },
-      { $setOnInsert: { dayKey, units: 0, exhausted: false } },
+      // dayKey is supplied by the equality filter on upsert.
+      { $setOnInsert: { units: 0, exhausted: false } },
       { upsert: true }
     );
   } catch (error) {

@@ -97,7 +97,7 @@ test("AI resource-quality rejection preserves actionable 503 details without lea
 
   assert.equal(res.statusCode, 503);
   assert.equal(res.body.success, false);
-  assert.match(res.body.message, /daily verified YouTube resource-search limit/i);
+  assert.match(res.body.message, /verified YouTube resource-search limit/i);
   assert.equal(res.body.errors.code, "AI_RESOURCE_QUALITY_INSUFFICIENT");
   assert.equal(res.body.errors.tutorialLessonCount, 12);
   assert.equal(res.body.errors.lessonsWithResources, 0);

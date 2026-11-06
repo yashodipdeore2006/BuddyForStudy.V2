@@ -11,7 +11,9 @@ function normalizeError(error) {
       : {};
     return {
       status: 503,
-      message: "We could not verify enough suitable learning resources for this roadmap. Please try again later.",
+      message: quality.quotaState === "exhausted"
+        ? "Build with AI has reached today's verified YouTube resource-search limit. Your roadmap was not saved. Please retry after the daily quota reset."
+        : "We could not verify enough suitable learning resources for this roadmap. Please try again later.",
       errors: {
         code: "AI_RESOURCE_QUALITY_INSUFFICIENT",
         tutorialLessonCount: Number(quality.tutorialLessonCount) || 0,
@@ -19,7 +21,11 @@ function normalizeError(error) {
         uniqueVideoCount: Number(quality.uniqueVideoCount) || 0,
         coverageRatio: Number(quality.coverageRatio) || 0,
         minimumCoverage: Number(quality.minimumCoverage) || 0,
-        reason: typeof quality.reason === "string" ? quality.reason : "resource_quality_rejected"
+        reason: typeof quality.reason === "string" ? quality.reason : "resource_quality_rejected",
+        quotaState: ["ok", "degraded", "exhausted"].includes(quality.quotaState) ? quality.quotaState : "unknown",
+        quotaUnits: Number.isFinite(Number(quality.quotaUnits)) ? Number(quality.quotaUnits) : null,
+        quotaBudget: Number.isFinite(Number(quality.quotaBudget)) ? Number(quality.quotaBudget) : null,
+        quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quality.quotaResetDay || "")) ? quality.quotaResetDay : null
       }
     };
   }

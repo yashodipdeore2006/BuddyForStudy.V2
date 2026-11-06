@@ -18,6 +18,7 @@ import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
 import { safeTelemetryError } from "../utils/safeTelemetryError.js";
 import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learningResourceQuality.js";
+import { getState as getYouTubeQuotaState } from "./quota.service.js";
 
 const client = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -1720,6 +1721,25 @@ export const __aiRoadmapTestHooks = Object.freeze({
   validateQuizQuestions
 });
 
+async function createResourceQualityError(quality) {
+  let quota = null;
+  try { quota = await getYouTubeQuotaState(); } catch {}
+  const quotaDetails = {
+    quotaState: ["ok", "degraded", "exhausted"].includes(quota?.state) ? quota.state : "unknown",
+    quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
+    quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
+    quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
+  };
+  const exhausted = quotaDetails.quotaState === "exhausted";
+  const error = new Error(exhausted
+    ? "Today's verified YouTube learning-resource search capacity has been reached. Your roadmap was not saved. Please retry after the daily quota reset."
+    : "We could not verify enough distinct, language-matched learning resources for this personalized roadmap. No incomplete course was saved. Please retry the build.");
+  error.status = 503;
+  error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
+  error.resourceQuality = { ...quality, ...quotaDetails };
+  return error;
+}
+
 export async function generateAIRoadmap(input, options = {}) {
   const userId = options.userId || null;
   const personalized = options.personalized !== false;
@@ -1886,11 +1906,7 @@ export async function generateAIRoadmap(input, options = {}) {
         completePath: requireCompleteResources,
         ...resourceQuality
       });
-      const error = new Error("We could not verify enough distinct, language-matched learning resources for this personalized roadmap. No incomplete course was saved. Please retry the build.");
-      error.status = 503;
-      error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
-      error.resourceQuality = resourceQuality;
-      throw error;
+      throw await createResourceQualityError(resourceQuality);
     }
     built.personalization = {
       ...built.personalization,
@@ -1984,11 +2000,7 @@ export async function generateAIRoadmap(input, options = {}) {
           completePath: intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)
         });
         if (fallbackQuality.tutorialLessonCount > 0 && !fallbackQuality.acceptable) {
-          const qualityError = new Error("We could not verify enough distinct, language-matched learning resources for this personalized roadmap. No incomplete course was saved. Please retry the build.");
-          qualityError.status = 503;
-          qualityError.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
-          qualityError.resourceQuality = fallbackQuality;
-          throw qualityError;
+          throw await createResourceQualityError(fallbackQuality);
         }
       }
 

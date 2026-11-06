@@ -47,14 +47,18 @@ export function assessCourseResourceQuality(course, { completePath = false } = {
   // and every lesson is backed by a distinct video. One generic video cannot
   // make several modules appear resource-complete.
   const minimumVideos = metrics.tutorialLessonCount >= 3
-    ? (completePath ? metrics.tutorialLessonCount : 2)
+    ? (completePath ? Math.max(2, Math.ceil(metrics.tutorialLessonCount * 0.6)) : 2)
     : 1;
-  const minimumCoverage = completePath ? 1 : 0.5;
+  // A personalized course remains useful when a small number of niche lessons
+  // have no verified YouTube match. Do not discard the entire course for those gaps.
+  const minimumCoverage = completePath ? 0.75 : 0.5;
   const enoughCoverage = metrics.tutorialLessonCount > 0 && metrics.coverageRatio >= minimumCoverage;
   const enoughDistinctResources = metrics.uniqueVideoCount >= Math.min(minimumVideos, metrics.tutorialLessonCount);
   // A complete personalized path must have meaningful video coverage, not merely
   // one tiny video attached to otherwise long scheduled study time.
-  const minimumRuntimeRatio = completePath && metrics.plannedVideoMinutes > 0 ? 0.5 : 0;
+  // Scheduled study time includes reading, practice and projects; it is not all video runtime.
+  // Require modest real video coverage instead of 50% of the entire study schedule.
+  const minimumRuntimeRatio = completePath && metrics.plannedVideoMinutes > 0 ? 0.15 : 0;
   const enoughRuntime = minimumRuntimeRatio === 0 || metrics.resourceRuntimeRatio >= minimumRuntimeRatio;
   return {
     ...metrics,

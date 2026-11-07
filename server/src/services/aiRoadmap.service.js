@@ -1841,7 +1841,7 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
           order: 2,
           quiz: { scope: "lesson", questionCount: 5, passingScore: 70, focusTopics: stage.topics, instructions: "Answer questions about the listed stage topics." }
         },
-        {
+        ...(project ? [{
           id: stage.id + "-project",
           title: project,
           description: project,
@@ -1855,7 +1855,7 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
             expectedOutcome: "A documented practical deliverable demonstrating " + stage.name + ".",
             submissionRequirements: ["Project notes or source files", "README with setup and scope", "Testing evidence", "Lessons learned"]
           }
-        }
+        }] : [])
       ]
     };
   });
@@ -1866,10 +1866,12 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
     careerOutcome: "Build practical, demonstrable skills in " + canonicalTopic + ".",
     skillGraph: stages.map((stage, index) => ({ id: stage.id, name: stage.name, category: canonicalTopic, importance: "core", prerequisites: index ? [stages[index - 1].id] : [], practiceProject: stage.project })),
     course: {
-      title: dataScience ? "Data Science Complete Learning Path" : python ? "Python Complete Learning Path" : canonicalTopic + " Learning Roadmap",
-      description: dataScience
+      title: dataScience
+        ? courseDepth === "complete" ? "Data Science Complete Learning Path" : "Data Science " + (courseDepth === "short" ? "Short Course" : "Medium Course")
+        : python ? "Python Complete Learning Path" : canonicalTopic + " Learning Roadmap",
+      description: dataScience && courseDepth === "complete"
         ? "A prerequisite-ordered Data Science course covering mathematics, statistics, Python, SQL, data preparation, visualization, machine learning, deployment and an end-to-end capstone."
-        : "A structured learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
+        : "A structured " + courseDepth + " learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
       category: cyber ? "Cybersecurity" : dataScience ? "Data Science" : python ? "Programming" : "AI Course Search",
       level,
       duration: dataScience

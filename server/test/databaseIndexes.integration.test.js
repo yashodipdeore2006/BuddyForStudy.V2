@@ -5,6 +5,8 @@ import { connectDatabase, disconnectDatabase } from "../src/config/db.js";
 import { RoadmapAdmissionLease } from "../src/models/RoadmapAdmissionLease.js";
 import { RoadmapAdmissionRateWindow } from "../src/models/RoadmapAdmissionRateWindow.js";
 import { ApiRateLimit } from "../src/models/ApiRateLimit.js";
+import { AdminInvitation } from "../src/models/AdminInvitation.js";
+import { RoadmapTemplate } from "../src/models/RoadmapTemplate.js";
 
 const models = [
   { model: RoadmapAdmissionLease, required: {
@@ -33,6 +35,17 @@ function indexSnapshot(indexes) {
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
+
+test("TTL expiry fields declare exactly one expiresAt index", () => {
+  for (const model of [AdminInvitation, RoadmapTemplate]) {
+    const expiryIndexes = model.schema.indexes().filter(([keys]) => (
+      Object.keys(keys).length === 1 && keys.expiresAt === 1
+    ));
+    assert.equal(expiryIndexes.length, 1, model.modelName + " must declare one expiresAt index");
+    assert.equal(expiryIndexes[0][1].expireAfterSeconds, 0,
+      model.modelName + " must retain its immediate TTL expiry policy");
+  }
+});
 
 after(async () => {
   if (mongoose.connection.readyState !== 0) await disconnectDatabase();

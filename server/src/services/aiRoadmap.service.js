@@ -516,7 +516,7 @@ function defaultWebCapstoneProjects(topic, ai) {
 
 export function isDataScienceTopic(topic, ai = {}) {
   const value = `${String(topic || "")} ${String(ai?.title || "")} ${String(ai?.canonicalTopic || "")}`;
-  return /\\bdata\\s*science\\b|\\bdatascience\\b|\\bdata scientist\\b/i.test(value)
+  return /\bdata\s*science\b|\bdatascience\b|\bdata scientist\b/i.test(value)
     && !/\\bdata analytics\\b|\\bdata analyst\\b|\\bbusiness intelligence\\b/i.test(value);
 }
 

@@ -1762,6 +1762,13 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
   const canonicalTopic = cybersecurityAliases.has(normalized) ? "Cybersecurity" : rawTopic.replace(/\s+/g, " ");
   const cyber = /cyber ?security|information security|ethical hacking|network security|soc|penetration testing/i.test(canonicalTopic);
   const python = isBroadPythonTopic(canonicalTopic);
+  const courseDepth = ["short", "medium", "complete"].includes(String(profile.intentProfile?.preferences?.courseDepth || ""))
+    ? String(profile.intentProfile.preferences.courseDepth)
+    : "complete";
+  const dataScience = isDataScienceTopic(canonicalTopic);
+  const dataScienceSkills = dataScience
+    ? applyCourseDepthPlan(ensureDataScienceStages([], canonicalTopic, {}), courseDepth)
+    : [];
   const known = (profile.knownSkills || []).map((item) => String(item || "").trim().toLowerCase());
   const pythonStages = [
     { id: "python-foundations", name: "Python Foundations and Environment", topics: ["Python installation and interpreter", "syntax, variables and data types", "input and output", "operators and expressions", "running scripts and using an editor"], project: "Write a command-line program that validates user input and produces a useful result.", known: /^(python|python programming|python basics|python fundamentals)$/i, searchQueries: ["Python fundamentals setup syntax variables data types complete beginner tutorial"] },
@@ -1782,8 +1789,19 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
     { id: "web-security", name: "Web and Application Security", topics: ["OWASP Top 10", "authentication and session security", "input validation", "secure configuration and secrets"], project: "Review a deliberately vulnerable training application and document fixes" },
     { id: "ethical-testing", name: "Ethical Security Testing", topics: ["scoping and authorization", "reconnaissance in a lab", "vulnerability validation", "responsible reporting"], project: "Write a lab-only vulnerability assessment with remediation steps" },
     { id: "security-capstone", name: "Cybersecurity Capstone", topics: ["risk prioritization", "defense in depth", "monitoring plan", "incident playbook"], project: "Produce a defensive security portfolio with a threat model, lab evidence and response playbook" }
-  ] : python ? remainingPythonStages.map((stage) => ({
-    id: stage.id, name: stage.name, topics: stage.topics, project: stage.project, searchQueries: stage.searchQueries
+  ] : dataScience ? dataScienceSkills.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    topics: stage.topics,
+    project: stage.projectPlacement === "none" ? "" : stage.practiceProject,
+    searchQueries: stage.searchQueries,
+    courseDuration: stage.courseDuration
+  })) : python ? remainingPythonStages.map((stage) => ({
+    id: stage.id,
+    name: stage.name,
+    topics: stage.topics,
+    project: stage.project,
+    searchQueries: stage.searchQueries
   })) : [
     { id: "foundations", name: rawTopic + " Foundations", topics: ["core terminology and concepts in " + canonicalTopic, "how the field is organized", "common use cases and outcomes"], project: "Create a concept map and glossary for " + canonicalTopic },
     { id: "core-concepts", name: "Core Concepts and Methods", topics: ["essential principles of " + canonicalTopic, "common methods and workflows", "tools and environments used in the field"], project: "Complete a guided beginner exercise in " + canonicalTopic },
@@ -1811,8 +1829,8 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
             searchQuery: query,
             searchQueries: stage.searchQueries || [query, canonicalTopic + " " + stage.topics.slice(0, 2).join(" ") + " full tutorial"],
             requiredTopics: stage.topics,
-            durationMinutes: python ? { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 } : { minMinutes: 30, targetMinutes: 90, maxMinutes: 240 },
-            searchPolicy: { contentType: "complete-course", minDurationMinutes: python ? 45 : 20, targetDurationMinutes: python ? 90 : 60, maxDurationMinutes: python ? 210 : 240, excludeShorts: true, requireEmbeddable: true, preferProjectBased: true, preferredLanguage: normalizeYouTubeLanguage(profile.intentProfile?.language || profile.language || "en") }
+            durationMinutes: stage.courseDuration || (python ? { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 } : { minMinutes: 30, targetMinutes: 90, maxMinutes: 240 }),
+            searchPolicy: { contentType: "complete-course", minDurationMinutes: stage.courseDuration?.minMinutes || (python ? 45 : 20), targetDurationMinutes: stage.courseDuration?.targetMinutes || (python ? 90 : 60), maxDurationMinutes: stage.courseDuration?.maxMinutes || (python ? 210 : 240), excludeShorts: true, requireEmbeddable: true, preferProjectBased: true, preferredLanguage: normalizeYouTubeLanguage(profile.intentProfile?.language || profile.language || "en") }
           }
         },
         {
@@ -1848,11 +1866,15 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
     careerOutcome: "Build practical, demonstrable skills in " + canonicalTopic + ".",
     skillGraph: stages.map((stage, index) => ({ id: stage.id, name: stage.name, category: canonicalTopic, importance: "core", prerequisites: index ? [stages[index - 1].id] : [], practiceProject: stage.project })),
     course: {
-      title: python ? "Python Complete Learning Path" : canonicalTopic + " Learning Roadmap",
-      description: "A structured learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
-      category: cyber ? "Cybersecurity" : python ? "Programming" : "AI Course Search",
+      title: dataScience ? "Data Science Complete Learning Path" : python ? "Python Complete Learning Path" : canonicalTopic + " Learning Roadmap",
+      description: dataScience
+        ? "A prerequisite-ordered Data Science course covering mathematics, statistics, Python, SQL, data preparation, visualization, machine learning, deployment and an end-to-end capstone."
+        : "A structured learning path for " + canonicalTopic + ", with tutorial search targets, knowledge checks and practical projects. Resource availability depends on configured providers.",
+      category: cyber ? "Cybersecurity" : dataScience ? "Data Science" : python ? "Programming" : "AI Course Search",
       level,
-      duration: (stages.length * 1.5) + "+ weeks",
+      duration: dataScience
+        ? `~${Math.round(dataScienceSkills.reduce((sum, stage) => sum + stage.courseDuration.targetMinutes, 0) / 60)} learning hours · self-paced`
+        : (stages.length * 1.5) + "+ weeks",
       learningOutcomes: [
         "Explain the essential concepts of " + canonicalTopic + ".",
         "Apply the concepts through guided practice and realistic scenarios.",
@@ -1862,6 +1884,12 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
     },
     personalization: {
       goals: [],
+      courseDepth,
+      courseDepthLabel: ({ short: "Short course", medium: "Medium course", complete: "Complete course" })[courseDepth],
+      selfPaced: true,
+      estimatedStudyMinutes: dataScience
+        ? dataScienceSkills.reduce((sum, stage) => sum + stage.courseDuration.targetMinutes, 0)
+        : 0,
       studyTimeMinutesPerDay: Number(profile.studyTimeMinutesPerDay || profile.intentProfile?.minutesPerDay || 60),
       knownSkills: profile.knownSkills || [],
       skippedSkills: profile.knownSkills || [],

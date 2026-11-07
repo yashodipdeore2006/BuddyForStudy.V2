@@ -191,7 +191,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             { $set: set },
             { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
           );
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
+          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaLimited: state === "quota_limited", quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
         } catch (error) {
           if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
           await assertLease();

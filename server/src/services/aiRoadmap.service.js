@@ -1742,8 +1742,37 @@ export const __aiRoadmapTestHooks = Object.freeze({
   buildTemplateQuizQuestions,
   validateQuizQuestions,
   normalizeGeminiProviderError,
-  buildSharedRoadmapTemplateProfile
+  buildSharedRoadmapTemplateProfile,
+  evaluateResourceAvailability
 });
+
+function evaluateResourceAvailability(quality = {}, quota = {}) {
+  const tutorialLessonCount = Math.max(0, Number(quality?.tutorialLessonCount) || 0);
+  const quotaState = ["ok", "degraded", "exhausted"].includes(quota?.state) ? quota.state : "unknown";
+  const qualityAcceptable = Boolean(quality?.acceptable);
+  const quotaLimited = tutorialLessonCount > 0 && !qualityAcceptable && quotaState === "exhausted";
+  const acceptable = tutorialLessonCount === 0 || qualityAcceptable || quotaLimited;
+  const status = tutorialLessonCount === 0
+    ? "not_required"
+    : qualityAcceptable
+      ? "verified"
+      : quotaLimited
+        ? "partial_quota_limited"
+        : "partial";
+
+  return {
+    acceptable,
+    quotaLimited,
+    resourceAvailability: {
+      ...quality,
+      status,
+      quotaState,
+      quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
+      quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
+      quotaResetDay: /^\d{4}-\d{2}-\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
+    }
+  };
+}
 
 async function createResourceQualityError(quality) {
   let quota = null;
@@ -1956,15 +1985,28 @@ export async function generateAIRoadmap(input, options = {}) {
     const resourceMetrics = options.asyncBuild ? null : getCourseResourceMetrics(built.course);
     const requireCompleteResources = intentProfile.scope === "broad" || isBroadPythonTopic(input.topic);
     const resourceQuality = options.asyncBuild ? null : assessCourseResourceQuality(built.course, { completePath: requireCompleteResources });
-    if (!options.asyncBuild && resourceQuality.tutorialLessonCount > 0 && !resourceQuality.acceptable) {
-      // Keep the user-facing error concise, but retain the exact quality-gate
-      // measurements in server logs so failed builds can be diagnosed safely.
-      console.warn("AI roadmap resource quality rejected", {
-        resourceLanguage,
-        completePath: requireCompleteResources,
-        ...resourceQuality
-      });
-      throw await createResourceQualityError(resourceQuality);
+    let resourceAvailability = null;
+    if (!options.asyncBuild) {
+      const quotaState = await getYouTubeQuotaState().catch(() => null);
+      const availability = evaluateResourceAvailability(resourceQuality, quotaState);
+      if (!availability.acceptable) {
+        // A real resource-quality failure still blocks publication. Only a confirmed
+        // quota-exhausted state permits a curriculum with explicitly partial coverage.
+        console.warn("AI roadmap resource quality rejected", {
+          resourceLanguage,
+          completePath: requireCompleteResources,
+          ...resourceQuality,
+          quotaState: availability.resourceAvailability.quotaState
+        });
+        throw await createResourceQualityError(resourceQuality);
+      }
+      resourceAvailability = availability.resourceAvailability;
+      if (availability.quotaLimited) {
+        console.warn("AI roadmap curriculum preserved with quota-limited YouTube resources", {
+          resourceLanguage,
+          ...resourceAvailability
+        });
+      }
     }
     built.personalization = {
       ...built.personalization,
@@ -1977,7 +2019,8 @@ export async function generateAIRoadmap(input, options = {}) {
           lessonsWithResources: resourceMetrics.lessonsWithResources,
           uniqueVideoCount: resourceMetrics.uniqueVideoCount,
           coverageRatio: resourceMetrics.coverageRatio
-        }
+        },
+        resourceAvailability
       } : {})
     };
     const normalSearchSnapshot = buildNormalSearchSnapshot(built.course, input.topic);
@@ -2052,13 +2095,25 @@ export async function generateAIRoadmap(input, options = {}) {
             resourceCacheScope,
             useCurationEngineForAi: true
           });
+      let fallbackResourceMetrics = null;
+      let fallbackResourceAvailability = null;
       if (!options.asyncBuild) {
         normalizeMultiVideoLessons(fallback.course);
+        fallbackResourceMetrics = getCourseResourceMetrics(fallback.course);
         const fallbackQuality = assessCourseResourceQuality(fallback.course, {
           completePath: intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)
         });
-        if (fallbackQuality.tutorialLessonCount > 0 && !fallbackQuality.acceptable) {
+        const fallbackQuotaState = await getYouTubeQuotaState().catch(() => null);
+        const fallbackAssessment = evaluateResourceAvailability(fallbackQuality, fallbackQuotaState);
+        if (!fallbackAssessment.acceptable) {
           throw await createResourceQualityError(fallbackQuality);
+        }
+        fallbackResourceAvailability = fallbackAssessment.resourceAvailability;
+        if (fallbackAssessment.quotaLimited) {
+          console.warn("AI fallback curriculum preserved with quota-limited YouTube resources", {
+            resourceLanguage,
+            ...fallbackResourceAvailability
+          });
         }
       }
 
@@ -2067,7 +2122,16 @@ export async function generateAIRoadmap(input, options = {}) {
         studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
         estimatedStudyMinutes: Number(fallback.personalization?.estimatedStudyMinutes || 0),
         resourceLanguage,
-        ...(options.asyncBuild ? {} : { resourceVideoMinutes: getCourseResourceMetrics(fallback.course).videoWatchMinutes }),
+        ...(fallbackResourceMetrics ? {
+          resourceVideoMinutes: fallbackResourceMetrics.videoWatchMinutes,
+          resourceCoverage: {
+            tutorialLessonCount: fallbackResourceMetrics.tutorialLessonCount,
+            lessonsWithResources: fallbackResourceMetrics.lessonsWithResources,
+            uniqueVideoCount: fallbackResourceMetrics.uniqueVideoCount,
+            coverageRatio: fallbackResourceMetrics.coverageRatio
+          },
+          resourceAvailability: fallbackResourceAvailability
+        } : {}),
         knownSkills: input.knownSkills || [],
         skippedSkills: [],
         rationale: [

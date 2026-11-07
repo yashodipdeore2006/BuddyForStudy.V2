@@ -26,6 +26,8 @@ envVarGroups:
         value: "false"
       - key: YT_DAILY_QUOTA_BUDGET
         value: "9000"
+      - key: YT_SEARCH_DAILY_LIMIT
+        value: "90"
       - key: YT_SOFT_LIMIT_PCT
         value: "80"
       - key: NODE_CACHE_TTL_DAYS

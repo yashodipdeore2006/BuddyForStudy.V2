@@ -10,11 +10,12 @@ export function getCurrentYouTubeRequestMetrics() {
   return youtubeMetricsContext.getStore() || null;
 }
 
-export function recordYouTubeRequest(endpoint, quotaState = "unknown") {
+export function recordYouTubeRequest(endpoint, quotaState = "unknown", quotaCost = 1) {
   const metrics = youtubeMetricsContext.getStore();
   if (!metrics) return;
   if (endpoint === "search") metrics.searchCalls += 1;
-  metrics.quotaUnits += endpoint === "search" ? 100 : 1;
+  const cost = Number(quotaCost);
+  metrics.quotaUnits += Number.isFinite(cost) && cost > 0 ? cost : 1;
   metrics.quotaState = quotaState;
 }
 

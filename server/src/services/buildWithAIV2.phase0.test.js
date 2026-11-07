@@ -20,6 +20,7 @@ const envKeys = [
   "YT_COMBINED_SEARCH",
   "ENABLE_TRUSTED_CHANNELS",
   "YT_DAILY_QUOTA_BUDGET",
+  "YT_SEARCH_DAILY_LIMIT",
   "YT_SOFT_LIMIT_PCT",
   "NODE_CACHE_TTL_DAYS",
   "NODE_CONCURRENCY",
@@ -164,6 +165,7 @@ before(async () => {
   process.env.YT_COMBINED_SEARCH = "false";
   process.env.ENABLE_TRUSTED_CHANNELS = "false";
   process.env.YT_DAILY_QUOTA_BUDGET = "9000";
+  process.env.YT_SEARCH_DAILY_LIMIT = "90";
   process.env.YT_SOFT_LIMIT_PCT = "80";
   process.env.NODE_CACHE_TTL_DAYS = "14";
   process.env.NODE_CONCURRENCY = "3";
@@ -175,10 +177,40 @@ before(async () => {
   env = envModule.env;
   const quotaModule = await import("./quota.service.js");
   let quotaUnits = 0;
+  let quotaSearchCalls = 0;
+  let defaultExhausted = false;
+  let searchExhausted = false;
   quotaModule.__setQuotaTestAdapters({
-    getState: async () => ({ state: quotaUnits >= 7200 ? "degraded" : "ok", units: quotaUnits, budget: 9000, softLimitPct: 80, resetDay: "test", store: "mock" }),
-    increment: async (cost) => (quotaUnits += cost),
-    markQuotaExceeded: async () => { quotaUnits = 9000; }
+    getState: async () => {
+      const defaultState = quotaModule.__quotaTestHooks.stateFor(quotaUnits, defaultExhausted);
+      const searchState = quotaModule.__quotaTestHooks.searchStateFor(quotaSearchCalls, searchExhausted);
+      return {
+        state: quotaModule.__quotaTestHooks.combinedState(defaultState, searchState),
+        defaultState,
+        searchState,
+        units: quotaUnits,
+        budget: 9000,
+        searchCalls: quotaSearchCalls,
+        searchLimit: 90,
+        softLimitPct: 80,
+        resetDay: "test",
+        store: "mock"
+      };
+    },
+    consumeWithinBudget: async (cost, budget) => {
+      if (defaultExhausted || quotaUnits + cost > budget) return null;
+      quotaUnits += cost;
+      return quotaUnits;
+    },
+    consumeSearchWithinBudget: async (cost, budget) => {
+      if (searchExhausted || quotaSearchCalls + cost > budget) return null;
+      quotaSearchCalls += cost;
+      return quotaSearchCalls;
+    },
+    markQuotaExceeded: async (bucket) => {
+      if (bucket === "search") searchExhausted = true;
+      else defaultExhausted = true;
+    }
   });
   resetQuotaAdapters = () => quotaModule.__setQuotaTestAdapters(null);
 
@@ -218,6 +250,7 @@ test("Phase 0 feature flags stay off under the baseline configuration", () => {
   assert.equal(env.enableTrustedChannels, false);
   assert.equal(env.aiPrivateCoursesSkipReview, false);
   assert.equal(env.ytDailyQuotaBudget, 9000);
+  assert.equal(env.ytSearchDailyLimit, 90);
   assert.equal(env.ytSoftLimitPct, 80);
   assert.equal(env.nodeCacheTtlDays, 14);
   assert.equal(env.nodeConcurrency, 3);
@@ -251,7 +284,7 @@ test("MERN stack normal-search snapshot and structured request telemetry remain 
   assert.ok(Number.isInteger(missLog.searchCalls));
   assert.ok(Number.isInteger(missLog.quotaUnits));
   assert.ok(missLog.searchCalls > 0, "the mocked cold query should issue YouTube search requests");
-  assert.ok(missLog.quotaUnits >= missLog.searchCalls * 100, "search.list calls should contribute 100 estimated units each");
+  assert.ok(missLog.quotaUnits >= missLog.searchCalls, "search.list calls should contribute one quota unit each");
 
   let hitLog;
   console.info = (message, fields) => {

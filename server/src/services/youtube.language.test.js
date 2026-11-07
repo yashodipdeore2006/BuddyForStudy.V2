@@ -59,3 +59,13 @@ test("metadata language is not treated as proof of spoken audio language", () =>
     defaultLanguage: "ta"
   }, "en"), false, "metadata language is not spoken-audio evidence");
 });
+
+
+test("preferred resource languages are normalized, deduplicated and capped at four", () => {
+  assert.deepEqual(
+    __youtubeSelectorTestUtils.normalizePreferredResourceLanguages(["en", "hi", "mr", "gu", "ta", "hi"]),
+    ["en", "hi", "mr", "gu"]
+  );
+  assert.deepEqual(__youtubeSelectorTestUtils.normalizePreferredResourceLanguages([], "hi"), ["hi"]);
+  assert.deepEqual(__youtubeSelectorTestUtils.normalizePreferredResourceLanguages(["Hindi", "English"]), ["hi", "en"]);
+});

@@ -493,6 +493,8 @@ test("async roadmap keeps the personalized course when verified YouTube resource
   const originalCreate = RoadmapDraft.create;
   const originalUpdateOne = RoadmapDraft.updateOne;
   const originalFindById = RoadmapDraft.findById;
+  const originalCourseFindOne = Course.findOne;
+  const originalCourseUpdateOne = Course.updateOne;
 
   RoadmapDraft.findOne = () => ({ sort: async () => null });
   RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
@@ -514,6 +516,7 @@ test("async roadmap keeps the personalized course when verified YouTube resource
       ]
     }]
   }) });
+  Course.updateOne = async () => ({ modifiedCount: 1 });
 
   try {
     const created = await createRoadmapDraft({
@@ -542,5 +545,7 @@ test("async roadmap keeps the personalized course when verified YouTube resource
     RoadmapDraft.create = originalCreate;
     RoadmapDraft.updateOne = originalUpdateOne;
     RoadmapDraft.findById = originalFindById;
+    Course.findOne = originalCourseFindOne;
+    Course.updateOne = originalCourseUpdateOne;
   }
 });

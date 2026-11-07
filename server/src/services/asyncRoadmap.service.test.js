@@ -484,3 +484,63 @@ test("quota/provider failure is persisted as a retryable failed draft with a saf
     RoadmapDraft.updateOne = originalUpdateOne;
   }
 });
+
+
+test("async roadmap keeps the personalized course when verified YouTube resources are quota-limited", async () => {
+  const userId = "507f1f77bcf86cd799439012";
+  const draft = { _id: "draft-partial-quota-row", draftId: "draft-partial-quota", events: [], status: "queued" };
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  const originalUpdateOne = RoadmapDraft.updateOne;
+  const originalFindById = RoadmapDraft.findById;
+
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
+  RoadmapDraft.updateOne = async (_filter, update) => {
+    if (update.$set) Object.assign(draft, update.$set);
+    if (update.$push?.events?.$each) draft.events.push(...update.$push.events.$each);
+    return { modifiedCount: 1 };
+  };
+  RoadmapDraft.findById = () => ({ lean: async () => draft });
+  Course.findOne = () => ({ lean: async () => ({
+    _id: "course-partial-quota",
+    modules: [{
+      _id: "module-1",
+      lessons: [
+        { _id: "lesson-1", title: "Variables", type: "tutorial", buildState: "quota_limited", tutorial: { videos: [] } },
+        { _id: "lesson-2", title: "Functions", type: "tutorial", buildState: "ready", tutorial: { videos: [
+          { videoId: "verified-video-1", durationSeconds: 1800 }
+        ] } }
+      ]
+    }]
+  }) });
+
+  try {
+    const created = await createRoadmapDraft({
+      userId,
+      profile: { topic: "Python", goal: "learn", level: "Beginner" },
+      dependencies: {
+        ...admissionDependencies(),
+        generateAIRoadmap: async () => ({
+          course: { id: "course-partial-quota", modules: [] },
+          personalization: { studyTimeMinutesPerDay: 60 }
+        })
+      }
+    });
+    assert.equal(created.status, "queued");
+    const deadline = Date.now() + 1500;
+    while (draft.status !== "ready" && draft.status !== "failed" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(draft.status, "ready");
+    assert.equal(draft.roadmapId, "course-partial-quota");
+    assert.equal(draft.result.personalization.resourceAvailability.status, "partial_quota_limited");
+    assert.equal(draft.result.personalization.resourceCoverage.lessonsWithResources, 1);
+    assert.ok(draft.events.some((event) => event.type === "done" && event.state === "ready"));
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+    RoadmapDraft.updateOne = originalUpdateOne;
+    RoadmapDraft.findById = originalFindById;
+  }
+});

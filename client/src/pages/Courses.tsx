@@ -9,7 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink, Briefcase, Compass, HeartHandshake, RefreshCw, Rocket } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
-import { getNicheQuestions, getNicheDisclaimer, getNichePackName, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
+import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 
 // The adaptive four-step intake is now the default Build with AI experience.
  // Keep the wizard available even when older local .env files still contain VITE_INTENT_V2=false.
@@ -37,24 +37,6 @@ const COURSE_DEPTH_OPTIONS = [
   { value: "complete", label: "Complete course", duration: "Subject-based · comprehensive", description: "Prerequisites, foundations, the relevant ecosystem or full stack, advanced topics, projects and assessments." }
 ] as const;
 
-
-const BUILD_WITH_AI_PURPOSE_OPTIONS = [
-  { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth", description: "Build role-ready skills and prepare for interviews.", icon: Briefcase },
-  { id: "exam", purpose: "exam", label: "Exam / Certification", goal: "Prepare for an exam or certification", description: "Map the syllabus, revision blocks and mock tests.", icon: GraduationCap },
-  { id: "project", purpose: "freelance", label: "Freelancing", goal: "Create a project or deliverable", description: "Build a sellable service, portfolio and client workflow.", icon: Compass },
-  { id: "learn", purpose: "hobby", label: "Hobby / Personal Interest", goal: "Explore a personal interest", description: "Learn at a sustainable pace driven by curiosity.", icon: HeartHandshake },
-  { id: "job_ready", purpose: "career_switch", label: "Career Switch", goal: "Career or professional growth", description: "Bridge your current experience into a new role.", icon: RefreshCw },
-  { id: "project", purpose: "project", label: "Build a Project", goal: "Create a project or deliverable", description: "Turn the topic into a practical, reviewable deliverable.", icon: Rocket }
-] as const;
-
-const AI_GOAL_OPTIONS = [
-  { value: 'Build practical skills', label: 'Build practical skills', description: 'Learn by doing and applying' },
-  { value: 'Career or professional growth', label: 'Career or work growth', description: 'Advance in a role or change direction' },
-  { value: 'Prepare for an exam or certification', label: 'Exam or certification', description: 'Prepare for a structured assessment' },
-  { value: 'Create a project or deliverable', label: 'Create something', description: 'Make a project, portfolio, or tangible result' },
-  { value: 'Master the fundamentals', label: 'Learn the fundamentals', description: 'Build a clear foundation from the start' },
-  { value: 'Explore a personal interest', label: 'Personal interest', description: 'Learn for curiosity or everyday life' },
-] as const;
 
 type RawCourse = {
   _id?: string;
@@ -238,8 +220,7 @@ export default function Courses() {
   const [aiGoal, setAiGoal] = useState<string>('Explore a personal interest');
   const [aiGoalTouched, setAiGoalTouched] = useState(false);
   const [aiLevelTouched, setAiLevelTouched] = useState(false);
-  const [aiCustomGoal, setAiCustomGoal] = useState('');
-  const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
+    const [aiLevel, setAiLevel] = useState<CourseLevel>('Beginner');
   const [aiStudyTime, setAiStudyTime] = useState(60);
   const [aiStudyDays, setAiStudyDays] = useState("5");
   const [aiScope, setAiScope] = useState<"narrow" | "broad">("broad");
@@ -876,70 +857,6 @@ export default function Courses() {
         : rawAnswer;
       setIntentAnswers((previous) => ({ ...previous, [question.id]: answer }));
     }
-  };
-
-  const renderIntentQuestion = (question: IntentQuestion, accent: "purpose" | "niche") => {
-    const currentAnswer = String(intentAnswers[question.id] || "");
-    const options = question.options?.length
-      ? (question.options.includes("Not sure, pick for me") ? question.options : [...question.options, "Not sure, pick for me"])
-      : [];
-    const selectedClass = accent === "purpose"
-      ? "border-violet-500 bg-violet-50 text-violet-950 ring-1 ring-violet-500/20"
-      : "border-fuchsia-400 bg-fuchsia-50 text-fuchsia-950 ring-1 ring-fuchsia-400/20";
-    const idleClass = "border-slate-200 bg-white text-slate-700 hover:border-violet-400 hover:bg-violet-50";
-    return (
-      <section key={question.id} className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">{question.text}</h3>
-          {question.optional && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Optional</span>}
-        </div>
-        {question.why && (
-          <p className="text-xs leading-5 text-slate-600">{question.why}</p>
-        )}
-        {question.changes?.length ? (
-          <p className="text-[10px] font-medium text-slate-500">
-            Shapes: {question.changes.join(" · ")}
-          </p>
-        ) : null}
-        
-        {options.length > 0 && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            {options.slice(0, 9).map((option) => {
-              const selected = isIntentOptionSelected(question, option);
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => chooseIntentOption(question, option)}
-                  className={`min-h-10 rounded-lg border px-3 py-2 text-left text-xs font-semibold transition ${selected ? selectedClass : idleClass}`}
-                >
-                  {selected ? "✓ " : ""}{option}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {(question.type === "text" || question.type === "paste" || question.allowText) && (
-          <div className="space-y-2">
-            <textarea
-              rows={question.type === "paste" ? 5 : 2}
-              maxLength={question.id === "syllabus" ? 20000 : question.id === "projectIdea" ? 200 : ["role", "targetRole", "company", "examType", "targetExamName", "examDate", "deadline", "switchTarget", "interviewDate"].includes(question.id) ? 120 : 500}
-              value={currentAnswer}
-              onChange={(event) => {
-                setIntentAnswers((previous) => ({ ...previous, [question.id]: event.target.value }));
-                if (event.target.value.trim()) clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
-              }}
-              placeholder={question.id === "syllabus" ? "Paste syllabus units here…" : "Type an answer (optional)…"}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
-            <button type="button" onClick={() => commitIntentTextAnswer(question)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              Save answer
-            </button>
-          </div>
-        )}
-      </section>
-    );
   };
 
   const generateAiRoadmap = async () => {

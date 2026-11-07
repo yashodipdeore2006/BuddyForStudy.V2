@@ -1924,6 +1924,12 @@ export async function generateAIRoadmap(input, options = {}) {
   const promptVersionId = activePrompt.versionId || null;
   const resourceLanguage = normalizeYouTubeLanguage(input.intentProfile?.language || input.language || "en");
   const intentProfile = input.intentProfile || {};
+  const requestedResourceLanguages = [...new Set(
+    String(intentProfile.preferences?.resourceLanguages || resourceLanguage)
+      .split(",")
+      .map((value) => normalizeYouTubeLanguage(value))
+      .filter(Boolean)
+  )].slice(0, 4);
   const contextualPreferences = {
     ...(intentProfile.preferences || {}),
     ...(intentProfile.targetRole || input.targetRole ? { targetRole: intentProfile.targetRole || input.targetRole } : {}),
@@ -2083,6 +2089,7 @@ export async function generateAIRoadmap(input, options = {}) {
           topic: input.topic,
           level: input.level,
           language: resourceLanguage,
+          languages: requestedResourceLanguages,
           resourceSearchContext,
           resourceCacheScope,
           useCurationEngineForAi: true
@@ -2122,6 +2129,7 @@ export async function generateAIRoadmap(input, options = {}) {
       ...built.personalization,
       estimatedStudyMinutes: Number(built.schedule?.estimatedMinutes || built.personalization?.estimatedStudyMinutes || 0),
       resourceLanguage,
+      resourceLanguages: requestedResourceLanguages,
       ...(resourceMetrics ? {
         resourceVideoMinutes: resourceMetrics.videoWatchMinutes,
         resourceCoverage: {
@@ -2201,6 +2209,7 @@ export async function generateAIRoadmap(input, options = {}) {
             topic: input.topic,
             level: input.level,
             language: resourceLanguage,
+            languages: requestedResourceLanguages,
             resourceSearchContext,
             resourceCacheScope,
             useCurationEngineForAi: true
@@ -2232,6 +2241,7 @@ export async function generateAIRoadmap(input, options = {}) {
         studyTimeMinutesPerDay: input.studyTimeMinutesPerDay || 60,
         estimatedStudyMinutes: Number(fallback.personalization?.estimatedStudyMinutes || 0),
         resourceLanguage,
+        resourceLanguages: requestedResourceLanguages,
         ...(fallbackResourceMetrics ? {
           resourceVideoMinutes: fallbackResourceMetrics.videoWatchMinutes,
           resourceCoverage: {

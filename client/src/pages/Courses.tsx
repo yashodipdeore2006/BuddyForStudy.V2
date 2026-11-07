@@ -141,8 +141,12 @@ type AiRoadmap = {
   personalization?: {
     studyTimeMinutesPerDay?: number;
     estimatedStudyMinutes?: number;
+    courseDepth?: "short" | "medium" | "complete" | string;
+    courseDepthLabel?: string;
+    selfPaced?: boolean;
     resourceVideoMinutes?: number;
     resourceLanguage?: string;
+    resourceLanguages?: string[];
     resourceCoverage?: {
       tutorialLessonCount?: number;
       lessonsWithResources?: number;
@@ -1544,13 +1548,14 @@ export default function Courses() {
             <div className="m-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:m-7">
               <p className="text-sm font-extrabold text-slate-900">Why this course was generated</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">{aiRoadmap.personalization.studyTimeMinutesPerDay} min/day</span>
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">{aiRoadmap.personalization.courseDepthLabel || "Self-paced course"}</span>
+                <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Self-paced · no completion deadline</span>
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
                 {Number.isFinite(Number(aiRoadmap.personalization.estimatedStudyMinutes)) && Number(aiRoadmap.personalization.estimatedStudyMinutes) > 0 && (
-                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {aiRoadmap.personalization.estimatedStudyMinutes} min</span>
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {Math.round(aiRoadmap.personalization.estimatedStudyMinutes / 60 * 10) / 10} hours</span>
                 )}
                 {Number.isFinite(Number(aiRoadmap.personalization.resourceVideoMinutes)) && (
-                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {aiRoadmap.personalization.resourceVideoMinutes} min</span>
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {Math.round(aiRoadmap.personalization.resourceVideoMinutes / 60 * 10) / 10} hours</span>
                 )}
                 {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>)}
               </div>
@@ -1559,8 +1564,11 @@ export default function Courses() {
                   ? "Estimated study time includes learning activities, quizzes and hands-on practice; video watch time is measured separately. "
                   : ""}
                 {aiRoadmap.personalization.resourceCoverage
-                  ? `${aiRoadmap.personalization.resourceCoverage.lessonsWithResources || 0}/${aiRoadmap.personalization.resourceCoverage.tutorialLessonCount || 0} tutorial lessons have resources · ${aiRoadmap.personalization.resourceCoverage.uniqueVideoCount || 0} distinct videos · Language: ${aiRoadmap.personalization.resourceLanguage || "requested"}.`
+                  ? `${aiRoadmap.personalization.resourceCoverage.lessonsWithResources || 0}/${aiRoadmap.personalization.resourceCoverage.tutorialLessonCount || 0} tutorial lessons have resources · ${aiRoadmap.personalization.resourceCoverage.uniqueVideoCount || 0} distinct videos.`
                   : ""}
+                {aiRoadmap.personalization.resourceLanguages?.length
+                  ? ` Preferred resource languages: ${aiRoadmap.personalization.resourceLanguages.map((code) => BUILD_WITH_AI_LANGUAGES.find((language) => language.code === code)?.label || code).join(", ")}.`
+                  : ` Preferred resource language: ${aiRoadmap.personalization.resourceLanguage || "requested"}.`}
                 {" "}{aiRoadmap.personalization.rationale?.join(' ')}
               </p>
             </div>

@@ -127,6 +127,12 @@ export function normalizeYouTubeLanguage(language = "en") {
   return LANGUAGE_ALIASES[raw] || LANGUAGE_ALIASES[primary] || primary || "en";
 }
 
+export function normalizePreferredResourceLanguages(languages, fallback = "en") {
+  const source = Array.isArray(languages) && languages.length ? languages : [fallback];
+  const normalized = [...new Set(source.map((language) => normalizeYouTubeLanguage(language)).filter(Boolean))].slice(0, 4);
+  return normalized.length ? normalized : [normalizeYouTubeLanguage(fallback) || "en"];
+}
+
 export function getYouTubeSearchOptions(language = "en", languageExplicit = false) {
   const code = normalizeYouTubeLanguage(language);
   if (!languageExplicit) return { ...YOUTUBE_LOCALES_BY_LANGUAGE.en };
@@ -203,7 +209,7 @@ function isPublicEmbeddableCandidate(video) {
     video.embeddable === true
   );
 }
-export const __youtubeSelectorTestUtils = { isPublicEmbeddableCandidate, candidateLanguageMatches, normalizeYouTubeLanguage };
+export const __youtubeSelectorTestUtils = { isPublicEmbeddableCandidate, candidateLanguageMatches, normalizeYouTubeLanguage, normalizePreferredResourceLanguages };
 
 function toCandidate(video,channel){
   if(!video)return null;
@@ -481,52 +487,19 @@ export async function searchYouTubeCourseRecommendations(query, maxResults = 3) 
     .sort((a, b) => b.score - a.score)
     .slice(0, Math.max(1, Math.min(Number(maxResults) || 30, 50)));
 }
-async function attachProjectYouTubeVideos(project, language = "en") {
+async function attachProjectYouTubeVideos(project, languages = ["en"]) {
   const queries = (project.videoSearchQueries || []).filter(Boolean).slice(0, 2);
   if (!queries.length || !env.youtubeApiKey) return [];
 
-  const items = [];
-  for (const query of queries) {
-    try {
-      const data = await searchVideos(query, 12, getYouTubeSearchOptions(language, true));
-      items.push(...(data?.items || []));
-    } catch (error) {
-      console.error("YouTube project tutorial search failed", {
-        ...safeTelemetryError(error)
-      });
-    }
-  }
-
-  const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];
-  if (!uniqueIds.length) return [];
-
-  const videoDetails = await getVideoDetails(uniqueIds);
-  const channelIds = [...new Set(videoDetails.map((video) => video.snippet?.channelId).filter(Boolean))];
-  const channels = await getChannelDetails(channelIds);
-  const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
-  const byId = new Map(videoDetails.map((video) => [video.id, video]));
-
+  const preferredLanguages = normalizePreferredResourceLanguages(languages);
   const policy = {
     minDurationMinutes: 60,
     targetDurationMinutes: 360,
     maxDurationMinutes: 1500,
     excludeShorts: true,
     requireEmbeddable: true,
-    preferProjectBased: true,
-    preferredLanguage: "en"
+    preferProjectBased: true
   };
-
-  const candidates = uniqueIds
-    .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
-    .filter((video) =>
-      video &&
-      isPublicEmbeddableCandidate(video) &&
-      !video.isShort &&
-      video.durationSeconds >= policy.minDurationMinutes * 60 &&
-      video.durationSeconds <= policy.maxDurationMinutes * 60 &&
-      candidateLanguageMatches(video, language)
-    );
-
   const lesson = {
     title: project.title || "Project Tutorial",
     tutorial: {
@@ -538,10 +511,53 @@ async function attachProjectYouTubeVideos(project, language = "en") {
     }
   };
 
-  return candidates
-    .map((video) => ({ ...video, ...scoreCandidate(video, lesson, candidates) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 1);
+  for (const language of preferredLanguages) {
+    const items = [];
+    for (const query of queries) {
+      try {
+        const data = await searchVideos(query, 12, getYouTubeSearchOptions(language, true));
+        items.push(...(data?.items || []));
+      } catch (error) {
+        console.error("YouTube project tutorial search failed", {
+          language,
+          ...safeTelemetryError(error)
+        });
+      }
+    }
+
+    const uniqueIds = [...new Set(items.map((item) => item.id?.videoId).filter(Boolean))];
+    if (!uniqueIds.length) continue;
+
+    const videoDetails = await getVideoDetails(uniqueIds);
+    const channelIds = [...new Set(videoDetails.map((video) => video.snippet?.channelId).filter(Boolean))];
+    const channels = await getChannelDetails(channelIds);
+    const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+    const byId = new Map(videoDetails.map((video) => [video.id, video]));
+
+    const candidates = uniqueIds
+      .map((id) => toCandidate(byId.get(id), channelMap.get(byId.get(id)?.snippet?.channelId)))
+      .filter((video) =>
+        video &&
+        isPublicEmbeddableCandidate(video) &&
+        !video.isShort &&
+        video.durationSeconds >= policy.minDurationMinutes * 60 &&
+        video.durationSeconds <= policy.maxDurationMinutes * 60 &&
+        candidateLanguageMatches(video, language)
+      );
+
+    if (candidates.length) {
+      return candidates
+        .map((video) => ({
+          ...video,
+          ...scoreCandidate(video, lesson, candidates),
+          resourceLanguage: language
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 1);
+    }
+  }
+
+  return [];
 }
 
 export async function attachYouTubeResources(course, options = {}) {
@@ -583,12 +599,7 @@ export async function attachYouTubeResources(course, options = {}) {
   }
 
   const useSharedEngine = options.useCurationEngineForAi ?? env.useCurationEngineForAi;
-  const preferredLanguages = [...new Set(
-    (Array.isArray(options.languages) && options.languages.length ? options.languages : [options.language || "en"])
-      .map((language) => normalizeYouTubeLanguage(language))
-      .filter(Boolean)
-  )].slice(0, 4);
-  if (!preferredLanguages.length) preferredLanguages.push("en");
+  const preferredLanguages = normalizePreferredResourceLanguages(options.languages, options.language || "en");
   let cursor = 0;
   const selectedGroups = new Array(groups.length);
   async function worker() {
@@ -596,6 +607,7 @@ export async function attachYouTubeResources(course, options = {}) {
       const index = cursor++;
       const group = groups[index];
       if (useSharedEngine) {
+        let lowConfidenceFallback = null;
         for (const language of preferredLanguages) {
           try {
             const lesson = group.lessons[0];
@@ -612,9 +624,12 @@ export async function attachYouTubeResources(course, options = {}) {
               durationPolicy: { minMinutes, targetMinutes, maxMinutes },
               cacheScope: `${options.resourceCacheScope || ""}:language:${language}`
             });
-            if (result.best) {
+            if (result.best && !result.meta?.lowConfidence) {
               selectedGroups[index] = { group, result, selected: result.best, alternatives: result.alternatives || [], engine: "shared", language };
               break;
+            }
+            if (result.best && !lowConfidenceFallback) {
+              lowConfidenceFallback = { group, result, selected: result.best, alternatives: result.alternatives || [], engine: "shared", language };
             }
             console.info("AI node curation language fallback", {
               skillId: group.skill.canonicalSkillId,
@@ -632,6 +647,10 @@ export async function attachYouTubeResources(course, options = {}) {
           }
         }
         if (selectedGroups[index]) continue;
+        if (lowConfidenceFallback) {
+          selectedGroups[index] = lowConfidenceFallback;
+          continue;
+        }
         // Build with AI must not downgrade to a permissive legacy selector.
         // No suitable language-matched verified resource is safer than an unverified video.
         selectedGroups[index] = { group, selected: null, alternatives: [], engine: "shared", language: null };
@@ -704,6 +723,7 @@ export async function attachYouTubeResources(course, options = {}) {
       chapters: selected.chapters || [],
       fetchedAt: selected.fetchedAt || new Date(),
       reason: selected.reason || (engine === "shared" ? "Shared course curation engine" : "Legacy selector fallback"),
+      resourceLanguage: entry.language || options.language || "en",
       description: selected.description || "",
       defaultAudioLanguage: selected.defaultAudioLanguage || "",
       url: selected.url || "",
@@ -739,7 +759,7 @@ export async function attachYouTubeResources(course, options = {}) {
         lesson.tutorial.videos = assigned.map((picked) => ({ ...picked, alternatives: sourceVideo.alternatives }));
         lesson.tutorial.resources = assigned.map((picked) => picked.url).filter(Boolean);
         lesson.tutorial.resourceStatus = assigned.length ? "ready" : "unavailable";
-        lesson.tutorial.selection = assigned[0] ? { algorithm: "shared-node-curation", selectedVideoId: assigned[0].videoId, selectedVideoTitle: assigned[0].title, cacheHit: Boolean(entry.result?.meta?.cacheHit) } : null;
+        lesson.tutorial.selection = assigned[0] ? { algorithm: "shared-node-curation", selectedVideoId: assigned[0].videoId, selectedVideoTitle: assigned[0].title, resourceLanguage: entry.language || options.language || "en", cacheHit: Boolean(entry.result?.meta?.cacheHit) } : null;
       });
     } else if (chapters.length >= 2) {
       const totalSeconds = Math.max(1, sourceVideo.durationSeconds);
@@ -757,7 +777,7 @@ export async function attachYouTubeResources(course, options = {}) {
         lesson.tutorial.videos = [video];
         lesson.tutorial.resources = video.url ? [video.url] : [];
         lesson.tutorial.resourceStatus = "ready";
-        lesson.tutorial.selection = { algorithm: "shared-node-chapters", selectedVideoId: video.videoId, selectedVideoTitle: video.title, startSeconds, endSeconds };
+        lesson.tutorial.selection = { algorithm: "shared-node-chapters", selectedVideoId: video.videoId, selectedVideoTitle: video.title, resourceLanguage: entry.language || options.language || "en", startSeconds, endSeconds };
       });
     } else {
       // Conservative single-video/no-chapters policy: attach to the first lesson only;
@@ -766,7 +786,7 @@ export async function attachYouTubeResources(course, options = {}) {
         lesson.tutorial.videos = index === 0 ? [sourceVideo] : [];
         lesson.tutorial.resources = index === 0 && sourceVideo.url ? [sourceVideo.url] : [];
         lesson.tutorial.resourceStatus = index === 0 ? "ready" : "unavailable";
-        lesson.tutorial.selection = index === 0 ? { algorithm: "shared-node-single-video", selectedVideoId: sourceVideo.videoId, selectedVideoTitle: sourceVideo.title } : null;
+        lesson.tutorial.selection = index === 0 ? { algorithm: "shared-node-single-video", selectedVideoId: sourceVideo.videoId, selectedVideoTitle: sourceVideo.title, resourceLanguage: entry.language || options.language || "en" } : null;
       });
     }
   }
@@ -774,7 +794,7 @@ export async function attachYouTubeResources(course, options = {}) {
   // The legacy path for project lessons is intentionally unchanged.
   for (const { lesson } of projectRequests) {
     try {
-      const ranked = await attachProjectYouTubeVideos({ ...lesson.project, title: lesson.title }, options.language || "en");
+      const ranked = await attachProjectYouTubeVideos({ ...lesson.project, title: lesson.title }, preferredLanguages);
       lesson.project.videos = ranked;
       lesson.project.resources = ranked.map((video) => video.url);
       if (ranked.length) allSources.push(...ranked);

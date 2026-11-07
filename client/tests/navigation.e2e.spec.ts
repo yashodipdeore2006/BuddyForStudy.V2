@@ -949,6 +949,7 @@ test.describe("learner control and state regression", () => {
     await page.getByRole("textbox", { name: "Search courses" }).fill("Data Science");
     await page.getByRole("button", { name: "Build with AI" }).click();
     const dialog = page.getByRole("dialog", { name: "Create your learning course" });
+    await dialog.getByLabel("What do you want to learn?").fill("Data Science career");
 
     await dialog.getByRole("button", { name: /^Medium course/ }).click();
     await dialog.getByRole("button", { name: "Experienced", exact: true }).click();
@@ -961,11 +962,12 @@ test.describe("learner control and state regression", () => {
     await expect.poll(() => submittedProfile).not.toBeNull();
     const intentProfile = submittedProfile?.intentProfile as Record<string, unknown>;
     const preferences = intentProfile?.preferences as Record<string, string>;
-    expect(submittedProfile?.topic).toBe("Data Science");
+    expect(submittedProfile?.topic).toBe("Data Science career");
     expect(submittedProfile?.level).toBe("Advanced");
     expect(intentProfile).toMatchObject({
-      topic: "Data Science",
+      topic: "Data Science career",
       scope: "narrow",
+      goal: "job_ready",
       deadline: null,
       level: "Advanced",
     });

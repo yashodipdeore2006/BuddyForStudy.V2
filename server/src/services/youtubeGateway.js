@@ -1,13 +1,12 @@
 import { env } from "../config/env.js";
 import { recordYouTubeRequest, recordYouTubeRequestRefused, getCurrentYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
-import { tryConsume, getState, markQuotaExceeded, QuotaBudgetError } from "./quota.service.js";
-
-const COST = Object.freeze({ search: 100, default: 1 });
+import { YOUTUBE_API_COST, tryConsume, getState, markQuotaExceeded, QuotaBudgetError } from "./quota.service.js";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const jitter = () => Math.floor(Math.random() * 101);
 
 export async function youtubeRequest(endpoint, params = {}) {
-  const cost = COST[endpoint] || COST.default;
+  const bucket = endpoint === "search" ? "search" : "default";
+  const cost = bucket === "search" ? YOUTUBE_API_COST.search : YOUTUBE_API_COST.default;
   if (!env.youtubeApiKey) {
     const error = new Error("YOUTUBE_API_KEY is missing");
     error.status = 503;
@@ -22,7 +21,7 @@ export async function youtubeRequest(endpoint, params = {}) {
   for (let attempt = 0; ; attempt += 1) {
     let budget;
     try {
-      budget = await tryConsume(cost);
+      budget = await tryConsume(cost, { bucket });
       recordYouTubeRequest(endpoint, budget.state);
     } catch (error) {
       if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
@@ -53,7 +52,7 @@ export async function youtubeRequest(endpoint, params = {}) {
       if (!response.ok) {
         const reason = data?.error?.errors?.[0]?.reason || data?.error?.status || data?.error?.message || "unknown error";
         if (response.status === 403 && /quotaExceeded|dailyLimitExceeded/i.test(String(reason))) {
-          await markQuotaExceeded();
+          await markQuotaExceeded(bucket);
           throw new QuotaBudgetError("exhausted", "Google reported YouTube API quota exhaustion");
         }
         if ((response.status === 429 || response.status >= 500) && attempt < 2) {
@@ -70,7 +69,8 @@ export async function youtubeRequest(endpoint, params = {}) {
       console.info("YouTube request completed", {
         requestId: request?.requestId || null, skillId: request?.skillId || null,
         endpoint, quotaState: state.state, requestQuotaState: budget.state,
-        quotaUnits: state.units, quotaCost: cost, attempt: attempt + 1
+        quotaUnits: state.units, quotaSearchCalls: state.searchCalls, quotaBucket: bucket,
+        requestQuotaState: budget.state, quotaCost: cost, attempt: attempt + 1
       });
       return data;
     } catch (error) {

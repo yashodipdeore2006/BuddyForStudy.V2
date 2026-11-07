@@ -320,6 +320,13 @@ test("buildCourse output for the fixed Gemini response matches the Phase 0 snaps
     logger: { info() {} }
   });
   const actual = JSON.parse(JSON.stringify(built.course));
+  // Course durations are now estimated learning hours on a self-paced path,
+  // rather than a derived daily schedule. Keep the Phase 0 structure snapshot
+  // stable while asserting the new duration contract explicitly.
+  assert.match(built.course.duration, /learning hours · self-paced/);
+  delete actual.duration;
+  const expectedBaseline = structuredClone(phase0ExpectedSnapshots.builtCourse);
+  delete expectedBaseline.duration;
   // Later roadmap phases add goal-specific modules to the original Phase 0 output.
   // Keep this snapshot focused on the Phase 0 baseline while explicitly checking
   // that the additive interview module is present and well-formed.
@@ -331,7 +338,7 @@ test("buildCourse output for the fixed Gemini response matches the Phase 0 snaps
   }
   actual.modules = actual.modules.filter((module) => !module.goalModule);
 
-  assert.deepEqual(actual, phase0ExpectedSnapshots.builtCourse);
+  assert.deepEqual(actual, expectedBaseline);
 });
 
 test("Phase 0 curation fixture uses mocked YouTube and Gemini providers only", () => {

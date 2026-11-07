@@ -232,3 +232,33 @@ test("short and medium course depth enforce bounded stage counts and total study
   assert.equal(complete.length, skills.length);
   assert.equal(complete, skills);
 });
+
+
+test("Data Science topic fallback retains the selected short, medium or complete depth", () => {
+  const complete = __aiRoadmapTestHooks.buildTopicFallback("Data Science", "Beginner", {
+    intentProfile: { preferences: { courseDepth: "complete" } }
+  });
+  const medium = __aiRoadmapTestHooks.buildTopicFallback("Data Science", "Beginner", {
+    intentProfile: { preferences: { courseDepth: "medium" } }
+  });
+  const short = __aiRoadmapTestHooks.buildTopicFallback("Data Science", "Beginner", {
+    intentProfile: { preferences: { courseDepth: "short" } }
+  });
+
+  assert.equal(complete.course.title, "Data Science Complete Learning Path");
+  assert.equal(complete.course.modules.length, 14);
+  assert.equal(complete.course.duration, "~80 learning hours · self-paced");
+  assert.equal(complete.personalization.estimatedStudyMinutes, 4800);
+  assert.ok(complete.course.modules.every((module) => module.lessons.every((lesson) => lesson.title.trim().length > 0)));
+  assert.deepEqual(complete.skillGraph[0].prerequisites, []);
+  for (let index = 1; index < complete.skillGraph.length; index += 1) {
+    assert.deepEqual(complete.skillGraph[index].prerequisites, [complete.skillGraph[index - 1].id]);
+  }
+
+  assert.equal(medium.course.modules.length, 9);
+  assert.equal(medium.course.duration, "~35 learning hours · self-paced");
+  assert.equal(medium.personalization.estimatedStudyMinutes, 2100);
+  assert.equal(short.course.modules.length, 5);
+  assert.equal(short.course.duration, "~12 learning hours · self-paced");
+  assert.equal(short.personalization.estimatedStudyMinutes, 720);
+});

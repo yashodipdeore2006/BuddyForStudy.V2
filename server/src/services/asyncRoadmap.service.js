@@ -195,13 +195,16 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
         } catch (error) {
           if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
           await assertLease();
-          // Each node is isolated: persist failure and allow sibling jobs to finish.
+          // Preserve already-built curriculum nodes when one enrichment request fails.
+          // Quota refusal is temporary and must remain retryable after reset.
+          const quotaLimited = error?.name === "QuotaBudgetError" || error?.code === "YOUTUBE_QUOTA_BUDGET";
+          const fallbackState = quotaLimited ? "quota_limited" : "failed";
           await Course.updateOne(
             { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
-            { $set: { "modules.$[module].lessons.$[lesson].buildState": "failed" } },
+            { $set: { "modules.$[module].lessons.$[lesson].buildState": fallbackState } },
             { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
           ).catch(() => {});
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: "failed", flags: { error: true } });
+          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: fallbackState, flags: { error: !quotaLimited, quotaLimited } });
         }
       });
     }

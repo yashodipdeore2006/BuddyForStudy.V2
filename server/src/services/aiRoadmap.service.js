@@ -1115,15 +1115,6 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     });
   }
 
-  const totalMinutes = activeSkills.reduce(
-    (sum, skill) => sum + skill.courseDuration.targetMinutes,
-    0
-  );
-  const days = Math.max(
-    1,
-    Math.ceil(totalMinutes / Math.max(30, studyTimeMinutesPerDay || 60))
-  );
-
   const goalProfile = { topic, goal: intentProfile?.goal, goals, level, language, minutesPerDay: studyTimeMinutesPerDay, targetRole: targetRole || intentProfile?.targetRole, targetCompany: targetCompany || intentProfile?.targetCompany, examName: examName || intentProfile?.examName, examDate: examDate || intentProfile?.examDate, syllabusText: syllabusText || intentProfile?.syllabusText, projectIdea: projectIdea || intentProfile?.projectIdea, deadline: deadline || intentProfile?.deadline };
   const goal = normalizeGoal(goalProfile);
   let verifiedSyllabusUnits = syllabusUnits;
@@ -1178,7 +1169,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       description: ai.description,
       category: ai.category,
       level,
-      duration: `${days} study days at ${studyTimeMinutesPerDay || 60} min/day`,
+      duration: `~${Math.max(1, Math.round(Number(schedule.estimatedMinutes || totalMinutes || 0) / 60))} learning hours · self-paced`,
       learningOutcomes: [
         ...(ai.learningOutcomes || []),
         "Build practical projects that prove your ability to apply the stack.",
@@ -1200,6 +1191,9 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
     })),
     personalization: {
       goals,
+      courseDepth,
+      courseDepthLabel: ({ short: "Short course", medium: "Medium course", complete: "Complete course" })[courseDepth],
+      selfPaced: true,
       studyTimeMinutesPerDay: studyTimeMinutesPerDay || 60,
       estimatedStudyMinutes: Number(schedule.estimatedMinutes || 0),
       knownSkills: knownSkills || [],
@@ -1213,7 +1207,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
           ? `Added ${capstones.length} final portfolio capstone project(s) at the end of the curriculum.`
           : "Used the AI-selected practical project progression for this learning path.",
         goals.length ? `Prioritized the roadmap around: ${goals.join(", ")}.` : "Used a balanced learning progression.",
-        `Estimated the plan around ${studyTimeMinutesPerDay || 60} minutes per day.`
+        `Built as a ${courseDepth} course with no learner-specified completion date or daily study-time requirement.`
       ]
     }
   };
@@ -2174,6 +2168,9 @@ export async function generateAIRoadmap(input, options = {}) {
       estimatedStudyMinutes: Number(built.schedule?.estimatedMinutes || built.personalization?.estimatedStudyMinutes || 0),
       resourceLanguage,
       resourceLanguages: requestedResourceLanguages,
+      courseDepth,
+      courseDepthLabel: ({ short: "Short course", medium: "Medium course", complete: "Complete course" })[courseDepth],
+      selfPaced: true,
       ...(resourceMetrics ? {
         resourceVideoMinutes: resourceMetrics.videoWatchMinutes,
         resourceCoverage: {
@@ -2286,6 +2283,9 @@ export async function generateAIRoadmap(input, options = {}) {
         estimatedStudyMinutes: Number(fallback.personalization?.estimatedStudyMinutes || 0),
         resourceLanguage,
         resourceLanguages: requestedResourceLanguages,
+        courseDepth,
+        courseDepthLabel: ({ short: "Short course", medium: "Medium course", complete: "Complete course" })[courseDepth],
+        selfPaced: true,
         ...(fallbackResourceMetrics ? {
           resourceVideoMinutes: fallbackResourceMetrics.videoWatchMinutes,
           resourceCoverage: {

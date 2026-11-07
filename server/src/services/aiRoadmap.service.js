@@ -17,6 +17,7 @@ import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModu
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
 import { safeTelemetryError } from "../utils/safeTelemetryError.js";
+import { resolveGeminiThinkingLevel } from "../utils/geminiThinking.js";
 import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learningResourceQuality.js";
 import { getState as getYouTubeQuotaState } from "./quota.service.js";
 
@@ -1183,7 +1184,7 @@ async function generateWithGemini({ topic, level, goals, studyTimeMinutesPerDay,
       config: {
         responseMimeType: "application/json",
         responseSchema: roadmapSchema,
-        thinkingConfig: { thinkingLevel: "MINIMAL" },
+        thinkingConfig: { thinkingLevel: resolveGeminiThinkingLevel(env.geminiModel, "MINIMAL") },
         maxOutputTokens: 12000
       }
     });
@@ -1541,7 +1542,7 @@ export async function generateCourseQuiz({ courseId, lessonId, userId = null, pr
         config: {
           responseMimeType: "application/json",
           responseSchema: quizResponseSchema,
-          thinkingConfig: { thinkingLevel: "MINIMAL" },
+          thinkingConfig: { thinkingLevel: resolveGeminiThinkingLevel(env.geminiModel, "MINIMAL") },
           maxOutputTokens: Math.max(5000, requestedCount * 550)
         }
       }), 20000);

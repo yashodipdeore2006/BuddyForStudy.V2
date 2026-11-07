@@ -8,7 +8,7 @@ const roadmapTemplateSchema = new mongoose.Schema({
   promptVersion: { type: String, required: true, trim: true, maxlength: 160 },
   roadmap: { type: mongoose.Schema.Types.Mixed, required: true },
   createdAt: { type: Date, default: Date.now },
+  // The TTL path index also supports expiry lookups; do not declare it twice.
   expiresAt: { type: Date, required: true, index: { expires: 0 } }
 }, { versionKey: false, collection: "roadmap_templates" });
-roadmapTemplateSchema.index({ expiresAt: 1 });
 export const RoadmapTemplate = mongoose.models.RoadmapTemplate || mongoose.model("RoadmapTemplate", roadmapTemplateSchema);

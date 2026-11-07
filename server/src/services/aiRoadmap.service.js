@@ -1931,6 +1931,9 @@ export async function generateAIRoadmap(input, options = {}) {
   const promptVersionId = activePrompt.versionId || null;
   const resourceLanguage = normalizeYouTubeLanguage(input.intentProfile?.language || input.language || "en");
   const intentProfile = input.intentProfile || {};
+  const courseDepth = ["short", "medium", "complete"].includes(String(intentProfile.preferences?.courseDepth || ""))
+    ? String(intentProfile.preferences.courseDepth)
+    : "complete";
   const requestedResourceLanguages = [...new Set(
     String(intentProfile.preferences?.resourceLanguages || resourceLanguage)
       .split(",")

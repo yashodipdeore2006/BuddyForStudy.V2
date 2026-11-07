@@ -10,7 +10,8 @@ const adminInvitationSchema = new mongoose.Schema({
   },
   tokenHash: { type: String, required: true, unique: true, select: false },
   invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  expiresAt: { type: Date, required: true, index: true },
+  // The explicit TTL index below also serves expiry lookups; avoid a duplicate path index.
+  expiresAt: { type: Date, required: true },
   acceptedAt: { type: Date, default: null },
   revokedAt: { type: Date, default: null }
 }, { timestamps: true, collection: "admin_invitations" });

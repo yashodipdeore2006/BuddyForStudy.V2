@@ -168,3 +168,45 @@ test("resource availability distinguishes verified coverage from a curriculum wi
   assert.equal(notRequired.acceptable, true);
   assert.equal(notRequired.resourceAvailability.status, "not_required");
 });
+
+
+test("complete Data Science path contains prerequisite-ordered foundations through deployment and capstone", () => {
+  assert.equal(__aiRoadmapTestHooks.isDataScienceTopic("Data Science"), true);
+  assert.equal(__aiRoadmapTestHooks.isDataScienceTopic("Data Science and Machine Learning"), true);
+  assert.equal(__aiRoadmapTestHooks.isDataScienceTopic("Data Analytics"), false);
+  assert.equal(__aiRoadmapTestHooks.isDataScienceTopic("Machine Learning"), false);
+
+  const ai = {};
+  const stages = __aiRoadmapTestHooks.ensureDataScienceStages([], "Data Science", ai);
+  const totalMinutes = stages.reduce((sum, stage) => sum + stage.courseDuration.targetMinutes, 0);
+  assert.equal(stages.length, 14);
+  assert.ok(totalMinutes >= 4200, `expected at least 70 hours, got ${totalMinutes / 60}`);
+  assert.ok(totalMinutes <= 6000, `expected a focused 70–100 hour path, got ${totalMinutes / 60}`);
+  assert.equal(totalMinutes, 4800);
+  assert.equal(stages[0].prerequisites.length, 0);
+  for (let index = 1; index < stages.length; index += 1) {
+    assert.deepEqual(stages[index].prerequisites, [stages[index - 1].id]);
+  }
+  const names = stages.map((stage) => stage.name).join(" | ").toLowerCase();
+  for (const required of ["statistics", "python", "sql", "wrangling", "exploratory", "visualization", "machine learning", "supervised", "unsupervised", "feature engineering", "deep learning", "deployment", "capstone"]) {
+    assert.ok(names.includes(required), `missing Data Science curriculum area: ${required}`);
+  }
+  assert.equal(ai.title, "Data Science Complete Learning Path");
+  assert.equal(ai.capstoneProjects?.[0]?.title, "End-to-End Data Science Capstone");
+});
+
+test("course depth prompt instructions distinguish short, medium and comprehensive paths", () => {
+  const short = __aiRoadmapTestHooks.buildCourseDepthPromptInstructions("short", "Python").join(" ");
+  const medium = __aiRoadmapTestHooks.buildCourseDepthPromptInstructions("medium", "Python").join(" ");
+  const complete = __aiRoadmapTestHooks.buildCourseDepthPromptInstructions("complete", "MERN Stack").join(" ");
+  const dataScience = __aiRoadmapTestHooks.buildCourseDepthPromptInstructions("complete", "Data Science").join(" ");
+
+  assert.match(short, /8–15 hours/);
+  assert.match(short, /fundamentals/i);
+  assert.match(medium, /25–45 hours/);
+  assert.match(medium, /guided practice/i);
+  assert.match(complete, /prerequisite-ordered/i);
+  assert.match(complete, /relevant subject-specific tools/i);
+  assert.match(dataScience, /70–100 hours/);
+  assert.match(dataScience, /responsible AI/i);
+});

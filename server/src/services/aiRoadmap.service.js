@@ -1769,7 +1769,7 @@ function evaluateResourceAvailability(quality = {}, quota = {}) {
       quotaState,
       quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
       quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
-      quotaResetDay: /^\\d{4}-\\d{2}-\\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
+      quotaResetDay: /^\d{4}-\d{2}-\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
     }
   };
 }

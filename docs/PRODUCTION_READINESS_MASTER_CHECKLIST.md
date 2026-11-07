@@ -6,6 +6,16 @@
 
 > **Status policy:** Code existing or a test file existing does not make a task complete. Mark `DONE` only after executing the check on the current candidate and recording evidence. Use `FAIL` for a reproduced defect, `BLOCKED` when environment/access prevents checking, and `N/A` only with a written reason.
 
+## Latest candidate verification — 2026-11-07
+
+- **Candidate:** [`1ebe9800d9487dd2b850d823c0ba924e694cf9c1`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1ebe9800d9487dd2b850d823c0ba924e694cf9c1) on `main`.
+- **Full CI:** [run 42378392430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42378392430) — **SUCCESS** on the exact candidate. Backend: 881 tests passed, 0 failed. Frontend: 23 unit tests passed, 4 deployment-config tests passed, and 119 Playwright browser smoke tests passed. Workflow also passed dependency audits, frontend/backend lint, typecheck, production build, production-config preflight, mock selector comparison, JavaScript syntax checks, and the Production release gate.
+- **Secret scanning:** [run 42378392314](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42378392314) — **SUCCESS**.
+- **Build with AI changes verified by CI:** compact self-paced form; complete/medium/short course selection; English and Hindi defaults with up to four selected resource languages; no learner-entered daily hours or completion deadline; Data Science complete-course 70–100-hour guidance; profile payload assertions; and goal-keyword inference regression coverage.
+- **Release blockers remain:** GitHub reports `main.protected=false` with no required checks, so merges are not protected. The Render Blueprint's `checksPass` setting is configuration only; no live Render API/worker or Vercel deployment is evidenced by this CI run. Staging/provider verification, data-rights/retention execution, subscription lifecycle closure, backup/restore and rollback rehearsal, and named release/rollback owners still require separate evidence.
+- **Decision:** the current code candidate is **CI-verified**, but the application is **not yet cleared for production release**. Do not treat the green CI release-gate job as proof of a live production deployment.
+- **Counting note:** the 239-task dashboard below remains the result of the last full checklist reconciliation; this focused candidate verification does not recompute or silently change the task totals.
+
 ## Progress dashboard
 
 | Metric | Current |
@@ -47,11 +57,11 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 ### A. Release controls and CI
 
 - [x] **PR-001** record candidate main SHA and release-tag decision.  
-  Status: `DONE` · Evidence: current reviewed candidate [`1ada53c`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1ada53cafc7a4bdf26542bf1c8bbc3f9cb81aef5); production tag intentionally deferred because release status is NOT READY · Finding/fix: —
+  Status: `DONE` · Evidence: current reviewed candidate [`1ebe980`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1ebe9800d9487dd2b850d823c0ba924e694cf9c1); exact-candidate CI passed in [run 42378392430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42378392430). Production tag intentionally deferred because staging/provider and release-control blockers remain · Finding/fix: —
 - [ ] **PR-002** confirm clean working tree.  
   Status: `BLOCKED` · Evidence: GitHub connector can inspect committed `main` but cannot inspect uncommitted files on the developer's local workstation · Next action: run `git status --short` in the release workspace before tagging/deploying.
 - [x] **PR-003** review commits since last green CI.  
-  Status: `DONE` · Evidence: [latest previously green run on `6c0967f`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/40278571539); only checklist documentation followed that candidate at time of review · Finding/fix: —
+  Status: `DONE` · Evidence: review of the Build with AI compact-intake and goal-inference changes on exact candidate [`1ebe980`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1ebe9800d9487dd2b850d823c0ba924e694cf9c1); full exact-candidate CI passed in [run 42378392430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42378392430) · Finding/fix: —
 - [ ] **PR-004** confirm main branch protection.  
   Status: `FAIL` · Evidence: GitHub API reports `main.protected = false` · Finding: `REL-001` — configure branch protection/ruleset; connector does not expose a write operation for this setting.
 - [x] **PR-005** confirm CI runs on push and pull request.  
@@ -85,7 +95,7 @@ After every task or batch, report `N completed out of 239`, plus failed, blocked
 - [x] **PR-019** capture CI for exact candidate SHA.  
   Status: `DONE` · Evidence: exact code candidate [`acda2f2`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/acda2f2012047fb40f8577c32ec82e30adf25eb3) passed full CI in [run 42030964072](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42030964072); the subsequent release-control candidate [`615a87d`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/615a87df3ea619e63147f33e2c7f5740570903b4) also passed backend, frontend, browser smoke and production release-gate jobs in [run 42031851603](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42031851603). Full-history Gitleaks passed on the same candidate in [run 42031851612](https://github.com/yashodipore2006/BuddyForStudy.V2/actions/runs/42031851612). Frontend lint is now confirmed blocking. Remaining provider/staging and operational checks remain separately blocked; this entry does not claim production readiness.
 - [ ] **PR-020** block release while required checks are red or pending.  
-  Status: `PARTIAL — CI GATE AND RENDER CHECKS-PASS CONFIGURED; MERGE PROTECTION OPEN` · Evidence: CI now has a `Production release gate` job that fails unless both frontend and backend jobs succeed; it passed on [CI 41276721150](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/41276721150). Render Blueprint uses `autoDeployTrigger: checksPass` for API and worker. GitHub still reports `main.protected=false`, so GitHub does not block an unprotected merge or enforce required checks on PR merge; `REL-001` remains P1. · Finding/fix: enable required branch rules through repository admin settings.
+  Status: `PARTIAL — CI GATE AND RENDER CHECKS-PASS CONFIGURED; MERGE PROTECTION OPEN` · Evidence: `Production release gate` passed on exact candidate [`1ebe980`](https://github.com/yashodipdeore2006/BuddyForStudy.V2/commit/1ebe9800d9487dd2b850d823c0ba924e694cf9c1) in [CI 42378392430](https://github.com/yashodipdeore2006/BuddyForStudy.V2/actions/runs/42378392430); Render Blueprint still uses `autoDeployTrigger: checksPass` for API and worker. GitHub API confirms `main.protected=false` and required checks are empty/off, so GitHub does not block an unprotected merge or enforce required checks on PR merge; `REL-001` remains P1. No live Render/Vercel deployment was confirmed. · Finding/fix: enable required branch rules through repository admin settings and separately verify staging.
 
 ### B. Configuration and secrets
 

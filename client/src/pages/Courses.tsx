@@ -471,7 +471,6 @@ export default function Courses() {
     setIntentAnswers({});
     setIntentWizardStep(1);
     setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
-    setAiCustomGoal("");
     setAiGoal("Explore a personal interest");
     setAiGoalTouched(false);
     setAiLevel("Beginner");
@@ -943,7 +942,6 @@ export default function Courses() {
                   setIntentAnswers({});
                   setIntentWizardStep(1);
                   setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
-                  setAiCustomGoal("");
                   setAiGoal("Explore a personal interest");
                   setAiGoalTouched(false);
                   setAiLevel("Beginner");
@@ -1290,7 +1288,7 @@ export default function Courses() {
                   </span>
                   <span className="rounded-full bg-white/10 px-3 py-1.5">
                     {aiRoadmap.personalization?.estimatedStudyMinutes
-                      ? `~${Math.round(aiRoadmap.personalization.estimatedStudyMinutes / 60 * 10) / 10}h estimated study`
+                      ? `~${Math.round(Number(aiRoadmap.personalization.estimatedStudyMinutes ?? 0) / 60 * 10) / 10}h estimated study`
                       : 'Self-paced'}
                   </span>
                   {typeof aiRoadmap.personalization?.resourceVideoMinutes === 'number' && (
@@ -1349,7 +1347,7 @@ export default function Courses() {
                   <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {Math.round(aiRoadmap.personalization.estimatedStudyMinutes / 60 * 10) / 10} hours</span>
                 )}
                 {Number.isFinite(Number(aiRoadmap.personalization.resourceVideoMinutes)) && (
-                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {Math.round(aiRoadmap.personalization.resourceVideoMinutes / 60 * 10) / 10} hours</span>
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {Math.round(Number(aiRoadmap.personalization.resourceVideoMinutes ?? 0) / 60 * 10) / 10} hours</span>
                 )}
                 {(aiRoadmap.personalization.skippedSkills || []).map((skill: string) => <span key={skill} className="rounded-full bg-green-50 px-3 py-1.5 font-bold text-green-700">Skipped: {skill}</span>)}
               </div>

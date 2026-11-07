@@ -220,12 +220,33 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
   const metrics = getCourseResourceMetrics(completedCourse);
   const quality = assessCourseResourceQuality(completedCourse, { completePath });
-  if (quality.tutorialLessonCount > 0 && !quality.acceptable) {
+  // YouTube is an optional enrichment layer for an otherwise valid personalized
+  // curriculum. A provider quota refusal must not discard the entire roadmap:
+  // keep the verified resources already attached and expose the missing coverage
+  // to the learner so it can be retried after quota reset.
+  const quota = await getYouTubeQuotaState().catch(() => null);
+  const quotaExhausted = quota?.state === "exhausted";
+  if (quality.tutorialLessonCount > 0 && !quality.acceptable && !quotaExhausted) {
     throw await buildResourceQualityFailure(quality);
+  }
+  if (quality.tutorialLessonCount > 0 && !quality.acceptable && quotaExhausted) {
+    console.warn("AI roadmap completed with partial verified resources because YouTube quota is exhausted", {
+      tutorialLessonCount: quality.tutorialLessonCount,
+      lessonsWithResources: quality.lessonsWithResources,
+      uniqueVideoCount: quality.uniqueVideoCount,
+      coverageRatio: quality.coverageRatio,
+      quotaUnits: quota.units,
+      quotaBudget: quota.budget
+    });
   }
   return {
     ...metrics,
-    resourceLanguage: String(profile.language || profile.intentProfile?.language || "en").slice(0, 20)
+    resourceLanguage: String(profile.language || profile.intentProfile?.language || "en").slice(0, 20),
+    resourceAvailability: {
+      status: quotaExhausted && quality.coverageRatio < 1 ? "partial_quota_limited" : quality.acceptable ? "verified" : "partial",
+      quotaState: quota?.state || "unknown",
+      ...quality
+    }
   };
 }
 
@@ -329,6 +350,10 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
               lessonsWithResources: resourceMetrics.lessonsWithResources,
               uniqueVideoCount: resourceMetrics.uniqueVideoCount,
               coverageRatio: resourceMetrics.coverageRatio
+            },
+            resourceAvailability: resourceMetrics.resourceAvailability || {
+              status: "verified",
+              quotaState: "unknown"
             }
           }
         };

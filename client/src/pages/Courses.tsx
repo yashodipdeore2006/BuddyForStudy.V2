@@ -1344,7 +1344,7 @@ export default function Courses() {
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Self-paced · no completion deadline</span>
                 <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Goal: {aiRoadmap.personalization.goals?.[0] || 'Balanced learning'}</span>
                 {Number.isFinite(Number(aiRoadmap.personalization.estimatedStudyMinutes)) && Number(aiRoadmap.personalization.estimatedStudyMinutes) > 0 && (
-                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {Math.round(aiRoadmap.personalization.estimatedStudyMinutes / 60 * 10) / 10} hours</span>
+                  <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Planned learning: {Math.round(Number(aiRoadmap.personalization.estimatedStudyMinutes ?? 0) / 60 * 10) / 10} hours</span>
                 )}
                 {Number.isFinite(Number(aiRoadmap.personalization.resourceVideoMinutes)) && (
                   <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Verified video runtime: {Math.round(Number(aiRoadmap.personalization.resourceVideoMinutes ?? 0) / 60 * 10) / 10} hours</span>

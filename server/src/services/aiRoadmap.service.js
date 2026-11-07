@@ -891,13 +891,16 @@ function ensurePythonStages(skills, topic, knownSkills = []) {
 }
 
 export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, goals, knownSkills, domain, language, intentProfile, targetRole, targetCompany, examName, examDate, syllabusText, projectIdea, deadline }, { resolveSkill = resolveCanonicalSkill, logger = console, syllabusUnits = [] } = {}) {
-  const courseDepth = String(intentProfile?.preferences?.courseDepth || "complete");
-  const sourceSkills = courseDepth === "complete" && isDataScienceTopic(topic, ai)
+  const courseDepth = ["short", "medium", "complete"].includes(String(intentProfile?.preferences?.courseDepth || ""))
+    ? String(intentProfile.preferences.courseDepth)
+    : "complete";
+  const completePath = courseDepth === "complete";
+  const sourceSkills = completePath && isDataScienceTopic(topic, ai)
     ? ensureDataScienceStages(ai.skills || [], topic, ai)
     : (ai.skills || []);
-  const webEnrichedSkills = ensureWebIndustryStage(sourceSkills, topic, ai);
-  const analyticsEnrichedSkills = ensureDataAnalyticsStages(webEnrichedSkills, topic, ai);
-  const enrichedSkills = ensurePythonStages(analyticsEnrichedSkills, topic, knownSkills);
+  const webEnrichedSkills = completePath ? ensureWebIndustryStage(sourceSkills, topic, ai) : sourceSkills;
+  const analyticsEnrichedSkills = completePath ? ensureDataAnalyticsStages(webEnrichedSkills, topic, ai) : webEnrichedSkills;
+  const enrichedSkills = completePath ? ensurePythonStages(analyticsEnrichedSkills, topic, knownSkills) : analyticsEnrichedSkills;
   const graph = validateSkillGraph(enrichedSkills, { logger });
   const domainId = resolveRoadmapDomain({ domain, topic });
   const resolved = [];
@@ -1905,12 +1908,16 @@ async function createResourceQualityError(quality) {
 
 export function buildSharedRoadmapTemplateProfile(profile = {}) {
   const topic = String(profile.topic || profile.canonicalTopic || "").trim();
+  const courseDepth = ["short", "medium", "complete"].includes(String(profile.preferences?.courseDepth || ""))
+    ? String(profile.preferences.courseDepth)
+    : "complete";
   return {
     topic,
     canonicalTopic: String(profile.canonicalTopic || topic).trim(),
     goal: "learn",
     level: String(profile.level || "Beginner"),
     language: normalizeYouTubeLanguage(profile.language || "en"),
+    courseDepth,
     outcome: "",
     preferences: {}
   };
@@ -2008,7 +2015,7 @@ export async function generateAIRoadmap(input, options = {}) {
       level: input.level || "Beginner",
       language: resourceLanguage,
       outcome: "",
-      preferences: {}
+      preferences: { courseDepth: sharedTemplateProfile.courseDepth }
     }
   };
   const templatePromptVersion = activePrompt.versionId || activePrompt.version || "builtin-v1";
@@ -2100,7 +2107,7 @@ export async function generateAIRoadmap(input, options = {}) {
       normalizeMultiVideoLessons(built.course);
     }
     const resourceMetrics = options.asyncBuild ? null : getCourseResourceMetrics(built.course);
-    const requireCompleteResources = intentProfile.scope === "broad" || isBroadPythonTopic(input.topic);
+    const requireCompleteResources = courseDepth === "complete" && (intentProfile.scope === "broad" || isBroadPythonTopic(input.topic) || isDataScienceTopic(input.topic));
     const resourceQuality = options.asyncBuild ? null : assessCourseResourceQuality(built.course, { completePath: requireCompleteResources });
     let resourceAvailability = null;
     if (!options.asyncBuild) {
@@ -2220,7 +2227,7 @@ export async function generateAIRoadmap(input, options = {}) {
         normalizeMultiVideoLessons(fallback.course);
         fallbackResourceMetrics = getCourseResourceMetrics(fallback.course);
         const fallbackQuality = assessCourseResourceQuality(fallback.course, {
-          completePath: intentProfile.scope === "broad" || isBroadPythonTopic(input.topic)
+          completePath: courseDepth === "complete" && (intentProfile.scope === "broad" || isBroadPythonTopic(input.topic) || isDataScienceTopic(input.topic))
         });
         const fallbackQuotaState = await getYouTubeQuotaState().catch(() => null);
         const fallbackAssessment = evaluateResourceAvailability(fallbackQuality, fallbackQuotaState);

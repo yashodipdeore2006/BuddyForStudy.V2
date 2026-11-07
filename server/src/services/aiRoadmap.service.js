@@ -1169,7 +1169,7 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       description: ai.description,
       category: ai.category,
       level,
-      duration: `~${Math.max(1, Math.round(Number(schedule.estimatedMinutes || totalMinutes || 0) / 60))} learning hours · self-paced`,
+      duration: `~${Math.max(1, Math.round(Number(schedule.estimatedMinutes || 0) / 60))} learning hours · self-paced`,
       learningOutcomes: [
         ...(ai.learningOutcomes || []),
         "Build practical projects that prove your ability to apply the stack.",

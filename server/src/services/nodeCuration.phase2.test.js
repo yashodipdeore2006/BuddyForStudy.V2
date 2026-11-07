@@ -180,3 +180,28 @@ test("playlist metadata language is not mistaken for spoken audio language", () 
   });
   assert.equal(mapped.defaultAudioLanguage, "");
 });
+
+
+test("quota-limited node remains retryable and is not cached as an empty result", async () => {
+  cacheRows.clear();
+  setSelector(async () => {
+    const error = new Error("quota refused");
+    error.name = "QuotaBudgetError";
+    error.state = "exhausted";
+    throw error;
+  });
+  const input = {
+    skill: { id: "quota-limited-skill", canonicalSkillId: "quota-limited-skill", name: "Python variables", topics: ["variables"] },
+    profile: { topic: "Python", level: "Beginner", language: "en" },
+    durationPolicy: { minMinutes: 15, targetMinutes: 30, maxMinutes: 60 }
+  };
+  try {
+    const result = await curateForNode(input);
+    assert.equal(result.best, null);
+    assert.equal(result.meta.state, "quota_limited");
+    assert.equal(result.meta.quotaState, "exhausted");
+    assert.equal([...cacheRows.values()].some((row) => row.kind === "node"), false);
+  } finally {
+    setSelector(null);
+  }
+});

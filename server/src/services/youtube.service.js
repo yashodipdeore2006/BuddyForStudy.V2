@@ -104,12 +104,20 @@ const YOUTUBE_LOCALES_BY_LANGUAGE = {
   bn: { relevanceLanguage: "bn", regionCode: "IN" },
   mr: { relevanceLanguage: "mr", regionCode: "IN" },
   ta: { relevanceLanguage: "ta", regionCode: "IN" },
-  te: { relevanceLanguage: "te", regionCode: "IN" }
+  te: { relevanceLanguage: "te", regionCode: "IN" },
+  gu: { relevanceLanguage: "gu", regionCode: "IN" },
+  kn: { relevanceLanguage: "kn", regionCode: "IN" },
+  ml: { relevanceLanguage: "ml", regionCode: "IN" },
+  pa: { relevanceLanguage: "pa", regionCode: "IN" },
+  ur: { relevanceLanguage: "ur", regionCode: "IN" },
+  or: { relevanceLanguage: "or", regionCode: "IN" }
 };
 
 const LANGUAGE_ALIASES = Object.freeze({
   english: "en", hindi: "hi", marathi: "mr", bengali: "bn", tamil: "ta",
-  telugu: "te", spanish: "es", french: "fr", german: "de", portuguese: "pt",
+  telugu: "te", gujarati: "gu", kannada: "kn", malayalam: "ml",
+  punjabi: "pa", urdu: "ur", odia: "or", oriya: "or",
+  spanish: "es", french: "fr", german: "de", portuguese: "pt",
   japanese: "ja", korean: "ko", arabic: "ar"
 });
 

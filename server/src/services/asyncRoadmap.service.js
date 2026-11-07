@@ -119,7 +119,7 @@ function pump() {
   }
 }
 
-async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease }) {
+async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease, dependencies = {} }) {
   await assertLease();
   const course = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   if (!course) throw new Error("Private roadmap course was not found for its owner");
@@ -153,7 +153,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             intent.projectIdea,
             intent.outcome
           ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
-          const curated = await curateForNode({
+          const curated = await (dependencies.curateForNode || curateForNode)({
             skill: {
               id: lesson.canonicalSkillId || lesson.title,
               canonicalSkillId: lesson.canonicalSkillId || lesson.title,
@@ -336,7 +336,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
           { $set: { roadmapId: courseId, result, status: "building", updatedAt: new Date() } }
         );
         await addEvent(draft, { type: "skeleton", state: "building", draftId, roadmapId: String(courseId), result });
-        const resourceMetrics = await resolveCourseNodes({ draft, courseId, userId, profile, assertLease });
+        const resourceMetrics = await resolveCourseNodes({ draft, courseId, userId, profile, assertLease, dependencies });
         await assertLease();
         const completed = await RoadmapDraft.findById(draft._id).lean();
         const previousPersonalization = completed?.result?.personalization || result.personalization || {};

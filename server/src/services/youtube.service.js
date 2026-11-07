@@ -575,6 +575,12 @@ export async function attachYouTubeResources(course, options = {}) {
   }
 
   const useSharedEngine = options.useCurationEngineForAi ?? env.useCurationEngineForAi;
+  const preferredLanguages = [...new Set(
+    (Array.isArray(options.languages) && options.languages.length ? options.languages : [options.language || "en"])
+      .map((language) => normalizeYouTubeLanguage(language))
+      .filter(Boolean)
+  )].slice(0, 4);
+  if (!preferredLanguages.length) preferredLanguages.push("en");
   let cursor = 0;
   const selectedGroups = new Array(groups.length);
   async function worker() {
@@ -582,61 +588,90 @@ export async function attachYouTubeResources(course, options = {}) {
       const index = cursor++;
       const group = groups[index];
       if (useSharedEngine) {
-        try {
-          const lesson = group.lessons[0];
-          const targetMinutes = Number(lesson.tutorial?.durationMinutes?.targetMinutes || lesson.tutorial?.searchPolicy?.targetDurationMinutes || 60);
-          const minMinutes = Number(lesson.tutorial?.durationMinutes?.minMinutes || lesson.tutorial?.searchPolicy?.minDurationMinutes || 30);
-          const maxMinutes = Number(lesson.tutorial?.durationMinutes?.maxMinutes || lesson.tutorial?.searchPolicy?.maxDurationMinutes || 180);
-          const result = await curateForNode({
-            skill: group.skill,
-            profile: { topic: options.topic || course.title || "", level: options.level || course.level || "Beginner", language: options.language || "en" },
-            durationPolicy: { minMinutes, targetMinutes, maxMinutes },
-            cacheScope: options.resourceCacheScope || ""
-          });
-          if (result.best) {
-            selectedGroups[index] = { group, result, selected: result.best, alternatives: result.alternatives || [], engine: "shared" };
-            return;
+        for (const language of preferredLanguages) {
+          try {
+            const lesson = group.lessons[0];
+            const targetMinutes = Number(lesson.tutorial?.durationMinutes?.targetMinutes || lesson.tutorial?.searchPolicy?.targetDurationMinutes || 60);
+            const minMinutes = Number(lesson.tutorial?.durationMinutes?.minMinutes || lesson.tutorial?.searchPolicy?.minDurationMinutes || 30);
+            const maxMinutes = Number(lesson.tutorial?.durationMinutes?.maxMinutes || lesson.tutorial?.searchPolicy?.maxDurationMinutes || 180);
+            const result = await curateForNode({
+              skill: group.skill,
+              profile: {
+                topic: options.topic || course.title || "",
+                level: options.level || course.level || "Beginner",
+                language
+              },
+              durationPolicy: { minMinutes, targetMinutes, maxMinutes },
+              cacheScope: `${options.resourceCacheScope || ""}:language:${language}`
+            });
+            if (result.best) {
+              selectedGroups[index] = { group, result, selected: result.best, alternatives: result.alternatives || [], engine: "shared", language };
+              break;
+            }
+            console.info("AI node curation language fallback", {
+              skillId: group.skill.canonicalSkillId,
+              language,
+              state: result.meta?.state || "empty",
+              cacheHit: result.meta?.cacheHit || false,
+              searchCalls: result.meta?.searchCalls || 0,
+              quotaUnits: result.meta?.quotaUnits || 0
+            });
+          } catch (error) {
+            console.warn("AI node curation failed for selected resource language", {
+              language,
+              ...safeTelemetryError(error)
+            });
           }
-          console.info("AI node curation fallback", { skillId: group.skill.canonicalSkillId, state: result.meta?.state || "empty", cacheHit: result.meta?.cacheHit || false, searchCalls: result.meta?.searchCalls || 0, quotaUnits: result.meta?.quotaUnits || 0 });
-        } catch (error) {
-          console.warn("AI node curation failed; legacy fallback is disabled for personalized roadmaps", safeTelemetryError(error));
         }
-      }
-
-      // Build with AI must not downgrade to the permissive legacy selector.
-      // An unavailable verified match is safer than returning a short or language-unknown video.
-      if (useSharedEngine) {
-        selectedGroups[index] = { group, selected: null, alternatives: [], engine: "shared" };
+        if (selectedGroups[index]) continue;
+        // Build with AI must not downgrade to a permissive legacy selector.
+        // No suitable language-matched verified resource is safer than an unverified video.
+        selectedGroups[index] = { group, selected: null, alternatives: [], engine: "shared", language: null };
         continue;
       }
 
-      const legacy = await searchBestYouTubeCourse({
-        skill: group.skill.name,
-        searchQueries: group.skill.searchQueries.length ? group.skill.searchQueries : [group.skill.name + " complete course tutorial"],
-        searchPolicy: {
-          minDurationMinutes: Number(group.lessons[0].tutorial?.searchPolicy?.minDurationMinutes || 30),
-          maxDurationMinutes: Number(group.lessons[0].tutorial?.searchPolicy?.maxDurationMinutes || 180),
-          requireEmbeddable: true,
-          excludeShorts: true,
-          requiredTopics: group.skill.topics,
-          preferredLanguage: normalizeYouTubeLanguage(options.language || "en")
-        },
-        language: options.language || "en"
-      }).catch((error) => {
-        console.warn("Legacy AI node selector failed", safeTelemetryError(error));
-        return null;
-      });
-      selectedGroups[index] = { group, selected: legacy ? {
-        ...legacy,
-        videoId: legacy.videoId,
-        title: legacy.title,
-        channelTitle: legacy.channelTitle,
-        durationSeconds: legacy.durationSeconds,
-        thumbnail: legacy.thumbnail,
-        url: legacy.url,
-        fetchedAt: new Date(),
-        reason: "Legacy searchBestYouTubeCourse fallback"
-      } : null, alternatives: [], engine: "legacy" };
+      for (const language of preferredLanguages) {
+        const legacy = await searchBestYouTubeCourse({
+          skill: group.skill.name,
+          searchQueries: group.skill.searchQueries.length ? group.skill.searchQueries : [group.skill.name + " complete course tutorial"],
+          searchPolicy: {
+            minDurationMinutes: Number(group.lessons[0].tutorial?.searchPolicy?.minDurationMinutes || 30),
+            maxDurationMinutes: Number(group.lessons[0].tutorial?.searchPolicy?.maxDurationMinutes || 180),
+            requireEmbeddable: true,
+            excludeShorts: true,
+            requiredTopics: group.skill.topics,
+            preferredLanguage: language
+          },
+          language
+        }).catch((error) => {
+          console.warn("Legacy AI node selector failed for selected resource language", {
+            language,
+            ...safeTelemetryError(error)
+          });
+          return null;
+        });
+        if (legacy) {
+          selectedGroups[index] = {
+            group,
+            selected: {
+              ...legacy,
+              videoId: legacy.videoId,
+              title: legacy.title,
+              channelTitle: legacy.channelTitle,
+              durationSeconds: legacy.durationSeconds,
+              thumbnail: legacy.thumbnail,
+              url: legacy.url,
+              fetchedAt: new Date(),
+              reason: "Legacy searchBestYouTubeCourse fallback"
+            },
+            alternatives: [],
+            engine: "legacy",
+            language
+          };
+          break;
+        }
+      }
+      if (!selectedGroups[index]) selectedGroups[index] = { group, selected: null, alternatives: [], engine: "legacy", language: null };
     }
   }
   await Promise.all(Array.from({ length: Math.min(env.nodeConcurrency, Math.max(1, groups.length)) }, () => worker()));

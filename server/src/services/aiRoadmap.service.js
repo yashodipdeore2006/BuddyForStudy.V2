@@ -595,6 +595,38 @@ export function ensureDataScienceStages(_skills, topic, ai = {}) {
   return stages;
 }
 
+
+export function applyCourseDepthPlan(skills = [], courseDepthValue = "complete") {
+  const courseDepth = ["short", "medium", "complete"].includes(String(courseDepthValue))
+    ? String(courseDepthValue)
+    : "complete";
+  if (courseDepth === "complete" || !Array.isArray(skills) || !skills.length) return skills || [];
+  const limits = {
+    short: { targetMinutes: 12 * 60, maxStages: 5 },
+    medium: { targetMinutes: 35 * 60, maxStages: 9 }
+  }[courseDepth];
+  const selected = skills.slice(0, limits.maxStages);
+  const weights = selected.map((skill) => Math.max(30, Number(skill.courseDuration?.targetMinutes) || 60));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  let allocated = 0;
+  return selected.map((skill, index) => {
+    const targetMinutes = index === selected.length - 1
+      ? limits.targetMinutes - allocated
+      : Math.max(1, Math.floor(limits.targetMinutes * weights[index] / totalWeight));
+    allocated += targetMinutes;
+    const current = skill.courseDuration || {};
+    const sourceTarget = weights[index];
+    const minRatio = Math.max(0.25, Math.min(0.9, (Number(current.minMinutes) || sourceTarget * 0.6) / sourceTarget));
+    const maxRatio = Math.max(1, Math.min(2.5, (Number(current.maxMinutes) || sourceTarget * 1.5) / sourceTarget));
+    const minMinutes = Math.min(targetMinutes, Math.max(15, Math.round(targetMinutes * minRatio)));
+    const maxMinutes = Math.max(targetMinutes, Math.round(targetMinutes * maxRatio));
+    return {
+      ...skill,
+      courseDuration: { minMinutes, targetMinutes, maxMinutes }
+    };
+  });
+}
+
 function buildCourseDepthPromptInstructions(courseDepthValue, topic) {
   const depth = ["short", "medium", "complete"].includes(String(courseDepthValue || "")) ? String(courseDepthValue) : "complete";
   if (depth === "short") return [
@@ -901,7 +933,8 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
   const webEnrichedSkills = completePath ? ensureWebIndustryStage(sourceSkills, topic, ai) : sourceSkills;
   const analyticsEnrichedSkills = completePath ? ensureDataAnalyticsStages(webEnrichedSkills, topic, ai) : webEnrichedSkills;
   const enrichedSkills = completePath ? ensurePythonStages(analyticsEnrichedSkills, topic, knownSkills) : analyticsEnrichedSkills;
-  const graph = validateSkillGraph(enrichedSkills, { logger });
+  const depthScopedSkills = applyCourseDepthPlan(enrichedSkills, courseDepth);
+  const graph = validateSkillGraph(depthScopedSkills, { logger });
   const domainId = resolveRoadmapDomain({ domain, topic });
   const resolved = [];
   const canonicalByAlias = new Map();
@@ -1846,6 +1879,7 @@ function buildTopicFallback(topic, level = "Beginner", profile = {}) {
 }
 
 export const __aiRoadmapTestHooks = Object.freeze({
+  applyCourseDepthPlan,
   isDataScienceTopic,
   ensureDataScienceStages,
   buildCourseDepthPromptInstructions,

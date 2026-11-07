@@ -539,6 +539,9 @@ test("async roadmap keeps the personalized course when verified YouTube resource
     assert.equal(draft.roadmapId, "course-partial-quota");
     assert.equal(draft.result.personalization.resourceAvailability.status, "partial_quota_limited");
     assert.equal(draft.result.personalization.resourceCoverage.lessonsWithResources, 1);
+    const quotaNodeEvent = draft.events.find((event) => event.type === "node" && event.title === "Variables");
+    assert.equal(quotaNodeEvent.state, "quota_limited");
+    assert.equal(quotaNodeEvent.flags.quotaLimited, true);
     assert.ok(draft.events.some((event) => event.type === "done" && event.state === "ready"));
   } finally {
     RoadmapDraft.findOne = originalFindOne;

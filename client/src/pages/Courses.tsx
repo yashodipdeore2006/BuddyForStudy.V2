@@ -756,11 +756,11 @@ export default function Courses() {
     }
 
     const normalizedTopic = topic.toLowerCase();
-    const inferredGoal = /\\b(exam|certification|certificate|entrance test|competitive exam)\\b/.test(normalizedTopic)
+    const inferredGoal = /\b(exam|certification|certificate|entrance test|competitive exam)\b/.test(normalizedTopic)
       ? "exam"
-      : /\\b(job|career|interview|placement|developer role)\\b/.test(normalizedTopic)
+      : /\b(job|career|interview|placement|developer role)\b/.test(normalizedTopic)
         ? "job_ready"
-        : /\\b(project|portfolio|build an app|build a website|build a system)\\b/.test(normalizedTopic)
+        : /\b(project|portfolio|build an app|build a website|build a system)\b/.test(normalizedTopic)
           ? "project"
           : "learn";
     const courseDepthLabel = COURSE_DEPTH_OPTIONS.find((option) => option.value === aiCourseDepth)?.label || "Complete course";

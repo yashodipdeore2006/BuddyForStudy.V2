@@ -530,6 +530,11 @@ test("async roadmap keeps the personalized course when verified YouTube resource
         generateAIRoadmap: async () => ({
           course: { id: "course-partial-quota", modules: [] },
           personalization: { studyTimeMinutesPerDay: 60 }
+        }),
+        curateForNode: async () => ({
+          best: null,
+          alternatives: [],
+          meta: { cacheHit: false, searchCalls: 0, quotaUnits: 0, lowConfidence: true, state: "quota_limited", quotaState: "exhausted" }
         })
       }
     });

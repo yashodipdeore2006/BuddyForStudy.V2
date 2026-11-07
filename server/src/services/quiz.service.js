@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { env } from "../config/env.js";
+import { resolveGeminiThinkingLevel } from "../utils/geminiThinking.js";
 
 const geminiClient = env.geminiApiKey ? new GoogleGenAI({ apiKey: env.geminiApiKey }) : null;
 
@@ -74,7 +75,7 @@ export async function generateModuleQuiz({ module, courseTitle, level = "Beginne
         config: {
           systemInstruction: "Return only valid JSON. No Markdown fences or commentary.",
           responseMimeType: "application/json",
-          thinkingConfig: { thinkingLevel: "MINIMAL" },
+          thinkingConfig: { thinkingLevel: resolveGeminiThinkingLevel(env.geminiModel, "MINIMAL") },
           maxOutputTokens: 5000
         }
       });

@@ -210,3 +210,25 @@ test("course depth prompt instructions distinguish short, medium and comprehensi
   assert.match(dataScience, /70–100 hours/);
   assert.match(dataScience, /responsible AI/i);
 });
+
+
+test("short and medium course depth enforce bounded stage counts and total study-hour targets", () => {
+  const skills = Array.from({ length: 12 }, (_, index) => ({
+    id: `skill-${index + 1}`,
+    name: `Skill ${index + 1}`,
+    courseDuration: { minMinutes: 120, targetMinutes: 300, maxMinutes: 480 }
+  }));
+
+  const short = __aiRoadmapTestHooks.applyCourseDepthPlan(skills, "short");
+  const medium = __aiRoadmapTestHooks.applyCourseDepthPlan(skills, "medium");
+  const complete = __aiRoadmapTestHooks.applyCourseDepthPlan(skills, "complete");
+
+  assert.equal(short.length, 5);
+  assert.equal(short.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0), 720);
+  assert.ok(short.every((skill) => skill.courseDuration.minMinutes <= skill.courseDuration.targetMinutes && skill.courseDuration.targetMinutes <= skill.courseDuration.maxMinutes));
+  assert.equal(medium.length, 9);
+  assert.equal(medium.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0), 2100);
+  assert.ok(medium.every((skill) => skill.courseDuration.minMinutes <= skill.courseDuration.targetMinutes && skill.courseDuration.targetMinutes <= skill.courseDuration.maxMinutes));
+  assert.equal(complete.length, skills.length);
+  assert.equal(complete, skills);
+});

@@ -2,12 +2,14 @@ import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const originalEnv = new Map(["NODE_ENV", "MONGO_URI", "JWT_SECRET", "YOUTUBE_API_KEY", "REDIS_URL", "YT_DAILY_QUOTA_BUDGET", "YT_SOFT_LIMIT_PCT", "YT_COMBINED_SEARCH"].map((key) => [key, process.env[key]]));
+const originalEnv = new Map(["NODE_ENV", "MONGO_URI", "JWT_SECRET", "YOUTUBE_API_KEY", "REDIS_URL", "YT_DAILY_QUOTA_BUDGET", "YT_SEARCH_DAILY_LIMIT", "YT_SOFT_LIMIT_PCT", "YT_COMBINED_SEARCH"].map((key) => [key, process.env[key]]));
 const originalFetch = globalThis.fetch;
 let quota;
 let gateway;
 let quotaUnits = 0;
+let quotaSearchCalls = 0;
 let exhausted = false;
+let searchExhausted = false;
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -20,17 +22,41 @@ before(async () => {
   process.env.YOUTUBE_API_KEY = "phase1-mock-youtube-key";
   process.env.REDIS_URL = "";
   process.env.YT_DAILY_QUOTA_BUDGET = "1000";
+  process.env.YT_SEARCH_DAILY_LIMIT = "90";
   process.env.YT_SOFT_LIMIT_PCT = "80";
   process.env.YT_COMBINED_SEARCH = "false";
   quota = await import("./quota.service.js");
   quota.__setQuotaTestAdapters({
-    getState: async () => ({ state: quota.__quotaTestHooks.stateFor(quotaUnits, exhausted), units: quotaUnits, budget: 1000, softLimitPct: 80, resetDay: "test", store: "mock" }),
+    getState: async () => {
+      const defaultState = quota.__quotaTestHooks.stateFor(quotaUnits, exhausted);
+      const searchState = quota.__quotaTestHooks.searchStateFor(quotaSearchCalls, searchExhausted);
+      return {
+        state: quota.__quotaTestHooks.combinedState(defaultState, searchState),
+        defaultState,
+        searchState,
+        units: quotaUnits,
+        budget: 1000,
+        searchCalls: quotaSearchCalls,
+        searchLimit: 90,
+        softLimitPct: 80,
+        resetDay: "test",
+        store: "mock"
+      };
+    },
     consumeWithinBudget: async (cost, budget) => {
       if (quotaUnits + cost > budget || exhausted) return null;
       quotaUnits += cost;
       return quotaUnits;
     },
-    markQuotaExceeded: async () => { exhausted = true; },
+    consumeSearchWithinBudget: async (cost, budget) => {
+      if (quotaSearchCalls + cost > budget || searchExhausted) return null;
+      quotaSearchCalls += cost;
+      return quotaSearchCalls;
+    },
+    markQuotaExceeded: async (bucket) => {
+      if (bucket === "search") searchExhausted = true;
+      else exhausted = true;
+    }
   });
   gateway = await import("./youtubeGateway.js");
 });
@@ -45,8 +71,10 @@ after(() => {
 });
 
 test("YouTube endpoint costs and Pacific reset day are explicit", () => {
-  assert.equal(quota.YOUTUBE_API_COST.search, 100);
+  assert.equal(quota.YOUTUBE_API_COST.search, 1);
   assert.equal(quota.YOUTUBE_API_COST.default, 1);
+  assert.equal(quota.__quotaTestHooks.searchStateFor(72), "degraded");
+  assert.equal(quota.__quotaTestHooks.searchStateFor(90), "exhausted");
   assert.match(quota.getPacificQuotaDay(new Date("2026-01-01T07:30:00Z")), /^2025-12-31$/);
   assert.match(quota.getPacificQuotaDay(new Date("2026-01-01T09:00:00Z")), /^2026-01-01$/);
 });
@@ -59,24 +87,30 @@ test("quota states transition at the configured soft and hard thresholds", () =>
   assert.equal(quota.__quotaTestHooks.stateFor(1, true), "exhausted");
 });
 
-test("degraded soft-limit state permits search while hard quota capacity remains", async () => {
+test("search and default API requests consume their separate quota buckets", async () => {
   quotaUnits = 800;
+  quotaSearchCalls = 0;
   exhausted = false;
+  searchExhausted = false;
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; return jsonResponse({ items: [] }); };
   const search = await gateway.youtubeRequest("search", { part: "snippet", q: "MERN" });
   assert.deepEqual(search.items, []);
-  assert.equal(quotaUnits, 900);
+  assert.equal(quotaSearchCalls, 1);
+  assert.equal(quotaUnits, 800, "search.list must not consume the shared default-unit bucket");
   assert.equal(calls, 1);
   const result = await gateway.youtubeRequest("videos", { part: "snippet", id: "mock-video" });
   assert.deepEqual(result.items, []);
-  assert.equal(quotaUnits, 901);
+  assert.equal(quotaSearchCalls, 1);
+  assert.equal(quotaUnits, 801, "videos.list must consume the shared default-unit bucket");
   assert.equal(calls, 2);
 });
 
 test("gateway retries transient 5xx twice, with mocked provider responses", async () => {
   quotaUnits = 0;
+  quotaSearchCalls = 0;
   exhausted = false;
+  searchExhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
     calls += 1;
@@ -88,19 +122,38 @@ test("gateway retries transient 5xx twice, with mocked provider responses", asyn
   assert.equal(quotaUnits, 3, "each API attempt consumes one quota unit");
 });
 
-test("quotaExceeded marks the day exhausted and is never retried", async () => {
+test("Google search quota exhaustion blocks search only and leaves default reads available", async () => {
   quotaUnits = 0;
+  quotaSearchCalls = 0;
   exhausted = false;
+  searchExhausted = false;
   let calls = 0;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (input) => {
     calls += 1;
-    return jsonResponse({ error: { errors: [{ reason: "quotaExceeded" }] } }, 403);
+    const endpoint = new URL(String(input)).pathname.split("/").at(-1);
+    if (endpoint === "search") return jsonResponse({ error: { errors: [{ reason: "quotaExceeded" }] } }, 403);
+    return jsonResponse({ items: [{ id: "mock-video" }] });
   };
-  await assert.rejects(gateway.youtubeRequest("search", { part: "snippet", q: "MERN" }), (error) => error.name === "QuotaBudgetError" && error.state === "exhausted");
+
+  await assert.rejects(
+    gateway.youtubeRequest("search", { part: "snippet", q: "MERN" }),
+    (error) => error.name === "QuotaBudgetError" && error.state === "exhausted"
+  );
   assert.equal(calls, 1);
-  assert.equal(exhausted, true);
-  await assert.rejects(gateway.youtubeRequest("videos", { part: "snippet", id: "mock-video" }), (error) => error.name === "QuotaBudgetError" && error.state === "exhausted");
-  assert.equal(calls, 1);
+  assert.equal(searchExhausted, true);
+  assert.equal(exhausted, false);
+
+  await assert.rejects(
+    gateway.youtubeRequest("search", { part: "snippet", q: "Node.js" }),
+    (error) => error.name === "QuotaBudgetError" && error.state === "exhausted"
+  );
+  assert.equal(calls, 1, "an exhausted search bucket must refuse another provider call");
+
+  const video = await gateway.youtubeRequest("videos", { part: "snippet", id: "mock-video" });
+  assert.equal(video.items[0].id, "mock-video");
+  assert.equal(calls, 2, "the independent default bucket must still be callable");
+  assert.equal(quotaUnits, 1);
+  assert.equal(exhausted, false);
 });
 
 test("direct YouTube fetch is centralized in the gateway", async () => {
@@ -114,7 +167,9 @@ test("direct YouTube fetch is centralized in the gateway", async () => {
 
 test("combined search stays off by default and can be exercised with mocks when enabled", async () => {
   quotaUnits = 0;
+  quotaSearchCalls = 0;
   exhausted = false;
+  searchExhausted = false;
   const { env } = await import("../config/env.js");
   assert.equal(env.ytCombinedSearch, false);
   const youtube = await import("./youtube.service.js");
@@ -149,7 +204,9 @@ test("combined search stays off by default and can be exercised with mocks when 
 
 test("gateway retries rate limits with bounded backoff and stops after three attempts", async () => {
   quotaUnits = 0;
+  quotaSearchCalls = 0;
   exhausted = false;
+  searchExhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
     calls += 1;
@@ -166,7 +223,9 @@ test("gateway retries rate limits with bounded backoff and stops after three att
 
 test("gateway caps repeated network failures at three total attempts", async () => {
   quotaUnits = 0;
+  quotaSearchCalls = 0;
   exhausted = false;
+  searchExhausted = false;
   let calls = 0;
   globalThis.fetch = async () => {
     calls += 1;

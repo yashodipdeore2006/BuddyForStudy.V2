@@ -495,8 +495,11 @@ test("async roadmap keeps the personalized course when verified YouTube resource
   const originalFindById = RoadmapDraft.findById;
   const originalCourseFindOne = Course.findOne;
   const originalCourseUpdateOne = Course.updateOne;
+  const originalQuotaFindOne = (await import("../models/YouTubeQuotaUsage.js")).YouTubeQuotaUsage.findOne;
 
   RoadmapDraft.findOne = () => ({ sort: async () => null });
+  const { YouTubeQuotaUsage } = await import("../models/YouTubeQuotaUsage.js");
+  YouTubeQuotaUsage.findOne = () => ({ lean: async () => ({ units: 10641, budget: 9000, resetDay: "2026-11-07" }) });
   RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
   RoadmapDraft.updateOne = async (_filter, update) => {
     if (update.$set) Object.assign(draft, update.$set);
@@ -550,5 +553,6 @@ test("async roadmap keeps the personalized course when verified YouTube resource
     RoadmapDraft.findById = originalFindById;
     Course.findOne = originalCourseFindOne;
     Course.updateOne = originalCourseUpdateOne;
+    YouTubeQuotaUsage.findOne = originalQuotaFindOne;
   }
 });

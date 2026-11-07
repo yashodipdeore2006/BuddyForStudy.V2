@@ -70,7 +70,7 @@ export async function youtubeRequest(endpoint, params = {}) {
         requestId: request?.requestId || null, skillId: request?.skillId || null,
         endpoint, quotaState: state.state, requestQuotaState: budget.state,
         quotaUnits: state.units, quotaSearchCalls: state.searchCalls, quotaBucket: bucket,
-        requestQuotaState: budget.state, quotaCost: cost, attempt: attempt + 1
+        quotaCost: cost, attempt: attempt + 1
       });
       return data;
     } catch (error) {

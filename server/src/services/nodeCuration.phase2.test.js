@@ -205,3 +205,60 @@ test("quota-limited node remains retryable and is not cached as an empty result"
     setSelector(null);
   }
 });
+
+test("quota-limited node can be curated on a later request after quota becomes available", async () => {
+  cacheRows.clear();
+  let selectorCalls = 0;
+  setSelector(async () => {
+    selectorCalls += 1;
+    if (selectorCalls === 1) {
+      const error = new Error("quota still exhausted");
+      error.name = "QuotaBudgetError";
+      error.state = "exhausted";
+      throw error;
+    }
+    return {
+      resources: [{
+        id: "video:quota-reset-retry",
+        videoId: "quota-reset-video",
+        title: "Python Variables Complete Tutorial",
+        description: "A structured tutorial covering variables and data types",
+        channelTitle: "Verified Learning Channel",
+        durationSeconds: 1800,
+        thumbnail: "https://mock.invalid/quota-reset.jpg",
+        sourceUrl: "https://www.youtube.com/watch?v=quota-reset-video",
+        score: 96,
+        finalScore: 96
+      }],
+      meta: { resultCacheHit: false, searchCalls: 1, quotaUnits: 100 }
+    };
+  });
+
+  const input = {
+    skill: {
+      id: "quota-reset-retry",
+      canonicalSkillId: "quota-reset-retry",
+      name: "Python variables",
+      topics: ["variables", "data types"]
+    },
+    profile: { topic: "Python", level: "Beginner", language: "en" },
+    durationPolicy: { minMinutes: 15, targetMinutes: 30, maxMinutes: 60 }
+  };
+
+  try {
+    const quotaLimited = await curateForNode(input);
+    assert.equal(quotaLimited.meta.state, "quota_limited");
+    assert.equal(quotaLimited.best, null);
+    assert.equal([...cacheRows.values()].some((row) => row.kind === "node"), false);
+
+    // New requests after the Pacific-day quota rollover use a new budget window.
+    // Because the quota-refused empty result was not cached, selection runs again.
+    const recovered = await curateForNode(input);
+    assert.equal(selectorCalls, 2);
+    assert.ok(recovered.best?.videoId);
+    assert.equal(recovered.best.videoId, "quota-reset-video");
+    assert.notEqual(recovered.meta.state, "quota_limited");
+  } finally {
+    setSelector(null);
+  }
+});

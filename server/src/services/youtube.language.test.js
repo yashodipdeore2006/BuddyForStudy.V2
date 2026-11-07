@@ -16,6 +16,20 @@ test("human-readable language choices normalize to YouTube language codes", () =
   assert.deepEqual(getYouTubeSearchOptions("English", true), { relevanceLanguage: "en", regionCode: "IN" });
 });
 
+test("additional Indian and international language choices normalize to YouTube locale codes", () => {
+  const cases = [
+    ["Gujarati", "gu"], ["Kannada", "kn"], ["Malayalam", "ml"],
+    ["Punjabi", "pa"], ["Urdu", "ur"], ["Odia", "or"],
+    ["Marathi", "mr"], ["Bengali", "bn"], ["Tamil", "ta"], ["Telugu", "te"],
+    ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Japanese", "ja"]
+  ];
+  for (const [label, code] of cases) {
+    assert.equal(__youtubeSelectorTestUtils.normalizeYouTubeLanguage(label), code, label);
+    const regionCode = ({ es: "ES", fr: "FR", de: "DE", ja: "JP" })[code] || "IN";
+    assert.deepEqual(getYouTubeSearchOptions(label, true), { relevanceLanguage: code, regionCode });
+  }
+});
+
 test("legacy video selection rejects explicitly non-English audio", () => {
   assert.equal(__youtubeSelectorTestUtils.candidateLanguageMatches({
     title: "Python complete course",

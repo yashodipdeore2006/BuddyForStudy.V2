@@ -57,6 +57,7 @@ export const env = {
   enableCurationComplianceWorkers: process.env.ENABLE_CURATION_COMPLIANCE_WORKERS === "true",
   aiPrivateCoursesSkipReview: process.env.AI_PRIVATE_COURSES_SKIP_REVIEW === "true",
   ytDailyQuotaBudget: Math.max(1, Number(process.env.YT_DAILY_QUOTA_BUDGET || 9000)),
+  ytSearchDailyLimit: Math.max(1, Math.min(100, Number(process.env.YT_SEARCH_DAILY_LIMIT || 90))),
   ytSoftLimitPct: Math.max(1, Math.min(100, Number(process.env.YT_SOFT_LIMIT_PCT || 80))),
   nodeCacheTtlDays: Math.max(1, Math.min(25, Number(process.env.NODE_CACHE_TTL_DAYS || 14))),
   nodeConcurrency: Math.max(1, Number(process.env.NODE_CONCURRENCY || 3))

@@ -475,6 +475,8 @@ export default function Courses() {
     setAiGoalTouched(false);
     setAiLevel("Beginner");
     setAiLevelTouched(false);
+    setAiCourseDepth("complete");
+    setAiResourceLanguages(["en", "hi"]);
     setAiStudyTime(60);
     setAiStudyDays("5");
     setAiScope("broad");
@@ -946,6 +948,8 @@ export default function Courses() {
                   setAiGoalTouched(false);
                   setAiLevel("Beginner");
                   setAiLevelTouched(false);
+                  setAiCourseDepth("complete");
+                  setAiResourceLanguages(["en", "hi"]);
                   setAiStudyTime(60);
                   setAiStudyDays("5");
                   setAiScope("broad");
@@ -1246,12 +1250,12 @@ export default function Courses() {
                 {aiLoading || intentLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {intentLoading ? "Analyzing your learning goal…" : "Generating your roadmap…"}
+                    {intentLoading ? "Analyzing your learning goal…" : "Building your course…"}
                   </>
                 ) : (
                   <>
                     <Sparkles className="h-4 w-4" />
-                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? coreQuestionStep < 7 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
+                    {!INTENT_V2 ? "Generate course" : !intentResult || !intentResult.valid ? coreQuestionStep < 7 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate course" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
                   </>
                 )}
               </button>

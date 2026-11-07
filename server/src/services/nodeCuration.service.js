@@ -182,7 +182,9 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
     return output;
   } catch (error) {
     if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
-      return { best: null, alternatives: [], meta: { cacheHit: false, searchCalls, quotaUnits, lowConfidence: true, state: "queued", quotaState: error.state } };
+      // Keep the node in a retryable state. Do not write an empty cache entry:
+      // after the Pacific quota reset a fresh request must be allowed to curate it.
+      return { best: null, alternatives: [], meta: { cacheHit: false, searchCalls, quotaUnits, lowConfidence: true, state: "quota_limited", quotaState: error.state } };
     }
     throw error;
   }

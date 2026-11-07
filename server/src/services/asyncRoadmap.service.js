@@ -119,7 +119,7 @@ function pump() {
   }
 }
 
-async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease }) {
+async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease, dependencies = {} }) {
   await assertLease();
   const course = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   if (!course) throw new Error("Private roadmap course was not found for its owner");
@@ -153,7 +153,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             intent.projectIdea,
             intent.outcome
           ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
-          const curated = await curateForNode({
+          const curated = await (dependencies.curateForNode || curateForNode)({
             skill: {
               id: lesson.canonicalSkillId || lesson.title,
               canonicalSkillId: lesson.canonicalSkillId || lesson.title,
@@ -191,17 +191,20 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             { $set: set },
             { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
           );
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
+          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaLimited: state === "quota_limited", quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
         } catch (error) {
           if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
           await assertLease();
-          // Each node is isolated: persist failure and allow sibling jobs to finish.
+          // Preserve already-built curriculum nodes when one enrichment request fails.
+          // Quota refusal is temporary and must remain retryable after reset.
+          const quotaLimited = error?.name === "QuotaBudgetError" || error?.code === "YOUTUBE_QUOTA_BUDGET";
+          const fallbackState = quotaLimited ? "quota_limited" : "failed";
           await Course.updateOne(
             { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
-            { $set: { "modules.$[module].lessons.$[lesson].buildState": "failed" } },
+            { $set: { "modules.$[module].lessons.$[lesson].buildState": fallbackState } },
             { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
           ).catch(() => {});
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: "failed", flags: { error: true } });
+          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: fallbackState, flags: { error: !quotaLimited, quotaLimited } });
         }
       });
     }
@@ -220,12 +223,33 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
   const metrics = getCourseResourceMetrics(completedCourse);
   const quality = assessCourseResourceQuality(completedCourse, { completePath });
-  if (quality.tutorialLessonCount > 0 && !quality.acceptable) {
+  // YouTube is an optional enrichment layer for an otherwise valid personalized
+  // curriculum. A provider quota refusal must not discard the entire roadmap:
+  // keep the verified resources already attached and expose the missing coverage
+  // to the learner so it can be retried after quota reset.
+  const quota = await getYouTubeQuotaState().catch(() => null);
+  const quotaExhausted = quota?.state === "exhausted";
+  if (quality.tutorialLessonCount > 0 && !quality.acceptable && !quotaExhausted) {
     throw await buildResourceQualityFailure(quality);
+  }
+  if (quality.tutorialLessonCount > 0 && !quality.acceptable && quotaExhausted) {
+    console.warn("AI roadmap completed with partial verified resources because YouTube quota is exhausted", {
+      tutorialLessonCount: quality.tutorialLessonCount,
+      lessonsWithResources: quality.lessonsWithResources,
+      uniqueVideoCount: quality.uniqueVideoCount,
+      coverageRatio: quality.coverageRatio,
+      quotaUnits: quota.units,
+      quotaBudget: quota.budget
+    });
   }
   return {
     ...metrics,
-    resourceLanguage: String(profile.language || profile.intentProfile?.language || "en").slice(0, 20)
+    resourceLanguage: String(profile.language || profile.intentProfile?.language || "en").slice(0, 20),
+    resourceAvailability: {
+      status: quotaExhausted && quality.coverageRatio < 1 ? "partial_quota_limited" : quality.acceptable ? "verified" : "partial",
+      quotaState: quota?.state || "unknown",
+      ...quality
+    }
   };
 }
 
@@ -312,7 +336,7 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
           { $set: { roadmapId: courseId, result, status: "building", updatedAt: new Date() } }
         );
         await addEvent(draft, { type: "skeleton", state: "building", draftId, roadmapId: String(courseId), result });
-        const resourceMetrics = await resolveCourseNodes({ draft, courseId, userId, profile, assertLease });
+        const resourceMetrics = await resolveCourseNodes({ draft, courseId, userId, profile, assertLease, dependencies });
         await assertLease();
         const completed = await RoadmapDraft.findById(draft._id).lean();
         const previousPersonalization = completed?.result?.personalization || result.personalization || {};
@@ -329,6 +353,10 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
               lessonsWithResources: resourceMetrics.lessonsWithResources,
               uniqueVideoCount: resourceMetrics.uniqueVideoCount,
               coverageRatio: resourceMetrics.coverageRatio
+            },
+            resourceAvailability: resourceMetrics.resourceAvailability || {
+              status: "verified",
+              quotaState: "unknown"
             }
           }
         };

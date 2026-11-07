@@ -13,13 +13,45 @@ import { getNicheQuestions, getNicheDisclaimer, getNichePackName, getPurposeQues
 
 // The adaptive four-step intake is now the default Build with AI experience.
  // Keep the wizard available even when older local .env files still contain VITE_INTENT_V2=false.
-const INTENT_V2 = true;
+const INTENT_V2 = false;
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };
 type IntentProfile = { topic?: string; domain?: string; scope?: "narrow" | "broad"; goal?: "job_ready" | "exam" | "project" | "learn" | null; level?: CourseLevel; knownSkills?: string[]; minutesPerDay?: number; language?: string; targetRole?: string | null; targetCompany?: string | null; examName?: string | null; examDate?: string | null; syllabusText?: string | null; projectIdea?: string | null; deadline?: string | null; outcome?: string; preferences?: Record<string, string> };
 type IntentParse = { valid: boolean; profile: IntentProfile | null; confidences: Record<string, number>; domain: string; scope: string; options: { roles: string[]; exams: string[]; projectIdeas: string[] }; questionPlan: IntentQuestion[]; assumed?: boolean; assumptions?: { field: string; value: unknown }[]; inferredGoal?: string; fallback?: boolean };
 
 const levels: CourseLevel[] = ['Beginner', 'Intermediate', 'Advanced'];
+
+const BUILD_WITH_AI_LANGUAGES = [
+  { code: "en", label: "English" }, { code: "hi", label: "Hindi" }, { code: "mr", label: "Marathi" },
+  { code: "gu", label: "Gujarati" }, { code: "ta", label: "Tamil" }, { code: "te", label: "Telugu" },
+  { code: "bn", label: "Bengali" }, { code: "kn", label: "Kannada" }, { code: "ml", label: "Malayalam" },
+  { code: "pa", label: "Punjabi" }, { code: "ur", label: "Urdu" }, { code: "or", label: "Odia" },
+  { code: "es", label: "Spanish" }, { code: "fr", label: "French" }, { code: "de", label: "German" },
+  { code: "pt", label: "Portuguese" }, { code: "ja", label: "Japanese" }, { code: "ko", label: "Korean" },
+  { code: "ar", label: "Arabic" }
+] as const;
+
+const COURSE_DEPTH_OPTIONS = [
+  {
+    value: "short",
+    label: "Short course",
+    duration: "About 8–15 hours",
+    description: "A focused introduction to the essentials, fundamentals and most important concepts."
+  },
+  {
+    value: "medium",
+    label: "Medium course",
+    duration: "About 25–45 hours",
+    description: "Core concepts, useful tools, guided practice and selected real-world projects."
+  },
+  {
+    value: "complete",
+    label: "Complete course",
+    duration: "Subject-based · comprehensive",
+    description: "Prerequisites, foundations, the relevant ecosystem or full stack, advanced topics, projects and assessments."
+  }
+] as const;
+
 
 const BUILD_WITH_AI_PURPOSE_OPTIONS = [
   { id: "job_ready", purpose: "career", label: "Job / Career", goal: "Career or professional growth", description: "Build role-ready skills and prepare for interviews.", icon: Briefcase },
@@ -225,6 +257,9 @@ export default function Courses() {
   const [aiLanguagePref, setAiLanguagePref] = useState("en");
   const [aiLessonStyle, setAiLessonStyle] = useState("Project-first");
   const [aiKnownSkills, setAiKnownSkills] = useState('');
+  const [aiCourseDepth, setAiCourseDepth] = useState<"short" | "medium" | "complete">("complete");
+  const [aiResourceLanguages, setAiResourceLanguages] = useState<string[]>(["en", "hi"]);
+
   const [aiEnrolling, setAiEnrolling] = useState(false);
   const [aiEnrollError, setAiEnrollError] = useState<string | null>(null);
   const [expandedAiModules, setExpandedAiModules] = useState<Set<number>>(new Set([0]));
@@ -919,95 +954,100 @@ export default function Courses() {
   };
 
   const generateAiRoadmap = async () => {
-    if (INTENT_V2 && intentResult && !intentResult.valid) {
-      setAiError('Change the topic to a learnable subject or outcome before building a roadmap.');
-      return;
-    }
-    if (INTENT_V2 && !intentResult) {
-      await startIntentFlow();
-      return;
-    }
     const topic = aiTopic.trim();
-    if (!topic) {
-      setAiError('Add a subject, skill, question, or outcome to build a plan.');
+    if (topic.length < 2) {
+      setAiError("Enter a topic with at least 2 characters.");
       return;
     }
     if (!session) {
-      setAiError('Sign in to generate a personalized AI roadmap.');
+      setAiError("Sign in to generate a personalized AI roadmap.");
       return;
     }
+    const selectedLanguages = [...new Set(aiResourceLanguages.filter((code) =>
+      BUILD_WITH_AI_LANGUAGES.some((language) => language.code === code)
+    ))].slice(0, 4);
+    if (!selectedLanguages.length) {
+      setAiError("Select at least one language for learning resources.");
+      return;
+    }
+
+    const normalizedTopic = topic.toLowerCase();
+    const inferredGoal = /\\b(exam|certification|certificate|entrance test|competitive exam)\\b/.test(normalizedTopic)
+      ? "exam"
+      : /\\b(job|career|interview|placement|developer role)\\b/.test(normalizedTopic)
+        ? "job_ready"
+        : /\\b(project|portfolio|build an app|build a website|build a system)\\b/.test(normalizedTopic)
+          ? "project"
+          : "learn";
+    const courseDepthLabel = COURSE_DEPTH_OPTIONS.find((option) => option.value === aiCourseDepth)?.label || "Complete course";
+    const profile = {
+      topic,
+      level: aiLevel,
+      goals: [({ job_ready: "Career or work growth", exam: "Exam or certification", project: "Create something", learn: "Build practical skills" } as Record<string, string>)[inferredGoal]],
+      // The schedule remains self-paced. This is an internal neutral default, not a learner deadline or requirement.
+      studyTimeMinutesPerDay: 60,
+      language: selectedLanguages[0] || "en",
+      knownSkills: [],
+      intentProfile: {
+        topic,
+        domain: "general",
+        scope: aiCourseDepth === "complete" ? "broad" : "narrow",
+        goal: inferredGoal,
+        level: aiLevel,
+        knownSkills: [],
+        minutesPerDay: 60,
+        deadline: null,
+        language: selectedLanguages[0] || "en",
+        targetRole: null,
+        targetCompany: null,
+        examName: null,
+        examDate: null,
+        syllabusText: null,
+        projectIdea: null,
+        outcome: "",
+        preferences: {
+          courseDepth: aiCourseDepth,
+          courseDepthLabel,
+          resourceLanguages: selectedLanguages.join(","),
+          selfPaced: "true"
+        }
+      }
+    };
+
     setAiLoading(true);
     aiLoadingRef.current = true;
     setAiError(null);
     try {
-      const selectedGoal = String(intentAnswers.goal || intentResult?.profile?.goal || intentResult?.inferredGoal || 'learn');
-      const legacyGoal = ({ job_ready: 'Career or work growth', exam: 'Exam or certification', project: 'Create something', learn: 'Build practical skills' } as Record<string, string>)[selectedGoal] || aiGoal;
-      const cleanProfileAnswer = (value: unknown) => {
-        const answer = String(value ?? "").trim();
-        return answer === "Not sure, pick for me" ? "" : answer;
-      };
-      const boundedProfileAnswer = (value: unknown, maxLength: number) => cleanProfileAnswer(value).slice(0, maxLength);
-      const intentProfile = INTENT_V2 && intentResult?.valid ? {
-        ...intentResult.profile,
-        level: String(intentAnswers.level || intentResult.profile?.level || aiLevel) as CourseLevel,
-        topic,
-        goal: selectedGoal,
-        targetRole: boundedProfileAnswer(intentAnswers.role || intentAnswers.targetRole || intentAnswers.aiRole || intentResult.profile?.targetRole, 120) || null,
-        targetCompany: boundedProfileAnswer(intentAnswers.company ?? intentResult.profile?.targetCompany, 120) || null,
-        examName: boundedProfileAnswer(intentAnswers.examType || intentAnswers.targetExamName || intentResult.profile?.examName, 120) || null,
-        examDate: boundedProfileAnswer(intentAnswers.examDate ?? intentResult.profile?.examDate, 40) || null,
-        syllabusText: boundedProfileAnswer(intentAnswers.syllabus ?? intentResult.profile?.syllabusText, 20000) || null,
-        projectIdea: boundedProfileAnswer(intentAnswers.projectIdea ?? intentResult.profile?.projectIdea, 200) || null,
-        scope: intentAnswers.depth ? (intentAnswers.depth === 'broad' || intentAnswers.depth === 'Complete learning path' ? 'broad' : 'narrow') : (intentResult.profile?.scope || 'narrow'),
-        minutesPerDay: ({ '15 min': 15, '30 min': 30, '1 hour': 60, '2 hours': 120, '3+ hours': 180, '3-4 hours': 210, '5+ hours': 300 } as Record<string, number>)[String(intentAnswers.time || '')] || Number(intentResult.profile?.minutesPerDay || aiStudyTime),
-        language: String(intentAnswers.language || intentResult.profile?.language || 'en'),
-        knownSkills: String(intentAnswers.knownSkills ?? aiKnownSkills).split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
-        outcome: aiCustomGoal.trim(),
-        deadline: boundedProfileAnswer(intentAnswers.deadline ?? intentResult.profile?.deadline, 40) || null,
-        preferences: Object.fromEntries(Object.entries(intentAnswers).filter(([key, value]) => !['goal', 'depth', 'level', 'knownSkills', 'time', 'language', 'studyDays', 'lessonStyle', 'deadline'].includes(key) && value !== undefined && String(value).trim().length > 0).slice(0, 40).map(([key, value]) => [key, String(value).trim().slice(0, 500)]))
-      } : undefined;
-      const profile = {
-        topic,
-        level: intentProfile?.level || aiLevel,
-        goals: INTENT_V2 ? [legacyGoal, aiCustomGoal.trim()].filter(Boolean) : [aiGoal, aiCustomGoal.trim()].filter(Boolean),
-        studyTimeMinutesPerDay: intentProfile?.minutesPerDay || aiStudyTime,
-        language: intentProfile?.language || aiLanguagePref || "en",
-        knownSkills: intentProfile?.knownSkills || aiKnownSkills.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
-        ...(intentProfile ? { intentProfile } : {})
-      };
-      let data;
+      let data: AiRoadmap | undefined;
       if (ASYNC_ROADMAP) {
-        const draft = await apiFetch<{ draftId: string }>('/api/ai/roadmap/draft', {
-          method: 'POST', body: JSON.stringify({ profile }), showFeatureUpgrade: true
+        const draft = await apiFetch<{ draftId: string }>("/api/ai/roadmap/draft", {
+          method: "POST", body: JSON.stringify({ profile }), showFeatureUpgrade: true
         });
-        window.localStorage.setItem('bfs_async_roadmap_draft', draft.draftId);
-        const started = await apiFetch<{ draftId: string; status: string; errorMessage?: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown }>('/api/ai/roadmap', {
-          method: 'POST', body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
+        window.localStorage.setItem("bfs_async_roadmap_draft", draft.draftId);
+        const started = await apiFetch<{ draftId: string; status: string; errorMessage?: string; roadmapId?: string | null; modules?: AiModule[]; course?: unknown }>("/api/ai/roadmap", {
+          method: "POST", body: JSON.stringify({ draftId: draft.draftId, profile }), showFeatureUpgrade: true
         });
         setAiRoadmap({
-          status: started.status || 'building',
+          status: started.status || "building",
           query: topic,
-          course: { title: topic + ' learning roadmap', modules: started.modules || [] },
+          course: { title: topic + " learning roadmap", modules: started.modules || [] },
           draftId: draft.draftId
         });
         let current = started;
-        while (current.status !== 'ready') {
-          if (current.status === 'failed') throw new Error(current.errorMessage || 'Roadmap build failed. Please retry.');
+        while (current.status !== "ready") {
+          if (current.status === "failed") throw new Error(current.errorMessage || "Roadmap build failed. Please retry.");
           await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          const polled = await apiFetch<{ draftId: string; status: string; errorMessage?: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_=${Date.now()}`);
+          const polled = await apiFetch<{ draftId: string; status: string; errorMessage?: string; result?: AiRoadmap }>(`/api/ai/roadmap/${encodeURIComponent(draft.draftId)}?_${Date.now()}`);
           current = polled;
-          if (polled.status === 'failed') throw new Error(polled.errorMessage || 'Roadmap build failed. Please retry.');
+          if (polled.status === "failed") throw new Error(polled.errorMessage || "Roadmap build failed. Please retry.");
           if (polled.result) setAiRoadmap(polled.result);
-          if (polled.status === 'ready' && polled.result) {
-            data = polled.result;
-            break;
-          }
+          if (polled.status === "ready" && polled.result) data = polled.result;
         }
-        if (!data) throw new Error('Roadmap build ended without a result. Please retry.');
-        window.localStorage.removeItem('bfs_async_roadmap_draft');
+        if (!data) throw new Error("Roadmap build ended without a result. Please retry.");
+        window.localStorage.removeItem("bfs_async_roadmap_draft");
       } else {
-        data = await apiFetch('/api/ai/roadmap', {
-          method: 'POST', body: JSON.stringify(profile), showFeatureUpgrade: true
+        data = await apiFetch<AiRoadmap>("/api/ai/roadmap", {
+          method: "POST", body: JSON.stringify(profile), showFeatureUpgrade: true
         });
       }
       setAiRoadmap(data);
@@ -1015,7 +1055,7 @@ export default function Courses() {
       setAiEnrollError(null);
       setAiOpen(false);
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'AI roadmap generation failed');
+      setAiError(err instanceof Error ? err.message : "AI roadmap generation failed");
     } finally {
       aiLoadingRef.current = false;
       setAiLoading(false);
@@ -1250,8 +1290,8 @@ export default function Courses() {
                     Roadmap Studio
                     
                   </p>
-                  <h2 id="ai-builder-title" className="mt-0.5 text-base font-semibold text-slate-900 sm:text-lg">Create your learning roadmap</h2>
-                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">A few focused questions to build a plan that fits you</p>
+                  <h2 id="ai-builder-title" className="mt-0.5 text-base font-semibold text-slate-900 sm:text-lg">Create your learning course</h2>
+                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">Choose the course depth, experience level and resource languages</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
@@ -1271,7 +1311,7 @@ export default function Courses() {
               </div>
             </header>
             <div className="h-1 w-full bg-white">
-              <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300" style={{ width: `${(intentWizardStep / 4) * 100}%` }} />
+              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
             </div>
 
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-4 py-3 sm:px-5">
@@ -1376,325 +1416,115 @@ export default function Courses() {
                         {purposeIntentQuestions.length ? (
                           <div className="space-y-3">{purposeIntentQuestions.map((question) => renderIntentQuestion(question, "purpose"))}</div>
                         ) : (
-                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-700">
-                            No additional purpose questions are needed. Your goal and core preferences are enough to continue.
-                          </div>
-                        )}
-                      </section>
-                    )}
-
-                    {intentWizardStep === 3 && (
-                      <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                        <div className="border-b border-slate-200/80 pb-4">
-                          <p className="text-xs font-bold uppercase tracking-wider text-pink-700">About {getNichePackName(aiTopic)}</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-900">Make it relevant to your subject</h3>
-                          
-                        </div>
-                        {getNicheDisclaimer(aiTopic) && (
-                          <div role="note" className="rounded-xl border border-amber-500/30 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                            <span className="font-semibold">Safety and learning note:</span> {getNicheDisclaimer(aiTopic)}
-                          </div>
-                        )}
-                        {nicheIntentQuestions.length ? (
-                          <div className="space-y-3">{nicheIntentQuestions.map((question) => renderIntentQuestion(question, "niche"))}</div>
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-700">
-                            No extra domain questions are required for this topic. The AI will use your topic, outcome and core preferences.
-                          </div>
-                        )}
-                      </section>
-                    )}
-
-                    {intentWizardStep === 4 && (
-                      <section className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-xl sm:p-6">
-                        <div className="border-b border-slate-200/80 pb-4">
-                          <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Final strategy · Review</p>
-                          <h3 className="mt-1 text-xl font-bold text-slate-900">Your personalized blueprint</h3>
-                          <p className="mt-1 text-sm text-slate-600">Review the choices that will guide course structure, resource selection and project design.</p>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {[
-                            { label: "Topic and level", value: aiTopic + " · " + aiLevel },
-                            { label: "Outcome", value: aiCustomGoal || "Build a practical understanding" },
-                            { label: "Learning purpose", value: String(intentAnswers.goalPurpose || intentPurpose).replace(/_/g, " ") },
-                            { label: "Depth", value: String(intentAnswers.depth || aiScope) === "broad" ? "Complete learning path" : "Quick overview" },
-                            { label: "Study schedule", value: aiStudyTime + " minutes/day · " + aiStudyDays + " days/week" },
-                            { label: "Learning style", value: String(intentAnswers.lessonStyle || aiLessonStyle) },
-                            { label: "Language", value: String(intentAnswers.language || aiLanguagePref) }
-                          ].map((item) => (
-                            <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.label}</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-900">{item.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="space-y-2 rounded-xl border border-indigo-500/30 bg-indigo-50 p-4">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700">How your answers shape your plan</h4>
-                          <ul className="space-y-2 text-xs text-slate-700">
-                            <li>✓ Prior knowledge: {aiKnownSkills || "No prior skills selected; start from the foundations."}</li>
-                            <li>✓ Learning resources: your language and learning style guide the tutorials we select.</li>
-                            <li>✓ Practice: your goal and subject-specific answers shape projects and assessments.</li>
-                            <li>✓ Schedule: study time and days per week will guide lesson pacing.</li>
-                          </ul>
-                        </div>
-                        {Object.entries(intentAnswers).some(([key, value]) => Boolean(value) && !coreQuestionIds.has(key)) && (
-                          <details className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <summary className="cursor-pointer text-sm font-semibold text-slate-800">Review all additional answers</summary>
-                            <dl className="mt-3 space-y-2">
-                              {Object.entries(intentAnswers).filter(([key, value]) => Boolean(value) && !coreQuestionIds.has(key)).map(([key, value]) => (
-                                <div key={key} className="flex flex-wrap justify-between gap-2 border-b border-slate-200 pb-2 text-xs">
-                                  <dt className="font-medium text-slate-600">{intentResult?.questionPlan.find((question) => question.id === key)?.text || key.replace(/([A-Z])/g, " $1")}</dt>
-                                  <dd className="max-w-[65%] text-right font-semibold text-slate-800">{String(value)}</dd>
-                                </div>
-                              ))}
-                            </dl>
-                          </details>
-                        )}
-                      </section>
-                    )}
-
-                    {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
+                <div className="mx-auto w-full max-w-2xl space-y-5">
+                  <div>
+                    <label htmlFor="ai-topic" className="mb-2 block text-sm font-semibold text-slate-900">
+                      What do you want to learn?
+                    </label>
+                    <input
+                      id="ai-topic"
+                      autoFocus
+                      maxLength={200}
+                      value={aiTopic}
+                      onChange={(event) => setAiTopic(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && aiTopic.trim().length >= 2) {
+                          event.preventDefault();
+                          void generateAiRoadmap();
+                        }
+                      }}
+                      placeholder="e.g. Data Science, MERN Stack, Java Full Stack, Python…"
+                      className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+                    />
+                    <p className="mt-1.5 text-xs text-slate-500">Enter a subject, skill, technology stack or exam. We’ll handle the course structure.</p>
                   </div>
 
-                </div>
-              ) : (
+                  <fieldset className="space-y-2.5">
+                    <legend className="text-sm font-semibold text-slate-900">How much of the subject should the course cover?</legend>
+                    <div className="grid gap-2">
+                      {COURSE_DEPTH_OPTIONS.map((option) => {
+                        const selected = aiCourseDepth === option.value;
+                        const recommended = option.value === "complete";
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setAiCourseDepth(option.value)}
+                            className={`rounded-xl border p-3.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30 ${
+                              selected ? "border-indigo-500 bg-indigo-50/70 ring-1 ring-indigo-500/20" : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-slate-900">{option.label}</span>
+                              {recommended && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Recommended · Default</span>}
+                              <span className="ml-auto text-xs font-medium text-slate-500">{option.duration}</span>
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-600">{option.description}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-500">The time is an estimate, not a deadline. A complete Data Science path is designed around at least 70–100 hours.</p>
+                  </fieldset>
 
-                <>
-              <div>
-                <label htmlFor="ai-topic" className="mb-1.5 block text-sm font-semibold text-slate-800">
-                  What do you want to learn or achieve?
-                </label>
-                <input
-                  id="ai-topic"
-                  autoFocus
-                  maxLength={200}
-                  value={aiTopic}
-                  onChange={(event) => setAiTopic(event.target.value)}
-                  placeholder="e.g. data analytics, conversational Spanish, nutrition, project management…"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      void generateAiRoadmap();
-                    }
-                  }}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-                <p className="mt-1 text-xs text-slate-600">A subject, skill, question, exam, hobby, or real-world outcome all work.</p>
-              </div>
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-semibold text-slate-900">Your current experience</legend>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { value: "Beginner", label: "New to this" },
+                        { value: "Intermediate", label: "Know the basics" },
+                        { value: "Advanced", label: "Experienced" }
+                      ] as const).map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={aiLevel === option.value}
+                          onClick={() => setAiLevel(option.value)}
+                          className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
+                            aiLevel === option.value ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-500">For a complete course, prerequisites are still included. Your experience helps us adjust the starting pace.</p>
+                  </fieldset>
 
-              <fieldset>
-                <legend className="mb-2 text-sm font-semibold text-slate-800">What is your main goal?</legend>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {AI_GOAL_OPTIONS.map((option) => {
-                    const selected = aiGoal === option.value;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => setAiGoal(option.value)}
-                        className={`min-h-[76px] rounded-xl border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600/30 ${
-                          selected
-                            ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500/20'
-                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
-                        <span className="mt-1 block text-xs leading-4 text-slate-600">{option.description}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <label htmlFor="ai-custom-goal" className="mt-3 block text-xs font-semibold text-slate-700">
-                  Anything specific you want the plan to help you do? <span className="font-normal text-slate-500">Optional</span>
-                </label>
-                <textarea
-                  id="ai-custom-goal"
-                  rows={2}
-                  maxLength={500}
-                  value={aiCustomGoal}
-                  onChange={(event) => setAiCustomGoal(event.target.value)}
-                  placeholder="Describe your target, deadline, context, or what success looks like…"
-                  className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </fieldset>
+                  <fieldset className="space-y-2.5">
+                    <legend className="text-sm font-semibold text-slate-900">Languages for learning resources</legend>
+                    <p className="text-xs text-slate-500">Choose more than one. English and Hindi are selected by default; we’ll search your choices in order and use the first suitable verified resource.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {BUILD_WITH_AI_LANGUAGES.map((language) => {
+                        const selected = aiResourceLanguages.includes(language.code);
+                        return (
+                          <button
+                            key={language.code}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setAiResourceLanguages((current) =>
+                              selected ? current.filter((code) => code !== language.code) : [...current, language.code].slice(0, 4)
+                            )}
+                            className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                              selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                            }`}
+                          >
+                            {selected ? "✓ " : ""}{language.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-slate-500">{aiResourceLanguages.length} of 4 languages selected.</p>
+                  </fieldset>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label htmlFor="ai-level" className="block text-sm font-semibold text-slate-800">
-                  Where are you starting from?
-                  <select
-                    id="ai-level"
-                    value={aiLevel}
-                    onChange={(event) => setAiLevel(event.target.value as CourseLevel)}
-                    className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="Beginner">New to this</option>
-                    <option value="Intermediate">Know the basics</option>
-                    <option value="Advanced">Experienced — go deeper</option>
-                  </select>
-                </label>
-                <label htmlFor="ai-study-time" className="block text-sm font-semibold text-slate-800">
-                  Time you can spend each day
-                  <select
-                    id="ai-study-time"
-                    value={aiStudyTime}
-                    onChange={(event) => setAiStudyTime(Number(event.target.value))}
-                    className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value={15}>15 minutes</option>
-                    <option value={30}>30 minutes</option>
-                    <option value={60}>1 hour</option>
-                    <option value={90}>1.5 hours</option>
-                    <option value={120}>2 hours</option>
-                    <option value={180}>3 hours</option>
-                    <option value={240}>4 hours</option>
-                    <option value={360}>6 hours</option>
-                    <option value={480}>8 hours</option>
-                    <option value={720}>12 hours</option>
-                  </select>
-                </label>
-              </div>
-
-              <div>
-                <label htmlFor="ai-prior-knowledge" className="block text-sm font-semibold text-slate-800">
-                  What do you already know or have experience with? <span className="font-normal text-slate-500">Optional</span>
-                </label>
-                <textarea
-                  id="ai-prior-knowledge"
-                  rows={2}
-                  maxLength={1200}
-                  value={aiKnownSkills}
-                  onChange={(event) => setAiKnownSkills(event.target.value)}
-                  placeholder="Subjects, concepts, languages, tools, experience, prerequisites—or leave blank to start from scratch."
-                  className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              {aiError && (
-                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
-                  {aiError}
-                </div>
-              )}
-                </>
-
-              )}
-            </div>
-            <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <button
-                type="button"
-                onClick={() => {
-                  if (INTENT_V2 && !intentResult?.valid && coreQuestionStep > 0) {
-                    setCoreQuestionStep((step) => Math.max(0, step - 1));
-                    return;
-                  }
-                  if (INTENT_V2 && intentResult?.valid && intentWizardStep > 1) {
-                    setIntentWizardStep((step) => Math.max(1, step - 1));
-                    return;
-                  }
-                  setAiOpen(false);
-                }}
-                disabled={aiLoading}
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:opacity-50"
-              >
-                {INTENT_V2 && ((!intentResult?.valid && coreQuestionStep > 0) || (intentResult?.valid && intentWizardStep > 1)) ? "Back" : "Cancel"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!INTENT_V2) {
-                    void generateAiRoadmap();
-                    return;
-                  }
-                  if (!intentResult || !intentResult.valid) {
-                    if (coreQuestionStep < 7) {
-                      if (coreQuestionStep === 0 && aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
-                      setAiError(null);
-                      setCoreQuestionStep((step) => Math.min(7, step + 1));
-                      return;
-                    }
-                    void startIntentFlow();
-                    return;
-                  }
-                  if (intentWizardStep < 4) {
-                    if (intentWizardStep === 2 || intentWizardStep === 3) {
-                      visibleWizardQuestions
-                        .filter((question) => !String(intentAnswers[question.id] || "").trim())
-                        .forEach((question, index) => trackIntentQuestionEvent(question, "skipped", index));
-                    }
-                    setIntentWizardStep((step) => Math.min(4, step + 1));
-                    return;
-                  }
-                  void generateAiRoadmap();
-                }}
-                disabled={aiLoading || intentLoading || !aiTopic.trim()}
-                className="btn-primary h-11 justify-center rounded-lg px-5 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {aiLoading || intentLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {intentLoading ? "Analyzing your learning goal…" : "Generating your roadmap…"}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? coreQuestionStep < 7 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
-                  </>
-                )}
-              </button>
-            </footer>
-          </section>
-        </div>
-      )}
-
-      {aiError && !aiOpen && (
-        <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {aiError}
-        </div>
-      )}
-
-      {catalogError && (
-        <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          Course search failed: {catalogError}
-        </div>
-      )}
-
-      {aiRoadmap?.course && (
-        <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-slate-950 px-5 py-6 text-white sm:px-7">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI-generated complete course</p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.course.title}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{aiRoadmap.course.description}</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {(aiRoadmap.course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0)} lessons and assessments
-                  </span>
-                  <span className="rounded-full bg-white/10 px-3 py-1.5">
-                    {aiRoadmap.personalization?.estimatedStudyMinutes
-                      ? `~${Math.round(aiRoadmap.personalization.estimatedStudyMinutes / 60 * 10) / 10}h estimated study`
-                      : 'Self-paced'}
-                  </span>
-                  {typeof aiRoadmap.personalization?.resourceVideoMinutes === 'number' && (
-                    <span className="rounded-full bg-white/10 px-3 py-1.5">
-                      {aiRoadmap.personalization.resourceVideoMinutes} min video watch time
-                    </span>
+                  {aiError && (
+                    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
+                      {aiError}
+                    </div>
                   )}
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {aiRoadmap.course.isPublished ? (
-                  <button type="button" onClick={() => navigate(routes.course(String(aiRoadmap.course._id ?? aiRoadmap.course.id)))} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
-                    <ExternalLink className="h-4 w-4" /> Course details
-                  </button>
-                ) : (
-                  <span className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-300">Details unlock after approval</span>
-                )}
-                <button onClick={() => { setAiRoadmap(null); setAiEnrollError(null); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">Close</button>
-              </div>
-            </div>
+                  </div>
           </div>
 
           {!aiRoadmap.course.isPublished && (

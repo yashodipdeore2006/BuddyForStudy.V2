@@ -720,19 +720,6 @@ export default function Courses() {
       })
     }).catch(() => {});
   }, [session, aiTopic, intentResult?.questionPlan, intentPurpose, intentResult?.domain]);
-  const clearIntentAssumption = (field: string) => {
-    setIntentResult((current) => {
-      if (!current?.assumptions?.length) return current;
-      const assumptions = current.assumptions.filter((item) => item.field !== field);
-      return { ...current, assumptions, assumed: assumptions.length > 0 };
-    });
-  };
-  const assumptionFieldForQuestion: Record<string, string> = {
-    goal: "goal", depth: "scope", role: "targetRole", targetRole: "targetRole", company: "targetCompany",
-    examType: "examName", examDate: "examDate", syllabus: "syllabusText",
-    projectIdea: "projectIdea", time: "minutesPerDay", language: "language",
-    knownSkills: "knownSkills", deadline: "deadline"
-  };
   const intentWasOpenRef = useRef(false);
   useEffect(() => {
     if (aiOpen) {
@@ -750,115 +737,6 @@ export default function Courses() {
     if (!aiOpen || !intentResult?.valid) return;
     visibleWizardQuestions.forEach((question, index) => trackIntentQuestionEvent(question, "shown", index));
   }, [aiOpen, intentResult?.valid, intentWizardStep, visibleWizardQuestionKey, trackIntentQuestionEvent]);
-  const chooseIntentOption = (question: IntentQuestion, value: string) => {
-    if (question.id !== "knownSkills") trackIntentQuestionEvent(question, "answered");
-    if (value === "Not sure, pick for me" && question.id !== "knownSkills") {
-      clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
-      setIntentAnswers((previous) => {
-        const next = { ...previous };
-        if (question.id === "goal") {
-          next.goal = "learn";
-          next.goalPurpose = "hobby";
-        } else if (question.id === "depth") next.depth = "narrow";
-        else if (question.id === "language") next.language = "en";
-        else if (question.id === "time") next.time = "1 hour";
-        else next[question.id] = "Not sure, pick for me";
-        return next;
-      });
-      return;
-    }
-    if (question.id === "knownSkills" || question.type === "multi" || question.type === "checklist") {
-      const answer = String(intentAnswers[question.id] || "");
-      if (value === "Not sure, pick for me") {
-        clearIntentAssumption(question.id);
-        setIntentAnswers((previous) => ({ ...previous, [question.id]: "" }));
-        return;
-      }
-      const selected = answer === "Not sure, pick for me" ? [] : answer.split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
-      const next = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value];
-      clearIntentAssumption(question.id);
-      setIntentAnswers((previous) => ({ ...previous, [question.id]: next.join(", ") }));
-      return;
-    }
-    const purposeMap: Record<string, { goal: string; purpose: string }> = {
-      "Job-ready": { goal: "job_ready", purpose: "career" },
-      "Exam or certification": { goal: "exam", purpose: "exam" },
-      "Build a project": { goal: "project", purpose: "project" },
-      "Learn a skill": { goal: "learn", purpose: "hobby" },
-      "Freelancing": { goal: "project", purpose: "freelance" },
-      "Switch careers": { goal: "job_ready", purpose: "career_switch" },
-      "Personal interest": { goal: "learn", purpose: "hobby" }
-    };
-    const mapped = question.id === 'goal'
-      ? purposeMap[value]?.goal || value
-      : question.id === 'depth'
-        ? (value === 'Complete learning path' ? 'broad' : 'narrow')
-        : question.id === 'language'
-          ? ({ English: 'en', Hindi: 'hi', Marathi: 'mr' } as Record<string, string>)[value] || value
-          : question.id === 'level'
-            ? ({ "New to this": "Beginner", "Know the basics": "Intermediate", "Experienced — go deeper": "Advanced" } as Record<string, string>)[value] || value
-            : value;
-    if (question.id === "level") setAiLevel(mapped as CourseLevel);
-    clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
-    setIntentAnswers((previous) => ({
-      ...previous,
-      [question.id]: mapped,
-      ...(question.id === "goal" && purposeMap[value] ? { goalPurpose: purposeMap[value].purpose } : {})
-    }));
-  };
-
-  const isIntentOptionSelected = (question: IntentQuestion, option: string) => {
-    if (option === "Not sure, pick for me") return String(intentAnswers[question.id] || "") === option;
-    if (question.id === "knownSkills" || question.type === "multi" || question.type === "checklist") return String(intentAnswers[question.id] || "").split(/[,\n]/).map((item) => item.trim()).includes(option);
-    if (question.id === "goal") {
-      const purpose = String(intentAnswers.goalPurpose || "");
-      if (purpose === "freelance" && option === "Freelancing") return true;
-      if (purpose === "career_switch" && option === "Switch careers") return true;
-      if (purpose === "hobby" && option === "Personal interest") return true;
-      const goal = String(intentAnswers.goal || intentResult?.profile?.goal || "");
-      const labels: Record<string, string> = { job_ready: "Job-ready", exam: "Exam or certification", project: "Build a project", learn: "Learn a skill" };
-      return labels[goal] === option;
-    }
-    const answer = String(intentAnswers[question.id] ?? "");
-    if (question.id === "depth") return (answer || String(intentResult?.profile?.scope || "")) === (option === "Complete learning path" ? "broad" : "narrow");
-    if (question.id === "language") {
-      const language = answer || String(intentResult?.profile?.language || "");
-      return ({ en: "English", hi: "Hindi", mr: "Marathi" } as Record<string, string>)[language] === option || language === option;
-    }
-    if (question.id === "time") {
-      const minutes = answer || String(intentResult?.profile?.minutesPerDay || "");
-      const labels: Record<string, string> = { "15": "15 min", "30": "30 min", "60": "1 hour", "120": "2 hours", "180": "3+ hours" };
-      return labels[minutes] === option || minutes === option;
-    }
-    if (answer) return answer === option;
-    return String(intentResult?.profile?.preferences?.[question.id] || "") === option;
-  };
-
-  const commitIntentTextAnswer = (question: IntentQuestion) => {
-    const rawAnswer = String(intentAnswers[question.id] || '').trim();
-    if (rawAnswer) {
-      trackIntentQuestionEvent(question, "answered");
-      clearIntentAssumption(assumptionFieldForQuestion[question.id] || question.id);
-    }
-    if (question.id === 'role' && rawAnswer) {
-      const tokens = (value: string) => new Set(value.toLowerCase().split(/[^a-z0-9+#.]+/).filter((token) => token.length > 1));
-      const answerTokens = tokens(rawAnswer);
-      const candidates = intentResult?.options.roles || [];
-      const ranked = candidates.map((candidate) => {
-        const candidateTokens = tokens(candidate);
-        const overlap = [...answerTokens].filter((token) => candidateTokens.has(token)).length;
-        const score = overlap / Math.max(1, new Set([...answerTokens, ...candidateTokens]).size);
-        return { candidate, score };
-      }).sort((a, b) => b.score - a.score);
-      // Prefer an AI-suggested role only when the typed answer has meaningful lexical overlap.
-      const best = ranked[0];
-      const answer = best && (best.score >= 0.25 || best.candidate.toLowerCase() === rawAnswer.toLowerCase())
-        ? best.candidate
-        : rawAnswer;
-      setIntentAnswers((previous) => ({ ...previous, [question.id]: answer }));
-    }
-  };
-
   const generateAiRoadmap = async () => {
     const topic = aiTopic.trim();
     if (topic.length < 2) {

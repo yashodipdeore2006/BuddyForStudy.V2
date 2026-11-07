@@ -118,3 +118,53 @@ test("shared curriculum template cache ignores learner-specific personalization 
   assert.deepEqual(first.preferences, {});
   assert.equal(first.outcome, "");
 });
+
+test("synchronous Build with AI preserves curriculum only for confirmed YouTube quota exhaustion", () => {
+  const weakCoverage = {
+    tutorialLessonCount: 12,
+    lessonsWithResources: 2,
+    uniqueVideoCount: 2,
+    coverageRatio: 2 / 12,
+    acceptable: false
+  };
+
+  const exhausted = __aiRoadmapTestHooks.evaluateResourceAvailability(weakCoverage, {
+    state: "exhausted",
+    units: 9000,
+    budget: 9000,
+    resetDay: "2026-11-07"
+  });
+  assert.equal(exhausted.acceptable, true);
+  assert.equal(exhausted.quotaLimited, true);
+  assert.equal(exhausted.resourceAvailability.status, "partial_quota_limited");
+  assert.equal(exhausted.resourceAvailability.quotaUnits, 9000);
+  assert.equal(exhausted.resourceAvailability.quotaResetDay, "2026-11-07");
+
+  for (const state of ["ok", "degraded", "unknown"]) {
+    const rejected = __aiRoadmapTestHooks.evaluateResourceAvailability(weakCoverage, { state });
+    assert.equal(rejected.acceptable, false, `weak coverage must remain blocked when quota state is ${state}`);
+    assert.equal(rejected.quotaLimited, false);
+  }
+});
+
+test("resource availability distinguishes verified coverage from a curriculum without tutorial resources", () => {
+  const verified = __aiRoadmapTestHooks.evaluateResourceAvailability({
+    tutorialLessonCount: 4,
+    lessonsWithResources: 4,
+    uniqueVideoCount: 5,
+    coverageRatio: 1,
+    acceptable: true
+  }, { state: "ok", units: 200, budget: 9000 });
+  assert.equal(verified.acceptable, true);
+  assert.equal(verified.resourceAvailability.status, "verified");
+
+  const notRequired = __aiRoadmapTestHooks.evaluateResourceAvailability({
+    tutorialLessonCount: 0,
+    lessonsWithResources: 0,
+    uniqueVideoCount: 0,
+    coverageRatio: 1,
+    acceptable: false
+  }, { state: "ok" });
+  assert.equal(notRequired.acceptable, true);
+  assert.equal(notRequired.resourceAvailability.status, "not_required");
+});

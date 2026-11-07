@@ -22,7 +22,7 @@ export async function youtubeRequest(endpoint, params = {}) {
     let budget;
     try {
       budget = await tryConsume(cost, { bucket });
-      recordYouTubeRequest(endpoint, budget.state);
+      recordYouTubeRequest(endpoint, budget.state, budget.cost);
     } catch (error) {
       if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {
         recordYouTubeRequestRefused(endpoint, error.state, cost);

@@ -105,3 +105,74 @@ test("concurrent quota reservations cannot overshoot the hard daily budget", asy
     __setQuotaTestAdapters(null);
   }
 });
+
+test("search bucket has its own daily cap and does not consume default quota", async () => {
+  let storedSearchCalls = env.ytSearchDailyLimit - 1;
+  let storedUnits = 0;
+  __setQuotaTestAdapters({
+    getState: async () => ({
+      state: "ok",
+      defaultState: storedUnits >= env.ytDailyQuotaBudget ? "exhausted" : "ok",
+      searchState: storedSearchCalls >= env.ytSearchDailyLimit ? "exhausted" : "ok",
+      units: storedUnits,
+      budget: env.ytDailyQuotaBudget,
+      searchCalls: storedSearchCalls,
+      searchLimit: env.ytSearchDailyLimit,
+      softLimitPct: env.ytSoftLimitPct,
+      resetDay: "test-day",
+      store: "test"
+    }),
+    consumeSearchWithinBudget: async (amount, limit) => {
+      if (storedSearchCalls + amount > limit) return null;
+      storedSearchCalls += amount;
+      return storedSearchCalls;
+    }
+  });
+
+  try {
+    const finalAllowedSearch = await tryConsume(1, { bucket: "search" });
+    assert.equal(finalAllowedSearch.units, env.ytSearchDailyLimit);
+    assert.equal(finalAllowedSearch.bucket, "search");
+    await assert.rejects(
+      tryConsume(1, { bucket: "search" }),
+      (error) => error instanceof QuotaBudgetError && error.state === "exhausted"
+    );
+    assert.equal(storedUnits, 0);
+  } finally {
+    __setQuotaTestAdapters(null);
+  }
+});
+
+test("search exhaustion does not block the independent default bucket", async () => {
+  let storedUnits = 10;
+  __setQuotaTestAdapters({
+    getState: async () => ({
+      state: "exhausted",
+      defaultState: "ok",
+      searchState: "exhausted",
+      units: storedUnits,
+      budget: env.ytDailyQuotaBudget,
+      searchCalls: env.ytSearchDailyLimit,
+      searchLimit: env.ytSearchDailyLimit,
+      resetDay: "test-day",
+      store: "test"
+    }),
+    consumeWithinBudget: async (amount, budget) => {
+      if (storedUnits + amount > budget) return null;
+      storedUnits += amount;
+      return storedUnits;
+    }
+  });
+
+  try {
+    const result = await tryConsume(1);
+    assert.equal(result.bucket, "default");
+    assert.equal(result.units, 11);
+    await assert.rejects(
+      tryConsume(1, { bucket: "search" }),
+      (error) => error instanceof QuotaBudgetError && error.state === "exhausted"
+    );
+  } finally {
+    __setQuotaTestAdapters(null);
+  }
+});

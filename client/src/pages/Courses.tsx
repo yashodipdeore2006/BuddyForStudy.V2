@@ -6,13 +6,12 @@ import type { Course, CourseLevel, LessonType, QuizContent, TutorialContent } fr
 import CourseCard from '@/components/CourseCard';
 import { CourseGridSkeleton } from '@/components/Skeleton';
 import EmptyState from '@/components/EmptyState';
-import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink, Briefcase, Compass, HeartHandshake, RefreshCw, Rocket } from 'lucide-react';
+import { Search, BookOpen, Filter, X, Sparkles, Loader2, ChevronDown, ChevronRight, Play, CircleHelp, FolderKanban, GraduationCap, ExternalLink } from 'lucide-react';
 import YouTubeSearchFallback from '@/components/YouTubeSearchFallback';
 import { routes } from "@/lib/routes";
 import { getNicheQuestions, getPurposeQuestions, getSkillChecklist } from "@/data/buildWithAiQuestionPacks";
 
-// The adaptive four-step intake is now the default Build with AI experience.
- // Keep the wizard available even when older local .env files still contain VITE_INTENT_V2=false.
+// Build with AI now uses a compact, self-paced course intake.
 const INTENT_V2 = false;
 const ASYNC_ROADMAP = import.meta.env.VITE_ASYNC_ROADMAP === "true";
 type IntentQuestion = { id: string; type: "single" | "multi" | "text" | "paste" | "checklist" | "time"; text: string; options?: string[]; allowText?: boolean; optional: boolean; when?: string; why?: string; changes?: string[] };

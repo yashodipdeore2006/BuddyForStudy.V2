@@ -32,24 +32,9 @@ const BUILD_WITH_AI_LANGUAGES = [
 ] as const;
 
 const COURSE_DEPTH_OPTIONS = [
-  {
-    value: "short",
-    label: "Short course",
-    duration: "About 8–15 hours",
-    description: "A focused introduction to the essentials, fundamentals and most important concepts."
-  },
-  {
-    value: "medium",
-    label: "Medium course",
-    duration: "About 25–45 hours",
-    description: "Core concepts, useful tools, guided practice and selected real-world projects."
-  },
-  {
-    value: "complete",
-    label: "Complete course",
-    duration: "Subject-based · comprehensive",
-    description: "Prerequisites, foundations, the relevant ecosystem or full stack, advanced topics, projects and assessments."
-  }
+  { value: "short", label: "Short course", duration: "About 8–15 hours", description: "A focused introduction to the essentials, fundamentals and most important concepts." },
+  { value: "medium", label: "Medium course", duration: "About 25–45 hours", description: "Core concepts, useful tools, guided practice and selected real-world projects." },
+  { value: "complete", label: "Complete course", duration: "Subject-based · comprehensive", description: "Prerequisites, foundations, the relevant ecosystem or full stack, advanced topics, projects and assessments." }
 ] as const;
 
 
@@ -984,7 +969,7 @@ export default function Courses() {
       topic,
       level: aiLevel,
       goals: [({ job_ready: "Career or work growth", exam: "Exam or certification", project: "Create something", learn: "Build practical skills" } as Record<string, string>)[inferredGoal]],
-      // The schedule remains self-paced. This is an internal neutral default, not a learner deadline or requirement.
+      // The schedule stays self-paced. This internal default is not shown as a learner requirement.
       studyTimeMinutesPerDay: 60,
       language: selectedLanguages[0] || "en",
       knownSkills: [],
@@ -1291,13 +1276,12 @@ export default function Courses() {
                     
                   </p>
                   <h2 id="ai-builder-title" className="mt-0.5 text-base font-semibold text-slate-900 sm:text-lg">Create your learning course</h2>
-                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">Choose the course depth, experience level and resource languages</p>
+                  <p id="ai-builder-description" className="mt-0.5 text-[11px] text-slate-600">Choose a course depth, experience level and resource languages</p>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <div className="hidden text-right text-[10px] text-slate-600 sm:block">
-                  <span>Step</span>
-                  <strong className="ml-1 text-slate-900">{intentWizardStep} of 4</strong>
+                  <span>Quick setup</span>
                 </div>
                 <button
                   type="button"
@@ -1418,9 +1402,7 @@ export default function Courses() {
                         ) : (
                 <div className="mx-auto w-full max-w-2xl space-y-5">
                   <div>
-                    <label htmlFor="ai-topic" className="mb-2 block text-sm font-semibold text-slate-900">
-                      What do you want to learn?
-                    </label>
+                    <label htmlFor="ai-topic" className="mb-2 block text-sm font-semibold text-slate-900">What do you want to learn?</label>
                     <input
                       id="ai-topic"
                       autoFocus
@@ -1444,7 +1426,6 @@ export default function Courses() {
                     <div className="grid gap-2">
                       {COURSE_DEPTH_OPTIONS.map((option) => {
                         const selected = aiCourseDepth === option.value;
-                        const recommended = option.value === "complete";
                         return (
                           <button
                             key={option.value}
@@ -1457,7 +1438,7 @@ export default function Courses() {
                           >
                             <span className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-semibold text-slate-900">{option.label}</span>
-                              {recommended && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Recommended · Default</span>}
+                              {option.value === "complete" && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Recommended · Default</span>}
                               <span className="ml-auto text-xs font-medium text-slate-500">{option.duration}</span>
                             </span>
                             <span className="mt-1 block text-xs leading-5 text-slate-600">{option.description}</span>
@@ -1465,7 +1446,7 @@ export default function Courses() {
                         );
                       })}
                     </div>
-                    <p className="text-xs text-slate-500">The time is an estimate, not a deadline. A complete Data Science path is designed around at least 70–100 hours.</p>
+                    <p className="text-xs text-slate-500">Time is an estimate, not a deadline. A complete Data Science path is designed around at least 70–100 hours.</p>
                   </fieldset>
 
                   <fieldset className="space-y-2">
@@ -1484,17 +1465,15 @@ export default function Courses() {
                           className={`min-h-11 rounded-lg border px-2 py-2 text-xs font-semibold transition ${
                             aiLevel === option.value ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                           }`}
-                        >
-                          {option.label}
-                        </button>
+                        >{option.label}</button>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-500">For a complete course, prerequisites are still included. Your experience helps us adjust the starting pace.</p>
+                    <p className="text-xs text-slate-500">Complete courses still include prerequisites. Your experience adjusts the starting pace.</p>
                   </fieldset>
 
                   <fieldset className="space-y-2.5">
                     <legend className="text-sm font-semibold text-slate-900">Languages for learning resources</legend>
-                    <p className="text-xs text-slate-500">Choose more than one. English and Hindi are selected by default; we’ll search your choices in order and use the first suitable verified resource.</p>
+                    <p className="text-xs text-slate-500">Select up to four. English and Hindi are selected by default; we’ll try your chosen languages in order and use the first suitable verified resource.</p>
                     <div className="flex flex-wrap gap-2">
                       {BUILD_WITH_AI_LANGUAGES.map((language) => {
                         const selected = aiResourceLanguages.includes(language.code);
@@ -1509,22 +1488,136 @@ export default function Courses() {
                             className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
                               selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                             }`}
-                          >
-                            {selected ? "✓ " : ""}{language.label}
-                          </button>
+                          >{selected ? "✓ " : ""}{language.label}</button>
                         );
                       })}
                     </div>
                     <p className="text-xs text-slate-500">{aiResourceLanguages.length} of 4 languages selected.</p>
                   </fieldset>
 
-                  {aiError && (
-                    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">
-                      {aiError}
-                    </div>
+                  {aiError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800">{aiError}</div>}
+                </div>
+              )}
+                </>
+
+              )}
+            </div>
+            <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (INTENT_V2 && !intentResult?.valid && coreQuestionStep > 0) {
+                    setCoreQuestionStep((step) => Math.max(0, step - 1));
+                    return;
+                  }
+                  if (INTENT_V2 && intentResult?.valid && intentWizardStep > 1) {
+                    setIntentWizardStep((step) => Math.max(1, step - 1));
+                    return;
+                  }
+                  setAiOpen(false);
+                }}
+                disabled={aiLoading}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                {INTENT_V2 && ((!intentResult?.valid && coreQuestionStep > 0) || (intentResult?.valid && intentWizardStep > 1)) ? "Back" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!INTENT_V2) {
+                    void generateAiRoadmap();
+                    return;
+                  }
+                  if (!intentResult || !intentResult.valid) {
+                    if (coreQuestionStep < 7) {
+                      if (coreQuestionStep === 0 && aiTopic.trim().length < 2) { setAiError("Enter a topic with at least 2 characters."); return; }
+                      setAiError(null);
+                      setCoreQuestionStep((step) => Math.min(7, step + 1));
+                      return;
+                    }
+                    void startIntentFlow();
+                    return;
+                  }
+                  if (intentWizardStep < 4) {
+                    if (intentWizardStep === 2 || intentWizardStep === 3) {
+                      visibleWizardQuestions
+                        .filter((question) => !String(intentAnswers[question.id] || "").trim())
+                        .forEach((question, index) => trackIntentQuestionEvent(question, "skipped", index));
+                    }
+                    setIntentWizardStep((step) => Math.min(4, step + 1));
+                    return;
+                  }
+                  void generateAiRoadmap();
+                }}
+                disabled={aiLoading || intentLoading || !aiTopic.trim()}
+                className="btn-primary h-11 justify-center rounded-lg px-5 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {aiLoading || intentLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {intentLoading ? "Analyzing your learning goal…" : "Generating your roadmap…"}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    {!INTENT_V2 ? "Build personalized plan" : !intentResult || !intentResult.valid ? coreQuestionStep < 7 ? "Next question" : "Analyze answers" : intentWizardStep === 4 ? "Generate roadmap" : intentWizardStep === 3 ? "Review roadmap" : "Continue"}
+                  </>
+                )}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {aiError && !aiOpen && (
+        <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {aiError}
+        </div>
+      )}
+
+      {catalogError && (
+        <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          Course search failed: {catalogError}
+        </div>
+      )}
+
+      {aiRoadmap?.course && (
+        <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-slate-950 px-5 py-6 text-white sm:px-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.16em] text-blue-300">AI-generated complete course</p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">{aiRoadmap.course.title}</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{aiRoadmap.course.description}</p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.level || 'Beginner'}</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">{aiRoadmap.course.modules?.length || 0} modules</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">
+                    {(aiRoadmap.course.modules || []).reduce((sum, module) => sum + (module.lessons || []).length, 0)} lessons and assessments
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-1.5">
+                    {aiRoadmap.personalization?.estimatedStudyMinutes
+                      ? `~${Math.round(aiRoadmap.personalization.estimatedStudyMinutes / 60 * 10) / 10}h estimated study`
+                      : 'Self-paced'}
+                  </span>
+                  {typeof aiRoadmap.personalization?.resourceVideoMinutes === 'number' && (
+                    <span className="rounded-full bg-white/10 px-3 py-1.5">
+                      {aiRoadmap.personalization.resourceVideoMinutes} min video watch time
+                    </span>
                   )}
                 </div>
-                  </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {aiRoadmap.course.isPublished ? (
+                  <button type="button" onClick={() => navigate(routes.course(String(aiRoadmap.course._id ?? aiRoadmap.course.id)))} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:bg-white/10">
+                    <ExternalLink className="h-4 w-4" /> Course details
+                  </button>
+                ) : (
+                  <span className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-300">Details unlock after approval</span>
+                )}
+                <button onClick={() => { setAiRoadmap(null); setAiEnrollError(null); }} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white">Close</button>
+              </div>
+            </div>
           </div>
 
           {!aiRoadmap.course.isPublished && (

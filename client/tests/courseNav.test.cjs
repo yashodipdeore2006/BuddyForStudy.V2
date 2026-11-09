@@ -274,5 +274,6 @@ test("course player selects a playable lesson video instead of blindly rendering
   assert.match(player, /if \(videos\.some\(\(video\) => video\.videoId\)\)/);
   assert.match(player, /\{activeVideo \? \(/);
   assert.match(player, /videoId=\{activeVideo!\.videoId\}/);
+  assert.match(player, /resourceRecoveryAttemptedRef\.current\.delete\(key\)/);
   assert.doesNotMatch(player, /currentLesson\.lesson\.tutorial\?\.videos\?\.\[0\]/);
 });

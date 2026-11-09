@@ -1107,7 +1107,7 @@ export default function CoursePlayer() {
                       </h1>
                       {activeVideo?.channelTitle && (
                         <p className="mt-2 text-sm text-slate-500">
-                          {currentLesson.lesson.tutorial.videos[0].channelTitle}
+                          {activeVideo.channelTitle}
                         </p>
                       )}
                     </div>

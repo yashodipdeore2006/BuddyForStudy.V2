@@ -38,7 +38,9 @@ function hasUsableTutorial(lesson) {
   const hasVideo = Array.isArray(tutorial?.videos) && tutorial.videos.some((video) =>
     hasText(video?.url) || hasText(video?.videoId)
   );
-  return hasText(tutorial?.content) || hasResource || hasVideo;
+  // A tutorial may remain useful as text-first learning content while its
+  // optional YouTube resource is unavailable and queued for later recovery.
+  return hasText(tutorial?.content) || hasText(lesson?.description) || hasResource || hasVideo;
 }
 
 export function evaluateCourseReadiness(course) {
@@ -78,7 +80,7 @@ export function evaluateCourseReadiness(course) {
     lessonTypes: "Change the type of each of the " + invalidLessonTypes.length + " unsupported learning item(s) to Tutorial, Project, or Quiz.",
     paidPrice: "Set the paid course price to a value greater than zero, or switch the pricing mode to Free.",
     quizContent: "Open Manage Curriculum and edit the " + invalidQuizzes.length + " invalid quiz lesson(s). Each question needs a question prompt, at least two non-empty answer choices, and a valid correct answer.",
-    tutorialContent: "Open Manage Curriculum and add lesson content, a resource URL, or a playable video URL/ID to each of the " + emptyTutorials.length + " empty tutorial lesson(s).",
+    tutorialContent: "Open Manage Curriculum and add lesson notes, a resource URL, or a playable video URL/ID to each of the " + emptyTutorials.length + " empty tutorial lesson(s). Missing YouTube videos can be recovered later.",
     projectContent: "Open Manage Curriculum and add instructions, objectives, an expected outcome, or project description to each of the " + emptyProjects.length + " empty project lesson(s)."
   };
   const failedChecks = checks.filter((check) => !check.passed);

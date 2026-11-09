@@ -12,7 +12,7 @@ export function findLessonsMissingVideoResources(course, lessonId = null) {
   const missing = [];
   for (const module of course?.modules || []) {
     for (const lesson of module.lessons || []) {
-      if (lesson.type !== "tutorial" || !lesson.tutorial || hasPlayableVideo(lesson)) continue;
+      if (lesson.type !== "tutorial" || hasPlayableVideo(lesson)) continue;
       if (lessonId && String(lesson._id || lesson.id) !== String(lessonId)) continue;
       missing.push({ module, lesson });
     }
@@ -45,6 +45,7 @@ export async function recoverMissingTutorialResources(course, {
   const profile = resourceProfile(course);
   let changed = false;
   for (const { lesson } of missing) {
+    lesson.tutorial = lesson.tutorial || { content: "", resources: [], videos: [] };
     const skill = {
       id: lesson.canonicalSkillId || String(lesson._id || lesson.id || lesson.title),
       canonicalSkillId: lesson.canonicalSkillId || undefined,
@@ -106,6 +107,12 @@ export async function recoverMissingTutorialResources(course, {
     summary.recoveredLessonIds.push(String(lesson._id || lesson.id));
     changed = true;
   }
+
+  const recoveredIds = new Set(summary.recoveredLessonIds);
+  summary.remainingLessonIds = missing
+    .map(({ lesson }) => String(lesson._id || lesson.id))
+    .filter((id) => !recoveredIds.has(id));
+  summary.unavailable = summary.remainingLessonIds.length;
 
   if (changed) {
     course.markModified?.("modules");

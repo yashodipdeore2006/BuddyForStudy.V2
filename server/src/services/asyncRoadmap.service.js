@@ -165,11 +165,19 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
               id: lesson.canonicalSkillId || lesson.title,
               canonicalSkillId: lesson.canonicalSkillId || lesson.title,
               name: lesson.title,
-              topics: [lesson.title],
-              searchQueries: learnerContext ? [
-                learnerContext + " " + lesson.title + " structured course tutorial",
+              topics: [...new Set([
+                ...(Array.isArray(lesson.tutorial?.requiredTopics) ? lesson.tutorial.requiredTopics : []),
+                ...(Array.isArray(lesson.project?.requirements) ? lesson.project.requirements : []),
+                ...(Array.isArray(lesson.project?.objectives) ? lesson.project.objectives : []),
+                lesson.title
+              ].map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 16),
+              searchQueries: [...new Set([
+                ...(Array.isArray(lesson.tutorial?.searchQueries) ? lesson.tutorial.searchQueries : []),
+                lesson.tutorial?.searchQuery,
+                ...(Array.isArray(lesson.project?.videoSearchQueries) ? lesson.project.videoSearchQueries : []),
+                learnerContext ? learnerContext + " " + lesson.title + " structured course tutorial" : "",
                 String(profile.topic || "") + " " + lesson.title + " " + String(intent.goal || profile.goal || "learn") + " practical lesson"
-              ] : []
+              ].map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 5)
             },
             profile: { topic: profile.topic, level: profile.level || intent.level || "Beginner", language: profile.language || intent.language || "en" },
             durationPolicy,
@@ -236,8 +244,17 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   // to the learner so it can be retried after quota reset.
   const quota = await getYouTubeQuotaState().catch(() => null);
   const quotaExhausted = quota?.state === "exhausted";
+  // Resource retrieval is enrichment, not the curriculum itself. A low match
+  // rate must not discard a fully generated roadmap; missing lessons remain
+  // retryable on access and through the admin recovery action.
   if (quality.tutorialLessonCount > 0 && !quality.acceptable && !quotaExhausted) {
-    throw await buildResourceQualityFailure(quality);
+    console.warn("AI roadmap completed with partial verified resources; missing lessons remain retryable", {
+      tutorialLessonCount: quality.tutorialLessonCount,
+      lessonsWithResources: quality.lessonsWithResources,
+      uniqueVideoCount: quality.uniqueVideoCount,
+      coverageRatio: quality.coverageRatio,
+      reason: quality.reason
+    });
   }
   if (quality.tutorialLessonCount > 0 && !quality.acceptable && quotaExhausted) {
     console.warn("AI roadmap completed with partial verified resources because YouTube quota is exhausted", {

@@ -7,7 +7,7 @@ const courseCurationFeedbackSchema = new mongoose.Schema({
   normalizedQuery: { type: String, required: true, trim: true, maxlength: 200, index: true },
   event: {
     type: String,
-    enum: ["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report", "helpful", "wrong_level", "completed", "abandoned"],
+    enum: ["preview", "save", "enroll", "thumbs_up", "thumbs_down", "outdated", "report", "helpful", "wrong_level", "not_sure", "completed", "abandoned"],
     required: true,
     index: true
   },

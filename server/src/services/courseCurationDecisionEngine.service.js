@@ -584,11 +584,13 @@ function passesHardGates(candidate, profile) {
     if (!candidate.hasStructure) return { passed: false, reason: "no_structure_evidence" };
   } else {
     if (runtime < profile.minVideoSeconds || runtime > profile.maxVideoSeconds) return { passed: false, reason: "runtime_outside_mode" };
-    if (!hasStructureEvidence(candidate) && profile.nodeType !== "interview") return { passed: false, reason: "no_structure_evidence" };
+    if (!hasStructureEvidence(candidate) && !["interview", "lesson"].includes(profile.nodeType)) return { passed: false, reason: "no_structure_evidence" };
   }
   const relevance = candidate.queryTermStats?.relevance ?? queryTermStats(profile.query, candidate).relevance;
   const titleRelevance = candidate.queryTermStats?.titleRelevance ?? queryTermStats(profile.query, candidate).titleRelevance;
-  if (relevance < 40 && titleRelevance < 20) return { passed: false, reason: "query_mismatch" };
+  const minimumRelevance = profile.nodeType === "lesson" ? 25 : 40;
+  const minimumTitleRelevance = profile.nodeType === "lesson" ? 10 : 20;
+  if (relevance < minimumRelevance && titleRelevance < minimumTitleRelevance) return { passed: false, reason: "query_mismatch" };
   const freshness = freshnessScore(candidate, profile);
   if (freshness.stale) return { passed: false, reason: "obsolete_without_update_note" };
   return { passed: true, reason: "" };
@@ -1543,7 +1545,7 @@ export async function curateNormalSearch(query, options = {}) {
   const profile = classifyCurationIntent(normalizedQuery, options);
   // Interview resources may be short experience/question videos without playlist or chapter structure.
   // All other hard gates remain unchanged, and the relaxation is opt-in per interview node only.
-  profile.nodeType = options.nodeType === "interview" ? "interview" : null;
+  profile.nodeType = ["interview", "lesson"].includes(options.nodeType) ? options.nodeType : null;
   const hasExplicitSelectionOptions = ["syllabus", "overrides", "maxQueries", "extraQueries", "cacheScope"].some((key) => Object.hasOwn(options, key));
   const hasInjectedSyllabus = options.syllabus && Array.isArray(options.syllabus.modules);
   if (options.overrides && typeof options.overrides === "object") {

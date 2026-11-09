@@ -77,7 +77,9 @@ test("resource recovery attaches the selected resource and invalidates the cours
   assert.equal(calls[0].profile.topic, "SQL");
   assert.equal(calls[0].skill.canonicalSkillId, "sql-joins");
   assert.deepEqual(calls[0].skill.topics, ["INNER JOIN", "LEFT JOIN", "SQL Joins"]);
-  assert.ok(calls[0].skill.searchQueries.includes("SQL joins inner left right full tutorial"));
+  assert.ok(calls[0].skill.searchQueries.includes("SQL Joins INNER JOIN LEFT JOIN tutorial"));
+  assert.equal(calls[0].skill.searchQueries[0], "SQL Joins INNER JOIN LEFT JOIN tutorial");
+  assert.equal(calls[0].durationPolicy.minMinutes, 1, "short lesson explanations must not be rejected by a five-minute floor");
 });
 
 test("resource recovery stops after YouTube quota exhaustion and leaves lessons retryable", async () => {

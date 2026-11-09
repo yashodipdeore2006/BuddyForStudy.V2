@@ -49,10 +49,14 @@ export async function recoverMissingTutorialResources(course, {
     const requiredTopics = Array.isArray(lesson.tutorial?.requiredTopics)
       ? lesson.tutorial.requiredTopics.map((value) => String(value || "").trim()).filter(Boolean)
       : [];
+    // Recovery searches should target this exact lesson first. Roadmap-level
+    // queries often describe an entire course and can bury a focused lesson match.
+    const lessonTopics = requiredTopics.slice(0, 3).join(" ");
     const searchQueries = [
-      ...(Array.isArray(lesson.tutorial?.searchQueries) ? lesson.tutorial.searchQueries : []),
+      lesson.title ? [lesson.title, lessonTopics, "tutorial"].filter(Boolean).join(" ") : "",
       lesson.tutorial?.searchQuery,
-      lesson.title ? profile.topic + " " + lesson.title + " complete tutorial" : ""
+      ...(Array.isArray(lesson.tutorial?.searchQueries) ? lesson.tutorial.searchQueries : []),
+      lesson.title ? profile.topic + " " + lesson.title + " tutorial" : ""
     ].map((value) => String(value || "").trim()).filter(Boolean);
     const skill = {
       id: lesson.canonicalSkillId || String(lesson._id || lesson.id || lesson.title),
@@ -66,7 +70,9 @@ export async function recoverMissingTutorialResources(course, {
       result = await curate({
         skill,
         profile,
-        durationPolicy: { minMinutes: 5, targetMinutes: 30, maxMinutes: 180 },
+        // A lesson video can be a concise 1-4 minute explanation. The
+        // learner's overall study-plan duration must not reject those resources.
+        durationPolicy: { minMinutes: 1, targetMinutes: 15, maxMinutes: 180 },
         cacheScope: "course-resource-recovery"
       });
     } catch (error) {

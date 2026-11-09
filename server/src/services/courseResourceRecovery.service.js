@@ -4,7 +4,7 @@ import { curateForNode } from "./nodeCuration.service.js";
 
 function hasPlayableVideo(lesson) {
   return (lesson?.tutorial?.videos || []).some((video) =>
-    String(video?.videoId || "").trim() || String(video?.url || "").trim()
+    String(video?.videoId || "").trim()
   );
 }
 
@@ -71,7 +71,7 @@ export async function recoverMissingTutorialResources(course, {
     }
 
     const best = result?.best;
-    if (!best || !(String(best.videoId || "").trim() || String(best.url || "").trim())) {
+    if (!best || !String(best.videoId || "").trim()) {
       summary.unavailable += 1;
       summary.remainingLessonIds.push(String(lesson._id || lesson.id));
       if (result?.meta?.state === "quota_limited" || result?.meta?.quotaState === "exhausted") {

@@ -13,7 +13,7 @@ import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 import { resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
 import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
 import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
-import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildLearnModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
+import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
 import { safeTelemetryError } from "../utils/safeTelemetryError.js";

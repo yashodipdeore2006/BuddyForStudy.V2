@@ -138,6 +138,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
     overrides,
     maxQueries: 2,
     extraQueries,
+    nodeType: "lesson",
     cacheScope: selectorCacheScope,
     skillId: canonicalSkillId
   });

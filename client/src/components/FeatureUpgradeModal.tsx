@@ -70,7 +70,7 @@ const FEATURE_ENTITLEMENT_LABELS: Record<string, string> = {
 
 function formatMoney(amount: number, currency = "INR") {
   return formatCurrencyAmount(amount, currency);
-
+}
 
 function intervalLabel(interval: string) {
   switch (interval) {

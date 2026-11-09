@@ -348,7 +348,7 @@ export default function FeatureUpgradeModal() {
                     Boolean(currentPlan && currentPlan._id === plan._id) ||
                     (!currentPlanId && plan.name === (request?.currentPlan || ""));
                   const price = Number(plan.price || 0);
-                  const isTop = index === 0;
+                  const isPopular = plan.isPopular === true;
                   const unlocksFeature = !requiredFeatureLabel || (plan.features || []).includes(requiredFeatureLabel);
                   return (
                     <article
@@ -368,7 +368,7 @@ export default function FeatureUpgradeModal() {
                       }}
                       onFocusCapture={() => setPreviewPlanId(plan._id)}
                       onBlur={() => setPreviewPlanId(null)}
-                      className={`bfs-plan-card bfs-plan-option ${isTop ? "bfs-plan-card--featured" : ""} relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
+                      className={`bfs-plan-card bfs-plan-option ${isPopular ? "bfs-plan-card--featured" : ""} relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
                         isFocused
                           ? "bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
                           : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30"
@@ -376,8 +376,8 @@ export default function FeatureUpgradeModal() {
                       aria-current={isSelected ? "true" : undefined}
                     >
                       <div className="mb-3 flex min-h-7 flex-wrap items-center gap-2">
-                        {isTop && <span className="bfs-plan-badge bfs-plan-badge--featured"><Crown className="h-3 w-3" /> Highest access</span>}
-                        {!isTop && plan.isPopular && <span className="bfs-plan-badge"><Sparkles className="h-3 w-3" /> Popular</span>}
+                        {isPopular && <span className="bfs-plan-badge bfs-plan-badge--featured"><Sparkles className="h-3 w-3" /> Most popular</span>}
+                        {price === 0 && <span className="bfs-plan-badge bfs-plan-badge--neutral">Free</span>}
                         {isCurrent && <span className="bfs-plan-badge bfs-plan-badge--neutral">Current plan</span>}
                         {!isCurrent && requiredFeatureLabel && <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${unlocksFeature ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{unlocksFeature ? "Unlocks this feature" : "Feature not included"}</span>}
                       </div>

@@ -1,13 +1,9 @@
-import { Course } from "../models/Course.js";
+import { Course, resolveGeneratedCoursePricingPreview } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
-import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
-import { resolveGeneratedCoursePricingPolicy } from "../utils/generatedCoursePricingPolicy.js";
-import { PricingRule } from "../models/PricingRule.js";
-import { calculateNextPricing } from "../utils/coursePricing.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {
   $lookup: {
@@ -447,61 +443,17 @@ function effectiveDiscoveryPricingPreview(pricing = {}) {
   return { mode: "paid", price: activeSale ? salePrice : basePrice, currency, ...(activeSale ? { salePrice, basePrice } : {}) };
 }
 
-async function getDiscoveryPricingPreview(level) {
-  const setting = await PlatformSetting.findOne({ key: "generated_course_pricing_policy" }).select("value").lean();
-  const policy = resolveGeneratedCoursePricingPolicy(setting?.value);
-  const currency = String(policy.currency || "INR").toUpperCase();
-  const freePricing = { mode: "free", price: 0, currency, compareAtPrice: 0, saleEnabled: false, salePrice: 0 };
-
-  // Match the Course model's pre-validation policy: new discovery resources
-  // begin free, then the canonical generated-course policy assigns their price.
-  if (!policy.enabled || !policy.applyTo.includes("discovery") || policy.mode === "free") {
-    return effectiveDiscoveryPricingPreview(freePricing);
-  }
-  if (policy.mode === "fixed") {
-    const price = Math.round(Number(policy.fixedPrice) || 0);
-    if (price > 0 && (price < 20 || price > 59)) return effectiveDiscoveryPricingPreview(freePricing);
-    return effectiveDiscoveryPricingPreview({ ...freePricing, mode: price > 0 ? "paid" : "free", price });
-  }
-
+export async function getDiscoveryPricingPreview(level) {
   const normalizedLevel = ["Beginner", "Intermediate", "Advanced"].includes(level) ? level : "Beginner";
-  if (policy.mode === "level_bands") {
-    const band = policy.levelBands?.[normalizedLevel];
-    if (!band) return { mode: "unknown", currency };
-    const min = Number(band.min), max = Number(band.max);
-    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max < min) return { mode: "unknown", currency };
-    if (min < 20 || max > 59) return effectiveDiscoveryPricingPreview(freePricing);
-    const base = Math.round((min + max) / 2);
-    // One module, no project lessons: this mirrors Course.js.
-    const recommended = Math.min(max, Math.max(min, Math.round(base * 1.02)));
-    return effectiveDiscoveryPricingPreview({ ...freePricing, mode: recommended > 0 ? "paid" : "free", price: recommended });
-  }
-
-  if (policy.mode === "rule_based") {
-    const rules = await PricingRule.find({ enabled: true, autoApply: true }).sort({ priority: 1, createdAt: 1 }).lean();
-    const price = 0;
-    const rule = rules.find((candidate) => {
-      const filters = candidate.filters || {};
-      return (!filters.category || String(filters.category).toLowerCase() === "youtube discovery") &&
-        (!filters.level || filters.level === normalizedLevel) &&
-        (!filters.mode || filters.mode === "free") &&
-        (filters.minPrice == null || price >= Number(filters.minPrice)) &&
-        (filters.maxPrice == null || price <= Number(filters.maxPrice));
-    });
-    if (!rule) return effectiveDiscoveryPricingPreview(freePricing);
-    try {
-      const nextPricing = calculateNextPricing(freePricing, rule.operation);
-      if (nextPricing.mode === "paid" && (nextPricing.price < 20 || nextPricing.price > 59)) {
-        return effectiveDiscoveryPricingPreview(freePricing);
-      }
-      return effectiveDiscoveryPricingPreview(nextPricing);
-    } catch {
-      // Course.js fails closed on invalid rules and preserves the initial free price.
-      return effectiveDiscoveryPricingPreview(freePricing);
-    }
-  }
-
-  return { mode: "unknown", currency };
+  const pricing = await resolveGeneratedCoursePricingPreview({
+    title: "YouTube Discovery price preview",
+    category: "YouTube Discovery",
+    level: normalizedLevel,
+    modules: [{ title: "YouTube Discovery", lessons: [{ type: "tutorial" }] }],
+    generation: { mode: "discovery" },
+    pricing: { mode: "free", price: 0, compareAtPrice: 0, currency: "INR", saleEnabled: false, salePrice: 0 }
+  });
+  return effectiveDiscoveryPricingPreview(pricing);
 }
 
 async function getDiscoveryPricingPreviews(resources, level) {

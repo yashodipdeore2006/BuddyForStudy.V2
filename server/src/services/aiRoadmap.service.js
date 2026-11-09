@@ -1300,7 +1300,7 @@ function normalizeGeminiProviderError(error) {
   if (status !== 429) return error;
 
   const providerMessage = String(error?.message || "");
-  const providerEnvelope = /"error"\\s*:\\s*\\{/.test(providerMessage) || /RESOURCE_EXHAUSTED|generativelanguage|googleapis/i.test(providerMessage);
+  const providerEnvelope = /"error"\s*:\s*\{/.test(providerMessage) || /RESOURCE_EXHAUSTED|generativelanguage|googleapis/i.test(providerMessage);
   if (!providerEnvelope) return error;
   const quotaFailure = /quota|resource_exhausted|generate_content.*requests/i.test(providerMessage);
   const normalized = new Error(quotaFailure

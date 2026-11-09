@@ -69,12 +69,14 @@ export async function finalizeDraft(req, res, next, dependencies = {}) {
       const resourceFailure = draft.errorCode === "AI_RESOURCE_QUALITY_INSUFFICIENT";
       const providerQuotaFailure = draft.errorCode === "AI_PROVIDER_QUOTA_EXHAUSTED";
       const providerRateLimitFailure = draft.errorCode === "AI_PROVIDER_RATE_LIMITED";
-      const actionableFailure = resourceFailure || providerQuotaFailure || providerRateLimitFailure;
+      const usageLimitFailure = draft.errorCode === "AI_USAGE_LIMIT";
+      const actionableFailure = resourceFailure || providerQuotaFailure || providerRateLimitFailure || usageLimitFailure;
+      const failureStatus = usageLimitFailure ? 429 : actionableFailure ? 503 : 502;
       return failure(
         res,
         String(draft.errorMessage || "Roadmap build failed. Please retry."),
-        actionableFailure ? 503 : 502,
-        { draftId, retryable: true, ...(actionableFailure && draft.errorDetails && typeof draft.errorDetails === "object" ? draft.errorDetails : {}) }
+        failureStatus,
+        { draftId, retryable: !usageLimitFailure, ...(actionableFailure && draft.errorDetails && typeof draft.errorDetails === "object" ? draft.errorDetails : {}) }
       );
     }
     if (draft?.status === "cancelled") return failure(res, "Roadmap build was cancelled. Start a new draft to continue.", 409, { draftId, retryable: true });

@@ -262,3 +262,48 @@ test("quota-limited node can be curated on a later request after quota becomes a
     setSelector(null);
   }
 });
+
+
+test("an unsuccessful non-quota curation result is not cached and can be searched again", async () => {
+  cacheRows.clear();
+  let selectorCalls = 0;
+  setSelector(async () => {
+    selectorCalls += 1;
+    if (selectorCalls === 1) {
+      return { resources: [], meta: { searchCalls: 1, quotaUnits: 1 } };
+    }
+    return {
+      resources: [{
+        id: "video:later-resource",
+        videoId: "later-resource",
+        title: "SQL joins tutorial",
+        description: "A practical SQL joins lesson",
+        channelTitle: "Learning channel",
+        durationSeconds: 1800,
+        sourceUrl: "https://www.youtube.com/watch?v=later-resource",
+        score: 90,
+        finalScore: 90
+      }],
+      meta: { searchCalls: 1, quotaUnits: 1 }
+    };
+  });
+  const input = {
+    skill: { id: "sql-joins-recovery", canonicalSkillId: "sql-joins-recovery", name: "SQL joins", topics: ["INNER JOIN", "LEFT JOIN"] },
+    profile: { topic: "Data Analytics", level: "Beginner", language: "en" },
+    durationPolicy: { minMinutes: 5, targetMinutes: 30, maxMinutes: 60 }
+  };
+  try {
+    const first = await curateForNode(input);
+    assert.equal(first.best, null);
+    assert.equal(first.meta.state, "failed");
+    assert.equal([...cacheRows.values()].some((row) => row.kind === "node"), false);
+
+    const second = await curateForNode(input);
+    assert.equal(selectorCalls, 2, "a later recovery attempt must execute a fresh selector search");
+    assert.equal(second.best.videoId, "later-resource");
+    assert.equal(second.meta.cacheHit, false);
+    assert.ok([...cacheRows.values()].some((row) => row.kind === "node"), "successful selections remain cacheable");
+  } finally {
+    setSelector(null);
+  }
+});

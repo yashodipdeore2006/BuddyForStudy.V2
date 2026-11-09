@@ -151,6 +151,7 @@ export default function CoursePlayer() {
   const [togglingLessonIds, setTogglingLessonIds] = useState<Set<string>>(() => new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState("");
+  const [resourceRecoveryStatus, setResourceRecoveryStatus] = useState<"idle" | "loading" | "unavailable">("idle");
   const [progressUnavailable, setProgressUnavailable] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizError, setQuizError] = useState("");
@@ -179,6 +180,7 @@ export default function CoursePlayer() {
     video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number];
   } | null>(null);
   const curationFeedbackInFlightRef = useRef(new Set<string>());
+  const resourceRecoveryAttemptedRef = useRef(new Set<string>());
   const curationFeedbackSentRef = useRef(new Set<string>());
   const curationFeedbackSubmissionIdsRef = useRef(new Map<string, string>());
   const [curationFeedbackInFlightKeys, setCurationFeedbackInFlightKeys] = useState<Set<string>>(() => new Set());
@@ -298,6 +300,41 @@ export default function CoursePlayer() {
     }
     void load();
   }, [courseId]);
+
+  useEffect(() => {
+    if (!courseId || !lessonId || currentLesson?.lesson.type !== "tutorial") return;
+    const videos = currentLesson.lesson.tutorial?.videos || [];
+    if (videos.some((video) => video.videoId || video.url)) return;
+    const key = courseId + ":" + lessonId;
+    if (resourceRecoveryAttemptedRef.current.has(key)) return;
+    resourceRecoveryAttemptedRef.current.add(key);
+    let cancelled = false;
+    setResourceRecoveryStatus("loading");
+    void apiFetch("/api/courses/" + courseId + "/learn/" + lessonId + "/resources/retry", { method: "POST" })
+      .then((data) => {
+        if (cancelled) return;
+        const recoveredItem = data.item as Record<string, unknown> | undefined;
+        const recoveredVideos = (recoveredItem?.tutorial as { videos?: Array<{ videoId?: string; url?: string }> } | undefined)?.videos || [];
+        if (recoveredVideos.some((video) => video.videoId || video.url)) {
+          setCourse((current) => current ? ({
+            ...current,
+            modules: current.modules.map((module) => ({
+              ...module,
+              lessons: module.lessons.map((lesson) =>
+                String(lesson.id || lesson._id) === lessonId
+                  ? { ...lesson, ...recoveredItem, id: lessonId }
+                  : lesson
+              )
+            }))
+          }) : current);
+          setResourceRecoveryStatus("idle");
+        } else {
+          setResourceRecoveryStatus("unavailable");
+        }
+      })
+      .catch(() => { if (!cancelled) setResourceRecoveryStatus("unavailable"); });
+    return () => { cancelled = true; };
+  }, [courseId, lessonId, currentLesson]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1002,6 +1039,12 @@ export default function CoursePlayer() {
 
                 {currentLesson.lesson.type === "tutorial" && (
                   <div className="bg-black">
+                    {resourceRecoveryStatus === "loading" && (
+                      <p role="status" className="bg-slate-900 px-4 py-2 text-center text-xs text-slate-300">Searching for a replacement lesson resource…</p>
+                    )}
+                    {resourceRecoveryStatus === "unavailable" && (
+                      <p role="status" className="bg-amber-950 px-4 py-2 text-center text-xs text-amber-200">No replacement video is available right now. Your lesson content is still accessible.</p>
+                    )}
                     {currentLesson.lesson.tutorial?.videos?.[0] ? (
                         <div>
                           {currentLesson.lesson.tutorial.videos[0].videoId ? (

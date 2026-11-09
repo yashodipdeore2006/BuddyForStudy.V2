@@ -56,7 +56,8 @@ export function renderBrandedEmail({
   contentHtml,
   preheader = "An update from BuddyForStudy",
   appUrl = "https://buddyforstudy.in",
-  footerNote = "You are receiving this email because of activity on your BuddyForStudy account."
+  footerNote = "You are receiving this email because of activity on your BuddyForStudy account.",
+  footerHtml = ""
 } = {}) {
   const safeAppUrl = escapeEmailHtml(String(appUrl || "https://buddyforstudy.in").replace(/\/$/, ""));
   const safePreheader = escapeEmailHtml(preheader);
@@ -89,6 +90,7 @@ export function renderBrandedEmail({
         <tr><td style="padding:22px 32px 26px;border-top:1px solid ${BRAND.line};background-color:#fbfbfe;">
           <p style="margin:0 0 8px;color:${BRAND.ink};font-size:13px;font-weight:700;">BuddyForStudy</p>
           <p style="margin:0 0 12px;color:${BRAND.muted};font-size:12px;line-height:1.6;">${safeFooter}</p>
+          ${footerHtml}
           <p style="margin:0;color:${BRAND.muted};font-size:12px;"><a href="${safeAppUrl}" style="color:${BRAND.ink};font-weight:700;text-decoration:underline;">Visit BuddyForStudy</a></p>
         </td></tr>
       </table>

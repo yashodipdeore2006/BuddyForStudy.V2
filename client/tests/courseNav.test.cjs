@@ -222,13 +222,23 @@ test("course pages expose timestamped notes, lesson-state labels, and source dur
 });
 
 
-test("subscription pricing preserves admin sort order and never ranks plans by incomparable currency amounts", () => {
+test("pricing and upgrade modal share eligible plans, admin order and currency/usage formatting", () => {
   const pricingPage = fs.readFileSync(path.join(root, "src/pages/Pricing.tsx"), "utf8");
+  const upgradeModal = fs.readFileSync(path.join(root, "src/components/FeatureUpgradeModal.tsx"), "utf8");
+  const sharedPlans = fs.readFileSync(path.join(root, "src/lib/subscriptionPlans.ts"), "utf8");
   const billingRoutes = fs.readFileSync(path.join(root, "../server/src/routes/billing.routes.js"), "utf8");
   assert.match(billingRoutes, /SubscriptionPlan\.find\(\{isActive:true\}\)\.sort\(\{sortOrder:1,createdAt:1\}\)/);
-  assert.match(pricingPage, /setPlans\(Array\.isArray\(data\.plans\) \? data\.plans : \[\]\)/);
+  assert.match(pricingPage, /setPlans\(getCheckoutSubscriptionPlans<Plan>\(data\.plans\)\)/);
+  assert.match(upgradeModal, /getCheckoutSubscriptionPlans<Plan>\(planData\.plans\)/);
+  assert.match(sharedPlans, /plan\.billingInterval !== "one_time"/);
+  assert.match(sharedPlans, /plan\.isActive !== false/);
+  assert.match(pricingPage, /formatCurrencyAmount/);
+  assert.match(upgradeModal, /formatCurrencyAmount/);
+  assert.match(pricingPage, /PLAN_LIMIT_DEFINITIONS/);
+  assert.match(upgradeModal, /PLAN_LIMIT_DEFINITIONS/);
   assert.doesNotMatch(pricingPage, /Number\(b\.price \|\| 0\) - Number\(a\.price \|\| 0\)/);
-  assert.doesNotMatch(pricingPage, /Highest access/);
+  assert.doesNotMatch(upgradeModal, /Number\(b\.price \|\| 0\) - Number\(a\.price \|\| 0\)/);
+  assert.doesNotMatch(upgradeModal, /Highest access/);
   assert.match(pricingPage, /const featured = plan\.isPopular === true/);
 });
 

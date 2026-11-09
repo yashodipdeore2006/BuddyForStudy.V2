@@ -25,7 +25,7 @@ Set these Vercel environment variables for Production (and separately for Previe
 
 | Variable | Value |
 |---|---|
-| `VITE_API_URL` | The public HTTPS origin of the Render API, without a trailing slash |
+| `VITE_API_URL` | **Required.** The actual public HTTPS origin of the deployed Render API, without a trailing slash. Do not use `localhost` or the CI placeholder `https://api.buddyforstudy.example`; production builds fail if the value is missing. |
 | `VITE_PUBLIC_SITE_URL` | The canonical frontend HTTPS origin, such as `https://buddyforstudy.in` after its Vercel domain is attached |
 | `VITE_GOOGLE_CLIENT_ID` | The same Google OAuth Web Client ID configured on the API |
 | `VITE_PUBLIC_SUPPORT_EMAIL` | Verified support mailbox (optional) |
@@ -138,3 +138,6 @@ See the [Production Readiness Master Checklist](PRODUCTION_READINESS_MASTER_CHEC
 - [Render health checks](https://render.com/docs/health-checks)
 - [Vercel Vite SPA deployment and deep linking](https://vercel.com/docs/frameworks/frontend/vite)
 - [Vercel rewrites](https://vercel.com/docs/routing/rewrites)
+
+
+**Production API URL guard:** the frontend build intentionally refuses to compile in production when `VITE_API_URL` is absent. The CI build uses `https://api.buddyforstudy.example` only as a non-routable configuration fixture to validate the build; it is not a deployed hostname. Replace it in the Vercel Production environment with the real Render service URL (for example, the URL Render assigns to `buddyforstudy-api`). Redeploy the frontend after changing the variable because Vite embeds public environment variables at build time.

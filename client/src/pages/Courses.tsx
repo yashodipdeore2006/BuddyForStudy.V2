@@ -738,6 +738,9 @@ export default function Courses() {
     visibleWizardQuestions.forEach((question, index) => trackIntentQuestionEvent(question, "shown", index));
   }, [aiOpen, intentResult?.valid, intentWizardStep, visibleWizardQuestionKey, trackIntentQuestionEvent]);
   const generateAiRoadmap = async () => {
+    // The ref closes the same-render double-click window before React can
+    // re-render the disabled Generate button.
+    if (aiLoadingRef.current) return;
     const topic = aiTopic.trim();
     if (topic.length < 2) {
       setAiError("Enter a topic with at least 2 characters.");

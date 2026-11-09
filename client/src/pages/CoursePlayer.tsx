@@ -184,7 +184,6 @@ export default function CoursePlayer() {
   const curationFeedbackSentRef = useRef(new Set<string>());
   const curationFeedbackSubmissionIdsRef = useRef(new Map<string, string>());
   const [curationFeedbackInFlightKeys, setCurationFeedbackInFlightKeys] = useState<Set<string>>(() => new Set());
-  const [curationFeedbackSentKeys, setCurationFeedbackSentKeys] = useState<Set<string>>(() => new Set());
   const [curationFeedbackDismissedKeys, setCurationFeedbackDismissedKeys] = useState<Set<string>>(() => new Set());
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
   const [noteTimestamp, setNoteTimestamp] = useState("");
@@ -239,7 +238,6 @@ export default function CoursePlayer() {
         })
       });
       curationFeedbackSentRef.current.add(key);
-      setCurationFeedbackSentKeys((current) => new Set(current).add(key));
       if (isLearnerFeedback) {
         setCurationFeedbackError("");
         setCurationFeedbackNotice("Thanks for your feedback.");

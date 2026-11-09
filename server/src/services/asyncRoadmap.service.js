@@ -39,6 +39,20 @@ function hashResourceContext(profile = {}) {
 }
 
 function serializeRoadmapFailure(error) {
+  if (error?.code === "AI_USAGE_LIMIT") {
+    const details = error.details && typeof error.details === "object" ? error.details : {};
+    return {
+      errorCode: "AI_USAGE_LIMIT",
+      errorMessage: String(error.message || "You have reached your monthly AI course-builder allowance."),
+      errorDetails: {
+        code: "AI_USAGE_LIMIT",
+        feature: "ai_course_builder",
+        period: "month",
+        ...(Number.isFinite(Number(details.limit)) ? { limit: Number(details.limit) } : {}),
+        ...(Number.isFinite(Number(details.used)) ? { used: Number(details.used) } : {})
+      }
+    };
+  }
   if (error?.code === "AI_PROVIDER_RATE_LIMITED") {
     return {
       errorCode: "AI_PROVIDER_RATE_LIMITED",

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { AuthOtp } from "../models/AuthOtp.js";
 import { env } from "../config/env.js";
+import { escapeEmailHtml, emailHtmlToText, renderBrandedEmail } from "../utils/brandedEmail.js";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -45,25 +46,35 @@ function mailer() {
 
 function emailCopy(purpose, code, name) {
   const isReset = purpose === "password_reset";
-  const subject = isReset ? "Reset your BuddyForStudy password" : "Verify your BuddyForStudy email";
-  const heading = isReset ? "Password reset code" : "Verify your email";
+  const isLogin = purpose === "login_verification";
+  const subject = isReset
+    ? "Reset your BuddyForStudy password"
+    : isLogin
+      ? "Your BuddyForStudy sign-in code"
+      : "Verify your BuddyForStudy email";
+  const heading = isReset ? "Reset your password" : isLogin ? "Confirm your sign-in" : "Welcome to BuddyForStudy";
   const intro = isReset
-    ? "Use this one-time code to reset your BuddyForStudy password."
-    : "Use this one-time code to verify your BuddyForStudy account.";
-  return {
-    subject,
-    html: [
-      '<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#0f172a">',
-      "<h2 style=\"margin:0 0 12px\">" + heading + "</h2>",
-      "<p style=\"margin:0 0 20px\">Hi " + (name || "there") + ",</p>",
-      "<p style=\"line-height:1.6\">" + intro + "</p>",
-      '<div style="margin:24px 0;padding:18px;background:#eff6ff;border-radius:12px;text-align:center">',
-      '<div style="font-size:32px;font-weight:800;letter-spacing:8px;color:#2563eb">' + code + "</div>",
-      "</div>",
-      '<p style="line-height:1.6;color:#475569">This code expires in 10 minutes. Never share it with anyone.</p>',
-      "</div>"
-    ].join("")
-  };
+    ? "Use this one-time code to securely reset your password."
+    : isLogin
+      ? "Use this one-time code to finish signing in to your account."
+      : "One quick step to get your learning journey started. Enter this code to verify your email address.";
+  const contentHtml = [
+    '<h1 style="margin:0 0 12px;color:#1A1B41;font-size:25px;line-height:1.25;">' + heading + '</h1>',
+    '<p style="margin:0 0 18px;">Hi ' + escapeEmailHtml(name || "there") + ',</p>',
+    '<p style="margin:0 0 22px;">' + intro + '</p>',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;"><tr><td align="center" style="padding:22px 12px;background-color:#f3eefe;border:1px solid #e5ddfb;border-radius:14px;">',
+    '<div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#666980;">Your one-time code</div>',
+    '<div style="margin-top:8px;font-size:34px;line-height:1.3;font-weight:800;letter-spacing:9px;color:#1A1B41;">' + code + '</div>',
+    '</td></tr></table>',
+    '<p style="margin:0 0 10px;color:#666980;font-size:13px;">This code expires in 10 minutes. For your security, never share it with anyone.</p>',
+    '<p style="margin:0;color:#666980;font-size:13px;">If you did not request this, you can safely ignore this email.</p>'
+  ].join("");
+  const html = renderBrandedEmail({
+    contentHtml,
+    preheader: isReset ? "Your secure password reset code" : isLogin ? "Your secure BuddyForStudy sign-in code" : "Verify your email to get started with BuddyForStudy",
+    appUrl: env.clientUrl
+  });
+  return { subject, html, text: emailHtmlToText(html) };
 }
 
 export async function sendOtp(user, purpose) {
@@ -88,7 +99,7 @@ export async function sendOtp(user, purpose) {
     attempts: 0
   });
   try {
-    await mailer().sendMail({ from: env.mailFrom, to: user.email, subject: copy.subject, html: copy.html });
+    await mailer().sendMail({ from: env.mailFrom, to: user.email, subject: copy.subject, text: copy.text, html: copy.html });
   } catch (error) {
     await AuthOtp.deleteMany({ user: user._id, purpose, codeHash: hashOtp(code) });
     throw authError("Unable to send the verification email. Please try again.", 503);

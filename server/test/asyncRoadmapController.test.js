@@ -132,13 +132,14 @@ test("roadmap draft controller returns safe 429/503 responses for capacity limit
 });
 
 
-test("async roadmap draft route applies authentication, entitlements, then a per-user rate limiter", async () => {
+test("AI roadmap routes use one persistent per-user request allowance instead of stacked limiters", async () => {
   const routes = await readFile(new URL("../src/routes/ai.routes.js", import.meta.url), "utf8");
-  const limiters = await readFile(new URL("../src/config/rateLimiters.js", import.meta.url), "utf8");
-  assert.match(routes, /router\.post\("\/roadmap\/draft",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*asyncRoadmap\.createDraft\)/);
-  assert.match(routes, /router\.post\("\/roadmap\/:[^"]*\/cancel",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*asyncRoadmap\.cancelDraft\)/);
-  assert.match(routes, /router\.post\("\/roadmap",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*aiRoadmapDraftLimiter,\s*generateRoadmap\)/);
-  assert.match(limiters, /aiRoadmapDraftLimiter\s*=\s*rateLimit\(\{[\s\S]*?windowMs:\s*10\s*\*\s*60\s*\*\s*1000,[\s\S]*?max:\s*5,[\s\S]*?standardHeaders:\s*true,[\s\S]*?legacyHeaders:\s*false,[\s\S]*?keyGenerator:\s*\(req\)\s*=>\s*String\(req\.user\?\.userId/);
+  const admission = await readFile(new URL("../src/services/roadmapAdmission.service.js", import.meta.url), "utf8");
+  assert.match(routes, /router\.post\("\/roadmap\/draft",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*asyncRoadmap\.createDraft\)/);
+  assert.match(routes, /router\.post\("\/roadmap\/[^"]*\/cancel",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*asyncRoadmap\.cancelDraft\)/);
+  assert.match(routes, /router\.post\("\/roadmap",\s*authMiddleware,\s*requireFeature\("ai_course_builder"\),\s*requireFeature\("personalized_roadmaps"\),\s*generateRoadmap\)/);
+  assert.doesNotMatch(routes, /aiRoadmapDraftLimiter/);
+  assert.match(admission, /consumeRoadmapRequestAllowance/);
 });
 
 

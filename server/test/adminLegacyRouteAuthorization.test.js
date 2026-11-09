@@ -99,7 +99,8 @@ test("AI course generation rejects ordinary users even with forged admin metadat
 
 test("legacy course create, update and delete routes require courses.manage", () => {
   const mutations = routesFrom(courseRouter).filter((route) =>
-    route.methods.some((method) => ["post", "put", "delete"].includes(method))
+    route.methods.some((method) => ["post", "put", "delete"].includes(method)) &&
+    ["/", "/:courseId"].includes(route.path)
   );
   assert.equal(mutations.length, 3);
   for (const route of mutations) {

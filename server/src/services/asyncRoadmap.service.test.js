@@ -598,7 +598,10 @@ test("async roadmap passes the active subscription plan to the generator for mon
         },
         generateAIRoadmap: async (_profile, options) => {
           generatorOptions = options;
-          throw Object.assign(new Error("Stop after validating plan handoff"), { code: "TEST_PLAN_HANDOFF" });
+          throw Object.assign(
+            new Error("You have reached your monthly AI course-builder allowance."),
+            { code: "AI_USAGE_LIMIT", details: { feature: "ai_course_builder", period: "month", limit: 10, used: 10 } }
+          );
         }
       }
     });
@@ -615,6 +618,15 @@ test("async roadmap passes the active subscription plan to the generator for mon
     assert.equal(generatorOptions.plan, activePlan);
     assert.equal(generatorOptions.plan.limits.ai_course_builds_per_month, 10);
     assert.equal(generatorOptions.asyncBuild, true);
+    assert.equal(draft.errorCode, "AI_USAGE_LIMIT");
+    assert.equal(draft.errorMessage, "You have reached your monthly AI course-builder allowance.");
+    assert.deepEqual(draft.errorDetails, {
+      code: "AI_USAGE_LIMIT",
+      feature: "ai_course_builder",
+      period: "month",
+      limit: 10,
+      used: 10
+    });
   } finally {
     RoadmapDraft.findOne = originalFindOne;
     RoadmapDraft.create = originalCreate;

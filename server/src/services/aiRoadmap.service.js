@@ -1288,15 +1288,15 @@ export async function buildRoadmapPrompt({ topic, level, goals, studyTimeMinutes
 
 function normalizeGeminiProviderError(error) {
   const status = Number(error?.status || error?.statusCode || 0);
-  const providerMessage = String(error?.message || "");
-  const quotaFailure = status === 429 && /quota|resource_exhausted|generate_content.*requests/i.test(providerMessage);
-  if (!quotaFailure) return error;
+  if (status !== 429) return error;
 
-  const normalized = new Error(
-    "Gemini's daily generation quota has been exhausted for this API key. Wait for Google's quota reset or enable billing/increase the Gemini API quota, then retry. Your roadmap was not created."
-  );
+  const providerMessage = String(error?.message || "");
+  const quotaFailure = /quota|resource_exhausted|generate_content.*requests/i.test(providerMessage);
+  const normalized = new Error(quotaFailure
+    ? "Gemini's daily generation quota has been exhausted for the platform's shared API key. This is not your account's AI allowance. Please retry after the provider quota resets."
+    : "Gemini is temporarily rate-limiting generation requests for the platform's shared API key. This is not your account's AI allowance. Please retry shortly.");
   normalized.status = 503;
-  normalized.code = "AI_PROVIDER_QUOTA_EXHAUSTED";
+  normalized.code = quotaFailure ? "AI_PROVIDER_QUOTA_EXHAUSTED" : "AI_PROVIDER_RATE_LIMITED";
   normalized.provider = "gemini";
   normalized.retryable = true;
   return normalized;

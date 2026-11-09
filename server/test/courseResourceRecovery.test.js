@@ -13,7 +13,7 @@ function fakeCourse() {
     type: "tutorial",
     buildState: "queued",
     description: "Understand SQL joins",
-    tutorial: { content: "Join relational tables", videos: [], resources: [] }
+    tutorial: { content: "Join relational tables", requiredTopics: ["INNER JOIN", "LEFT JOIN"], searchQuery: "SQL joins inner left right full tutorial", searchQueries: ["SQL joins inner left right full tutorial"], videos: [], resources: [] }
   };
   const alreadyHasVideo = {
     _id: "lesson-existing",
@@ -76,6 +76,8 @@ test("resource recovery attaches the selected resource and invalidates the cours
   assert.equal(course.$locals.revisionContext.summary, "Learning resource recovery");
   assert.equal(calls[0].profile.topic, "SQL");
   assert.equal(calls[0].skill.canonicalSkillId, "sql-joins");
+  assert.deepEqual(calls[0].skill.topics, ["INNER JOIN", "LEFT JOIN", "SQL Joins"]);
+  assert.ok(calls[0].skill.searchQueries.includes("SQL joins inner left right full tutorial"));
 });
 
 test("resource recovery stops after YouTube quota exhaustion and leaves lessons retryable", async () => {

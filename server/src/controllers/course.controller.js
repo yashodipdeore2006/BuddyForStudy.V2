@@ -6,6 +6,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { canAccessCourse, getEntitlement, hasPaidCourseAccess } from "../services/subscriptionEntitlement.service.js";
+import { recoverMissingTutorialResources } from "../services/courseResourceRecovery.service.js";
 
 const courseSchema = z.object({
   title: z.string().trim().min(2),
@@ -202,6 +203,38 @@ export async function learn(req, res, next) {
 
     return success(res, { course: sanitizeLearningCourse(course) });
   } catch (e) { next(e); }
+}
+
+export async function retryLearningItemResource(req, res, next) {
+  try {
+    const { courseId, itemId } = req.params;
+    if (!isValidObjectId(courseId) || !isValidObjectId(itemId)) return failure(res, "Invalid identifier", 400);
+    const visibleCourse = await courseService.getPublished(courseId, req.user?.userId || null);
+    if (!visibleCourse) return failure(res, "Course not found", 404);
+    const enrolled = await Enrollment.findOne({
+      user: req.user.userId,
+      course: courseId,
+      status: { $in: ["active", "completed"] },
+      revokedBy: null
+    });
+    if (!enrolled) return failure(res, "Active or completed enrollment required", 403);
+    if (!(await canAccessCourse(req.user.userId, courseId))) {
+      return failure(res, "Course access is no longer available. Check your purchase or subscription status.", 403);
+    }
+    const course = await courseService.getAny(courseId);
+    if (!course) return failure(res, "Course not found", 404);
+    const located = courseService.findLearningItem(course, itemId);
+    if (!located) return failure(res, "Learning item not found", 404);
+    if (located.item.type !== "tutorial") return failure(res, "Only tutorial lessons have recoverable video resources.", 400);
+
+    const recovery = await recoverMissingTutorialResources(course, { lessonId: itemId });
+    const refreshed = await courseService.getPublished(courseId, req.user?.userId || null);
+    const refreshedItem = refreshed && courseService.findLearningItem(refreshed, itemId);
+    return success(res, {
+      item: sanitizeLearningLesson(refreshedItem?.item || located.item),
+      recovery: recovery || { examined: 0, recovered: 0, unavailable: 0, quotaLimited: false }
+    }, recovery?.recovered ? "A missing lesson resource was recovered." : "No playable resource is available yet.");
+  } catch (error) { next(error); }
 }
 
 export async function learningItem(req, res, next) {

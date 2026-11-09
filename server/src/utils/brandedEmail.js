@@ -21,20 +21,20 @@ export function escapeEmailHtml(value) {
 
 function extractEmailContent(value) {
   const html = String(value || "");
-  const body = html.match(/<body\\b[^>]*>([\\s\\S]*?)<\\/body>/i);
+  const body = html.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
   return (body ? body[1] : html)
     .replace(/<!doctype[^>]*>/gi, "")
-    .replace(/<html\\b[^>]*>|<\\/html>/gi, "")
-    .replace(/<head\\b[^>]*>[\\s\\S]*?<\\/head>/gi, "")
+    .replace(/<html\b[^>]*>|<\/html>/gi, "")
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, "")
     .trim();
 }
 
 export function emailHtmlToText(value) {
   return String(value || "")
-    .replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi, " ")
-    .replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, " ")
-    .replace(/<\\/(p|div|h[1-6]|tr|li|table)>/gi, "\\n")
-    .replace(/<br\\s*\\/?\\s*>/gi, "\\n")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|tr|li|table)>/gi, "\n")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -42,8 +42,8 @@ export function emailHtmlToText(value) {
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
-    .replace(/\\s+/g, " ")
+    .replace(/&#(\d+);/g, (_match, code) => String.fromCodePoint(Number(code)))
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -58,7 +58,7 @@ export function renderBrandedEmail({
   appUrl = "https://buddyforstudy.in",
   footerNote = "You are receiving this email because of activity on your BuddyForStudy account."
 } = {}) {
-  const safeAppUrl = escapeEmailHtml(String(appUrl || "https://buddyforstudy.in").replace(/\\/$/, ""));
+  const safeAppUrl = escapeEmailHtml(String(appUrl || "https://buddyforstudy.in").replace(/\/$/, ""));
   const safePreheader = escapeEmailHtml(preheader);
   const safeFooter = escapeEmailHtml(footerNote);
   const content = extractEmailContent(contentHtml);

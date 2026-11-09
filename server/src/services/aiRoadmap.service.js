@@ -1156,13 +1156,15 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       verifiedSyllabusUnits = [];
     }
   }
+  // Core skill modules already form the complete learning path. Appending a
+  // second generic "Learn" module repeats the same skills in abbreviated form.
   const goalModule = goal === "job_ready"
     ? buildInterviewModule(goalProfile)
     : goal === "exam"
       ? buildExamModules(goalProfile, { syllabusUnits: verifiedSyllabusUnits })
       : goal === "project"
         ? buildProjectModule(goalProfile)
-        : buildLearnModule(goalProfile, activeSkills);
+        : null;
   if (goalModule) {
     goalModule.order = modules.length + 1;
     modules.push(goalModule);

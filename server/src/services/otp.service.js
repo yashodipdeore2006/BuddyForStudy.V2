@@ -44,7 +44,7 @@ function mailer() {
   });
 }
 
-function emailCopy(purpose, code, name) {
+export function buildOtpEmail(purpose, code, name) {
   const isReset = purpose === "password_reset";
   const isLogin = purpose === "login_verification";
   const subject = isReset
@@ -87,7 +87,7 @@ export async function sendOtp(user, purpose) {
     throw error;
   }
   const code = createOtp();
-  const copy = emailCopy(purpose, code, user.name);
+  const copy = buildOtpEmail(purpose, code, user.name);
   await AuthOtp.deleteMany({ user: user._id, purpose, usedAt: null });
   await AuthOtp.create({
     email: user.email,

@@ -7,6 +7,7 @@ import { Course } from "../models/Course.js";
 function admissionDependencies(overrides = {}) {
   return {
     consumeRoadmapRequestAllowance: async () => 1,
+    getActivePlanForUser: async () => null,
     reserveRoadmapAdmission: async ({ draftId }) => ({ draftId, leaseToken: "test-admission-lease" }),
     renewRoadmapAdmission: async () => true,
     releaseRoadmapAdmission: async () => true,

@@ -41,6 +41,7 @@ import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 import { getCoursePublishBlock } from "../utils/coursePublishing.js";
+import { recoverCourseMissingResources } from "../services/courseResourceRecovery.service.js";
 import { validateCourseAdminPatch } from "../utils/courseAdminValidation.js";
 import { validateNewLessonInput } from "../utils/courseLessonValidation.js";
 import { parseSafeHttpUrl } from "../utils/safeHttpUrl.js";
@@ -1110,6 +1111,27 @@ export async function brokenCourseLinks(req, res, next) {
     for (let i = 0; i < links.length; i += 10) results.push(...await Promise.all(links.slice(i, i + 10).map(checkContentLink)));
     return success(res, { checked: results.length, brokenCount: results.filter((item) => ["broken", "invalid", "unreachable", "timeout"].includes(item.status)).length, links: results });
   } catch (e) { next(e); }
+}
+
+export async function fillMissingCourseResources(req, res, next) {
+  try {
+    if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
+    const result = await recoverCourseMissingResources(req.params.courseId);
+    if (!result) return failure(res, "Course not found", 404);
+    const { summary, course } = result;
+    await audit(req, "course.resources.recovered", "Course", course._id, null, {
+      examined: summary.examined,
+      recovered: summary.recovered,
+      unavailable: summary.unavailable,
+      quotaLimited: summary.quotaLimited
+    }, "Admin bulk recovery of missing tutorial resources");
+    return success(res, {
+      course: course.toObject ? course.toObject() : course,
+      recovery: summary
+    }, summary.recovered
+      ? "Recovered " + summary.recovered + " missing lesson resource(s)."
+      : "No missing lesson resources could be recovered right now.");
+  } catch (error) { next(error); }
 }
 
 export async function courseReadiness(req, res, next) {

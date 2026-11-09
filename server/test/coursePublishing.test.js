@@ -20,6 +20,22 @@ test("publish guard allows a complete draft", () => {
   assert.equal(getCoursePublishBlock(readyCourse, false), null);
 });
 
+test("missing optional YouTube resources do not block a text-first tutorial course", () => {
+  const course = {
+    ...readyCourse,
+    modules: [{
+      title: "SQL",
+      lessons: [{
+        title: "SQL Joins",
+        description: "Learn inner, left, right and full joins with examples.",
+        type: "tutorial",
+        tutorial: { content: "", resources: [], videos: [] }
+      }]
+    }]
+  };
+  assert.equal(getCoursePublishBlock(course, false), null);
+});
+
 test("publish guard does not block an already-published course during unrelated updates", () => {
   assert.equal(getCoursePublishBlock({ title: "", modules: [] }, true), null);
 });

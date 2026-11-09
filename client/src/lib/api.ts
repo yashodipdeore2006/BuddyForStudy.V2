@@ -1,3 +1,5 @@
+import { resolveAiQuotaUpgradeFeature } from "./aiQuotaGate";
+
 // During local Vite development, use the same-origin /api proxy. Production must
 // receive an explicit public API origin at build time; silently falling back to
 // localhost would ship a frontend that cannot reach the deployed backend.

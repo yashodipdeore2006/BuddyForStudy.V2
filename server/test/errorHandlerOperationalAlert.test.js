@@ -148,6 +148,40 @@ test("Gemini daily quota exhaustion returns a safe actionable 503 instead of gen
   assert.equal(alertWrites, 1);
 });
 
+test("Gemini shared-key rate limiting is not reported as a learner request limit", async () => {
+  const originalConsoleError = console.error;
+  const previousNodeEnv = process.env.NODE_ENV;
+  console.error = () => {};
+  process.env.NODE_ENV = "production";
+  const res = responseRecorder();
+  try {
+    errorHandler(Object.assign(new Error("provider's private response must not leak"), {
+      status: 503,
+      code: "AI_PROVIDER_RATE_LIMITED",
+      provider: "gemini",
+      providerResponse: "private provider payload"
+    }), {
+      id: "request-gemini-rate-limit",
+      method: "POST",
+      path: "/api/ai/roadmap",
+      get: () => ""
+    }, res, () => {});
+  } finally {
+    console.error = originalConsoleError;
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  }
+  assert.equal(res.statusCode, 503);
+  assert.match(res.body.message, /shared API key/i);
+  assert.match(res.body.message, /not your account's AI allowance/i);
+  assert.deepEqual(res.body.errors, {
+    code: "AI_PROVIDER_RATE_LIMITED",
+    provider: "gemini",
+    retryable: true
+  });
+  assert.equal(JSON.stringify(res.body).includes("private provider payload"), false);
+});
+
 test("monthly AI course-builder quota returns its real cause and safe usage details in production", async () => {
   const originalConsoleError = console.error;
   const previousNodeEnv = process.env.NODE_ENV;

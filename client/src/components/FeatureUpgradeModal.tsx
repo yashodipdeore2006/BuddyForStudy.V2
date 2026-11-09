@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Check,
-  Crown,
   LockKeyhole,
   Loader2,
   Sparkles,
@@ -13,6 +12,8 @@ import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
+import { formatCurrencyAmount } from "@/lib/coursePricing";
+import { formatPlanLimit, getCheckoutSubscriptionPlans, PLAN_LIMIT_DEFINITIONS } from "@/lib/subscriptionPlans";
 
 type Plan = {
   _id: string;
@@ -25,6 +26,7 @@ type Plan = {
   features?: string[];
   limits?: Record<string, number>;
   isPopular?: boolean;
+  isActive?: boolean;
 };
 
 type GateRequest = {
@@ -67,16 +69,8 @@ const FEATURE_ENTITLEMENT_LABELS: Record<string, string> = {
 };
 
 function formatMoney(amount: number, currency = "INR") {
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return `₹${Math.round(amount)}`;
-  }
-}
+  return formatCurrencyAmount(amount, currency);
+
 
 function intervalLabel(interval: string) {
   switch (interval) {
@@ -88,23 +82,7 @@ function intervalLabel(interval: string) {
   }
 }
 
-const planLimitDefinitions = [
-  ["ai_course_builds_per_month", "AI course builds"],
-  ["advanced_ai_questions_per_month", "Advanced AI questions"],
-  ["advanced_ai_insights_per_month", "Advanced AI summaries"],
-  ["ai_quiz_generations_per_month", "AI quiz generations"],
-  ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
-  ["ai_curated_courses_per_month", "AI-curated courses"],
-] as const;
 
-function formatPlanLimit(value: unknown) {
-  if (value === undefined || value === null || value === "") return "Not configured";
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "Not configured";
-  if (numeric === -1) return "Unlimited";
-  if (numeric === 0) return "Not included";
-  return `${numeric.toLocaleString("en-IN")} / month`;
-}
 
 export default function FeatureUpgradeModal() {
   const { session } = useAuth();
@@ -163,20 +141,18 @@ export default function FeatureUpgradeModal() {
       session ? apiFetch("/api/billing/me").catch(() => ({ subscription: null })) : Promise.resolve({ subscription: null }),
     ]).then(([planData, subscriptionData]) => {
       if (cancelled) return;
-      const ordered = [...(planData.plans || [])].filter((plan: Plan & { isActive?: boolean }) => plan.isActive !== false && plan.billingInterval !== "one_time").sort((a: Plan, b: Plan) => {
-        const difference = Number(b.price || 0) - Number(a.price || 0);
-        return difference || Number(b.isPopular === true) - Number(a.isPopular === true);
-      });
+      // Match /pricing exactly: same eligible plans and backend admin-configured order.
+      const ordered = getCheckoutSubscriptionPlans<Plan>(planData.plans);
       setPlans(ordered);
       setSubscription(subscriptionData.subscription || null);
-      // Default to the most expensive purchasable plan that includes the blocked feature.
-      // If none includes it, show the highest priced plan for transparency but disable checkout.
+      // Prefer the first plan in admin-configured display order that unlocks the gated feature.
+      // If none includes it, retain the first displayed plan for transparency and disable checkout.
       const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
       const currentSubscription = subscriptionData.subscription as Subscription | null;
       const activePlanId = typeof currentSubscription?.plan === "object"
         ? currentSubscription.plan?._id
         : currentSubscription?.plan;
-      const highestPlanWithFeature = requiredFeatureLabel
+      const firstPlanWithFeature = requiredFeatureLabel
         ? ordered.find((plan: Plan) =>
             (plan.features || []).includes(requiredFeatureLabel) &&
             Number(plan.price) > 0 &&
@@ -185,7 +161,7 @@ export default function FeatureUpgradeModal() {
         : ordered.find((plan: Plan) => Number(plan.price) > 0 && plan._id !== activePlanId);
       // Start with the most expensive active plan that unlocks the requested feature.
       // If no configured plan offers it, retain the highest-priced plan but disable checkout.
-      setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");
+      setSelectedPlanId(firstPlanWithFeature?._id || ordered[0]?._id || "");
       setPreviewPlanId(null);
       setHoverPlanId(null);
     }).catch((error) => {
@@ -420,7 +396,7 @@ export default function FeatureUpgradeModal() {
                           <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-600">AI usage limits</h4>
                           <p className="mt-1 text-[10px] leading-4 text-slate-500">Per-month allowances configured for this plan.</p>
                           <dl className="mt-3 space-y-2">
-                            {planLimitDefinitions.map(([key, label]) => (
+                            {PLAN_LIMIT_DEFINITIONS.map(([key, label]) => (
                               <div key={key} className="flex items-start justify-between gap-2 text-[10px] leading-4">
                                 <dt className="min-w-0 text-slate-600">{label}</dt>
                                 <dd className="shrink-0 text-right font-semibold text-slate-900">{formatPlanLimit(plan.limits?.[key])}</dd>

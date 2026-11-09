@@ -1,6 +1,11 @@
-// During local Vite development, use the same-origin /api proxy. This avoids browser CORS
-// and localhost IPv4/IPv6 resolution differences on Windows. Production keeps the configured API URL.
-const API_URL = (import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL || "http://localhost:5000")).replace(/\/$/, "");
+// During local Vite development, use the same-origin /api proxy. Production must
+// receive an explicit public API origin at build time; silently falling back to
+// localhost would ship a frontend that cannot reach the deployed backend.
+const configuredApiUrl = (import.meta.env.VITE_API_URL || "").trim();
+if (!import.meta.env.DEV && !configuredApiUrl) {
+  throw new Error("VITE_API_URL is required for production builds. Set it to the deployed BuddyForStudy API origin.");
+}
+const API_URL = (import.meta.env.DEV ? "" : configuredApiUrl).replace(/\/$/, "");
 
 
 type CachedGet = { expiresAt: number; data: unknown };

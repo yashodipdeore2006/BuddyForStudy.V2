@@ -6,6 +6,15 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const vercel = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8"));
 const render = fs.readFileSync(path.join(root, "..", "render.yaml"), "utf8");
+const apiClient = fs.readFileSync(path.join(root, "src", "lib", "api.ts"), "utf8");
+
+test("production frontend requires an explicit deployed API origin", () => {
+  assert.match(apiClient, /VITE_API_URL/);
+  assert.match(apiClient, /if \(!import\.meta\.env\.DEV && !configuredApiUrl\)/,
+    "production must fail fast when the API origin is missing");
+  assert.doesNotMatch(apiClient, /VITE_API_URL \|\| ["']http:\/\/localhost:5000/,
+    "production must never silently fall back to localhost");
+});
 
 test("Vercel config builds the Vite app and serves client-side routes directly", () => {
   assert.equal(vercel.framework, "vite");

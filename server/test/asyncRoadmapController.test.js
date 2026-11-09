@@ -44,6 +44,44 @@ test("failed async roadmap finalization returns a safe retryable response scoped
   assert.equal(JSON.stringify(res.result.body).includes("QUOTA_EXHAUSTED"), false);
 });
 
+test("failed async roadmap reports the user's exhausted AI build allowance as HTTP 429", async () => {
+  const draftId = "550e8400-e29b-41d4-a716-446655440000";
+  const userId = "507f1f77bcf86cd799439011";
+  const draft = {
+    draftId,
+    userId,
+    status: "failed",
+    errorCode: "AI_USAGE_LIMIT",
+    errorMessage: "You have reached your monthly AI course-builder allowance.",
+    errorDetails: {
+      code: "AI_USAGE_LIMIT",
+      feature: "ai_course_builder",
+      period: "month",
+      limit: 10,
+      used: 10
+    }
+  };
+  const res = makeResponse();
+  await finalizeDraft({ user: { userId }, body: { draftId } }, res, (error) => { throw error; }, {
+    authorize: async () => true,
+    getDraftForUser: async () => draft,
+    waitForDraft: async () => draft
+  });
+
+  assert.equal(res.result.statusCode, 429);
+  assert.equal(res.result.body.success, false);
+  assert.equal(res.result.body.message, draft.errorMessage);
+  assert.deepEqual(res.result.body.errors, {
+    draftId,
+    retryable: false,
+    code: "AI_USAGE_LIMIT",
+    feature: "ai_course_builder",
+    period: "month",
+    limit: 10,
+    used: 10
+  });
+});
+
 test("failed async resource curation returns safe quota diagnostics to the learner", async () => {
   const draftId = "550e8400-e29b-41d4-a716-446655440000";
   const userId = "507f1f77bcf86cd799439011";

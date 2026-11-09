@@ -2108,9 +2108,15 @@ export async function generateAIRoadmap(input, options = {}) {
       amount: 1
     });
     if (!result.allowed) {
-      const error = new Error("You have reached your AI course-builder limit for this month.");
+      const error = new Error("You have reached your monthly AI course-builder allowance. Your course was not generated. Check your plan's monthly allowance or upgrade your plan to continue.");
       error.status = 429;
       error.code = "AI_USAGE_LIMIT";
+      error.details = {
+        feature: "ai_course_builder",
+        period: "month",
+        limit: result.limit,
+        used: result.count
+      };
       throw error;
     }
     reservation = true;

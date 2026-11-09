@@ -260,7 +260,9 @@ export default function CoursePlayer() {
     }
   }, [course, currentLesson, courseId]);
 
-  const activeVideo = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] ?? null : null;
+  const lessonVideos = currentLesson?.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos || [] : [];
+  // The first stored resource may be stale or non-embeddable. Always prefer a playable video.
+  const activeVideo = lessonVideos.find((video) => Boolean(video?.videoId)) ?? lessonVideos[0] ?? null;
   const activeVideoRef = useRef<typeof activeVideo>(activeVideo);
   const curationFeedbackRef = useRef(sendPlayerCurationFeedback);
 
@@ -522,7 +524,7 @@ export default function CoursePlayer() {
       const data = await apiFetch(`/api/progress/${courseId}/items/${lessonId}/complete`, { method: "POST" });
       setProgress(mapProgress(data.progress));
       activeLessonCompletedRef.current = true;
-      const completedVideo = currentLesson.lesson.type === "tutorial" ? currentLesson.lesson.tutorial?.videos?.[0] : null;
+      const completedVideo = currentLesson.lesson.type === "tutorial" ? activeVideo : null;
       if (completedVideo?.videoId) void sendPlayerCurationFeedback("completed", completedVideo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to mark lesson complete.");
@@ -543,7 +545,7 @@ export default function CoursePlayer() {
       setProgress(mapProgress(data.progress));
       if (targetLessonId === lessonId) activeLessonCompletedRef.current = !wasCompleted;
       if (!wasCompleted && currentLesson?.lesson.id === targetLessonId && currentLesson.lesson.type === "tutorial") {
-        const completedVideo = currentLesson.lesson.tutorial?.videos?.[0];
+        const completedVideo = activeVideo;
         if (completedVideo?.videoId) void sendPlayerCurationFeedback("completed", completedVideo);
       }
     } catch (err) {
@@ -1051,12 +1053,12 @@ export default function CoursePlayer() {
                     {resourceRecoveryStatus === "unavailable" && (
                       <p role="status" className="bg-amber-950 px-4 py-2 text-center text-xs text-amber-200">No replacement video is available right now. Your lesson content is still accessible.</p>
                     )}
-                    {currentLesson.lesson.tutorial?.videos?.[0] ? (
+                    {activeVideo ? (
                         <div>
-                          {currentLesson.lesson.tutorial.videos[0].videoId ? (
+                          {activeVideo!.videoId ? (
                             <YouTubeEmbedPlayer
-                              videoId={currentLesson.lesson.tutorial.videos[0].videoId}
-                              title={currentLesson.lesson.tutorial.videos[0].title || "Course video"}
+                              videoId={activeVideo!.videoId}
+                              title={activeVideo!.title || "Course video"}
                               onPausedAt={(seconds) => { setPausedTimestampSeconds(seconds); setNoteTimestamp(formatMediaTimestamp(seconds)); }}
                               seekRequest={playerSeekRequest}
                             />
@@ -1071,13 +1073,13 @@ export default function CoursePlayer() {
                           No video is available for this lesson.
                         </div>
                       )}
-                    {currentLesson.lesson.type === "tutorial" && currentLesson.lesson.tutorial?.videos?.[0]?.videoId && (
+                    {currentLesson.lesson.type === "tutorial" && activeVideo?.videoId && (
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-300">
                         <span>Is this resource useful?</span>
                         <div className="flex gap-2">
-                          <button type="button" disabled={curationFeedbackInFlightKeys.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("helpful", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Helpful</button>
-                          <button type="button" disabled={curationFeedbackInFlightKeys.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("outdated", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Outdated</button>
-                          <button type="button" disabled={curationFeedbackInFlightKeys.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("wrong_level", currentLesson.lesson.tutorial!.videos![0])} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Wrong level</button>
+                          <button type="button" disabled={curationFeedbackInFlightKeys.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("helpful:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("helpful", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Helpful</button>
+                          <button type="button" disabled={curationFeedbackInFlightKeys.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("outdated:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("outdated", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Outdated</button>
+                          <button type="button" disabled={curationFeedbackInFlightKeys.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId) || curationFeedbackSentKeys.has("wrong_level:" + courseId + ":" + currentLesson.lesson.tutorial!.videos![0].videoId)} onClick={() => void sendPlayerCurationFeedback("wrong_level", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Wrong level</button>
                         </div>
                         {curationFeedbackError && (
                           <p role="alert" className="basis-full pt-2 text-xs text-rose-300">
@@ -1103,7 +1105,7 @@ export default function CoursePlayer() {
                       <h1 className="mt-1 max-w-4xl text-2xl font-medium tracking-tight text-slate-950 sm:text-3xl">
                         {cleanPlayerLessonTitle(currentLesson.lesson.title, siblingLessonTitles)}
                       </h1>
-                      {currentLesson.lesson.tutorial?.videos?.[0]?.channelTitle && (
+                      {activeVideo?.channelTitle && (
                         <p className="mt-2 text-sm text-slate-500">
                           {currentLesson.lesson.tutorial.videos[0].channelTitle}
                         </p>

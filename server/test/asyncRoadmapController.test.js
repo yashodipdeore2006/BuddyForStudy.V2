@@ -82,6 +82,33 @@ test("failed async resource curation returns safe quota diagnostics to the learn
   assert.equal(res.result.body.errors.quotaResetDay, "2026-11-06");
 });
 
+test("failed async Gemini rate-limit response preserves shared-provider guidance", async () => {
+  const draftId = "550e8400-e29b-41d4-a716-446655440000";
+  const userId = "507f1f77bcf86cd799439011";
+  const draft = {
+    draftId,
+    userId,
+    status: "failed",
+    errorCode: "AI_PROVIDER_RATE_LIMITED",
+    errorMessage: "Gemini is temporarily rate-limiting generation requests for the platform's shared API key. This is not your account's AI allowance. Please retry shortly.",
+    errorDetails: { code: "AI_PROVIDER_RATE_LIMITED", provider: "gemini", retryable: true }
+  };
+  const res = makeResponse();
+  await finalizeDraft({ user: { userId }, body: { draftId } }, res, (error) => { throw error; }, {
+    authorize: async () => true,
+    getDraftForUser: async () => draft,
+    waitForDraft: async () => draft
+  });
+  assert.equal(res.result.statusCode, 503);
+  assert.match(res.result.body.message, /shared API key/i);
+  assert.deepEqual(res.result.body.errors, {
+    draftId,
+    retryable: true,
+    code: "AI_PROVIDER_RATE_LIMITED",
+    provider: "gemini"
+  });
+});
+
 test("failed async Gemini quota response preserves the safe provider guidance", async () => {
   const draftId = "550e8400-e29b-41d4-a716-446655440000";
   const userId = "507f1f77bcf86cd799439011";

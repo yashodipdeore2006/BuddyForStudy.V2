@@ -6,6 +6,7 @@ import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
 import { formatCurrencyAmount } from "@/lib/coursePricing";
+import { formatPlanLimit, getCheckoutSubscriptionPlans, PLAN_LIMIT_DEFINITIONS } from "@/lib/subscriptionPlans";
 
 type Plan = {
   _id: string;
@@ -17,6 +18,7 @@ type Plan = {
   limits?: Record<string, number>;
   currency?: string;
   isPopular?: boolean;
+  isActive?: boolean;
 };
 
 function formatMoney(amount: number, currency = "INR") {
@@ -31,24 +33,6 @@ function intervalLabel(interval: string) {
     case "one_time": return "one time";
     default: return interval || "billing period";
   }
-}
-
-const planLimitDefinitions = [
-  ["ai_course_builds_per_month", "AI course builds"],
-  ["advanced_ai_questions_per_month", "Advanced AI questions"],
-  ["advanced_ai_insights_per_month", "Advanced AI summaries"],
-  ["ai_quiz_generations_per_month", "AI quiz generations"],
-  ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
-  ["ai_curated_courses_per_month", "AI-curated courses"],
-] as const;
-
-function formatPlanLimit(value: unknown) {
-  if (value === undefined || value === null || value === "") return "Not configured";
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "Not configured";
-  if (numeric === -1) return "Unlimited";
-  if (numeric === 0) return "Not included";
-  return `${numeric.toLocaleString("en-IN")} / month`;
 }
 
 type PricingMessage = {
@@ -83,7 +67,7 @@ export default function Pricing() {
       .then((data) => {
         // The API is already ordered by admin-configured sortOrder. Do not re-sort
         // using raw price values: plans may have different currencies/periods.
-        setPlans(Array.isArray(data.plans) ? data.plans : []);
+        setPlans(getCheckoutSubscriptionPlans<Plan>(data.plans));
       })
       .catch(() => {
         setMessage({
@@ -318,7 +302,7 @@ export default function Pricing() {
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">AI usage limits</h3>
                   <p className="mt-1 text-xs text-slate-500">Per-month allowances configured for this plan.</p>
                   <dl className="mt-3 space-y-2.5">
-                    {planLimitDefinitions.map(([key, label]) => (
+                    {PLAN_LIMIT_DEFINITIONS.map(([key, label]) => (
                       <div key={key} className="flex items-start justify-between gap-3 text-xs">
                         <dt className="min-w-0 text-slate-600">{label}</dt>
                         <dd className="shrink-0 text-right font-semibold text-slate-900">{formatPlanLimit(plan.limits?.[key])}</dd>

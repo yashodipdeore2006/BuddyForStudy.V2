@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   Check,
-  Crown,
   LockKeyhole,
   Loader2,
   Sparkles,
@@ -13,6 +12,8 @@ import { apiFetch } from "@/lib/api";
 import { loadRazorpay } from "@/lib/razorpay";
 import { useAuth } from "@/context/AuthContext";
 import { routes } from "@/lib/routes";
+import { formatCurrencyAmount } from "@/lib/coursePricing";
+import { formatPlanLimit, getCheckoutSubscriptionPlans, PLAN_LIMIT_DEFINITIONS } from "@/lib/subscriptionPlans";
 
 type Plan = {
   _id: string;
@@ -25,6 +26,7 @@ type Plan = {
   features?: string[];
   limits?: Record<string, number>;
   isPopular?: boolean;
+  isActive?: boolean;
 };
 
 type GateRequest = {
@@ -67,15 +69,7 @@ const FEATURE_ENTITLEMENT_LABELS: Record<string, string> = {
 };
 
 function formatMoney(amount: number, currency = "INR") {
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  } catch {
-    return `₹${Math.round(amount)}`;
-  }
+  return formatCurrencyAmount(amount, currency);
 }
 
 function intervalLabel(interval: string) {
@@ -88,23 +82,7 @@ function intervalLabel(interval: string) {
   }
 }
 
-const planLimitDefinitions = [
-  ["ai_course_builds_per_month", "AI course builds"],
-  ["advanced_ai_questions_per_month", "Advanced AI questions"],
-  ["advanced_ai_insights_per_month", "Advanced AI summaries"],
-  ["ai_quiz_generations_per_month", "AI quiz generations"],
-  ["youtube_discovery_courses_per_month", "YouTube discovery courses"],
-  ["ai_curated_courses_per_month", "AI-curated courses"],
-] as const;
 
-function formatPlanLimit(value: unknown) {
-  if (value === undefined || value === null || value === "") return "Not configured";
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return "Not configured";
-  if (numeric === -1) return "Unlimited";
-  if (numeric === 0) return "Not included";
-  return `${numeric.toLocaleString("en-IN")} / month`;
-}
 
 export default function FeatureUpgradeModal() {
   const { session } = useAuth();
@@ -163,20 +141,18 @@ export default function FeatureUpgradeModal() {
       session ? apiFetch("/api/billing/me").catch(() => ({ subscription: null })) : Promise.resolve({ subscription: null }),
     ]).then(([planData, subscriptionData]) => {
       if (cancelled) return;
-      const ordered = [...(planData.plans || [])].filter((plan: Plan & { isActive?: boolean }) => plan.isActive !== false && plan.billingInterval !== "one_time").sort((a: Plan, b: Plan) => {
-        const difference = Number(b.price || 0) - Number(a.price || 0);
-        return difference || Number(b.isPopular === true) - Number(a.isPopular === true);
-      });
+      // Match /pricing exactly: same eligible plans and backend admin-configured order.
+      const ordered = getCheckoutSubscriptionPlans<Plan>(planData.plans);
       setPlans(ordered);
       setSubscription(subscriptionData.subscription || null);
-      // Default to the most expensive purchasable plan that includes the blocked feature.
-      // If none includes it, show the highest priced plan for transparency but disable checkout.
+      // Prefer the first plan in admin-configured display order that unlocks the gated feature.
+      // If none includes it, retain the first displayed plan for transparency and disable checkout.
       const requiredFeatureLabel = request?.feature ? FEATURE_ENTITLEMENT_LABELS[request.feature] : undefined;
       const currentSubscription = subscriptionData.subscription as Subscription | null;
       const activePlanId = typeof currentSubscription?.plan === "object"
         ? currentSubscription.plan?._id
         : currentSubscription?.plan;
-      const highestPlanWithFeature = requiredFeatureLabel
+      const firstPlanWithFeature = requiredFeatureLabel
         ? ordered.find((plan: Plan) =>
             (plan.features || []).includes(requiredFeatureLabel) &&
             Number(plan.price) > 0 &&
@@ -185,7 +161,7 @@ export default function FeatureUpgradeModal() {
         : ordered.find((plan: Plan) => Number(plan.price) > 0 && plan._id !== activePlanId);
       // Start with the most expensive active plan that unlocks the requested feature.
       // If no configured plan offers it, retain the highest-priced plan but disable checkout.
-      setSelectedPlanId(highestPlanWithFeature?._id || ordered[0]?._id || "");
+      setSelectedPlanId(firstPlanWithFeature?._id || ordered[0]?._id || "");
       setPreviewPlanId(null);
       setHoverPlanId(null);
     }).catch((error) => {
@@ -365,14 +341,14 @@ export default function FeatureUpgradeModal() {
             <>
               <p className="mb-4 flex items-center gap-2 text-xs font-semibold text-slate-500"><span className="h-2 w-2 rounded-full bg-violet-500" /> Move over a plan or focus it with your keyboard to preview it.</p>
               <div className="grid gap-4 md:grid-cols-3">
-                {plans.map((plan, index) => {
+                {plans.map((plan) => {
                   const isSelected = selectedPlan?._id === plan._id;
                   const isFocused = focusedPlanId === plan._id;
                   const isCurrent = Boolean(currentPlanId && plan._id === currentPlanId) ||
                     Boolean(currentPlan && currentPlan._id === plan._id) ||
                     (!currentPlanId && plan.name === (request?.currentPlan || ""));
                   const price = Number(plan.price || 0);
-                  const isTop = index === 0;
+                  const isPopular = plan.isPopular === true;
                   const unlocksFeature = !requiredFeatureLabel || (plan.features || []).includes(requiredFeatureLabel);
                   return (
                     <article
@@ -392,7 +368,7 @@ export default function FeatureUpgradeModal() {
                       }}
                       onFocusCapture={() => setPreviewPlanId(plan._id)}
                       onBlur={() => setPreviewPlanId(null)}
-                      className={`bfs-plan-card bfs-plan-option ${isTop ? "bfs-plan-card--featured" : ""} relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
+                      className={`bfs-plan-card bfs-plan-option ${isPopular ? "bfs-plan-card--featured" : ""} relative flex min-h-64 cursor-pointer flex-col rounded-2xl border p-5 transition-all duration-200 ${
                         isFocused
                           ? "bfs-plan-option--selected border-violet-500 bg-violet-50/80 shadow-xl shadow-violet-600/10 ring-2 ring-violet-500/25"
                           : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/30"
@@ -400,8 +376,8 @@ export default function FeatureUpgradeModal() {
                       aria-current={isSelected ? "true" : undefined}
                     >
                       <div className="mb-3 flex min-h-7 flex-wrap items-center gap-2">
-                        {isTop && <span className="bfs-plan-badge bfs-plan-badge--featured"><Crown className="h-3 w-3" /> Highest access</span>}
-                        {!isTop && plan.isPopular && <span className="bfs-plan-badge"><Sparkles className="h-3 w-3" /> Popular</span>}
+                        {isPopular && <span className="bfs-plan-badge bfs-plan-badge--featured"><Sparkles className="h-3 w-3" /> Most popular</span>}
+                        {price === 0 && <span className="bfs-plan-badge bfs-plan-badge--neutral">Free</span>}
                         {isCurrent && <span className="bfs-plan-badge bfs-plan-badge--neutral">Current plan</span>}
                         {!isCurrent && requiredFeatureLabel && <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${unlocksFeature ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{unlocksFeature ? "Unlocks this feature" : "Feature not included"}</span>}
                       </div>
@@ -420,7 +396,7 @@ export default function FeatureUpgradeModal() {
                           <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-600">AI usage limits</h4>
                           <p className="mt-1 text-[10px] leading-4 text-slate-500">Per-month allowances configured for this plan.</p>
                           <dl className="mt-3 space-y-2">
-                            {planLimitDefinitions.map(([key, label]) => (
+                            {PLAN_LIMIT_DEFINITIONS.map(([key, label]) => (
                               <div key={key} className="flex items-start justify-between gap-2 text-[10px] leading-4">
                                 <dt className="min-w-0 text-slate-600">{label}</dt>
                                 <dd className="shrink-0 text-right font-semibold text-slate-900">{formatPlanLimit(plan.limits?.[key])}</dd>

@@ -63,16 +63,20 @@ function normalizeError(error) {
     return { status: 413, message: "That file is too large. Choose a smaller file and try again." };
   }
 
-  if (error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths") {
+  if (error?.code === "AI_USAGE_LIMIT") {
+    const details = error.details && typeof error.details === "object" ? error.details : {};
+    const feature = String(details.feature || error.feature || "advanced_ai_paths");
     return {
       status: 429,
       message: String(error.message || "You have reached this plan's monthly AI allowance."),
       errors: {
-        feature: error.feature,
-        plan: error.plan || "Free",
-        limitKey: error.limitKey,
-        limit: error.limit,
-        used: error.used
+        code: "AI_USAGE_LIMIT",
+        feature,
+        period: String(details.period || "month"),
+        ...(Number.isFinite(Number(details.limit)) ? { limit: Number(details.limit) } : {}),
+        ...(Number.isFinite(Number(details.used)) ? { used: Number(details.used) } : {}),
+        ...(error.plan ? { plan: String(error.plan) } : {}),
+        ...(error.limitKey ? { limitKey: String(error.limitKey) } : {})
       }
     };
   }
@@ -142,7 +146,7 @@ export function errorHandler(error, req, res, _next) {
   // stack traces, provider responses, DB internals, or raw exception messages.
   const errors = normalized.errors && (
     !isProduction ||
-    error?.code === "AI_USAGE_LIMIT" && error?.feature === "advanced_ai_paths" ||
+    error?.code === "AI_USAGE_LIMIT" ||
     error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT" ||
     error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED"
   ) ? normalized.errors : undefined;

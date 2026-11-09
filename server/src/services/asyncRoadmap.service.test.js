@@ -7,6 +7,7 @@ import { Course } from "../models/Course.js";
 function admissionDependencies(overrides = {}) {
   return {
     consumeRoadmapRequestAllowance: async () => 1,
+    getActivePlanForUser: async () => null,
     reserveRoadmapAdmission: async ({ draftId }) => ({ draftId, leaseToken: "test-admission-lease" }),
     renewRoadmapAdmission: async () => true,
     releaseRoadmapAdmission: async () => true,
@@ -560,5 +561,76 @@ test("async roadmap keeps the personalized course when verified YouTube resource
     Course.findOne = originalCourseFindOne;
     Course.updateOne = originalCourseUpdateOne;
     YouTubeQuotaUsage.findOne = originalQuotaFindOne;
+  }
+});
+
+
+test("async roadmap passes the active subscription plan to the generator for monthly AI build allowance enforcement", async () => {
+  const userId = "507f1f77bcf86cd799439013";
+  const draft = { _id: "draft-plan-allowance-row", draftId: "draft-plan-allowance", events: [], status: "queued" };
+  const activePlan = {
+    _id: "plan-pro",
+    limits: { ai_course_builds_per_month: 10 }
+  };
+  const originalFindOne = RoadmapDraft.findOne;
+  const originalCreate = RoadmapDraft.create;
+  const originalUpdateOne = RoadmapDraft.updateOne;
+  let planLookupUserId = null;
+  let generatorOptions = null;
+
+  RoadmapDraft.findOne = () => ({ sort: async () => null });
+  RoadmapDraft.create = async (payload) => Object.assign(draft, payload);
+  RoadmapDraft.updateOne = async (_filter, update) => {
+    if (update.$set) Object.assign(draft, update.$set);
+    if (update.$push?.events?.$each) draft.events.push(...update.$push.events.$each);
+    return { modifiedCount: 1 };
+  };
+
+  try {
+    const created = await createRoadmapDraft({
+      userId,
+      profile: { topic: "MERN stack", goal: "learn", level: "Beginner" },
+      options: { plan: { limits: { ai_course_builds_per_month: -1 } } },
+      dependencies: {
+        ...admissionDependencies(),
+        getActivePlanForUser: async (lookupUserId) => {
+          planLookupUserId = lookupUserId;
+          return activePlan;
+        },
+        generateAIRoadmap: async (_profile, options) => {
+          generatorOptions = options;
+          throw Object.assign(
+            new Error("You have reached your monthly AI course-builder allowance."),
+            { code: "AI_USAGE_LIMIT", details: { feature: "ai_course_builder", period: "month", limit: 10, used: 10 } }
+          );
+        }
+      }
+    });
+
+    assert.equal(created.status, "queued");
+    const deadline = Date.now() + 1500;
+    while (draft.status !== "failed" && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
+    assert.equal(draft.status, "failed");
+    assert.equal(planLookupUserId, userId);
+    assert.equal(generatorOptions.userId, userId);
+    assert.equal(generatorOptions.plan, activePlan);
+    assert.equal(generatorOptions.plan.limits.ai_course_builds_per_month, 10);
+    assert.equal(generatorOptions.asyncBuild, true);
+    assert.equal(draft.errorCode, "AI_USAGE_LIMIT");
+    assert.equal(draft.errorMessage, "You have reached your monthly AI course-builder allowance.");
+    assert.deepEqual(draft.errorDetails, {
+      code: "AI_USAGE_LIMIT",
+      feature: "ai_course_builder",
+      period: "month",
+      limit: 10,
+      used: 10
+    });
+  } finally {
+    RoadmapDraft.findOne = originalFindOne;
+    RoadmapDraft.create = originalCreate;
+    RoadmapDraft.updateOne = originalUpdateOne;
   }
 });

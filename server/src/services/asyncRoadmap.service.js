@@ -7,6 +7,7 @@ import { assessCourseResourceQuality, getCourseResourceMetrics } from "./learnin
 import { curateForNode } from "./nodeCuration.service.js";
 import { consumeRoadmapRequestAllowance, reserveRoadmapAdmission, renewRoadmapAdmission, releaseRoadmapAdmission, releaseQueuedRoadmapAdmission, recoverExpiredRoadmapAdmissions } from "./roadmapAdmission.service.js";
 import { getState as getYouTubeQuotaState } from "./quota.service.js";
+import { getActivePlanForUser } from "./subscriptionEntitlement.service.js";
 
 const queue = [];
 const listeners = new Map();
@@ -38,6 +39,20 @@ function hashResourceContext(profile = {}) {
 }
 
 function serializeRoadmapFailure(error) {
+  if (error?.code === "AI_USAGE_LIMIT") {
+    const details = error.details && typeof error.details === "object" ? error.details : {};
+    return {
+      errorCode: "AI_USAGE_LIMIT",
+      errorMessage: String(error.message || "You have reached your monthly AI course-builder allowance."),
+      errorDetails: {
+        code: "AI_USAGE_LIMIT",
+        feature: "ai_course_builder",
+        period: "month",
+        ...(Number.isFinite(Number(details.limit)) ? { limit: Number(details.limit) } : {}),
+        ...(Number.isFinite(Number(details.used)) ? { used: Number(details.used) } : {})
+      }
+    };
+  }
   if (error?.code === "AI_PROVIDER_RATE_LIMITED") {
     return {
       errorCode: "AI_PROVIDER_RATE_LIMITED",
@@ -254,6 +269,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
 
 export async function createRoadmapDraft({ userId, profile, options = {}, dependencies = {} }) {
   const generateRoadmap = dependencies.generateAIRoadmap || generateAIRoadmap;
+  const getPlanForUser = dependencies.getActivePlanForUser || getActivePlanForUser;
   const consumeAllowance = dependencies.consumeRoadmapRequestAllowance || consumeRoadmapRequestAllowance;
   const reserveAdmission = dependencies.reserveRoadmapAdmission || reserveRoadmapAdmission;
   const renewAdmission = dependencies.renewRoadmapAdmission || renewRoadmapAdmission;
@@ -326,7 +342,11 @@ export async function createRoadmapDraft({ userId, profile, options = {}, depend
       let courseId = null;
       try {
         await assertLease();
-        const result = await generateRoadmap(profile, { ...options, userId: String(userId), asyncBuild: true });
+        // Resolve the user's active server-side plan when the queued build starts.
+        // The shared generator uses this plan to reserve the monthly AI course-build
+        // allowance. Without it, readPlanLimit(undefined, ...) defaults to unlimited.
+        const plan = await getPlanForUser(userId);
+        const result = await generateRoadmap(profile, { ...options, userId: String(userId), plan, asyncBuild: true });
         courseId = result?.course?._id || result?.course?.id || null;
         await assertLease();
         if (!courseId) throw new Error("Async roadmap build did not return a persisted course");

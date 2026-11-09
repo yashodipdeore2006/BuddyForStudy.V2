@@ -171,6 +171,8 @@ export default function AdminCoursesPro() {
   const [courseQuery, setCourseQuery] = useState("");
   const [readinessResults, setReadinessResults] = useState<Record<string, CourseReadiness>>({});
   const [readinessLoading, setReadinessLoading] = useState<Record<string, boolean>>({});
+  const [resourceRecoveryLoading, setResourceRecoveryLoading] = useState<Record<string, boolean>>({});
+  const [resourceRecoveryNotices, setResourceRecoveryNotices] = useState<Record<string, string>>({});
   const [permissions, setPermissions] = useState<string[]>([]);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
   const [pendingContentDeletion, setPendingContentDeletion] = useState<PendingContentDeletion | null>(null);
@@ -232,6 +234,34 @@ export default function AdminCoursesPro() {
       await load();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Unable to save course controls.");
+    }
+  }
+
+  async function fillMissingResources(course: AdminCourseRecord) {
+    setResourceRecoveryLoading((current) => ({ ...current, [course._id]: true }));
+    setResourceRecoveryNotices((current) => ({ ...current, [course._id]: "" }));
+    setLoadError("");
+    try {
+      const data = await adminFetch("/api/admin/courses/" + course._id + "/resources/fill-missing", { method: "POST" });
+      const recovery = data.recovery || {};
+      setResourceRecoveryNotices((current) => ({
+        ...current,
+        [course._id]: recovery.recovered
+          ? "Recovered " + recovery.recovered + " resource(s)." + (recovery.unavailable ? " " + recovery.unavailable + " still need resources." : "")
+          : recovery.quotaLimited
+            ? "YouTube quota is currently exhausted. Missing resources remain queued for retry."
+            : "No missing resources could be recovered right now."
+      }));
+      if (data.course) setCourseDetails((current) => ({ ...current, [course._id]: data.course }));
+      await checkReadiness(course._id);
+      await load();
+    } catch (error) {
+      setResourceRecoveryNotices((current) => ({
+        ...current,
+        [course._id]: error instanceof Error ? error.message : "Unable to recover missing resources."
+      }));
+    } finally {
+      setResourceRecoveryLoading((current) => ({ ...current, [course._id]: false }));
     }
   }
 
@@ -805,6 +835,13 @@ export default function AdminCoursesPro() {
                       <p className="text-sm text-slate-500">{course.category} · {course.level}</p>
                     </div>
 
+                    {canManageCourses && (
+                      <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => void fillMissingResources(course)} disabled={Boolean(resourceRecoveryLoading[course._id])}>
+                        {resourceRecoveryLoading[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                        {resourceRecoveryLoading[course._id] ? "Filling resources…" : "Fill missing resources"}
+                      </button>
+                    )}
+                    {resourceRecoveryNotices[course._id] && <span role="status" className="text-xs text-slate-600">{resourceRecoveryNotices[course._id]}</span>}
                     <button type="button" className="btn-secondary whitespace-nowrap" onClick={() => void checkReadiness(course._id)} disabled={Boolean(readinessLoading[course._id])}>
                       {readinessLoading[course._id] ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                       {readinessLoading[course._id] ? "Checking…" : "Readiness"}

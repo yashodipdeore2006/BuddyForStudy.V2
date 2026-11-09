@@ -1,3 +1,4 @@
+import { resolveAiQuotaUpgradeFeature } from "@/lib/aiQuotaGate";
 // During local Vite development, use the same-origin /api proxy. Production must
 // receive an explicit public API origin at build time; silently falling back to
 // localhost would ship a frontend that cannot reach the deployed backend.
@@ -6,7 +7,6 @@ if (!import.meta.env.DEV && !configuredApiUrl) {
   throw new Error("VITE_API_URL is required for production builds. Set it to the deployed BuddyForStudy API origin.");
 }
 const API_URL = (import.meta.env.DEV ? "" : configuredApiUrl).replace(/\/$/, "");
-import { resolveAiQuotaUpgradeFeature } from "@/lib/aiQuotaGate";
 
 
 type CachedGet = { expiresAt: number; data: unknown };

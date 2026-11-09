@@ -92,7 +92,7 @@ function normalizeError(error) {
       409: "This action conflicts with an existing record. Refresh and try again.",
       413: "The submitted content is too large.",
       422: "The information could not be processed. Please check the fields.",
-      429: "Too many requests were made in a short time. Please wait a moment and try again."
+      429: "A service is temporarily rate limiting this request. Please wait briefly and try again."
     };
     return { status: explicitStatus, message: messages[explicitStatus] || "We couldn't process that request. Please check the information and try again." };
   }

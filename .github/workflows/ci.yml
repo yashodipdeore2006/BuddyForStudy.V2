@@ -41,6 +41,7 @@ jobs:
       - name: Build production app
         env:
           VITE_PUBLIC_SITE_URL: "https://buddyforstudy.example"
+          VITE_API_URL: "https://api.buddyforstudy.example"
           VITE_INTENT_V2: "false"
           VITE_ASYNC_ROADMAP: "false"
         run: npm run build

@@ -222,6 +222,19 @@ test("course pages expose timestamped notes, lesson-state labels, and source dur
 });
 
 
+
+test("feature upgrade modal blocks duplicate subscription checkout while the current plan is active", () => {
+  const upgradeModal = fs.readFileSync(path.join(root, "src/components/FeatureUpgradeModal.tsx"), "utf8");
+  const billingRoutes = fs.readFileSync(path.join(root, "../server/src/controllers/payment.controller.js"), "utf8");
+  assert.match(billingRoutes, /An active paid subscription already exists/);
+  assert.match(upgradeModal, /const hasActiveSubscription = Boolean/);
+  assert.match(upgradeModal, /\["trialing", "active", "past_due"\]/);
+  assert.match(upgradeModal, /currentSubscriptionPeriodEnd > Date\.now\(\)/);
+  assert.match(upgradeModal, /disabled=\{[^}]*isSwitchingActivePlan/);
+  assert.match(upgradeModal, /Plan switching is not available in this checkout yet/);
+  assert.match(upgradeModal, /navigate\(routes\.billing\(\)\)/);
+});
+
 test("pricing and upgrade modal share eligible plans, admin order and currency/usage formatting", () => {
   const pricingPage = fs.readFileSync(path.join(root, "src/pages/Pricing.tsx"), "utf8");
   const upgradeModal = fs.readFileSync(path.join(root, "src/components/FeatureUpgradeModal.tsx"), "utf8");

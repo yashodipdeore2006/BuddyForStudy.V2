@@ -148,6 +148,42 @@ test("Gemini daily quota exhaustion returns a safe actionable 503 instead of gen
   assert.equal(alertWrites, 1);
 });
 
+test("monthly AI course-builder quota returns its real cause and safe usage details in production", async () => {
+  const originalConsoleError = console.error;
+  const previousNodeEnv = process.env.NODE_ENV;
+  console.error = () => {};
+  process.env.NODE_ENV = "production";
+  const res = responseRecorder();
+  try {
+    errorHandler(Object.assign(new Error("You have reached your monthly AI course-builder allowance. Your course was not generated."), {
+      status: 429,
+      code: "AI_USAGE_LIMIT",
+      details: { feature: "ai_course_builder", period: "month", limit: 2, used: 2 },
+      providerResponse: "must never be exposed"
+    }), {
+      id: "request-ai-monthly-limit",
+      method: "POST",
+      path: "/api/ai/roadmap",
+      get: () => ""
+    }, res, () => {});
+  } finally {
+    console.error = originalConsoleError;
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  }
+
+  assert.equal(res.statusCode, 429);
+  assert.match(res.body.message, /monthly AI course-builder allowance/i);
+  assert.deepEqual(res.body.errors, {
+    code: "AI_USAGE_LIMIT",
+    feature: "ai_course_builder",
+    period: "month",
+    limit: 2,
+    used: 2
+  });
+  assert.equal(JSON.stringify(res.body).includes("must never be exposed"), false);
+});
+
 test("expected 4xx validation failures do not create API 5xx alerts", async () => {
   const originalConsoleError = console.error;
   console.error = () => {};

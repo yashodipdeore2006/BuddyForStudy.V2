@@ -302,9 +302,15 @@ export default function CoursePlayer() {
   }, [courseId]);
 
   useEffect(() => {
-    if (!courseId || !lessonId || currentLesson?.lesson.type !== "tutorial") return;
+    if (!courseId || !lessonId || currentLesson?.lesson.type !== "tutorial") {
+      setResourceRecoveryStatus("idle");
+      return;
+    }
     const videos = currentLesson.lesson.tutorial?.videos || [];
-    if (videos.some((video) => video.videoId || video.url)) return;
+    if (videos.some((video) => video.videoId || video.url)) {
+      setResourceRecoveryStatus("idle");
+      return;
+    }
     const key = courseId + ":" + lessonId;
     if (resourceRecoveryAttemptedRef.current.has(key)) return;
     resourceRecoveryAttemptedRef.current.add(key);

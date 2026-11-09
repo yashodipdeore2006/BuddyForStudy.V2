@@ -307,7 +307,7 @@ export default function CoursePlayer() {
       return;
     }
     const videos = currentLesson.lesson.tutorial?.videos || [];
-    if (videos.some((video) => video.videoId || video.url)) {
+    if (videos.some((video) => video.videoId)) {
       setResourceRecoveryStatus("idle");
       return;
     }
@@ -321,7 +321,7 @@ export default function CoursePlayer() {
         if (cancelled) return;
         const recoveredItem = data.item as Record<string, unknown> | undefined;
         const recoveredVideos = (recoveredItem?.tutorial as { videos?: Array<{ videoId?: string; url?: string }> } | undefined)?.videos || [];
-        if (recoveredVideos.some((video) => video.videoId || video.url)) {
+        if (recoveredVideos.some((video) => video.videoId)) {
           setCourse((current) => current ? ({
             ...current,
             modules: current.modules.map((module) => ({

@@ -337,10 +337,17 @@ export default function CoursePlayer() {
           }) : current);
           setResourceRecoveryStatus("idle");
         } else {
+          // Permit a fresh automatic search if the learner leaves and later reopens this lesson.
+          resourceRecoveryAttemptedRef.current.delete(key);
           setResourceRecoveryStatus("unavailable");
         }
       })
-      .catch(() => { if (!cancelled) setResourceRecoveryStatus("unavailable"); });
+      .catch(() => {
+        if (!cancelled) {
+          resourceRecoveryAttemptedRef.current.delete(key);
+          setResourceRecoveryStatus("unavailable");
+        }
+      });
     return () => { cancelled = true; };
   }, [courseId, lessonId, currentLesson]);
 

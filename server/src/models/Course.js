@@ -238,6 +238,22 @@ async function applyGeneratedCoursePricing(course) {
   }
 }
 
+/**
+ * Resolve the same generated-course pricing policy used by the Course
+ * pre-validation hook, without creating or mutating a persisted document.
+ * Discovery search previews call this with the exact shape of a newly built
+ * YouTube discovery course so the displayed price matches the saved price.
+ */
+export async function resolveGeneratedCoursePricingPreview(course) {
+  const preview = {
+    ...course,
+    pricing: course?.pricing?.toObject?.() || { ...(course?.pricing || {}) },
+    $locals: {}
+  };
+  await applyGeneratedCoursePricing(preview);
+  return preview.pricing?.toObject?.() || { ...(preview.pricing || {}) };
+}
+
 async function applyAutomaticCourseApproval(course) {
   course.aiReviewStatus = "approved";
   course.aiReviewSource = "automatic";

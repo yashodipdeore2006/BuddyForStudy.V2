@@ -341,7 +341,7 @@ export default function FeatureUpgradeModal() {
             <>
               <p className="mb-4 flex items-center gap-2 text-xs font-semibold text-slate-500"><span className="h-2 w-2 rounded-full bg-violet-500" /> Move over a plan or focus it with your keyboard to preview it.</p>
               <div className="grid gap-4 md:grid-cols-3">
-                {plans.map((plan, index) => {
+                {plans.map((plan) => {
                   const isSelected = selectedPlan?._id === plan._id;
                   const isFocused = focusedPlanId === plan._id;
                   const isCurrent = Boolean(currentPlanId && plan._id === currentPlanId) ||

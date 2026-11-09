@@ -231,7 +231,7 @@ test("feature upgrade modal blocks duplicate subscription checkout while the cur
   assert.match(upgradeModal, /\["trialing", "active", "past_due"\]/);
   assert.match(upgradeModal, /currentSubscriptionPeriodEnd > Date\.now\(\)/);
   assert.match(upgradeModal, /disabled=\{[^}]*isSwitchingActivePlan/);
-  assert.match(upgradeModal, /Plan switching is not available in this checkout yet/);
+  assert.match(upgradeModal, /plan switching is not available in this checkout yet/i);
   assert.match(upgradeModal, /navigate\(routes\.billing\(\)\)/);
 });
 

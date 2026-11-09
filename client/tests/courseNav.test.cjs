@@ -265,3 +265,24 @@ test("route-level code splitting keeps course player and admin pages out of the 
   assert.match(app, /<Suspense fallback=/);
   assert.doesNotMatch(app, /import CoursePlayer from ['"]@\/pages\/CoursePlayer['"]/);
 });
+
+
+test("course player selects a playable lesson video instead of blindly rendering the first resource", () => {
+  const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
+  assert.match(player, /lessonVideos\.find\(\(video\) => Boolean\(video\?\.videoId\)\)/);
+  assert.match(player, /const activeVideo = lessonVideos\.find/);
+  assert.match(player, /if \(videos\.some\(\(video\) => video\.videoId\)\)/);
+  assert.match(player, /\{activeVideo \? \(/);
+  assert.match(player, /videoId=\{activeVideo!\.videoId\}/);
+  assert.match(player, /resourceRecoveryAttemptedRef\.current\.delete\(key\)/);
+  assert.doesNotMatch(player, /currentLesson\.lesson\.tutorial\?\.videos\?\.\[0\]/);
+});
+
+
+test("course player offers one-tap curation feedback and dismisses the choices after selection", () => {
+  const player = fs.readFileSync(path.join(root, "src/pages/CoursePlayer.tsx"), "utf8");
+  assert.match(player, /sendPlayerCurationFeedback\("not_sure", activeVideo!\)/);
+  assert.match(player, /curationFeedbackDismissedKeys\.has/);
+  assert.match(player, /setCurationFeedbackDismissedKeys\(\(current\) => new Set\(current\)\.add\(key\)\)/);
+  assert.match(player, /Retry feedback/);
+});

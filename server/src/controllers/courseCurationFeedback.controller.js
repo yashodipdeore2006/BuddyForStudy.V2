@@ -6,7 +6,7 @@ import { persistCurationFeedback } from "../services/curationFeedback.service.js
 
 const schema = z.object({
   submissionId: z.string().trim().min(16).max(100).optional(),
-  event: z.enum(["helpful", "outdated", "wrong_level", "completed", "abandoned"]),
+  event: z.enum(["helpful", "outdated", "wrong_level", "not_sure", "completed", "abandoned"]),
   query: z.string().trim().min(2).max(200),
   resourceId: z.string().trim().min(1).max(200),
   resourceType: z.enum(["video", "playlist", "series"]).default("video"),

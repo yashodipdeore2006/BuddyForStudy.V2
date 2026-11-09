@@ -26,8 +26,9 @@ export async function byCourse(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
     const enrollment = await service.getForCourse(req.user.userId, req.params.courseId);
-    if (!enrollment) return failure(res, "Enrollment not found", 404);
-    return success(res, { enrollment });
+    // A learner who has not enrolled yet is a normal course-details state, not
+    // a missing API resource. Keep the lookup successful and make absence explicit.
+    return success(res, { enrollment: enrollment || null });
   } catch (e) { next(e); }
 }
 

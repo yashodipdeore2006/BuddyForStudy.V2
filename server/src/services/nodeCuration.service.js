@@ -178,7 +178,9 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
         widenedBounds: widened
       }
     };
-    await writeNodeCache(key, output);
+    // Cache only successful selections. Empty/failed results must be searchable again
+    // on a later attempt instead of suppressing recovery for the full cache TTL.
+    if (best) await writeNodeCache(key, output);
     return output;
   } catch (error) {
     if (error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") {

@@ -29,6 +29,13 @@ function normalizeError(error) {
       }
     };
   }
+  if (error?.code === "AI_PROVIDER_RATE_LIMITED") {
+    return {
+      status: 503,
+      message: "Gemini is temporarily rate-limiting generation requests for the platform's shared API key. This is not your account's AI allowance. Please retry shortly.",
+      errors: { code: "AI_PROVIDER_RATE_LIMITED", provider: "gemini", retryable: true }
+    };
+  }
   if (error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED") {
     return {
       status: 503,
@@ -148,7 +155,8 @@ export function errorHandler(error, req, res, _next) {
     !isProduction ||
     error?.code === "AI_USAGE_LIMIT" ||
     error?.code === "AI_RESOURCE_QUALITY_INSUFFICIENT" ||
-    error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED"
+    error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED" ||
+    error?.code === "AI_PROVIDER_RATE_LIMITED"
   ) ? normalized.errors : undefined;
   return failure(res, normalized.message, normalized.status, errors);
 }

@@ -37,31 +37,6 @@ function hashResourceContext(profile = {}) {
   return createHash("sha256").update(JSON.stringify(context)).digest("hex");
 }
 
-async function buildResourceQualityFailure(quality) {
-  let quota = null;
-  try { quota = await getYouTubeQuotaState(); } catch {}
-  const quotaState = ["ok", "degraded", "exhausted"].includes(quota?.state) ? quota.state : "unknown";
-  const errorDetails = {
-    code: "AI_RESOURCE_QUALITY_INSUFFICIENT",
-    tutorialLessonCount: Number(quality.tutorialLessonCount) || 0,
-    lessonsWithResources: Number(quality.lessonsWithResources) || 0,
-    uniqueVideoCount: Number(quality.uniqueVideoCount) || 0,
-    coverageRatio: Number(quality.coverageRatio) || 0,
-    minimumCoverage: Number(quality.minimumCoverage) || 0,
-    reason: typeof quality.reason === "string" ? quality.reason : "resource_quality_rejected",
-    quotaState,
-    quotaUnits: Number.isFinite(Number(quota?.units)) ? Number(quota.units) : null,
-    quotaBudget: Number.isFinite(Number(quota?.budget)) ? Number(quota.budget) : null,
-    quotaResetDay: /^\d{4}-\d{2}-\d{2}$/.test(String(quota?.resetDay || "")) ? quota.resetDay : null
-  };
-  const error = new Error(quotaState === "exhausted"
-    ? "Build with AI has reached today's verified YouTube resource-search limit. Your roadmap was not saved. Please retry after the daily quota reset."
-    : "We could not verify enough suitable learning resources for this roadmap. Please try again later.");
-  error.code = "AI_RESOURCE_QUALITY_INSUFFICIENT";
-  error.resourceQuality = errorDetails;
-  return error;
-}
-
 function serializeRoadmapFailure(error) {
   if (error?.code === "AI_PROVIDER_RATE_LIMITED") {
     return {

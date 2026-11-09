@@ -327,7 +327,7 @@ export default function CoursePlayer() {
             modules: current.modules.map((module) => ({
               ...module,
               lessons: module.lessons.map((lesson) =>
-                String(lesson.id || lesson._id) === lessonId
+                String(lesson.id) === lessonId
                   ? { ...lesson, ...recoveredItem, id: lessonId }
                   : lesson
               )

@@ -46,11 +46,20 @@ export async function recoverMissingTutorialResources(course, {
   let changed = false;
   for (const { lesson } of missing) {
     lesson.tutorial = lesson.tutorial || { content: "", resources: [], videos: [] };
+    const requiredTopics = Array.isArray(lesson.tutorial?.requiredTopics)
+      ? lesson.tutorial.requiredTopics.map((value) => String(value || "").trim()).filter(Boolean)
+      : [];
+    const searchQueries = [
+      ...(Array.isArray(lesson.tutorial?.searchQueries) ? lesson.tutorial.searchQueries : []),
+      lesson.tutorial?.searchQuery,
+      lesson.title ? profile.topic + " " + lesson.title + " complete tutorial" : ""
+    ].map((value) => String(value || "").trim()).filter(Boolean);
     const skill = {
       id: lesson.canonicalSkillId || String(lesson._id || lesson.id || lesson.title),
       canonicalSkillId: lesson.canonicalSkillId || undefined,
       name: String(lesson.title || lesson.description || profile.topic).trim(),
-      searchQueries: []
+      topics: [...new Set([...requiredTopics, String(lesson.title || "").trim()].filter(Boolean))].slice(0, 16),
+      searchQueries: [...new Set(searchQueries)].slice(0, 5)
     };
     let result;
     try {

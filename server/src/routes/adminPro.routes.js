@@ -54,6 +54,7 @@ router.put("/courses/:courseId/roadmap", adminPermissionMiddleware("courses.mana
 router.post("/courses/:courseId/roadmap/regenerate", adminPermissionMiddleware("courses.manage"), journeyController.regenerateAdmin);
 router.get("/courses/:courseId", adminPermissionMiddleware("courses.read"), controller.courseDetail);
 router.get("/courses/:courseId/readiness", adminPermissionMiddleware("courses.read"), controller.courseReadiness);
+router.post("/courses/:courseId/resources/fill-missing", adminPermissionMiddleware("courses.manage"), controller.fillMissingCourseResources);
 router.get("/courses/:courseId/revisions", adminPermissionMiddleware("courses.read"), controller.courseRevisions);
 router.post("/courses/:courseId/revisions/:revisionId/rollback", adminPermissionMiddleware("courses.manage"), controller.rollbackCourseRevision);
 router.post("/courses/:courseId/ai-review", adminPermissionMiddleware("courses.publish"), controller.reviewAiCourse);

@@ -10,7 +10,7 @@ function settingQuery(value) {
   };
 }
 
-async function validateGeneratedCourse(approvalMode, privateForUser = false) {
+async function validateGeneratedCourse(approvalMode, privateForUser = false, content = {}) {
   const originalFindOne = PlatformSetting.findOne;
   PlatformSetting.findOne = (filter) => {
     if (filter.key === "content_approval_ai_courses") {
@@ -31,7 +31,8 @@ async function validateGeneratedCourse(approvalMode, privateForUser = false) {
       duration: "4 weeks",
       isPublished: true,
       ...(privateForUser ? { visibility: "private", createdForUser: "507f191e810c19729de860ea" } : {}),
-      modules: [],
+      learningOutcomes: content.learningOutcomes || [],
+      modules: content.modules || [],
       generation: { mode: "ai", query: "React" }
     });
     await course.validate();
@@ -67,6 +68,27 @@ test("automatic AI course approval records provenance but still enforces readine
   assert.ok(course.aiReviewedAt instanceof Date);
   assert.equal(course.isPublished, false);
   assert.equal(course.status, "draft");
+});
+
+test("automatic approval publishes a usable text-first AI course when videos are missing", async () => {
+  const course = await validateGeneratedCourse("automatic", false, {
+    learningOutcomes: ["Understand SQL joins"],
+    modules: [{
+      title: "SQL Fundamentals",
+      order: 1,
+      lessons: [{
+        title: "SQL Joins",
+        description: "Learn inner, left, right and full joins with practical examples.",
+        type: "tutorial",
+        order: 1,
+        tutorial: { content: "", resources: [], videos: [] }
+      }]
+    }]
+  });
+  assert.equal(course.aiReviewStatus, "approved");
+  assert.equal(course.aiReviewSource, "automatic");
+  assert.equal(course.isPublished, true);
+  assert.equal(course.status, "published");
 });
 
 test("automatic approval never publishes a learner-private async roadmap", async () => {

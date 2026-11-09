@@ -262,6 +262,27 @@ test("ranking slots return the configured result limit up to the available eligi
   assert.ok(results.some((item) => item.primarySlot === "Best overall"));
 });
 
+test("lesson-level curation accepts focused videos without full-course structure metadata", () => {
+  const profile = classifyCurationIntent("Business Metrics and Data Storytelling KPIs tutorial", {
+    level: "Beginner"
+  });
+  profile.nodeType = "lesson";
+  profile.mode = "quick_reference";
+  profile.minVideoSeconds = 60;
+  const candidate = baseCandidate({
+    title: "Business Metrics and KPIs Explained for Beginners",
+    description: "Learn business questions, key performance indicators, metric definitions and practical examples.",
+    durationSeconds: 420,
+    hasChapters: false,
+    chapterCount: 0,
+    hasSyllabus: false,
+    hasHandsOn: false,
+    queryTermStats: { relevance: 35, titleRelevance: 15 }
+  });
+  const decision = evaluateCurationHardGates(candidate, profile);
+  assert.equal(decision.passed, true, decision.reason);
+});
+
 test("short-course wording does not trigger the YouTube Shorts gate", () => {
   const profile = classifyCurationIntent("SQL quick reference");
   const playlist = baseCandidate({

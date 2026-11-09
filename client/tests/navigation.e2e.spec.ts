@@ -1812,6 +1812,7 @@ test.describe("learner control and state regression", () => {
     await page.goto(baseURL + "/learn/course-fixture/lesson-1");
     const helpful = page.getByRole("button", { name: "Helpful", exact: true });
     await expect(helpful).toBeVisible();
+    await expect(page.getByRole("button", { name: "Not sure", exact: true })).toBeVisible();
     await page.evaluate(() => {
       const button = Array.from(document.querySelectorAll("button")).find((node) => node.textContent?.trim() === "Helpful");
       if (!(button instanceof HTMLButtonElement)) throw new Error("Helpful feedback button is missing");
@@ -1826,7 +1827,10 @@ test.describe("learner control and state regression", () => {
     await expect(page.getByRole("status").filter({ hasText: "Thanks for your feedback." })).toBeVisible();
     expect(feedbackPayloads).toHaveLength(2);
     expect(feedbackPayloads[0].submissionId).toBe(feedbackPayloads[1].submissionId);
-    await expect(helpful).toBeDisabled();
+    await expect(helpful).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Outdated", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Wrong level", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Not sure", exact: true })).toHaveCount(0);
   });
 
   test("[PLAYER-NOTES-001] timestamped notes validate timestamps and persist across reload", async ({ page }) => {

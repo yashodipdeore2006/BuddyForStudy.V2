@@ -4,6 +4,13 @@
 
 This document records changes under validation for the next release. It is **not** a production-release approval. The production readiness checklist remains the source of truth for outstanding launch gates.
 
+### Deployment safety follow-up
+
+- Production frontend builds now fail fast when `VITE_API_URL` is missing; local development continues to use the same-origin Vite proxy.
+- Added a deployment regression test and configured CI with an explicit non-production API-origin fixture.
+- Updated the environment and deployment guides to state that Vercel must use the actual Render API HTTPS origin. The CI fixture `https://api.buddyforstudy.example` is not a live endpoint and must never be copied into Vercel.
+- PR #24 (curriculum completeness and lesson resource recovery) and PR #25 (production API origin guard) are merged into `main`. Neither merge constitutes a live deployment.
+
 ### Engineering and reliability changes
 
 - Pinned the repository, backend package metadata, local `.nvmrc`, and CI to Node.js 24.x.

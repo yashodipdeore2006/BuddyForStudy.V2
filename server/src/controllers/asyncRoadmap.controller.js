@@ -68,7 +68,8 @@ export async function finalizeDraft(req, res, next, dependencies = {}) {
     if (draft?.status === "failed") {
       const resourceFailure = draft.errorCode === "AI_RESOURCE_QUALITY_INSUFFICIENT";
       const providerQuotaFailure = draft.errorCode === "AI_PROVIDER_QUOTA_EXHAUSTED";
-      const actionableFailure = resourceFailure || providerQuotaFailure;
+      const providerRateLimitFailure = draft.errorCode === "AI_PROVIDER_RATE_LIMITED";
+      const actionableFailure = resourceFailure || providerQuotaFailure || providerRateLimitFailure;
       return failure(
         res,
         String(draft.errorMessage || "Roadmap build failed. Please retry."),

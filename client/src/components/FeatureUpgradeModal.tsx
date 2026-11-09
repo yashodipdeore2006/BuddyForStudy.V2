@@ -40,6 +40,8 @@ type GateRequest = {
 type Subscription = {
   plan?: string | { _id?: string; name?: string; slug?: string; price?: number };
   status?: string;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
 };
 
 type ModalMessage = { type: "info" | "error" | "success"; text: string };
@@ -111,6 +113,19 @@ export default function FeatureUpgradeModal() {
   const currentPlanPrice = typeof subscription?.plan === "object"
     ? Number(subscription.plan?.price || 0)
     : null;
+  const currentSubscriptionPeriodEnd = subscription?.currentPeriodEnd
+    ? new Date(subscription.currentPeriodEnd).getTime()
+    : null;
+  // Mirror the backend checkout guard and never start a second recurring payment.
+  const hasActiveSubscription = Boolean(
+    subscription &&
+    ["trialing", "active", "past_due"].includes(String(subscription.status || "")) &&
+    (currentSubscriptionPeriodEnd === null ||
+      (Number.isFinite(currentSubscriptionPeriodEnd) && currentSubscriptionPeriodEnd > Date.now()))
+  );
+  const isSwitchingActivePlan = Boolean(
+    hasActiveSubscription && selectedPlanId && selectedPlanId !== currentPlanId
+  );
 
   const currentPlan = useMemo(
     () => plans.find((plan) => plan._id === currentPlanId) ||
@@ -322,6 +337,11 @@ export default function FeatureUpgradeModal() {
                 )}
               </p>
               {(currentPlanName || request?.currentPlan) && <p className="mt-2 text-xs font-medium text-slate-500">Current plan: {currentPlanName || request?.currentPlan}{currentPlanPrice !== null ? ` · ${formatMoney(currentPlanPrice)}` : ""}</p>}
+              {hasActiveSubscription && isSwitchingActivePlan && (
+                <p role="status" className="mt-3 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                  Your current subscription is still active{subscription?.currentPeriodEnd ? ` until ${new Date(subscription.currentPeriodEnd).toLocaleDateString("en-IN")}` : ""}. A second subscription cannot be started while this one is active, and plan switching is not available in this checkout yet. Manage your current subscription in Billing; you can choose another plan after the paid period ends.
+                </p>
+              )}
             </div>
           </div>
         </header>
@@ -418,16 +438,27 @@ export default function FeatureUpgradeModal() {
         </div>
 
         <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-          <p className="text-xs leading-5 text-slate-500">Hover previews a plan; select it with a click or tap to change your choice. No payment starts until you choose to upgrade. Your current access stays unchanged until the subscription is confirmed.</p>
+          <p className="text-xs leading-5 text-slate-500">{hasActiveSubscription && isSwitchingActivePlan
+            ? "Your existing subscription remains in force. We will not start a second recurring payment."
+            : "Hover previews a plan; select it with a click or tap to change your choice. No payment starts until you choose to upgrade. Your current access stays unchanged until the subscription is confirmed."}</p>
           <div className="flex shrink-0 gap-2">
             <button type="button" className="btn-secondary justify-center" onClick={() => setRequest(null)} disabled={Boolean(checkoutPlanId)}>Maybe later</button>
+            {hasActiveSubscription && isSwitchingActivePlan && (
+              <button
+                type="button"
+                className="btn-secondary justify-center"
+                onClick={() => { setRequest(null); navigate(routes.billing()); }}
+              >
+                Manage subscription
+              </button>
+            )}
             <button
               type="button"
               className="btn-primary justify-center"
-              disabled={!selectedPlan || loadingPlans || Boolean(checkoutPlanId) || isSelectedPlanCurrent || !selectedPlanSupportsFeature || Number(selectedPlan.price) <= 0}
+              disabled={!selectedPlan || loadingPlans || Boolean(checkoutPlanId) || isSelectedPlanCurrent || !selectedPlanSupportsFeature || Number(selectedPlan.price) <= 0 || isSwitchingActivePlan}
               onClick={() => selectedPlan && void subscribe(selectedPlan)}
             >
-              {checkoutPlanId ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{!selectedPlanSupportsFeature ? "Select a plan with this feature" : isSelectedPlanCurrent ? "Current plan" : "Upgrade plan"} <ArrowRight className="h-4 w-4" /></>}
+              {checkoutPlanId ? <Loader2 className="h-4 w-4 animate-spin" /> : <>{!selectedPlanSupportsFeature ? "Select a plan with this feature" : isSwitchingActivePlan ? "Plan change unavailable" : isSelectedPlanCurrent ? "Current plan" : "Upgrade plan"} <ArrowRight className="h-4 w-4" /></>}
             </button>
           </div>
         </footer>

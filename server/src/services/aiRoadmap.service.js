@@ -13,7 +13,7 @@ import { getActiveAIPrompt, renderActivePrompt } from "./aiPrompt.service.js";
 import { resolveRoadmapDomain, composeRoadmapPrompt } from "./domainPlaybooks.js";
 import { getRelevantCanonicalSkills, resolveCanonicalSkill, normalizeSkillSlug, validateSkillGraph } from "./skillRegistry.service.js";
 import { findRoadmapTemplate, getOrCreateRoadmapTemplate, personalizeRoadmapTemplate } from "./roadmapTemplate.service.js";
-import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildLearnModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
+import { normalizeGoal, buildInterviewModule, buildExamModules, buildProjectModule, buildSchedule, applyInterviewEvidence } from "./goalModules.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
 import { serializeUntrustedPromptData } from "../utils/promptTrustBoundary.js";
 import { safeTelemetryError } from "../utils/safeTelemetryError.js";
@@ -666,7 +666,10 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
     { id:"python-for-analytics", name:"Python Fundamentals for Data Analytics", category:"Programming", topics:["Python syntax and variables","collections and loops","functions","modules and virtual environments","reading CSV and Excel files","exceptions","Jupyter notebooks","writing reusable analysis code"], searchQueries:["Python for Data Analysis complete beginner course Jupyter CSV Excel","Python full course for data analysts with practical exercises"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Automate a repeatable data-cleaning report with Python", projectPlacement:"skill" },
     { id:"numpy-pandas", name:"Data Manipulation with NumPy and Pandas", category:"Python Data Analysis", topics:["NumPy arrays","Pandas Series and DataFrames","loading CSV and Excel","selecting and filtering rows","missing values","duplicates and inconsistent values","groupby and aggregation","merge and concatenate","datetime analysis","exporting clean datasets"], searchQueries:["Pandas NumPy for Data Analysis complete course data cleaning groupby merge","Python Pandas full course for data analysts project"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Clean and combine multiple messy business datasets", projectPlacement:"skill" },
     { id:"exploratory-data-analysis", name:"Data Cleaning and Exploratory Data Analysis", category:"Data Analysis", topics:["data quality checks","missing data strategy","outlier investigation","univariate analysis","bivariate analysis","segmentation","trend and seasonality","feature relationships","documenting assumptions","reproducible analysis"], searchQueries:["exploratory data analysis EDA complete course Python Pandas real dataset","data cleaning and EDA end to end data analyst project"], courseDuration:{minMinutes:300,targetMinutes:480,maxMinutes:720}, practiceProject:"Explore a real-world dataset and publish an analysis notebook", projectPlacement:"skill" },
-    { id:"data-visualization-bi", name:"Data Visualization and BI Dashboards", category:"Business Intelligence", topics:["chart selection","visual encoding","matplotlib and seaborn basics","Power BI or Tableau fundamentals","data modeling for dashboards","measures and calculated fields","filters and drill-down","dashboard layout","accessibility and misleading charts"], searchQueries:["Power BI complete course dashboard project for data analysts","Tableau data visualization full course dashboard project","Python data visualization Matplotlib Seaborn complete tutorial"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Build an interactive business performance dashboard", projectPlacement:"skill" },
+    { id:"data-visualization-bi", name:"Data Visualization and Storytelling", category:"Business Intelligence", topics:["chart selection","visual encoding","Matplotlib and Seaborn fundamentals","visual perception and accessibility","choosing charts for business questions","avoiding misleading visualizations","explaining trends and uncertainty"], searchQueries:["data visualization and storytelling complete course for data analysts","Python Matplotlib Seaborn data visualization tutorial"], courseDuration:{minMinutes:240,targetMinutes:360,maxMinutes:540}, practiceProject:"Create a concise exploratory data visualization report", projectPlacement:"skill" },
+    { id:"power-bi-analytics", name:"Power BI for Business Intelligence", category:"Business Intelligence", topics:["Power BI Desktop and data connections","Power Query import and transformation","data cleaning and shaping","star schema and relationship modelling","DAX measures and calculated columns","filter context and time intelligence","interactive report pages and drill-through","publishing dashboards and refresh governance"], searchQueries:["Microsoft Power BI complete course Power Query data modelling DAX dashboard project","Power BI end to end business intelligence dashboard tutorial"], courseDuration:{minMinutes:360,targetMinutes:540,maxMinutes:900}, practiceProject:"Build a multi-page sales and operations Power BI dashboard with documented DAX measures", projectPlacement:"skill" },
+    { id:"tableau-analytics", name:"Tableau for Data Visualization", category:"Business Intelligence", topics:["Tableau Desktop and data connections","dimensions and measures","calculated fields and table calculations","filters parameters and sets","joins relationships and data modelling","interactive dashboards and actions","story points and stakeholder presentation","publishing and dashboard performance"], searchQueries:["Tableau complete course data analyst dashboards calculated fields project","Tableau end to end business dashboard tutorial"], courseDuration:{minMinutes:300,targetMinutes:480,maxMinutes:780}, practiceProject:"Create an interactive Tableau executive dashboard and presentation", projectPlacement:"skill" },
+    { id:"ai-powered-data-analysis", name:"AI-Powered Data Analysis", category:"Modern Analytics", topics:["responsible use of ChatGPT and Microsoft Copilot for analysis","prompting AI to explain datasets and generate analysis plans","AI-assisted SQL query drafting and verification","AI-assisted Python and Pandas workflows","automated exploratory analysis and insight discovery","AI-supported chart selection and narrative drafting","hallucination detection and validating outputs against source data","privacy, sensitive data handling and reproducibility"], searchQueries:["AI powered data analysis ChatGPT Copilot SQL Python Pandas complete tutorial","using generative AI for data analytics practical workflow validation"], courseDuration:{minMinutes:240,targetMinutes:360,maxMinutes:600}, practiceProject:"Use an AI-assisted workflow to analyze a business dataset, independently validate every metric, and publish an audit-ready insight report", projectPlacement:"skill" },
     { id:"business-insights-storytelling", name:"Business Metrics and Data Storytelling", category:"Business Analytics", topics:["business questions and hypotheses","KPIs and metric definitions","funnel and cohort analysis","revenue and retention metrics","root-cause analysis","communicating uncertainty","writing executive summaries","recommendations and impact"], searchQueries:["business analytics KPIs data storytelling complete course for data analysts","data analysis business case study end to end tutorial"], courseDuration:{minMinutes:180,targetMinutes:300,maxMinutes:480}, practiceProject:"Turn analysis findings into a concise stakeholder recommendation", projectPlacement:"skill" }
   ];
   const matches = (stage, skill) => {
@@ -678,7 +681,10 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
     if (stage.id === "python-for-analytics") return /python/.test(n);
     if (stage.id === "numpy-pandas") return /pandas|numpy/.test(n);
     if (stage.id === "exploratory-data-analysis") return /exploratory|data cleaning|\beda\b/.test(n);
-    if (stage.id === "data-visualization-bi") return /visualization|power bi|tableau|business intelligence/.test(n);
+    if (stage.id === "data-visualization-bi") return /data visualization and storytelling/.test(n);
+    if (stage.id === "power-bi-analytics") return /power bi/.test(n);
+    if (stage.id === "tableau-analytics") return /tableau/.test(n);
+    if (stage.id === "ai-powered-data-analysis") return /ai.?powered data analysis|artificial intelligence.*data analysis/.test(n);
     if (stage.id === "business-insights-storytelling") return /business analytics|data storytelling|business metrics/.test(n);
     return false;
   };
@@ -731,7 +737,7 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
     ai.title = "Data Analytics Complete Career Path";
     ai.canonicalTopic = "Data Analytics";
     ai.category = "Data Analytics";
-    ai.description = "A complete, prerequisite-ordered Data Analytics course covering spreadsheets, SQL, statistics, Python, data cleaning, visualization, business insights, and portfolio projects.";
+    ai.description = "A complete, prerequisite-ordered Data Analytics course covering Excel, SQL, statistics, Python, data cleaning, exploratory analysis, Power BI, Tableau, AI-powered analytics, business insights, and portfolio projects.";
     ai.careerOutcome = "Build job-ready data analysis skills and a portfolio of evidence-based business insights.";
     const existingCapstones = Array.isArray(ai.capstoneProjects) ? ai.capstoneProjects : [];
     if (!existingCapstones.length) {
@@ -743,7 +749,8 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
           "Define a business question and measurable KPIs",
           "Document, clean, and validate a real dataset",
           "Use SQL and/or Python with Pandas to analyze the data",
-          "Build an interactive Power BI or Tableau dashboard",
+          "Build an interactive Power BI dashboard and a separate Tableau dashboard",
+          "Use AI tools to accelerate analysis while validating every output against source data",
           "Explain trends, segments, risks, and limitations",
           "Present prioritized recommendations in an executive summary"
         ],
@@ -769,7 +776,7 @@ function ensureDataAnalyticsStages(skills, topic, ai) {
           "Check that dashboard filters and calculations work",
           "Document assumptions and analytical limitations"
         ],
-        industrySkills: ["Excel", "SQL", "Python", "Pandas", "Statistics", "Power BI or Tableau", "Data storytelling", "GitHub documentation"],
+        industrySkills: ["Excel", "SQL", "Python", "Pandas", "Statistics", "Power BI", "Tableau", "AI-assisted analysis", "Data storytelling", "GitHub documentation"],
         githubWorkflow: ["Create a repository with a clear README", "Commit SQL scripts and notebooks", "Document dataset provenance and setup", "Include dashboard screenshots", "Publish findings and limitations"],
         videoSearchQueries: ["end to end data analytics project SQL Excel Python Power BI full tutorial", "data analyst portfolio capstone real dataset dashboard business insights"]
       }];
@@ -1149,13 +1156,15 @@ export async function buildCourse(ai, { topic, level, studyTimeMinutesPerDay, go
       verifiedSyllabusUnits = [];
     }
   }
+  // Core skill modules already form the complete learning path. Appending a
+  // second generic "Learn" module repeats the same skills in abbreviated form.
   const goalModule = goal === "job_ready"
     ? buildInterviewModule(goalProfile)
     : goal === "exam"
       ? buildExamModules(goalProfile, { syllabusUnits: verifiedSyllabusUnits })
       : goal === "project"
         ? buildProjectModule(goalProfile)
-        : buildLearnModule(goalProfile, activeSkills);
+        : null;
   if (goalModule) {
     goalModule.order = modules.length + 1;
     modules.push(goalModule);
@@ -1291,6 +1300,8 @@ function normalizeGeminiProviderError(error) {
   if (status !== 429) return error;
 
   const providerMessage = String(error?.message || "");
+  const providerEnvelope = /"error"\s*:\s*\{/.test(providerMessage) || /RESOURCE_EXHAUSTED|generativelanguage|googleapis/i.test(providerMessage);
+  if (!providerEnvelope) return error;
   const quotaFailure = /quota|resource_exhausted|generate_content.*requests/i.test(providerMessage);
   const normalized = new Error(quotaFailure
     ? "Gemini's daily generation quota has been exhausted for the platform's shared API key. This is not your account's AI allowance. Please retry after the provider quota resets."

@@ -3,6 +3,7 @@ import { Enrollment } from "../models/Enrollment.js";
 import { cacheGet, cacheSet, cacheDelete } from "../config/cache.js";
 import { buildTopicKeys } from "./generatedCourseCache.service.js";
 import { curateNormalSearch } from "./courseCurationDecisionEngine.service.js";
+import { PlatformSetting } from "../models/PlatformSetting.js";
 import { evaluateCourseReadiness } from "../utils/courseReadiness.js";
 
 const COURSE_RATING_LOOKUP_STAGE = {

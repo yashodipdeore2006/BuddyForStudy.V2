@@ -63,6 +63,13 @@ async function buildResourceQualityFailure(quality) {
 }
 
 function serializeRoadmapFailure(error) {
+  if (error?.code === "AI_PROVIDER_RATE_LIMITED") {
+    return {
+      errorCode: "AI_PROVIDER_RATE_LIMITED",
+      errorMessage: "Gemini is temporarily rate-limiting generation requests for the platform's shared API key. This is not your account's AI allowance. Please retry shortly.",
+      errorDetails: { code: "AI_PROVIDER_RATE_LIMITED", provider: "gemini", retryable: true }
+    };
+  }
   if (error?.code === "AI_PROVIDER_QUOTA_EXHAUSTED") {
     return {
       errorCode: "AI_PROVIDER_QUOTA_EXHAUSTED",

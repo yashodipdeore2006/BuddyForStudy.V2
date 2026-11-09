@@ -1,3 +1,4 @@
+import { resolveAiQuotaUpgradeFeature } from "@/lib/aiQuotaGate";
 // During local Vite development, use the same-origin /api proxy. Production must
 // receive an explicit public API origin at build time; silently falling back to
 // localhost would ship a frontend that cannot reach the deployed backend.
@@ -165,11 +166,7 @@ export async function apiFetch<T = ApiResponse>(path: string, options: ApiFetchO
         : response.status === 429 && limitKey === 'ai_curated_courses_per_month'
           ? 'priority_recommendations'
           : '';
-      const aiQuotaFeature = response.status === 429 &&
-        entitlementDetails?.feature === "advanced_ai_paths" &&
-        ["advanced_ai_insights_per_month", "advanced_ai_questions_per_month"].includes(String(entitlementDetails?.limitKey || ""))
-        ? "advanced_ai_paths"
-        : "";
+      const aiQuotaFeature = resolveAiQuotaUpgradeFeature(response.status, entitlementDetails);
       const isPlanLimitDenial = (Boolean(quotaFeature) && /plan(?:'s|’s) monthly course allowance/i.test(serverMessage)) || Boolean(aiQuotaFeature);
       const isPlanGate = isEntitlementDenial || isPlanLimitDenial;
       if (showFeatureUpgrade && isPlanGate) {

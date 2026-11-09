@@ -9,6 +9,7 @@ const router = Router();
 router.get("/", optionalAuthMiddleware, requireFeatureIfAuthenticated("course_search"), controller.list);
 router.get("/search", optionalAuthMiddleware, requireFeatureIfAuthenticated("course_search"), controller.search);
 router.get("/:courseId/roadmap", optionalAuthMiddleware, journeyController.get);
+router.post("/:courseId/learn/:itemId/resources/retry", authMiddleware, requireCourseOrFeature("published_courses"), controller.retryLearningItemResource);
 router.get("/:courseId/learn/:itemId", authMiddleware, requireCourseOrFeature("published_courses"), controller.learningItem);
 router.get("/:courseId/learn", authMiddleware, requireCourseOrFeature("published_courses"), controller.learn);
 router.get("/:courseId", optionalAuthMiddleware, controller.details);

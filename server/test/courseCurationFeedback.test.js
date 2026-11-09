@@ -81,3 +81,9 @@ test("feedback model enforces unique sparse submission IDs", () => {
     keys.submissionId === 1 && options.unique === true && options.sparse === true
   ));
 });
+
+
+test("feedback model accepts the not_sure learner response", () => {
+  const eventPath = CourseCurationFeedback.schema.path("event");
+  assert.ok(eventPath.enumValues.includes("not_sure"));
+});

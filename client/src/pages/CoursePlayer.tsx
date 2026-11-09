@@ -176,7 +176,7 @@ export default function CoursePlayer() {
   const [curationFeedbackError, setCurationFeedbackError] = useState("");
   const [curationFeedbackNotice, setCurationFeedbackNotice] = useState("");
   const [curationFeedbackRetry, setCurationFeedbackRetry] = useState<{
-    event: "helpful" | "outdated" | "wrong_level";
+    event: "helpful" | "outdated" | "wrong_level" | "not_sure";
     video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number];
   } | null>(null);
   const curationFeedbackInFlightRef = useRef(new Set<string>());
@@ -185,6 +185,7 @@ export default function CoursePlayer() {
   const curationFeedbackSubmissionIdsRef = useRef(new Map<string, string>());
   const [curationFeedbackInFlightKeys, setCurationFeedbackInFlightKeys] = useState<Set<string>>(() => new Set());
   const [curationFeedbackSentKeys, setCurationFeedbackSentKeys] = useState<Set<string>>(() => new Set());
+  const [curationFeedbackDismissedKeys, setCurationFeedbackDismissedKeys] = useState<Set<string>>(() => new Set());
   const [lessonTab, setLessonTab] = useState<"lesson" | "progress" | "quiz" | "notes">("lesson");
   const [noteTimestamp, setNoteTimestamp] = useState("");
   const [pausedTimestampSeconds, setPausedTimestampSeconds] = useState<number | null>(null);
@@ -206,7 +207,7 @@ export default function CoursePlayer() {
     [course, lessonId]
   );
   const activeLessonCompletedRef = useRef(false);
-  const sendPlayerCurationFeedback = useCallback(async (event: "helpful" | "outdated" | "wrong_level" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
+  const sendPlayerCurationFeedback = useCallback(async (event: "helpful" | "outdated" | "wrong_level" | "not_sure" | "completed" | "abandoned", video: NonNullable<NonNullable<Course["modules"][number]["lessons"][number]["tutorial"]>["videos"]>[number]) => {
     if (!video?.videoId || !courseId || !currentLesson) return;
     const moduleMeta = currentLesson.module as typeof currentLesson.module & { canonicalSkillId?: string; skillIds?: string[] };
     const key = [event, courseId, video.videoId].join(":");
@@ -220,7 +221,8 @@ export default function CoursePlayer() {
       curationFeedbackSubmissionIdsRef.current.set(key, submissionId);
     }
 
-    const isLearnerFeedback = event === "helpful" || event === "outdated" || event === "wrong_level";
+    const isLearnerFeedback = event === "helpful" || event === "outdated" || event === "wrong_level" || event === "not_sure";
+    if (isLearnerFeedback) setCurationFeedbackDismissedKeys((current) => new Set(current).add(key));
     curationFeedbackInFlightRef.current.add(key);
     setCurationFeedbackInFlightKeys((current) => new Set(current).add(key));
     try {
@@ -1082,19 +1084,25 @@ export default function CoursePlayer() {
                       )}
                     {currentLesson.lesson.type === "tutorial" && activeVideo?.videoId && (
                       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3 text-xs text-slate-300">
-                        <span>Is this resource useful?</span>
-                        <div className="flex gap-2">
-                          <button type="button" disabled={curationFeedbackInFlightKeys.has("helpful:" + courseId + ":" + activeVideo!.videoId) || curationFeedbackSentKeys.has("helpful:" + courseId + ":" + activeVideo!.videoId)} onClick={() => void sendPlayerCurationFeedback("helpful", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Helpful</button>
-                          <button type="button" disabled={curationFeedbackInFlightKeys.has("outdated:" + courseId + ":" + activeVideo!.videoId) || curationFeedbackSentKeys.has("outdated:" + courseId + ":" + activeVideo!.videoId)} onClick={() => void sendPlayerCurationFeedback("outdated", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Outdated</button>
-                          <button type="button" disabled={curationFeedbackInFlightKeys.has("wrong_level:" + courseId + ":" + activeVideo!.videoId) || curationFeedbackSentKeys.has("wrong_level:" + courseId + ":" + activeVideo!.videoId)} onClick={() => void sendPlayerCurationFeedback("wrong_level", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Wrong level</button>
-                        </div>
+                        {!["helpful", "outdated", "wrong_level", "not_sure"].some((event) => curationFeedbackDismissedKeys.has(event + ":" + courseId + ":" + activeVideo.videoId)) ? (
+                          <>
+                            <span>Was this video useful?</span>
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" onClick={() => void sendPlayerCurationFeedback("helpful", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Helpful</button>
+                              <button type="button" onClick={() => void sendPlayerCurationFeedback("outdated", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Outdated</button>
+                              <button type="button" onClick={() => void sendPlayerCurationFeedback("wrong_level", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Wrong level</button>
+                              <button type="button" onClick={() => void sendPlayerCurationFeedback("not_sure", activeVideo!)} className="rounded-full border border-slate-700 px-3 py-1.5 hover:bg-slate-800">Not sure</button>
+                            </div>
+                          </>
+                        ) : null}
+                        {["helpful", "outdated", "wrong_level", "not_sure"].some((event) => curationFeedbackInFlightKeys.has(event + ":" + courseId + ":" + activeVideo.videoId)) ? (
+                          <p role="status" className="basis-full pt-2 text-xs text-slate-300">Sending feedback…</p>
+                        ) : null}
                         {curationFeedbackError && (
                           <p role="alert" className="basis-full pt-2 text-xs text-rose-300">
                             {curationFeedbackError}{" "}
                             {curationFeedbackRetry && (
-                              <button type="button" onClick={() => void sendPlayerCurationFeedback(curationFeedbackRetry.event, curationFeedbackRetry.video)} className="ml-2 underline underline-offset-2 hover:text-white">
-                                Retry feedback
-                              </button>
+                              <button type="button" onClick={() => void sendPlayerCurationFeedback(curationFeedbackRetry.event, curationFeedbackRetry.video)} className="ml-2 underline underline-offset-2 hover:text-white">Retry feedback</button>
                             )}
                           </p>
                         )}

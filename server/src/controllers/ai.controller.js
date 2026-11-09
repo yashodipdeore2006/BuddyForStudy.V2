@@ -148,6 +148,19 @@ export async function generateRoadmap(req, res, next) {
       ).catch(() => {});
     }
     if (e instanceof z.ZodError) return failure(res, "Validation failed", 400, e.flatten().fieldErrors);
+    if (e?.code === "AI_USAGE_LIMIT") {
+      return failure(
+        res,
+        e.message || "You have reached your monthly AI course-builder allowance.",
+        429,
+        {
+          code: "AI_USAGE_LIMIT",
+          feature: "ai_course_builder",
+          period: "month",
+          ...(e.details && typeof e.details === "object" ? e.details : {})
+        }
+      );
+    }
     if (["ROADMAP_USER_RATE_LIMIT", "ROADMAP_USER_QUEUE_LIMIT", "ROADMAP_QUEUE_FULL", "ROADMAP_ADMISSION_LEASE_LOST"].includes(e?.code)) {
       return failure(res, e.message, e.status || 503, { code: e.code, retryable: true });
     }

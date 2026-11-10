@@ -603,7 +603,13 @@ function durationFit(candidate, profile) {
   const seconds = Math.max(0, Number(candidate.durationSeconds) || 0);
   const hours = seconds / 3600;
   let runtimeScore;
-  if (profile.mode === "quick_reference") {
+  if (Number(profile.targetRuntimeSeconds) > 0) {
+    const targetHours = Number(profile.targetRuntimeSeconds) / 3600;
+    const ratio = targetHours > 0 ? hours / targetHours : 1;
+    // Prefer resources close to the AI lesson target while retaining a useful
+    // score for candidates that satisfy the required minimum.
+    runtimeScore = clamp(100 - Math.abs(1 - ratio) * 55);
+  } else if (profile.mode === "quick_reference") {
     runtimeScore = clamp(100 - hours * 60);
   } else if (profile.mode === "crash_course") {
     runtimeScore = clamp(100 - Math.abs(hours - 3) * 35);

@@ -20,6 +20,33 @@ export function findLessonsMissingVideoResources(course, lessonId = null) {
   return missing;
 }
 
+function lessonDurationPolicy(lesson) {
+  const tutorial = lesson?.tutorial || {};
+  const searchPolicy = tutorial.searchPolicy && typeof tutorial.searchPolicy === "object"
+    ? tutorial.searchPolicy
+    : {};
+  const duration = tutorial.durationMinutes && typeof tutorial.durationMinutes === "object"
+    ? tutorial.durationMinutes
+    : {};
+  const minMinutes = Math.max(1, Number(
+    searchPolicy.minDurationMinutes ?? duration.minMinutes
+  ) || 15);
+  const targetMinutes = Math.max(minMinutes, Number(
+    searchPolicy.targetDurationMinutes ?? duration.targetMinutes
+  ) || Math.max(30, minMinutes));
+  const maxMinutes = Math.max(targetMinutes, Number(
+    searchPolicy.maxDurationMinutes ?? duration.maxMinutes
+  ) || Math.max(180, targetMinutes));
+  return {
+    minMinutes,
+    targetMinutes,
+    maxMinutes,
+    minPlaylistMinutes: minMinutes,
+    minPlaylistItems: 2,
+    excludeShorts: searchPolicy.excludeShorts !== false
+  };
+}
+
 function resourceProfile(course) {
   const snapshot = course?.generation?.snapshot || {};
   const intent = snapshot.intentProfile || snapshot.intent || {};
@@ -70,19 +97,11 @@ export async function recoverMissingTutorialResources(course, {
       result = await curate({
         skill,
         profile,
-        // Missing resources in a course advertised as complete need substantive
-        // instruction, not a short overview. The shared curation engine also
-        // scores topic coverage, relevance, channel quality and recency.
-        // A playlist may satisfy the lesson with multiple videos; a single video
-        // must meet the same minimum runtime.
-        durationPolicy: {
-          minMinutes: 15,
-          targetMinutes: 30,
-          maxMinutes: 180,
-          minPlaylistMinutes: 30,
-          minPlaylistItems: 2,
-          excludeShorts: true
-        },
+        // Use the AI's duration recommendation for this exact lesson. The course
+        // depth (Short / Medium / Complete) has already shaped these lesson-level
+        // targets during course generation; never substitute a course-wide
+        // duration for the runtime of one resource.
+        durationPolicy: lessonDurationPolicy(lesson),
         cacheScope: "course-resource-recovery"
       });
     } catch (error) {
@@ -97,11 +116,17 @@ export async function recoverMissingTutorialResources(course, {
 
     const best = result?.best;
     const isPlaylist = Boolean(best?.playlistId) || best?.sourceType === "playlist";
+    const durationPolicy = lessonDurationPolicy(lesson);
     const runtimeSeconds = Math.max(0, Number(best?.durationSeconds) || 0);
     const playlistItems = Array.isArray(best?.items) ? best.items : [];
+    const minimumRuntimeSeconds = durationPolicy.minMinutes * 60;
+    const maximumRuntimeSeconds = durationPolicy.maxMinutes * 60;
     const meetsResourceThreshold = isPlaylist
-      ? playlistItems.length >= 2 && runtimeSeconds >= 30 * 60
-      : runtimeSeconds >= 15 * 60 && runtimeSeconds <= 180 * 60 && !best?.isShort;
+      ? playlistItems.length >= durationPolicy.minPlaylistItems &&
+        runtimeSeconds >= durationPolicy.minPlaylistMinutes * 60
+      : runtimeSeconds >= minimumRuntimeSeconds &&
+        runtimeSeconds <= maximumRuntimeSeconds &&
+        (!durationPolicy.excludeShorts || !best?.isShort);
 
     if (!best || (!String(best.videoId || "").trim() && !String(best.playlistId || "").trim()) || !meetsResourceThreshold) {
       summary.unavailable += 1;

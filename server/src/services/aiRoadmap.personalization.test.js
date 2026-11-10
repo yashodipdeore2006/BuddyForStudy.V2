@@ -262,3 +262,25 @@ test("Data Science topic fallback retains the selected short, medium or complete
   assert.equal(short.course.duration, "~12 learning hours · self-paced");
   assert.equal(short.personalization.estimatedStudyMinutes, 720);
 });
+
+
+test("Short and Medium course depth allocate the selected total learning-time targets", () => {
+  const source = Array.from({ length: 12 }, (_, index) => ({
+    id: "stage-" + index,
+    name: "Stage " + index,
+    courseDuration: { minMinutes: 60, targetMinutes: 180 + index * 30, maxMinutes: 360 + index * 30 }
+  }));
+  const short = __aiRoadmapTestHooks.applyCourseDepthPlan(source, "short");
+  const medium = __aiRoadmapTestHooks.applyCourseDepthPlan(source, "medium");
+  assert.equal(short.length, 5);
+  assert.equal(short.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0), 8 * 60 + 4 * 60);
+  assert.equal(medium.length, 9);
+  assert.equal(medium.reduce((sum, skill) => sum + skill.courseDuration.targetMinutes, 0), 35 * 60);
+});
+
+test("Complete Data Science depth keeps its subject-specific comprehensive duration", () => {
+  const stages = __aiRoadmapTestHooks.ensureDataScienceStages([], "Data Science", {});
+  const totalMinutes = stages.reduce((sum, stage) => sum + stage.courseDuration.targetMinutes, 0);
+  assert.ok(totalMinutes >= 70 * 60);
+  assert.ok(totalMinutes <= 100 * 60);
+});

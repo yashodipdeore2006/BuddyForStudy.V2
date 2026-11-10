@@ -4,7 +4,7 @@ import { curateForNode } from "./nodeCuration.service.js";
 
 function hasPlayableVideo(lesson) {
   return (lesson?.tutorial?.videos || []).some((video) =>
-    String(video?.videoId || "").trim()
+    String(video?.videoId || video?.playlistId || "").trim()
   );
 }
 
@@ -18,6 +18,33 @@ export function findLessonsMissingVideoResources(course, lessonId = null) {
     }
   }
   return missing;
+}
+
+function lessonDurationPolicy(lesson) {
+  const tutorial = lesson?.tutorial || {};
+  const searchPolicy = tutorial.searchPolicy && typeof tutorial.searchPolicy === "object"
+    ? tutorial.searchPolicy
+    : {};
+  const duration = tutorial.durationMinutes && typeof tutorial.durationMinutes === "object"
+    ? tutorial.durationMinutes
+    : {};
+  const minMinutes = Math.max(1, Number(
+    searchPolicy.minDurationMinutes ?? duration.minMinutes
+  ) || 15);
+  const targetMinutes = Math.max(minMinutes, Number(
+    searchPolicy.targetDurationMinutes ?? duration.targetMinutes
+  ) || Math.max(30, minMinutes));
+  const maxMinutes = Math.max(targetMinutes, Number(
+    searchPolicy.maxDurationMinutes ?? duration.maxMinutes
+  ) || Math.max(180, targetMinutes));
+  return {
+    minMinutes,
+    targetMinutes,
+    maxMinutes,
+    minPlaylistMinutes: minMinutes,
+    minPlaylistItems: 2,
+    excludeShorts: searchPolicy.excludeShorts !== false
+  };
 }
 
 function resourceProfile(course) {
@@ -70,9 +97,11 @@ export async function recoverMissingTutorialResources(course, {
       result = await curate({
         skill,
         profile,
-        // A lesson video can be a concise 1-4 minute explanation. The
-        // learner's overall study-plan duration must not reject those resources.
-        durationPolicy: { minMinutes: 1, targetMinutes: 15, maxMinutes: 180 },
+        // Use the AI's duration recommendation for this exact lesson. The course
+        // depth (Short / Medium / Complete) has already shaped these lesson-level
+        // targets during course generation; never substitute a course-wide
+        // duration for the runtime of one resource.
+        durationPolicy: lessonDurationPolicy(lesson),
         cacheScope: "course-resource-recovery"
       });
     } catch (error) {
@@ -86,7 +115,20 @@ export async function recoverMissingTutorialResources(course, {
     }
 
     const best = result?.best;
-    if (!best || !String(best.videoId || "").trim()) {
+    const isPlaylist = Boolean(best?.playlistId) || best?.sourceType === "playlist";
+    const durationPolicy = lessonDurationPolicy(lesson);
+    const runtimeSeconds = Math.max(0, Number(best?.durationSeconds) || 0);
+    const playlistItems = Array.isArray(best?.items) ? best.items : [];
+    const minimumRuntimeSeconds = durationPolicy.minMinutes * 60;
+    const maximumRuntimeSeconds = durationPolicy.maxMinutes * 60;
+    const meetsResourceThreshold = isPlaylist
+      ? playlistItems.length >= durationPolicy.minPlaylistItems &&
+        runtimeSeconds >= durationPolicy.minPlaylistMinutes * 60
+      : runtimeSeconds >= minimumRuntimeSeconds &&
+        runtimeSeconds <= maximumRuntimeSeconds &&
+        (!durationPolicy.excludeShorts || !best?.isShort);
+
+    if (!best || (!String(best.videoId || "").trim() && !String(best.playlistId || "").trim()) || !meetsResourceThreshold) {
       summary.unavailable += 1;
       summary.remainingLessonIds.push(String(lesson._id || lesson.id));
       if (result?.meta?.state === "quota_limited" || result?.meta?.quotaState === "exhausted") {
@@ -113,7 +155,11 @@ export async function recoverMissingTutorialResources(course, {
       alternatives
     };
     lesson.tutorial.videos = [video];
-    const videoUrl = String(best.url || (best.videoId ? "https://www.youtube.com/watch?v=" + best.videoId : "")).trim();
+    const videoUrl = String(best.url || (best.videoId
+      ? "https://www.youtube.com/watch?v=" + best.videoId
+      : best.playlistId
+        ? "https://www.youtube.com/playlist?list=" + best.playlistId
+        : "")).trim();
     if (videoUrl && !(lesson.tutorial.resources || []).includes(videoUrl)) {
       lesson.tutorial.resources = [...(lesson.tutorial.resources || []), videoUrl];
     }

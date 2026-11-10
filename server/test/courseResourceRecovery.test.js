@@ -79,7 +79,52 @@ test("resource recovery attaches the selected resource and invalidates the cours
   assert.deepEqual(calls[0].skill.topics, ["INNER JOIN", "LEFT JOIN", "SQL Joins"]);
   assert.ok(calls[0].skill.searchQueries.includes("SQL Joins INNER JOIN LEFT JOIN tutorial"));
   assert.equal(calls[0].skill.searchQueries[0], "SQL Joins INNER JOIN LEFT JOIN tutorial");
-  assert.equal(calls[0].durationPolicy.minMinutes, 1, "short lesson explanations must not be rejected by a five-minute floor");
+  assert.equal(calls[0].durationPolicy.minMinutes, 15);
+  assert.equal(calls[0].durationPolicy.targetMinutes, 30);
+  assert.equal(calls[0].durationPolicy.maxMinutes, 180);
+  assert.equal(calls[0].durationPolicy.minPlaylistMinutes, 15);
+  assert.equal(calls[0].durationPolicy.minPlaylistItems, 2);
+  assert.equal(calls[0].durationPolicy.excludeShorts, true);
+});
+
+test("resource recovery rejects a 10-minute video instead of marking the lesson complete", async () => {
+  const { course, recovered } = fakeCourse();
+  const summary = await recoverMissingTutorialResources(course, {
+    curate: async () => ({
+      best: { videoId: "too-short", title: "Quick ML overview", durationSeconds: 10 * 60 },
+      alternatives: [],
+      meta: { state: "ready", lowConfidence: false }
+    }),
+    invalidateCache: async () => {}
+  });
+  assert.equal(summary.recovered, 0);
+  assert.equal(summary.unavailable, 1);
+  assert.equal(recovered.tutorial.videos.length, 0);
+  assert.equal(recovered.buildState, "queued");
+  assert.equal(course.saved, false);
+});
+
+test("resource recovery accepts a qualifying multi-video playlist", async () => {
+  const { course, recovered } = fakeCourse();
+  const summary = await recoverMissingTutorialResources(course, {
+    curate: async () => ({
+      best: {
+        playlistId: "ml-playlist",
+        sourceType: "playlist",
+        title: "Machine Learning complete lessons",
+        durationSeconds: 45 * 60,
+        items: [
+          { videoId: "ml-1", durationSeconds: 20 * 60 },
+          { videoId: "ml-2", durationSeconds: 25 * 60 }
+        ]
+      },
+      alternatives: [],
+      meta: { state: "ready", lowConfidence: false }
+    }),
+    invalidateCache: async () => {}
+  });
+  assert.equal(summary.recovered, 1);
+  assert.equal(recovered.tutorial.videos[0].playlistId, "ml-playlist");
 });
 
 test("resource recovery stops after YouTube quota exhaustion and leaves lessons retryable", async () => {
@@ -97,4 +142,57 @@ test("resource recovery stops after YouTube quota exhaustion and leaves lessons 
   assert.equal(summary.recovered, 0);
   assert.equal(recovered.buildState, "queued");
   assert.equal(course.saved, false);
+});
+
+
+test("resource recovery passes the AI-generated lesson duration policy to curation", async () => {
+  const { course, recovered } = fakeCourse();
+  recovered.tutorial.searchPolicy = {
+    minDurationMinutes: 45,
+    targetDurationMinutes: 90,
+    maxDurationMinutes: 150,
+    excludeShorts: true
+  };
+  let receivedPolicy;
+  const summary = await recoverMissingTutorialResources(course, {
+    curate: async ({ durationPolicy }) => {
+      receivedPolicy = durationPolicy;
+      return {
+        best: {
+          videoId: "ml-deep-dive",
+          title: "Machine Learning Full Lesson",
+          durationSeconds: 90 * 60
+        },
+        alternatives: [],
+        meta: { state: "ready", lowConfidence: false }
+      };
+    },
+    invalidateCache: async () => {}
+  });
+  assert.deepEqual(receivedPolicy, {
+    minMinutes: 45,
+    targetMinutes: 90,
+    maxMinutes: 150,
+    minPlaylistMinutes: 45,
+    minPlaylistItems: 2,
+    excludeShorts: true
+  });
+  assert.equal(summary.recovered, 1);
+  assert.equal(recovered.tutorial.videos[0].videoId, "ml-deep-dive");
+});
+
+test("resource recovery rejects a resource below the AI lesson minimum", async () => {
+  const { course, recovered } = fakeCourse();
+  recovered.tutorial.durationMinutes = { minMinutes: 60, targetMinutes: 90, maxMinutes: 120 };
+  const summary = await recoverMissingTutorialResources(course, {
+    curate: async () => ({
+      best: { videoId: "too-short-for-lesson", durationSeconds: 30 * 60 },
+      alternatives: [],
+      meta: { state: "ready", lowConfidence: false }
+    }),
+    invalidateCache: async () => {}
+  });
+  assert.equal(summary.recovered, 0);
+  assert.equal(summary.unavailable, 1);
+  assert.equal(recovered.tutorial.videos.length, 0);
 });

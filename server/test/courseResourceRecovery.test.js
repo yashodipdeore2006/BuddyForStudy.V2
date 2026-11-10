@@ -85,6 +85,7 @@ test("resource recovery attaches the selected resource and invalidates the cours
   assert.equal(calls[0].durationPolicy.minPlaylistMinutes, 15);
   assert.equal(calls[0].durationPolicy.minPlaylistItems, 2);
   assert.equal(calls[0].durationPolicy.excludeShorts, true);
+  assert.equal(calls[0].forceRefresh, true);
 });
 
 test("resource recovery rejects a 10-minute video instead of marking the lesson complete", async () => {

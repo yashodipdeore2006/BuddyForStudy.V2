@@ -16,7 +16,7 @@ test("BuddyForStudy email shell uses the product brand and a responsive email-sa
   assert.match(html, /role="presentation"/);
   assert.match(html, /max-width:600px/);
   assert.match(html, /Welcome to BuddyForStudy/);
-  assert.match(html, /https://buddyforstudy\.in/);
+  assert.match(html, /https:\/\/buddyforstudy\.in/);
   assert.match(html, /<h1>Welcome<\/h1>/);
 });
 

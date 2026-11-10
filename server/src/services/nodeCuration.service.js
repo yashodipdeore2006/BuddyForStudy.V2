@@ -31,13 +31,15 @@ function durationBounds(durationPolicy = {}) {
   const mode = targetMinutes >= 180 ? "full_course" : targetMinutes >= 60 ? "crash_course" : "quick_reference";
   return {
     mode,
-    // Study-plan duration is not a minimum length for one YouTube lesson.
-    minVideoSeconds: Math.min(minMinutes * 60, 30 * 60),
+    // These are lesson-resource bounds, not whole-course study hours. Respect
+    // the AI's per-lesson minimum instead of silently capping it at 30 minutes.
+    minVideoSeconds: minMinutes * 60,
     maxVideoSeconds: maxMinutes * 60,
-    minPlaylistSeconds: Math.min(
-      Math.max(minMinutes, Number(durationPolicy.minPlaylistMinutes) || minMinutes) * 60,
-      180 * 60
-    ),
+    minPlaylistSeconds: Math.max(
+      minMinutes,
+      Number(durationPolicy.minPlaylistMinutes) || minMinutes
+    ) * 60,
+    targetRuntimeSeconds: targetMinutes * 60,
     minPlaylistItems: Math.max(
       1,
       Number(durationPolicy.minPlaylistItems) || (mode === "full_course" ? 3 : 2)

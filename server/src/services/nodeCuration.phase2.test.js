@@ -52,7 +52,7 @@ after(() => {
 test("duration policy maps to bounded modes and limits", () => {
   assert.deepEqual(hooks.durationBounds({ minMinutes: 30, targetMinutes: 180, maxMinutes: 240 }), {
     mode: "full_course", minVideoSeconds: 1800, maxVideoSeconds: 14400,
-    minPlaylistSeconds: 1800, minPlaylistItems: 3, halfLifeDays: undefined
+    minPlaylistSeconds: 1800, minPlaylistItems: 3, excludeShorts: false, targetRuntimeSeconds: 10800, halfLifeDays: undefined
   });
   assert.equal(hooks.durationBounds({ minMinutes: 10, targetMinutes: 59, maxMinutes: 59 }).mode, "quick_reference");
   assert.equal(hooks.durationBounds({ minMinutes: 30, targetMinutes: 60, maxMinutes: 90 }).mode, "crash_course");
@@ -85,8 +85,8 @@ test("duration policy performs one bounded search without widening or retrying",
     });
     assert.equal(calls, 1, "a failed node must not launch a second quota-consuming search");
     assert.equal(result.best, null, "a selector response below the minimum runtime must never be attached");
-    assert.equal(observed[0].minVideoSeconds, 1800);
-    assert.equal(observed[0].minPlaylistSeconds, 2700);
+    assert.equal(observed[0].minVideoSeconds, 3600);
+    assert.equal(observed[0].minPlaylistSeconds, 3600);
     assert.equal(observed[0].minPlaylistItems, 2);
   } finally {
     setSelector(null);

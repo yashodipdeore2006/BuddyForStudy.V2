@@ -4,7 +4,7 @@ import { curateForNode } from "./nodeCuration.service.js";
 
 function hasPlayableVideo(lesson) {
   return (lesson?.tutorial?.videos || []).some((video) =>
-    String(video?.videoId || "").trim()
+    String(video?.videoId || video?.playlistId || "").trim()
   );
 }
 
@@ -130,7 +130,11 @@ export async function recoverMissingTutorialResources(course, {
       alternatives
     };
     lesson.tutorial.videos = [video];
-    const videoUrl = String(best.url || (best.videoId ? "https://www.youtube.com/watch?v=" + best.videoId : "")).trim();
+    const videoUrl = String(best.url || (best.videoId
+      ? "https://www.youtube.com/watch?v=" + best.videoId
+      : best.playlistId
+        ? "https://www.youtube.com/playlist?list=" + best.playlistId
+        : "")).trim();
     if (videoUrl && !(lesson.tutorial.resources || []).includes(videoUrl)) {
       lesson.tutorial.resources = [...(lesson.tutorial.resources || []), videoUrl];
     }

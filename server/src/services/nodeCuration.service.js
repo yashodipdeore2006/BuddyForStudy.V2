@@ -34,8 +34,15 @@ function durationBounds(durationPolicy = {}) {
     // Study-plan duration is not a minimum length for one YouTube lesson.
     minVideoSeconds: Math.min(minMinutes * 60, 30 * 60),
     maxVideoSeconds: maxMinutes * 60,
-    minPlaylistSeconds: Math.min(minMinutes * 60, 45 * 60),
-    minPlaylistItems: mode === "full_course" ? 3 : mode === "crash_course" ? 2 : 2,
+    minPlaylistSeconds: Math.min(
+      Math.max(minMinutes, Number(durationPolicy.minPlaylistMinutes) || minMinutes) * 60,
+      180 * 60
+    ),
+    minPlaylistItems: Math.max(
+      1,
+      Number(durationPolicy.minPlaylistItems) || (mode === "full_course" ? 3 : 2)
+    ),
+    excludeShorts: Boolean(durationPolicy.excludeShorts),
     halfLifeDays: Number(durationPolicy.halfLifeDays) > 0 ? Number(durationPolicy.halfLifeDays) : undefined
   };
 }
@@ -156,9 +163,12 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
       const runtime = Math.max(0, Number(resource?.durationSeconds) || 0);
       if (isPlaylist) {
         const itemCount = Number(resource?.itemCount || resource?.items?.length || 0);
-        return itemCount >= bounds.minPlaylistItems && runtime >= bounds.minPlaylistSeconds;
+        const playableItems = Array.isArray(resource?.items) ? resource.items : [];
+        const hasShortItems = bounds.excludeShorts && playableItems.some((item) => item?.isShort);
+        return !hasShortItems && itemCount >= bounds.minPlaylistItems && runtime >= bounds.minPlaylistSeconds;
       }
-      return runtime >= bounds.minVideoSeconds && runtime <= bounds.maxVideoSeconds;
+      return (!bounds.excludeShorts || !resource?.isShort) &&
+        runtime >= bounds.minVideoSeconds && runtime <= bounds.maxVideoSeconds;
     });
     let resources = filterByDurationPolicy(result?.resources);
     // Do not repeat provider searches for a node that returned no qualified match.

@@ -103,3 +103,45 @@ test("email delivery is suppressed when platform email delivery is disabled", as
   assert.deepEqual(result, { status: "skipped" });
   assert.equal(sendCalls, 0);
 });
+
+
+test("transactional notification emails are wrapped in the BuddyForStudy brand shell", async () => {
+  let sentMessage;
+  const updates = [];
+  const notification = {
+    _id: "507f1f77bcf86cd799439015",
+    type: "billing",
+    title: "Payment received",
+    message: "Your payment was confirmed",
+    link: "/billing",
+    emailSubject: "Your BuddyForStudy receipt",
+    emailHtml: "<h1>Payment received</h1><p>Thank you for your purchase.</p>",
+    emailAttempts: 1,
+    user: { _id: "507f1f77bcf86cd799439011", email: "learner@example.test" }
+  };
+
+  await withMocks([
+    [Notification, {
+      findOneAndUpdate: () => deliveryQuery(notification),
+      updateOne: async (_filter, update) => { updates.push(update); return { modifiedCount: 1 }; }
+    }],
+    [NotificationPreference, { findOne: () => ({ lean: async () => null }) }]
+  ], async () => {
+    const result = await dispatchEmail(notification._id, {
+      platform,
+      mailer: { sendMail: async (message) => {
+        sentMessage = message;
+        return { accepted: ["learner@example.test"], rejected: [] };
+      } }
+    });
+    assert.deepEqual(result, { status: "sent" });
+  });
+
+  assert.match(sentMessage.html, /BuddyForStudy/);
+  assert.match(sentMessage.html, /#1A1B41/i);
+  assert.match(sentMessage.html, /#8B5CF6/i);
+  assert.match(sentMessage.html, /Payment received/);
+  assert.match(sentMessage.text, /Payment received/);
+  assert.doesNotMatch(sentMessage.text, /<[^>]+>/);
+  assert.equal(updates.at(-1).$set.emailStatus, "sent");
+});

@@ -19,6 +19,19 @@ The notification system sends transactional billing messages, optional course up
 
 Billing/security messages are treated as transactional and are not controlled by optional course/announcement preferences. The global email delivery switch is an operational kill switch. In-app billing/security notices remain visible even when optional in-app updates are globally paused.
 
+## Branded email experience
+
+All server-generated email types use one shared BuddyForStudy email shell. It follows the product's indigo identity (`#1A1B41`) with a violet accent (`#8B5CF6`), a clear wordmark, a responsive table-based layout, a preheader, and a consistent footer. The layout is built with inline styles for common email-client compatibility and does not depend on externally hosted images.
+
+The shared layout is applied to:
+- Registration email verification OTPs.
+- Login verification OTPs.
+- Password-reset OTPs.
+- Transactional notification emails such as course enrollment/purchase, course completion, billing, refunds, subscription changes and learning reminders.
+- Email previews sent from Admin → Communications, so test sends match the actual branded delivery shell.
+
+Admin-managed email template content remains editable, but it is rendered inside the shared brand layout. OTP names are HTML-escaped, and generated email messages include both HTML and plain-text alternatives. Promotional unsubscribe links and one-click unsubscribe headers remain intact.
+
 ## Required deployment configuration
 
 Set these in the **server** environment (never commit actual secrets):

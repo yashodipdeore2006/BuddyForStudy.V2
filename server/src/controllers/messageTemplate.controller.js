@@ -10,6 +10,7 @@ import { failure, success } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { sanitizeAuditSnapshot } from "../utils/auditSanitizer.js";
 import { hasUnsafeEmailMarkup } from "../utils/safeHtml.js";
+import { emailHtmlToText, renderBrandedEmail } from "../utils/brandedEmail.js";
 
 const channels = new Set(["notification", "email", "announcement"]);
 const messageTypes = new Set(["system", "course", "billing", "promotion", "security"]);
@@ -203,7 +204,19 @@ export async function testSendMessageTemplate(req, res, next) {
       if (hasUnsafeEmailMarkup(preview.body)) { await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false, cause: "unsafe_markup" }, reason); return failure(res, "Rendered email contains unsafe HTML markup", 400); }
       const transport = nodemailer.createTransport({ host: env.smtpHost, port: env.smtpPort, secure: env.smtpSecure, auth: { user: env.smtpUser, pass: env.smtpPass } });
       try {
-        const result = await transport.sendMail({ from: env.mailFrom, to: actor.email, subject: preview.subject || preview.title || "BuddyForStudy template test", text: String(preview.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), html: preview.body });
+        const brandedHtml = renderBrandedEmail({
+          contentHtml: preview.body,
+          preheader: preview.subject || preview.title || "BuddyForStudy template preview",
+          appUrl: env.clientUrl,
+          footerNote: "This is a test message requested from the BuddyForStudy admin communications screen."
+        });
+        const result = await transport.sendMail({
+          from: env.mailFrom,
+          to: actor.email,
+          subject: preview.subject || preview.title || "BuddyForStudy template test",
+          text: emailHtmlToText(brandedHtml),
+          html: brandedHtml
+        });
         if (!mailRecipientAccepted(result, actor.email)) throw new Error("SMTP did not confirm acceptance");
       } catch (error) {
         await auditTemplate(req, "message_template.test_send_failed", template, null, { channel: template.channel, destination: "signed-in administrator", accepted: false }, reason);

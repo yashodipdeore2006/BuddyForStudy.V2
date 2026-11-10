@@ -96,7 +96,14 @@ export async function recoverMissingTutorialResources(course, {
     }
 
     const best = result?.best;
-    if (!best || !String(best.videoId || "").trim()) {
+    const isPlaylist = Boolean(best?.playlistId) || best?.sourceType === "playlist";
+    const runtimeSeconds = Math.max(0, Number(best?.durationSeconds) || 0);
+    const playlistItems = Array.isArray(best?.items) ? best.items : [];
+    const meetsResourceThreshold = isPlaylist
+      ? playlistItems.length >= 2 && runtimeSeconds >= 30 * 60
+      : runtimeSeconds >= 15 * 60 && runtimeSeconds <= 180 * 60 && !best?.isShort;
+
+    if (!best || (!String(best.videoId || "").trim() && !String(best.playlistId || "").trim()) || !meetsResourceThreshold) {
       summary.unavailable += 1;
       summary.remainingLessonIds.push(String(lesson._id || lesson.id));
       if (result?.meta?.state === "quota_limited" || result?.meta?.quotaState === "exhausted") {

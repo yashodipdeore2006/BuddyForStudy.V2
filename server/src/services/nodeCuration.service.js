@@ -120,7 +120,7 @@ function mapResource(resource, reason = "Selected by shared course curation engi
   };
 }
 
-export async function curateForNode({ skill, profile = {}, durationPolicy = {}, cacheScope = "" }) {
+export async function curateForNode({ skill, profile = {}, durationPolicy = {}, cacheScope = "", forceRefresh = false }) {
   const skillName = String(skill?.name || "").trim();
   if (skillName.length < 2) return { best: null, alternatives: [], meta: { cacheHit: false, searchCalls: 0, quotaUnits: 0, lowConfidence: true, state: "failed" } };
   const canonicalSkillId = String(skill.canonicalSkillId || skill.id || normalized(skillName).replace(/\s+/g, "-")).slice(0, 160);
@@ -134,7 +134,7 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
   const language = normalizeLanguageCode(profile.language || "en");
   const boundsHash = digest(JSON.stringify(bounds));
   const key = nodeCacheKey({ canonicalSkillId, mode: bounds.mode, level, language, boundsHash, cacheScope });
-  const cached = await readNodeCache(key);
+  const cached = forceRefresh ? null : await readNodeCache(key);
   if (cached) return { ...cached, meta: { ...cached.meta, cacheHit: true, searchCalls: 0, quotaUnits: 0 } };
 
   const selectorCacheScope = cacheScope
@@ -149,7 +149,8 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
     extraQueries,
     nodeType: "lesson",
     cacheScope: selectorCacheScope,
-    skillId: canonicalSkillId
+    skillId: canonicalSkillId,
+    forceRefresh
   });
   const requestMetrics = { requestId: `node:${canonicalSkillId}`, skillId: canonicalSkillId, searchCalls: 0, quotaUnits: 0 };
   let searchCalls = 0;

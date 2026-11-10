@@ -415,6 +415,51 @@ test("cached curation results remain available without calling YouTube providers
   }
 });
 
+
+test("forced lesson refresh bypasses cached empty results and candidate pools", async () => {
+  let videoSearchCalls = 0;
+  const cacheReads = [];
+  const cacheWrites = [];
+  __setCurationDecisionEngineAdaptersForTests({
+    getCache: async (key) => {
+      cacheReads.push(key);
+      if (key.includes(":curated-results:") || key.includes(":candidate-search:")) {
+        return key.includes(":curated-results:")
+          ? { resources: [], meta: { poolCandidates: 0, resultsShown: 0 } }
+          : { videos: [], playlists: [], youtubeError: "", cachedAt: new Date().toISOString() };
+      }
+      return null;
+    },
+    setCache: async (key, kind, payload) => cacheWrites.push({ key, kind, payload }),
+    getSearchResultCount: async () => ({ value: 5 }),
+    searchVideos: async () => { videoSearchCalls += 1; return []; },
+    searchPlaylists: async () => [],
+    searchChannelPlaylists: async () => []
+  });
+  try {
+    const result = await curateNormalSearch("Machine Learning Engineer Deep Learning Fundamentals", {
+      nodeType: "lesson",
+      forceRefresh: true,
+      cacheScope: "forced-empty-cache-regression",
+      maxQueries: 1,
+      syllabus: {
+        topic: "Machine Learning Engineer",
+        source: "injected",
+        confidence: 1,
+        modules: [{ name: "Deep Learning Fundamentals", weight: 1, keyConcepts: ["neural networks"], prerequisites: [] }]
+      }
+    });
+    assert.equal(result.resources.length, 0);
+    assert.equal(videoSearchCalls, 1, "forced refresh must contact the video provider");
+    assert.equal(cacheReads.some((key) => key.includes(":curated-results:")), false);
+    assert.equal(cacheReads.some((key) => key.includes(":candidate-search:")), false);
+    assert.equal(cacheWrites.some((entry) => entry.kind === "candidate-search" && !entry.payload.videos?.length && !entry.payload.playlists?.length), false);
+    assert.equal(cacheWrites.some((entry) => entry.kind === "curated-results" && !entry.payload.resources?.length), false);
+  } finally {
+    __setCurationDecisionEngineAdaptersForTests(null);
+  }
+});
+
 test("golden-set evaluation computes nDCG, hidden-gem recall, junk rate and a summary", () => {
   const perfect = [
     { sourceId: "sql-course-a", evidence: { coverage: 90 } },

@@ -102,7 +102,8 @@ export async function recoverMissingTutorialResources(course, {
         // targets during course generation; never substitute a course-wide
         // duration for the runtime of one resource.
         durationPolicy: lessonDurationPolicy(lesson),
-        cacheScope: "course-resource-recovery"
+        cacheScope: "course-resource-recovery",
+        forceRefresh: true
       });
     } catch (error) {
       summary.unavailable += 1;

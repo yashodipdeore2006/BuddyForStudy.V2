@@ -1578,7 +1578,8 @@ export async function curateNormalSearch(query, options = {}) {
     settingCount = Math.max(5, Math.min(50, Number(resultSetting?.value) || 30));
   } catch {}
   const resultKey = cacheKey("curated-results", profile.normalizedQuery + "|" + profile.category + "|" + profile.mode + "|" + profile.level + "|" + profile.language + "|" + (profile.nodeType || "normal") + "|" + settingCount + "|" + cacheScope + "|" + overridesHash);
-  const cached = await getCachedValue(resultKey);
+  const forceRefresh = options.forceRefresh === true;
+  const cached = forceRefresh ? null : await getCachedValue(resultKey);
   if (cached?.resources) {
     console.info("Course curation completed", {
       requestId,
@@ -1603,7 +1604,7 @@ export async function curateNormalSearch(query, options = {}) {
   const generatedQueries = hasInjectedSyllabus ? [profile.query + " full course", profile.query + " bootcamp course", profile.query + " complete course for beginners", profile.query + " course chapters syllabus", profile.query + " course " + new Date().getFullYear(), ...syllabus.modules.slice(0, 2).map((item) => profile.query + " " + item.name + " tutorial")] : buildCandidateQueries(profile, syllabus);
   let queries = [...new Set([...generatedQueries.slice(0, Math.max(1, maxQueries - extraQueries.length)), ...extraQueries])].slice(0, maxQueries);
   const poolKey = cacheKey("candidate-search", profile.normalizedQuery + "|" + profile.category + "|" + profile.level + "|" + profile.language + "|" + settingCount);
-  let pool = await getCachedValue(poolKey);
+  let pool = forceRefresh ? null : await getCachedValue(poolKey);
   const poolCacheHit = Boolean(pool);
   let youtubeError = pool?.youtubeError || "";
   if (!pool) {
@@ -1664,8 +1665,11 @@ export async function curateNormalSearch(query, options = {}) {
       quotaState: requestMetrics.quotaState || "unknown",
       cachedAt: new Date().toISOString()
     };
-    const ttl = videos.length || playlists.length ? 24 * 60 * 60 * 1000 : EMPTY_RESULT_TTL_MS;
-    await setCachedValue(poolKey, "candidate-search", pool, ttl);
+    const hasCandidates = videos.length > 0 || playlists.length > 0;
+    if (hasCandidates || !forceRefresh) {
+      const ttl = hasCandidates ? 24 * 60 * 60 * 1000 : EMPTY_RESULT_TTL_MS;
+      await setCachedValue(poolKey, "candidate-search", pool, ttl);
+    }
   }
 
   const selectionProfile = { ...profile, ...overrides };
@@ -1747,7 +1751,9 @@ export async function curateNormalSearch(query, options = {}) {
   meta.resultCacheHit = false;
   meta.cacheHit = false;
   const response = { query: normalizedQuery, resources, meta };
-  await setCachedValue(resultKey, "curated-results", response, resources.length ? RESULT_TTL_MS : EMPTY_RESULT_TTL_MS);
+  if (resources.length || !forceRefresh) {
+    await setCachedValue(resultKey, "curated-results", response, resources.length ? RESULT_TTL_MS : EMPTY_RESULT_TTL_MS);
+  }
   console.info("Course curation completed", {
     requestId,
     skillId,

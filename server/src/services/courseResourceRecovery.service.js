@@ -70,9 +70,19 @@ export async function recoverMissingTutorialResources(course, {
       result = await curate({
         skill,
         profile,
-        // A lesson video can be a concise 1-4 minute explanation. The
-        // learner's overall study-plan duration must not reject those resources.
-        durationPolicy: { minMinutes: 1, targetMinutes: 15, maxMinutes: 180 },
+        // Missing resources in a course advertised as complete need substantive
+        // instruction, not a short overview. The shared curation engine also
+        // scores topic coverage, relevance, channel quality and recency.
+        // A playlist may satisfy the lesson with multiple videos; a single video
+        // must meet the same minimum runtime.
+        durationPolicy: {
+          minMinutes: 15,
+          targetMinutes: 30,
+          maxMinutes: 180,
+          minPlaylistMinutes: 30,
+          minPlaylistItems: 2,
+          excludeShorts: true
+        },
         cacheScope: "course-resource-recovery"
       });
     } catch (error) {

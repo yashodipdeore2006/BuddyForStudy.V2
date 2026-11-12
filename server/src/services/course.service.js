@@ -744,6 +744,29 @@ export async function getPublished(courseId, userId = null) {
   return course;
 }
 
+/**
+ * Course details may be viewed by the owner of an approved learner-private
+ * generated course before enrollment. Learning endpoints still use getPublished
+ * and retain their explicit enrollment/entitlement checks.
+ */
+export async function getCourseDetails(courseId, userId = null) {
+  const published = await getPublished(courseId, userId);
+  if (published || !userId) return published;
+
+  const privatePreview = await Course.findOne({
+    _id: courseId,
+    deletedAt: null,
+    status: { $ne: "archived" },
+    visibility: "private",
+    createdForUser: userId,
+    aiReviewStatus: "approved",
+    $or: [{ aiReviewedBy: { $ne: null } }, { aiReviewSource: "automatic" }]
+  }).lean();
+
+  if (!privatePreview || !isApprovedForPublication(privatePreview)) return null;
+  return privatePreview;
+}
+
 export async function getAny(courseId) {
   return Course.findById(courseId);
 }

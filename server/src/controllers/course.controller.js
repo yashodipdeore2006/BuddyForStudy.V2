@@ -68,7 +68,7 @@ export async function search(req, res, next) {
 export async function details(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const course = await courseService.getPublished(req.params.courseId, req.user?.userId || null);
+    const course = await courseService.getCourseDetails(req.params.courseId, req.user?.userId || null);
     if (!course) return failure(res, "Course not found", 404);
 
     const [enrollmentCount] = await Enrollment.aggregate([
@@ -76,8 +76,16 @@ export async function details(req, res, next) {
       { $count: "count" }
     ]);
     const source = typeof course.toObject === "function" ? course.toObject() : course;
+    const ownerPrivatePreview = Boolean(
+      req.user?.userId &&
+      source.visibility === "private" &&
+      String(source.createdForUser) === String(req.user.userId)
+    );
     const preview = toPublicCoursePreview({
       ...source,
+      // This preview is private to its approved owner. It is enrollable by that
+      // owner even though it must remain unpublished in the public catalogue.
+      isPublished: ownerPrivatePreview ? true : source.isPublished,
       enrollmentCount: source.enrollmentCount ?? enrollmentCount?.count ?? 0
     });
     return success(res, { course: preview });

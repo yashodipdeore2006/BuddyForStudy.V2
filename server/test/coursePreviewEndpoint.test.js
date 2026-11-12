@@ -9,7 +9,9 @@ test("public course details endpoint uses the sanitized preview for paid courses
   assert.ok(start >= 0 && end > start, "Expected the public course details handler");
 
   const handler = controller.slice(start, end);
-  assert.ok(handler.includes("courseService.getPublished(req.params.courseId, req.user?.userId || null)"));
+  assert.ok(handler.includes("courseService.getCourseDetails(req.params.courseId, req.user?.userId || null)"));
+  assert.ok(handler.includes("const ownerPrivatePreview = Boolean("));
+  assert.ok(handler.includes("isPublished: ownerPrivatePreview ? true : source.isPublished"));
   assert.ok(handler.includes("const preview = toPublicCoursePreview("));
   assert.ok(handler.includes("return success(res, { course: preview })"));
   assert.equal(handler.includes("return success(res, { course: source })"), false);

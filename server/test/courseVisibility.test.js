@@ -6,7 +6,8 @@ process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/course-visibility-test";
 process.env.JWT_SECRET ||= "unit-test-only-secret-that-is-long-enough";
 
 const { Course } = await import("../src/models/Course.js");
-const { listPublished, getPublished } = await import("../src/services/course.service.js");
+const { listPublished, getPublished, getCourseDetails } = await import("../src/services/course.service.js");
+const { Enrollment } = await import("../src/models/Enrollment.js");
 
 test("public catalogue query excludes drafts, archived records, deleted records and unapproved generated courses", async () => {
   const originalAggregate = Course.aggregate;
@@ -68,6 +69,67 @@ test("unprivileged course detail lookup filters archived, deleted and unpublishe
   }
 });
 
+
+
+test("approved private course owner can preview details before enrolling", async () => {
+  const originalFindOne = Course.findOne;
+  const originalEnrollmentExists = Enrollment.exists;
+  const originalRedisUrl = process.env.REDIS_URL;
+  delete process.env.REDIS_URL;
+  const ownerId = "507f1f77bcf86cd799439012";
+  const courseId = "507f1f77bcf86cd799439013";
+  const privateCourse = {
+    _id: courseId,
+    visibility: "private",
+    createdForUser: ownerId,
+    aiReviewStatus: "approved",
+    aiReviewSource: "automatic",
+    generation: { mode: "ai" },
+    isPublished: false,
+    status: "draft",
+    deletedAt: null
+  };
+  const filters = [];
+  Course.findOne = (filter) => {
+    filters.push(filter);
+    if (filters.length === 1) return Promise.resolve(null);
+    return { lean: async () => privateCourse };
+  };
+  Enrollment.exists = async () => null;
+
+  try {
+    const result = await getCourseDetails(courseId, ownerId);
+    assert.equal(result, privateCourse);
+    assert.equal(filters.length, 2);
+    assert.equal(filters[1].visibility, "private");
+    assert.equal(filters[1].createdForUser, ownerId);
+    assert.equal(filters[1].aiReviewStatus, "approved");
+    assert.deepEqual(filters[1].status, { $ne: "archived" });
+  } finally {
+    Course.findOne = originalFindOne;
+    Enrollment.exists = originalEnrollmentExists;
+    if (originalRedisUrl === undefined) delete process.env.REDIS_URL;
+    else process.env.REDIS_URL = originalRedisUrl;
+  }
+});
+
+test("private course preview is never available to guests", async () => {
+  const originalFindOne = Course.findOne;
+  const originalRedisUrl = process.env.REDIS_URL;
+  delete process.env.REDIS_URL;
+  let lookups = 0;
+  Course.findOne = async () => { lookups += 1; return null; };
+
+  try {
+    const result = await getCourseDetails("507f1f77bcf86cd799439014", null);
+    assert.equal(result, null);
+    assert.equal(lookups, 1);
+  } finally {
+    Course.findOne = originalFindOne;
+    if (originalRedisUrl === undefined) delete process.env.REDIS_URL;
+    else process.env.REDIS_URL = originalRedisUrl;
+  }
+});
 
 test("standalone module search never re-exposes archived parents or generated child courses", () => {
   const source = readFileSync(new URL("../src/services/course.service.js", import.meta.url), "utf8");

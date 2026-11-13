@@ -8,6 +8,7 @@ const validConfig = {
   CLIENT_URL: "https://buddyforstudy.example",
   API_URL: "https://api.buddyforstudy.example",
   TRUST_PROXY_HOPS: "1",
+  PAYMENTS_ENABLED: "true",
   SMTP_HOST: "smtp.buddyforstudy.example",
   SMTP_PORT: "587",
   SMTP_SECURE: "false",
@@ -93,12 +94,34 @@ test("production config requires TLS and authentication when Redis is configured
   assert.deepEqual(getProductionConfigErrors({ ...validConfig, REDIS_URL: "rediss://default:password@cache.example:6379" }), []);
 });
 
-test("production config requires all Razorpay values", () => {
+test("production config allows payments to remain disabled without gateway credentials", () => {
+  const config = { ...validConfig, PAYMENTS_ENABLED: "false" };
+  delete config.RAZORPAY_KEY_ID;
+  delete config.RAZORPAY_KEY_SECRET;
+  delete config.RAZORPAY_WEBHOOK_SECRET;
+  assert.deepEqual(getProductionConfigErrors(config), []);
+});
+
+test("production config defaults payments to disabled when the flag is omitted", () => {
+  const config = { ...validConfig };
+  delete config.PAYMENTS_ENABLED;
+  delete config.RAZORPAY_KEY_ID;
+  delete config.RAZORPAY_KEY_SECRET;
+  delete config.RAZORPAY_WEBHOOK_SECRET;
+  assert.deepEqual(getProductionConfigErrors(config), []);
+});
+
+test("production config requires all live Razorpay values only when payments are enabled", () => {
   const errors = getProductionConfigErrors({
     ...validConfig,
+    PAYMENTS_ENABLED: "true",
     RAZORPAY_KEY_ID: "",
     RAZORPAY_KEY_SECRET: "",
     RAZORPAY_WEBHOOK_SECRET: "",
   });
   assert.equal(errors.filter((error) => error.includes("RAZORPAY_")).length, 3);
+});
+
+test("production config rejects an invalid payments feature flag", () => {
+  assert.ok(getProductionConfigErrors({ ...validConfig, PAYMENTS_ENABLED: "sometimes" }).some((error) => error.includes("PAYMENTS_ENABLED")));
 });

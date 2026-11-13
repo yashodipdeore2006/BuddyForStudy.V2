@@ -244,7 +244,9 @@ test("subscription order creation reuses an existing pending provider checkout",
     await createSubscriptionOrder({
       body: { planId: "507f1f77bcf86cd799439012" },
       user: { userId: "507f1f77bcf86cd799439013" },
-    }, res, (error) => assert.fail(error));
+    }, res, (error) => assert.fail(error), {
+      getPublicKey: () => "rzp_test_public_key"
+    });
 
     assert.equal(res.result.statusCode, 200);
     assert.equal(res.result.body.success, true);

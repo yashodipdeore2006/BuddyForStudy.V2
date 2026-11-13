@@ -160,23 +160,32 @@ export function getProductionConfigErrors(config = {}) {
   validateOptionalWebPush(config, errors);
   validateOptionalRedis(config.REDIS_URL, errors);
 
-  const keyId = String(config.RAZORPAY_KEY_ID || "").trim();
-  if (!keyId) {
-    errors.push("RAZORPAY_KEY_ID is required in production");
-  } else if (!/^rzp_live_[A-Za-z0-9]+$/.test(keyId) || isPlaceholder(keyId)) {
-    errors.push("RAZORPAY_KEY_ID must be a non-placeholder live-mode key ID in production");
+  const paymentsEnabledValue = String(config.PAYMENTS_ENABLED ?? "false").trim().toLowerCase();
+  if (!["true", "false"].includes(paymentsEnabledValue)) {
+    errors.push("PAYMENTS_ENABLED must be true or false");
   }
 
-  const paymentSecrets = [
-    ["RAZORPAY_KEY_SECRET", 16],
-    ["RAZORPAY_WEBHOOK_SECRET", 32],
-  ];
-  for (const [key, minLength] of paymentSecrets) {
-    const value = String(config[key] || "").trim();
-    if (!value) {
-      errors.push(key + " is required in production");
-    } else if (value.length < minLength || isPlaceholder(value)) {
-      errors.push(key + " must be a non-placeholder value with at least " + minLength + " characters");
+  // Payment credentials are required only when the payment feature is enabled.
+  // The default is disabled so deployments can run before gateway onboarding.
+  if (paymentsEnabledValue === "true") {
+    const keyId = String(config.RAZORPAY_KEY_ID || "").trim();
+    if (!keyId) {
+      errors.push("RAZORPAY_KEY_ID is required when PAYMENTS_ENABLED=true");
+    } else if (!/^rzp_live_[A-Za-z0-9]+$/.test(keyId) || isPlaceholder(keyId)) {
+      errors.push("RAZORPAY_KEY_ID must be a non-placeholder live-mode key ID when payments are enabled");
+    }
+
+    const paymentSecrets = [
+      ["RAZORPAY_KEY_SECRET", 16],
+      ["RAZORPAY_WEBHOOK_SECRET", 32],
+    ];
+    for (const [key, minLength] of paymentSecrets) {
+      const value = String(config[key] || "").trim();
+      if (!value) {
+        errors.push(key + " is required when PAYMENTS_ENABLED=true");
+      } else if (value.length < minLength || isPlaceholder(value)) {
+        errors.push(key + " must be a non-placeholder value with at least " + minLength + " characters");
+      }
     }
   }
 

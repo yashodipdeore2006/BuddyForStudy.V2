@@ -4,6 +4,12 @@ import { env } from "../config/env.js";
 import { toRazorpayMinorUnits } from "../utils/razorpayAmounts.js";
 
 function getClient() {
+  if (!env.paymentsEnabled) {
+    const error = new Error("Payments are temporarily unavailable.");
+    error.status = 503;
+    throw error;
+  }
+
   const keyId = String(env.razorpayKeyId || "").trim();
   const keySecret = String(env.razorpayKeySecret || "").trim();
 
@@ -119,6 +125,11 @@ export async function cancelSubscription(subscriptionId, cancelAtCycleEnd = true
 }
 
 export function getPublicKey() {
+  if (!env.paymentsEnabled) {
+    const error = new Error("Payments are temporarily unavailable.");
+    error.status = 503;
+    throw error;
+  }
   if (!env.razorpayKeyId) {
     const error = new Error("Razorpay is not configured");
     error.status = 503;

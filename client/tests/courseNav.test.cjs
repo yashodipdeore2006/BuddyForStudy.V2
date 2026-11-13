@@ -241,7 +241,10 @@ test("pricing and upgrade modal share eligible plans, admin order and currency/u
   const sharedPlans = fs.readFileSync(path.join(root, "src/lib/subscriptionPlans.ts"), "utf8");
   const billingRoutes = fs.readFileSync(path.join(root, "../server/src/routes/billing.routes.js"), "utf8");
   assert.match(billingRoutes, /SubscriptionPlan\.find\(\{isActive:true\}\)\.sort\(\{sortOrder:1,createdAt:1\}\)/);
-  assert.match(pricingPage, /setPlans\(getCheckoutSubscriptionPlans<Plan>\(data\.plans\)\)/);
+  assert.match(pricingPage, /const availablePlans = getCheckoutSubscriptionPlans<Plan>\(data\.plans\)/);
+  assert.match(pricingPage, /setPlans\(data\.paymentsEnabled === false \? availablePlans\.filter\(\(plan\) => Number\(plan\.price\) === 0 \|\| plan\.name\.toLowerCase\(\) === "free"\) : availablePlans\)/);
+  assert.match(pricingPage, /setPaymentsEnabled\(data\.paymentsEnabled !== false\)/);
+  assert.match(pricingPage, /trialConversion && paymentsEnabled/);
   assert.match(upgradeModal, /getCheckoutSubscriptionPlans<Plan>\(planData\.plans\)/);
   assert.match(sharedPlans, /plan\.billingInterval !== "one_time"/);
   assert.match(sharedPlans, /plan\.isActive !== false/);

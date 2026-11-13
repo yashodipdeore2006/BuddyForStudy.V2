@@ -7,6 +7,7 @@ process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/subscription-plan-order-tes
 process.env.JWT_SECRET ||= "unit-test-only-secret-that-is-long-enough";
 
 const { SubscriptionPlan } = await import("../src/models/SubscriptionPlan.js");
+const { env } = await import("../src/config/env.js");
 const { default: billingRouter } = await import("../src/routes/billing.routes.js");
 
 test("public billing plans preserve admin sortOrder across different currencies and billing periods", async () => {
@@ -47,6 +48,8 @@ test("public billing plans preserve admin sortOrder across different currencies 
   ];
 
   const originalFind = SubscriptionPlan.find;
+  const originalPaymentsEnabled = env.paymentsEnabled;
+  env.paymentsEnabled = true;
   let capturedFilter;
   let capturedSort;
   SubscriptionPlan.find = (filter) => {
@@ -90,6 +93,7 @@ test("public billing plans preserve admin sortOrder across different currencies 
     assert.deepEqual(body.plans.map((plan) => plan.billingInterval), ["yearly", "monthly", "quarterly"]);
   } finally {
     SubscriptionPlan.find = originalFind;
+    env.paymentsEnabled = originalPaymentsEnabled;
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 });

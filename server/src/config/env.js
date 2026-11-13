@@ -41,7 +41,7 @@ export const env = {
   webPushVapidPublicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY || "",
   webPushVapidPrivateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY || "",
   webPushSubject: process.env.WEB_PUSH_SUBJECT || "",
-  paymentsEnabled: process.env.PAYMENTS_ENABLED === "true",
+  paymentsEnabled: String(process.env.PAYMENTS_ENABLED || "false").trim().toLowerCase() === "true",
   razorpayKeyId: process.env.RAZORPAY_KEY_ID || "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || "",
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || "",

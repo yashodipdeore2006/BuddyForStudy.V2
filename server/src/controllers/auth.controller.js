@@ -45,6 +45,14 @@ export async function googleLogin(req, res) {
     return success(res, result, "Google authentication successful");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
+    // Never log the submitted Google credential or raw provider response.
+    console.error("[auth] Google login failed", {
+      requestId: req.id || "unknown",
+      errorName: error?.name || "Error",
+      errorCode: typeof error?.code === "string" || typeof error?.code === "number" ? error.code : undefined,
+      status: Number.isInteger(Number(error?.status)) ? Number(error.status) : undefined,
+      message: String(error?.message || "Unknown Google authentication error").slice(0, 500)
+    });
     return authErrorResponse(res, error);
   }
 }

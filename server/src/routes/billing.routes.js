@@ -4,6 +4,8 @@ import { TrialGrant } from "../models/TrialGrant.js";
 import { RefundRequest } from "../models/RefundRequest.js";
 import { PaymentIssue } from "../models/PaymentIssue.js";
 import { Payment } from "../models/Payment.js";
+import { UserSubscription } from "../models/UserSubscription.js";
+import { env } from "../config/env.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { success, failure } from "../utils/response.js";
 import { isValidObjectId } from "../utils/ids.js";
@@ -21,11 +23,27 @@ async function sendNotificationSafely(payload, context) {
 }
 router.get("/plans", async (_req,res,next)=>{ try {
   const plans = await SubscriptionPlan.find({isActive:true}).sort({sortOrder:1,createdAt:1}).lean();
-  return success(res,{plans:plans.map((plan)=>({...plan,features:normalizeSubscriptionFeatures(plan.features)}))});
+  const visiblePlans = env.paymentsEnabled ? plans : plans.filter((plan) => plan.slug === "free" || Number(plan.price) === 0);
+  return success(res,{plans:visiblePlans.map((plan)=>({...plan,features:normalizeSubscriptionFeatures(plan.features)})),paymentsEnabled:env.paymentsEnabled});
 } catch(e){next(e)} });
 router.use(authMiddleware);
 router.get("/payments", async (req,res,next)=>{ try { const payments=await Payment.find({user:req.user.userId}).populate("course","title").populate("plan","name billingInterval").sort({createdAt:-1}).lean(); return success(res,{payments}); } catch(e){next(e)} });
-router.get("/me", async (req,res,next)=>{ try { const { UserSubscription } = await import("../models/UserSubscription.js"); const subscription=await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean(); return success(res,{subscription}); } catch(e){next(e)} });
+router.get("/me", async (req,res,next)=>{ try {
+  let subscription = await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean();
+  if (!subscription) {
+    const freePlan = await SubscriptionPlan.findOne({isActive:true,$or:[{slug:"free"},{price:0}]}).sort({sortOrder:1,createdAt:1}).lean();
+    if (freePlan) {
+      try {
+        const created = await UserSubscription.create({user:req.user.userId,plan:freePlan._id,status:"active",provider:"manual",currentPeriodStart:new Date(),currentPeriodEnd:null});
+        subscription = {...created.toObject(),plan:freePlan};
+      } catch (createError) {
+        if (createError?.code !== 11000) throw createError;
+        subscription = await UserSubscription.findOne({user:req.user.userId}).populate("plan").lean();
+      }
+    }
+  }
+  return success(res,{subscription,paymentsEnabled:env.paymentsEnabled});
+} catch(e){next(e)} });
 router.get("/entitlements", async (req,res,next)=>{ try { const { SUBSCRIPTION_FEATURES } = await import("../config/subscriptionFeatures.js"); const { getActivePlanForUser, getEntitlement } = await import("../services/subscriptionEntitlement.service.js"); const plan = await getActivePlanForUser(req.user.userId); const features = {}; for (const { key } of SUBSCRIPTION_FEATURES) { const entitlement = await getEntitlement(req.user.userId, key); features[key] = Boolean(entitlement.allowed); } return success(res,{plan: plan ? { id: String(plan._id), name: plan.name, slug: plan.slug } : null, features}); } catch(e){next(e)} });
 
 router.post("/subscription/sync", async (req,res,next)=>{ try {

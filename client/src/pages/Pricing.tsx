@@ -54,6 +54,7 @@ export default function Pricing() {
   const courseId = searchParams.get("courseId");
 
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [paymentsEnabled, setPaymentsEnabled] = useState(true);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<PricingMessage | null>(null);
@@ -67,7 +68,9 @@ export default function Pricing() {
       .then((data) => {
         // The API is already ordered by admin-configured sortOrder. Do not re-sort
         // using raw price values: plans may have different currencies/periods.
-        setPlans(getCheckoutSubscriptionPlans<Plan>(data.plans));
+        setPaymentsEnabled(data.paymentsEnabled !== false);
+        const availablePlans = getCheckoutSubscriptionPlans<Plan>(data.plans);
+        setPlans(data.paymentsEnabled === false ? availablePlans.filter((plan) => Number(plan.price) === 0 || plan.name.toLowerCase() === "free") : availablePlans);
       })
       .catch(() => {
         setMessage({
@@ -313,11 +316,11 @@ export default function Pricing() {
               </section>
               <button
                 type="button"
-                disabled={loading === plan._id || Number(plan.price) === 0 || (hasActiveSubscription && !(trialConversion && trialConversion.conversionPlan?._id === plan._id && consentChecked))}
+                disabled={loading === plan._id || Number(plan.price) === 0 || (!paymentsEnabled && Number(plan.price) > 0) || (hasActiveSubscription && !(trialConversion && trialConversion.conversionPlan?._id === plan._id && consentChecked))}
                 onClick={() => void subscribe(plan._id, Boolean(trialConversion && trialConversion.conversionPlan?._id === plan._id))}
                 className={`mt-7 w-full ${Number(plan.price) === 0 ? "btn-secondary" : "btn-buy"}`}
               >
-                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : hasActiveSubscription && !(trialConversion && trialConversion.conversionPlan?._id === plan._id) ? "Already subscribed" : Number(plan.price) === 0 ? "Included" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
+                {loading === plan._id ? <><Loader2 className="h-4 w-4 animate-spin" /> Opening checkout…</> : Number(plan.price) === 0 ? "Included" : !paymentsEnabled ? "Coming soon" : hasActiveSubscription && !(trialConversion && trialConversion.conversionPlan?._id === plan._id) ? "Already subscribed" : <>Choose plan <ArrowRight className="h-4 w-4" /></>}
               </button>
             </article>
           );

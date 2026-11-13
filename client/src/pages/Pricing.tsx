@@ -248,7 +248,7 @@ export default function Pricing() {
         </div>
       )}
 
-      {trialConversion && (
+      {trialConversion && paymentsEnabled && (
         <section className="mx-auto mt-6 max-w-3xl rounded-2xl border border-violet-200 bg-violet-50 p-5 text-left" aria-labelledby="trial-conversion-heading">
           <h2 id="trial-conversion-heading" className="text-lg font-bold text-violet-950">Your trial is active — choose whether to continue</h2>
           <p className="mt-2 text-sm text-violet-900">Your trial ends {new Date(trialConversion.endsAt).toLocaleDateString("en-IN")}. Continuing starts a recurring subscription for <strong>{trialConversion.conversionPlan?.name}</strong> at <strong>{formatMoney(Number(trialConversion.conversionPlan?.price || 0), trialConversion.conversionPlan?.currency || "INR")} / {intervalLabel(trialConversion.conversionPlan?.billingInterval || "")}</strong>, subject to Razorpay's authorization flow.</p>

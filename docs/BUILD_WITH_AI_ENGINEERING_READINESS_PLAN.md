@@ -83,15 +83,23 @@
 
 ### Task 03 — Product requirements and user journeys
 
-| Subtask | Status | Exit criteria |
+**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v0.1 draft on the readiness branch; product-owner decisions remain open.
+
+| Subtask | Status | Evidence / exit criteria |
 |---|---|---|
-| Define Normal Search purpose and contract | **Not started** | User story, inputs, ranking rules, output shape, empty/error states |
-| Define Build with AI purpose and contract | **Not started** | User story, intake, intent profile, curriculum, node/resource results |
-| Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started** | Documented decision with rationale and compatibility constraints |
-| Specify learner goals: learn, job-ready, exam and project | **Not started** | Inputs, conditional questions, required/optional fields and expected outputs |
-| Specify resource language, level, depth and duration semantics | **Not started** | Clear distinction between study time, per-lesson duration and total curriculum duration |
-| Define partial completion, retry, cancel and resume UX | **Not started** | State machine and user-visible messages |
-| Define admin approval, visibility, publication, price and enrollment lifecycle | **Not started** | State-transition rules and authorization matrix |
+| Map Normal Search current behavior and draft its product contract | **In progress — source mapped, contract pending decisions** | PRD sections 2.1, 3A and 4.2. Main searches published course fields, may create/reuse approved standalone module courses, and currently returns supplementary curation for any non-empty query. |
+| Map Build with AI current behavior and draft its product contract | **In progress — source mapped, contract pending decisions** | PRD sections 2.2, 3B and 4.3. Separate explicit flow, intent route, entitlement gates, sync/async modes, and the hard-disabled frontend Intent V2 constant recorded. |
+| Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started — architecture decision** | PRD D-01 and Task 04; compare user intent, latency, quality, quota and data contracts first. |
+| Specify learner goals: learn, job-ready, exam and project | **In progress — target captured, needs owner approval** | PRD Journey B and goal-specific content; based on the implementation guide, not an assertion that all target details are live. |
+| Specify resource language, level, depth and duration semantics | **In progress — requirements drafted, policy open** | PRD AI-04 to AI-06 and D-04 to D-06; explicitly distinguish course study time, study schedule and video runtime. |
+| Define partial completion, retry, cancel and resume UX | **In progress — existing behavior and target states mapped** | PRD Journey B and AI-07 to AI-09; verify sync/async parity and restart guarantees in Task 04. |
+| Define admin approval, visibility, publication, price and enrollment lifecycle | **In progress — current approval boundary recorded, policy approval pending** | PRD D-07; generated-course approval/readiness checks and learner enrollment boundary require an approved state-transition matrix. |
+
+**Confirmed product-specification conflicts requiring decisions (do not resolve by assumption):**
+1. `docs/SEARCH_FLOW_V2_PLAN.md` says normal search should never call Gemini and should show YouTube only if local results are absent; it identifies itself as a test-branch plan.
+2. Current `main` calls `curateNormalSearch` on every non-empty catalog search and returns `youtube_supplementary` resources even when local courses exist. The curation engine contains a Gemini-backed topic-syllabus path.
+3. Current client source hardcodes `INTENT_V2 = false`; the backend intent route also requires its own server flag. The intent-driven flow must not be presumed live.
+4. The requirements draft is not yet approved. Resolve decisions D-01 through D-08 in the PRD before implementation changes.
 
 ### Task 04 — Target architecture and contracts
 

@@ -54,16 +54,30 @@
 
 ### Task 02 — Production topology and configuration audit
 
+**Current blocker:** the repository manifests define the intended topology, but they do not prove the live Render or Vercel dashboard state. Live service/environment evidence is required before this task can be closed.
+
 | Subtask | Status | Evidence / exit criteria |
 |---|---|---|
-| Verify Render API service, start command, health route, region and instance plan | **Not started** | Redacted Render service configuration |
-| Verify whether a separately deployed worker runs `npm run worker` | **Not started** | Render service list and worker logs |
-| Verify Vercel project, production branch, build command and domain aliases | **Not started** | Redacted Vercel settings |
-| Confirm production values/presence for feature flags | **Not started** | Record names and true/false/unset only |
-| Confirm whether Redis is configured and reachable | **Not started** | Presence plus safe connection/health evidence; never copy URL or credentials |
+| Review Render API Blueprint definition | **Done — manifest only** | `render.yaml`: API service `buddyforstudy-api`, root `server`, `npm ci`, `npm run start`, health `/api/health/ready`, region Singapore, branch `main`; actual dashboard plan/status still unknown. |
+| Review Render worker Blueprint definition | **Done — manifest only** | `render.yaml`: separate `buddyforstudy-worker`, root `server`, `npm run worker`, same region/branch, 300-second shutdown window; actual service existence/status/heartbeat still unknown. |
+| Verify actual Render API service, plan, status and health | **Blocked — awaiting dashboard evidence** | Confirm service is deployed and ready; do not assume Blueprint sync is complete. |
+| Verify actual worker service status and heartbeat | **Blocked — awaiting dashboard evidence** | Confirm worker exists, is running, and Operations shows a recent heartbeat. |
+| Review Vercel project configuration in repository | **Done — manifest only** | `client/vercel.json` uses Vite, `npm run build`, `dist`, SPA fallback; live project configuration and aliases remain unverified. |
+| Verify Vercel production branch, root directory, build settings and domains | **Blocked — awaiting dashboard evidence** | Check production branch `main`, root `client`, Vite build and assigned apex/www domains. |
+| Confirm actual production values/presence for feature flags | **Blocked — awaiting redacted values** | Blueprint defaults are off: selector, Intent V2, Async Roadmap, combined search, trusted channels and compliance worker. Verify live values, names/true-false only. |
+| Confirm whether Redis is configured and reachable | **Not started** | Blueprint marks `REDIS_URL` optional and worker inherits API value. Confirm presence and health only; never copy URL or credentials |
 | Confirm Gemini model and provider project quota | **Not started** | Model name, billing/quota tier, rate limits and usage dashboard; no API keys |
 | Confirm YouTube API project quota and restrictions | **Not started** | Quota allocation, API enabled, key restrictions and current usage; no key |
 | Capture production baseline metrics | **Not started** | 7-day or available-window latency, 4xx/5xx, roadmap completion, quota, cache hit rate and resource coverage |
+
+#### Expected deployment baseline from checked-in manifests (not live-state confirmation)
+
+- Render API: `buddyforstudy-api`, Node 24 (via `server/package.json`), `server/`, `npm run start`, readiness `/api/health/ready`.
+- Render worker: `buddyforstudy-worker`, `server/`, `npm run worker`, independent background process and 300-second shutdown delay.
+- Both Render services are declared for `main` in Singapore and use the shared production runtime env group.
+- Vercel: Vite project with root directory expected to be `client/`, build `npm run build`, output `dist`, SPA rewrite to `index.html`.
+- Manifest defaults include `USE_CURATION_ENGINE_FOR_AI=false`, `INTENT_V2=false`, `ASYNC_ROADMAP=false`, `YT_COMBINED_SEARCH=false`, `ENABLE_TRUSTED_CHANNELS=false`, and `ENABLE_CURATION_COMPLIANCE_WORKERS=false`. These are defaults, not verified production values.
+- Live API readiness endpoint could not be verified through the available external fetch path; use the Render dashboard and the repository's `npm run verify:deployment` from an authorized environment.
 
 ### Task 03 — Product requirements and user journeys
 

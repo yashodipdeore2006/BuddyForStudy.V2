@@ -16,6 +16,7 @@ This directory is the single home for project documentation. Start with [the rep
 ## Product and engineering specifications
 - [Build With AI v2 implementation guide](Build%20with%20AI%20v2%20Implementation%20Guide.md)
 - [Build With AI v2 rollout](BUILD_WITH_AI_V2_ROLLOUT.md)
+- [Build With AI engineering readiness task plan](BUILD_WITH_AI_ENGINEERING_READINESS_PLAN.md)
 - [Course curation decision engine architecture](Course%20Curation%20Decision%20Engine%20%E2%80%94%20Architecture%20%26%20Definition.docx)
 - [Course pricing studio](COURSE_PRICING_STUDIO_IMPLEMENTATION_PLAN.md)
 - [Search Flow v2 plan](SEARCH_FLOW_V2_PLAN.md)

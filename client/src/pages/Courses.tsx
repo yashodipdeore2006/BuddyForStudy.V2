@@ -240,7 +240,6 @@ export default function Courses() {
   };
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
-  const [coreQuestionStep, setCoreQuestionStep] = useState(0);
 
   const [aiGoal, setAiGoal] = useState<string>('Explore a personal interest');
   const [aiGoalTouched, setAiGoalTouched] = useState(false);
@@ -1319,11 +1318,11 @@ export default function Courses() {
                   const selected = selectedValues.includes(option);
                   return (
                     <button key={option} type="button" aria-pressed={selected}
-                      onClick={() => setIntentAnswers((previous) => {
-                        const current = selectedValues;
+                      onClick={() => {
+                        const current = parseAnswerList(intentAnswers[question.id]);
                         const next = current.includes(option) ? current.filter((item) => item !== option) : [...current, option];
                         markIntentAnswer(question.id, next.join(", "));
-                      })}
+                      }}
                       className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
                       {selected ? "✓ " : ""}{option}
                     </button>

@@ -83,7 +83,7 @@
 
 ### Task 03 — Product requirements and user journeys
 
-**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v0.4 draft on the readiness branch; D-01, D-05 and D-07 are approved, with remaining product-owner decisions open.
+**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v0.5 draft on the readiness branch; D-01, D-05, D-07 and D-08 are approved, with D-02, D-03, D-04 and D-06 still open.
 
 | Subtask | Status | Evidence / exit criteria |
 |---|---|---|
@@ -92,7 +92,7 @@
 | Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started — architecture decision** | PRD D-01 and Task 04; D-01 approves no Gemini in Normal Search but does not decide whether ranking/candidate code can be shared. Compare user intent, latency, quality, quota and data contracts. |
 | Specify learner goals: learn, job-ready, exam and project | **In progress — target captured, needs owner approval** | PRD Journey B and goal-specific content; based on the implementation guide, not an assertion that all target details are live. |
 | Specify resource language, level, depth and duration semantics | **In progress — D-05 language policy approved; D-04 and D-06 remain open** | PRD AI-04 to AI-06 and D-04 to D-06. D-05: selected language is preferred; alternate-language resources must be clearly labelled and explicitly selected by the learner before entering the path. Still distinguish course study time, study schedule and video runtime. |
-| Define partial completion, retry, cancel and resume UX | **In progress — existing behavior and target states mapped** | PRD Journey B and AI-07 to AI-09; verify sync/async parity and restart guarantees in Task 04. |
+| Define partial completion, retry, cancel and resume UX | **In progress — D-08 restart guarantee approved; detailed UX/contract pending** | PRD Journey B and AI-07 to AI-11. Durable recovery is required: persist job/node state, automatically resume unfinished work after API/worker restart, preserve completed outputs, process idempotently and expose bounded retry/permanent-failure states. Sync/async parity, cancel semantics and user-facing recovery details remain to be specified. |
 | Define admin approval, visibility, publication, price and enrollment lifecycle | **In progress — D-07 approved; full lifecycle contract pending** | PRD D-07. Existing admin setting `content_approval_ai_courses` supports `manual` / `automatic`; `Course.js` gates automatic publication on readiness and prevents learner-private courses from being published. Still define the full publication, pricing, visibility and enrollment state-transition matrix in Task 04. |
 
 **Confirmed product-specification conflicts requiring decisions (do not resolve by assumption):**
@@ -100,11 +100,12 @@
 - **D-01 approved (2026-11-14):** Gemini is reserved for Build with AI. Normal Search must make zero direct or indirect Gemini calls. The current curateNormalSearch call path can invoke Gemini for topic-syllabus generation, so this requires an architecture/code change in a later implementation phase. This approval does not decide whether external recommendations supplement or replace local results (D-02).
 - **D-05 approved (2026-11-14):** the selected resource language is the learner's preferred language. Other-language resources may be offered only as clearly labelled alternatives; the learner must explicitly choose a fallback before it is added to their learning path.
 - **D-07 approved (2026-11-14):** preserve the existing admin-configurable AI-course approval modes (`manual` / `automatic`). Automatic mode may publish only eligible non-private, non-archived courses after readiness checks pass; learner-private courses remain private and unpublished. Approval does not itself grant enrollment or override separate visibility/pricing rules. Evidence: `server/src/services/contentApprovalPolicy.service.js`, `server/src/utils/typedSettingsRegistry.js`, `server/src/models/Course.js`, `server/test/courseApprovalPolicy.test.js`.
-- D-02 through D-04, D-06 and D-08 remain open.
+- **D-08 approved (2026-11-14):** roadmap jobs and per-step/node state must survive API/worker restarts; unfinished work is automatically recovered, completed outputs are preserved, processing is idempotent, retries are bounded/classified, and permanent failures remain visible/actionable. The exact queue/storage technology, lease/recovery protocol and deployment topology remain Task 04 architecture work.
+- D-02 through D-04 and D-06 remain open.
 1. `docs/SEARCH_FLOW_V2_PLAN.md` says normal search should never call Gemini and should show YouTube only if local results are absent; it identifies itself as a test-branch plan.
 2. Current `main` calls `curateNormalSearch` on every non-empty catalog search and returns `youtube_supplementary` resources even when local courses exist. The curation engine contains a Gemini-backed topic-syllabus path.
 3. Current client source hardcodes `INTENT_V2 = false`; the backend intent route also requires its own server flag. The intent-driven flow must not be presumed live.
-4. The requirements draft remains under review. D-01 and D-05 are approved; D-02 through D-04 and D-06 through D-08 remain open. Resolve the remaining decisions in the PRD before implementation changes.
+4. The requirements draft remains under review. D-01, D-05, D-07 and D-08 are approved; D-02, D-03, D-04 and D-06 remain open. Resolve the remaining decisions in the PRD before implementation changes.
 
 ### Task 04 — Target architecture and contracts
 
@@ -115,7 +116,7 @@
 | Define canonical skill registry and graph invariants | **Not started** | IDs, aliases, duplicate/cycle/prerequisite repair rules |
 | Define resource candidate and selected-resource contracts | **Not started** | Stable IDs, language evidence, duration, metadata provenance and freshness |
 | Define evidence/confidence model | **Not started** | Distinguish metadata-derived claims from actual verified content |
-| Decide durable job processing | **Not started** | Choose in-process queue vs durable queue based on deployment topology, with failure/restart analysis |
+| Decide durable job processing | **In progress — D-08 product guarantee approved; architecture choice pending** | Select a durable queue or equivalent recoverable job store; define persisted job/node state, idempotency, lease/claim protocol, retry classification/backoff, cancellation, crash recovery, observability and deployment topology. Do not assume a specific provider before evaluating MongoDB/Redis/worker constraints. |
 | Define cache layers and invalidation | **Not started** | Keys, scope, TTL, stale behavior, negative caching and invalidation rules |
 | Define API contracts and compatibility | **Not started** | Endpoint table, auth, plan entitlement, schemas, idempotency and error codes |
 | Define YouTube quota and provider degradation | **Not started** | Cost model, reserve/refuse rules, reset, retries, circuit-breaker behavior |

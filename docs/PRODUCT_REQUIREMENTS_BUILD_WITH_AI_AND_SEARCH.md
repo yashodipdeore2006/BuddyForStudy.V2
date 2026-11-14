@@ -1,6 +1,6 @@
 # Product Requirements Draft — Normal Search & Build with AI
 
-**Status:** Draft v0.3 — source review completed; D-01 and D-05 approved on 2026-11-14; remaining product decisions open  
+**Status:** Draft v0.4 — source review completed; D-01, D-05 and D-07 approved on 2026-11-14; remaining product decisions open  
 **Reviewed baseline:** `main` at `eb2f4af7ea85723d1f4940e61ffcb7962319e494`  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Tracking issue:** [#43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)  
@@ -133,13 +133,13 @@ These are the working product requirements for review. Items marked **Decision r
 - **AI-07:** roadmap nodes have explicit states; one failed resource lookup must not erase unrelated completed nodes.
 - **AI-08:** sync and async modes return equivalent learner-visible roadmap data and failure semantics.
 - **AI-09:** generation is idempotent under duplicate submissions, and a learner can safely refresh/resume an async build.
-- **AI-10:** generated content remains private to its owner until the approved publication/enrollment policy permits broader visibility.
+- **AI-10:** learner-specific generated roadmaps/courses remain private to their owner. Admin-configured automatic approval may publish only eligible non-private, non-archived AI courses after readiness checks pass; manual approval requires admin review. Publication, visibility, pricing and enrollment must remain separately enforced.
 
 ## 5. Decisions that require product-owner confirmation
 
 **Decision log**
 - **D-01 — APPROVED (2026-11-14):** Gemini is used only by Build with AI. Normal Search must not call Gemini directly or indirectly. Normal Search may continue to use deterministic catalogue and YouTube discovery/ranking logic. The current curateNormalSearch path is not compliant until its Gemini-backed topic-syllabus dependency is removed or bypassed.
-- **D-02 through D-04 and D-06 through D-08 — OPEN:** pending separate product-owner decisions. **D-05 approved (2026-11-14):** the learner's selected resource language is the preferred language; other-language resources may be shown only as clearly labelled alternatives, and the learner must explicitly select a fallback before it is added to the learning path. Approval of D-05 does not settle duration semantics (D-06).
+- **D-02 through D-04, D-06 and D-08 — OPEN:** pending separate product-owner decisions. **D-05 approved (2026-11-14):** the learner's selected resource language is the preferred language; other-language resources may be shown as clearly labelled alternatives, and the learner must explicitly select a fallback before it is added to the learning path. **D-07 approved (2026-11-14):** retain the admin-configurable `manual` / `automatic` AI-course approval policy; learner-specific private courses remain private and unpublished; automatic approval can publish only non-private, non-archived courses that pass readiness checks. Visibility, pricing and enrollment remain explicit policy-controlled states rather than side effects of approval.
 
 
 | ID | Decision | Why it matters | Current evidence / conflict |
@@ -150,7 +150,7 @@ These are the working product requirements for review. Items marked **Decision r
 | D-04 | Which goal/depth/language defaults should be visible and editable? | Learner control and answer quality | Legacy defaults and target intent profile coexist; live Intent V2 frontend is hard-disabled in source. |
 | D-05 | Is resource language a strict requirement or a ranked preference with clearly-labelled fallbacks? | Prevents silent language substitution and preserves learner control. | **APPROVED 2026-11-14 — Preferred language + transparent fallback:** prioritize the learner's selected language; show any other-language resources as clearly labelled alternatives; require explicit learner selection before adding a fallback to the learning path. |
 | D-06 | What is the authoritative meaning of roadmap duration? | Prevents confusion between estimated study hours and video runtime. | Profile has schedule/depth fields and nodes have duration policies; UI currently exposes depth bands. |
-| D-07 | What approval policy applies to generated AI courses before enrollment/public listing? | Protects catalog quality and learner access. | Generated courses are subject to configurable manual/automatic approval and readiness checks. |
+| D-07 | What approval policy applies to generated AI courses before enrollment/public listing? | Protects catalog quality and learner access. | **APPROVED 2026-11-14:** keep the existing admin-configurable `manual` / `automatic` policy. Manual remains the default when unset. Automatic approval may publish only a non-private, non-archived course after readiness checks pass. Learner-specific private roadmaps/courses remain private and unpublished even under automatic approval. Approval does not itself grant enrollment or override separate visibility/pricing rules. Verified in `contentApprovalPolicy.service.js`, `typedSettingsRegistry.js`, `Course.js` and `courseApprovalPolicy.test.js`. |
 | D-08 | Which retry/resume guarantees are required after server restart? | Determines durable queue and worker architecture. | Async drafts/admission records exist; the worker is not yet deployed in Render and roadmap-job durability needs a separate Task 04 decision. |
 
 ## 6. Product metrics to define before launch

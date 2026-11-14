@@ -1,6 +1,6 @@
 # Product Requirements Draft — Normal Search & Build with AI
 
-**Status:** Draft v0.1 — source review completed; product-owner decisions outstanding  
+**Status:** Draft v0.2 — source review completed; D-01 approved on 2026-11-14; remaining product decisions open  
 **Reviewed baseline:** `main` at `eb2f4af7ea85723d1f4940e61ffcb7962319e494`  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Tracking issue:** [#43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)  
@@ -31,6 +31,8 @@ These experiences may share the resource-candidate and ranking infrastructure, b
 - When there are no direct local course results, it searches published modules/lessons and creates or reuses standalone module-course records. A standalone result is returned only when the generated-course approval/publication checks pass.
 - The same non-empty search request then calls `curateNormalSearch` and returns its resources as `youtube_supplementary`, whether or not local course results were found.
 - Curation failures are caught; the course-list response can still return local courses with an empty discovery result and an error field.
+
+**Approved product decision D-01 (2026-11-14): Gemini is reserved for Build with AI.** Normal Search must not invoke Gemini directly or indirectly. It may use the catalogue and YouTube discovery/candidate/ranking services, subject to Task 04 defining a no-Gemini curation path. The current implementation does not yet satisfy this decision because the curateNormalSearch path can invoke a Gemini-backed topic-syllabus generator. This is a documented implementation gap, not a completed code change.
 
 **Important implementation/documentation discrepancy**
 - `docs/SEARCH_FLOW_V2_PLAN.md` describes a desired flow in which Gemini is never called by Normal Search and YouTube fallback happens only when no local course or module matches. That file labels itself as a test-branch plan.
@@ -77,7 +79,7 @@ These are the working product requirements for review. Items marked **Decision r
 
 **Proposed behavioral requirements**
 - Searching must never silently start a personalized roadmap or enroll the learner.
-- Catalog access and curation-provider failures must be isolated: a YouTube/Gemini outage must not erase valid catalog results.
+- Catalog access and external YouTube-discovery failures must be isolated: a YouTube outage must not erase valid catalog results. Normal Search must not depend on Gemini availability because D-01 prohibits Gemini calls in this flow.
 - External recommendations must remain distinguishable from published BuddyForStudy courses and must not be represented as enrolled/owned courses.
 - Search results must be deduplicated and stable across pagination.
 - Resource metadata must not claim that a video covers content that has not been verified. Current curation evidence is based on metadata/structure; it does not watch the video or verify a transcript.
@@ -119,6 +121,7 @@ These are the working product requirements for review. Items marked **Decision r
 - **NS-05:** external recommendations are not silently persisted as public BuddyForStudy courses.
 - **NS-06:** an external provider failure must leave valid catalog results usable and show a non-blocking fallback message.
 - **NS-07:** normal catalog search must have a bounded latency/quota budget and a documented provider-call policy.
+- **NS-08 (D-01):** Normal Search must make zero Gemini calls, including indirect calls through shared curation services. If the shared ranking engine is reused, Normal Search must use a deterministic/non-LLM syllabus or topic-expansion path, or bypass that stage entirely.
 
 ### 4.3 Build with AI requirements
 - **AI-01:** a roadmap must be based on a validated profile with explicit/inferred fields and confidence/assumption visibility.
@@ -134,10 +137,15 @@ These are the working product requirements for review. Items marked **Decision r
 
 ## 5. Decisions that require product-owner confirmation
 
+**Decision log**
+- **D-01 — APPROVED (2026-11-14):** Gemini is used only by Build with AI. Normal Search must not call Gemini directly or indirectly. Normal Search may continue to use deterministic catalogue and YouTube discovery/ranking logic. The current curateNormalSearch path is not compliant until its Gemini-backed topic-syllabus dependency is removed or bypassed.
+- **D-02 through D-08 — OPEN:** pending separate product-owner decisions; approval of D-01 does not implicitly settle them.
+
+
 | ID | Decision | Why it matters | Current evidence / conflict |
 |---|---|---|---|
-| D-01 | Should Normal Search call Gemini at all? | Latency, cost and separation of intent | Test-branch search plan says never; current main curation path can call Gemini for syllabus generation. |
-| D-02 | Should external recommendations appear alongside local courses, or only when local results are absent? | Relevance and page density | Current main returns supplementary resources for any non-empty query; test-branch plan specifies fallback-only. |
+| D-01 | Should Normal Search call Gemini at all? | Latency, cost and separation of intent | APPROVED 2026-11-14: No. Gemini is reserved for Build with AI. Current main still has a Gemini-capable path under curateNormalSearch; remove that indirect dependency when implementing the approved behavior. |
+| D-02 | Should external recommendations appear alongside local courses, or only when local results are absent? | Relevance and page density | OPEN. Current main returns supplementary resources for any non-empty query; test-branch plan specifies fallback-only. D-01 only prohibits Gemini and does not decide placement. |
 | D-03 | Should module matches create/reuse a standalone BuddyForStudy course, or remain a non-persistent recommendation? | Catalog integrity, moderation and pricing | Current main creates/reuses module-course records and applies approval/publication policy. |
 | D-04 | Which goal/depth/language defaults should be visible and editable? | Learner control and answer quality | Legacy defaults and target intent profile coexist; live Intent V2 frontend is hard-disabled in source. |
 | D-05 | Is resource language a strict requirement or a ranked preference with clearly-labelled fallbacks? | Prevents the previously reported language mismatch class of defect. | Profile supports language; UI supports multiple resource languages in the legacy builder. |

@@ -87,15 +87,17 @@
 
 | Subtask | Status | Evidence / exit criteria |
 |---|---|---|
-| Map Normal Search current behavior and draft its product contract | **In progress — source mapped, contract pending decisions** | PRD sections 2.1, 3A and 4.2. Main searches published course fields, may create/reuse approved standalone module courses, and currently returns supplementary curation for any non-empty query. |
+| Map Normal Search current behavior and draft its product contract | **In progress — D-01 approved; D-02+ open** | PRD sections 2.1, 3A and 4.2. Main searches published course fields, may create/reuse approved standalone module courses, and currently returns supplementary curation for any non-empty query. D-01 approved: Normal Search must make zero Gemini calls; current curateNormalSearch Gemini-backed topic-syllabus dependency is an implementation gap for Task 04. |
 | Map Build with AI current behavior and draft its product contract | **In progress — source mapped, contract pending decisions** | PRD sections 2.2, 3B and 4.3. Separate explicit flow, intent route, entitlement gates, sync/async modes, and the hard-disabled frontend Intent V2 constant recorded. |
-| Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started — architecture decision** | PRD D-01 and Task 04; compare user intent, latency, quality, quota and data contracts first. |
+| Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started — architecture decision** | PRD D-01 and Task 04; D-01 approves no Gemini in Normal Search but does not decide whether ranking/candidate code can be shared. Compare user intent, latency, quality, quota and data contracts. |
 | Specify learner goals: learn, job-ready, exam and project | **In progress — target captured, needs owner approval** | PRD Journey B and goal-specific content; based on the implementation guide, not an assertion that all target details are live. |
 | Specify resource language, level, depth and duration semantics | **In progress — requirements drafted, policy open** | PRD AI-04 to AI-06 and D-04 to D-06; explicitly distinguish course study time, study schedule and video runtime. |
 | Define partial completion, retry, cancel and resume UX | **In progress — existing behavior and target states mapped** | PRD Journey B and AI-07 to AI-09; verify sync/async parity and restart guarantees in Task 04. |
 | Define admin approval, visibility, publication, price and enrollment lifecycle | **In progress — current approval boundary recorded, policy approval pending** | PRD D-07; generated-course approval/readiness checks and learner enrollment boundary require an approved state-transition matrix. |
 
 **Confirmed product-specification conflicts requiring decisions (do not resolve by assumption):**
+
+- **D-01 approved (2026-11-14):** Gemini is reserved for Build with AI. Normal Search must make zero direct or indirect Gemini calls. The current curateNormalSearch call path can invoke Gemini for topic-syllabus generation, so this requires an architecture/code change in a later implementation phase. This approval does not decide whether external recommendations supplement or replace local results (D-02).
 1. `docs/SEARCH_FLOW_V2_PLAN.md` says normal search should never call Gemini and should show YouTube only if local results are absent; it identifies itself as a test-branch plan.
 2. Current `main` calls `curateNormalSearch` on every non-empty catalog search and returns `youtube_supplementary` resources even when local courses exist. The curation engine contains a Gemini-backed topic-syllabus path.
 3. Current client source hardcodes `INTENT_V2 = false`; the backend intent route also requires its own server flag. The intent-driven flow must not be presumed live.

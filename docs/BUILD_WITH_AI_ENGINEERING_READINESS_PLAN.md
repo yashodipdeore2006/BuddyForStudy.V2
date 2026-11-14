@@ -36,10 +36,18 @@
 | Map separate discovery routes | **Done** | `server/src/routes/discovery.routes.js` → `discovery.controller.js` → `discovery.service.js`; separate Gemini search-specification and legacy YouTube-selector path exists |
 | Map Build with AI sync/async paths | **Done** | `ai.routes.js`, `ai.controller.js`, `aiRoadmap.service.js`, `asyncRoadmap.service.js`, `nodeCuration.service.js` |
 | Map intent route and frontend gate | **Done** | Server route requires `INTENT_V2`; `Courses.tsx` currently hardcodes `INTENT_V2 = false` |
-| Confirm exact CI result for recorded `main` SHA | **Blocked** | Available status evidence showed Vercel success only; GitHub workflow-run lookup did not provide push-run evidence. Must verify directly from Actions/commit checks before treating CI as green. |
-| Inventory all backend tests and missing integration/E2E coverage | **Not started** | Produce a test matrix with test file, layer, scenario, provider mocks, DB requirements, and gaps. |
+| Confirm exact CI result for recorded `main` SHA | **Done — baseline classified, not fully green** | Push workflow run #43481180264: backend, frontend, production release gate and push Gitleaks checks succeeded; Vercel deployment status succeeded. Scheduled full-history Gitleaks run #43590456633 later failed with one `generic-api-key` finding in a natural-language comment in `.gitleaksignore` line 3 (the matched text describes failed/stuck Razorpay webhooks; it is not a credential). Keep this finding visible until the scanner rule/allowlist is corrected and rerun. |
+| Inventory frontend/backend automated test suites | **Done** | Recursive `main` tree: 9 client test files (5 unit, 4 E2E), 171 server test files (15 under `server/src`, 156 under `server/test`). CI runs frontend lint/typecheck/unit tests/build/4 Playwright specs and backend `npm test` plus selector mock and syntax checks. |
+| Assess Build with AI/Search coverage gaps | **In progress** | Targeted service tests cover curriculum depth, templates, intent, graph repair, language, curation, quota, async ownership/idempotency/retry and resource quality. No dedicated Build with AI browser E2E spec is present under `client/tests`; complete the cross-layer gap matrix next. |
 
-**Baseline interpretation:** the initial source map is complete, but this is not proof that production configuration is healthy or that every CI check passed.
+**Baseline interpretation:** the source map and test-file inventory are complete. The core push CI checks passed for the recorded SHA, but the later scheduled full-history Gitleaks run failed on a comment-only false-positive candidate. Production configuration and live behavior remain unverified.
+
+#### Test inventory snapshot
+
+- **Client:** 9 files — 5 unit tests (`aiQuotaGate`, `buildWithAiQuestionPacks`, `courseNav`, `courseSearchPolicy`, `deploymentConfig`) and 4 Playwright E2E specs (`admin-access`, `auth-accessibility`, `google-auth`, `navigation`). The current CI workflow does not include a dedicated Build with AI journey E2E spec.
+- **Server:** 171 test files — 15 test files in `server/src` and 156 in `server/test`. The `server/package.json` test script is `node --test`; CI runs `npm test`.
+- **Relevant existing coverage observed:** Build with AI curriculum/personalization and quota fallback; async draft idempotency, owner isolation, cancel/poll, retry and quota-limited completion; Phase 0 deterministic snapshots; Phase 3 canonical skill graph/template cache; intent question planning and fallback; per-node curation cache and quota retry; language filtering; course curation hard gates and ranking; learning-resource coverage; prompt-injection boundaries; admission recovery.
+- **Not yet established:** whether the existing service-level tests cover the full live frontend → API → MongoDB/Redis → Gemini/YouTube contract, the exact deployed flags, or production-like concurrency and failure recovery. A dedicated contract/integration/E2E matrix is still required.
 
 ### Task 02 — Production topology and configuration audit
 

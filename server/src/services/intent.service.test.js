@@ -194,3 +194,23 @@ test("unmatched learning domains receive at most three safe cached clarifying qu
   const second = await parseIntent("Urban gardening for apartment balconies", { model, generate: async () => { throw new Error("cached result should be reused"); } });
   assert.equal(second.cached, true);
 });
+
+
+test("low-confidence skill level is explicitly surfaced as an AI assumption", async () => {
+  const result = await parseIntent("Python", {
+    model: memoryCache(),
+    generate: async () => ({
+      valid: true,
+      profile: {
+        topic: "Python", domain: "software_web", scope: "broad", goal: "learn",
+        level: "Beginner", knownSkills: [], minutesPerDay: 60, language: "en",
+        targetRole: null, targetCompany: null, examName: null, examDate: null,
+        syllabusText: null, projectIdea: null, deadline: null
+      },
+      confidences: { topic: 1, goal: 1, level: 0.35 },
+      domain: "software_web", scope: "broad",
+      options: { roles: [], exams: [], projectIdeas: [] }
+    })
+  });
+  assert.ok(result.assumptions.some((item) => item.field === "level" && item.value === "Beginner"));
+});

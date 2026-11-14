@@ -171,31 +171,6 @@ function parseAnswerList(value: string | string[] | undefined): string[] {
   return [...new Set(String(value || "").split(/[,|]/).map((item) => item.trim()).filter(Boolean))];
 }
 
-function getRoadmapDurationSummary(input: {
-  estimatedStudyMinutes: number;
-  minutesPerDay: number;
-  studyDaysPerWeek: number;
-  videoRuntimeMinutes: number;
-}) {
-  const studyMinutes = Math.max(0, Number(input.estimatedStudyMinutes) || 0);
-  const minutesPerDay = Math.max(0, Number(input.minutesPerDay) || 0);
-  const studyDaysPerWeek = Math.max(0, Math.min(7, Number(input.studyDaysPerWeek) || 0));
-  const weeklyCapacity = minutesPerDay * studyDaysPerWeek;
-  const weeks = studyMinutes > 0 && weeklyCapacity > 0 ? Math.max(1, Math.ceil(studyMinutes / weeklyCapacity)) : null;
-  const videoMinutes = Math.max(0, Math.round(Number(input.videoRuntimeMinutes) || 0));
-  const videoHours = Math.floor(videoMinutes / 60);
-  const remainingVideoMinutes = videoMinutes % 60;
-  const videoRuntimeLabel = videoMinutes > 0
-    ? [videoHours > 0 ? `${videoHours}h` : "", remainingVideoMinutes > 0 ? `${remainingVideoMinutes}m` : ""].filter(Boolean).join(" ")
-    : null;
-  return {
-    studyHoursLabel: studyMinutes > 0 ? `${Math.round(studyMinutes / 60 * 10) / 10} hours` : null,
-    weeksLabel: weeks ? `${weeks} weeks` : null,
-    scheduleLabel: minutesPerDay > 0 && studyDaysPerWeek > 0 ? `${minutesPerDay} min/day · ${studyDaysPerWeek} days/week` : null,
-    videoRuntimeLabel
-  };
-}
-
 function mapCourse(raw: RawCourse): Course {
   return {
     id: String(raw._id ?? raw.id),
@@ -650,7 +625,7 @@ export default function Courses() {
       }
       const profile = result.profile || {};
       const timeLabels: Record<number, string> = {
-        15: "15 min", 30: "30 min", 60: "1 hour", 120: "2 hours",
+        15: "15 min", 30: "30 min", 60: "1 hour", 90: "1.5 hours", 120: "2 hours",
         180: "3+ hours", 210: "3-4 hours", 300: "5+ hours"
       };
       const goalChoices: Record<string, { goal: string; purpose: string }> = {
@@ -1426,17 +1401,17 @@ export default function Courses() {
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Study minutes per day
           <select value={String(aiStudyTime)}
-            onChange={(event) => { const value = Number(event.target.value); setAiStudyTime(value); setIntentAnswers((previous) => ({ ...previous, time: value >= 180 ? "3+ hours" : value >= 120 ? "2 hours" : value >= 60 ? "1 hour" : value >= 30 ? "30 min" : "15 min" })); }}
+            onChange={(event) => { const value = Number(event.target.value); setAiStudyTime(value); setIntentAnswers((previous) => ({ ...previous, time: value >= 180 ? "3+ hours" : value >= 120 ? "2 hours" : value >= 90 ? "1.5 hours" : value >= 60 ? "1 hour" : value >= 30 ? "30 min" : "15 min" })); }}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
             <option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option>
           </select>
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Study days per week
-          <select value={String(Number(readStudyDays(intentAnswers.studyDays || aiStudyDays)))}
+          <select value={String(Number(String(intentAnswers.studyDays || aiStudyDays).match(/\d+/)?.[0]) || 5)}
             onChange={(event) => { setAiStudyDays(event.target.value); setIntentAnswers((previous) => ({ ...previous, studyDays: event.target.value + " days" })); }}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
-            <option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option>
+            <option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option>
           </select>
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700 sm:col-span-2">

@@ -9,7 +9,7 @@
 ## How this plan is managed
 
 - This file and GitHub issue #43 are the source of truth for task status.
-- Status values: **Not started**, **In progress**, **Blocked**, **Done**.
+- Status values: **Not started**, **In progress**, **Blocked**, **Deferred**, **Done**. Deferred items remain tracked and must be completed before production rollout.
 - A task can be marked Done only with recorded evidence: source paths, CI/test output, environment evidence, or an explicit product/architecture decision.
 - Update both this file and issue #43 whenever a task changes status.
 - Never paste secrets, tokens, raw database URIs, or private learner data into this plan or issue.
@@ -40,6 +40,8 @@
 | Inventory frontend/backend automated test suites | **Done** | Recursive `main` tree: 9 client test files (5 unit, 4 E2E), 171 server test files (15 under `server/src`, 156 under `server/test`). CI runs frontend lint/typecheck/unit tests/build/4 Playwright specs and backend `npm test` plus selector mock and syntax checks. |
 | Assess Build with AI/Search coverage gaps | **Done — gaps recorded** | 8 backend test files are explicitly integration-named; the roadmap-admission Mongo integration test exists. No dedicated Build with AI E2E or Normal Search E2E spec exists in `client/tests`; no load/performance harness was found in the recursive repository tree. Gemini/YouTube automated tests use mocks, so provider behavior still needs controlled non-CI smoke tests. |
 
+**Current execution priority:** proceed with Task 03 (product requirements and user journeys), followed by Task 04 (target architecture and contracts). Complete the deferred Task 02 live deployment checks before production rollout.
+
 **Baseline interpretation:** the source map and test-file inventory are complete. The core push CI checks passed for the recorded SHA, but the later scheduled full-history Gitleaks run failed on a comment-only false-positive candidate. Production configuration and live behavior remain unverified.
 
 #### Test inventory snapshot
@@ -54,21 +56,21 @@
 
 ### Task 02 — Production topology and configuration audit
 
-**Current blocker:** the repository manifests define the intended topology, but they do not prove the live Render or Vercel dashboard state. Live service/environment evidence is required before this task can be closed.
+**Current status: partially verified; remaining dashboard work deferred until pre-launch.** The Render project screenshot dated 2026-11-14 shows `buddyforstudy-api` with dashboard status **Deployed** and only one service in the project; `buddyforstudy-worker` is not present. No worker was created and no API settings were changed. The API readiness endpoint, plan, environment values, worker heartbeat, and Vercel live settings remain unverified. The user has chosen to defer additional Render setup so current Build with AI and course-discovery engineering can proceed. Reopen the remaining deployment checks before production rollout.
 
 | Subtask | Status | Evidence / exit criteria |
 |---|---|---|
 | Review Render API Blueprint definition | **Done — manifest only** | `render.yaml`: API service `buddyforstudy-api`, root `server`, `npm ci`, `npm run start`, health `/api/health/ready`, region Singapore, branch `main`; actual dashboard plan/status still unknown. |
 | Review Render worker Blueprint definition | **Done — manifest only** | `render.yaml`: separate `buddyforstudy-worker`, root `server`, `npm run worker`, same region/branch, 300-second shutdown window; actual service existence/status/heartbeat still unknown. |
-| Verify actual Render API service, plan, status and health | **Blocked — awaiting dashboard evidence** | Confirm service is deployed and ready; do not assume Blueprint sync is complete. |
-| Verify actual worker service status and heartbeat | **Blocked — awaiting dashboard evidence** | Confirm worker exists, is running, and Operations shows a recent heartbeat. |
+| Verify actual Render API service, plan, status and health | **Partially verified; health/plan deferred** | Screenshot confirms `buddyforstudy-api` exists and dashboard status is `Deployed`; `/api/health/ready` and instance plan remain unverified. |
+| Create and verify worker service and heartbeat | **Deferred — pre-launch** | Screenshot confirms `buddyforstudy-worker` is not currently present in the Render project. Create it from the checked-in `render.yaml` intent only during the pre-launch deployment window; then confirm running status and recent Operations heartbeat. |
 | Review Vercel project configuration in repository | **Done — manifest only** | `client/vercel.json` uses Vite, `npm run build`, `dist`, SPA fallback; live project configuration and aliases remain unverified. |
-| Verify Vercel production branch, root directory, build settings and domains | **Blocked — awaiting dashboard evidence** | Check production branch `main`, root `client`, Vite build and assigned apex/www domains. |
-| Confirm actual production values/presence for feature flags | **Blocked — awaiting redacted values** | Blueprint defaults are off: selector, Intent V2, Async Roadmap, combined search, trusted channels and compliance worker. Verify live values, names/true-false only. |
-| Confirm whether Redis is configured and reachable | **Not started** | Blueprint marks `REDIS_URL` optional and worker inherits API value. Confirm presence and health only; never copy URL or credentials |
-| Confirm Gemini model and provider project quota | **Not started** | Model name, billing/quota tier, rate limits and usage dashboard; no API keys |
-| Confirm YouTube API project quota and restrictions | **Not started** | Quota allocation, API enabled, key restrictions and current usage; no key |
-| Capture production baseline metrics | **Not started** | 7-day or available-window latency, 4xx/5xx, roadmap completion, quota, cache hit rate and resource coverage |
+| Verify Vercel production branch, root directory, build settings and domains | **Deferred — pre-launch** | Check production branch `main`, root `client`, Vite build and assigned apex/www domains. |
+| Confirm actual production values/presence for feature flags | **Deferred — pre-launch** | Blueprint defaults are off: selector, Intent V2, Async Roadmap, combined search, trusted channels and compliance worker. Verify live values, names/true-false only. |
+| Confirm whether Redis is configured and reachable | **Deferred — pre-launch** | Blueprint marks `REDIS_URL` optional and worker inherits API value. Confirm presence and health only; never copy URL or credentials. |
+| Confirm Gemini model and provider project quota | **Deferred — pre-launch** | Model name, billing/quota tier, rate limits and usage dashboard; no API keys. |
+| Confirm YouTube API project quota and restrictions | **Deferred — pre-launch** | Quota allocation, API enabled, key restrictions and current usage; no key. |
+| Capture production baseline metrics | **Deferred — pre-launch / staging** | 7-day or available-window latency, 4xx/5xx, roadmap completion, quota, cache hit rate and resource coverage. |
 
 #### Expected deployment baseline from checked-in manifests (not live-state confirmation)
 

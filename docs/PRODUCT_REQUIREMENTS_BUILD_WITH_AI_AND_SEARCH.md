@@ -1,6 +1,6 @@
 # Product Requirements Draft — Normal Search & Build with AI
 
-**Status:** Draft v0.2 — source review completed; D-01 approved on 2026-11-14; remaining product decisions open  
+**Status:** Draft v0.3 — source review completed; D-01 and D-05 approved on 2026-11-14; remaining product decisions open  
 **Reviewed baseline:** `main` at `eb2f4af7ea85723d1f4940e61ffcb7962319e494`  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Tracking issue:** [#43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)  
@@ -129,7 +129,7 @@ These are the working product requirements for review. Items marked **Decision r
 - **AI-03:** optional questions can be skipped; learners can revise assumptions before generation.
 - **AI-04:** known skills and selected depth influence the roadmap graph and workload.
 - **AI-05:** the system distinguishes curriculum study time, learner schedule time and external video runtime. They must not be represented as interchangeable numbers.
-- **AI-06:** resource selection enforces the chosen language/level/duration policy or transparently states that the requested match could not be found.
+- **AI-06 (D-05 approved):** prioritize the learner's selected resource language. Never silently substitute another language. Other-language resources may be offered as clearly labelled alternatives, and must not enter the learning path unless the learner explicitly selects one. Continue to enforce the approved level/duration policy or transparently state that the requested match could not be found.
 - **AI-07:** roadmap nodes have explicit states; one failed resource lookup must not erase unrelated completed nodes.
 - **AI-08:** sync and async modes return equivalent learner-visible roadmap data and failure semantics.
 - **AI-09:** generation is idempotent under duplicate submissions, and a learner can safely refresh/resume an async build.
@@ -139,7 +139,7 @@ These are the working product requirements for review. Items marked **Decision r
 
 **Decision log**
 - **D-01 — APPROVED (2026-11-14):** Gemini is used only by Build with AI. Normal Search must not call Gemini directly or indirectly. Normal Search may continue to use deterministic catalogue and YouTube discovery/ranking logic. The current curateNormalSearch path is not compliant until its Gemini-backed topic-syllabus dependency is removed or bypassed.
-- **D-02 through D-08 — OPEN:** pending separate product-owner decisions; approval of D-01 does not implicitly settle them.
+- **D-02 through D-04 and D-06 through D-08 — OPEN:** pending separate product-owner decisions. **D-05 approved (2026-11-14):** the learner's selected resource language is the preferred language; other-language resources may be shown only as clearly labelled alternatives, and the learner must explicitly select a fallback before it is added to the learning path. Approval of D-05 does not settle duration semantics (D-06).
 
 
 | ID | Decision | Why it matters | Current evidence / conflict |
@@ -148,7 +148,7 @@ These are the working product requirements for review. Items marked **Decision r
 | D-02 | Should external recommendations appear alongside local courses, or only when local results are absent? | Relevance and page density | OPEN. Current main returns supplementary resources for any non-empty query; test-branch plan specifies fallback-only. D-01 only prohibits Gemini and does not decide placement. |
 | D-03 | Should module matches create/reuse a standalone BuddyForStudy course, or remain a non-persistent recommendation? | Catalog integrity, moderation and pricing | Current main creates/reuses module-course records and applies approval/publication policy. |
 | D-04 | Which goal/depth/language defaults should be visible and editable? | Learner control and answer quality | Legacy defaults and target intent profile coexist; live Intent V2 frontend is hard-disabled in source. |
-| D-05 | Is resource language a strict requirement or a ranked preference with clearly-labelled fallbacks? | Prevents the previously reported language mismatch class of defect. | Profile supports language; UI supports multiple resource languages in the legacy builder. |
+| D-05 | Is resource language a strict requirement or a ranked preference with clearly-labelled fallbacks? | Prevents silent language substitution and preserves learner control. | **APPROVED 2026-11-14 — Preferred language + transparent fallback:** prioritize the learner's selected language; show any other-language resources as clearly labelled alternatives; require explicit learner selection before adding a fallback to the learning path. |
 | D-06 | What is the authoritative meaning of roadmap duration? | Prevents confusion between estimated study hours and video runtime. | Profile has schedule/depth fields and nodes have duration policies; UI currently exposes depth bands. |
 | D-07 | What approval policy applies to generated AI courses before enrollment/public listing? | Protects catalog quality and learner access. | Generated courses are subject to configurable manual/automatic approval and readiness checks. |
 | D-08 | Which retry/resume guarantees are required after server restart? | Determines durable queue and worker architecture. | Async drafts/admission records exist; the worker is not yet deployed in Render and roadmap-job durability needs a separate Task 04 decision. |

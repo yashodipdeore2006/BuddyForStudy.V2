@@ -814,7 +814,7 @@ export default function Courses() {
     const courseDepthLabel = COURSE_DEPTH_OPTIONS.find((option) => option.value === aiCourseDepth)?.label || "Complete course";
     const studyMinutes = parseStudyMinutes(readAnswer("time") || parsedProfile.minutesPerDay, aiStudyTime);
     const studyDaysValue = readAnswer("studyDays") || String(parsedProfile.preferences?.studyDays || aiStudyDays);
-    const studyDaysPerWeek = Math.max(1, Math.min(7, Number(studyDaysValue.match(/\d+/)?.[0]) || 5));
+    const studyDaysPerWeek = Math.max(2, Math.min(7, Number(studyDaysValue.match(/\d+/)?.[0]) || 5));
     const knownSkills = parseAnswerList(readAnswer("knownSkills") || parsedProfile.knownSkills);
     const selectedLevel = (readAnswer("level") || aiLevel || parsedProfile.level || "Beginner") as CourseLevel;
     const depthAnswer = readAnswer("depth").toLowerCase();
@@ -822,16 +822,15 @@ export default function Courses() {
       ? "narrow"
       : /complete|broad|full/.test(depthAnswer)
         ? "broad"
-        : parsedProfile.scope || (aiCourseDepth === "short" ? "narrow" : "broad");
-    const languageAnswer = readAnswer("language").toLowerCase();
-    const answeredLanguage = BUILD_WITH_AI_LANGUAGES.find((item) =>
-      item.code === languageAnswer || item.label.toLowerCase() === languageAnswer
-    )?.code;
-    const effectiveLanguages = [...new Set([
-      ...(answeredLanguage ? [answeredLanguage] : []),
-      ...selectedLanguages
-    ])].slice(0, 4);
-    const preferredLanguage = effectiveLanguages[0] || String(parsedProfile.language || "en");
+        : aiCourseDepth === "short"
+          ? "narrow"
+          : aiCourseDepth === "complete"
+            ? "broad"
+            : parsedProfile.scope || "narrow";
+    // The order selected in the review UI is authoritative; parser defaults must not silently
+    // re-introduce a language that the learner removed from their selected language list.
+    const effectiveLanguages = selectedLanguages;
+    const preferredLanguage = effectiveLanguages[0] || "en";
     const selectedRole = readAnswer("role") || readAnswer("targetRole") || parsedProfile.targetRole || null;
     const selectedCompany = readAnswer("company") || readAnswer("targetCompany") || parsedProfile.targetCompany || null;
     const selectedExam = readAnswer("examType") || parsedProfile.examName || null;

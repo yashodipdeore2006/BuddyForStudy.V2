@@ -83,7 +83,7 @@
 
 ### Task 03 — Product requirements and user journeys
 
-**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v0.8 draft on the readiness branch; D-01, D-02, D-03, D-04, D-05, D-07 and D-08 are approved; D-06 remains open.
+**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v0.9 draft on the readiness branch; all product decisions D-01 through D-08 are approved. Architecture, implementation and validation remain pending.
 
 | Subtask | Status | Evidence / exit criteria |
 |---|---|---|
@@ -91,7 +91,7 @@
 | Map Build with AI current behavior and draft its product contract | **In progress — D-04 adaptive onboarding approved; broader contract pending** | PRD sections 2.2, 3B and 4.3. Separate explicit flow, topic-only adaptive intake, provisional goal/level assumptions, targeted follow-up questions, editable profile review, intent route, entitlement gates, sync/async modes, and the hard-disabled frontend Intent V2 constant recorded. |
 | Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started — architecture decision** | PRD D-01 and Task 04; D-01 approves no Gemini in Normal Search but does not decide whether ranking/candidate code can be shared. Compare user intent, latency, quality, quota and data contracts. |
 | Specify learner goals: learn, job-ready, exam and project | **In progress — target captured, needs owner approval** | PRD Journey B and goal-specific content; based on the implementation guide, not an assertion that all target details are live. |
-| Specify resource language, level, depth and duration semantics | **In progress — D-04 onboarding and D-05 language policy approved; D-06 remains open** | PRD AI-01 to AI-06 and D-04 to D-06. D-04: topic-only adaptive intake with editable, confidence-aware goal/level assumptions; D-05: selected language is preferred and alternate-language resources require explicit selection. The learner prefers duration to be shown in both hours and weeks; the full D-06 policy remains pending explicit approval. |
+| Specify resource language, level, depth and duration semantics | **In progress — D-04, D-05 and D-06 approved; UX/contract implementation pending** | PRD AI-01 to AI-06. D-04: topic-only adaptive intake with editable, confidence-aware goal/level assumptions; D-05: selected language is preferred and alternate-language resources require explicit selection. D-06: display learning effort in hours, completion timeline in weeks based on study availability, recommended study schedule and video runtime separately. |
 | Define partial completion, retry, cancel and resume UX | **In progress — D-08 restart guarantee approved; detailed UX/contract pending** | PRD Journey B and AI-07 to AI-11. Durable recovery is required: persist job/node state, automatically resume unfinished work after API/worker restart, preserve completed outputs, process idempotently and expose bounded retry/permanent-failure states. Sync/async parity, cancel semantics and user-facing recovery details remain to be specified. |
 | Define admin approval, visibility, publication, price and enrollment lifecycle | **In progress — D-07 approved; full lifecycle contract pending** | PRD D-07. Existing admin setting `content_approval_ai_courses` supports `manual` / `automatic`; `Course.js` gates automatic publication on readiness and prevents learner-private courses from being published. Still define the full publication, pricing, visibility and enrollment state-transition matrix in Task 04. |
 
@@ -105,11 +105,11 @@
 - **D-08 approved (2026-11-14):** roadmap jobs and per-step/node state must survive API/worker restarts; unfinished work is automatically recovered, completed outputs are preserved, processing is idempotent, retries are bounded/classified, and permanent failures remain visible/actionable. The exact queue/storage technology, lease/recovery protocol and deployment topology remain Task 04 architecture work.
 - **D-04 approved (2026-11-14):** adopt adaptive onboarding for topic-only learners. AI proposes a provisional learning goal and skill level, asks a few targeted adaptive questions for missing/low-confidence information, allows “not sure” and optional skips, and presents an editable review distinguishing learner-confirmed values, AI-inferred assumptions and unknowns before generation. This does not enable Intent V2 or change production flags.
 - **D-03 approved (2026-11-14):** retain standalone course creation/reuse for matching published modules when no direct course match exists. Deduplicate by source course/module identity and enforce approval, publication and readiness gates; direct course matches take precedence.
-- D-06 remains open.
+- **D-06 approved (2026-11-14):** display estimated learning effort in hours, completion timeline in weeks derived from available study time, recommended study schedule, and external video runtime as separate values; make assumptions explicit.
 1. `docs/SEARCH_FLOW_V2_PLAN.md` says normal search should never call Gemini and should show YouTube only if local results are absent; it identifies itself as a test-branch plan.
 2. Current `main` calls `curateNormalSearch` on every non-empty catalog search and returns `youtube_supplementary` resources even when local courses exist. The curation engine contains a Gemini-backed topic-syllabus path.
 3. Current client source hardcodes `INTENT_V2 = false`; the backend intent route also requires its own server flag. The intent-driven flow must not be presumed live.
-4. The requirements draft remains under review. D-01, D-02, D-03, D-04, D-05, D-07 and D-08 are approved; D-06 remains open. Detailed contracts, Intent V2 rollout and implementation still require Task 04/QA and Go/No-Go approval.
+4. All product decisions D-01 through D-08 are approved. Product requirements are agreed; the detailed technical architecture, API contracts, security/quality review, implementation, test evidence and Go/No-Go approval still remain.
 
 ### Task 04 — Target architecture and contracts
 

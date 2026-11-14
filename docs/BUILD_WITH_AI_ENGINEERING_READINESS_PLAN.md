@@ -109,7 +109,7 @@
 1. `docs/SEARCH_FLOW_V2_PLAN.md` says normal search should never call Gemini and should show YouTube only if local results are absent; it identifies itself as a test-branch plan.
 2. Current `main` calls `curateNormalSearch` on every non-empty catalog search and returns `youtube_supplementary` resources even when local courses exist. The curation engine contains a Gemini-backed topic-syllabus path.
 3. Current client source hardcodes `INTENT_V2 = false`; the backend intent route also requires its own server flag. The intent-driven flow must not be presumed live.
-4. The requirements draft remains under review. D-01, D-03, D-04, D-05, D-07 and D-08 are approved; D-02 and D-06 remain open. Detailed contracts, Intent V2 rollout and implementation still require Task 04/QA and Go/No-Go approval.
+4. The requirements draft remains under review. D-01, D-02, D-03, D-04, D-05, D-07 and D-08 are approved; D-06 remains open. Detailed contracts, Intent V2 rollout and implementation still require Task 04/QA and Go/No-Go approval.
 
 ### Task 04 — Target architecture and contracts
 

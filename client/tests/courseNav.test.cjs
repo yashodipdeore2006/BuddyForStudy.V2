@@ -289,3 +289,17 @@ test("course player offers one-tap curation feedback and dismisses the choices a
   assert.match(player, /setCurationFeedbackDismissedKeys\(\(current\) => new Set\(current\)\.add\(key\)\)/);
   assert.match(player, /Retry feedback/);
 });
+
+
+test("Build with AI enables adaptive onboarding only through the VITE_INTENT_V2 feature flag", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  assert.match(courses, /const INTENT_V2 = import\.meta\.env\.VITE_INTENT_V2 === "true"/);
+  assert.match(courses, /aria-label="Adaptive learning questions"/);
+  assert.match(courses, /aria-label="Review your learning profile"/);
+  assert.match(courses, /const parsedProfile = intentResult\?\.profile \|\| \{\}/);
+  assert.match(courses, /studyTimeMinutesPerDay: studyMinutes/);
+  assert.match(courses, /studyDays: String\(studyDaysPerWeek\)/);
+  assert.match(courses, /Estimated completion timeline/);
+  assert.match(courses, /Based on returned resource metadata; not a verification of video content/);
+  assert.doesNotMatch(courses, /Verified video runtime/);
+});

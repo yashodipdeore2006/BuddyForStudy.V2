@@ -495,7 +495,6 @@ export default function Courses() {
     setIntentResult(null);
     setIntentAnswers({});
     setIntentWizardStep(1);
-    setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
     setAiGoal("Explore a personal interest");
     setAiGoalTouched(false);
     setAiLevel("Beginner");
@@ -1035,7 +1034,6 @@ export default function Courses() {
                   setIntentAnswers({});
                   setIntentConfirmedFields(requestedTopic.trim().length >= 2 ? ["topic"] : []);
                   setIntentWizardStep(1);
-                  setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
                   setAiGoal("Explore a personal interest");
                   setAiGoalTouched(false);
                   setAiLevel("Beginner");

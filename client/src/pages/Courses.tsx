@@ -1268,7 +1268,7 @@ export default function Courses() {
 
   <fieldset className="space-y-2.5">
     <legend className="text-sm font-semibold text-slate-900">Languages for learning resources</legend>
-    <p className="text-xs text-slate-500">Select up to four. English and Hindi are selected by default; we’ll try your chosen languages in order and use the first suitable verified resource.</p>
+    <p className="text-xs text-slate-500">Select up to four. English and Hindi are selected by default; we prioritise the languages in the order selected.</p>
     <div className="flex flex-wrap gap-2">
       {BUILD_WITH_AI_LANGUAGES.map((language) => {
         const selected = aiResourceLanguages.includes(language.code);
@@ -1320,10 +1320,9 @@ export default function Courses() {
                   return (
                     <button key={option} type="button" aria-pressed={selected}
                       onClick={() => setIntentAnswers((previous) => {
-                        const current = parseAnswerList(previous[question.id]);
+                        const current = selectedValues;
                         const next = current.includes(option) ? current.filter((item) => item !== option) : [...current, option];
-                        setIntentConfirmedFields((fields) => fields.includes(question.id) ? fields : [...fields, question.id]);
-                        return { ...previous, [question.id]: next.join(", ") };
+                        markIntentAnswer(question.id, next.join(", "));
                       })}
                       className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
                       {selected ? "✓ " : ""}{option}
@@ -1402,6 +1401,8 @@ export default function Courses() {
           <p className="text-xs font-bold text-slate-700">Not provided yet</p>
           <ul className="mt-2 space-y-1 text-xs text-slate-600">
             {[
+              { label: "Learning goal", value: intentResult.profile?.goal || intentResult.inferredGoal },
+              { label: "Known skills", value: (intentResult.profile?.knownSkills || []).join(", ") || intentAnswers.knownSkills },
               { label: "Target role", value: intentResult.profile?.targetRole || intentAnswers.role },
               { label: "Target company", value: intentResult.profile?.targetCompany || intentAnswers.company },
               { label: "Exam or certification", value: intentResult.profile?.examName || intentAnswers.examType },

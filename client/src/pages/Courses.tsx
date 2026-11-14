@@ -233,6 +233,11 @@ export default function Courses() {
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentResult, setIntentResult] = useState<IntentParse | null>(null);
   const [intentAnswers, setIntentAnswers] = useState<Record<string, string>>({});
+  const [intentConfirmedFields, setIntentConfirmedFields] = useState<string[]>([]);
+  const markIntentAnswer = (key: string, value: string) => {
+    setIntentAnswers((previous) => ({ ...previous, [key]: value }));
+    setIntentConfirmedFields((previous) => previous.includes(key) ? previous : [...previous, key]);
+  };
   const [retiredIntentQuestionIds, setRetiredIntentQuestionIds] = useState<string[]>([]);
   const [intentWizardStep, setIntentWizardStep] = useState(1);
   const [coreQuestionStep, setCoreQuestionStep] = useState(0);
@@ -620,9 +625,11 @@ export default function Courses() {
       setIntentResult({ ...result, questionPlan: merged });
         if (!result.valid) {
         setIntentAnswers({});
+        setIntentConfirmedFields([]);
         setAiError('That does not look like a learning topic yet. Try Python, Data Analytics, an exam name, or a project idea.');
         return;
       }
+      setIntentConfirmedFields(["topic"]);
       const profile = result.profile || {};
       const timeLabels: Record<number, string> = {
         15: "15 min", 30: "30 min", 60: "1 hour", 90: "1.5 hours", 120: "2 hours",
@@ -1027,6 +1034,7 @@ export default function Courses() {
                   setAiRoadmap(null);
                   setIntentResult(null);
                   setIntentAnswers({});
+                  setIntentConfirmedFields(requestedTopic.trim().length >= 2 ? ["topic"] : []);
                   setIntentWizardStep(1);
                   setCoreQuestionStep(requestedTopic.trim().length >= 2 ? 1 : 0);
                   setAiGoal("Explore a personal interest");
@@ -1314,6 +1322,7 @@ export default function Courses() {
                       onClick={() => setIntentAnswers((previous) => {
                         const current = parseAnswerList(previous[question.id]);
                         const next = current.includes(option) ? current.filter((item) => item !== option) : [...current, option];
+                        setIntentConfirmedFields((fields) => fields.includes(question.id) ? fields : [...fields, question.id]);
                         return { ...previous, [question.id]: next.join(", ") };
                       })}
                       className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
@@ -1329,7 +1338,7 @@ export default function Courses() {
                   const selected = currentAnswer === option;
                   return (
                     <button key={option} type="button" aria-pressed={selected}
-                      onClick={() => setIntentAnswers((previous) => ({ ...previous, [question.id]: option }))}
+                      onClick={() => markIntentAnswer(question.id, option)}
                       className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"}`}>
                       {selected ? "✓ " : ""}{option}
                     </button>
@@ -1340,12 +1349,12 @@ export default function Courses() {
             {(!hasOptions || question.type === "text" || question.type === "paste") && (
               question.type === "paste" ? (
                 <textarea rows={4} value={currentAnswer}
-                  onChange={(event) => setIntentAnswers((previous) => ({ ...previous, [question.id]: event.target.value }))}
+                  onChange={(event) => markIntentAnswer(question.id, event.target.value)}
                   placeholder="Add details here (optional)"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-500"/>
               ) : (
                 <input type="text" value={currentAnswer}
-                  onChange={(event) => setIntentAnswers((previous) => ({ ...previous, [question.id]: event.target.value }))}
+                  onChange={(event) => markIntentAnswer(question.id, event.target.value)}
                   placeholder="Type your answer (optional)"
                   className="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-indigo-500"/>
               )
@@ -1363,21 +1372,50 @@ export default function Courses() {
         <h3 className="mt-1 text-base font-bold text-slate-900">Review your learning profile</h3>
         <p className="mt-1 text-xs leading-5 text-slate-600">AI-inferred values are provisional. Correct anything that does not describe you before generating the roadmap.</p>
       </div>
-      {Array.isArray(intentResult.assumptions) && intentResult.assumptions.length > 0 && (
-        <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-          <p className="text-xs font-bold text-amber-900">AI assumptions to review</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">
-            {intentResult.assumptions.map((assumption) => (
-              <li key={assumption.field}>{assumption.field.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}: {Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value ?? "Not specified")}</li>
-            ))}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-emerald-200 bg-white p-3">
+          <p className="text-xs font-bold text-emerald-800">Confirmed by you</p>
+          <ul className="mt-2 space-y-1 text-xs text-slate-700">
+            {["topic", ...intentConfirmedFields.filter((field) => field !== "topic")].map((field) => {
+              const labels: Record<string, string> = { topic: "Learning topic", goal: "Learning goal", level: "Experience level", depth: "Course depth", knownSkills: "Existing skills", time: "Daily study time", studyDays: "Study days", language: "Resource languages", role: "Target role", company: "Target company", examType: "Exam", examDate: "Exam date", syllabus: "Syllabus", projectIdea: "Project idea", deadline: "Target date", lessonStyle: "Learning style" };
+              const value = field === "topic" ? aiTopic
+                : field === "level" ? aiLevel
+                : field === "depth" ? aiCourseDepth
+                : field === "language" ? aiResourceLanguages.map((code) => BUILD_WITH_AI_LANGUAGES.find((item) => item.code === code)?.label || code).join(", ")
+                : intentAnswers[field] || "Confirmed";
+              return <li key={field}><span className="font-semibold">{labels[field] || field}:</span> {value}</li>;
+            })}
           </ul>
         </div>
-      )}
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs font-bold text-amber-900">AI-inferred assumptions</p>
+          <ul className="mt-2 space-y-1 text-xs text-amber-900">
+            {(intentResult.assumptions || []).map((assumption) => (
+              <li key={assumption.field}><span className="font-semibold">{assumption.field.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}:</span> {Array.isArray(assumption.value) ? assumption.value.join(", ") : String(assumption.value ?? "Not specified")}</li>
+            ))}
+            {!intentResult.assumptions?.length && !intentConfirmedFields.includes("goal") && (
+              <li>Learning goal: {String(intentResult.inferredGoal || "General learning")} (provisional until you confirm it below)</li>
+            )}
+          </ul>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3">
+          <p className="text-xs font-bold text-slate-700">Not provided yet</p>
+          <ul className="mt-2 space-y-1 text-xs text-slate-600">
+            {[
+              { label: "Target role", value: intentResult.profile?.targetRole || intentAnswers.role },
+              { label: "Target company", value: intentResult.profile?.targetCompany || intentAnswers.company },
+              { label: "Exam or certification", value: intentResult.profile?.examName || intentAnswers.examType },
+              { label: "Project idea", value: intentResult.profile?.projectIdea || intentAnswers.projectIdea },
+              { label: "Target date", value: intentResult.profile?.deadline || intentAnswers.deadline }
+            ].filter((item) => !String(item.value || "").trim()).map((item) => <li key={item.label}>{item.label}</li>)}
+          </ul>
+        </div>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Learning goal
           <select value={String(intentAnswers.goal || intentResult.profile?.goal || intentResult.inferredGoal || "learn")}
-            onChange={(event) => setIntentAnswers((previous) => ({ ...previous, goal: event.target.value }))}
+            onChange={(event) => markIntentAnswer("goal", event.target.value)}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
             <option value="learn">Learn a skill</option><option value="job_ready">Become job-ready</option><option value="exam">Prepare for an exam</option><option value="project">Build a project</option>
           </select>
@@ -1385,14 +1423,14 @@ export default function Courses() {
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Current experience
           <select value={String(intentAnswers.level || aiLevel)}
-            onChange={(event) => { setAiLevel(event.target.value as CourseLevel); setAiLevelTouched(true); setIntentAnswers((previous) => ({ ...previous, level: event.target.value })); }}
+            onChange={(event) => { setAiLevel(event.target.value as CourseLevel); setAiLevelTouched(true); markIntentAnswer("level", event.target.value); }}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
             <option value="Beginner">Beginner</option><option value="Intermediate">Intermediate</option><option value="Advanced">Advanced</option>
           </select>
         </label>
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Course depth
-          <select value={aiCourseDepth} onChange={(event) => setAiCourseDepth(event.target.value as "short" | "medium" | "complete")}
+          <select value={aiCourseDepth} onChange={(event) => { const value = event.target.value as "short" | "medium" | "complete"; setAiCourseDepth(value); markIntentAnswer("depth", value === "short" ? "Quick overview" : value === "complete" ? "Complete learning path" : "Medium course"); }}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
             <option value="short">Short</option><option value="medium">Medium</option><option value="complete">Complete</option>
           </select>
@@ -1400,7 +1438,7 @@ export default function Courses() {
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Study minutes per day
           <select value={String(aiStudyTime)}
-            onChange={(event) => { const value = Number(event.target.value); setAiStudyTime(value); setIntentAnswers((previous) => ({ ...previous, time: value >= 180 ? "3+ hours" : value >= 120 ? "2 hours" : value >= 90 ? "1.5 hours" : value >= 60 ? "1 hour" : value >= 30 ? "30 min" : "15 min" })); }}
+            onChange={(event) => { const value = Number(event.target.value); setAiStudyTime(value); markIntentAnswer("time", value >= 180 ? "3+ hours" : value >= 120 ? "2 hours" : value >= 90 ? "1.5 hours" : value >= 60 ? "1 hour" : value >= 30 ? "30 min" : "15 min"); }}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
             <option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option>
           </select>
@@ -1408,7 +1446,7 @@ export default function Courses() {
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           Study days per week
           <select value={String(Number(String(intentAnswers.studyDays || aiStudyDays).match(/\d+/)?.[0]) || 5)}
-            onChange={(event) => { setAiStudyDays(event.target.value); setIntentAnswers((previous) => ({ ...previous, studyDays: event.target.value + " days" })); }}
+            onChange={(event) => { setAiStudyDays(event.target.value); markIntentAnswer("studyDays", event.target.value + " days"); }}
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900">
             <option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option>
           </select>
@@ -1416,7 +1454,7 @@ export default function Courses() {
         <label className="space-y-1 text-xs font-semibold text-slate-700 sm:col-span-2">
           Skills you already know
           <input value={String(intentAnswers.knownSkills || (Array.isArray(intentResult.profile?.knownSkills) ? intentResult.profile.knownSkills.join(", ") : ""))}
-            onChange={(event) => setIntentAnswers((previous) => ({ ...previous, knownSkills: event.target.value }))}
+            onChange={(event) => markIntentAnswer("knownSkills", event.target.value)}
             placeholder="e.g. HTML, CSS, JavaScript"
             className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900"/>
         </label>
@@ -1427,7 +1465,7 @@ export default function Courses() {
           {BUILD_WITH_AI_LANGUAGES.map((language) => {
             const selected = aiResourceLanguages.includes(language.code);
             return <button key={language.code} type="button" aria-pressed={selected}
-              onClick={() => setAiResourceLanguages((current) => selected ? current.filter((code) => code !== language.code) : [...current, language.code].slice(0, 4))}
+              onClick={() => { setAiResourceLanguages((current) => selected ? current.filter((code) => code !== language.code) : [...current, language.code].slice(0, 4)); setIntentConfirmedFields((fields) => fields.includes("language") ? fields : [...fields, "language"]); }}
               className={`rounded-full border px-3 py-2 text-xs font-semibold ${selected ? "border-indigo-500 bg-indigo-50 text-indigo-900" : "border-slate-200 bg-white text-slate-700"}`}>
               {selected ? "✓ " : ""}{language.label}
             </button>;
@@ -1451,6 +1489,7 @@ export default function Courses() {
                   if (INTENT_V2 && intentResult?.valid && intentWizardStep === 2) {
                     setIntentResult(null);
                     setIntentAnswers({});
+                    setIntentConfirmedFields(["topic"]);
                     setIntentWizardStep(1);
                     return;
                   }

@@ -102,6 +102,7 @@ function mapResource(resource, reason = "Selected by shared course curation engi
     thumbnail: String(entry.thumbnail || resource.thumbnail || ""),
     url: String(entry.url || (entry.videoId ? `https://www.youtube.com/watch?v=${entry.videoId}` : "")),
     defaultAudioLanguage: String(entry.defaultAudioLanguage || ""),
+    isShort: Boolean(entry.isShort),
     publishedAt: entry.publishedAt || null
   })).filter((entry) => entry.videoId);
   return {

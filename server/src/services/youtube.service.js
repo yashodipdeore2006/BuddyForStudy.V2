@@ -621,7 +621,14 @@ export async function attachYouTubeResources(course, options = {}) {
                 level: options.level || course.level || "Beginner",
                 language
               },
-              durationPolicy: { minMinutes, targetMinutes, maxMinutes },
+              durationPolicy: {
+                minMinutes,
+                targetMinutes,
+                maxMinutes,
+                excludeShorts: lesson.tutorial?.searchPolicy?.excludeShorts !== false,
+                minPlaylistMinutes: Number(lesson.tutorial?.searchPolicy?.minPlaylistMinutes) || minMinutes,
+                minPlaylistItems: Number(lesson.tutorial?.searchPolicy?.minPlaylistItems) || undefined
+              },
               cacheScope: `${options.resourceCacheScope || ""}:language:${language}`
             });
             if (result.best && !result.meta?.lowConfidence) {

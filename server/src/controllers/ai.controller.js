@@ -29,7 +29,7 @@ async function ensureCourseLearningAccess(req, courseId) {
   });
 }
 
-async function queueNextLessonQuiz(courseId, lessonId, userId, excludedQuestions = null) {
+export async function queueNextLessonQuiz(courseId, lessonId, userId, excludedQuestions = null) {
   if (!userId) throw new Error("A learner ID is required for practice quiz generation.");
   const key = `${courseId}:${lessonId}:practice`;
   if (quizGenerationJobs.has(key)) return;

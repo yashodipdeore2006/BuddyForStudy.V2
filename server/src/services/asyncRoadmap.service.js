@@ -222,7 +222,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
           // enrich only one roadmap node, even when node searches finish together.
           const uniqueSelection = reserveUniqueRoadmapResource(curated, usedResourceIds);
           const state = uniqueSelection.best
-            ? (uniqueSelection.duplicateRejected ? "ready_alternative" : (curated.meta?.state || (curated.meta?.lowConfidence ? "low_confidence" : "ready")))
+            ? (curated.meta?.state || (curated.meta?.lowConfidence ? "low_confidence" : "ready"))
             : (uniqueSelection.duplicateRejected ? "duplicate_resource" : (curated.meta?.state || "failed"));
           const selectedAlternatives = uniqueSelection.alternatives || [];
           const best = uniqueSelection.best ? { ...uniqueSelection.best, state, alternatives: selectedAlternatives } : null;

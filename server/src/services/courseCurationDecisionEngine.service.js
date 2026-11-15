@@ -11,7 +11,7 @@ import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./yout
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.12";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.13";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;
@@ -574,6 +574,20 @@ function languageAllowed(candidate, profile) {
   if (expected === "en" && hasObviousIndicScript(candidate)) return false;
   return true;
 }
+function playlistLessonRelevance(query, items = []) {
+  const queryTerms = tokens(query);
+  const lessons = Array.isArray(items) ? items : [];
+  if (!queryTerms.length || !lessons.length) return { matchingLessons: 0, totalLessons: lessons.length, coverage: 0 };
+  const matchingLessons = lessons.filter((item) => {
+    const text = normalizeText([item?.title, item?.description].filter(Boolean).join(" "));
+    return queryTerms.some((term) => text.includes(term));
+  }).length;
+  return {
+    matchingLessons,
+    totalLessons: lessons.length,
+    coverage: matchingLessons / lessons.length
+  };
+}
 function passesHardGates(candidate, profile) {
   if (!candidate || !candidate.title) return { passed: false, reason: "missing_metadata" };
   if (candidate.isShort || /\/shorts\//i.test(String(candidate.url || candidate.sourceUrl || ""))) return { passed: false, reason: "short_form" };
@@ -604,6 +618,15 @@ function passesHardGates(candidate, profile) {
     const titleMatch = titleRelevance >= 35;
     const strongMetadataMatch = termCount >= 2 && relevance >= 65;
     if (!titleMatch && !strongMetadataMatch) return { passed: false, reason: "query_mismatch" };
+    if (candidate.sourceType === "playlist") {
+      // A relevant playlist title/description must not hide a mostly unrelated
+      // set of lessons. Validate relevance across the playable lesson items.
+      const lessonRelevance = playlistLessonRelevance(profile.query, candidate.items);
+      const minimumMatches = Math.max(2, Math.ceil(lessonRelevance.totalLessons * 0.5));
+      if (lessonRelevance.matchingLessons < minimumMatches || lessonRelevance.coverage < 0.5) {
+        return { passed: false, reason: "playlist_lesson_relevance_below_50_percent" };
+      }
+    }
   } else if (relevance < 40 && titleRelevance < 20) {
     return { passed: false, reason: "query_mismatch" };
   }

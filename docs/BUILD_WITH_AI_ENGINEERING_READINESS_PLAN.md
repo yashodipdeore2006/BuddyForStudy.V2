@@ -1,7 +1,7 @@
 # Build with AI & Course Discovery — Engineering Readiness Plan
 
 **Status:** Discovery / pre-implementation  
-**Last updated:** 2026-11-14  
+**Last updated:** 2026-11-15  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Tracking issue:** [#43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)  
 **Protected working rule:** do not commit to `main`; do not change product behavior until the Go/No-Go gate is approved.
@@ -120,7 +120,7 @@
 | Define canonical skill registry and graph invariants | **In progress — target IDs, matching policy and DAG invariants documented; fuzzy-match calibration pending** | Target architecture defines domain-aware canonical IDs/aliases, ambiguity handling, 3–14 skill bounds, prerequisite validity, DAG validation, topological ordering and repair audit. Calibrate matching threshold/margin and migration behavior before implementation |
 | Define resource candidate and selected-resource contracts | **In progress — Build with AI node resource/state contract documented; persistence/freshness policy pending** | Target architecture defines canonical skill context, language/duration policy, provider IDs, URLs, metadata provenance, selected resource/alternatives, cache identity and per-node states. Decide resource persistence and YouTube retention/invalidation details |
 | Define evidence/confidence model | **In progress — intent provenance and resource metadata-only evidence documented; cross-flow implementation pending** | Target architecture distinguishes learner-confirmed, inferred and unknown profile values; provider metadata/structure from verified content; and selected resource confidence/provenance from curriculum confidence |
-| Decide durable job processing | **In progress — D-08 persistence/recovery contract documented; technology choice pending** | Target architecture specifies job/profile/idempotency identity, persisted curriculum and per-node state, lease/heartbeat, automatic recovery, bounded retries, cancellation, event cursor and retention. Current process-local queue and one-hour draft TTL do not meet restart-resume. Evaluate MongoDB/Redis/worker topology before choosing technology |
+| Decide durable job processing | **In progress — ADR-002 recommendation documented; product-owner approval and implementation remain pending** | [ADR-002](architecture/ADR-002-durable-roadmap-job-processing.md) compares MongoDB queue vs BullMQ/Redis and proposes MongoDB as the initial durable queue/system of record with a dedicated worker. Open items: approval, job model, terminal retention, atomic claim/lease/fencing, restart recovery, cross-process event delivery and failure-injection tests |
 | Define cache layers and invalidation | **In progress — cache ownership/key requirements documented; TTL/invalidation validation pending** | Target architecture separates intent cache, generic roadmap-template cache, node-resource cache and private course storage. Include depth/schema/prompt/policy versions in keys; measure TTL, negative caching and invalidation before production selection |
 | Define API contracts and compatibility | **In progress — Normal Search and Build with AI target API contracts documented; compatibility/tests pending** | ADR-001 defines `GET /api/courses`; Build with AI target architecture defines intent parse, confirmed build input, sync/async endpoints, owner checks, responses and typed errors. Implement strict DTOs, sync/async parity and backward-compatibility tests |
 | Define YouTube quota and provider degradation | **In progress — Normal Search and roadmap-node degradation semantics documented; provider cost/retention verification pending** | ADR-001 and Build with AI target architecture specify quota-guarded fallback/node resolution, non-fatal quota-limited states and preservation of completed nodes. Verify provider quota units, reserve/refuse rules, retry limits, costs and data-retention obligations |
@@ -141,6 +141,10 @@
 4. **Approved:** Return a `youtube_fallback` payload only when eligible local matches are absent; otherwise omit discovery metadata. Keep external recommendations separate from published BuddyForStudy course records.
 5. **Implementation acceptance:** add regression coverage for direct local matches, eligible module/standalone matches, unpublished/pending standalone records, empty-local fallback, quota/provider failures, later pages with zero rows but positive total matches, stale fallback clearing, and zero Gemini calls when credentials are configured.
 
+### Task 04 Queue architecture proposal — 2026-11-15 (ADR-002)
+
+**Decision record:** [ADR-002 — Durable roadmap job processing](architecture/ADR-002-durable-roadmap-job-processing.md). The proposal recommends a MongoDB-backed durable queue and separate worker for the initial scale, with BullMQ/Redis reserved for evidence-based migration triggers. This is not yet an approved technical decision. The current API-process queue, one-hour draft TTL and maintenance-only worker do not meet D-08. The proposal specifies atomic claims, execution leases/fencing, retry classification, node-level resume, DB-backed event replay, terminal-only retention and failure-injection acceptance tests. Product-owner approval is required before implementation.
+
 ### Task 04 Build with AI target architecture — 2026-11-15 (draft v0.1)
 
 **Architecture document:** [Build with AI — Target Architecture and API Contracts](architecture/BUILD-WITH-AI-TARGET-ARCHITECTURE.md).
@@ -152,7 +156,7 @@
 - Skill registry resolution currently checks exact names/aliases, normalized slug and token similarity (0.8 threshold), but matching is not domain-scoped and has no explicit ambiguity margin. Calibrate before treating fuzzy matches as canonical.
 - Current graph validator repairs duplicates, invalid prerequisite edges and cycles, trims to 14 skills, and inserts generic nodes when fewer than 3 remain. The target contract requires audited repair and forbids presenting synthetic generic nodes as topic-specific AI-authored coverage.
 - Sync and async course persistence differ. Async generation sets private visibility and owner; synchronous `Course.create` sets published true but does not set `createdForUser` or private visibility. This is a verified D-07 gap for learner-specific roadmaps.
-- Async drafts/events are persisted, but work is queued through process-local `queue[]`; `RoadmapDraft.createdAt` has a one-hour TTL. This does not satisfy D-08 automatic restart recovery and durable resume.
+- Async drafts/events are persisted, but work is queued through process-local `queue[]`; `RoadmapDraft.createdAt` has a one-hour TTL. The separate `server/src/jobs/worker.js` runs maintenance and admission recovery but does not consume roadmap drafts; recovery marks expired work failed rather than resuming it. This does not satisfy D-08. See proposed ADR-002.
 - Per-node resource curation has canonical skill/language/duration cache inputs, best/alternative results and quota-limited states. Preferred-language-first plus explicit learner selection of other-language alternatives must be enforced in the full path.
 
 **Target architecture and contracts now documented**

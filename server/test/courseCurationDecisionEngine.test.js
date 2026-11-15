@@ -9,6 +9,7 @@ process.env.MONGO_URI ||= "mongodb://127.0.0.1:27017/buddyforstudy_curation_test
 process.env.JWT_SECRET ||= "curation-tests-only-not-a-production-secret";
 
 const engine = await import("../src/services/courseCurationDecisionEngine.service.js");
+const nodeCuration = await import("../src/services/nodeCuration.service.js");
 const { getYouTubeSearchOptions, __youtubeSelectorTestUtils } = await import("../src/services/youtube.service.js");
 const {
   classifyCurationIntent,
@@ -775,5 +776,25 @@ test("lesson-level relevance accepts a direct title match or strong multi-term m
     }
   });
   assert.equal(evaluateCurationHardGates(metadataMatch, profile).passed, true);
+});
+
+test("node curation cache keys change when a skill's topics or search context changes", () => {
+  const { nodeCacheKey } = nodeCuration.__nodeCurationTestHooks;
+  const base = {
+    canonicalSkillId: "react-hooks",
+    mode: "quick_reference",
+    level: "Beginner",
+    language: "en",
+    boundsHash: "duration-policy",
+    cacheScope: "learner-context"
+  };
+  const original = nodeCacheKey({ ...base, skillContextHash: "topics-useState-useEffect" });
+  const changedTopics = nodeCacheKey({ ...base, skillContextHash: "topics-custom-hooks" });
+  const changedQueries = nodeCacheKey({ ...base, skillContextHash: "queries-react-hooks-patterns" });
+  const unchanged = nodeCacheKey({ ...base, skillContextHash: "topics-useState-useEffect" });
+
+  assert.notEqual(original, changedTopics, "updated topic mappings must not reuse stale node resources");
+  assert.notEqual(original, changedQueries, "updated search intent must not reuse stale node resources");
+  assert.equal(original, unchanged, "identical skill context should remain cache-stable");
 });
 

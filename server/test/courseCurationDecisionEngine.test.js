@@ -248,6 +248,106 @@ test("hard gates reject short-form markers, private videos, wrong runtime and we
   assert.equal(evaluateCurationHardGates(playlist, courseProfile).reason, "playlist_integrity_below_80_percent");
 });
 
+test("normal search enriches playlist runtime before applying the full-course duration gate", async () => {
+  const playlistId = "PLdsaCourse123";
+  const lessonTitles = [
+    "Arrays and Array Traversal",
+    "Linked Lists and Operations",
+    "Stacks and Queue Implementations",
+    "Trees and Binary Search Trees",
+    "Graph Traversal with BFS and DFS",
+    "Sorting Algorithms and Complexity",
+    "Searching Algorithms and Optimization",
+    "Hash Tables and Collision Handling",
+    "Dynamic Programming Fundamentals",
+    "Greedy Algorithms and Problem Solving"
+  ];
+  const lessons = lessonTitles.map((title, index) => ({
+    videoId: "dsa-lesson-" + String(index + 1).padStart(2, "0"),
+    title,
+    description: "Data structures and algorithms lesson covering " + title + ".",
+    channelTitle: "DSA Academy",
+    channelId: "dsa-academy",
+    thumbnail: "",
+    publishedAt: new Date().toISOString(),
+    defaultAudioLanguage: "en",
+    durationSeconds: 40 * 60,
+    viewCount: 10000 + index,
+    likeCount: 500 + index,
+    commentCount: 20 + index,
+    subscriberCount: 50000,
+    privacyStatus: "public",
+    embeddable: true,
+    regionRestriction: {},
+    isShort: false
+  }));
+  const playlist = {
+    playlistId,
+    title: "Data Structures and Algorithms Complete Course",
+    description: "A complete data structures and algorithms course organized into sequential lessons.",
+    channelTitle: "DSA Academy",
+    channelId: "dsa-academy",
+    publishedAt: new Date().toISOString(),
+    itemCount: lessons.length,
+    thumbnail: "",
+    url: "https://www.youtube.com/playlist?list=" + playlistId
+  };
+
+  __setCurationDecisionEngineAdaptersForTests({
+    getCache: async () => null,
+    setCache: async () => {},
+    getSearchResultCount: async () => ({ value: 5 }),
+    searchVideos: async () => [],
+    searchPlaylists: async () => [playlist],
+    searchChannelPlaylists: async () => [],
+    getPlaylistCourse: async () => ({
+      playlistId,
+      title: playlist.title,
+      description: playlist.description,
+      channelTitle: playlist.channelTitle,
+      channelId: playlist.channelId,
+      thumbnail: "",
+      itemCount: lessons.length,
+      totalItemCount: lessons.length,
+      observedItemCount: lessons.length,
+      lessons
+    }),
+    loadLearnerFeedback: async () => new Map(),
+    evaluateMetadata: async () => ({
+      byCandidateId: new Map(),
+      source: "test-fixture",
+      judgedCount: 0
+    })
+  });
+
+  try {
+    const result = await curateNormalSearch("Data Structures and Algorithms", {
+      cacheScope: "normal-search-playlist-runtime-regression",
+      maxQueries: 1,
+      syllabus: {
+        topic: "Data Structures and Algorithms",
+        source: "injected",
+        confidence: 1,
+        modules: [{
+          name: "Arrays",
+          weight: 1,
+          keyConcepts: ["arrays", "array traversal"],
+          prerequisites: []
+        }]
+      }
+    });
+
+    assert.equal(result.meta.playlistsFetched, 1);
+    assert.equal(result.meta.tierCEligible, 1);
+    assert.equal(result.resources.length, 1);
+    assert.equal(result.resources[0].sourceType, "playlist");
+    assert.equal(result.resources[0].itemCount, lessons.length);
+    assert.equal(result.resources[0].durationSeconds, lessons.length * 40 * 60);
+  } finally {
+    __setCurationDecisionEngineAdaptersForTests(null);
+  }
+});
+
 test("ranking slots return the configured result limit up to the available eligible candidates", () => {
   const candidates = Array.from({ length: 36 }, (_, index) =>
     slotCandidate(index + 1, {

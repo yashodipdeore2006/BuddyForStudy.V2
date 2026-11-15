@@ -596,9 +596,17 @@ function passesHardGates(candidate, profile) {
   }
   const relevance = candidate.queryTermStats?.relevance ?? queryTermStats(profile.query, candidate).relevance;
   const titleRelevance = candidate.queryTermStats?.titleRelevance ?? queryTermStats(profile.query, candidate).titleRelevance;
-  const minimumRelevance = profile.nodeType === "lesson" ? 25 : 40;
-  const minimumTitleRelevance = profile.nodeType === "lesson" ? 10 : 20;
-  if (relevance < minimumRelevance && titleRelevance < minimumTitleRelevance) return { passed: false, reason: "query_mismatch" };
+  if (profile.nodeType === "lesson") {
+    const termCount = Number(candidate.queryTermStats?.termCount || queryTermStats(profile.query, candidate).termCount);
+    // Lesson resources need a visible skill-level match, not merely broad topic
+    // words buried in a description. Allow metadata-led matches only when
+    // multiple skill terms are strongly represented across the resource.
+    const titleMatch = titleRelevance >= 35;
+    const strongMetadataMatch = termCount >= 2 && relevance >= 65;
+    if (!titleMatch && !strongMetadataMatch) return { passed: false, reason: "query_mismatch" };
+  } else if (relevance < 40 && titleRelevance < 20) {
+    return { passed: false, reason: "query_mismatch" };
+  }
   const freshness = freshnessScore(candidate, profile);
   if (freshness.stale) return { passed: false, reason: "obsolete_without_update_note" };
   return { passed: true, reason: "" };

@@ -199,14 +199,16 @@ Decision approval and this ADR update changed documentation only. No product cod
 
 ### Task 06 — Quality benchmark and unit economics
 
-| Subtask | Status | Exit criteria |
+**Current status: In progress — benchmark protocol and quota/economics model documented in [ADR-005](architecture/ADR-005-curation-quality-and-youtube-quota-model.md); empirical validation and compliance gates remain open.**
+
+| Subtask | Status | Evidence / exit criteria |
 |---|---|---|
-| Define rubric for relevance, syllabus coverage, instruction, language, duration and safety | **Not started** | Human-review rubric and scoring guide |
-| Create human-labelled golden topics/resources | **Not started** | Diverse representative dataset; labels independent of engine output |
-| Establish baseline ranking metrics | **Not started** | NDCG@K, precision@K, recall@K, junk rate, language match and coverage |
-| Define acceptance thresholds | **Not started** | Thresholds justified against baseline and product needs |
-| Estimate cost per generated roadmap | **Not started** | Gemini calls/tokens, YouTube calls/quota, DB/cache and worker cost |
-| Model 100, 1,000 and 10,000 monthly active learners | **Not started** | Scenario assumptions, peak concurrency and safety margin |
+| Define rubric for relevance, syllabus coverage, instruction, language, duration and safety | **Done — protocol defined; policy-gated use** | ADR-005 §12 defines 0–4 human playback dimensions, overall relevance labels, hard exclusions, reviewer adjudication and dataset governance. |
+| Create human-labelled golden topics/resources | **Not started** | Existing JSON remains a placeholder. Build 30–50 stratified topic families and at least 100 playback inspections after compliance approves data handling. |
+| Establish baseline ranking metrics | **Blocked — YouTube policy review** | Existing evaluator is live-provider-backed; automated NDCG/precision/recall/junk metrics must not run or be retained until policy clearance and an approved snapshot method exist. |
+| Define acceptance thresholds | **Done — proposed, not validated** | ADR-005 §§7.2 and 12.5: NDCG@10 ≥0.80, P@5 ≥0.80, Recall@10 ≥0.70, junk rate@10 ≤0.05, ≥90% human playback relevance, zero hard-gate/language violations; no achieved baseline is claimed. |
+| Estimate cost per generated roadmap | **In progress — formula and illustrative sensitivity documented** | ADR-005 §13 separates Gemini token charges, YouTube quota units and infrastructure invoices. Actual token usage/model/tier and infra billing are not verified. |
+| Model 100, 1,000 and 10,000 monthly active learners | **Done — cold upper-bound stress model; forecast pending** | ADR-005 §13.3 models 10% monthly roadmap adoption, 14 nodes, no cache reuse and 30 days; the 1,000/10,000-MAU cases exceed current app quota under these assumptions. |
 
 ### Task 07 — QA, observability and operational readiness
 

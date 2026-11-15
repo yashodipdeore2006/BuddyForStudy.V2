@@ -123,9 +123,9 @@ test("intent profile defaults to full course and parses crash, reference, level 
   assert.equal(normal.mode, "full_course");
   assert.equal(normal.level, "Beginner");
   assert.equal(normal.language, "en");
-  assert.equal(normal.minVideoSeconds, 30 * 60);
-  assert.equal(normal.minPlaylistSeconds, 60 * 60);
-  assert.equal(normal.minPlaylistItems, 3);
+  assert.equal(normal.minVideoSeconds, 3 * 60 * 60);
+  assert.equal(normal.minPlaylistSeconds, 5 * 60 * 60);
+  assert.equal(normal.minPlaylistItems, 8);
 
   const crash = classifyCurationIntent("React crash course in Hindi for intermediate learners");
   assert.equal(crash.mode, "crash_course");
@@ -173,6 +173,51 @@ test("outdated learner reports reduce freshness only through a bounded penalty",
   assert.equal(none, 80);
   assert.ok(one < none);
   assert.ok(several >= 60 && several < one);
+});
+
+test("normal full-course intent enforces the complete-course video and playlist minimums", () => {
+  const profile = classifyCurationIntent("Python");
+  assert.equal(profile.minVideoSeconds, 3 * 60 * 60);
+  assert.equal(profile.minPlaylistSeconds, 5 * 60 * 60);
+  assert.equal(profile.minPlaylistItems, 8);
+
+  const shortVideo = baseCandidate({
+    title: "Python Complete Course With Chapters",
+    description: "Python complete course syllabus, chapters, examples and practice.",
+    durationSeconds: 2 * 60 * 60,
+    hasChapters: true,
+    chapterCount: 12
+  });
+  assert.equal(evaluateCurationHardGates(shortVideo, profile).reason, "runtime_outside_mode");
+
+  const qualifyingVideo = {
+    ...shortVideo,
+    durationSeconds: 3 * 60 * 60
+  };
+  assert.equal(evaluateCurationHardGates(qualifyingVideo, profile).passed, true);
+
+  const playlistBase = {
+    ...baseCandidate({
+      id: "playlist:python-complete",
+      sourceType: "playlist",
+      sourceId: "python-complete",
+      title: "Python Complete Course Playlist",
+      description: "Python syllabus and sequential lessons.",
+      durationSeconds: 5 * 60 * 60,
+      itemCount: 8,
+      hasStructure: true,
+      integrity: 1
+    })
+  };
+  assert.equal(evaluateCurationHardGates({
+    ...playlistBase,
+    durationSeconds: 4 * 60 * 60
+  }, profile).reason, "runtime_below_mode_minimum");
+  assert.equal(evaluateCurationHardGates(playlistBase, profile).passed, true);
+  assert.equal(evaluateCurationHardGates({
+    ...playlistBase,
+    itemCount: 7
+  }, profile).reason, "too_few_playlist_items");
 });
 
 test("quick reference permits a short ordinary video; duration alone is not a Shorts gate", () => {

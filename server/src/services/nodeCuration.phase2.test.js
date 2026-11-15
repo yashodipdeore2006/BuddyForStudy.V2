@@ -86,13 +86,14 @@ test("duration policy performs one bounded search without widening or retrying",
     const result = await curateForNode({
       skill: { id: "python-stage", name: "Python Foundations", topics: ["syntax"] },
       profile: { topic: "Python", level: "Beginner", language: "en" },
-      durationPolicy: { minMinutes: 60, targetMinutes: 120, maxMinutes: 210 }
+      durationPolicy: { minMinutes: 60, targetMinutes: 120, maxMinutes: 210, excludeShorts: true }
     });
     assert.equal(calls, 1, "a failed node must not launch a second quota-consuming search");
     assert.equal(result.best, null, "a selector response below the minimum runtime must never be attached");
     assert.equal(observed[0].minVideoSeconds, 3600);
     assert.equal(observed[0].minPlaylistSeconds, 3600);
     assert.equal(observed[0].minPlaylistItems, 2);
+    assert.equal(observed[0].excludeShorts, true);
   } finally {
     setSelector(null);
   }
@@ -253,6 +254,22 @@ test("curated playlist mapping preserves each video's audio-language metadata", 
   assert.equal(mapped.items.length, 2);
   assert.equal(mapped.items[0].defaultAudioLanguage, "en");
   assert.equal(mapped.items[1].defaultAudioLanguage, "ta");
+  assert.equal(mapped.items[1].isShort, false);
+});
+
+test("curated playlist mapping preserves Shorts markers for downstream rejection", () => {
+  const mapped = hooks.mapResource({
+    id: "playlist:short-marker",
+    playlistId: "short-marker",
+    sourceType: "playlist",
+    title: "Python learning playlist",
+    items: [
+      { videoId: "lesson-long", title: "Python fundamentals", durationSeconds: 900, isShort: false },
+      { videoId: "lesson-short", title: "Python tip #Shorts", durationSeconds: 50, isShort: true }
+    ]
+  });
+  assert.equal(mapped.items[0].isShort, false);
+  assert.equal(mapped.items[1].isShort, true);
 });
 
 test("playlist metadata language is not mistaken for spoken audio language", () => {

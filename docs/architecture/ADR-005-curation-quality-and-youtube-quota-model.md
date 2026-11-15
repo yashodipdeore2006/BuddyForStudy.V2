@@ -312,3 +312,135 @@ Dashboard requirements:
 7. Revisit the 90/9,000 application caps only after a representative usage baseline and any necessary YouTube quota audit/extension.
 
 **Approval boundary:** This ADR defines a proposed benchmark, quota model and operating guardrails only. It does not authorize product-code changes, live golden-set evaluation, YouTube API policy acceptance, quota-extension applications, environment changes, Render dashboard changes, PR creation/merge or deployment.
+
+
+## 12. Human playback-review rubric (benchmark protocol)
+
+This rubric is for independent human review of the actual resource in the official YouTube player. It is not permission to derive, store or expose automated metrics from YouTube API Data. Complete the policy review in §11 before running automated ranking metrics or retaining API-derived benchmark outputs.
+
+### 12.1 Review unit and evidence
+
+The review unit is one resource against one learner objective, level, requested depth and preferred language. Reviewers must open and inspect the resource in the official YouTube player; inspect enough actual instruction to judge whether it teaches the objective; record their own observation and the portion inspected; and not treat title, description, channel reputation, playlist order, views, likes, comments, subscribers or engine explanations as proof of instructional quality.
+
+Use two independent reviewers for the pilot. A third reviewer adjudicates disagreements greater than one point on any dimension, disagreement on the overall relevance label, or any safety/eligibility disagreement. Track agreement on human labels; target weighted Cohen's kappa ≥0.70 as a pilot process-quality goal, not a product quality score. If agreement is lower, clarify the rubric and retrain reviewers before interpreting results.
+
+### 12.2 Dimension-level anchors
+
+Score each dimension from 0 to 4. A reviewer may use N/A only when the dimension genuinely cannot be judged; N/A must be explained and excluded from that dimension's denominator.
+
+| Dimension | 0 — fails | 1 — weak | 2 — acceptable | 3 — strong | 4 — excellent |
+|---|---|---|---|---|---|
+| Objective relevance | Does not teach the requested objective | Mostly adjacent or only mentions it | Teaches a useful part | Directly teaches the objective | Direct, precise and well-scoped |
+| Instructional effectiveness | No usable instruction / materially misleading | Fragmentary, unclear or promotional | Understandable explanation with usable examples | Clear sequence, explanation and examples | Coherent teaching, worked examples and useful practice/checks |
+| Syllabus/skill coverage | No meaningful coverage | Small isolated fragment | Meaningful subset | Covers expected core for declared scope | Thoroughly covers scope without material gaps |
+| Learner-level fit | Inaccessible or substantially below/above level | Significant mismatch | Usable with some scaffolding | Appropriate for requested level | Precisely calibrated with helpful progression |
+| Language fit | Not understandable in selected language | Major language mismatch | Understandable with notable friction | Substantially in selected language | Clear, consistent selected-language instruction |
+| Duration and structure fit | Runtime/structure makes use impractical | Poorly structured or substantially over/under-scoped | Usable with navigation/pacing issues | Appropriate runtime and clear structure | Efficient, well-paced and chaptered/segmented where useful |
+| Safety and trust | Harmful, deceptive, unsafe or materially misleading | Significant unsupported claims or risky advice | No obvious material concern; context may be needed | Responsible, accurate presentation | Careful caveats, credible demonstrations and no material safety concern |
+
+For coverage, compare actual instruction with a separately defined objective checklist. Do not infer coverage from a description, playlist title, generated syllabus, chapter text or metadata-only judge.
+
+### 12.3 Overall relevance labels and tags
+
+Assign the overall relevance label from human playback review:
+- **3 — strongly relevant:** directly useful for the objective, appropriate for learner and language, and no material instructional or safety defect.
+- **2 — relevant with limitations:** teaches a meaningful part but has a clear limitation in scope, pacing, level, language or prerequisites.
+- **1 — marginal:** tangential, superficial, incomplete or poorly matched; not suitable as a primary recommendation.
+- **0 — not relevant:** does not teach the objective, is materially misleading or unsuitable.
+- **Junk flag:** spam, deceptive packaging, unrelated content, unsafe content or otherwise unsuitable. This is a separate categorical flag.
+- **Hard exclusion:** private, unavailable, non-embeddable, prohibited format/Shorts where excluded by product policy, explicit-language mismatch, or other eligibility failure. Hard exclusions are not eligible for ranking and must be recorded separately from quality judgements.
+
+Structured reviewer tags: wrong_level, wrong_language, too_shallow, missing_prerequisites, poor_audio_video, unsafe_or_misleading, outdated_instruction, excessive_promotion, duplicate_or_redundant, scope_mismatch and not_playable. Tags are descriptive human annotations; do not convert them into a score without a separate policy review.
+
+### 12.4 Topic objective card and dataset governance
+
+Create each topic objective card before reviewing candidates:
+- canonical topic and domain;
+- learner level and intended outcome;
+- depth intent (quick reference, crash course or complete learning path);
+- preferred language and allowed fallback behavior;
+- required sub-objectives/prerequisites and explicit out-of-scope topics;
+- expected runtime band only where the product requirement genuinely constrains runtime;
+- safety sensitivity / specialist-review requirement.
+
+Pilot composition: 30–50 topic families, stratified across programming/software, data/analytics, exam preparation, language learning, creative and general learning; beginner/intermediate/advanced; quick-reference/crash-course/complete intent; and supported preferred languages. Keep related queries/resources in the same 70% development / 30% holdout topic-family split. Aim for at least 100 actual playback inspections, with two independent reviewers per item where feasible. This is a pilot sample, not statistical proof of launch readiness.
+
+Do not create labels by copying engine scores, rank, metadata judge or YouTube statistics. Blind reviewers to rank/engine score where possible. Preserve only the minimum review record approved by compliance; resource IDs and provider-derived information must follow applicable YouTube retention rules. A policy-approved frozen snapshot process is required before repeatable offline evaluation. This ADR does not authorize indefinite retention of API Data.
+
+### 12.5 Human-review acceptance gates
+
+The initial gates in §7.2 remain proposed: at least 90% of manually inspected resources receive human relevance label 2 or 3; zero hard-exclusion violations and explicit-language mismatches; no unresolved safety-critical finding; and reviewer agreement target weighted Cohen's kappa ≥0.70 before using labels as a stable benchmark.
+
+These are proposed criteria, not observed results. NDCG/precision/recall/junk-rate calculations remain blocked until YouTube policy review explicitly permits the benchmark's use of API Data and the retention/processing method is approved.
+
+## 13. Provider unit economics and MAU scenarios
+
+### 13.1 Current Gemini model and public token price
+
+The checked-in server/src/config/env.js defaults GEMINI_MODEL to gemini-3.8-flash; a deployment can override it. This is a repository default, not proof of the model currently configured in Render.
+
+Google's official Gemini Developer API pricing page currently lists Gemini 3.8 Flash Standard pricing at:
+- through 2026-12-31: $0.75 / 1M input tokens and $3.75 / 1M output tokens;
+- from 2027-01-01: $1.50 / 1M input tokens and $7.50 / 1M output tokens.
+Thinking tokens are included in output pricing. Confirm selected model, billing tier, token categories, free-tier eligibility and current price on the account before budgeting. Prices can change.
+
+Formula per roadmap:
+GeminiUSD = (inputTokens × inputUSDPerMillion + outputTokens × outputUSDPerMillion) / 1,000,000
+
+Aggregate usage across every Gemini call in intent parsing, curriculum generation, exam extraction and follow-up steps; include retries and thinking/output tokens. Record per-request model ID, input/output token usage, latency, retry count and feature/workflow ID without storing prompt content or secrets.
+
+**Illustrative sensitivity only — not measured usage:** if one roadmap consumed 100,000 input tokens and 20,000 output tokens in aggregate, the token charge would be about **$0.15 per roadmap through 2026-12-31** and **$0.30 from 2027-01-01** at the published Standard rates above. This is arithmetic, not an estimate of actual BuddyForStudy token consumption. Replace the token assumptions with measured Gemini response usage before setting budgets.
+
+Official price source: https://ai.google.dev/gemini-api/docs/pricing/
+
+### 13.2 YouTube quota economics (not a monetary tariff)
+
+YouTube Data API quota is a capacity constraint, not a per-request USD price. Use the separate buckets and source-derived cold envelopes in §§3–5:
+- one cold Build with AI node: up to 4 search.list calls and approximately 216 shared units;
+- one 14-node cold roadmap: up to 56 search calls and 3,024 shared units;
+- application hard caps: 90 search calls/day and 9,000 shared units/day; soft degradation at 72 / 7,200.
+
+Do not convert these units to dollars. Any Google Cloud charges, quota-extension charges or account-level billing must be confirmed from the actual project/billing account. Actual Google Cloud allocation and live usage remain unverified.
+
+### 13.3 MAU scenario model
+
+This is a conservative **cold-cache stress envelope**, not a demand forecast. Assumptions: 30-day month; 10% of MAU generate one roadmap in that month; each roadmap has 14 nodes; every node is cold and reaches the source-derived upper bound (56 search calls and 3,024 shared units per roadmap); no cache reuse, request coalescing or quota savings; daily traffic evenly distributed. Real peak-day/burst usage can be materially higher.
+
+| Scenario | MAU | Roadmaps/month (10%) | Search calls/month | Avg search calls/day | % of 90/day cap | Shared units/month | Avg shared units/day | % of 9,000/day cap |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Early pilot | 100 | 10 | 560 | 18.7 | 20.7% | 30,240 | 1,008 | 11.2% |
+| Initial growth | 1,000 | 100 | 5,600 | 186.7 | 207.4% | 302,400 | 10,080 | 112.0% |
+| Scale | 10,000 | 1,000 | 56,000 | 1,866.7 | 2,074.1% | 3,024,000 | 100,800 | 1,120.0% |
+
+**Interpretation:** under the cold upper-bound model, current application quota cannot support even the 1,000-MAU scenario at the assumed 10% monthly roadmap-generation rate. Search calls become the first constraint. A single fully cold 14-node roadmap can consume 62.2% of the 90-call daily application cap. Do not promise capacity until cache hit rates and real endpoint fan-out are measured.
+
+Let f be the cold-equivalent factor: the fraction of cold upper-bound quota actually consumed after cache hits, deduplication and bounded candidate selection. Multiply scenario quota totals by f. This is a sensitivity variable, not an observed cache-hit rate. The 1,000-MAU scenario requires search consumption below 48.2% of the cold upper bound merely to fit the average 90-call daily cap; burst reserve and other workflows require a lower factor. The 10,000-MAU scenario requires a reduction of more than 95% before any reserve for Normal Search, refresh jobs, retries or bursts.
+
+Before approving capacity, measure roadmap adoption/repeat rate, nodes per roadmap, percentage of nodes requiring fresh retrieval, search calls/shared units per node and roadmap, cache hits by layer, playlist enrichment, daily peak-to-average ratio, concurrency, retry amplification, and Gemini tokens/cost per successful, failed and retried roadmap.
+
+### 13.4 Cost model for 100 / 1,000 / 10,000 MAU
+
+Monthly variable provider cost:
+Monthly provider cost = (roadmaps × measured Gemini USD/roadmap) + (other Gemini workflows × measured USD/workflow) + any separately billed grounding/other API services.
+
+YouTube quota is shown alongside this as two daily capacity buckets, not as a dollar line item.
+
+Monthly platform cost:
+Total monthly operating cost = Gemini + paid external services + Render/API/worker + database + Redis + storage/egress + email/push/monitoring + payment fees + support/operations.
+
+Cost per MAU = total monthly operating cost / monthly active learners.
+
+No defensible fixed-dollar totals are supplied for Render, MongoDB, Redis, email, monitoring or support because live service plans, measured utilization and billing accounts have not been verified. Do not fabricate these costs. Populate the model from invoices/usage exports and production-like load tests. Keep one-time setup, recurring fixed costs and usage-variable costs separate.
+
+### 13.5 Required budget controls before launch
+
+1. Record effective Gemini model and paid/free tier at runtime; alert on model drift.
+2. Capture token usage for every Gemini call and aggregate by workflow, roadmap and outcome.
+3. Set per-roadmap token/cost ceilings, request deadlines and bounded retries; preserve a usable failure state when a ceiling is reached.
+4. Apply per-user daily/monthly generation limits plus a global concurrency budget; do not let one learner exhaust shared YouTube quota.
+5. Add quota preflight/reservation before starting a node/roadmap; stop optional expansion before the hard cap.
+6. Allocate explicit daily quota reserves for Normal Search, Build with AI and compliance refresh. Global caps alone do not guarantee workflow fairness.
+7. Use cache/deduplication and candidate caps to reduce playlist enrichment; measure savings before changing limits.
+8. Review the MAU scenarios with actual usage, peak-day factors and a safety reserve before approving a launch cohort.
+
+**Decision status:** rubric, published-price formula and quota stress model are documented. Human labels/playback inspections, policy clearance, measured Gemini token distribution, live Google quota, cache efficiency and fixed infrastructure invoices remain outstanding. This ADR does not authorize live evaluation, code changes, quota changes, deployment changes or production rollout.

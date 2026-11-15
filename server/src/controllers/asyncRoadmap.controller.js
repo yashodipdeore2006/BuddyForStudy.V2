@@ -2,6 +2,7 @@ import { z } from "zod";
 import { failure, success } from "../utils/response.js";
 import { getEntitlement, getActivePlanForUser } from "../services/subscriptionEntitlement.service.js";
 import { createRoadmapDraft, getDraftForUser, waitForDraft, attachDraftEvents, getRoadmapPoll, cancelQueuedRoadmapDraft } from "../services/asyncRoadmap.service.js";
+import { IntentProfile } from "../services/intent.service.js";
 
 const profileSchema = z.object({
   topic: z.string().trim().min(2).max(200),
@@ -10,7 +11,7 @@ const profileSchema = z.object({
   studyTimeMinutesPerDay: z.number().int().min(15).max(720).default(60),
   knownSkills: z.array(z.string().trim().min(1)).max(50).default([]),
   goal: z.enum(["job_ready", "exam", "project", "learn"]).optional(),
-  intentProfile: z.record(z.unknown()).optional(),
+  intentProfile: IntentProfile.strict().optional(),
   language: z.string().max(10).optional(),
   targetRole: z.string().max(120).nullable().optional(),
   targetCompany: z.string().max(120).nullable().optional(),
@@ -37,8 +38,33 @@ export async function createDraft(req, res, next, dependencies = {}) {
   try {
     if (!await authorizeRequest(req, res)) return;
     const profile = profileSchema.parse(req.body.profile || req.body);
-    if (profile.intentProfile) Object.assign(profile, profile.intentProfile);
-    const draft = await createDraftRecord({ userId: req.user.userId, profile });
+    const intent = profile.intentProfile;
+    const normalizedProfile = intent ? {
+      ...profile,
+      // The validated intent profile is authoritative for overlapping fields.
+      // Map only supported fields; never spread arbitrary nested keys onto the
+      // top-level profile after validation.
+      topic: intent.topic,
+      level: intent.level,
+      goals: intent.goal ? [{
+        job_ready: "Career or work growth",
+        exam: "Exam or certification",
+        project: "Create something",
+        learn: "Build practical skills"
+      }[intent.goal]] : profile.goals,
+      studyTimeMinutesPerDay: intent.minutesPerDay,
+      knownSkills: intent.knownSkills,
+      goal: intent.goal || profile.goal,
+      language: intent.language || profile.language,
+      targetRole: intent.targetRole ?? profile.targetRole,
+      targetCompany: intent.targetCompany ?? profile.targetCompany,
+      examName: intent.examName ?? profile.examName,
+      examDate: intent.examDate ?? profile.examDate,
+      syllabusText: intent.syllabusText ?? profile.syllabusText,
+      projectIdea: intent.projectIdea ?? profile.projectIdea,
+      deadline: intent.deadline ?? profile.deadline
+    } : profile;
+    const draft = await createDraftRecord({ userId: req.user.userId, profile: normalizedProfile });
     return success(res, draft, "Roadmap draft queued");
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);

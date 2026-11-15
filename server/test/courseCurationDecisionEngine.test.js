@@ -713,3 +713,67 @@ test("metadata rubric blends with heuristics without overriding them or exceedin
   assert.ok(highJudge.judgeWeight <= 0.48);
   assert.ok(highJudge.coverageScore < 100, "heuristic evidence must retain influence");
 });
+
+test("lesson-level relevance rejects generic resources with only weak description overlap", () => {
+  const profile = classifyCurationIntent("React Hooks", { level: "Beginner" });
+  profile.nodeType = "lesson";
+  profile.mode = "quick_reference";
+  profile.minVideoSeconds = 60;
+  const candidate = baseCandidate({
+    title: "Complete JavaScript Course for Beginners",
+    description: "A broad introduction to frontend development.",
+    durationSeconds: 900,
+    hasChapters: false,
+    hasSyllabus: false,
+    queryTermStats: {
+      termCount: 2,
+      titleMatchCount: 0,
+      allMatchCount: 1,
+      titleRelevance: 0,
+      relevance: 50
+    }
+  });
+
+  const decision = evaluateCurationHardGates(candidate, profile);
+  assert.equal(decision.passed, false);
+  assert.equal(decision.reason, "query_mismatch");
+});
+
+test("lesson-level relevance accepts a direct title match or strong multi-term metadata match", () => {
+  const profile = classifyCurationIntent("React Hooks", { level: "Beginner" });
+  profile.nodeType = "lesson";
+  profile.mode = "quick_reference";
+  profile.minVideoSeconds = 60;
+
+  const titleMatch = baseCandidate({
+    title: "React Hooks: useState and useEffect Explained",
+    durationSeconds: 900,
+    hasChapters: false,
+    hasSyllabus: false,
+    queryTermStats: {
+      termCount: 2,
+      titleMatchCount: 1,
+      allMatchCount: 1,
+      titleRelevance: 50,
+      relevance: 50
+    }
+  });
+  assert.equal(evaluateCurationHardGates(titleMatch, profile).passed, true);
+
+  const metadataMatch = baseCandidate({
+    title: "Managing Component State in Modern Frontend Apps",
+    description: "A focused tutorial covering React hooks, useState, useEffect, and custom hook patterns.",
+    durationSeconds: 900,
+    hasChapters: false,
+    hasSyllabus: false,
+    queryTermStats: {
+      termCount: 4,
+      titleMatchCount: 0,
+      allMatchCount: 3,
+      titleRelevance: 0,
+      relevance: 75
+    }
+  });
+  assert.equal(evaluateCurationHardGates(metadataMatch, profile).passed, true);
+});
+

@@ -5,7 +5,7 @@ import { curateNormalSearch, extractCurationChapters } from "./courseCurationDec
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { QuotaBudgetError } from "./quota.service.js";
 
-const ENGINE_VERSION = "node-curation-v5";
+const ENGINE_VERSION = "node-curation-v6";
 const LOW_CONFIDENCE_THRESHOLD = 45;
 let selectorForNode = curateNormalSearch;
 let nodeCacheTestAdapters = null;
@@ -62,8 +62,8 @@ function buildInjectedSyllabus(skill) {
     modules: names.slice(0, 15).map((name) => ({ name, weight: 1, keyConcepts: [name], prerequisites: [] }))
   };
 }
-function nodeCacheKey({ canonicalSkillId, mode, level, language, boundsHash, cacheScope = "" }) {
-  return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, mode, level, normalizeLanguageCode(language), boundsHash, cacheScope].join("|"))}`;
+function nodeCacheKey({ canonicalSkillId, mode, level, language, boundsHash, cacheScope = "", skillContextHash = "" }) {
+  return `node:${ENGINE_VERSION}:${digest([canonicalSkillId, skillContextHash, mode, level, normalizeLanguageCode(language), boundsHash, cacheScope].join("|"))}`;
 }
 async function readNodeCache(key) {
   if (nodeCacheTestAdapters?.read) return nodeCacheTestAdapters.read(key);
@@ -137,13 +137,21 @@ export async function curateForNode({ skill, profile = {}, durationPolicy = {}, 
   const level = ["Beginner", "Intermediate", "Advanced"].includes(profile.level) ? profile.level : "Beginner";
   const language = normalizeLanguageCode(profile.language || "en");
   const boundsHash = digest(JSON.stringify(bounds));
-  const key = nodeCacheKey({ canonicalSkillId, mode: bounds.mode, level, language, boundsHash, cacheScope });
+  // The same canonical skill can be reused with updated topic mappings or
+  // search queries. Include the complete lesson context so stale resources
+  // cannot leak across materially different skill definitions.
+  const skillContextHash = digest(JSON.stringify({
+    name: normalized(skillName),
+    topics: [...new Set((Array.isArray(skill.topics) ? skill.topics : []).map(normalized).filter(Boolean))].sort(),
+    searchQueries: [...new Set((Array.isArray(skill.searchQueries) ? skill.searchQueries : []).map(normalized).filter(Boolean))].sort()
+  }));
+  const key = nodeCacheKey({ canonicalSkillId, mode: bounds.mode, level, language, boundsHash, cacheScope, skillContextHash });
   const cached = forceRefresh ? null : await readNodeCache(key);
   if (cached) return { ...cached, meta: { ...cached.meta, cacheHit: true, searchCalls: 0, quotaUnits: 0 } };
 
   const selectorCacheScope = cacheScope
-    ? `node:${canonicalSkillId}:${digest(cacheScope)}`
-    : `node:${canonicalSkillId}`;
+    ? `node:${canonicalSkillId}:${skillContextHash}:${digest(cacheScope)}`
+    : `node:${canonicalSkillId}:${skillContextHash}`;
   const callSelector = async (overrides) => selectorForNode(query, {
     level,
     language,
@@ -219,5 +227,6 @@ export const __nodeCurationTestHooks = Object.freeze({
   nodeCacheKey,
   mapResource,
   scoreOf,
+  nodeCacheKey,
   GENERIC_SKILL
 });

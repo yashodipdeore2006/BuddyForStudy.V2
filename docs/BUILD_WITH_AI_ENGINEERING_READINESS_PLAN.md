@@ -212,15 +212,19 @@ Decision approval and this ADR update changed documentation only. No product cod
 
 ### Task 07 — QA, observability and operational readiness
 
+**Current status: In progress — QA, failure-injection, observability, SLO and runbook design documented in [QA, Observability and Operational Readiness](QA_OBSERVABILITY_OPERATIONAL_READINESS.md). No tests, telemetry, dashboards or alerts have been implemented or executed.**
+
 | Subtask | Status | Exit criteria |
 |---|---|---|
-| Build unit-test matrix | **Not started** | Pure functions, schemas, ranking, graph and state machine |
-| Build integration-test matrix | **Not started** | Mongo, Redis, Gemini and YouTube adapters mocked or sandboxed |
-| Build browser E2E matrix | **Not started** | Normal search, wizard, async progress, retries, refresh/resume and enrollment |
-| Define provider failure injection | **Not started** | Gemini timeout/rate-limit, YouTube quota/outage, Redis loss, Mongo transient failure |
-| Define SLOs and dashboards | **Not started** | Latency, error, completion, coverage, quota, cache and worker backlog |
-| Define alerts and on-call runbook | **Not started** | Thresholds based on measured baseline, not arbitrary guesses |
+| Build unit-test matrix | **Done — matrix defined; test mapping/execution pending** | QA strategy §2.1 maps search, Gemini isolation, intent, curriculum graph, resource language, ownership, async state, quota/cache and security invariants. |
+| Build integration-test matrix | **Done — matrix defined; execution pending** | QA strategy §3 maps Mongo, Redis, durable jobs, quota concurrency, provider adapters and auth/entitlement integration scenarios. |
+| Build browser E2E matrix | **Done — journeys defined; dedicated specs pending** | QA strategy §4 defines Normal Search local/fallback, adaptive onboarding, roadmap, language choice, async recovery, partial failure, moderation and enrollment journeys. Existing dedicated Build with AI and Normal Search browser specs are still absent. |
+| Define provider failure injection | **Done — scenarios defined; tests pending** | QA strategy §5 covers Gemini timeout/429/invalid output, YouTube quota/timeout, Mongo/Redis outage, worker crash and browser reconnect. |
+| Define SLOs and dashboards | **In progress — metric contract documented; baseline/dashboard pending** | QA strategy §6 defines application, provider, quota and worker signals. §7 defines SLI categories; numeric targets must be set from measured baseline, not invented. Split YouTube search calls from shared quota units before cost dashboards. |
+| Define alerts and on-call runbook | **In progress — severity/runbook requirements documented; implementation pending** | QA strategy §§7 and 9 define alert severity, ownership and runbook topics. Configure actual panels/alerts and publish executable runbooks before rollout. |
 
+**Task 07 implementation gaps:** no tests were added or run; no dashboard/alert configuration was changed; no SLO baseline has been measured; no live provider smoke test was run. Keep this task open until the exit criteria in QA strategy §10 are evidenced.
+ 
 ### Task 08 — Rollout, rollback and approval
 
 | Subtask | Status | Exit criteria |

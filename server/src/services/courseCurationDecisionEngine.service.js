@@ -750,7 +750,7 @@ function playlistCandidate(playlist, profile) {
   };
   return candidate;
 }
-function computePlaylistStats(candidate, playlistDetail, originalCount) {
+export function computePlaylistStats(candidate, playlistDetail, originalCount) {
   const rawLessons = Array.isArray(playlistDetail?.lessons) ? playlistDetail.lessons : [];
   const totalCount = Math.max(0, Number(playlistDetail?.totalItemCount || originalCount || rawLessons.length));
   const observedCount = Math.max(0, Math.min(totalCount || rawLessons.length, Number(playlistDetail?.observedItemCount || rawLessons.length)));
@@ -763,8 +763,13 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   const integrity = observedCount ? validLessons.length / observedCount : 0;
   const observedRuntime = validLessons.reduce((sum, item) => sum + Number(item.durationSeconds || 0), 0);
   const averageRuntime = validLessons.length ? observedRuntime / validLessons.length : 0;
-  const runtimeEstimated = totalCount > observedCount && averageRuntime > 0;
-  const runtimeSeconds = runtimeEstimated ? averageRuntime * totalCount : observedRuntime;
+  const missingCount = Math.max(0, totalCount - observedCount);
+  const runtimeEstimated = missingCount > 0 && averageRuntime > 0;
+  // Estimate only unobserved entries. Invalid/private/Short items already
+  // observed must not inflate the playable runtime estimate.
+  const runtimeSeconds = runtimeEstimated
+    ? observedRuntime + averageRuntime * missingCount
+    : observedRuntime;
   const orderedTitles = validLessons.map((item) => String(item.title || ""));
   const numberedCount = orderedTitles.filter((title) => /\b(?:part|episode|lesson|lecture|chapter)\s*#?\s*\d+\b|\[\s*\d+\s*\/\s*\d+\s*\]/i.test(title)).length;
   const lessonText = validLessons.map((item) => item.title + " " + (item.description || "")).join(" ");
@@ -773,7 +778,11 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   candidate.description = playlistDetail?.description || candidate.description;
   candidate.thumbnail = playlistDetail?.thumbnail || candidate.thumbnail;
   candidate.channelTitle = playlistDetail?.channelTitle || candidate.channelTitle;
-  candidate.itemCount = Number(totalCount || playlistDetail?.itemCount || validLessons.length);
+  // Eligibility and learner-facing lesson counts must reflect playable lessons,
+  // not the playlist's advertised count (which can include private, deleted,
+  // non-embeddable, or Shorts entries).
+  candidate.totalItemCount = totalCount;
+  candidate.itemCount = validLessons.length;
   candidate.items = validLessons;
   candidate.observedItemCount = observedCount;
   candidate.integrity = integrity;

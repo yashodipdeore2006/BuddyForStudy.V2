@@ -115,7 +115,7 @@
 
 | Subtask | Status | Exit criteria |
 |---|---|---|
-| Decide canonical orchestration boundary | **Not started** | Context diagram and sequence diagrams for both journeys |
+| Decide canonical orchestration boundary | **In progress — initial Normal Search source audit complete; proposed boundary pending owner confirmation** | Context diagram and sequence diagrams for both journeys; keep catalog-first orchestration separate from the Gemini-powered Build with AI pipeline |
 | Define Gemini responsibilities and JSON schemas | **Not started** | Versioned request/response contracts, validation, retry/fallback policy |
 | Define canonical skill registry and graph invariants | **Not started** | IDs, aliases, duplicate/cycle/prerequisite repair rules |
 | Define resource candidate and selected-resource contracts | **Not started** | Stable IDs, language evidence, duration, metadata provenance and freshness |
@@ -124,6 +124,24 @@
 | Define cache layers and invalidation | **Not started** | Keys, scope, TTL, stale behavior, negative caching and invalidation rules |
 | Define API contracts and compatibility | **Not started** | Endpoint table, auth, plan entitlement, schemas, idempotency and error codes |
 | Define YouTube quota and provider degradation | **Not started** | Cost model, reserve/refuse rules, reset, retries, circuit-breaker behavior |
+
+### Task 04 initial source audit — 2026-11-15 (findings; architecture proposal pending)
+
+**Observed primary Normal Search request path**
+- `client/src/pages/Courses.tsx` calls `GET /api/courses` for the normal catalog search. It can call `GET /api/discovery/search` only for the legacy playlist fallback when the catalog response has no `curatedResources` property.
+- `server/src/services/course.service.js:listPublished` searches direct published course fields and then eligible published modules/standalone courses. It currently invokes `curateNormalSearch` unconditionally after those local lookups, even when local courses were found, and labels the response `youtube_supplementary`. This conflicts with approved D-02.
+- The current `hasLocalResults` value is based on the current page's `localCourses.length`, not the total number of local matches. The fallback gate must use the complete local-match count, not page contents, so an out-of-range page cannot trigger YouTube discovery when matching local courses exist.
+- `server/src/services/courseCurationDecisionEngine.service.js` currently constructs a Gemini client and has two model-generation paths: `getTopicSyllabus` and `evaluateCandidatesWithMetadataRubric`. Either can invoke Gemini from the normal-search curation path, conflicting with approved D-01.
+- The legacy `GET /api/discovery/search` controller path calls `searchStructuredPlaylists`; it is distinct from `GET /api/discovery/course-search`, whose `searchCourseBySkills` path uses a Gemini-generated search specification. The current Courses page normal-search handler does not call `/api/discovery/course-search`; preserve this separation explicitly in the API contract.
+
+**Proposed architecture direction — not yet approved for implementation**
+1. Make `course.service.listPublished` the sole local-first orchestrator: direct published courses first, then eligible published module/standalone courses, and only then external YouTube fallback when the total eligible local match count is zero.
+2. Keep the Normal Search fallback selector deterministic. Remove Gemini access from the Normal Search curation call graph, including syllabus generation and metadata judging. Use explicit deterministic query expansion, hard gates and metadata-derived ranking; do not present a generic fallback syllabus as verified topic coverage.
+3. Keep Build with AI's Gemini orchestration behind its dedicated roadmap/intent services. Do not route Normal Search through the Gemini-enabled `/api/discovery/course-search` workflow.
+4. Return a YouTube fallback payload only when local matches are absent; otherwise omit discovery metadata. Keep external recommendations separate from published BuddyForStudy course records.
+5. Add regression coverage for direct local matches, module/standalone matches, empty-local fallback, quota/provider failures, paginated local results, and zero Gemini calls when Gemini credentials are configured.
+
+No product code, production flags, or `main` branch files were changed during this source audit.
 
 ### Task 05 — Security, privacy and abuse review
 

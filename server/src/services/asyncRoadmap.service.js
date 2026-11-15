@@ -116,11 +116,53 @@ function pump() {
   }
 }
 
+function resourceIdentityKeys(resource) {
+  if (!resource || typeof resource !== "object") return [];
+  const keys = [];
+  const videoIds = [
+    resource.videoId,
+    ...(Array.isArray(resource.items) ? resource.items.map((item) => item?.videoId) : [])
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  for (const id of videoIds) keys.push("video:" + id);
+  if (resource.playlistId) keys.push("playlist:" + String(resource.playlistId));
+  if (!videoIds.length && !resource.playlistId && resource.id) keys.push("resource:" + String(resource.id));
+  return [...new Set(keys)];
+}
+
+/**
+ * Reserve a node's selected resource against the rest of this roadmap.
+ * Playlist items participate in the same identity set as standalone videos,
+ * preventing one video from being counted once inside a playlist and again
+ * as a separate lesson resource.
+ */
+export function reserveUniqueRoadmapResource(curated, usedResourceIds = new Set()) {
+  const candidates = [curated?.best, ...(Array.isArray(curated?.alternatives) ? curated.alternatives : [])].filter(Boolean);
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    const keys = resourceIdentityKeys(candidate);
+    if (!keys.length || keys.some((key) => usedResourceIds.has(key))) continue;
+    keys.forEach((key) => usedResourceIds.add(key));
+    return {
+      best: candidate,
+      duplicateRejected: index > 0,
+      alternatives: candidates.filter((item, candidateIndex) =>
+        candidateIndex !== index && resourceIdentityKeys(item).every((key) => !usedResourceIds.has(key))
+      )
+    };
+  }
+  return {
+    best: null,
+    duplicateRejected: Boolean(candidates.length),
+    alternatives: []
+  };
+}
+
 async function resolveCourseNodes({ draft, courseId, userId, profile, assertLease, dependencies = {} }) {
   await assertLease();
   const course = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   if (!course) throw new Error("Private roadmap course was not found for its owner");
   const jobs = [];
+  const usedResourceIds = new Set();
   for (const module of course.modules || []) {
     for (const lesson of module.lessons || []) {
       if (lesson.type === "quiz") continue;
@@ -176,8 +218,14 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             cacheScope: hashResourceContext(profile)
           });
           await assertLease();
-          const state = curated.meta?.state || (curated.best ? (curated.meta?.lowConfidence ? "low_confidence" : "ready") : "failed");
-          const best = curated.best ? { ...curated.best, state, alternatives: curated.alternatives || [] } : null;
+          // Reserve synchronously after each search resolves. A resource can
+          // enrich only one roadmap node, even when node searches finish together.
+          const uniqueSelection = reserveUniqueRoadmapResource(curated, usedResourceIds);
+          const state = uniqueSelection.best
+            ? (uniqueSelection.duplicateRejected ? "ready_alternative" : (curated.meta?.state || (curated.meta?.lowConfidence ? "low_confidence" : "ready")))
+            : (uniqueSelection.duplicateRejected ? "duplicate_resource" : (curated.meta?.state || "failed"));
+          const selectedAlternatives = uniqueSelection.alternatives || [];
+          const best = uniqueSelection.best ? { ...uniqueSelection.best, state, alternatives: selectedAlternatives } : null;
           const playlistItems = Array.isArray(best?.items) ? best.items.filter((item) => item.videoId) : [];
           const videos = playlistItems.length
             ? playlistItems.map((item) => ({
@@ -196,7 +244,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
             { $set: set },
             { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
           );
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: curated.alternatives || [], flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaLimited: state === "quota_limited", quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
+          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: selectedAlternatives, flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaLimited: state === "quota_limited", duplicateResourceRejected: uniqueSelection.duplicateRejected, quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
         } catch (error) {
           if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
           await assertLease();

@@ -778,6 +778,74 @@ test("lesson-level relevance accepts a direct title match or strong multi-term m
   assert.equal(evaluateCurationHardGates(metadataMatch, profile).passed, true);
 });
 
+test("lesson-level playlists are rejected when most playable lessons do not match the skill", () => {
+  const profile = classifyCurationIntent("React Hooks", { level: "Beginner" });
+  profile.nodeType = "lesson";
+  profile.mode = "quick_reference";
+  profile.minPlaylistSeconds = 60;
+  profile.minPlaylistItems = 4;
+
+  const candidate = baseCandidate({
+    id: "playlist:react-hooks",
+    sourceType: "playlist",
+    sourceId: "react-hooks",
+    title: "Complete React Hooks Course",
+    description: "A comprehensive React Hooks tutorial and course.",
+    durationSeconds: 8 * 60 * 60,
+    itemCount: 8,
+    integrity: 1,
+    hasStructure: true,
+    items: [
+      { title: "Introduction to React Hooks" },
+      { title: "useState Hook Explained" },
+      { title: "useEffect Hook Explained" },
+      { title: "Custom Hooks in React" },
+      { title: "JavaScript Variables and Data Types" },
+      { title: "CSS Flexbox Complete Guide" },
+      { title: "HTML Forms and Inputs" },
+      { title: "Git and GitHub Basics" }
+    ],
+    queryTermStats: { termCount: 2, titleMatchCount: 2, allMatchCount: 2, titleRelevance: 100, relevance: 100 }
+  });
+
+  const decision = evaluateCurationHardGates(candidate, profile);
+  assert.equal(decision.passed, false);
+  assert.equal(decision.reason, "playlist_lesson_relevance_below_50_percent");
+});
+
+test("lesson-level playlists pass when at least half of playable lessons match the skill", () => {
+  const profile = classifyCurationIntent("React Hooks", { level: "Beginner" });
+  profile.nodeType = "lesson";
+  profile.mode = "quick_reference";
+  profile.minPlaylistSeconds = 60;
+  profile.minPlaylistItems = 4;
+
+  const candidate = baseCandidate({
+    id: "playlist:react-hooks-focused",
+    sourceType: "playlist",
+    sourceId: "react-hooks-focused",
+    title: "React Hooks Tutorial Series",
+    description: "Learn React Hooks through focused lessons.",
+    durationSeconds: 8 * 60 * 60,
+    itemCount: 8,
+    integrity: 1,
+    hasStructure: true,
+    items: [
+      { title: "React Hooks Introduction" },
+      { title: "useState Hook Explained" },
+      { title: "useEffect Hook Explained" },
+      { title: "Custom Hooks in React" },
+      { title: "Rules of React Hooks" },
+      { title: "useMemo and useCallback Hooks" },
+      { title: "Context API with React Hooks" },
+      { title: "Testing React Hook Components" }
+    ],
+    queryTermStats: { termCount: 2, titleMatchCount: 2, allMatchCount: 2, titleRelevance: 100, relevance: 100 }
+  });
+
+  assert.equal(evaluateCurationHardGates(candidate, profile).passed, true);
+});
+
 test("node curation cache keys change when a skill's topics or search context changes", () => {
   const { nodeCacheKey } = nodeCuration.__nodeCurationTestHooks;
   const base = {

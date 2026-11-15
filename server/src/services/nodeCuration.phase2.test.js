@@ -223,7 +223,7 @@ test("node cache is isolated from normal search and a second call uses zero sear
   try {
     const first = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });
     assert.equal(selectorCalls, 1);
-    assert.equal(observedOptions.cacheScope, "node:node-runtime");
+    assert.match(observedOptions.cacheScope, /^node:node-runtime:[a-f0-9]{64}$/, "cache scope must include the skill-context hash");
     assert.equal(observedOptions.syllabus.source, "roadmap-skill");
     assert.deepEqual(observedOptions.syllabus.modules.map((item) => item.weight), [1, 1]);
     assert.equal(observedOptions.overrides.minVideoSeconds, 5400);

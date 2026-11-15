@@ -109,7 +109,7 @@ test("node curation rejects resources below half of the planned lesson runtime",
   const input = {
     skill: { id: "runtime-coverage", canonicalSkillId: "runtime-coverage", name: "Python Functions", topics: ["functions"] },
     profile: { topic: "Python", level: "Beginner", language: "en" },
-    durationPolicy: { minMinutes: 20, targetMinutes: 90, maxMinutes: 240 }
+    durationPolicy: { minMinutes: 20, targetMinutes: 90, maxMinutes: 240, excludeShorts: true }
   };
 
   try {
@@ -151,6 +151,27 @@ test("node curation rejects resources below half of the planned lesson runtime",
       skill: { ...input.skill, id: "runtime-coverage-playlist", canonicalSkillId: "runtime-coverage-playlist" }
     });
     assert.equal(shortPlaylist.best, null, "playlist runtime must meet the same lesson-coverage floor");
+
+    selectedResources = [{
+      id: "playlist:contains-short",
+      playlistId: "contains-short",
+      sourceType: "playlist",
+      title: "Python Functions Playlist",
+      durationSeconds: 45 * 60,
+      itemCount: 3,
+      items: [
+        { videoId: "playlist-long-1", title: "Function basics", durationSeconds: 20 * 60, isShort: false },
+        { videoId: "playlist-short", title: "Python quick tip #Shorts", durationSeconds: 50, isShort: true },
+        { videoId: "playlist-long-2", title: "Practical functions", durationSeconds: 24 * 60 + 10, isShort: false }
+      ],
+      score: 99,
+      finalScore: 99
+    }];
+    const playlistWithShort = await curateForNode({
+      ...input,
+      skill: { ...input.skill, id: "runtime-coverage-playlist-short", canonicalSkillId: "runtime-coverage-playlist-short" }
+    });
+    assert.equal(playlistWithShort.best, null, "a playlist containing a detected Short must be rejected");
 
     selectedResources = [{
       id: "playlist:adequate",

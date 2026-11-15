@@ -98,6 +98,84 @@ test("duration policy performs one bounded search without widening or retrying",
   }
 });
 
+test("node curation rejects resources below half of the planned lesson runtime", async () => {
+  cacheRows.clear();
+  let selectedResources = [];
+  setSelector(async () => ({
+    resources: selectedResources,
+    meta: { searchCalls: 1, quotaUnits: 1 }
+  }));
+  const input = {
+    skill: { id: "runtime-coverage", canonicalSkillId: "runtime-coverage", name: "Python Functions", topics: ["functions"] },
+    profile: { topic: "Python", level: "Beginner", language: "en" },
+    durationPolicy: { minMinutes: 20, targetMinutes: 90, maxMinutes: 240 }
+  };
+
+  try {
+    selectedResources = [{
+      id: "video:too-short",
+      videoId: "too-short",
+      title: "Python Functions Tutorial",
+      durationSeconds: 44 * 60,
+      score: 95,
+      finalScore: 95
+    }];
+    const shortVideo = await curateForNode(input);
+    assert.equal(shortVideo.best, null, "44 minutes must not satisfy half of a 90-minute lesson target");
+
+    selectedResources = [{
+      id: "video:adequate",
+      videoId: "adequate",
+      title: "Python Functions Complete Tutorial",
+      durationSeconds: 45 * 60,
+      score: 90,
+      finalScore: 90
+    }];
+    const adequateVideo = await curateForNode(input);
+    assert.equal(adequateVideo.best.videoId, "adequate");
+
+    selectedResources = [{
+      id: "playlist:too-short",
+      playlistId: "too-short",
+      sourceType: "playlist",
+      title: "Python Functions Playlist",
+      durationSeconds: 44 * 60,
+      itemCount: 3,
+      items: [{ videoId: "short-1", title: "Functions", durationSeconds: 44 * 60 }],
+      score: 99,
+      finalScore: 99
+    }];
+    const shortPlaylist = await curateForNode({
+      ...input,
+      skill: { ...input.skill, id: "runtime-coverage-playlist", canonicalSkillId: "runtime-coverage-playlist" }
+    });
+    assert.equal(shortPlaylist.best, null, "playlist runtime must meet the same lesson-coverage floor");
+
+    selectedResources = [{
+      id: "playlist:adequate",
+      playlistId: "adequate",
+      sourceType: "playlist",
+      title: "Python Functions Structured Playlist",
+      durationSeconds: 45 * 60,
+      itemCount: 3,
+      items: [
+        { videoId: "adequate-1", title: "Function basics", durationSeconds: 15 * 60 },
+        { videoId: "adequate-2", title: "Parameters and returns", durationSeconds: 15 * 60 },
+        { videoId: "adequate-3", title: "Practical functions", durationSeconds: 15 * 60 }
+      ],
+      score: 90,
+      finalScore: 90
+    }];
+    const adequatePlaylist = await curateForNode({
+      ...input,
+      skill: { ...input.skill, id: "runtime-coverage-playlist", canonicalSkillId: "runtime-coverage-playlist" }
+    });
+    assert.equal(adequatePlaylist.best.playlistId, "adequate");
+  } finally {
+    setSelector(null);
+  }
+});
+
 test("roadmap syllabus injection builds equal-weight modules without calling Gemini syllabus", () => {
   const syllabus = hooks.buildInjectedSyllabus({ name: "Node.js", topics: ["Runtime", "Modules", "Runtime"] });
   assert.deepEqual(syllabus.modules.map((item) => item.name), ["Runtime", "Modules"]);

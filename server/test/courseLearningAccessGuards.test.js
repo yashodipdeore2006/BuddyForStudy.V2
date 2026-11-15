@@ -61,7 +61,7 @@ test("progress read and completion APIs enforce current course access and reject
   );
 });
 
- 
+
 test("completion API returns the complete progress state and supports marking a lesson incomplete", () => {
   const progressController = readFileSync(new URL("../src/controllers/progress.controller.js", import.meta.url), "utf8");
   const progressRoutes = readFileSync(new URL("../src/routes/progress.routes.js", import.meta.url), "utf8");
@@ -82,7 +82,7 @@ test("completion API returns the complete progress state and supports marking a 
 test("first quiz submission completes the quiz lesson and sidebar completion circles toggle independently", () => {
   const player = readFileSync(new URL("../../client/src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
   const submitStart = player.indexOf("const handleQuizSubmit = async () =>");
-  const submitEnd = player.indexOf("\n\n\n  if (loading)", submitStart);
+  const submitEnd = player.indexOf("const pageError", submitStart);
   assert.ok(submitStart >= 0 && submitEnd > submitStart, "Expected lesson quiz submit handler");
   const submit = player.slice(submitStart, submitEnd);
   assert.match(submit, /setQuizPassed\(Boolean\(graded\.passed\)\)/);
@@ -96,7 +96,7 @@ test("first quiz submission completes the quiz lesson and sidebar completion cir
   assert.match(player, /aria-label=\{done \? `Mark \$\{cleanedTitle\} incomplete` : `Mark \$\{cleanedTitle\} complete`\}/);
 });
 
- 
+
 test("course completion notification is emitted only by progress service on the completion transition", () => {
   const progressController = readFileSync(new URL("../src/controllers/progress.controller.js", import.meta.url), "utf8");
   const progressService = readFileSync(new URL("../src/services/progress.service.js", import.meta.url), "utf8");

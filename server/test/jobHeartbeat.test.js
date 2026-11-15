@@ -79,7 +79,7 @@ test("maintenance lifecycle records start, completion and failure counters", asy
 
 test("worker shutdown clears schedulers, waits for active jobs, marks stopped and disconnects", async () => {
   const { readFile } = await import("node:fs/promises");
-  const worker = await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8");
+  const worker = (await readFile(new URL("../src/jobs/worker.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const start = worker.indexOf("async function shutdown(signal)");
   const end = worker.indexOf("\n}\n", start);
   const shutdown = worker.slice(start, end + 3);

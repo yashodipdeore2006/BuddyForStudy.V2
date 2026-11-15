@@ -666,7 +666,7 @@ async function searchStructuredPlaylistsUnsafe(query, maxResults, searchOptions 
     const pageSize = Math.min(25, requestedCount - searchItems.length);
     const data = await youtubeRequest("search", {
       part: "snippet",
-      type: env.ytCombinedSearch ? "video,playlist" : "playlist",
+      type: "playlist",
       order: "relevance",
       q: normalizedQuery,
       maxResults: pageSize,

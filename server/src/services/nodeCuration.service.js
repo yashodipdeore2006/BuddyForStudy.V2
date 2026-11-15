@@ -5,7 +5,7 @@ import { curateNormalSearch, extractCurationChapters } from "./courseCurationDec
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { QuotaBudgetError } from "./quota.service.js";
 
-const ENGINE_VERSION = "node-curation-v4";
+const ENGINE_VERSION = "node-curation-v5";
 const LOW_CONFIDENCE_THRESHOLD = 45;
 let selectorForNode = curateNormalSearch;
 let nodeCacheTestAdapters = null;
@@ -29,15 +29,18 @@ function durationBounds(durationPolicy = {}) {
   const targetMinutes = Math.max(minMinutes, Number(durationPolicy.targetMinutes) || minMinutes);
   const maxMinutes = Math.max(targetMinutes, Number(durationPolicy.maxMinutes) || targetMinutes);
   const mode = targetMinutes >= 180 ? "full_course" : targetMinutes >= 60 ? "crash_course" : "quick_reference";
+  // A selected resource should cover a meaningful share of the planned lesson,
+  // not merely pass a very low minimum-duration floor.
+  const minimumCoverageMinutes = Math.ceil(targetMinutes * 0.5);
   return {
     mode,
-    // These are lesson-resource bounds, not whole-course study hours. Respect
-    // the AI's per-lesson minimum instead of silently capping it at 30 minutes.
-    minVideoSeconds: minMinutes * 60,
+    // These are per-lesson resource bounds, not whole-course study hours.
+    minVideoSeconds: Math.max(minMinutes, minimumCoverageMinutes) * 60,
     maxVideoSeconds: maxMinutes * 60,
     minPlaylistSeconds: Math.max(
       minMinutes,
-      Number(durationPolicy.minPlaylistMinutes) || minMinutes
+      Number(durationPolicy.minPlaylistMinutes) || minMinutes,
+      minimumCoverageMinutes
     ) * 60,
     targetRuntimeSeconds: targetMinutes * 60,
     minPlaylistItems: Math.max(

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents, waitForDraft, cancelQueuedRoadmapDraft } from "./asyncRoadmap.service.js";
+import { createRoadmapDraft, stableProfileKey, getDraftForUser, getRoadmapPoll, attachDraftEvents, waitForDraft, cancelQueuedRoadmapDraft, reserveUniqueRoadmapResource } from "./asyncRoadmap.service.js";
 import { RoadmapDraft } from "../models/RoadmapDraft.js";
 import { Course } from "../models/Course.js";
 
@@ -16,6 +16,48 @@ function admissionDependencies(overrides = {}) {
   };
 }
 
+
+test("roadmap resource reservation prevents the same video appearing in multiple skills", () => {
+  const used = new Set();
+  const first = reserveUniqueRoadmapResource({
+    best: {
+      playlistId: "python-course",
+      sourceType: "playlist",
+      items: [{ videoId: "shared-video" }, { videoId: "python-2" }]
+    },
+    alternatives: [{ videoId: "python-alt" }]
+  }, used);
+  assert.equal(first.best.playlistId, "python-course");
+
+  const second = reserveUniqueRoadmapResource({
+    best: { videoId: "shared-video" },
+    alternatives: [{ videoId: "javascript-alt" }]
+  }, used);
+  assert.equal(second.best.videoId, "javascript-alt");
+  assert.equal(second.duplicateRejected, true);
+
+  const third = reserveUniqueRoadmapResource({
+    best: { videoId: "python-2" },
+    alternatives: []
+  }, used);
+  assert.equal(third.best, null);
+  assert.equal(third.duplicateRejected, true);
+});
+
+test("roadmap resource reservation detects overlap between playlists and standalone videos", () => {
+  const used = new Set();
+  const playlist = reserveUniqueRoadmapResource({
+    best: { playlistId: "playlist-a", items: [{ videoId: "video-a" }, { videoId: "video-b" }] }
+  }, used);
+  assert.equal(playlist.best.playlistId, "playlist-a");
+
+  const overlappingPlaylist = reserveUniqueRoadmapResource({
+    best: { playlistId: "playlist-b", items: [{ videoId: "video-c" }, { videoId: "video-b" }] },
+    alternatives: [{ videoId: "video-d" }]
+  }, used);
+  assert.equal(overlappingPlaylist.best.videoId, "video-d");
+  assert.equal(overlappingPlaylist.duplicateRejected, true);
+});
 
 test("async roadmap idempotency key is stable for the same user and profile", () => {
   const profile = { topic: "MERN stack", goal: "learn", level: "Beginner" };

@@ -153,7 +153,7 @@ async function searchVideos(query,maxResults=10,searchOptions={}){
   const key=String(maxResults)+":"+query.trim().toLowerCase()+":"+String(searchOptions.relevanceLanguage||"en")+":"+String(searchOptions.regionCode||"IN");
   const cached=getExpiringCache(SEARCH_CACHE,key);
   if(cached)return cached;
-  const promise=youtubeRequest("search",{part:"snippet",type:"video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
+  const promise=youtubeRequest("search",{part:"snippet",type:env.ytCombinedSearch ? "video,playlist" : "video",videoEmbeddable:"true",videoSyndicated:"true",relevanceLanguage:searchOptions.relevanceLanguage||"en",regionCode:searchOptions.regionCode||"IN",safeSearch:"moderate",order:"relevance",q:query,maxResults:Math.min(maxResults,50)})
     .then((data) => env.ytCombinedSearch ? { ...data, items: (data?.items || []).filter((item) => item.id?.videoId) } : data)
     .catch((error)=>{SEARCH_CACHE.delete(key);if(error instanceof QuotaBudgetError || error?.name === "QuotaBudgetError") return null;throw error;});
   setExpiringCache(SEARCH_CACHE,key,promise,SEARCH_CACHE_TTL_MS);

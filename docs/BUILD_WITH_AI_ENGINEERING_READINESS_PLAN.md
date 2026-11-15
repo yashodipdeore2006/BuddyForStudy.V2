@@ -83,7 +83,7 @@
 
 ### Task 03 — Product requirements and user journeys
 
-**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v0.9 draft on the readiness branch; all product decisions D-01 through D-08 are approved. Architecture, implementation and validation remain pending.
+**Working draft:** [Product Requirements — Normal Search & Build with AI](PRODUCT_REQUIREMENTS_BUILD_WITH_AI_AND_SEARCH.md). This is a source-grounded v1.0 draft on the readiness branch; all product decisions D-01 through D-08 are approved as of 2026-11-15. Architecture, implementation and validation remain pending.
 
 | Subtask | Status | Evidence / exit criteria |
 |---|---|---|
@@ -95,10 +95,10 @@
 | Define partial completion, retry, cancel and resume UX | **In progress — D-08 restart guarantee approved; detailed UX/contract pending** | PRD Journey B and AI-07 to AI-11. Durable recovery is required: persist job/node state, automatically resume unfinished work after API/worker restart, preserve completed outputs, process idempotently and expose bounded retry/permanent-failure states. Sync/async parity, cancel semantics and user-facing recovery details remain to be specified. |
 | Define admin approval, visibility, publication, price and enrollment lifecycle | **In progress — D-07 approved; full lifecycle contract pending** | PRD D-07. Existing admin setting `content_approval_ai_courses` supports `manual` / `automatic`; `Course.js` gates automatic publication on readiness and prevents learner-private courses from being published. Still define the full publication, pricing, visibility and enrollment state-transition matrix in Task 04. |
 
-**Confirmed product-specification conflicts requiring decisions (do not resolve by assumption):**
+**Approved product decisions with remaining implementation conflicts:**
 
 - **D-01 approved (2026-11-14):** Gemini is reserved for Build with AI. Normal Search must make zero direct or indirect Gemini calls. The current curateNormalSearch call path can invoke Gemini for topic-syllabus generation, so this requires an architecture/code change in a later implementation phase.
-- **D-02 approved (2026-11-14):** external YouTube recommendations are fallback-only. Search suitable published BuddyForStudy courses first; if none, search eligible published module/standalone-course matches; call external YouTube discovery only if neither local path yields a suitable result. Current main returns supplementary curation for every non-empty query, so this requires a later implementation change.
+- **D-02 approved (2026-11-15):** external YouTube recommendations are fallback-only. Search suitable published BuddyForStudy courses first; if none, search eligible published module/standalone-course matches; call external YouTube discovery only if neither local path yields a suitable result. Current main returns supplementary curation for every non-empty query, so this requires a later implementation change.
 - **D-03 approved (2026-11-14):** retain standalone course creation/reuse for matching published modules when no direct course match exists. Deduplicate by source course/module identity and enforce approval, publication and readiness gates; direct course matches take precedence.
 - **D-05 approved (2026-11-14):** the selected resource language is the learner's preferred language. Other-language resources may be offered only as clearly labelled alternatives; the learner must explicitly choose a fallback before it is added to their learning path.
 - **D-07 approved (2026-11-14):** preserve the existing admin-configurable AI-course approval modes (`manual` / `automatic`). Automatic mode may publish only eligible non-private, non-archived courses after readiness checks pass; learner-private courses remain private and unpublished. Approval does not itself grant enrollment or override separate visibility/pricing rules. Evidence: `server/src/services/contentApprovalPolicy.service.js`, `server/src/utils/typedSettingsRegistry.js`, `server/src/models/Course.js`, `server/test/courseApprovalPolicy.test.js`.

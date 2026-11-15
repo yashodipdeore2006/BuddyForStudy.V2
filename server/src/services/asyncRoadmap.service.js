@@ -161,119 +161,145 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
   await assertLease();
   const course = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   if (!course) throw new Error("Private roadmap course was not found for its owner");
-  const jobs = [];
-  const usedResourceIds = new Set();
+
+  // Preserve curriculum order for resource allocation while keeping provider
+  // searches concurrent. Completion timing must not decide which skill wins.
+  const tasks = [];
   for (const module of course.modules || []) {
     for (const lesson of module.lessons || []) {
-      if (lesson.type === "quiz") continue;
-      jobs.push(async () => {
-        const nodeId = String(lesson._id);
-        await assertLease();
-        await Course.updateOne(
-          { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
-          { $set: { "modules.$[module].lessons.$[lesson].buildState": "queued" } },
-          { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
-        );
-        await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: "queued", roadmapId: String(courseId) });
-        try {
-          const searchPolicy = lesson.tutorial?.searchPolicy || {};
-          const durationPolicy = lesson.durationPolicy || {
-            minMinutes: Number(searchPolicy.minDurationMinutes) || 15,
-            targetMinutes: Number(searchPolicy.targetDurationMinutes) || 60,
-            maxMinutes: Number(searchPolicy.maxDurationMinutes) || 180
-          };
-          const intent = profile.intentProfile || {};
-          const learnerContext = [
-            profile.topic,
-            intent.goal || profile.goal,
-            intent.targetRole,
-            intent.targetCompany,
-            intent.examName,
-            intent.projectIdea,
-            intent.outcome
-          ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
-          const curated = await (dependencies.curateForNode || curateForNode)({
-            skill: {
-              id: lesson.canonicalSkillId || lesson.title,
-              canonicalSkillId: lesson.canonicalSkillId || lesson.title,
-              name: lesson.title,
-              topics: [...new Set([
-                ...(Array.isArray(lesson.tutorial?.requiredTopics) ? lesson.tutorial.requiredTopics : []),
-                ...(Array.isArray(lesson.project?.requirements) ? lesson.project.requirements : []),
-                ...(Array.isArray(lesson.project?.objectives) ? lesson.project.objectives : []),
-                lesson.title
-              ].map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 16),
-              searchQueries: [...new Set([
-                ...(Array.isArray(lesson.tutorial?.searchQueries) ? lesson.tutorial.searchQueries : []),
-                lesson.tutorial?.searchQuery,
-                ...(Array.isArray(lesson.project?.videoSearchQueries) ? lesson.project.videoSearchQueries : []),
-                learnerContext ? learnerContext + " " + lesson.title + " structured course tutorial" : "",
-                String(profile.topic || "") + " " + lesson.title + " " + String(intent.goal || profile.goal || "learn") + " practical lesson"
-              ].map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 5)
-            },
-            profile: { topic: profile.topic, level: profile.level || intent.level || "Beginner", language: profile.language || intent.language || "en" },
-            durationPolicy,
-            // Cache verified resources by curriculum context, not user identity.
-            // The cache remains isolated by topic, role/goal, level, language and exam/project context.
-            cacheScope: hashResourceContext(profile)
-          });
-          await assertLease();
-          // Reserve synchronously after each search resolves. A resource can
-          // enrich only one roadmap node, even when node searches finish together.
-          const uniqueSelection = reserveUniqueRoadmapResource(curated, usedResourceIds);
-          const state = uniqueSelection.best
-            ? (curated.meta?.state || (curated.meta?.lowConfidence ? "low_confidence" : "ready"))
-            : (curated.meta?.state || "failed");
-          const selectedAlternatives = uniqueSelection.alternatives || [];
-          const best = uniqueSelection.best ? { ...uniqueSelection.best, state, alternatives: selectedAlternatives } : null;
-          const playlistItems = Array.isArray(best?.items) ? best.items.filter((item) => item.videoId) : [];
-          const videos = playlistItems.length
-            ? playlistItems.map((item) => ({
-                ...item,
-                playlistId: best.playlistId || "",
-                state,
-                reason: "Part of the selected curated playlist: " + String(best.title || "").slice(0, 160),
-                alternatives: selectedAlternatives
-              }))
-            : best ? [best] : [];
-          const path = lesson.type === "project" ? "project.videos" : "tutorial.videos";
-          const set = { "modules.$[module].lessons.$[lesson].buildState": state };
-          if (videos.length) set[`modules.$[module].lessons.$[lesson].${path}`] = videos;
-          await Course.updateOne(
-            { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
-            { $set: set },
-            { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
-          );
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state, best: best || null, alternatives: selectedAlternatives, flags: { lowConfidence: Boolean(curated.meta?.lowConfidence), quotaLimited: state === "quota_limited", duplicateResourceRejected: uniqueSelection.duplicateRejected, quotaUnits: curated.meta?.quotaUnits || 0, attachedVideos: videos.length } });
-        } catch (error) {
-          if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
-          await assertLease();
-          // Preserve already-built curriculum nodes when one enrichment request fails.
-          // Quota refusal is temporary and must remain retryable after reset.
-          const quotaLimited = error?.name === "QuotaBudgetError" || error?.code === "YOUTUBE_QUOTA_BUDGET";
-          const fallbackState = quotaLimited ? "quota_limited" : "failed";
-          await Course.updateOne(
-            { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
-            { $set: { "modules.$[module].lessons.$[lesson].buildState": fallbackState } },
-            { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
-          ).catch(() => {});
-          await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: fallbackState, flags: { error: !quotaLimited, quotaLimited } });
-        }
-      });
+      if (lesson.type !== "quiz") tasks.push({ module, lesson });
     }
   }
+
+  const searchResults = new Array(tasks.length);
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
-    while (cursor < jobs.length) {
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+    while (cursor < tasks.length) {
       const index = cursor++;
-      await jobs[index]();
+      const { module, lesson } = tasks[index];
+      const nodeId = String(lesson._id);
+      await assertLease();
+      await Course.updateOne(
+        { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
+        { $set: { "modules.$[module].lessons.$[lesson].buildState": "queued" } },
+        { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
+      );
+      await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: "queued", roadmapId: String(courseId) });
+
+      try {
+        const searchPolicy = lesson.tutorial?.searchPolicy || {};
+        const durationPolicy = lesson.durationPolicy || {
+          minMinutes: Number(searchPolicy.minDurationMinutes) || 15,
+          targetMinutes: Number(searchPolicy.targetDurationMinutes) || 60,
+          maxMinutes: Number(searchPolicy.maxDurationMinutes) || 180
+        };
+        const intent = profile.intentProfile || {};
+        const learnerContext = [
+          profile.topic,
+          intent.goal || profile.goal,
+          intent.targetRole,
+          intent.targetCompany,
+          intent.examName,
+          intent.projectIdea,
+          intent.outcome
+        ].map((value) => String(value || "").trim()).filter(Boolean).join(" ").slice(0, 240);
+        const curated = await (dependencies.curateForNode || curateForNode)({
+          skill: {
+            id: lesson.canonicalSkillId || lesson.title,
+            canonicalSkillId: lesson.canonicalSkillId || lesson.title,
+            name: lesson.title,
+            topics: [...new Set([
+              ...(Array.isArray(lesson.tutorial?.requiredTopics) ? lesson.tutorial.requiredTopics : []),
+              ...(Array.isArray(lesson.project?.requirements) ? lesson.project.requirements : []),
+              ...(Array.isArray(lesson.project?.objectives) ? lesson.project.objectives : []),
+              lesson.title
+            ].map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 16),
+            searchQueries: [...new Set([
+              ...(Array.isArray(lesson.tutorial?.searchQueries) ? lesson.tutorial.searchQueries : []),
+              lesson.tutorial?.searchQuery,
+              ...(Array.isArray(lesson.project?.videoSearchQueries) ? lesson.project.videoSearchQueries : []),
+              learnerContext ? learnerContext + " " + lesson.title + " structured course tutorial" : "",
+              String(profile.topic || "") + " " + lesson.title + " " + String(intent.goal || profile.goal || "learn") + " practical lesson"
+            ].map((value) => String(value || "").trim()).filter(Boolean))].slice(0, 5)
+          },
+          profile: { topic: profile.topic, level: profile.level || intent.level || "Beginner", language: profile.language || intent.language || "en" },
+          durationPolicy,
+          // Cache verified resources by curriculum context, not user identity.
+          cacheScope: hashResourceContext(profile)
+        });
+        await assertLease();
+        searchResults[index] = { curated };
+      } catch (error) {
+        if (error?.code === "ROADMAP_ADMISSION_LEASE_LOST") throw error;
+        searchResults[index] = { error };
+      }
     }
   });
   await Promise.all(workers);
 
+  const usedResourceIds = new Set();
+  // Allocate and persist in stable module/lesson order, independent of search
+  // latency. Earlier curriculum skills therefore have deterministic priority.
+  for (let index = 0; index < tasks.length; index += 1) {
+    const { module, lesson } = tasks[index];
+    const nodeId = String(lesson._id);
+    const result = searchResults[index] || { error: new Error("Resource curation did not return a result") };
+    await assertLease();
+
+    if (result.error) {
+      const error = result.error;
+      const quotaLimited = error?.name === "QuotaBudgetError" || error?.code === "YOUTUBE_QUOTA_BUDGET";
+      const fallbackState = quotaLimited ? "quota_limited" : "failed";
+      await Course.updateOne(
+        { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
+        { $set: { "modules.$[module].lessons.$[lesson].buildState": fallbackState } },
+        { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
+      ).catch(() => {});
+      await addEvent(draft, { type: "node", nodeId, title: lesson.title, state: fallbackState, flags: { error: !quotaLimited, quotaLimited } });
+      continue;
+    }
+
+    const curated = result.curated || {};
+    const uniqueSelection = reserveUniqueRoadmapResource(curated, usedResourceIds);
+    const state = uniqueSelection.best
+      ? (curated.meta?.state || (curated.meta?.lowConfidence ? "low_confidence" : "ready"))
+      : (curated.meta?.state || "failed");
+    const selectedAlternatives = uniqueSelection.alternatives || [];
+    const best = uniqueSelection.best ? { ...uniqueSelection.best, state, alternatives: selectedAlternatives } : null;
+    const playlistItems = Array.isArray(best?.items) ? best.items.filter((item) => item.videoId) : [];
+    const videos = playlistItems.length
+      ? playlistItems.map((item) => ({
+          ...item,
+          playlistId: best.playlistId || "",
+          state,
+          reason: "Part of the selected curated playlist: " + String(best.title || "").slice(0, 160),
+          alternatives: selectedAlternatives
+        }))
+      : best ? [best] : [];
+    const path = lesson.type === "project" ? "project.videos" : "tutorial.videos";
+    const set = { "modules.$[module].lessons.$[lesson].buildState": state };
+    if (videos.length) set[`modules.$[module].lessons.$[lesson].${path}`] = videos;
+    await Course.updateOne(
+      { _id: courseId, createdForUser: userId, "modules._id": module._id, "modules.lessons._id": lesson._id },
+      { $set: set },
+      { arrayFilters: [{ "module._id": module._id }, { "lesson._id": lesson._id }] }
+    );
+    await addEvent(draft, {
+      type: "node", nodeId, title: lesson.title, state, best: best || null,
+      alternatives: selectedAlternatives,
+      flags: {
+        lowConfidence: Boolean(curated.meta?.lowConfidence),
+        quotaLimited: state === "quota_limited",
+        duplicateResourceRejected: uniqueSelection.duplicateRejected,
+        quotaUnits: curated.meta?.quotaUnits || 0,
+        attachedVideos: videos.length
+      }
+    });
+  }
+
   const completedCourse = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   const topic = String(profile.topic || "");
-  const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
+  const completePath = profile.intentProfile?.scope === "broad" || /\\bpython\\b/i.test(topic);
   const metrics = getCourseResourceMetrics(completedCourse);
   const quality = assessCourseResourceQuality(completedCourse, { completePath });
   // YouTube is an optional enrichment layer for an otherwise valid personalized

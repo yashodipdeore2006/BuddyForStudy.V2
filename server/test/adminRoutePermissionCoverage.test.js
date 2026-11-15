@@ -27,21 +27,19 @@ test("every admin endpoint is protected by a named permission or explicit self-a
     const source = await readFile(routeFile.path, "utf8");
     assert.match(source, /router\.use\(authMiddleware, adminMiddleware\)/, "admin router must require authentication and admin access");
 
-    for (const line of source.split("\n")) {
-      const match = line.match(/^\s*router\.(get|post|put|patch|delete)\(["']([^"']+)["'],(.*)$/i);
-      if (!match) continue;
-
+    const routePattern = /^\s*router\.(get|post|put|patch|delete)\s*\(\s*(["'])([^"']+)\2\s*,(.*)$/gim;
+    for (const match of source.matchAll(routePattern)) {
       checked += 1;
       const method = match[1].toUpperCase();
-      const routePath = match[2];
-      const rest = match[3];
+      const routePath = match[3];
+      const rest = match[4];
       if (routeFile.unguardedAllowlist.has(method + " " + routePath)) continue;
-      if (!/adminPermissionMiddleware\(/.test(rest)) {
+      if (!/adminPermissionMiddleware\s*\(/.test(rest)) {
         uncovered.push(method + " " + routePath + " (" + routeFile.path.pathname + ")");
       }
     }
   }
 
-  assert.ok(checked >= 40, "expected coverage of the existing admin route surface");
+  assert.ok(checked >= 40, `expected coverage of the existing admin route surface; found ${checked} route declarations`);
   assert.deepEqual(uncovered, [], "every admin route must enforce a permission at the server boundary");
 });

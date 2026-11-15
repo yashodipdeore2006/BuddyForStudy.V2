@@ -93,7 +93,7 @@ Observed gaps:
 
 Therefore, the 25-day stale threshold is only a code-path intention. It does not establish a production guarantee that durable course metadata is refreshed or deleted before day 30.
 
-## 4. High-priority policy risk: derived metrics from YouTube statistics
+## 4. Default-policy restriction and the 2026 audited-analytics exception
 
 The current source has more than a data-retention issue:
 
@@ -102,9 +102,13 @@ The current source has more than a data-retention issue:
 - `youtubeCompliance.service.js` and the course sanitizer strip the raw statistics before/after durable course persistence, but stripping raw fields does not undo a score already derived from them.
 - The selector also requests and carries statistics in short-lived candidate and result caches.
 
-YouTube's current policy section III.E.4.8 says API Clients must not use API Data to create new or derived data or metrics, and gives as a prohibited example a score that factors in likes, total views or other API Data.
+YouTube's current default policy section III.E.4.8 says API Clients must not use API Data to create new or derived data or metrics. The examples include scores factoring in likes, total views or other API Data. This restriction applies more broadly than raw statistics: current BuddyForStudy relevance, coverage, instruction, freshness, authority, fit and final-score components are calculated from YouTube-supplied titles, descriptions, dates, durations, playlist metadata and/or statistics. They need policy review too; removing only the statistics-derived fields does not resolve the entire derived-metric question.
 
-**Assessment:** the current engagement/authority scoring path is a strong apparent conflict with the policy wording and is a pre-release compliance blocker. Removing raw statistics from the Course schema alone is insufficient. The safest initial remediation proposal is to stop requesting YouTube statistics and remove all ranking, filtering, output and cache fields/metrics derived from those statistics. Obtain a YouTube API compliance review if the product team wants to retain any custom score or other derived metric based on YouTube metadata.
+**Important 2026 policy update:** YouTube now publishes [Additional policies for derived metrics and data storage](https://developers.google.com/youtube/terms/derived-metrics-policy). This is not an automatic blanket exception. It applies only where the developer accepts the amendment to the Developer Policies, uses an accepted analytics use case (the page says the API service must reflect an analytics use case on YouTube), and creates metrics within the listed allowed categories and conditions. Examples include certain channel scores/ratios, content categorization/tagging and viewer-sentiment analysis. Accepted clients may store certain statistical metrics and derived metrics for up to 36 months, but other API Data such as video titles, creator names and descriptions remains subject to the 30-day refresh/delete rule. The revision history records the addition of this pathway on 2026-05-04 and clarification on 2026-06-01.
+
+BuddyForStudy's current purpose is course discovery and learning-resource recommendation, not obviously one of the documented YouTube analytics use cases. No repository evidence shows that BuddyForStudy has accepted the amendment, passed the relevant audit or received permission for its specific ranking/quality metrics. Therefore, **do not rely on this exception** unless YouTube explicitly confirms that the particular learning-resource curation use case and the proposed metrics are accepted.
+
+**Assessment:** the current score pipeline is a pre-release compliance blocker under the default policy. It derives candidate scores/rankings from both statistics and descriptive API metadata. Removing raw statistics from the Course schema alone is insufficient. Until YouTube confirms an accepted use case, do not ship or persist custom rankings/quality metrics that are calculated from API Data. A fallback design must be reviewed rather than assuming that any renamed score or metadata heuristic is permitted. If BuddyForStudy seeks the 2026 exception, first get written confirmation that educational-resource curation qualifies, then accept the required amendment and obtain approval for the exact metric categories and storage terms.
 
 Do not confuse this with BuddyForStudy's independent learner feedback. Events such as a BuddyForStudy learner marking a resource helpful/outdated, saving it, enrolling in a BuddyForStudy course or completing a platform lesson are first-party platform signals. Keep these explicitly labelled as BuddyForStudy feedback, use no YouTube view/like/subscriber counts in their calculation, and do not present them as YouTube engagement statistics. Their user-level retention and deletion remain governed by BuddyForStudy's own privacy obligations.
 
@@ -161,8 +165,9 @@ For playlists, refresh playlist metadata and membership using the corresponding 
 
 - Do not request `statistics` parts for public video/channel discovery unless a separately approved and policy-compliant use case exists.
 - Remove view count, like count, comment count and subscriber count from candidate DTOs, caches, course snapshots, logs and user-facing outputs.
-- Remove score components, percentile/rate/average features, penalties and ordering decisions that depend on those statistics.
-- Do not replace prohibited YouTube-derived metrics with a renamed metric.
+- Under the default policy, suspend custom scores, percentiles, averages, coverage/freshness/fit assessments and ranking order derived from YouTube API Data, including descriptive metadata; this is broader than statistics-only removal.
+- Do not replace a prohibited YouTube-derived metric with a renamed metric.
+- Re-enable a specific metric only after confirming that BuddyForStudy's use case and that metric are expressly accepted under the 2026 amendment; keep its required disclosure and data-retention treatment separate from raw API Data.
 - Keep independently collected BuddyForStudy learner feedback separate, identify it as platform feedback, and ensure it is not calculated from YouTube API Data.
 - Have the remaining custom metadata scoring/ranking design reviewed against section III.E.4.8 before production rollout. This ADR does not assume every metadata-based quality judgement is automatically permitted.
 

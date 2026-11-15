@@ -299,7 +299,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
 
   const completedCourse = await Course.findOne({ _id: courseId, createdForUser: userId }).lean();
   const topic = String(profile.topic || "");
-  const completePath = profile.intentProfile?.scope === "broad" || /\\bpython\\b/i.test(topic);
+  const completePath = profile.intentProfile?.scope === "broad" || /\bpython\b/i.test(topic);
   const metrics = getCourseResourceMetrics(completedCourse);
   const quality = assessCourseResourceQuality(completedCourse, { completePath });
   // YouTube is an optional enrichment layer for an otherwise valid personalized

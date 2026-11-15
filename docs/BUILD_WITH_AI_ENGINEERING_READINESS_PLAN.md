@@ -89,7 +89,7 @@
 |---|---|---|
 | Map Normal Search current behavior and draft its product contract | **In progress — D-01, D-02 and D-03 approved** | PRD sections 2.1, 3A and 4.2. Direct course matches take precedence; absent a direct match, a matching published module is represented by a deduplicated standalone course subject to approval/publication/readiness checks (D-03). External YouTube recommendations are fallback-only (D-02); current main still returns supplementary curation for any non-empty query, an implementation gap. D-01 approved: Normal Search must make zero Gemini calls; current curateNormalSearch Gemini-backed topic-syllabus dependency is another implementation gap for Task 04. |
 | Map Build with AI current behavior and draft its product contract | **In progress — D-04 adaptive onboarding approved; broader contract pending** | PRD sections 2.2, 3B and 4.3. Separate explicit flow, topic-only adaptive intake, provisional goal/level assumptions, targeted follow-up questions, editable profile review, intent route, entitlement gates, sync/async modes, and the hard-disabled frontend Intent V2 constant recorded. |
-| Decide whether normal discovery and AI roadmap share one canonical resource selector | **Not started — architecture decision** | PRD D-01 and Task 04; D-01 approves no Gemini in Normal Search but does not decide whether ranking/candidate code can be shared. Compare user intent, latency, quality, quota and data contracts. |
+| Decide whether normal discovery and AI roadmap share one canonical resource selector | **Done — ADR-001 approved 2026-11-15** | Do not require one universal orchestrator. Flow-specific orchestration/policies remain separate; deterministic pure ranking/candidate utilities may be shared where their contracts and side effects are explicit. See [ADR-001](architecture/ADR-001-normal-search-local-first-gemini-free.md). |
 | Specify learner goals: learn, job-ready, exam and project | **In progress — target captured, needs owner approval** | PRD Journey B and goal-specific content; based on the implementation guide, not an assertion that all target details are live. |
 | Specify resource language, level, depth and duration semantics | **In progress — D-04, D-05 and D-06 approved; UX/contract implementation pending** | PRD AI-01 to AI-06. D-04: topic-only adaptive intake with editable, confidence-aware goal/level assumptions; D-05: selected language is preferred and alternate-language resources require explicit selection. D-06: display learning effort in hours, completion timeline in weeks based on study availability, recommended study schedule and video runtime separately. |
 | Define partial completion, retry, cancel and resume UX | **In progress — D-08 restart guarantee approved; detailed UX/contract pending** | PRD Journey B and AI-07 to AI-11. Durable recovery is required: persist job/node state, automatically resume unfinished work after API/worker restart, preserve completed outputs, process idempotently and expose bounded retry/permanent-failure states. Sync/async parity, cancel semantics and user-facing recovery details remain to be specified. |
@@ -115,17 +115,17 @@
 
 | Subtask | Status | Exit criteria |
 |---|---|---|
-| Decide canonical orchestration boundary | **In progress — initial Normal Search source audit complete; proposed boundary pending owner confirmation** | Context diagram and sequence diagrams for both journeys; keep catalog-first orchestration separate from the Gemini-powered Build with AI pipeline |
-| Define Gemini responsibilities and JSON schemas | **Not started** | Versioned request/response contracts, validation, retry/fallback policy |
+| Decide canonical orchestration boundary | **Done — ADR-001 approved 2026-11-15** | Accepted context boundary and Normal Search sequence/API contract: [ADR-001](architecture/ADR-001-normal-search-local-first-gemini-free.md). Normal Search is local-first and Gemini-free; Build with AI retains its dedicated Gemini pipeline |
+| Define Gemini responsibilities and JSON schemas | **In progress — Normal Search zero-Gemini boundary defined; Build with AI contracts pending** | ADR-001 prevents direct/indirect Gemini calls in Normal Search. Define and validate the dedicated Build with AI request/response schemas, retries and provider fallback separately |
 | Define canonical skill registry and graph invariants | **Not started** | IDs, aliases, duplicate/cycle/prerequisite repair rules |
-| Define resource candidate and selected-resource contracts | **Not started** | Stable IDs, language evidence, duration, metadata provenance and freshness |
-| Define evidence/confidence model | **Not started** | Distinguish metadata-derived claims from actual verified content |
+| Define resource candidate and selected-resource contracts | **In progress — Normal Search fallback DTO/evidence rules defined; Build with AI resource contract pending** | ADR-001 defines provider identity, metadata-only evidence and unknown-value handling for Normal Search. Complete canonical skill/resource-node contracts for Build with AI |
+| Define evidence/confidence model | **In progress — Normal Search metadata-only boundary defined; cross-flow confidence model pending** | ADR-001 prohibits representing titles/descriptions/chapters as verified video content; complete source provenance, confidence and freshness semantics for all roadmap resource types |
 | Decide durable job processing | **In progress — D-08 product guarantee approved; architecture choice pending** | Select a durable queue or equivalent recoverable job store; define persisted job/node state, idempotency, lease/claim protocol, retry classification/backoff, cancellation, crash recovery, observability and deployment topology. Do not assume a specific provider before evaluating MongoDB/Redis/worker constraints. |
 | Define cache layers and invalidation | **Not started** | Keys, scope, TTL, stale behavior, negative caching and invalidation rules |
-| Define API contracts and compatibility | **Not started** | Endpoint table, auth, plan entitlement, schemas, idempotency and error codes |
-| Define YouTube quota and provider degradation | **Not started** | Cost model, reserve/refuse rules, reset, retries, circuit-breaker behavior |
+| Define API contracts and compatibility | **In progress — Normal Search GET /api/courses contract defined; remaining APIs pending** | ADR-001 documents query/pagination, local/fallback response modes, error semantics and existing optional-auth entitlement boundary. Complete the wider Build with AI and async contracts |
+| Define YouTube quota and provider degradation | **In progress — Normal Search failure semantics defined; quota/cost verification pending** | ADR-001 specifies local-first invocation, existing quota gateway use and non-fatal provider failure. Verify provider quota units, limits, reserve/refuse rules and circuit-breaker/retry behavior in pre-launch checks |
 
-### Task 04 initial source audit — 2026-11-15 (findings; architecture proposal pending)
+### Task 04 approved architecture — 2026-11-15 (ADR-001)
 
 **Observed primary Normal Search request path**
 - `client/src/pages/Courses.tsx` calls `GET /api/courses` for the normal catalog search. It can call `GET /api/discovery/search` only for the legacy playlist fallback when the catalog response has no `curatedResources` property.
@@ -134,14 +134,14 @@
 - `server/src/services/courseCurationDecisionEngine.service.js` currently constructs a Gemini client and has two model-generation paths: `getTopicSyllabus` and `evaluateCandidatesWithMetadataRubric`. Either can invoke Gemini from the normal-search curation path, conflicting with approved D-01.
 - The legacy `GET /api/discovery/search` controller path calls `searchStructuredPlaylists`; it is distinct from `GET /api/discovery/course-search`, whose `searchCourseBySkills` path uses a Gemini-generated search specification. The current Courses page normal-search handler does not call `/api/discovery/course-search`; preserve this separation explicitly in the API contract.
 
-**Proposed architecture direction — not yet approved for implementation**
-1. Make `course.service.listPublished` the sole local-first orchestrator: direct published courses first, then eligible published module/standalone courses, and only then external YouTube fallback when the total eligible local match count is zero.
-2. Keep the Normal Search fallback selector deterministic. Remove Gemini access from the Normal Search curation call graph, including syllabus generation and metadata judging. Use explicit deterministic query expansion, hard gates and metadata-derived ranking; do not present a generic fallback syllabus as verified topic coverage.
-3. Keep Build with AI's Gemini orchestration behind its dedicated roadmap/intent services. Do not route Normal Search through the Gemini-enabled `/api/discovery/course-search` workflow.
-4. Return a YouTube fallback payload only when local matches are absent; otherwise omit discovery metadata. Keep external recommendations separate from published BuddyForStudy course records.
-5. Add regression coverage for direct local matches, module/standalone matches, empty-local fallback, quota/provider failures, paginated local results, and zero Gemini calls when Gemini credentials are configured.
+**Approved architecture direction — implementation remains a separate gated phase**
+1. **Approved:** `course.service.listPublished` is the sole local-first orchestrator: direct published courses first, then eligible published module/standalone courses, and YouTube fallback only when the total eligible local match count is zero.
+2. **Approved:** Normal Search curation is deterministic. The syllabus and metadata-judge Gemini calls are forbidden on this call graph; deterministic candidate expansion, existing hard gates, metadata heuristics and ranking remain the fallback path. Generic heuristic outlines are not verified topic curricula.
+3. **Approved:** Build with AI keeps its Gemini orchestration behind dedicated intent/roadmap services. Normal Search must not route through the Gemini-enabled `/api/discovery/course-search` workflow.
+4. **Approved:** Return a `youtube_fallback` payload only when eligible local matches are absent; otherwise omit discovery metadata. Keep external recommendations separate from published BuddyForStudy course records.
+5. **Implementation acceptance:** add regression coverage for direct local matches, eligible module/standalone matches, unpublished/pending standalone records, empty-local fallback, quota/provider failures, later pages with zero rows but positive total matches, stale fallback clearing, and zero Gemini calls when credentials are configured.
 
-No product code, production flags, or `main` branch files were changed during this source audit.
+Decision approval and this ADR update changed documentation only. No product code, production flags, or `main` branch files were changed.
 
 ### Task 05 — Security, privacy and abuse review
 

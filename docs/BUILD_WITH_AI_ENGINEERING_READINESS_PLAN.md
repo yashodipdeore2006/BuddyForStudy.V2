@@ -116,14 +116,14 @@
 | Subtask | Status | Exit criteria |
 |---|---|---|
 | Decide canonical orchestration boundary | **Done — ADR-001 approved 2026-11-15** | Accepted context boundary and Normal Search sequence/API contract: [ADR-001](architecture/ADR-001-normal-search-local-first-gemini-free.md). Normal Search is local-first and Gemini-free; Build with AI retains its dedicated Gemini pipeline |
-| Define Gemini responsibilities and JSON schemas | **In progress — Normal Search zero-Gemini boundary defined; Build with AI contracts pending** | ADR-001 prevents direct/indirect Gemini calls in Normal Search. Define and validate the dedicated Build with AI request/response schemas, retries and provider fallback separately |
-| Define canonical skill registry and graph invariants | **Not started** | IDs, aliases, duplicate/cycle/prerequisite repair rules |
-| Define resource candidate and selected-resource contracts | **In progress — Normal Search fallback DTO/evidence rules defined; Build with AI resource contract pending** | ADR-001 defines provider identity, metadata-only evidence and unknown-value handling for Normal Search. Complete canonical skill/resource-node contracts for Build with AI |
-| Define evidence/confidence model | **In progress — Normal Search metadata-only boundary defined; cross-flow confidence model pending** | ADR-001 prohibits representing titles/descriptions/chapters as verified video content; complete source provenance, confidence and freshness semantics for all roadmap resource types |
-| Decide durable job processing | **In progress — D-08 product guarantee approved; architecture choice pending** | Select a durable queue or equivalent recoverable job store; define persisted job/node state, idempotency, lease/claim protocol, retry classification/backoff, cancellation, crash recovery, observability and deployment topology. Do not assume a specific provider before evaluating MongoDB/Redis/worker constraints. |
-| Define cache layers and invalidation | **Not started** | Keys, scope, TTL, stale behavior, negative caching and invalidation rules |
-| Define API contracts and compatibility | **In progress — Normal Search GET /api/courses contract defined; remaining APIs pending** | ADR-001 documents query/pagination, local/fallback response modes, error semantics and existing optional-auth entitlement boundary. Complete the wider Build with AI and async contracts |
-| Define YouTube quota and provider degradation | **In progress — Normal Search failure semantics defined; quota/cost verification pending** | ADR-001 specifies local-first invocation, existing quota gateway use and non-fatal provider failure. Verify provider quota units, limits, reserve/refuse rules and circuit-breaker/retry behavior in pre-launch checks |
+| Define Gemini responsibilities and JSON schemas | **In progress — Build with AI schema contracts documented; strict runtime validation/versioning pending** | [Build with AI target architecture](architecture/BUILD-WITH-AI-TARGET-ARCHITECTURE.md) defines IntentParseV1, RoadmapTemplateV1 and ExamSyllabusExtractV1, semantic validation, bounded retry and fallback behavior. Add strict server validators and schema/prompt-version compatibility tests |
+| Define canonical skill registry and graph invariants | **In progress — target IDs, matching policy and DAG invariants documented; fuzzy-match calibration pending** | Target architecture defines domain-aware canonical IDs/aliases, ambiguity handling, 3–14 skill bounds, prerequisite validity, DAG validation, topological ordering and repair audit. Calibrate matching threshold/margin and migration behavior before implementation |
+| Define resource candidate and selected-resource contracts | **In progress — Build with AI node resource/state contract documented; persistence/freshness policy pending** | Target architecture defines canonical skill context, language/duration policy, provider IDs, URLs, metadata provenance, selected resource/alternatives, cache identity and per-node states. Decide resource persistence and YouTube retention/invalidation details |
+| Define evidence/confidence model | **In progress — intent provenance and resource metadata-only evidence documented; cross-flow implementation pending** | Target architecture distinguishes learner-confirmed, inferred and unknown profile values; provider metadata/structure from verified content; and selected resource confidence/provenance from curriculum confidence |
+| Decide durable job processing | **In progress — D-08 persistence/recovery contract documented; technology choice pending** | Target architecture specifies job/profile/idempotency identity, persisted curriculum and per-node state, lease/heartbeat, automatic recovery, bounded retries, cancellation, event cursor and retention. Current process-local queue and one-hour draft TTL do not meet restart-resume. Evaluate MongoDB/Redis/worker topology before choosing technology |
+| Define cache layers and invalidation | **In progress — cache ownership/key requirements documented; TTL/invalidation validation pending** | Target architecture separates intent cache, generic roadmap-template cache, node-resource cache and private course storage. Include depth/schema/prompt/policy versions in keys; measure TTL, negative caching and invalidation before production selection |
+| Define API contracts and compatibility | **In progress — Normal Search and Build with AI target API contracts documented; compatibility/tests pending** | ADR-001 defines `GET /api/courses`; Build with AI target architecture defines intent parse, confirmed build input, sync/async endpoints, owner checks, responses and typed errors. Implement strict DTOs, sync/async parity and backward-compatibility tests |
+| Define YouTube quota and provider degradation | **In progress — Normal Search and roadmap-node degradation semantics documented; provider cost/retention verification pending** | ADR-001 and Build with AI target architecture specify quota-guarded fallback/node resolution, non-fatal quota-limited states and preservation of completed nodes. Verify provider quota units, reserve/refuse rules, retry limits, costs and data-retention obligations |
 
 ### Task 04 approved architecture — 2026-11-15 (ADR-001)
 
@@ -140,6 +140,31 @@
 3. **Approved:** Build with AI keeps its Gemini orchestration behind dedicated intent/roadmap services. Normal Search must not route through the Gemini-enabled `/api/discovery/course-search` workflow.
 4. **Approved:** Return a `youtube_fallback` payload only when eligible local matches are absent; otherwise omit discovery metadata. Keep external recommendations separate from published BuddyForStudy course records.
 5. **Implementation acceptance:** add regression coverage for direct local matches, eligible module/standalone matches, unpublished/pending standalone records, empty-local fallback, quota/provider failures, later pages with zero rows but positive total matches, stale fallback clearing, and zero Gemini calls when credentials are configured.
+
+### Task 04 Build with AI target architecture — 2026-11-15 (draft v0.1)
+
+**Architecture document:** [Build with AI — Target Architecture and API Contracts](architecture/BUILD-WITH-AI-TARGET-ARCHITECTURE.md).
+
+**Source-mapped current-state findings**
+- Intent parse uses Gemini classification, Zod `IntentProfile`, confidence-derived question planning, a 3-second timeout/static fallback and a 30-day cache. The intent route is gated by both entitlements and `INTENT_V2`; main-branch client Intent V2 remains hardcoded off.
+- Gemini curriculum generation uses `roadmapSchema` through the provider's JSON response mode, but the server currently parses JSON and performs only a minimal non-empty-skills check before later normalization/graph repair. Add strict server-side schema/semantic validation before template caching.
+- Roadmap templates are generic and are personalized after cache lookup. The current template key helper hashes topic, goal, level, language, prompt version, outcome and preferences; the generation profile also carries course depth separately. Add depth and schema version to cache identity.
+- Skill registry resolution currently checks exact names/aliases, normalized slug and token similarity (0.8 threshold), but matching is not domain-scoped and has no explicit ambiguity margin. Calibrate before treating fuzzy matches as canonical.
+- Current graph validator repairs duplicates, invalid prerequisite edges and cycles, trims to 14 skills, and inserts generic nodes when fewer than 3 remain. The target contract requires audited repair and forbids presenting synthetic generic nodes as topic-specific AI-authored coverage.
+- Sync and async course persistence differ. Async generation sets private visibility and owner; synchronous `Course.create` sets published true but does not set `createdForUser` or private visibility. This is a verified D-07 gap for learner-specific roadmaps.
+- Async drafts/events are persisted, but work is queued through process-local `queue[]`; `RoadmapDraft.createdAt` has a one-hour TTL. This does not satisfy D-08 automatic restart recovery and durable resume.
+- Per-node resource curation has canonical skill/language/duration cache inputs, best/alternative results and quota-limited states. Preferred-language-first plus explicit learner selection of other-language alternatives must be enforced in the full path.
+
+**Target architecture and contracts now documented**
+- IntentParseV1, RoadmapTemplateV1 and ExamSyllabusExtractV1 responsibilities and schemas.
+- Strict server validation, semantic graph checks, prompt/schema versioning and bounded provider failure behavior.
+- Domain-aware canonical skills, alias/ambiguity rules, 3–14 node graph invariant, prerequisite DAG, topological ordering and repair report.
+- Curriculum composer responsibilities, goal-specific modules, known-skill personalization and schedule calculations.
+- Per-node resource selection, D-05 language policy, metadata-only evidence, confidence and resource state contract.
+- Confirmed-profile build request, sync/async API compatibility, ownership/privacy invariants, and D-08 durable job/node state.
+- Cache boundaries and implementation acceptance matrix.
+
+**Still open:** durable queue/job-store technology; exact fuzzy matching threshold/margin and alias migration; resource persistence and provider-retention design; cache TTL/invalidation values; strict runtime schema enforcement and regression evidence. This is an architecture draft, not implementation approval.
 
 Decision approval and this ADR update changed documentation only. No product code, production flags, or `main` branch files were changed.
 

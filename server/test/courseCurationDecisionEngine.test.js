@@ -472,8 +472,7 @@ test("lesson-level curation accepts focused videos without full-course structure
     hasChapters: false,
     chapterCount: 0,
     hasSyllabus: false,
-    hasHandsOn: false,
-    queryTermStats: { relevance: 35, titleRelevance: 15 }
+    hasHandsOn: false
   });
   const decision = evaluateCurationHardGates(candidate, profile);
   assert.equal(decision.passed, true, decision.reason);

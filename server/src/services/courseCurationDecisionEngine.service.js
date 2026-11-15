@@ -537,11 +537,19 @@ function hasSyllabusEvidence(candidate) {
   ].join(" ");
   return Boolean(candidate.hasSyllabus || /\b(what you(?:'|’)ll learn|course content|curriculum|syllabus|topics covered|learning objectives|course outline|contents|quick reference|syntax reference|command reference|cheat sheet|full course|complete course|crash course|tutorial|step by step|walkthrough|lesson plan)\b/i.test(searchableMetadata));
 }
+function hasOrderedPlaylistStructure(candidate) {
+  const items = Array.isArray(candidate.items) ? candidate.items : [];
+  if (items.length < 8) return false;
+  const titles = items.map((item) => normalizeText(item.title)).filter(Boolean);
+  const uniqueTitleCount = new Set(titles).size;
+  return titles.length >= 8 && uniqueTitleCount >= Math.ceil(titles.length * 0.75);
+}
+
 function hasStructureEvidence(candidate) {
   if (candidate.sourceType === "playlist" || candidate.sourceType === "series") {
     const items = Array.isArray(candidate.items) ? candidate.items : [];
     const numbered = items.filter((item) => /\b(?:part|episode|lesson|lecture|chapter)\s*#?\s*\d+\b|\[\s*\d+\s*\/\s*\d+\s*\]/i.test(item.title || "")).length;
-    return numbered >= 3 || hasSyllabusEvidence(candidate) || candidate.hasChapters;
+    return numbered >= 3 || hasSyllabusEvidence(candidate) || candidate.hasChapters || hasOrderedPlaylistStructure(candidate);
   }
   return Boolean(candidate.hasChapters || hasSyllabusEvidence(candidate));
 }
@@ -790,7 +798,7 @@ function computePlaylistStats(candidate, playlistDetail, originalCount) {
   candidate.likeCount = Math.round(validLessons.reduce((sum, item) => sum + Number(item.likeCount || 0), 0) / Math.max(1, validLessons.length));
   candidate.commentCount = Math.round(validLessons.reduce((sum, item) => sum + Number(item.commentCount || 0), 0) / Math.max(1, validLessons.length));
   candidate.subscriberCount = Number(validLessons[0]?.subscriberCount || 0);
-  candidate.hasStructure = candidate.hasSyllabus || candidate.hasChapters;
+  candidate.hasStructure = hasStructureEvidence(candidate);
   candidate.isShort = false;
   return candidate;
 }
@@ -1681,7 +1689,10 @@ export async function curateNormalSearch(query, options = {}) {
     playlists: (pool.playlists || []).filter((item) => {
       const duration = Number(item.durationSeconds || 0);
       const count = Number(item.itemCount || item.videoCount || 0);
-      return duration >= Number(selectionProfile.minPlaylistSeconds || 0) && count >= Number(selectionProfile.minPlaylistItems || 1);
+      // YouTube playlist search does not return total runtime. Keep unknown-duration
+      // candidates until enrichPlaylists calculates runtime from their actual lessons.
+      return (!duration || duration >= Number(selectionProfile.minPlaylistSeconds || 0)) &&
+        count >= Number(selectionProfile.minPlaylistItems || 1);
     })
   };
   const initial = selectInitialShortlist(boundedPool.videos, boundedPool.playlists, selectionProfile);

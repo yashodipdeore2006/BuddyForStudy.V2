@@ -51,9 +51,14 @@ after(() => {
 
 test("duration policy maps to bounded modes and limits", () => {
   assert.deepEqual(hooks.durationBounds({ minMinutes: 30, targetMinutes: 180, maxMinutes: 240 }), {
-    mode: "full_course", minVideoSeconds: 1800, maxVideoSeconds: 14400,
-    minPlaylistSeconds: 1800, minPlaylistItems: 3, excludeShorts: false, targetRuntimeSeconds: 10800, halfLifeDays: undefined
+    mode: "full_course", minVideoSeconds: 5400, maxVideoSeconds: 14400,
+    minPlaylistSeconds: 5400, minPlaylistItems: 3, excludeShorts: false, targetRuntimeSeconds: 10800, halfLifeDays: undefined
   });
+  const standardLesson = hooks.durationBounds({ minMinutes: 20, targetMinutes: 90, maxMinutes: 240 });
+  assert.equal(standardLesson.minVideoSeconds, 45 * 60);
+  assert.equal(standardLesson.minPlaylistSeconds, 45 * 60);
+  const pythonLesson = hooks.durationBounds({ minMinutes: 45, targetMinutes: 90, maxMinutes: 210 });
+  assert.equal(pythonLesson.minVideoSeconds, 45 * 60, "the configured minimum remains authoritative when it exceeds half the target");
   assert.equal(hooks.durationBounds({ minMinutes: 10, targetMinutes: 59, maxMinutes: 59 }).mode, "quick_reference");
   assert.equal(hooks.durationBounds({ minMinutes: 30, targetMinutes: 60, maxMinutes: 90 }).mode, "crash_course");
 });
@@ -121,9 +126,10 @@ test("node cache is isolated from normal search and a second call uses zero sear
     assert.equal(observedOptions.cacheScope, "node:node-runtime");
     assert.equal(observedOptions.syllabus.source, "roadmap-skill");
     assert.deepEqual(observedOptions.syllabus.modules.map((item) => item.weight), [1, 1]);
-    assert.equal(observedOptions.overrides.minVideoSeconds, 1800);
+    assert.equal(observedOptions.overrides.minVideoSeconds, 5400);
     assert.equal(observedOptions.overrides.maxVideoSeconds, 14400);
     assert.equal(observedOptions.overrides.minPlaylistItems, 3);
+    assert.equal(observedOptions.overrides.minPlaylistSeconds, 5400);
     assert.equal(first.meta.searchCalls, 2);
     assert.equal(first.meta.quotaUnits, 200);
     const second = await curateForNode({ skill, profile: { topic: "Backend development", level: "Beginner", language: "en" }, durationPolicy: { minMinutes: 30, targetMinutes: 180, maxMinutes: 240 } });

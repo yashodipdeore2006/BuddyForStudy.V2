@@ -188,14 +188,21 @@ Decision approval and this ADR update changed documentation only. No product cod
 
 ### Task 05 — Security, privacy and abuse review
 
-| Subtask | Status | Exit criteria |
+**Current status: In progress — source-mapped threat model and risk register documented in [Security, Privacy and Abuse Review](SECURITY_PRIVACY_ABUSE_REVIEW.md). No code remediation or dynamic security tests have been performed.**
+
+| Subtask | Status | Evidence / exit criteria |
 |---|---|---|
-| Threat-model prompt injection from user input and YouTube metadata | **Not started** | Trust boundaries and mitigations |
-| Review authentication and plan entitlement on every route | **Not started** | Route-by-route authorization matrix and negative tests |
-| Review admin approval and public/private course isolation | **Not started** | Ownership and publication invariants |
-| Review PII minimization and telemetry redaction | **Not started** | Allowed fields, retention and log redaction rules |
-| Review API abuse, rate limits and per-user/global concurrency | **Not started** | Threat model and enforceable thresholds |
-| Review YouTube API data retention obligations | **Not started** | Refresh/delete policy mapped to persisted fields and background jobs |
+| Threat-model prompt injection from user input and YouTube metadata | **In progress — trust boundaries and controls mapped; adversarial tests pending** | Security review §§2–3 and 6. Existing `serializeUntrustedPromptData` is used in roadmap, syllabus, curation metadata and quiz prompts; coverage and model behavior still require adversarial tests. |
+| Review authentication and plan entitlement on every route | **In progress — key auth/entitlement paths sampled; complete route matrix pending** | JWT/token-version checks, auth route gates, feature entitlements and course-learning access reviewed. Complete route-by-route negative tests and OTP/invitation review remain open. |
+| Review admin approval and public/private course isolation | **In progress — RBAC and selected course controls reviewed; full matrix pending** | Admin permission middleware, role profiles, governance lock, self-role-change denial and last-active-Super-Admin protection observed. Verify all sensitive routes and private-course ownership paths. |
+| Review PII minimization and telemetry redaction | **In progress — logging/export controls reviewed; retention audit pending** | Safe request/error telemetry and requester-scoped partial export observed. Password-hash over-fetch in auth middleware flagged for hardening; verify Sentry, background logs, audit retention and export completeness. |
+| Review API abuse, rate limits and per-user/global concurrency | **In progress — limiters mapped; bypass found** | Shared global/auth/payment limits and roadmap admission controls observed. SEC-02 identifies a background practice-quiz path that omits userId and skips monthly usage reservation; remediate and add per-user burst/global budget tests. |
+| Review YouTube API data retention obligations | **In progress — ADR-004 source review recorded; policy/runtime remediation pending** | ADR-004 covers 30-day refresh/delete and derived-metric policy risks. Verify complete refresh/delete execution, live worker topology and policy approval before launch. |
+| Review new-account legal consent and privacy-request fulfilment | **In progress — gaps documented** | SEC-03: Google new-account endpoint permits omitted legal acknowledgements. SEC-04: privacy deletion requests have no execution path; export is explicitly partial. Define and implement server-enforced consent and auditable deletion/anonymization. |
+| Remediate async roadmap profile validation boundary | **Open — Medium priority finding SEC-01** | `asyncRoadmap.controller.js` accepts arbitrary nested `intentProfile` keys then merges them over the validated profile. Replace with strict versioned schema and whitelist merge; add regression tests. |
+| Remove password hash from normal auth request context | **Open — Low hardening finding SEC-05** | `auth.js` loads `+password` for all authenticated requests although only auth-service password operations need it. Remove after consumer audit and test query projection. |
+
+**Security findings requiring remediation:** SEC-01 (post-validation nested profile overwrite, Medium); SEC-02 (practice-quiz monthly usage bypass, High); SEC-03 (Google new-account legal-consent enforcement, Medium / policy decision); SEC-04 (privacy deletion execution absent, High readiness gap); SEC-05 (password hash loaded in every authenticated request, Low hardening). See the review document for source paths, impact, fixes and acceptance tests.
 
 ### Task 06 — Quality benchmark and unit economics
 

@@ -20,6 +20,15 @@ This is **not a security certification**. The review is source-based and does no
 4. **SEC-04 — Account deletion is not implemented by the privacy-request workflow (High product/privacy readiness gap).** The learner can submit a deletion request and an administrator can advance its review state, but both responses explicitly say `executionAvailable: false`; the admin update response explicitly says no account data has been deleted or anonymized. Do not describe this workflow as a completed deletion right. Implement a verified, auditable deletion/anonymization executor with legal-hold and payment-record retention rules before claiming fulfilment.
 5. **SEC-05 — Auth middleware loads password hashes on every authenticated request (Low hardening).** `authMiddleware` and `optionalAuthMiddleware` query `User.findById(...).select("+password")`, although the middleware only needs account, role and token-version data. Password verification is performed by dedicated auth-service methods. Remove this unnecessary hash hydration after checking all consumers and add a regression test that protected routes do not load password hashes.
 
+### Remediation progress — 2026-11-15
+
+The first two code-level remediations have been applied on this readiness branch; neither finding is closed pending automated regression tests and runtime verification.
+
+- **SEC-01 — Code change applied:** `asyncRoadmap.controller.js` now validates nested `intentProfile` with the strict shared `IntentProfile` schema and maps only explicitly supported fields into the normalized profile. The post-validation `Object.assign` merge has been removed. Unknown nested keys are rejected rather than copied into the validated object. Regression tests and compatibility checks for existing client payloads remain pending.
+- **SEC-02 — Code change applied:** `queueNextLessonQuiz` no longer defaults a missing `userId` to `null` and fails closed when the actor is absent. The exhausted-bank path now passes `req.user.userId`, allowing `generateCourseQuiz` to execute its existing atomic monthly `ai_quiz_generations` reservation. Automated usage-limit tests and multi-instance duplicate-job/burst testing remain pending; this change does not establish a global provider-budget control.
+
+No production deployment, database migration, feature-flag change or `main`-branch modification was made.
+
 All severities are preliminary engineering priorities, not a formal CVSS score. No exploitation or production compromise is claimed.
 
 ## 2. Threat model and trust boundaries

@@ -223,7 +223,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
           const uniqueSelection = reserveUniqueRoadmapResource(curated, usedResourceIds);
           const state = uniqueSelection.best
             ? (curated.meta?.state || (curated.meta?.lowConfidence ? "low_confidence" : "ready"))
-            : (uniqueSelection.duplicateRejected ? "duplicate_resource" : (curated.meta?.state || "failed"));
+            : (curated.meta?.state || "failed");
           const selectedAlternatives = uniqueSelection.alternatives || [];
           const best = uniqueSelection.best ? { ...uniqueSelection.best, state, alternatives: selectedAlternatives } : null;
           const playlistItems = Array.isArray(best?.items) ? best.items.filter((item) => item.videoId) : [];
@@ -233,7 +233,7 @@ async function resolveCourseNodes({ draft, courseId, userId, profile, assertLeas
                 playlistId: best.playlistId || "",
                 state,
                 reason: "Part of the selected curated playlist: " + String(best.title || "").slice(0, 160),
-                alternatives: curated.alternatives || []
+                alternatives: selectedAlternatives
               }))
             : best ? [best] : [];
           const path = lesson.type === "project" ? "project.videos" : "tutorial.videos";

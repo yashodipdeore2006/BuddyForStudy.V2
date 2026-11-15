@@ -11,7 +11,7 @@ import { searchYouTubeCurationCandidates, getYouTubeSearchOptions } from "./yout
 import { withYouTubeRequestMetrics } from "./youtubeRequestMetrics.js";
 import { searchStructuredPlaylists, searchChannelCoursePlaylists, getPlaylistCourse } from "./discovery.service.js";
 
-const ENGINE_VERSION = "course-curation-decision-engine-v1.10";
+const ENGINE_VERSION = "course-curation-decision-engine-v1.11";
 const FINAL_RESULT_COUNT = 10;
 const SYLLABUS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESULT_TTL_MS = 14 * 24 * 60 * 60 * 1000;

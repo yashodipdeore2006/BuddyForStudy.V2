@@ -29,7 +29,8 @@ async function ensureCourseLearningAccess(req, courseId) {
   });
 }
 
-async function queueNextLessonQuiz(courseId, lessonId, userId = null, excludedQuestions = null) {
+async function queueNextLessonQuiz(courseId, lessonId, userId, excludedQuestions = null) {
+  if (!userId) throw new Error("A learner ID is required for practice quiz generation.");
   const key = `${courseId}:${lessonId}:practice`;
   if (quizGenerationJobs.has(key)) return;
   quizGenerationJobs.add(key);
@@ -309,7 +310,7 @@ export async function submitPracticeQuiz(req, res, next) {
     const userExhaustedBank = allLessonQuizzes.length > 0 && allLessonQuizzes.every((quiz) =>
       quiz.attempts.some((attempt) => String(attempt.user) === String(req.user.userId))
     );
-    if (userExhaustedBank) void queueNextLessonQuiz(input.courseId, input.lessonId);
+    if (userExhaustedBank) await queueNextLessonQuiz(input.courseId, input.lessonId, req.user.userId);
     return success(res, {
       saved: true,
       score,

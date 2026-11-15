@@ -18,8 +18,58 @@ const {
   evaluateCurationHardGates,
   selectCurationResultSlots,
   curateNormalSearch,
+  computePlaylistStats,
   __setCurationDecisionEngineAdaptersForTests
 } = engine;
+
+test("playlist eligibility count reflects playable lessons rather than advertised entries", () => {
+  const lessons = Array.from({ length: 8 }, (_, index) => ({
+    videoId: "playlist-video-" + index,
+    title: "Python course lesson " + (index + 1),
+    description: "Python lesson covering practical concepts",
+    durationSeconds: 40 * 60,
+    privacyStatus: "public",
+    embeddable: true,
+    isShort: false,
+    defaultAudioLanguage: "en"
+  }));
+  lessons[7] = { ...lessons[7], isShort: true, title: "Python quick tip #Shorts" };
+  const candidate = { title: "Python complete course", itemCount: 8 };
+  const enriched = computePlaylistStats(candidate, {
+    totalItemCount: 8,
+    observedItemCount: 8,
+    lessons
+  }, 8);
+
+  assert.equal(enriched.totalItemCount, 8, "retain the advertised count for diagnostics");
+  assert.equal(enriched.itemCount, 7, "only playable long-form lessons count toward eligibility");
+  assert.equal(enriched.items.length, 7);
+  assert.equal(enriched.integrity, 7 / 8);
+  assert.equal(enriched.durationSeconds, 7 * 40 * 60);
+});
+
+test("playlist runtime estimates add only unobserved entries, not filtered lessons", () => {
+  const lessons = Array.from({ length: 8 }, (_, index) => ({
+    videoId: "runtime-video-" + index,
+    title: "Python course lesson " + (index + 1),
+    description: "Python lesson covering practical concepts",
+    durationSeconds: 30 * 60,
+    privacyStatus: "public",
+    embeddable: true,
+    isShort: false
+  }));
+  lessons[7] = { ...lessons[7], privacyStatus: "private" };
+  const enriched = computePlaylistStats({ title: "Python complete course" }, {
+    totalItemCount: 10,
+    observedItemCount: 8,
+    lessons
+  }, 10);
+
+  assert.equal(enriched.itemCount, 7);
+  assert.equal(enriched.durationEstimated, true);
+  assert.equal(enriched.durationSeconds, 9 * 30 * 60,
+    "seven valid observed lessons plus two unobserved lessons; exclude the observed private lesson");
+});
 
 function baseCandidate(overrides = {}) {
   return {

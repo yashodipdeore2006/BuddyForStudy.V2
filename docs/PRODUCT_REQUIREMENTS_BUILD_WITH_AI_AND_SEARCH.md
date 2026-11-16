@@ -111,6 +111,71 @@ These are the working product requirements for review. Items marked **Decision r
 - **Project:** skills required for the stated project, milestones and build tutorials; unrelated skills should not be added without a reason.
 - **Learn:** fundamentals, practice/assessment and a small applied project; no interview or exam module by default.
 
+
+### Journey B lifecycle, partial completion and recovery
+
+The learner-facing lifecycle must make the difference between generation progress, curriculum readiness and resource coverage explicit.
+
+**Roadmap lifecycle states**
+
+| State | Learner experience | Allowed next actions |
+|---|---|---|
+| `draft` | Confirmed profile is saved; generation has not been finalized | Edit profile, finalize, or discard |
+| `queued` | Build is accepted and waiting for a worker | View progress or cancel |
+| `running` | Curriculum and/or lesson resources are being prepared | View progress, refresh/resume, or cancel |
+| `cancelling` | Cancellation was accepted and in-flight work is settling | View final cancellation result |
+| `completed` | Curriculum and required resource work completed under the selected quality policy | View roadmap |
+| `completed_with_warnings` | Usable roadmap exists, but one or more nodes remain unresolved or have alternatives only | View ready nodes, inspect warnings, retry eligible nodes |
+| `cancelled` | No new work will be scheduled; already completed outputs remain inspectable | View saved partial result or explicitly start a new build |
+| `failed` | Build cannot continue automatically because a non-retryable error occurred or retry budget was exhausted | View actionable error and support/retry guidance |
+
+A state transition must be persisted before it is exposed as authoritative. Terminal states are `completed`, `completed_with_warnings`, `cancelled` and `failed`. A refresh or reconnect must read the persisted state; it must never infer that a build is new merely because the browser lost its in-memory state.
+
+**Per-node states**
+
+Use the node states defined in the target architecture: `pending`, `queued`, `ready`, `low_confidence`, `unavailable`, `quota_limited`, `failed_retryable`, `failed_permanent` and `skipped`. A node's state must not overwrite the state or selected resource of another node. A roadmap is not fully resource-covered while any required node is unresolved.
+
+**Progress presentation**
+
+- Show overall lifecycle state, completed/total node counts, and a concise current activity label.
+- Show curriculum generation separately from resource curation; video runtime is not a proxy for roadmap completion.
+- Each node shows its own state and, where relevant, a safe reason such as provider quota, no suitable preferred-language match, or a retryable provider error.
+- Label partial output as **Ready with warnings** or **Partially ready**; never use the fully completed state or a 100% resource-coverage claim while required nodes remain unresolved.
+- Progress must be derived from persisted job/node state, not from a client-side timer or an optimistic counter.
+
+**Refresh, reconnect and resume**
+
+1. The client retains the opaque draft/job identifier and retrieves the owner-scoped status after refresh or reconnect.
+2. If the job is queued or running, the client resumes observing the same job through the event stream or bounded polling; it does not submit a second build.
+3. If the job is terminal, the client renders the persisted result and does not enqueue work again.
+4. Completed curriculum and ready nodes remain unchanged during recovery. Only pending, expired-lease or retry-eligible work is resumed.
+5. A changed confirmed profile is a new build with a new idempotency identity; it must not mutate the input of an existing job.
+
+**Retry**
+
+- Retry is offered only for `failed_retryable`, `quota_limited` or otherwise explicitly retryable nodes.
+- Retry preserves ready nodes and the generated curriculum; it does not restart the entire roadmap.
+- Permanent failures and exhausted retry budgets do not expose an enabled retry action. Show a safe reason and support path instead.
+- Retries use bounded attempts/backoff and stable operation identities so duplicate clicks or reconnects cannot duplicate side effects.
+- A provider quota outage is reported as a temporary availability problem, not as evidence that the learner's skill or curriculum is invalid.
+
+**Cancellation**
+
+- Cancellation is owner-authorized and idempotent. Repeated cancellation requests return the same job state.
+- Queued work is prevented from starting. In-flight provider calls may finish, but their late results must not schedule additional nodes or cause duplicate course creation, publication, enrollment or billing side effects after cancellation wins.
+- The job transitions through `cancelling` when work is settling and then to `cancelled`.
+- Completed curriculum and node outputs remain saved and inspectable; unfinished nodes remain marked as unfinished. Cancellation does not silently publish a course or enroll the learner.
+- Cancellation is distinct from deletion. Any later deletion follows the separate privacy/data-deletion contract.
+
+**Sync/async parity**
+
+- Both modes validate the same confirmed-profile DTO and enforce the same authentication, entitlement, ownership, quality, language, duration and privacy rules.
+- Both modes return the same learner-visible roadmap, schedule, resource summary, per-node states, warnings and typed failure categories.
+- Sync returns a final result or a typed failure; it must not leave hidden background work running after the request has ended.
+- Async returns a job identifier and persisted lifecycle state; refresh/resume observes that same job.
+- The sync/async transport difference must not change course ownership, approval, visibility, pricing or enrollment behavior.
+
+
 ## 4. Product requirements and acceptance criteria
 
 ### 4.1 Shared requirements

@@ -1,6 +1,6 @@
 # Build with AI — Target Architecture and API Contracts
 
-**Status:** Architecture draft v0.1 — source-mapped 2026-11-15; implementation and technical validation pending  
+**Status:** Architecture draft v0.2 — source-mapped and cross-document wording aligned 2026-11-16; owner approval, implementation and technical validation pending  
 **Baseline:** `main` at `eb2f4af7ea85723d1f4940e61ffcb7962319e494`  
 **Product decisions:** D-04 adaptive topic-only onboarding; D-05 explicit language fallback; D-06 distinct learning effort/timeline/video runtime; D-07 manual/automatic moderation with private learner roadmaps; D-08 durable restart recovery  
 **Tracking:** [Issue #43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)
@@ -127,7 +127,7 @@ Gemini is a bounded domain adapter, not the system of record. Each model task ha
 **Output contract:**
 - `valid: boolean`
 - `profile: IntentProfile` with topic, domain, scope, goal, level, knownSkills, minutesPerDay, deadline, language, targetRole, targetCompany, examName, examDate, syllabusText, projectIdea, outcome and preferences.
-- `confidences`: field-keyed values clamped to 0–1.
+- `confidences`: optional field-keyed model-reported values constrained to 0–1. These are not calibrated probabilities and must retain model/prompt/schema provenance. They may be advisory context for clarification, but must not be exposed as objective accuracy or used as a numeric gate unless a field-specific calibration method/dataset and threshold are approved under the Evidence and Confidence Model.
 - `domain`, `scope`, bounded option lists and bounded optional learner-specific questions.
 - No generated course modules, provider URLs, credentials, or unsupported sensitive inferences.
 
@@ -260,14 +260,14 @@ Each tutorial/project resource node is sent to the node curation service with:
 - actual node duration bounds and content-type policy;
 - goal/role/exam/project context that is allowed for resource ranking.
 
-The current `curateForNode` uses the shared candidate engine, injected topic syllabus from skill topics, at most two search queries, a node cache keyed by canonical skill/mode/level/language/duration policy, a low-confidence threshold of 45, and returns best plus alternatives. Quota refusal is represented as retryable `quota_limited`.
+The current `curateForNode` source baseline uses the shared candidate engine, injected topic syllabus from skill topics, at most two search queries, a node cache keyed by canonical skill/mode/level/language/duration policy, a numeric low-confidence threshold of 45, and returns a best candidate plus alternatives. These are current implementation facts, not approved target policy. The numeric threshold/score must not be carried into the target selection contract while API-derived scoring is blocked; `low_confidence` may be used only after an approved, policy-permitted, assessment-specific method exists. Quota refusal is represented as retryable `quota_limited`.
 
 ### 7.2 Target node state and resource record
 
 Node states should include:
 - `pending`, `queued`, `ready`, `low_confidence`, `unavailable`, `quota_limited`, `failed_retryable`, `failed_permanent`, and `skipped`.
 
-A selected resource stores provider/type/ID, canonical URL, title, channel, actual duration where supplied, language evidence, thumbnail, retrieval timestamp, curation engine version, match score, confidence, selected reason, and alternatives. Missing provider metadata remains unknown.
+A selected-resource record stores provider/type/ID, canonical URL, factual title/channel/duration/language metadata where permitted, snapshot version and successful retrieval timestamp, categorical evidence/provenance, decision/policy version, selected reason or learner-choice requirement, and alternatives. Missing provider metadata remains unknown. Do not persist `matchScore`, numerical resource confidence, quality/coverage/freshness metrics, percentiles or API-derived ranking values unless the exact method is approved under ADR-004/ADR-005 and the evidence model's assessment-specific calibration gate. The candidate-selection contract's categorical evidence vocabulary is authoritative until then.
 
 ### 7.3 Language policy (D-05)
 
@@ -282,7 +282,7 @@ A selected resource stores provider/type/ID, canonical URL, title, channel, actu
 
 Titles, descriptions, tags, chapters, playlist order, duration and engagement metrics are metadata/structure evidence. They do not prove that the video was watched, transcript-checked, factually verified or pedagogically effective. UI labels, scores and explanations must reflect that evidence boundary.
 
-**Quota/provider degradation:** [Build with AI — YouTube Quota and Provider Degradation Contract](BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md) defines separate search/shared quota states, soft/hard degradation, provider/store outage behavior, bounded retries, and the requirement to preserve curriculum and completed nodes. The contract records current sync/async differences and is proposed pending approval and implementation.
+**Quota/provider degradation:** [Build with AI — YouTube Quota and Provider Degradation Contract](BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md) defines separate search/shared quota states, soft/hard degradation, provider/store outage behavior, bounded retries, and the requirement to preserve curriculum and completed nodes. The contract records current sync/async differences and is proposed pending approval and implementation. Its soft-degradation admission policy is not current runtime behavior; see ADR-005 and the quota contract's source-mapped baseline.
 
 ## 8. Course ownership, approval and publication (D-07)
 
@@ -483,7 +483,7 @@ Current TTL values are baseline observations, not approved targets. Select futur
 
 ## 12. Error and partial-completion contract
 
-**Job lifecycle states:** `draft`, `queued`, `running`, `cancelling`, `cancelled`, `completed`, `completed_with_warnings` and `failed`. Terminal states are `cancelled`, `completed`, `completed_with_warnings` and `failed`. Persist transitions before emitting events or returning status.
+**Domain lifecycle states:** `draft`, `queued`, `running`, `cancelling`, `cancelled`, `completed`, `completed_with_warnings` and `failed`. Terminal states are `cancelled`, `completed`, `completed_with_warnings` and `failed`. Persist transitions before emitting events or returning status. These domain labels require an explicit public-API normalization map; see the proposed mapping in the API Contracts document. Worker-internal queue states are not public API states.
 
 **Learner-visible behavior**
 - Progress is calculated from persisted job and per-node state; expose completed/total node counts and current activity without treating elapsed time as progress.

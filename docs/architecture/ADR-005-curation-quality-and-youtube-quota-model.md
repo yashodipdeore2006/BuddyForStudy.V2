@@ -4,7 +4,7 @@
 **Date:** 2026-11-15  
 **Scope:** YouTube-backed Normal Search fallback and Build with AI lesson-resource selection  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
-**Related:** ADR-001 (Normal Search), ADR-004 (YouTube lifecycle/policy), readiness issue #43
+**Related:** ADR-001 (Normal Search), ADR-004 (YouTube lifecycle/policy), [YouTube Quota and Provider Degradation Contract](BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md), readiness issue #43
 
 ## 1. Purpose
 
@@ -444,3 +444,20 @@ No defensible fixed-dollar totals are supplied for Render, MongoDB, Redis, email
 8. Review the MAU scenarios with actual usage, peak-day factors and a safety reserve before approving a launch cohort.
 
 **Decision status:** rubric, published-price formula and quota stress model are documented. Human labels/playback inspections, policy clearance, measured Gemini token distribution, live Google quota, cache efficiency and fixed infrastructure invoices remain outstanding. This ADR does not authorize live evaluation, code changes, quota changes, deployment changes or production rollout.
+
+
+## 14. Implementation cross-check — readiness branch, 2026-11-16
+
+A follow-up inspection of the current readiness branch compared the proposed policy above with the current source. The detailed contract is [Build with AI — YouTube Quota and Provider Degradation](BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md).
+
+Verified implementation details and gaps:
+- `quota.service.js` has independent Mongo-backed search-call and shared-unit counters, atomic conditional reservations, Pacific-time day keys, and fail-closed behavior when quota storage cannot authorize a call.
+- The 80% state is currently advisory. The quota service permits reservations below the hard cap even when the bucket is `degraded`; the gateway does not yet implement the priority order in §8.
+- `youtubeGateway.js` retries 429, 5xx and network/timeout failures up to three total attempts, reserving quota per attempt. It does not currently honor `Retry-After`.
+- `youtubeRequestMetrics.js` increments `quotaUnits` for `search` requests as well as shared endpoints. This mixes the separate provider buckets and must not be used as a shared-unit total.
+- `nodeCuration.service.js` returns `quota_limited` without caching an empty result. Async roadmap resolution preserves completed resources and can finalize a curriculum with partial quota-limited resource availability.
+- The synchronous roadmap path treats only confirmed `exhausted` quota as a reason to accept partial resource coverage. A quota-store outage is reported as `degraded` and may cause a resource-quality failure, so sync/async behavior is not yet equivalent for this failure class.
+- Normal Search returns local courses when YouTube curation fails, but the inspected `course.service.js` still invokes curation when local results exist. This remains a separate ADR-001/D-02 issue.
+- Existing quota, gateway, node-curation and async-roadmap tests cover important fundamentals, but were inspected only; no test execution is claimed.
+
+The 2026-11-16 check does not change the proposed quota values or certify production configuration. Actual Google Cloud quota, Render environment, compliance worker health and live telemetry remain unverified. No runtime code or configuration was changed.

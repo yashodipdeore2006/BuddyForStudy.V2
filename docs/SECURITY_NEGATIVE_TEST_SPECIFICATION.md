@@ -1,9 +1,9 @@
 # Security Negative-Test Specification — Build with AI & Course Discovery
 
-**Status:** Specification v1.0 — not executed  
+**Status:** Specification v1.1 — consistency-aligned; not executed  
 **Date:** 2026-11-16  
 **Branch:** `docs/build-with-ai-engineering-readiness`  
-**Related:** PR #43; `SECURITY_PRIVACY_ABUSE_REVIEW.md` v0.3; SEC-01–SEC-08  
+**Related:** PR #43; `SECURITY_PRIVACY_ABUSE_REVIEW.md` v0.3; [Build with AI API Contracts](architecture/BUILD-WITH-AI-API-CONTRACTS-AND-COMPATIBILITY.md); [Cross-Document Consistency Review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md); SEC-01–SEC-08  
 **Scope:** Negative, abuse, ownership, integrity, privacy, payment and privileged-access verification. This document defines test intent and evidence; it does not assert that the tests exist or pass.
 
 ## 1. Purpose and execution boundary
@@ -52,10 +52,25 @@ Use the existing API error envelope unless an approved API-contract change expli
 | Authenticated user lacks role/permission/entitlement | 403, or consistent 404 where resource-existence concealment is the established policy | No side effect; no sensitive existence disclosure |
 | Malformed identifier or DTO/schema violation | 400 | No persistence, queue admission or provider call |
 | Valid request but stale/conflicting state or reused idempotency key with different payload | 409 where conflict semantics apply | Original state remains intact |
-| Rate/budget limit exceeded | 429 | No expensive work admitted; retry metadata if contract supports it |
+| Rate/budget limit exceeded | Depends on limit class; see distinction below | No expensive work admitted; retry metadata if contract supports it |
 | Successful read/write | Existing documented 2xx status | Only caller-authorized projection and intended state transition |
 
 Do not force every resource-not-found case to one status without checking the route's established concealment contract. Tests must assert consistent behavior within each route family and must not leak whether another user's private record exists.
+
+#### 2.3 Rate-limit and quota error distinction
+
+The generic table above is intentionally not a one-status rule for every provider failure. The proposed API contract distinguishes these cases:
+
+| Limit/failure | Proposed HTTP status | Proposed stable error code | Expected behavior |
+|---|---:|---|---|
+| Learner AI allowance/monthly usage exhausted | 429 | `AI_USAGE_LIMIT` | No new generation/job/provider call; reset-aware message/metadata |
+| Application route/per-user rate limit | 429 | Route-specific stable limit code or documented rate-limit envelope | No handler/provider side effect; `Retry-After` where available |
+| Upstream provider transient HTTP 429 | 503 | `AI_PROVIDER_RATE_LIMITED` | Bounded retry policy; expose retry metadata only when meaningful; reserve quota per actual attempt |
+| Provider daily quota bucket exhausted | 503 | `AI_PROVIDER_QUOTA_EXHAUSTED` | No retry loop; preserve quota bucket and Pacific reset semantics; Build with AI retains curriculum and reports resource limitation |
+| Local quota store unavailable | 503 | `AI_QUOTA_STORE_UNAVAILABLE` | Fail closed; no provider request; do not describe this as Google's daily quota exhaustion |
+| Platform roadmap capacity exhausted | 429 or 503, per approved contract | `ROADMAP_CAPACITY_LIMIT` | No job admitted; status/retryability follow capacity policy |
+
+These HTTP/status mappings are proposals from the API Contracts document, not a claim that every existing route currently emits those exact codes. Keep the tests adaptable to the approved contract version. For every case assert the stable code, retryability, any retry-after/reset metadata, and the no-side-effect guarantee. A quota-store failure is distinct from a provider 429 and from daily quota exhaustion.
 
 ### 2.3 Evidence to capture for every case
 

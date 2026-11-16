@@ -1,6 +1,6 @@
 # Security, Privacy and Abuse Review — Build with AI & Course Discovery
 
-**Status:** Source-mapped review v0.2 — focused route matrix expanded; remediation and security test evidence pending  
+**Status:** Source-mapped review v0.3 — extended route matrix and SEC-06–SEC-08 added; remediation and security test evidence pending  
 **Date:** 2026-11-16  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Scope:** Authentication, authorization, admin governance, learner privacy, AI prompt trust boundaries, roadmap/quiz abuse controls, logging and provider-cost abuse  

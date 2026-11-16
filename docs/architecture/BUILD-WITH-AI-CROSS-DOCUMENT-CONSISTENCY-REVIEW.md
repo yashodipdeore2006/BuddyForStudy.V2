@@ -294,4 +294,4 @@ Do not jump from documentation completion directly to production flag enablement
 
 **Not performed:** no tests, builds, CI, penetration tests, staging checks, production/provider calls or live configuration inspections. No application code, database, migration, flag, deployment or `main` branch changes. Wording reconciliation does not constitute policy, product or technical approval.
 
-**Task 11 exit status:** <b>Complete — documentation consistency pass</b>. The project remains **not Go-approved** until the open gates in §7 are resolved and supported by execution evidence.
+**Task 11 exit status:** **Complete — documentation consistency pass**. The project remains **not Go-approved** until the open gates in §7 are resolved and supported by execution evidence.

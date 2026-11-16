@@ -6,7 +6,8 @@
 **Tracker:** [Issue #43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)  
 **Readiness report:** [Build with AI Engineering Readiness Report](BUILD_WITH_AI_ENGINEERING_READINESS_REPORT.md)
 **Decision packets:** [Build with AI Decision & Approval Packets](BUILD_WITH_AI_DECISION_APPROVAL_PACKETS.md)
-**Decision status:** [Decision Resolution Register & Authorization Gate](BUILD_WITH_AI_DECISION_RESOLUTION_REGISTER.md) — Task 15 assessed; actual approvals remain pending. — DEC-YT-01, DEC-JOB-01, DEC-PRIV-01 and DEC-PRIV-02; awaiting authorized review, no approval implied.  
+**Decision status:** [Decision Resolution Register & Authorization Gate](BUILD_WITH_AI_DECISION_RESOLUTION_REGISTER.md) — Task 15 assessed; actual approvals remain pending.
+**Normal Search implementation specification:** [NORMAL-SEARCH-IMPLEMENTATION-SPEC.md](architecture/NORMAL-SEARCH-IMPLEMENTATION-SPEC.md) — D-01/D-02/D-03 implementation and test preparation; coding remains subject to DEC-RELEASE-01 and DEC-YT-01. — DEC-YT-01, DEC-JOB-01, DEC-PRIV-01 and DEC-PRIV-02; awaiting authorized review, no approval implied.  
 **Decision records:** [Architecture directory](architecture/)
 
 ---

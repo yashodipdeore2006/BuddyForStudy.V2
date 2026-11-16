@@ -364,3 +364,14 @@ Task 12 does not reclassify proposed contracts as approved, source inspection as
 The backlog preserves the current **NO-GO** recommendation. It does not approve ADR-002 through ADR-006, close SEC-01–SEC-08, assign owners/dates/estimates, authorize a pilot, or permit product-code changes. Implementation remains subject to the formal Go/No-Go gate and a separate branch from the then-current `main`.
 
 No application code, tests, builds, CI, provider calls, staging checks, production configuration, feature flags, deployment, merge or `main` changes were made.
+
+
+### Task 14 — Decision and approval packets — 2026-11-16
+
+**Current status: Complete — decision packets prepared for review only.** Created [Build with AI Decision & Approval Packets](BUILD_WITH_AI_DECISION_APPROVAL_PACKETS.md) v1.0 and linked it from the documentation index and implementation backlog. It packages DEC-YT-01 (YouTube API Data policy/use), DEC-JOB-01 (durable roadmap queue/worker), DEC-PRIV-01 (new-account acceptance/consent) and DEC-PRIV-02 (export/deletion/retention). Each packet includes current source/policy evidence, decision options, a recommendation for review, required approvers, acceptance evidence and an unfilled decision record.
+
+The YouTube packet was checked against the current official Developer Policies and additional derived-metrics policy on 2026-11-16. The India privacy packet records the staged commencement dates in the 2025 DPDP Act and Rules Gazette notifications; it expressly requires counsel to determine applicability and does not represent that all Act/Rules provisions are already in force. These references do not establish that BuddyForStudy has received any YouTube exception or legal approval.
+
+**No approvals are inferred or granted.** ADR-002 remains proposed; YouTube policy clearance remains unproven; SEC-03/SEC-04 remain open. The overall recommendation remains **NO-GO**.
+
+No application code, tests, builds, CI, provider calls, staging checks, production settings, database, feature flags, deployment, merge or `main` changes were made.

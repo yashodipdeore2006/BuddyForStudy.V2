@@ -110,7 +110,7 @@ The review compared the following project documents on the active readiness bran
 
 **Conflict found:** Target Architecture described selected resources with a match score/confidence and recorded a current low-confidence threshold of 45. Candidate Selection and Evidence Model prohibit unapproved API-derived scores and uncalibrated resource confidence.
 
-**Reconciliation applied:** Target Architecture now distinguishes source-baseline behavior from target policy; selected-resource records use categorical evidence/provenance by default. The API contract now limits `low_confidence` to a policy-permitted, assessment-specific calibrated method. The final checklist includes an explicit release assertion.
+**Reconciliation applied:** Target Architecture now distinguishes source-baseline behavior from target policy; selected-resource records use categorical evidence/provenance by default. The API and Target Architecture response contracts now prefer resource-node state counts over a generic `coverageRatio`; a first-party workflow count must be explicitly defined and policy-reviewed. Both contracts limit `low_confidence` to a policy-permitted, assessment-specific calibrated method. The final checklist includes explicit release assertions.
 
 **Residual gate:** if numeric resource confidence is later required, approve the method, claim definition, dataset, calibration, threshold, provider-policy status and version first. Otherwise use categorical states such as metadata-only, human-reviewed, learner-feedback, unknown/unavailable and learner-choice-required.
 

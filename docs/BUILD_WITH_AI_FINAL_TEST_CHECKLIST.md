@@ -89,6 +89,27 @@ These are historical focused results, not a substitute for the final post-implem
 - [ ] PII, tokens, API keys and private learner data are absent from logs and test artifacts.
 - [ ] Privacy deletion behavior and retention are verified separately from cancellation.
 
+### D-07 course governance and enrollment acceptance
+
+- [ ] Unset/invalid approval setting resolves to manual mode.
+- [ ] Manual generated course starts pending, draft and unpublished.
+- [ ] Manual approval records reviewer/time and does not publish before readiness/publication checks.
+- [ ] Manual rejection remains unpublished and records an auditable reason.
+- [ ] Automatic mode records automatic provenance and publishes only readiness-passing, non-private, non-archived courses.
+- [ ] Automatic mode never publishes a learner-private course; sync and async both persist owner and private visibility before policy hooks.
+- [ ] Public catalog/details exclude pending, rejected, private, archived and deleted generated courses.
+- [ ] Approval, publication, visibility, pricing and enrollment changes do not implicitly mutate one another.
+- [ ] Generated pricing policy affects only configured generation modes; default `applyTo` is verified.
+- [ ] Paid pricing rejects zero/negative/invalid base price; sale price must be positive and below base price.
+- [ ] Unknown pricing mode fails closed for learner enrollment.
+- [ ] Enrollment rejects unpublished/ineligible courses and courses with enrollment disabled.
+- [ ] Free course individual enrollment works without a subscription.
+- [ ] Paid course enrollment requires verified payment or active published-course entitlement.
+- [ ] Course generation/approval/publication creates no Enrollment record.
+- [ ] Enrollment status, access source and learning progress remain independent.
+- [ ] Admin-revoked enrollment cannot be reactivated by learner self-service.
+- [ ] Archival/deletion behavior for existing enrollments and retroactive pricing changes are explicitly decided and tested before implementation.
+
 ## 8. Integration, browser and operations
 
 - [ ] MongoDB persistence, uniqueness and atomic state transitions are tested.

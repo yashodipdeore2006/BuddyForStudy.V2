@@ -322,3 +322,10 @@ Updated [Security, Privacy and Abuse Review](SECURITY_PRIVACY_ABUSE_REVIEW.md) t
 ### Task 05 extended API route review — 2026-11-16
 
 Extended the source-mapped security review through the remaining mounted API groups. Added route coverage and SEC-07/SEC-08 to [Security, Privacy and Abuse Review](SECURITY_PRIVACY_ABUSE_REVIEW.md). The review found strong payment/webhook controls in source (caller-scoped local payment lookup, server-derived amount, provider signature and capture validation, webhook raw-body signature and deduplicated event claims) but these remain untested dynamically. Discovery feedback's route limiter uses the library default store rather than explicitly the Mongo-backed shared store; distributed behavior must be verified. The route inventory is now substantially broader but is still not a complete route-by-route dynamic authorization audit. No tests or production checks run; no code, runtime config, feature flags, deployment or `main` changes.
+
+
+### Task 05 — Security negative-test specification — 2026-11-16
+
+**Current status: Specification complete; execution pending and separately gated.** Added [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) v1.0. It maps SEC-01–SEC-08 into reproducible unit, integration, API, concurrency, staging and manual cases; defines synthetic actors/fixtures, expected HTTP/error behavior, no-side-effect invariants and evidence capture; and adds cross-cutting IDOR, entitlement, admin permission, payment, Razorpay webhook replay/order, rate-limit, malformed-input, prompt-trust and telemetry-redaction tests. P0/P1/P2 release gates and unresolved policy decisions are explicit. The admin role matrix remains a proposed fixture and must be reconciled with the actual role/permission registry before implementation.
+
+No tests were executed. No application code, runtime configuration, feature flags, deployment or `main` branch were changed. SEC-01–SEC-08 remain open pending remediation and executed evidence; this specification does not imply a Go decision.

@@ -422,3 +422,10 @@ The following route files and source paths were additionally inspected:
 - `server/src/utils/coursePreview.js`
 
 No dynamic tests, penetration tests, dependency scans or staging/provider tests were performed. No application code or runtime configuration was changed.
+
+
+## 15. Security negative-test specification — 2026-11-16
+
+Created [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) v1.0. It maps SEC-01–SEC-08 to explicit unit, integration, API, concurrency, staging and manual cases; defines synthetic fixtures, expected status/error behavior, no-side-effect assertions and evidence capture; and adds cross-cutting IDOR, entitlement, admin RBAC, payment, Razorpay webhook replay/order, rate-limit, input-validation, prompt-trust and log-redaction cases. P0/P1/P2 release gates and unresolved policy decisions are recorded. The role × permission matrix is intentionally a fixture proposal until reconciled against the repository's exact role registry.
+
+**Status boundary:** specification only. No tests were executed, no application code/configuration/feature flags changed, and no production or provider requests were made. SEC-01–SEC-08 remain open until remediation and execution evidence satisfy the acceptance criteria. SEC-04 deletion fulfilment and SEC-03 consent policy cannot be marked complete from documentation alone.

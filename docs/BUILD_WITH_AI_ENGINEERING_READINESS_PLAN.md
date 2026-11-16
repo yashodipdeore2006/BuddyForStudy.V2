@@ -386,3 +386,14 @@ The register separates DEC-YT-01, DEC-JOB-01, DEC-PRIV-01, DEC-PRIV-02, DEC-API-
 The YouTube policy check distinguishes the 30-calendar-day refresh/delete limit for Non-Authorized API Data from the separate requirement to delete user-related data within 7 calendar days after a user account deletion request. It also preserves the condition that additional derived metrics apply only to audited developers with an accepted analytics use case and explicit permission. References are linked in the register.
 
 **Overall readiness remains NO-GO.** No implementation, pilot, deployment or general code-change authorization was granted. No application code, tests, builds, CI, provider calls, staging checks, production settings, database, feature flags, deployment, merge or main changes were made.
+
+
+### Task 16 — Normal Search implementation specification and regression plan — 2026-11-16
+
+**Current status: Complete — implementation preparation only.** Created [Normal Search — Implementation Specification and Regression Test Plan](architecture/NORMAL-SEARCH-IMPLEMENTATION-SPEC.md) v1.0. The specification uses accepted ADR-001 and approved D-01–D-03, re-checks the Courses route/controller/service, curation engine, node curation, Course model and current curation tests, and converts them into component responsibilities, exact branch/pagination behavior, API/UI requirements, test cases and bounded implementation phases.
+
+Source review calls out the current empty-page fallback bug, unconditional curation after non-empty searches, transitive Gemini calls in the current curation engine, API-derived scoring/ranking policy blocker, client page-fetch loop and second playlist lookup, missing explicit public-visibility filtering, non-unique module source identity index, provider metadata in module matching and standalone copies, and title-sort mismatch. These are documented findings from the fetched readiness-branch source snapshot, not runtime/test results.
+
+The spec requires a zero-Gemini Normal Search path while keeping Build with AI's explicit curriculum/intent generation separate. YouTube fallback remains disabled until DEC-YT-01 clears the exact method; no heuristic fallback is presumed policy-safe. It preserves D-07 publication/private-course rules and requires an approved duplicate migration before a unique module identity constraint is introduced.
+
+No application code, tests, builds, CI, provider calls, staging checks, production settings, database/index migration, feature flags, deployment, merge or `main` changes were made. Product-code implementation remains subject to DEC-RELEASE-01. Overall readiness remains **NO-GO**.

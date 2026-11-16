@@ -18,7 +18,7 @@ The approved request order is:
 
 The Normal Search call graph must make **zero Gemini model-generation calls**, whether direct or indirect. This includes topic-syllabus generation, metadata judging and any legacy endpoint accidentally invoked by the Courses page.
 
-This decision preserves the existing deterministic candidate retrieval, hard gates, metadata-based scoring, diversity and result-selection logic where practical. Any scoring stage that currently calls Gemini must use the existing deterministic heuristic path instead. A heuristic or generic fallback outline is not an authoritative syllabus and must not be presented as verified curriculum coverage.
+This decision preserves deterministic candidate retrieval and factual eligibility gates only where permitted by the applicable YouTube API Services policies. D-01 defines the Gemini boundary; it does not grant permission to derive or persist custom ranking/quality metrics from YouTube API Data. ADR-004, ADR-005 and the Learning Resource Candidate and Selection Contract are controlling: until the precise educational-resource curation use case and method are cleared, do not use API-derived views/likes/subscriber statistics, percentiles, aggregate scores, fit/coverage/quality/confidence scores or custom ranked ordering. Normal Search may present factual provider metadata and apply policy-cleared eligibility checks, but must not represent an unapproved derived ranking as a verified recommendation. Any stage that currently calls Gemini must be removed or replaced with a policy-cleared deterministic path. A heuristic or generic fallback outline is not an authoritative syllabus and must not be presented as verified curriculum coverage.
 
 ## 2. Why this boundary
 
@@ -48,7 +48,7 @@ These are implementation gaps, not claims that the approved architecture has alr
 | `Courses.tsx` | Submit catalog filters; render returned local courses; render YouTube fallback only when the API returns fallback mode | Launching a second, hidden playlist search after the primary search has already completed |
 | `course.controller.js:list` | Validate/normalize request parameters, enforce existing optional-auth entitlement middleware, serialize the service result | Selecting external resources or calling Gemini |
 | `course.service.js:listPublished` | Orchestrate direct local search → eligible module/standalone search → external fallback | Calling Gemini; requesting YouTube before local eligibility is known |
-| `courseCurationDecisionEngine.service.js:curateNormalSearch` | Deterministic YouTube candidate retrieval, existing hard gates, metadata heuristics, ranking and diversity | Any Gemini model-generation call |
+| `courseCurationDecisionEngine.service.js:curateNormalSearch` | Deterministic provider candidate retrieval and policy-permitted eligibility checks/presentation | Any Gemini call or unapproved API-derived score, metric, percentile or ranking |
 | `youtube.service.js` and `youtubeGateway.js` | Retrieve candidate metadata, apply provider safeguards and quota accounting | Creating public BuddyForStudy courses as a side effect of search |
 | Build with AI intent/roadmap services | Own Gemini calls, schema validation, personalization and roadmap generation | Being invoked implicitly by Normal Search |
 
@@ -88,7 +88,8 @@ If the total eligible standalone result count is greater than zero, return its r
 Only when both Stage A and Stage B have zero eligible public results:
 
 - Invoke `curateNormalSearch` in deterministic mode.
-- Use the existing candidate gateway, metadata hard gates, heuristic scoring and diversity selection.
+- Use the existing candidate gateway and factual eligibility gates that are confirmed policy-permitted.
+- Until YouTube policy clearance is documented, do not derive or persist custom scores, quality/coverage metrics, percentiles, engagement features or a custom ranked order from API Data; present eligible candidates with factual metadata and clear source attribution.
 - Do not invoke Gemini for a syllabus, query plan, metadata judge or any other reason.
 - Return recommendations with their original provider identity and URL. Do not automatically persist them as public BuddyForStudy courses.
 - Apply the existing YouTube quota guard and bounded provider retry policy.
@@ -215,7 +216,7 @@ External search cards must remain explicitly labelled as YouTube recommendations
 
 Preserve provider-sourced identity and metadata, including the available resource type, provider ID, title, channel/source, original URL, thumbnail, actual runtime and candidate metadata. Unknown values remain unknown; do not infer language, duration, level or syllabus coverage when the provider did not supply evidence.
 
-The engine may use creator-supplied title, description, tags, playlist structure, chapters and engagement metadata for ranking. These are **metadata/structure signals only**. They do not establish that the video was watched, its transcript reviewed, or its teaching quality/content independently verified.
+Title, description, tags, playlist structure, chapters, language tags, duration and engagement fields are provider metadata, not proof of instructional quality or correctness. Their availability does not itself authorize derived scoring or ranking. Until the exact method is cleared under ADR-004/ADR-005, do not derive or persist custom ranking, relevance, quality, coverage, freshness, engagement or confidence metrics from YouTube API Data; do not request or use views/likes/subscriber statistics for ranking. Preserve only policy-permitted factual metadata, hard eligibility outcomes and first-party learner choice/feedback, separately labelled.
 
 Use the deterministic heuristic scorer and hard gates. Gemini metadata judging is disabled for this flow. Any displayed explanation must state metadata-derived evidence accurately and avoid calling the fallback outline an official or verified syllabus.
 
@@ -257,6 +258,6 @@ Use the deterministic heuristic scorer and hard gates. Gemini metadata judging i
 
 **Benefits:** local catalog authority, predictable latency, lower unnecessary provider usage, one fallback decision point, explicit Gemini boundary and testable zero-provider-call invariants.
 
-**Trade-offs:** deterministic ranking may not have the same semantic syllabus reasoning as Gemini-assisted judging. Ranking explanations and confidence must reflect metadata evidence only. Quality must be established with the independent benchmark in Task 06.
+**Trade-offs:** until a policy-permitted selection method is approved, external fallback may be a factual provider-candidate presentation with hard eligibility checks rather than a custom ranked recommendation list. No claim of instructional quality or curriculum coverage is established by metadata. Any later selection/ranking method requires the ADR-004/ADR-005 policy gate and the independent human-review process; the benchmark protocol does not itself authorize API-derived metrics.
 
 This ADR settles the Normal Search orchestration boundary and fallback contract. It does not settle Build with AI's full JSON schemas, canonical skill registry, durable queue technology, global caching policy, YouTube legal data-retention policy, security threat model, benchmark thresholds or production rollout. Those remain open Task 04–08 items.

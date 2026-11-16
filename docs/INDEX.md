@@ -25,6 +25,7 @@ This directory is the single home for project documentation. Start with [the rep
 - [Legal and policy documents](LEGAL_POLICY_DOCUMENTS_IMPLEMENTATION_PLAN.md)
 
 ## Build with AI architecture and readiness
+- [Consolidated Build with AI engineering readiness report](BUILD_WITH_AI_ENGINEERING_READINESS_REPORT.md)
 - [Cross-document consistency review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md)
 - [Build with AI target architecture](architecture/BUILD-WITH-AI-TARGET-ARCHITECTURE.md)
 - [Architecture decision records — ADR-001 to ADR-006](architecture/)

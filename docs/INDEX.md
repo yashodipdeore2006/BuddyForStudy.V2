@@ -24,6 +24,21 @@ This directory is the single home for project documentation. Start with [the rep
 - [Consent and permissions audit plan](CONSENT_AND_PERMISSIONS_AUDIT_PLAN.md)
 - [Legal and policy documents](LEGAL_POLICY_DOCUMENTS_IMPLEMENTATION_PLAN.md)
 
+## Build with AI architecture and readiness
+- [Cross-document consistency review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md)
+- [Build with AI target architecture](architecture/BUILD-WITH-AI-TARGET-ARCHITECTURE.md)
+- [Architecture decision records — ADR-001 to ADR-006](architecture/)
+- [API contracts and backward compatibility](architecture/BUILD-WITH-AI-API-CONTRACTS-AND-COMPATIBILITY.md)
+- [Cache architecture and invalidation](architecture/BUILD-WITH-AI-CACHE-ARCHITECTURE-AND-INVALIDATION.md)
+- [Evidence and confidence model](architecture/BUILD-WITH-AI-EVIDENCE-CONFIDENCE-MODEL.md)
+- [YouTube quota and provider degradation contract](architecture/BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md)
+- [Learning resource candidate and selection contract](architecture/LEARNING-RESOURCE-CANDIDATE-SELECTION-CONTRACT.md)
+- [Skill resolution benchmark specification](architecture/SKILL-RESOLUTION-BENCHMARK-SPEC.md)
+- [Security and privacy review](SECURITY_PRIVACY_ABUSE_REVIEW.md)
+- [Security negative-test specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md)
+- [QA and operational readiness](QA_OBSERVABILITY_OPERATIONAL_READINESS.md)
+- [Consolidated final test checklist](BUILD_WITH_AI_FINAL_TEST_CHECKLIST.md)
+
 ## Admin control center
 - [Admin master specification](BUDDYFORSTUDY_ADMIN_MASTER_SPEC.md)
 - [Admin panel design system](ADMIN_PANEL_DESIGN_SYSTEM.md)

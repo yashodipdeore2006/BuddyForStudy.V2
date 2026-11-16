@@ -258,7 +258,7 @@ Each tutorial/project resource node is sent to the node curation service with:
 - requested language;
 - node-specific required topics and bounded search queries;
 - actual node duration bounds and content-type policy;
-- goal/role/exam/project context that is allowed for resource ranking.
+- goal/role/exam/project context that is allowed for policy-approved candidate selection or factual eligibility checks; it does not authorize an API-derived ranking formula.
 
 The current `curateForNode` source baseline uses the shared candidate engine, injected topic syllabus from skill topics, at most two search queries, a node cache keyed by canonical skill/mode/level/language/duration policy, a numeric low-confidence threshold of 45, and returns a best candidate plus alternatives. These are current implementation facts, not approved target policy. The numeric threshold/score must not be carried into the target selection contract while API-derived scoring is blocked; `low_confidence` may be used only after an approved, policy-permitted, assessment-specific method exists. Quota refusal is represented as retryable `quota_limited`.
 
@@ -507,7 +507,7 @@ Current TTL values are baseline observations, not approved targets. Select futur
 - Single node failure: must not discard unrelated completed nodes.
 - Permanent failure: preserve error category and an actionable retry/support path.
 - A partial result must be labelled partial/ready-with-warnings rather than fully resource-covered.
-- Resource-quality rules must distinguish a temporary provider quota outage from an intrinsically low-quality candidate set.
+- Resource availability and policy-approved quality evidence must distinguish a temporary provider quota outage from an unresolved/low-evidence candidate set. Do not classify a resource as low-quality using an unapproved YouTube API-derived score.
 
 ## 13. Acceptance and regression matrix
 

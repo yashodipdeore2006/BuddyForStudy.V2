@@ -31,6 +31,7 @@ This directory is the single home for project documentation. Start with [the rep
 - [Decision resolution register and authorization gate](BUILD_WITH_AI_DECISION_RESOLUTION_REGISTER.md)
 - [Cross-document consistency review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md)
 - [Build with AI target architecture](architecture/BUILD-WITH-AI-TARGET-ARCHITECTURE.md)
+- [Normal Search implementation specification and regression plan](architecture/NORMAL-SEARCH-IMPLEMENTATION-SPEC.md)
 - [Architecture decision records — ADR-001 to ADR-006](architecture/)
 - [API contracts and backward compatibility](architecture/BUILD-WITH-AI-API-CONTRACTS-AND-COMPATIBILITY.md)
 - [Cache architecture and invalidation](architecture/BUILD-WITH-AI-CACHE-ARCHITECTURE-AND-INVALIDATION.md)

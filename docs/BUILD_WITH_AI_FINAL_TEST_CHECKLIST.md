@@ -1,6 +1,8 @@
 # Build with AI and Search — Consolidated Final Test Checklist
 
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
+**Security test specification:** [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md)  
+**Architecture consistency:** [Cross-Document Consistency Review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md)  
 **Execution policy:** collect and maintain this checklist during implementation; run the complete applicable test batch together after implementation is complete. Do not run tests after each small implementation change unless a safety-critical issue requires immediate verification.
 
 ## 1. Previously verified focused suites
@@ -60,6 +62,8 @@ These are historical focused results, not a substitute for the final post-implem
 - [ ] Provider quota and temporary outage are distinct from low-quality/no-match outcomes.
 - [ ] YouTube API data refresh/delete, attribution, Made For Kids and 30-day retention obligations are verified before launch.
 - [ ] Statistic-derived ranking/evaluation remains blocked until the applicable YouTube policy approval is evidenced.
+- [ ] No custom score, percentile, ranking order, fit/quality/coverage/freshness or engagement metric derived from YouTube API Data is shipped or persisted before written policy clearance under ADR-004/ADR-005.
+- [ ] Numeric resource confidence or `low_confidence` node classification is used only after the exact method is policy-approved and assessment-specifically calibrated; otherwise use categorical evidence and unresolved states.
 
 ## 6. Async lifecycle, recovery and partial completion
 
@@ -74,6 +78,7 @@ These are historical focused results, not a substitute for the final post-implem
 - [ ] Cancellation is owner-authorized/idempotent, stops queued work and prevents late side effects.
 - [ ] Partial results are clearly labelled; unresolved nodes never count as full coverage.
 - [ ] Sync and async modes have equivalent learner-visible data, ownership, privacy, quality and failure semantics.
+- [ ] Domain job lifecycle states map consistently to the approved public API states and internal worker states; internal `retry_wait` is not accidentally exposed as a public state.
 - [ ] Active/resumable jobs are not deleted by TTL before the supported resume window expires.
 
 ## 7. Ownership, moderation, security and abuse
@@ -88,6 +93,7 @@ These are historical focused results, not a substitute for the final post-implem
 - [ ] Missing actor identity fails closed for background work that consumes learner quota.
 - [ ] PII, tokens, API keys and private learner data are absent from logs and test artifacts.
 - [ ] Privacy deletion behavior and retention are verified separately from cancellation.
+- [ ] Security negative-test cases SEC-01–SEC-08 and the cross-cutting IDOR/RBAC/payment/webhook/rate-limit cases in [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) are implemented and evidenced before their applicable release gates.
 
 ### D-07 course governance and enrollment acceptance
 
@@ -115,6 +121,7 @@ These are historical focused results, not a substitute for the final post-implem
 - [ ] MongoDB persistence, uniqueness and atomic state transitions are tested.
 - [ ] Redis/cache outage and quota-store failure degrade safely.
 - [ ] Gemini/YouTube adapters are tested with mocks for timeout, quota, malformed response and retry.
+- [ ] API contract tests distinguish learner/app 429 limits, upstream provider 429 mapped to the approved platform error, daily provider quota exhaustion, and quota-store outage; no quota-store outage makes an upstream request.
 - [ ] A small quota-capped operator-run staging smoke test validates real provider behavior; no unbounded live golden-set run.
 - [ ] Normal Search browser journey covers local results and external fallback.
 - [ ] Build with AI browser journey covers topic-only onboarding, profile confirmation, generation, partial state and recovery.

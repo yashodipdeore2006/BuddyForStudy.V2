@@ -52,7 +52,7 @@ These are implementation gaps, not claims that the approved architecture has alr
 | `youtube.service.js` and `youtubeGateway.js` | Retrieve candidate metadata, apply provider safeguards and quota accounting | Creating public BuddyForStudy courses as a side effect of search |
 | Build with AI intent/roadmap services | Own Gemini calls, schema validation, personalization and roadmap generation | Being invoked implicitly by Normal Search |
 
-The curation code may retain shared pure ranking functions. Provider orchestration and policy must remain flow-specific. This ADR does not require one universal orchestrator for Normal Search and Build with AI.
+The curation code may retain shared pure utilities only where they perform policy-permitted deterministic transformations or factual eligibility checks. Do not treat a pure function as policy-exempt merely because it is deterministic: API-derived score/rank outputs remain blocked pending ADR-004/ADR-005 clearance. Provider orchestration and policy must remain flow-specific. This ADR does not require one universal orchestrator for Normal Search and Build with AI.
 
 ## 5. Normal Search decision tree
 
@@ -241,7 +241,7 @@ Use the deterministic heuristic scorer and hard gates. Gemini metadata judging i
 | No eligible local course or standalone result | Return YouTube fallback payload | Gemini 0; YouTube quota-guarded |
 | YouTube quota exhausted/provider unavailable | Return empty fallback payload with safe error; preserve catalog response | Gemini 0; no unguarded retry |
 | Gemini key configured and local result exists | Normal Search must not use Gemini | Gemini 0; YouTube 0 |
-| Gemini key configured and fallback is needed | Deterministic ranking still completes | Gemini 0; YouTube quota-guarded |
+| Gemini key configured and fallback is needed | Policy-cleared deterministic candidate presentation completes without custom API-derived ranking | Gemini 0; YouTube quota-guarded |
 | New local course published after fallback cache was created | Local result takes precedence over cached YouTube result | Gemini 0; YouTube 0 |
 | Build with AI explicitly launched | Dedicated Gemini workflow remains available under its own auth/entitlement rules | Separate Build with AI contract |
 

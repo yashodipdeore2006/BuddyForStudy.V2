@@ -326,6 +326,25 @@ Extended the source-mapped security review through the remaining mounted API gro
 
 ### Task 05 — Security negative-test specification — 2026-11-16
 
-**Current status: Specification complete; execution pending and separately gated.** Added [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) v1.0. It maps SEC-01–SEC-08 into reproducible unit, integration, API, concurrency, staging and manual cases; defines synthetic actors/fixtures, expected HTTP/error behavior, no-side-effect invariants and evidence capture; and adds cross-cutting IDOR, entitlement, admin permission, payment, Razorpay webhook replay/order, rate-limit, malformed-input, prompt-trust and telemetry-redaction tests. P0/P1/P2 release gates and unresolved policy decisions are explicit. The admin role matrix remains a proposed fixture and must be reconciled with the actual role/permission registry before implementation.
+**Current status: Specification complete; execution pending and separately gated.** Added [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) v1.1. It maps SEC-01–SEC-08 into reproducible unit, integration, API, concurrency, staging and manual cases; defines synthetic actors/fixtures, expected HTTP/error behavior, no-side-effect invariants and evidence capture; and adds cross-cutting IDOR, entitlement, admin permission, payment, Razorpay webhook replay/order, rate-limit, malformed-input, prompt-trust and telemetry-redaction tests. P0/P1/P2 release gates and unresolved policy decisions are explicit. The admin role matrix remains a proposed fixture and must be reconciled with the actual role/permission registry before implementation.
 
 No tests were executed. No application code, runtime configuration, feature flags, deployment or `main` branch were changed. SEC-01–SEC-08 remain open pending remediation and executed evidence; this specification does not imply a Go decision.
+
+
+### Task 11 — Cross-document consistency review — 2026-11-16
+
+**Current status: Complete — documentation consistency pass.** Added [Build with AI & Normal Search Cross-Document Consistency Review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md) v1.0 and linked it from [docs index](INDEX.md). Compared the PRD, target architecture, ADR-001–ADR-006, API/cache/evidence/resource/skill/quota contracts, Security Review, Security Negative-Test Specification, QA/Operational Readiness, Final Test Checklist, rollout plan and historical Search Flow v2 plan.
+
+**Resolved documentation conflicts and clarifications:**
+- Removed permissive YouTube-derived ranking/score language from ADR-001, Target Architecture and the PRD. The historical Search Flow v2 note now defers to the current ADR/policy documents. No API-derived scores, ranking, percentiles, engagement, coverage or quality metrics are authorized until the exact use case/method receives written policy clearance under ADR-004/ADR-005.
+- Corrected the rollout quota description: `search.list` is a separate one-call bucket, non-search methods consume shared units, current app defaults are 90 search calls / 9,000 shared units, and the 80% degraded state is advisory in current source. The existing mixed `quotaUnits` telemetry is not a valid shared-unit total.
+- Clarified that D-08 restart/recovery is an approved product outcome, while ADR-002's MongoDB queue/worker remains a proposed implementation awaiting explicit technical/product approval. Async rollout is gated on durable worker recovery and evidence, not just a flag.
+- Added a proposed public job-state mapping across Target Architecture domain states and ADR-002 worker states; internal `retry_wait` is not a public status.
+- Distinguished learner/application 429 limits, provider transient 429, provider daily quota exhaustion and local quota-store outage in API Contracts and the negative-test specification.
+- Reconciled Security Review's route coverage and evidence boundary with its later supplemental billing/payment/webhook/discovery/notification review and the separately recorded SEC-01/SEC-02 remediation changes.
+- Linked security, API, QA and consistency artifacts from the Final Test Checklist and QA readiness document.
+- Confirmed the PRD currently has a consolidated D-01–D-08 decision log plus the corresponding register table; no suspected duplicate entries were deleted.
+
+**Remaining gates:** YouTube policy clearance; explicit queue technology/worker approval; API DTO/state/error mapping approval; skill-resolution benchmark and alias governance; strict Gemini schema/prompt approval; measured cache TTLs; evidence/confidence calibration; privacy deletion/consent policy; full mounted-route inventory and execution of security negative tests; production worker/flag/quota/telemetry verification. See the consistency review §§7–8.
+
+**Verification boundary:** all changes are documentation-only on `docs/build-with-ai-engineering-readiness`. No tests, builds, CI, staging checks, penetration tests, live Gemini/YouTube/Razorpay requests or production configuration inspections were performed. No product code, runtime configuration, database, feature flags, deployment or `main` changes were made. Historical test results in the Final Test Checklist remain historical; the full backend suite has not been rerun.

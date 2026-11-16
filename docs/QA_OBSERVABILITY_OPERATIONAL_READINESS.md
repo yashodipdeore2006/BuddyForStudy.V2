@@ -1,9 +1,9 @@
 # QA, Observability and Operational Readiness — Build with AI & Course Discovery
 
-**Status:** Draft v0.1 — design baseline only; no application code or telemetry changed  
+**Status:** Draft v0.2 — cross-document consistency aligned; design baseline only; no application code or telemetry changed  
 **Date:** 2026-11-15  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
-**Related:** readiness issue #43; Task 07; ADR-001 through ADR-005; Build with AI target architecture
+**Related:** readiness issue #43; Task 07; ADR-001 through ADR-006; Build with AI target architecture; [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md); [Cross-Document Consistency Review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md)
 
 ## 1. Purpose and boundaries
 
@@ -31,10 +31,10 @@ This document is a QA design, not evidence that the system currently passes. It 
 | Gemini isolation | Gemini client spy with credentials configured; error if invoked from Normal Search call graph | Normal Search makes zero Gemini calls |
 | Intent and profile | Topic-only input; low-confidence fields; “not sure”; optional skip; edited assumptions; invalid structured output | No silent promotion of inferred values to learner-confirmed facts |
 | Curriculum/skill graph | Duplicate skills; cross-domain ambiguity; cycle; missing prerequisite; fewer than 3 nodes; more than 14 nodes; schema-version cache mismatch | Valid, domain-aware 3–14 node DAG; repairs are explicit and auditable |
-| Resource selection | Preferred language available/unavailable; alternative-language result; level/duration mismatch; empty candidate pool; stale metadata | Alternate-language resources are labelled and not added without explicit learner choice |
+| Resource selection | Preferred language available/unavailable; alternative-language result; level/duration mismatch; empty candidate pool; stale metadata; attempted provider-derived score/rank | Alternate-language resources are labelled and not added without explicit learner choice; API-derived ranking/quality metrics remain blocked until ADR-004/ADR-005 policy clearance |
 | Ownership/moderation | Sync and async generation; private learner course; manual/automatic approval; archived/unready course | Learner-private work remains private; approval never bypasses enrollment or pricing rules |
 | Async state machine | Duplicate enqueue; duplicate event; cancel before/after claim; worker restart; lease expiry; retryable/permanent error | Idempotent state transitions; completed nodes preserved; unfinished work recoverable |
-| Quota/cache | Concurrent reservations; soft/hard limit; store unavailable; retry; cache hit/miss/expiry; force refresh | Fail closed on unavailable quota store; each provider retry is reserved |
+| Quota/cache | Concurrent reservations; soft/hard limit; store unavailable; retry; cache hit/miss/expiry; force refresh; separate search/shared buckets | Fail closed on unavailable quota store; each provider retry is reserved; `degraded` soft state is advisory in current source until admission-priority behavior is implemented |
 | Security | Prompt injection in user text and provider metadata; cross-user draft/course access; malformed payloads; rate-limit boundary | Untrusted content cannot override system rules; owner and entitlement checks are server-enforced |
 
 ## 3. Integration and contract test matrix
@@ -43,10 +43,10 @@ This document is a QA design, not evidence that the system currently passes. It 
 |---|---|---|
 | Mongo unavailable during admission | Connection refused or transient timeout | No accepted job without durable admission; safe retryable response |
 | Duplicate job submission | Same idempotency key submitted concurrently | One logical job; stable response identity |
-| API process restarts | Kill API after admission and during node processing | Durable state remains; worker resumes unfinished work; completed nodes are not repeated destructively |
+| API process restarts | Kill API after admission and during node processing | Durable state remains; worker resumes unfinished work; completed nodes are not repeated destructively. This is a D-08 release gate; the current process-local queue does not satisfy it |
 | Worker crashes while holding lease | Terminate worker before lease expiry | Another worker may claim only after lease/fencing rules permit; stale worker cannot commit |
 | Redis unavailable | Disable cache/lock adapter | Defined degraded mode; correctness preserved; no silent duplicate work or unbounded provider fan-out |
-| YouTube quota exhausted | Mock search bucket and shared-unit bucket independently | Local catalog still succeeds; external fallback degrades clearly; Build with AI reports resource-limited state without losing curriculum |
+| YouTube quota exhausted | Mock search bucket and shared-unit bucket independently | Local catalog still succeeds; external fallback degrades clearly; Build with AI reports resource-limited state without losing curriculum; search-call and shared-unit totals remain separate |
 | YouTube timeout/5xx | Timeout and retryable provider response | Bounded retry with quota reservation; then typed partial/degraded state |
 | Gemini timeout/429/invalid JSON | Inject each provider failure | Bounded retry/fallback; strict schema validation; no malformed roadmap persisted |
 | Auth/entitlement denied | Unauthenticated, wrong owner, expired entitlement, non-admin | 401/403; no resource or job leakage |
@@ -115,7 +115,7 @@ Keep YouTube's separate quota buckets separate in both telemetry and dashboards:
 - `provider_request_duration_seconds`: provider latency by provider/operation/outcome.
 - `provider_retry_total`: retry count by provider and bounded reason.
 
-Do not combine search calls and shared quota units into one ambiguous `quotaUnits` measure. Do not infer USD from YouTube quota units. Record Gemini model/tier and actual token usage before calculating cost; keep infrastructure invoices separate.
+Do not combine search calls and shared quota units into one ambiguous `quotaUnits` measure. The currently inspected `youtubeRequestMetrics.js` mixes the buckets in `quotaUnits`; treat that field as unsuitable for shared-unit reporting until corrected. Do not infer USD from YouTube quota units. Record Gemini model/tier and actual token usage before calculating cost; keep infrastructure invoices separate.
 
 ### 6.3 Worker and infrastructure metrics
 
@@ -204,3 +204,18 @@ Task 07 can be marked **Done** only when:
 - ADR-004 policy review remains a gate for YouTube API Data lifecycle and derived metrics; ADR-005 automated ranking benchmark remains blocked pending policy approval.
 
 **Not done by this document:** no tests were executed, no new tests were added, no dashboards/alerts were configured, no SLO values were measured, no live provider calls were made, and no production configuration or application code was changed.
+
+
+### Cross-document release-policy assertions — 2026-11-16
+
+The following are explicit test and operational gates aligned with ADR-001–ADR-006 and the cross-document review:
+
+- Normal Search must make zero Gemini calls and must not invoke external YouTube discovery when eligible local results exist (ADR-001).
+- YouTube API Data-derived scores, rank order, percentiles, engagement, fit/quality/coverage/freshness metrics remain blocked until the specific educational curation method and metric handling receive written policy clearance under ADR-004/ADR-005. A benchmark protocol or a human playback rubric is not itself policy approval.
+- The 100-call search bucket and 10,000-unit shared bucket are independent published defaults; checked-in application defaults are 90 search calls and 9,000 shared units. Current 80% `degraded` state is advisory in the inspected source; the proposed optional-work admission priority is not yet implemented.
+- Provider 429, provider daily quota exhaustion, and local quota-store unavailability are distinct failure classes. The proposed API mapping is learner/application limit 429; upstream provider error / daily quota / quota-store outage as separately coded platform errors (proposed 503 mappings). Tests must follow the approved API contract version and assert no-side-effect behavior.
+- D-08's durable restart/recovery outcome is approved, but ADR-002's MongoDB-backed queue/worker design remains proposed pending explicit technical approval. The current process-local queue and unverified worker topology are not a passing recovery baseline.
+- Resource `low_confidence` and numeric score thresholds require a policy-permitted, assessment-specific calibrated method; otherwise use categorical evidence and explicit unresolved states.
+- Security findings SEC-01–SEC-08 map to [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md); this design document does not mean those tests were implemented or executed.
+
+**Execution boundary remains unchanged:** no tests or staging checks were run as part of Task 11. All checkboxes and acceptance gates remain pending until backed by commit-specific execution evidence.

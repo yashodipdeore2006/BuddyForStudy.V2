@@ -140,7 +140,7 @@ Use the node states defined in the target architecture: `pending`, `queued`, `re
 - Show overall lifecycle state, completed/total node counts, and a concise current activity label.
 - Show curriculum generation separately from resource curation; video runtime is not a proxy for roadmap completion.
 - Each node shows its own state and, where relevant, a safe reason such as provider quota, no suitable preferred-language match, or a retryable provider error.
-- Label partial output as **Ready with warnings** or **Partially ready**; never use the fully completed state or a 100% resource-coverage claim while required nodes remain unresolved.
+- Label partial output as **Ready with warnings** or **Partially ready**; never use the fully completed state while required nodes remain unresolved. Any progress summary must be defined from first-party node lifecycle states, not a YouTube API-derived coverage/quality score, and must not claim the resource's actual video content has been verified.
 - Progress must be derived from persisted job/node state, not from a client-side timer or an optimistic counter.
 
 **Refresh, reconnect and resume**
@@ -302,7 +302,7 @@ D-07 preserves the existing admin-configurable `content_approval_ai_courses` mod
 
 Do not set numeric targets without a baseline. Define and measure:
 - Normal Search: successful search rate, zero-result rate, useful catalog click-through, external recommendation click-through, provider failure rate, p50/p95 latency, quota units/search.
-- Build with AI: intent parse success/fallback rate, question skip/change rate, build start-to-ready time, successful completion rate, refresh/resume success, node resource coverage, language-match rate, duration-policy match rate and retry rate.
+- Build with AI: intent parse success/fallback rate, question skip/change rate, build start-to-ready time, successful completion rate, refresh/resume success, first-party node-resolution state counts, language-evidence state, duration-policy outcome and retry rate. Do not calculate a provider-API-derived resource coverage/quality score without ADR-004/ADR-005 policy approval.
 - Learning outcomes: roadmap enrollment conversion, module/lesson completion and learner feedback (`helpful`, `outdated`, `wrong_level`, `completed`, `abandoned` where collected).
 
 ## 7. Non-goals for this requirements phase

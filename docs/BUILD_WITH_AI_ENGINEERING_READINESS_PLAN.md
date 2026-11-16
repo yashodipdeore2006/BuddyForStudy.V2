@@ -355,3 +355,12 @@ No tests were executed. No application code, runtime configuration, feature flag
 **Current status: Complete — documentation/evidence consolidation only.** Created [Build with AI & Course Discovery Engineering Readiness Report](BUILD_WITH_AI_ENGINEERING_READINESS_REPORT.md) v1.0 and linked it from [docs/INDEX.md](INDEX.md). The report consolidates the task board, D-01–D-08 product decisions, ADR approval state, implementation gaps, YouTube policy/quota/resource lifecycle, SEC-01–SEC-08 findings, historical test/CI evidence, QA/observability, production topology and ordered release blockers. It records a **NO-GO for broad rollout** until policy, architecture, security, test and operational closure evidence exists.
 
 Task 12 does not reclassify proposed contracts as approved, source inspection as runtime proof, or historical tests/CI as current branch results. No tests, builds, CI, penetration tests, staging checks, provider calls or production configuration checks were performed. No product code, runtime config, database, feature flag, deployment or `main` change was made.
+
+
+### Task 13 — Prioritized implementation backlog — 2026-11-16
+
+**Current status: Complete — backlog definition only.** Created [Build with AI & Course Discovery Implementation Backlog](BUILD_WITH_AI_IMPLEMENTATION_BACKLOG.md) v1.0 and linked it from [docs/INDEX.md](INDEX.md). The backlog translates the P0/P1/P2 release blockers into decision gates, sequenced work items, dependencies and item-level acceptance evidence. It explicitly separates YouTube policy clearance, durable queue approval, API compatibility, privacy/legal decisions and skill/Gemini contract approvals from implementation authorization.
+
+The backlog preserves the current **NO-GO** recommendation. It does not approve ADR-002 through ADR-006, close SEC-01–SEC-08, assign owners/dates/estimates, authorize a pilot, or permit product-code changes. Implementation remains subject to the formal Go/No-Go gate and a separate branch from the then-current `main`.
+
+No application code, tests, builds, CI, provider calls, staging checks, production configuration, feature flags, deployment, merge or `main` changes were made.

@@ -439,7 +439,7 @@ Target result includes:
 - private `course` preview and canonical `skillGraph`;
 - `schedule`: effortMinutes, effortHours, estimatedWeeks, minutesPerDay, studyDaysPerWeek, deadline/warning/assumptions;
 - `personalization`: confirmed/inferred/unknown profile provenance, known/skipped skills, depth, preferred language;
-- `resourceSummary`: videoWatchMinutes, coverage ratio and provider/quota state, separate from learning effort;
+- `resourceSummary`: selected video runtime in minutes, provider/quota state and per-node state counts, separate from learning effort. Do not emit a YouTube-API-derived coverage/fit/quality score, percentile or ranking. A first-party workflow count of node states may be considered only if explicitly defined as an application state count and policy-reviewed; do not use a generic resource `coverageRatio` until that definition and policy boundary are approved;
 - per-node resource state, evidence metadata and alternatives;
 - warnings, partial-result information and retryable/permanent failure codes.
 

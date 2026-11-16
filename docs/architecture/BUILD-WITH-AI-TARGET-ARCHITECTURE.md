@@ -462,13 +462,20 @@ Required behavior:
 
 ## 11. Cache and versioning rules
 
-- **Intent cache:** key by normalized query + intent schema/prompt/model version; short-circuit only parse work, not user-specific profile confirmation.
-- **Roadmap template cache:** key by normalized canonical topic, domain, level, depth, curriculum scope, template prompt version and schema version. Only generic reusable curriculum structure is cached.
-- **Node resource cache:** key by canonical skill ID, normalized language, level, duration/content policy, curation engine version and policy version.
-- **Course/result cache:** never share private learner course documents or learner progress between users.
-- Every cache has explicit TTL, freshness, invalidation and negative-cache semantics. Prompt/schema/skill-graph/resource-policy changes must invalidate incompatible entries.
+The full cache taxonomy, key dimensions, TTL/freshness policy, invalidation matrix, failure semantics, privacy boundaries and acceptance matrix are specified in [Build with AI Cache Architecture and Invalidation Contract](BUILD-WITH-AI-CACHE-ARCHITECTURE-AND-INVALIDATION.md).
 
-Current template TTL is 30 days; intent cache TTL is 30 days. Current node curation writes only successful selections to the node cache, which avoids suppressing quota recovery. These are source facts; target TTLs and eviction rules still require measurement.
+Core invariants:
+- Intent cache keys include normalized query plus task schema, prompt, model and normalization versions; parsing cache hits must not bypass learner confirmation.
+- Roadmap templates are generic reusable curriculum only. Key by topic/domain, goal, level, depth, curriculum scope, language where material, outcome/preferences, prompt/schema/model, skill-registry and composition versions.
+- Node resource keys include canonical skill and context, learner level/language provenance, duration/content policy, selection/evidence policy and cache scope.
+- Candidate pool, evaluation, result and node caches are distinct layers with independent TTLs and invalidation.
+- Generated-course reuse is a product query/index, not a disposable cache. It must continue to enforce owner, visibility, publication, approval and deletion rules.
+- Learner profile, private syllabus, progress, assessment attempts, job state and course ownership are not globally shared cache payloads.
+- Every cache has an owner, data classification, explicit TTL, expiry check, version contract, invalidation path and telemetry. A cache hit never replaces authoritative authorization or validation.
+- Provider metadata follows ADR-004's 30-calendar-day hard deadline and 25-day operational refresh target across every copy. TTL alone is not a freshness/deletion guarantee.
+- Cache failure must preserve correctness; quota failures must not become negative-cache entries. Durable job state must never be evicted as a cache entry.
+
+Current TTL values are baseline observations, not approved targets. Select future TTLs only after representative latency, volatility, cost, policy and hit-rate measurement.
 
 ## 12. Error and partial-completion contract
 

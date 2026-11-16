@@ -282,6 +282,8 @@ A selected resource stores provider/type/ID, canonical URL, title, channel, actu
 
 Titles, descriptions, tags, chapters, playlist order, duration and engagement metrics are metadata/structure evidence. They do not prove that the video was watched, transcript-checked, factually verified or pedagogically effective. UI labels, scores and explanations must reflect that evidence boundary.
 
+**Quota/provider degradation:** [Build with AI — YouTube Quota and Provider Degradation Contract](BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md) defines separate search/shared quota states, soft/hard degradation, provider/store outage behavior, bounded retries, and the requirement to preserve curriculum and completed nodes. The contract records current sync/async differences and is proposed pending approval and implementation.
+
 ## 8. Course ownership, approval and publication (D-07)
 
 - A learner-specific roadmap/course is private to its owner and unpublished by default in both sync and async modes.

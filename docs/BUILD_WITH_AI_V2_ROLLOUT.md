@@ -100,7 +100,7 @@ Track these for every stage, ideally by roadmap and node:
 - **Quota state:** `ok`, `degraded`, `exhausted`; current units / budget / reset day / storage source.
 - **YouTube quota:** record `search.list` calls from the independent search bucket and shared default quota units from non-search endpoints separately. Do not label search calls as 100 shared units, combine the buckets, or convert quota units to USD. Current `quotaUnits` telemetry mixes buckets and is not a reconciled shared-unit figure.
 - **Node cache hit rate:** cache-hit nodes divided by all node resolutions, excluding requests that did not attempt node resolution.
-- **Fallback rate:** legacy selector fallback, structured topic fallback, and failed/low-confidence nodes tracked separately. Do not merge these into one metric.
+- **Fallback and node states:** legacy selector fallback, structured topic fallback, and categorical unresolved/failed node states are tracked separately. A resource `low_confidence` state or numeric threshold may be used only after the selection method is policy-approved and its confidence assessment is calibrated; do not infer it from an unapproved API-derived score.
 - **Build quality and reliability:** time to skeleton, completion time, queued nodes older than the expected retry interval, and refresh-resume success.
 - **Gemini:** timeout/error rate and structured fallback rate; do not log prompts containing user-provided private data.
 

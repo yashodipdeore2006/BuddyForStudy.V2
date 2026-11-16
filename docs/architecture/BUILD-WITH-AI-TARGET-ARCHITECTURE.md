@@ -233,6 +233,8 @@ The curriculum composer consumes only a validated template and a confirmed profi
 
 ## 7. Learning resource selection and evidence contract
 
+The detailed candidate, selected-resource, provider-snapshot and first-party learner-state interface is specified in [Learning Resource Candidate and Selection Contract](LEARNING-RESOURCE-CANDIDATE-SELECTION-CONTRACT.md). That contract is subordinate to the policy and freshness constraints in [ADR-004](ADR-004-youtube-resource-data-lifecycle.md): it does not authorize API-derived ranking/quality metrics. Selection method approval remains a release gate.
+
 ### 7.1 Separation
 
 Gemini generates curriculum structure and search hints. It does not select YouTube videos or verify their content.
@@ -516,7 +518,7 @@ This architecture draft settles the main Build with AI component boundaries and 
 1. Approve and implement the Gemini schema-versioning and migration strategy in [ADR-006](ADR-006-versioned-gemini-output-validation.md), including the compatibility window and invalid-output corrective-regeneration policy.
 2. The canonical Skill registry's domain-scoped fuzzy-match threshold, score margin, ambiguity workflow and alias migration policy.
 3. The durable job technology, worker topology, lease duration, recovery cadence, retry/backoff and retention policy (D-08).
-4. Whether resource candidates/selections are persisted as first-class documents or remain embedded in course lesson snapshots; define freshness and YouTube data-retention handling.
+4. Approve the resource reference/provider snapshot persistence model and migration in [Learning Resource Candidate and Selection Contract](LEARNING-RESOURCE-CANDIDATE-SELECTION-CONTRACT.md); complete freshness and YouTube data-retention controls under ADR-004.
 5. Exact cache TTLs, negative caching and invalidation triggers after benchmark and quota-cost analysis.
 6. The final normalized status/error enum and API backward-compatibility window for sync/async clients.
 

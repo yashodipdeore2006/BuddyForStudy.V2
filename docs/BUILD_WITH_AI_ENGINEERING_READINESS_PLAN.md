@@ -375,3 +375,14 @@ The YouTube packet was checked against the current official Developer Policies a
 **No approvals are inferred or granted.** ADR-002 remains proposed; YouTube policy clearance remains unproven; SEC-03/SEC-04 remain open. The overall recommendation remains **NO-GO**.
 
 No application code, tests, builds, CI, provider calls, staging checks, production settings, database, feature flags, deployment, merge or `main` changes were made.
+
+
+### Task 15 — Decision resolution assessment and authorization gate — 2026-11-16
+
+**Current status: Complete — resolution assessment and register only; actual approvals remain pending.** Created [Decision Resolution Register & Authorization Gate](BUILD_WITH_AI_DECISION_RESOLUTION_REGISTER.md) v1.0. Re-inspected Issue #43 and confirmed it contains the documentation-task completion records through Task 14, but no auditable product, legal/privacy, YouTube/provider, architecture or operations approval in the comments reviewed.
+
+The register separates DEC-YT-01, DEC-JOB-01, DEC-PRIV-01, DEC-PRIV-02, DEC-API-01, DEC-SKILL-01, DEC-GEM-01 and DEC-RELEASE-01 by authority, status and closure evidence. It records which work can be prepared independently and which implementation remains blocked. No approval is inferred from the recommendations in Task 14.
+
+The YouTube policy check distinguishes the 30-calendar-day refresh/delete limit for Non-Authorized API Data from the separate requirement to delete user-related data within 7 calendar days after a user account deletion request. It also preserves the condition that additional derived metrics apply only to audited developers with an accepted analytics use case and explicit permission. References are linked in the register.
+
+**Overall readiness remains NO-GO.** No implementation, pilot, deployment or general code-change authorization was granted. No application code, tests, builds, CI, provider calls, staging checks, production settings, database, feature flags, deployment, merge or main changes were made.

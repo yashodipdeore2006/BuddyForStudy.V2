@@ -274,6 +274,57 @@ Titles, descriptions, tags, chapters, playlist order, duration and engagement me
 - Creating a roadmap must not create an enrollment. Enrollment requires its own authorization, availability and pricing checks.
 - Sync and async flows must call the same ownership/publication policy. The current synchronous course creation path does not set `createdForUser` or private visibility; this is a D-07 implementation gap to fix.
 
+## 8.1 Governance state machine and learner access (D-07)
+
+Moderation, publication, visibility, pricing and enrollment are independent state dimensions. Do not introduce a single overloaded `approved` or `published` flag as a substitute for the existing fields.
+
+**Moderation transitions**
+- Manual mode (default when unset): generated/assembled course starts `aiReviewStatus: pending`, `aiReviewSource: manual`, `status: draft`, `isPublished: false`.
+- Admin approval records `approved`, reviewer identity and timestamp. It does not itself publish the course.
+- Admin rejection records `rejected` and an auditable decision note; rejected content remains unpublished.
+- Automatic mode records `approved` with `aiReviewSource: automatic` and a timestamp. It may publish only when readiness passes and the course is non-private and non-archived.
+- A private learner-specific course remains private and unpublished even under automatic mode. Both sync and async generation must persist `createdForUser` and `visibility: private` before validation/policy hooks run.
+
+**Publication gate**
+A course is eligible for public catalogue publication only when all are true:
+1. `deletedAt === null` and `status !== archived`;
+2. `isPublished === true` and `status === published`;
+3. visibility is `public`;
+4. generated/assembled content has `aiReviewStatus === approved` with valid manual reviewer provenance or automatic-policy provenance;
+5. `evaluateCourseReadiness(course).ready === true`.
+
+Approval, readiness and publication must be checked independently by create/update/admin publication services and public search. A private learner course is never a public catalogue result.
+
+**Pricing and access gate**
+- Pricing is an independent policy dimension. Generated pricing policy applies only to generation modes listed in `applyTo`; the current default policy applies to `discovery` only.
+- Paid courses require a positive base price; an active sale must be positive and lower than base price. Unknown pricing modes fail closed.
+- Enrollment is an explicit learner/admin action, not a side effect of roadmap generation, moderation or publication.
+- New enrollment requires a published public course or an approved private course owned by the requesting learner, enrollment enabled, and the applicable payment/subscription check.
+- Free courses may be enrolled individually; paid courses require a verified individual purchase or active published-course entitlement.
+- Keep `Enrollment.status`, `accessSource` and `learningStatus` separate. Admin revocation must not be reversible by a learner self-reactivation.
+
+**Target transition table**
+
+| Trigger | Moderation | Publication / visibility | Enrollment |
+|---|---|---|---|
+| Generated course, manual mode | pending/manual | draft, unpublished | none |
+| Generated non-private course, automatic mode, readiness passes | approved/automatic | published/public | none |
+| Automatic mode but readiness fails | approved/automatic | draft, unpublished | none |
+| Learner-specific roadmap, either mode | approval provenance retained | private, unpublished, owner-scoped | none |
+| Admin approves manually | approved/manual + reviewer | separate readiness/publication gate | none |
+| Admin rejects manually | rejected/manual + reviewer/note | draft, unpublished | none |
+| Admin archives or deletes | approval history retained | excluded from public discovery | no new enrollment |
+| Admin changes pricing | unchanged | unchanged | no implicit enrollment |
+| Learner enrolls | unchanged | eligible course required | create/reuse access after entitlement/payment checks |
+| Enrollment cancelled/revoked | unchanged | unchanged | access state changes independently |
+
+**Required implementation invariants**
+- One shared policy must be used by synchronous and asynchronous Build with AI course creation.
+- Approval must never silently override private visibility, readiness, archive state, pricing validity or enrollment entitlement.
+- Public catalog queries and course detail endpoints must enforce the same publication/visibility/approval rules.
+- Admin actions must be permission-gated and audited with actor, timestamp and reason.
+- Manual rejection/resubmission behavior, course archival effects on existing enrollments, and price changes for existing purchases require explicit API/UX contracts before implementation; do not infer refund or retroactive access rules.
+
 ## 9. API contracts
 
 The contracts below are the target compatibility contract. Preserve existing routes where possible, but use one canonical Build input across sync and async modes.

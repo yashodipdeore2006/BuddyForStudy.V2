@@ -1,7 +1,7 @@
 # Security, Privacy and Abuse Review — Build with AI & Course Discovery
 
-**Status:** Source-mapped review v0.1 — remediation and security test evidence pending  
-**Date:** 2026-11-15  
+**Status:** Source-mapped review v0.2 — focused route matrix expanded; remediation and security test evidence pending  
+**Date:** 2026-11-16  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Scope:** Authentication, authorization, admin governance, learner privacy, AI prompt trust boundaries, roadmap/quiz abuse controls, logging and provider-cost abuse  
 **Related:** readiness issue #43; Tasks 04–07; ADR-001 through ADR-005
@@ -241,3 +241,78 @@ Reviewed source paths on the readiness branch include:
 - `server/src/middleware/error.js`
 
 **Not performed:** no code was modified; no tests or penetration tests were run; no production environment values were inspected; no live provider requests were made; no secrets or private learner records were accessed or copied.
+
+
+## 9. Route-level authorization cross-check — 2026-11-16
+
+This section records the route declarations and their directly connected controller/service checks inspected on the readiness branch. It is a focused matrix for authentication, entitlement, ownership and privileged operations; it is not a certification of every API route in the repository.
+
+| Mounted route | Route-level control observed | Additional controller/service control observed | Remaining negative-test focus |
+|---|---|---|---|
+| `POST /api/intent/parse` | JWT auth, `ai_course_builder`, `personalized_roadmaps`, 20/min limiter | Server-side `INTENT_V2` gate; Zod query validation | Entitlement expiry, feature-off behavior, malformed/oversized topic |
+| `POST /api/intent/events`, `GET /api/intent/questions/retired` | JWT auth, 20/min limiter | Event writes derive `userId` from authenticated principal; retired-question endpoint aggregates question events across users and returns question IDs/aggregate metrics | Confirm aggregate endpoint is intentionally available to every authenticated account; prevent event spam/data-quality manipulation |
+| `POST /api/ai/roadmap` (sync) | JWT auth and both AI feature entitlements | Controller checks personalized-roadmap entitlement, consumes roadmap allowance and obtains admission lease; generator receives authenticated user ID | Sync private ownership/publication invariant remains a known architecture gap; negative tests for failed generation cleanup |
+| `POST /api/ai/roadmap/draft`, `GET /api/ai/roadmap/:draftId`, `GET .../events`, `POST .../cancel`, `POST /api/ai/roadmap` (async) | JWT auth and both AI feature entitlements | Controller checks both entitlements; draft, polling, cancellation and event-stream lookups use authenticated `userId`; node/course updates filter by `createdForUser` | Cross-user draft IDOR, event-stream reconnect, concurrent cancel/finalize, entitlement revoked while a job is queued |
+| `POST /api/ai/quiz`, `POST /api/ai/practice-quiz`, quiz submission routes | JWT auth | Generation and submission call `ensureCourseLearningAccess`; quiz bank lookup is scoped by course/lesson and approved/non-hidden state; attempt writes include authenticated user | Cross-user/private course, guessed lesson/bank IDs, monthly AI usage reservation, multi-instance job dedupe |
+| `GET /api/ai/usage` | JWT auth | Usage lookup uses authenticated user ID | Confirm only the caller's usage and entitlement are returned |
+| `POST /api/ai/curation-feedback` | JWT auth | Zod bounds feedback fields; caller ID is assigned server-side | **SEC-06:** submitted resource identity and course association are not proven to have been shown to this learner; submission idempotency is not caller-scoped |
+| `POST /api/ai/course`, `POST /api/ai/course/save` | JWT auth plus `courses.manage` and `ai.manage` | Admin content generation path | Verify role/permission combinations and ensure no learner-supplied owner/publication override |
+| `/api/roadmaps/*` | Router-wide JWT auth and `personalized_roadmaps` entitlement | Roadmap persistence/read/delete/lesson completion/quiz operations query by both roadmap ID and authenticated user ID | IDOR matrix for all methods and malformed module/lesson indices |
+| `GET /api/courses`, `GET /api/courses/search` | Optional JWT; authenticated callers pass `course_search` entitlement | Public catalogue service; details allow a private preview only when `createdForUser` matches the authenticated user | Anonymous/public response projection; verify no private fields leak through preview serializers |
+| `GET /api/courses/:id/learn*`, resource retry | JWT auth plus `requireCourseOrFeature("published_courses")` | Controller requires active/completed enrollment and `canAccessCourse`; progress and learning-item services scope to authenticated user | Private roadmap and stale/revoked enrollment tests; paid/subscription edge cases |
+| `POST/PUT/DELETE /api/courses*` | JWT auth plus `courses.manage` | Creation forces draft; publish is a separate readiness-gated action; pricing changes require a reason | Ensure partial updates cannot alter server-owned visibility, owner, moderation or publication fields |
+| `/api/enrollments/*` | Router-wide JWT auth | Service queries enrollment by authenticated user; course access policy checks private owner, publication, approval, pricing and payment/subscription state | Cross-user enrollment IDs; duplicate enrollment races; refund/revocation access |
+| `/api/progress/*` | Router-wide JWT auth and `learning_progress` entitlement | Progress service requires active/completed enrollment and `canAccessCourse`; records are keyed by authenticated user and course | Cross-user progress IDOR; course changes after completion; revoked access |
+| `/api/me/*` | Router-wide JWT auth | Export and privacy-request queries use authenticated user ID; export explicitly reports partial coverage | Export inventory completeness and export response size/rate controls |
+| `/api/admin/*` | Router-wide JWT auth and admin role; individual routes add named permissions | PII reveal/export, role governance, privacy requests, course publication, pricing, billing/refunds, prompt activation and operations use distinct permission middleware | Full role × route permission matrix; denial tests for every sensitive route; audit-outbox failure behavior |
+| `/api/auth/*` | Shared Mongo-backed auth limiter (30 requests / 15 minutes); invitation acceptance is also under this mount | OTP: 10-minute expiry, five failed verification attempts, 60-second resend cooldown and atomic one-time consumption; password reset response avoids account enumeration; JWT token version supports revocation | Per-account/IP combined throttling, OTP concurrency and enumeration regression tests, Google new-account consent (SEC-03) |
+
+### 9.1 Verified positive controls
+
+- Required and optional auth middleware verify JWT signature/expiry, load the account, reject inactive accounts and compare token version against the current user record.
+- Admin authorization uses the current database role/permission data placed on the authenticated request, then checks the route's named permission.
+- The Mongo rate-limit store throws when it cannot update/read its shared counter. The default express-rate-limit store-error behavior must be confirmed against the installed dependency version and staging; this source inspection alone does not certify fail-closed behavior.
+- Roadmap draft lookup, polling, cancellation and event streaming are scoped by authenticated `userId`; per-node course writes additionally filter by `createdForUser`.
+- Enrollment, learning and progress services consistently use the authenticated user ID and active/completed enrollment state, with a second course-entitlement/payment/visibility check.
+- Local registration requires literal legal acknowledgements. Google login verifies the ID token's audience, subject, email and verified-email claim, but **new-account consent is not required by the current API/service path** (SEC-03).
+- Privacy export is explicitly marked `partial_repository_inventory`; privacy request state transitions require identity verification for review/approval/in-progress, and responses explicitly state that execution is unavailable (SEC-04).
+
+### 9.2 Route inventory boundary
+
+The matrix covers the Build with AI, intent, course learning, roadmap, enrollment/progress, auth, privacy and high-privilege admin route groups most relevant to this product review. It does not cover every billing, webhook, notification, saved-content, discovery, review, achievement, curriculum, trial, payment or legacy admin route. Those groups still require a generated route inventory and per-route permission review before Task 05 can be closed.
+
+## 10. Additional finding
+
+### SEC-06 — Curation feedback accepts unverified resource interactions and globally scoped submission IDs
+
+**Priority:** Low–Medium integrity/abuse risk; severity requires product-owner review  
+**Sources:** `server/src/routes/ai.routes.js`, `server/src/controllers/courseCurationFeedback.controller.js`, `server/src/services/curationFeedback.service.js`, `server/src/models/CourseCurationFeedback.js`, `server/src/services/courseCurationDecisionEngine.service.js`.
+
+**Verified behavior:**
+1. The endpoint requires authentication and validates field types/bounds, then assigns `user` from `req.user.userId`; the client cannot directly choose the stored user ID.
+2. The client supplies `resourceId`, `resourceType`, `query`, optional `skillId`, optional `courseId`, optional `rank`, optional `score`, and optional `submissionId`.
+3. When `courseId` is supplied, the controller validates only that it is a Mongo ObjectId. It does not verify that the course exists, that the caller can access it, or that the referenced resource was actually displayed to that caller.
+4. When `submissionId` is supplied, `persistCurationFeedback` upserts by `submissionId` alone. The unique index is global, not compound with user ID. A collision from another account returns the existing row rather than recording a caller-scoped event.
+5. Curation ranking aggregates recent learner feedback by normalized query and resource ID, with per-user grouping for opinion events. The `outdated` event is accepted by the endpoint and contributes to the aggregate signal. A caller can therefore submit an `outdated` opinion for an arbitrary resource ID without the server proving that the resource was shown to that learner.
+
+**Impact:** a malicious or automated account can inject a bounded feedback signal into a resource/query pair, potentially affecting recommendation freshness/quality decisions. Per-user grouping limits repeated events from one user in the aggregate, but does not establish that the interaction was genuine or prevent multi-account manipulation. A globally scoped submission ID can also cause cross-account idempotency collisions and lost attribution.
+
+**Required remediation:**
+1. Issue a server-generated, short-lived curation impression/submission token bound to user ID, normalized query, engine version, resource ID/type, and (where applicable) course ID.
+2. Accept feedback only against a valid impression token; derive resource/query/course identity from the stored or signed server record rather than client-supplied arbitrary identifiers.
+3. Verify the course/resource relationship and access policy before recording course-associated feedback.
+4. Make idempotency caller-scoped with a unique compound key such as `{ user, submissionId }`, and reject reuse with a mismatched resource or event.
+5. Define which event types are valid and how they contribute to ranking. The current endpoint's `helpful`, `wrong_level`, `not_sure`, `completed` and `abandoned` values are not mapped to the aggregate counters shown in the curation ranking query; document or correct that event contract.
+6. Add per-user/resource rate limits, abuse monitoring, and tests for forged impressions, cross-course references, submission-ID collisions, duplicate events and multi-account signal manipulation.
+
+**Acceptance:** every ranking-affecting feedback record is attributable to a verified user interaction with a resource actually presented to that user; idempotency is scoped to the actor; event semantics are tested and documented.
+
+## 11. Updated status and evidence boundary — 2026-11-16
+
+- SEC-01 and SEC-02 code changes are present in the inspected readiness-branch source. The focused tests are present in the branch but have not been executed during this review; both findings remain open pending execution and integration/concurrency evidence.
+- SEC-03 is confirmed in current source: Google schema consent fields are optional, and the service can create a new user and issue a token when the consent object is null.
+- SEC-04 is confirmed in current source: export is partial, and the privacy-request controller explicitly returns `executionAvailable: false`; status transitions do not execute deletion or anonymization.
+- SEC-05 is confirmed in current source: both required and optional auth middleware call `select("+password")`.
+- SEC-06 is newly documented from the current feedback route/controller/model/aggregation path.
+- The route matrix is a focused cross-check, not a complete API inventory. Remaining groups and dynamic tests are listed above.
+- No tests, penetration tests, dependency scans, production-config checks or live provider calls were performed in this task. No application code or runtime configuration was changed.

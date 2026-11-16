@@ -51,8 +51,8 @@ These are historical focused results, not a substitute for the final post-implem
 
 ## 5. Resource curation and YouTube behavior
 
-- [ ] Lesson-level candidate relevance is validated against the specific skill.
-- [ ] Playlist relevance is validated across playable lesson items, not only playlist title/description.
+- [ ] Lesson-level resource fit is validated using policy-permitted evidence; metadata-only candidate attributes are not treated as proof of instructional coverage.
+- [ ] Playlist usefulness is validated using the approved review method and inspected playable lesson items; playlist title/description alone are insufficient.
 - [ ] Playable lesson count excludes private, unavailable, non-embeddable and Shorts items.
 - [ ] Playlist runtime is computed from observed playable lessons without inflating invalid/missing entries.
 - [ ] Skill-context cache keys isolate changed topics/search queries and preserve identical-context hits.
@@ -76,7 +76,7 @@ These are historical focused results, not a substitute for the final post-implem
 - [ ] Retry is limited to eligible retryable/quota-limited nodes and is bounded.
 - [ ] Permanent failures remain visible with safe actionable guidance.
 - [ ] Cancellation is owner-authorized/idempotent, stops queued work and prevents late side effects.
-- [ ] Partial results are clearly labelled; unresolved nodes never count as full coverage.
+- [ ] Partial results are clearly labelled; unresolved required nodes remain visible. Any summary is a first-party node-state count, not a YouTube API-derived coverage/quality score or claim that video content was verified.
 - [ ] Sync and async modes have equivalent learner-visible data, ownership, privacy, quality and failure semantics.
 - [ ] Domain job lifecycle states map consistently to the approved public API states and internal worker states; internal `retry_wait` is not accidentally exposed as a public state.
 - [ ] Active/resumable jobs are not deleted by TTL before the supported resume window expires.

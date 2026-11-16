@@ -1,5 +1,7 @@
 # Build with AI v2 — Rollout Plan
 
+**Status:** Historical, conditional rollout sequence — not a launch authorization. This plan is subordinate to the current Product Requirements, ADR-001–ADR-006, YouTube policy/data-lifecycle gates, engineering readiness plan, security review and Go/No-Go approval. Any conflicting quota, ranking, lifecycle or rollout statement below is superseded by those current contracts.
+
 This plan covers rollout only. All rollout controls are opt-in unless noted below. Change flags one at a time, deploy, observe, and keep the previous value ready for rollback. Do not enable live selector comparison from CI.
 
 ## Verified implementation notes
@@ -27,12 +29,15 @@ This plan covers rollout only. All rollout controls are opt-in unless noted belo
 | `ENABLE_TRUSTED_CHANNELS` | `false` | Enables trusted-channel candidate expansion where implemented. | Watch whether it reduces rather than increases search.list calls. |
 | `ENABLE_CURATION_COMPLIANCE_WORKERS` | `false` | Enables Phase 7 curation compliance/background workers. | Verify worker schedule and dry-run/refresh behavior before enabling in a shared environment. |
 | `YT_DAILY_QUOTA_BUDGET` | `9000` | Application quota budget used by the YouTube quota guard. | Conservative internal budget below the nominal 10,000-unit daily project quota. |
-| `YT_SOFT_LIMIT_PCT` | `80` | Percentage of the internal budget at which the quota service enters degraded mode and refuses search.list calls. | Watch state transitions and cache-only behavior. |
+| `YT_SOFT_LIMIT_PCT` | `80` | Percentage of the relevant application bucket at which the quota service reports `degraded` (72 search calls / 7,200 shared units under defaults). Current source behavior treats this state as advisory; it does not yet suppress optional fan-out or refuse all search calls. | Watch separate bucket state and reservation counters; do not assume proposed soft-degradation admission is implemented. |
 | `NODE_CACHE_TTL_DAYS` | `14` | TTL for persistent per-node curation cache; clamped to 1–25 days. | Keep at or below 25 days. |
 | `NODE_CONCURRENCY` | `3` | Maximum node curation concurrency configured for the async resolver. | Increase only after observing provider pressure and tail latency. |
 | `AI_PRIVATE_COURSES_SKIP_REVIEW` | `false` | Controls the private generated-course review bypass proposal/hook. | Do not enable during routine rollout without confirming only private courses are affected. |
 
-The quota guard uses a 100-unit cost for `search` and 1 unit for other YouTube API endpoints. The quota state is `ok`, `degraded`, or `exhausted`; the service resets by Pacific Time day. Do not compare raw unit totals without the reset day and configured budget.
+Quota accounting uses two independent provider buckets: each `search.list` call consumes one call from the daily search-call bucket (not 100 shared units); non-search Data API read methods consume their method-defined shared units (the inspected read endpoints in this product flow generally cost one shared unit per request). Checked-in application defaults are 90 search calls/day and 9,000 shared units/day, with an 80% advisory state at 72 / 7,200. Daily keys use the Pacific Time date. These are repository defaults, not verified live Google Cloud project allocations. Never combine search calls and shared units into one `quotaUnits` figure; current request telemetry has a documented mixed-bucket issue. See ADR-005 and the YouTube Quota and Provider Degradation Contract.
+
+
+**Policy and quota consistency:** This rollout document does not authorize custom ranking or quality metrics derived from YouTube API Data. Until the precise curation method is cleared under ADR-004/ADR-005, do not enable selector rollout or live comparison that persists/exposes such scores. The 80% quota state is currently advisory; the proposed soft-degradation priority policy is not yet implemented. Check actual project quota in Google Cloud Console before any staging/live provider run.
 
 ## Enablement order
 
@@ -43,14 +48,14 @@ Enable one stage at a time. Run tests and one controlled manual roadmap after ea
 | Step | Change | What to watch after enabling |
 | --- | --- | --- |
 | 0 | Keep all new boolean flags off; record a baseline with the current selector. | Baseline quota state/units, `search.list` calls per roadmap, node cache hit rate, and fallback rate. |
-| 1 — Phase 1 | Verify quota guard and gateway behavior; then use the configured daily budget/soft limit. Keep `YT_COMBINED_SEARCH=false` initially. | Quota counter and transitions; `search.list` calls per roadmap; confirm 1-unit requests continue in degraded state and search calls stop. |
-| 2 — Phase 2 | Set `USE_CURATION_ENGINE_FOR_AI=true`. Leave trusted channels and combined search off initially. | Per-node `cacheHit`, `searchCalls`, `quotaUnits`; roadmap search.list total; fallback-to-legacy rate; low-confidence/failed/queued node counts. |
+| 1 — Phase 1 | Verify quota guard and gateway behavior against separate search/shared buckets. Keep `YT_COMBINED_SEARCH=false` initially. | Search-call reservations and shared-unit reservations separately; retry attempts; hard-stop behavior. The current `degraded` state is advisory and does not yet enforce the proposed optional-work priority; do not treat this phase as evidence that soft admission control is shipped. |
+| 2 — Phase 2 | Set `USE_CURATION_ENGINE_FOR_AI=true` only after its selector, YouTube policy and privacy gates are approved. Leave trusted channels and combined search off initially. | Per-node `cacheHit`, `searchCalls` and shared `defaultUnits` separately; roadmap search.list total; fallback-to-legacy rate; node states. The existing `quotaUnits` request metric mixes buckets and must not be interpreted as shared units. |
 | 3 — Phase 3 | Deploy template cache and skill registry changes; no extra flag is listed for this phase. | Template hit rate, build latency, Gemini fallback rate, and whether identical skills cause fewer search.list calls. |
 | 4 — Phase 4 | Set server `INTENT_V2=true` and frontend `VITE_INTENT_V2=true` together. | Invalid-intent/fallback-plan rate, question skip/change rate, roadmap completion and Gemini timeout rate. |
 | 5 — Phase 5 | Deploy goal modules. No separate flag is listed for this phase. | Per-goal fallback rate; missing-evidence interview/exam nodes; queued/failed nodes; search.list calls per roadmap. |
-| 6 — Phase 6 | Set server `ASYNC_ROADMAP=true`; smoke-test endpoints; then set frontend `VITE_ASYNC_ROADMAP=true`. | Time to skeleton, node completion latency, resume after refresh, poll/SSE errors, stuck queued nodes, and per-node cache/search/quota metrics. |
+| 6 — Phase 6 | **Do not enable by flag alone.** Only after the D-08 durable-recovery outcome has an approved technical design, a durable worker consumer is implemented and deployed, active jobs are protected from TTL deletion, lease/fencing/reclaim and event replay are implemented, failure-injection/contract tests pass, and API/client compatibility is verified may the server `ASYNC_ROADMAP` flag be enabled in staging. Enable frontend `VITE_ASYNC_ROADMAP` only after the server path is verified. | Time to skeleton, node completion latency, API/worker restart recovery, completed-node preservation, lease reclaim, poll/SSE replay errors, oldest queued age, and separate per-bucket quota metrics. The current in-process queue does not meet D-08. |
 | Optional | Test `YT_COMBINED_SEARCH=true` and `ENABLE_TRUSTED_CHANNELS=true` separately, one at a time. | Compare search.list calls and selected-resource coverage before and after; revert if coverage degrades or calls rise. |
-| Compliance workers | Set `ENABLE_CURATION_COMPLIANCE_WORKERS=true` only after verifying the worker schedule and retention behavior. | Refresh success/failure, stale resources, persisted statistics, and quota use. |
+| Compliance workers | Set `ENABLE_CURATION_COMPLIANCE_WORKERS=true` only after YouTube policy approval, complete video/playlist refresh/delete behavior, a deployed healthy worker, bounded scheduling and staging evidence are verified. | Refresh success/failure, stale provider snapshots approaching day 25, snapshots deleted by day 30, playlist freshness, and quota use. Do not use this flag to authorize persistence of YouTube statistics or derived metrics. |
 | Private review bypass | Keep `AI_PRIVATE_COURSES_SKIP_REVIEW=false` unless a separate approval confirms the private-only behavior. | Confirm public/catalog courses remain subject to normal review. |
 
 ### Staging
@@ -93,7 +98,7 @@ The rollback controls change application behavior; they are not data migrations 
 Track these for every stage, ideally by roadmap and node:
 
 - **Quota state:** `ok`, `degraded`, `exhausted`; current units / budget / reset day / storage source.
-- **YouTube search cost:** `search.list` calls and estimated quota units per roadmap. Search costs 100 units; other YouTube API calls cost 1 unit.
+- **YouTube quota:** record `search.list` calls from the independent search bucket and shared default quota units from non-search endpoints separately. Do not label search calls as 100 shared units, combine the buckets, or convert quota units to USD. Current `quotaUnits` telemetry mixes buckets and is not a reconciled shared-unit figure.
 - **Node cache hit rate:** cache-hit nodes divided by all node resolutions, excluding requests that did not attempt node resolution.
 - **Fallback rate:** legacy selector fallback, structured topic fallback, and failed/low-confidence nodes tracked separately. Do not merge these into one metric.
 - **Build quality and reliability:** time to skeleton, completion time, queued nodes older than the expected retry interval, and refresh-resume success.
@@ -123,10 +128,10 @@ node scripts/compareSelectors.js
 
 The mock harness injects deterministic provider and dependency fixtures while retaining the real legacy selector and the real shared curation/ranking pipeline. It does not contact YouTube or Gemini. The report sets `comparisonValid: true` only when all ten fixed skills receive a selection from both selectors; otherwise inspect the row-level results and treat the run as inconclusive. `selectorAgreement` reports matching selected fixture IDs, not a claim that either selector is objectively correct.
 
-Optional live mode is explicitly capped at five skills and makes real provider calls:
+Optional live mode is explicitly capped at five skills and makes real provider calls. It remains prohibited until ADR-004/ADR-005 policy clearance for the exact candidate-selection and metric handling is documented, the correct bucket budgets are preflighted, and an operator-run staging window is approved:
 
 ```sh
 node scripts/compareSelectors.js --live
 ```
 
-Do not run `--live` in CI or as part of this rollout change. Capture quota state before and after if an operator deliberately runs it in a controlled environment.
+Do not run `--live` in CI or as part of this rollout change. Do not run it while YouTube policy review for resource ranking/derived metrics remains unresolved. After explicit approval, capture both search-call and shared-unit usage before/after in a quota-capped staging environment.

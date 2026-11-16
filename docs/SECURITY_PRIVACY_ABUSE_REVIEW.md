@@ -240,7 +240,7 @@ Reviewed source paths on the readiness branch include:
 - `server/src/utils/safeTelemetryError.js`
 - `server/src/middleware/error.js`
 
-**Not performed:** no code was modified; no tests or penetration tests were run; no production environment values were inspected; no live provider requests were made; no secrets or private learner records were accessed or copied.
+**Review activity boundary:** this source-review activity did not modify application code, run tests or penetration tests, inspect production environment values, make live provider requests, or access/copy secrets or private learner records. This statement does not mean that no code changes exist on this working branch: the separately documented SEC-01 and SEC-02 remediation changes are present in the inspected readiness-branch source, with focused tests added but not executed.
 
 
 ## 9. Route-level authorization cross-check — 2026-11-16
@@ -279,7 +279,7 @@ This section records the route declarations and their directly connected control
 
 ### 9.2 Route inventory boundary
 
-The matrix covers the Build with AI, intent, course learning, roadmap, enrollment/progress, auth, privacy and high-privilege admin route groups most relevant to this product review. It does not cover every billing, webhook, notification, saved-content, discovery, review, achievement, curriculum, trial, payment or legacy admin route. Those groups still require a generated route inventory and per-route permission review before Task 05 can be closed.
+The §9 matrix is the original focused cross-check for Build with AI, intent, course learning, roadmap, enrollment/progress, auth, privacy and high-privilege admin routes. The supplemental source review in §§12–14 subsequently extends coverage to billing, payment, Razorpay webhooks, discovery feedback, notifications, saved courses/views, reviews, achievements, consent, legal documents, pricing, trials, curriculum and public social links. Combined coverage is broader, but it is still not a complete generated inventory of every mounted API route and does not replace dynamic authorization/abuse tests. Generate and reconcile the full mounted-route inventory and exact permission registry before closing Task 05.
 
 ## 10. Additional finding
 
@@ -314,7 +314,7 @@ The matrix covers the Build with AI, intent, course learning, roadmap, enrollmen
 - SEC-04 is confirmed in current source: export is partial, and the privacy-request controller explicitly returns `executionAvailable: false`; status transitions do not execute deletion or anonymization.
 - SEC-05 is confirmed in current source: both required and optional auth middleware call `select("+password")`.
 - SEC-06 is newly documented from the current feedback route/controller/model/aggregation path.
-- The route matrix is a focused cross-check, not a complete API inventory. Remaining groups and dynamic tests are listed above.
+- The combined route coverage in §§9 and 12–14 is a focused source-mapped cross-check, not a complete generated repository-wide API inventory or dynamic audit. Full route inventory, permission reconciliation and negative-test execution remain required.
 - No tests, penetration tests, dependency scans, production-config checks or live provider calls were performed in this task. No application code or runtime configuration was changed.
 
 

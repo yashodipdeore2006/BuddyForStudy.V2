@@ -4,7 +4,7 @@
 **Date:** 2026-11-16  
 **Working branch:** `docs/build-with-ai-engineering-readiness`  
 **Scope:** Authentication, authorization, admin governance, learner privacy, AI prompt trust boundaries, roadmap/quiz abuse controls, logging and provider-cost abuse  
-**Related:** readiness issue #43; Tasks 04–07; ADR-001 through ADR-005
+**Related:** readiness issue #43; Tasks 04–07; ADR-001 through ADR-006; [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md); [Cross-Document Consistency Review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md)
 
 ## 1. Executive assessment
 
@@ -429,3 +429,8 @@ No dynamic tests, penetration tests, dependency scans or staging/provider tests 
 Created [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) v1.0. It maps SEC-01–SEC-08 to explicit unit, integration, API, concurrency, staging and manual cases; defines synthetic fixtures, expected status/error behavior, no-side-effect assertions and evidence capture; and adds cross-cutting IDOR, entitlement, admin RBAC, payment, Razorpay webhook replay/order, rate-limit, input-validation, prompt-trust and log-redaction cases. P0/P1/P2 release gates and unresolved policy decisions are recorded. The role × permission matrix is intentionally a fixture proposal until reconciled against the repository's exact role registry.
 
 **Status boundary:** specification only. No tests were executed, no application code/configuration/feature flags changed, and no production or provider requests were made. SEC-01–SEC-08 remain open until remediation and execution evidence satisfy the acceptance criteria. SEC-04 deletion fulfilment and SEC-03 consent policy cannot be marked complete from documentation alone.
+
+
+## 16. Cross-document consistency pointer — 2026-11-16
+
+The route review, SEC-01–SEC-08 findings and their proposed negative tests are included in the [Build with AI & Normal Search Cross-Document Consistency Review](architecture/BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md). The review does not close any security finding or authorize a release; see the [Security Negative-Test Specification](SECURITY_NEGATIVE_TEST_SPECIFICATION.md) for the execution contract and P0/P1/P2 gates.

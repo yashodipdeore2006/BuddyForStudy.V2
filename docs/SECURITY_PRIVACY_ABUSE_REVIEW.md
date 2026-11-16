@@ -316,3 +316,109 @@ The matrix covers the Build with AI, intent, course learning, roadmap, enrollmen
 - SEC-06 is newly documented from the current feedback route/controller/model/aggregation path.
 - The route matrix is a focused cross-check, not a complete API inventory. Remaining groups and dynamic tests are listed above.
 - No tests, penetration tests, dependency scans, production-config checks or live provider calls were performed in this task. No application code or runtime configuration was changed.
+
+
+## 12. Extended route review — billing, discovery, notifications and learner utilities
+
+| Mounted route group | Authentication / route controls | Source-verified ownership or integrity controls | Remaining negative-test focus |
+|---|---|---|---|
+| `/api/billing` | Public active-plan listing precedes router-wide JWT middleware; all account billing routes require JWT | Payment, subscription, trial, refund and payment-issue reads are filtered by authenticated user. Refund/issue creation verifies payment ownership and uses active-payment uniqueness. Subscription cancellation looks up the caller's active Razorpay subscription. | Concurrent refund creation, cross-user payment/refund IDs, amount/currency boundaries, subscription sync replay, stale provider state and cancellation races |
+| `/api/payments` | Router-wide JWT; global payment limiter (30/15 min) and payment-availability middleware | Course order creation loads only published, non-private, non-archived, approved generated courses; amount derives from server-side course pricing. Payment verification loads payment by both payment ID and authenticated user ID, verifies order signature, fetches provider payment and validates captured amount/currency/order before granting enrollment. | Cross-user payment ID, altered amount/currency, replayed signature/payment ID, changed course price between order and capture, duplicate concurrent verification |
+| `/api/webhooks/razorpay` | No user JWT (provider callback); webhook limiter (120/min) and payment-availability middleware | Raw request body is retained for HMAC signature verification; invalid signatures are rejected. Event IDs are claimed/deduplicated with a processing lease. Captured course payment is matched to provider order and validated against stored checkout amount/currency before payment transition. | Missing/rotated webhook secret, malformed raw body, duplicate and out-of-order events, stale subscription events, lease expiry during processing, refund/payment cross-reference mismatch |
+| `/api/discovery` | Public search and playlist routes use optional JWT; signed-in search requires `course_search`; create/enroll/save actions require JWT and feature entitlement. Feedback has a separate 120/hour route limiter before optional JWT. | Enrollment uses the shared enrollment service; save/enroll paths bind saved/enrollment records to authenticated user. | **SEC-07:** discovery feedback accepts anonymous preview and client-supplied resource/query/event identity; signed-in feedback can submit ranking-affecting event types without server-issued impression proof. **SEC-08:** YouTube save controller omits authenticated user ID when creating/resolving a course. |
+| `/api/notifications` | Unsubscribe landing/POST are token-based public routes; remaining routes use router-wide JWT | Notification list/read operations filter by authenticated user. Push endpoints are restricted to public HTTPS browser push providers; registration rejects endpoint takeover by another user; removal is owner-scoped. Unsubscribe uses a signed token and explicit POST confirmation rather than mutating on GET. | Token expiry/key rotation/replay, cross-user notification IDs, push endpoint SSRF variants and concurrent endpoint-ownership races |
+| `/api/saved-courses` | Router-wide JWT | List, create and delete operations scope SavedCourse by authenticated user. Standard save requires a published course. | Cross-user saved record IDs; private/unapproved course rejection; YouTube save path ownership boundary (SEC-08) |
+| `/api/reviews` | Public review list; JWT required for create/update/delete | Public list filters hidden/unapproved reviews; write service requires active/completed enrollment and keys review by authenticated user + course; delete is owner-scoped. | Cross-user review IDs, revoked enrollment, review moderation race and attempts to review private/unpublished courses |
+| `/api/achievements` | Router-wide JWT | Stats and preferences are requested using authenticated user ID. | Cross-user identifier injection and strict schema/field allowlist tests |
+| `/api/consent` | Public policy-version metadata; remaining routes use per-route JWT | Consent status, legal acceptance, cookie preferences, profile completion and marketing consent derive actor ID from authenticated principal. | User-supplied policy version mismatch, repeated/contradictory consent events, cross-account mutation and consent audit completeness |
+| `/api/legal` | Public document read; admin document mutations require JWT, admin role and `legal.manage` | Draft/publish/unpublish/archive/history actions are permission-gated. | Content sanitization/XSS, immutable version history, publish race and unauthorized role matrix |
+| `/api/admin/pricing`, `/api/admin/trials`, `/api/admin/saved-views`, `/api/courses` curriculum routes | JWT + admin role + route-specific permission; saved-view reads require `dashboard.read`, mutations require `saved_views.manage` | Saved-view updates/deletes query by both view ID and owner; pricing/trial/curriculum routes have explicit named grants. | Cross-admin role × permission matrix, tenant/object IDOR, numeric boundary/rollback replay, audit event completeness |
+| `/api/public/social-links` | Public | Controller queries only an explicit allowlist of keys with `isPublic: true` and selects key/value/public flag. | Ensure no private setting is returned through malformed key, duplicate setting or future schema changes |
+
+### 12.1 SEC-07 — Discovery feedback endpoint accepts unverified impressions and anonymous writes
+
+**Priority:** Medium integrity/abuse risk  
+**Sources:** `server/src/routes/discovery.routes.js`, `server/src/controllers/discovery.controller.js`, `server/src/services/courseCurationDecisionEngine.service.js`, `server/src/models/CourseCurationFeedback.js`.
+
+**Verified behavior:**
+1. `POST /api/discovery/curation-feedback` applies a route-level 120/hour limiter and then `optionalAuthMiddleware`; authentication is not mandatory for the route.
+2. The controller permits unauthenticated callers to submit `preview` events. Other event types require a signed-in user.
+3. Signed-in callers can submit `save`, `enroll`, `thumbs_up`, `thumbs_down`, `outdated` and `report` events with client-supplied query, resource ID/type, engine version, rank and score. The controller does not verify a server-issued impression or confirm that the resource was actually shown to the caller.
+4. The controller persists feedback to the same `CourseCurationFeedback` collection used by curation ranking. `save`, `enroll`, opinion and outdated events also invalidate normal-search curation cache.
+5. The route's express-rate-limit instance does not specify the Mongo-backed shared store used by the global API limiter; its effective cross-instance behavior depends on the library's default store.
+
+**Impact:** authenticated users can inject synthetic ranking signals for arbitrary resource/query pairs. Anonymous clients can generate persistent preview rows and consume write capacity. The route has no impression provenance and its rate-limit configuration does not establish a shared cross-instance per-user budget.
+
+**Required remediation:**
+- Require a server-issued, short-lived impression token for every feedback event; bind it to query, resource ID/type, engine version and authenticated actor where applicable.
+- For `preview`, either record server-observed impressions in the search response path or explicitly treat client events as low-trust telemetry that cannot influence ranking.
+- Derive query/resource identity from the validated impression rather than accepting arbitrary client values.
+- Use a shared limiter and per-user/resource abuse controls; bound anonymous preview persistence and retention.
+- Define event semantics consistently across both feedback endpoints and the ranking aggregation; test that unsupported events cannot silently become trusted signals.
+
+**Acceptance:** no client can create a ranking-affecting feedback record without a verifiable impression; anonymous preview traffic cannot create unbounded persistent writes; distributed rate limits behave as intended.
+
+### 12.2 SEC-08 — YouTube save path does not pass the authenticated owner into course resolution
+
+**Priority:** Medium ownership/privacy boundary risk  
+**Sources:** `server/src/routes/discovery.routes.js`, `server/src/controllers/discovery.controller.js`, `server/src/services/discovery.service.js`, `server/src/utils/coursePreview.js`.
+
+**Verified behavior:**
+1. `POST /api/discovery/youtube-course/save` requires JWT and the `course_search` entitlement.
+2. The controller parses the requested YouTube resource and calls `getOrCreateYouTubeResourceCourse(input)` without passing `req.user.userId`.
+3. The service's `userId` parameter defaults to `null`. When it receives a non-approved discovery course, it returns the shared base course rather than calling `createPrivateCourseForUser`.
+4. The prepare and enroll controller paths pass `userId: req.user.userId` into the same service, which then creates/resolves a private learner copy for unapproved resources.
+5. The save controller then associates the returned course with the authenticated user's SavedCourse record and returns `toPublicCoursePreview(course)`. That projection includes course and module/lesson metadata (while intentionally excluding lesson content and provider URLs).
+
+**Impact:** the save path does not follow the owner-isolation behavior used by prepare/enroll. It can associate a learner's saved item with the shared base course, including a course whose review/publication state is not approved. The preview projection may expose metadata for a base course that should instead have been resolved as a learner-owned private copy. This is an ownership-boundary inconsistency; actual cross-user private-copy disclosure must be confirmed with a negative test before severity is finalized.
+
+**Required remediation:**
+- Pass the authenticated `userId` into `getOrCreateYouTubeResourceCourse` from the save controller.
+- Require the service to reject missing owner context for learner-facing save/prepare/enroll actions; reserve null-owner behavior for explicit admin/system callers.
+- Ensure saved-course association and response projection reference only the learner's private copy or an approved public course.
+- Add tests for an existing unapproved resource, a resource previously prepared by User A, save by User B, and public approved resource behavior.
+
+**Acceptance:** save, prepare and enroll resolve the same user-specific private course for unapproved resources; no learner-facing save response or saved record references another learner's private/unapproved base course.
+
+## 13. Billing and provider control notes
+
+The source review found several important positive controls, but these are not a substitute for staging tests:
+- Payment order amount is derived from the stored course price, not accepted from the checkout request.
+- Payment verification scopes the local payment record to the authenticated user, checks the order ID and payment signature, fetches the provider payment, then validates amount/currency/order before marking paid.
+- Razorpay webhooks require a signature over the captured raw request body; event processing uses a deduplication claim and lease.
+- Course capture webhook handling validates provider capture details against the local pending checkout before transitioning payment state.
+- Billing reads, refund requests and payment issue records are scoped to the authenticated user; refund amounts are checked against remaining refundable balance.
+- Notification reads and push-subscription mutations are user-scoped; push endpoint takeover is rejected.
+
+**Still required:** replay and concurrency tests; out-of-order webhook tests; payment and refund ownership tests; provider-secret rotation tests; webhook lease recovery; refund reconciliation mismatches; and verification that the default in-memory route limiter is not relied upon as a distributed abuse boundary.
+
+## 14. Updated evidence boundary — 2026-11-16 (extended routes)
+
+The following route files and source paths were additionally inspected:
+- `server/src/server.js`
+- `server/src/routes/billing.routes.js`
+- `server/src/routes/payment.routes.js`
+- `server/src/routes/webhook.routes.js`
+- `server/src/routes/discovery.routes.js`
+- `server/src/routes/notification.routes.js`
+- `server/src/routes/savedCourse.routes.js`
+- `server/src/routes/review.routes.js`
+- `server/src/routes/achievement.routes.js`
+- `server/src/routes/consent.routes.js`
+- `server/src/routes/legal.routes.js`
+- `server/src/routes/adminPricing.routes.js`
+- `server/src/routes/adminTrials.routes.js`
+- `server/src/routes/savedView.routes.js`
+- `server/src/routes/curriculum.routes.js`
+- `server/src/controllers/payment.controller.js`
+- `server/src/controllers/webhook.controller.js`
+- `server/src/controllers/discovery.controller.js`
+- `server/src/services/discovery.service.js`
+- `server/src/controllers/notification.controller.js`
+- `server/src/controllers/savedCourse.controller.js`
+- `server/src/services/review.service.js`
+- `server/src/controllers/consent.controller.js`
+- `server/src/controllers/savedView.controller.js`
+- `server/src/utils/coursePreview.js`
+
+No dynamic tests, penetration tests, dependency scans or staging/provider tests were performed. No application code or runtime configuration was changed.

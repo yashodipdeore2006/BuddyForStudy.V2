@@ -116,6 +116,8 @@ sequenceDiagram
 
 ## 4. Gemini responsibilities and structured-output contracts
 
+**Versioning and validation proposal:** ADR-006 defines immutable task contract versions, independent prompt versions, strict server-side validation, semantic checks before cache writes, explicit compatibility readers and rollback. Until approved and implemented, the schemas below are target contracts rather than evidence of strict runtime enforcement.
+
 Gemini is a bounded domain adapter, not the system of record. Each model task has its own schema version, prompt version, validation function, timeout, retry policy and telemetry category. Do not pass raw model output directly to Mongoose.
 
 ### 4.1 `IntentParseV1`
@@ -511,7 +513,7 @@ Current template TTL is 30 days; intent cache TTL is 30 days. Current node curat
 
 This architecture draft settles the main Build with AI component boundaries and logical contracts, but the following need technical evaluation before implementation:
 
-1. The precise Gemini schema-versioning and migration strategy, including how active prompt versions are rolled back.
+1. Approve and implement the Gemini schema-versioning and migration strategy in [ADR-006](ADR-006-versioned-gemini-output-validation.md), including the compatibility window and invalid-output corrective-regeneration policy.
 2. The canonical Skill registry's domain-scoped fuzzy-match threshold, score margin, ambiguity workflow and alias migration policy.
 3. The durable job technology, worker topology, lease duration, recovery cadence, retry/backoff and retention policy (D-08).
 4. Whether resource candidates/selections are persisted as first-class documents or remain embedded in course lesson snapshots; define freshness and YouTube data-retention handling.

@@ -1,8 +1,9 @@
 # Build with AI — API Contracts and Backward Compatibility
 
-**Status:** Proposed contract v1.1 — lifecycle and provider-error mapping aligned with cross-document review; owner approval and implementation pending  
+**Status:** Proposed contract v1.2 — lifecycle, provider-error and evidence boundaries aligned with cross-document review; owner approval and implementation pending  
 **Source inspection:** `docs/build-with-ai-engineering-readiness` branch, 2026-11-16  
 **Scope:** Intent intake, confirmed roadmap build, sync/async lifecycle, response/error semantics and client compatibility  
+**Related:** [Cross-Document Consistency Review](BUILD-WITH-AI-CROSS-DOCUMENT-CONSISTENCY-REVIEW.md); [Evidence and Confidence Model](BUILD-WITH-AI-EVIDENCE-CONFIDENCE-MODEL.md); [Learning Resource Candidate and Selection Contract](LEARNING-RESOURCE-CANDIDATE-SELECTION-CONTRACT.md)  
 **Tracking:** [Issue #43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)
 
 > This document separates observed runtime behavior from the proposed stable contract. It does not assert that the proposed DTOs, versioning, or compatibility rules are implemented.
@@ -224,7 +225,7 @@ Both sync completion and async job completion return the same `RoadmapBuildResul
 - `schemaVersion`, `status`, `roadmapId`, `course`, `skillGraph`.
 - `schedule`: learning effort in minutes/hours, estimated completion weeks, study minutes/day and days/week, deadline assumptions/warnings.
 - `personalization`: confirmed/inferred/unknown provenance, known/skipped skills, course depth and preferred language.
-- `resourceSummary`: video runtime, coverage ratio, provider/quota state; never conflate video runtime with learning effort or completion timeline.
+- `resourceSummary`: video runtime, provider/quota state and counts of resource-node states. Do not emit a YouTube-API-derived fit/quality/coverage score, percentile or ranking. A simple first-party count of node states may be considered only if it is explicitly defined as an application workflow count (not an API Data-derived metric) and separately approved; do not publish a generic `coverageRatio` until that definition and policy boundary are approved. Never conflate video runtime with learning effort or completion timeline.
 - Per-node resource state, selected resource, alternatives and evidence/provenance.
 - `warnings`, `partial` summary and retryable/permanent failure details.
 

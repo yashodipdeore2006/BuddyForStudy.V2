@@ -1,6 +1,6 @@
 # Build with AI — API Contracts and Backward Compatibility
 
-**Status:** Proposed contract v1 — documentation only; owner approval and implementation pending  
+**Status:** Proposed contract v1.1 — lifecycle and provider-error mapping aligned with cross-document review; owner approval and implementation pending  
 **Source inspection:** `docs/build-with-ai-engineering-readiness` branch, 2026-11-16  
 **Scope:** Intent intake, confirmed roadmap build, sync/async lifecycle, response/error semantics and client compatibility  
 **Tracking:** [Issue #43 — Engineering readiness](https://github.com/yashodipdeore2006/BuddyForStudy.V2/issues/43)
@@ -192,11 +192,30 @@ Transport-neutral operation:
 }
 ```
 
-Proposed lifecycle enum:
-- Job: `queued`, `building`, `partial`, `ready`, `failed`, `cancelled`.
-- Node: `pending`, `queued`, `ready`, `low_confidence`, `unavailable`, `quota_limited`, `failed_retryable`, `failed_permanent`, `skipped`.
+Proposed public lifecycle enum (owner approval pending):
+- Job: `draft`, `queued`, `building`, `cancelling`, `partial`, `ready`, `failed`, `cancelled`.
+- Node: `pending`, `queued`, `ready`, `low_confidence`, `unavailable`, `quota_limited`, `failed_retryable`, `failed_permanent`, `skipped`. The `low_confidence` node state is permitted only after the exact resource-selection method is approved under ADR-004/ADR-005 and any numeric confidence method is field-specific and calibrated under the Evidence and Confidence Model. Until then, use categorical evidence and explicit unresolved/alternative states instead of an uncalibrated numeric threshold.
 
 A partial roadmap is a result state, not an implicit success claim that every resource is ready. The response must include per-node state and an explicit summary. Do not add new statuses without a versioned enum migration plan.
+
+#### Proposed state mapping across architecture layers
+
+The target architecture describes domain lifecycle states, while ADR-002 describes worker-internal execution states. They must not become three competing public enums. The following mapping is a **proposal for contract review**, not an approved/current runtime contract:
+
+| Target domain state | Proposed public API state | ADR-002 worker-internal state (where applicable) |
+|---|---|---|
+| `draft` | `draft` | Not yet queued |
+| `queued` | `queued` | `queued` |
+| `running` | `building` | `running` |
+| `cancelling` | `cancelling` | Running/claim is being fenced or drained |
+| `cancelled` | `cancelled` | `cancelled` |
+| `completed` | `ready` | `ready` |
+| `completed_with_warnings` | `partial` | `ready` for the job's durable terminal result, with unresolved node states preserved |
+| `failed` | `failed` | `failed_permanent` |
+
+Worker `retry_wait` is an internal scheduling state, not a public job state. While a job is in retry wait, the public state should remain `building` with explicit retryability/next-retry metadata, unless the API owner approves a separate versioned public state. Public state transitions must be persisted before they are emitted.
+
+The mapping must be adopted consistently in the Target Architecture, frontend client, poll/SSE payloads, test fixtures and operational dashboards before implementation. The API owner must approve state names, terminal-state semantics and compatibility mapping.
 
 ### 3.5 Canonical result DTO
 
@@ -297,12 +316,13 @@ Error code is stable and intended for program logic. Message is safe for display
 | `AI_USAGE_LIMIT` | 429 | No until reset | Learner allowance exhausted |
 | `ROADMAP_CAPACITY_LIMIT` | 429/503 | Yes | Per-user or platform queue/admission capacity reached |
 | `AI_PROVIDER_RATE_LIMITED` | 503 | Yes | Provider rate-limits platform request |
-| `AI_PROVIDER_QUOTA_EXHAUSTED` | 503 | Yes | Provider quota unavailable until reset |
+| `AI_PROVIDER_QUOTA_EXHAUSTED` | 503 | Yes | Provider has exhausted the relevant daily quota bucket; retry only at the documented reset or after an authorized quota configuration change |
+| `AI_QUOTA_STORE_UNAVAILABLE` | 503 | Yes | Local quota accounting store cannot authorize a provider call; no provider call is made; distinct from Google's daily quota exhaustion |
 | `AI_SCHEMA_INVALID` | 502 | No automatic retry | Provider output failed server schema/semantic validation |
 | `AI_RESOURCE_QUALITY_INSUFFICIENT` | 503 | Policy-based | Required verified resource quality/coverage not met |
 | `ROADMAP_BUILD_FAILED` | 500/502 | Depends | Classified unexpected or upstream build failure |
 
-HTTP status is a transport category; clients must branch on `error.code`, not message text. The final mapping for resource-quality failures, provider quota and platform capacity must be confirmed against operational retry policy. Do not retry non-retryable validation, entitlement or allowance errors automatically.
+HTTP status is a transport category; clients must branch on `error.code`, not message text. Proposed distinction: learner allowance exhaustion and application route-rate limits use 429; an upstream provider 429 may be mapped to the platform-level `AI_PROVIDER_RATE_LIMITED` 503; provider daily quota exhaustion uses `AI_PROVIDER_QUOTA_EXHAUSTED` 503 with reset-aware retry metadata; local quota-store outage uses `AI_QUOTA_STORE_UNAVAILABLE` 503 and must not make a provider call. These are proposed contract mappings, not a claim about every current controller response. The final mapping for resource-quality failures, provider quota/store outage and platform capacity must be confirmed by API/product/operations owners. Do not retry non-retryable validation, entitlement or learner-allowance errors automatically.
 
 ### 5.4 Current-to-proposed error mapping
 

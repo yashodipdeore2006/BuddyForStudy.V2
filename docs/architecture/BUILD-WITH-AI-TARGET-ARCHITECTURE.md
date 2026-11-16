@@ -344,6 +344,8 @@ Approval, readiness and publication must be checked independently by create/upda
 
 ## 9. API contracts
 
+**Detailed source-mapped contract:** [Build with AI API Contracts and Backward Compatibility](BUILD-WITH-AI-API-CONTRACTS-AND-COMPATIBILITY.md). It records current sync/async route divergence and proposes versioned DTOs, job-oriented routes, a stable response/error envelope, sync/async parity and a staged legacy compatibility window. The proposal is not implemented or approved.
+
 The contracts below are the target compatibility contract. Preserve existing routes where possible, but use one canonical Build input across sync and async modes.
 
 ### 9.1 Intent parse

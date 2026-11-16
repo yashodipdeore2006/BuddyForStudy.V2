@@ -404,6 +404,22 @@ Current template TTL is 30 days; intent cache TTL is 30 days. Current node curat
 
 ## 12. Error and partial-completion contract
 
+**Job lifecycle states:** `draft`, `queued`, `running`, `cancelling`, `cancelled`, `completed`, `completed_with_warnings` and `failed`. Terminal states are `cancelled`, `completed`, `completed_with_warnings` and `failed`. Persist transitions before emitting events or returning status.
+
+**Learner-visible behavior**
+- Progress is calculated from persisted job and per-node state; expose completed/total node counts and current activity without treating elapsed time as progress.
+- Curriculum generation and resource curation are reported separately. A roadmap with unresolved required nodes is partial, even when its curriculum graph is complete.
+- Refresh/reconnect retrieves the same owner-scoped job. Queued/running work is observed, not resubmitted. Terminal work is rendered from persisted output.
+- Retrying a node preserves all ready nodes and curriculum output. Only explicitly retryable states may be retried; permanent failures expose an actionable support path.
+- Cancellation is idempotent. Queued work is stopped; in-flight provider calls may settle, but late results cannot schedule more work or create duplicate side effects. Preserve completed output for inspection and mark unfinished nodes accordingly.
+- Cancellation is not deletion. Privacy deletion remains a separate lifecycle and must remove data under its own retention contract.
+
+**Transport parity**
+- Sync and async use the same validated confirmed-profile DTO, ownership/privacy policy, curation rules, schedule calculation, result schema and typed error categories.
+- Sync returns a final result or typed failure and must not leave untracked background work running.
+- Async returns a persisted job identifier/state and supports status/event observation, refresh/resume, eligible retry and cancellation.
+- Neither transport may publish or enroll a learner-specific course as a side effect of generation.
+
 - Invalid learner input/schema: reject before consuming expensive provider quota.
 - Unsupported topic: show helpful correction examples; do not create an unrelated generic course.
 - Gemini transient error: bounded retry or validated cache/knowledge-base fallback; otherwise return typed provider failure.

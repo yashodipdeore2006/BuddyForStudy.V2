@@ -63,7 +63,7 @@ This document distinguishes verified current behavior from the target contract. 
 | LLM adapter | Gemini curriculum adapter | Generic curriculum template under `RoadmapTemplateV1` | Resource URL retrieval, enrollment/publication, private learner data in shared cache |
 | Domain | Skill registry and graph validator | Canonical IDs, aliases, domain context, prerequisites, DAG invariants, topological order | Treating unresolved fuzzy matches as established facts |
 | Domain | Curriculum composer | Convert validated skills into modules, lessons, projects, quizzes and goal-specific sections | Inventing verified exam syllabus units |
-| Resource | Node curation service | Per-node resource request, language/duration policy, quality score, source metadata, quota and cache | Modifying the canonical skill graph or invoking Gemini |
+| Resource | Node curation service | Per-node candidate discovery, factual eligibility, language/duration policy, categorical evidence, provider metadata snapshot, quota and cache | Unapproved API-derived scores/rankings, modifying the canonical skill graph or invoking Gemini |
 | Persistence | Template store | Reusable non-user-specific curriculum blueprint | Learner answers, progress or private roadmap course |
 | Persistence | Course and roadmap store | Private learner-owned course, module/lesson content, per-node state, source/evidence snapshot | Publishing private learner content |
 | Persistence | Durable job store/queue (technology pending) | Job state, node state, leases, attempts, idempotency, recovery and events | Process-local-only queue state |
@@ -280,7 +280,7 @@ A selected-resource record stores provider/type/ID, canonical URL, factual title
 
 ### 7.4 Evidence limits
 
-Titles, descriptions, tags, chapters, playlist order, duration and engagement metrics are metadata/structure evidence. They do not prove that the video was watched, transcript-checked, factually verified or pedagogically effective. UI labels, scores and explanations must reflect that evidence boundary.
+Titles, descriptions, tags, chapters, playlist order, duration and language fields are provider metadata/structure evidence. They do not prove that the video was watched, transcript-checked, factually verified or pedagogically effective, and their presence does not authorize custom score/rank derivation. Do not request or use views, likes, subscriber counts or other statistics for candidate ranking while the ADR-004/ADR-005 policy gate is unresolved. UI labels and explanations must reflect categorical evidence and this limitation.
 
 **Quota/provider degradation:** [Build with AI — YouTube Quota and Provider Degradation Contract](BUILD-WITH-AI-YOUTUBE-QUOTA-AND-DEGRADATION-CONTRACT.md) defines separate search/shared quota states, soft/hard degradation, provider/store outage behavior, bounded retries, and the requirement to preserve curriculum and completed nodes. The contract records current sync/async differences and is proposed pending approval and implementation. Its soft-degradation admission policy is not current runtime behavior; see ADR-005 and the quota contract's source-mapped baseline.
 

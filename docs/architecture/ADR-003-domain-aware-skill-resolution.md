@@ -146,6 +146,8 @@ The prompt must instruct Gemini to reuse supplied canonical IDs only when the ge
 
 ## 6. Benchmark and threshold calibration
 
+The reproducible dataset, adjudication, split, metric and approval protocol is specified in [Canonical Skill Resolution — Benchmark and Adjudication Specification](SKILL-RESOLUTION-BENCHMARK-SPEC.md). It deliberately does not invent sample sizes or thresholds; both must be justified by the adjudicated dataset and measured results.
+
 Do not select thresholds by intuition alone. Build a versioned, adjudicated benchmark before enabling fuzzy auto-match.
 
 Include:

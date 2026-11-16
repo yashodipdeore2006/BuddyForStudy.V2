@@ -176,6 +176,76 @@ Use the node states defined in the target architecture: `pending`, `queued`, `re
 - The sync/async transport difference must not change course ownership, approval, visibility, pricing or enrollment behavior.
 
 
+
+### D-07 — Admin approval, publication, visibility, pricing and enrollment lifecycle
+
+D-07 preserves the existing admin-configurable `content_approval_ai_courses` modes (`manual` and `automatic`). The mode controls the moderation decision for generated/assembled courses; it does not collapse approval, publication, visibility, pricing or learner access into one state.
+
+**Course lifecycle dimensions**
+
+| Dimension | Current persisted values / controls | Meaning |
+|---|---|---|
+| Moderation | `aiReviewStatus: not_required / pending / approved / rejected`; `aiReviewSource: manual / automatic` | Whether the generated course passed the configured content-approval policy and how that decision was made |
+| Publication | `status: draft / published / archived` and `isPublished` | Whether the course is available in the public catalogue; the boolean and status must remain consistent |
+| Visibility | `visibility: public / private`; `createdForUser` | Who may discover/open the course; learner-specific roadmaps are owner-private |
+| Readiness | `evaluateCourseReadiness(course)` | Whether required course metadata, outcomes, modules and usable learning items satisfy publication readiness |
+| Pricing | `pricing.mode: free / paid`, base price, compare-at price, currency and optional sale fields | What the learner is charged; it does not approve or publish a course |
+| Enrollment | `enrollmentEnabled` plus a separate Enrollment record | Whether an eligible learner may request access and the resulting access source/status |
+
+**Target transition matrix**
+
+| Event / condition | Moderation result | Publication / visibility result | Pricing / enrollment result |
+|---|---|---|---|
+| Generated course created in manual mode (default if unset) | `pending`, source `manual` | `draft`, unpublished; learner-specific course remains private and owner-scoped | Pricing policy may assign a price independently; no enrollment is created |
+| Generated non-private course created in automatic mode and passes readiness | `approved`, source `automatic` | `published`, public, unless explicitly archived | Apply the configured generated-course pricing policy; no enrollment is created |
+| Generated non-private course created in automatic mode but fails readiness | `approved`, source `automatic` | Remains `draft` and unpublished until readiness is repaired and publication is re-evaluated | Pricing remains independent; no enrollment is created |
+| Learner-specific course under automatic mode | Automatic policy provenance may be recorded, but private ownership is preserved | Must remain `draft`, unpublished and `private`; `createdForUser` must identify the owner | No public catalogue listing or public enrollment; owner access follows the private-course access policy |
+| Manual admin rejects a submission | `rejected`, with reviewer and decision note/audit | Must remain unpublished and unavailable in public search | Existing price configuration does not override rejection; no new enrollment |
+| Manual admin approves a submission | `approved`, with reviewer and timestamp | Approval alone is not publication: publish only after readiness passes, the course is non-private, non-archived and an explicit publication action/policy permits it | Pricing remains a separate admin/policy decision; enrollment remains a separate learner action |
+| Course is archived or soft-deleted | Approval history is retained | `archived` or deleted; excluded from public discovery and new enrollment | Existing enrollment/access handling must follow an explicit archival/deletion policy; never silently create new enrollment |
+| Admin changes price or free/paid mode | No moderation change | No automatic publication or visibility change | Validate pricing; paid courses require a valid positive price and eligible checkout/access path |
+| Learner enrolls in an eligible free course | No moderation change | Course must be available to that learner (published public course or approved owner-private course) | Create/reuse enrollment separately; free individual enrollment does not require a subscription |
+| Learner enrolls in an eligible paid course | No moderation change | Same availability/ownership checks | Require verified individual purchase or an active plan with the published-course entitlement; reject invalid pricing closed |
+| Admin disables enrollment | No moderation change | Course may remain visible according to publication/visibility policy | Block new enrollment; do not confuse this with unpublishing or revoking an existing enrollment |
+| Enrollment is cancelled/revoked | No course moderation change | Course remains published/visible according to its own state | Update the enrollment/access record; admin revocation must not be bypassed by learner self-reactivation |
+
+**Manual moderation workflow**
+
+1. New generated/assembled course enters `pending` review and remains a draft/unpublished.
+2. Admin reviews course quality/readiness and records approve or reject, reviewer identity, timestamp and decision note.
+3. Rejection keeps the course unpublished. A correction/resubmission path must be explicit and auditable; do not silently convert rejected content to approved.
+4. Approval changes moderation state only. A separate publication decision checks readiness, public/private visibility and archive/deletion state.
+5. Only a public, published, non-deleted, non-archived and approval-eligible course can enter Normal Search.
+
+**Automatic moderation workflow**
+
+- The setting is admin-controlled and accepts only `manual` or `automatic`; when unset or invalid, use the safe `manual` default.
+- Automatic approval records `aiReviewSource: automatic` and an approval timestamp.
+- Publication still requires `evaluateCourseReadiness(course).ready`, non-private ownership, and non-archived state.
+- Learner-specific courses must remain private/unpublished regardless of automatic mode. The current Course model hook has a special guard for `visibility: private` plus `createdForUser`; the synchronous Build with AI creation path was previously identified as missing those ownership fields and must be corrected in implementation.
+- Automatic approval does not grant enrollment, payment, subscription entitlement, or admin permission.
+
+**Pricing and enrollment invariants**
+
+- Generated-course pricing policy is independent from content approval. The current default generated pricing policy is enabled for `discovery` courses only; other generation modes must not be assumed to receive that policy unless configured in `applyTo`.
+- Pricing supports free/paid modes, INR currency defaults, base price, compare-at price and optional sale price. Paid pricing must have a positive base price; an enabled sale must be positive and lower than the base price.
+- A missing/unknown pricing mode fails closed for learner enrollment; it must never be treated as free.
+- Enrollment requires an eligible published public course or an approved private course owned by that learner, `enrollmentEnabled !== false`, and the applicable payment/subscription check.
+- Free courses may be enrolled individually without a subscription. Paid courses require a verified individual payment or an active plan with the published-course entitlement.
+- Creating or approving a course never creates an Enrollment record. The learner must explicitly enroll or complete the supported purchase flow.
+- Enrollment access source (`self`, `admin`, `subscription`) and enrollment status (`active`, `completed`, `cancelled`) remain distinct from learning progress (`not-started`, `in-progress`, `completed`).
+- An admin-revoked enrollment must not be reactivated by the learner; access removal is separate from course unpublishing.
+
+**Known current-code evidence and gaps**
+
+- `content_approval_ai_courses` is registered as a typed enum with `manual` and `automatic`; `contentApprovalPolicy.service.js` defaults missing/invalid values to `manual`.
+- `Course.js` applies generated-course pricing and moderation in its pre-validation hook. Automatic approval records provenance, but publishes only when readiness passes and the course is neither learner-private nor archived. Manual mode forces a generated course to draft/unpublished and pending review.
+- `evaluateCourseReadiness` checks required course fields, outcomes, modules, lesson types and usable tutorial/project/quiz content. A YouTube video is not mandatory if a tutorial has usable text/resources.
+- `enrollment.service.js` separately checks course publication/owner-private eligibility, enrollment enablement, pricing validity, verified payment or subscription entitlement, and existing/revoked enrollment state.
+- The current Course model contains no separate `rejected` publication status; rejection belongs to `aiReviewStatus`. Keep moderation state and publication status separate.
+- Target implementation must verify that manual approval/rejection endpoints consistently write reviewer, timestamp and note; that approval does not bypass readiness; and that sync/async generated-course creation applies the same owner-private policy.
+
+
 ## 4. Product requirements and acceptance criteria
 
 ### 4.1 Shared requirements

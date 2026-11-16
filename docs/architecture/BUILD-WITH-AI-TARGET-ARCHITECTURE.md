@@ -231,6 +231,19 @@ The curriculum composer consumes only a validated template and a confirmed profi
 7. Return the estimated curriculum learning effort in hours, completion timeline in weeks, recommended weekly/daily schedule, and selected-resource video runtime as four distinct concepts (D-06). State assumptions and never treat video runtime as the curriculum's total study effort.
 8. Store both confirmed profile values and inferred/unknown provenance. Do not put learner-specific values into the generic template cache.
 
+## 6.1 Evidence, provenance and confidence
+
+The cross-flow evidence model is specified in [Build with AI Evidence and Confidence Model](BUILD-WITH-AI-EVIDENCE-CONFIDENCE-MODEL.md). It applies to intent parsing, learner profile, curriculum claims, skill identity, exam-source grounding, resource selection and learning outcomes.
+
+Key constraints:
+- Preserve the source class and provenance of every decision-relevant claim: learner-confirmed, learner event, trusted document, provider metadata, human review, model inference, platform rule or unknown.
+- Treat model-reported confidence as model output, not a calibrated probability.
+- Do not use a universal confidence score. Numeric confidence requires an assessment-specific calibrated method and dataset version.
+- A valid Gemini schema is structural validation, not factual verification.
+- A watched/completed resource is activity evidence, not proof of mastery.
+- Resolve conflicts by claim-specific authority; stale, ambiguous or missing evidence remains stale/unknown/disputed.
+- Enforce privacy, retention and provider-specific rules independently of the generic evidence ledger.
+
 ## 7. Learning resource selection and evidence contract
 
 The detailed candidate, selected-resource, provider-snapshot and first-party learner-state interface is specified in [Learning Resource Candidate and Selection Contract](LEARNING-RESOURCE-CANDIDATE-SELECTION-CONTRACT.md). That contract is subordinate to the policy and freshness constraints in [ADR-004](ADR-004-youtube-resource-data-lifecycle.md): it does not authorize API-derived ranking/quality metrics. Selection method approval remains a release gate.
@@ -520,6 +533,7 @@ This architecture draft settles the main Build with AI component boundaries and 
 3. The durable job technology, worker topology, lease duration, recovery cadence, retry/backoff and retention policy (D-08).
 4. Approve the resource reference/provider snapshot persistence model and migration in [Learning Resource Candidate and Selection Contract](LEARNING-RESOURCE-CANDIDATE-SELECTION-CONTRACT.md); complete freshness and YouTube data-retention controls under ADR-004.
 5. Exact cache TTLs, negative caching and invalidation triggers after benchmark and quota-cost analysis.
-6. The final normalized status/error enum and API backward-compatibility window for sync/async clients.
+6. Approve the evidence provenance envelope, claim-specific authority/conflict rules, confidence calibration policy, learner-facing disclosures and first-party retention/deletion mapping in [Build with AI Evidence and Confidence Model](BUILD-WITH-AI-EVIDENCE-CONFIDENCE-MODEL.md).
+7. The final normalized status/error enum and API backward-compatibility window for sync/async clients.
 
 No product code, production flag or `main` branch file was changed to author this architecture draft.

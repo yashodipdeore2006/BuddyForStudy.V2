@@ -117,8 +117,8 @@ test("feature override creation race returns conflict rather than overwriting th
     [User, { findById: userLookup }],
     [UserFeatureOverride, {
       findOne: () => ({ lean: async () => null }),
-      findOneAndUpdate: () => {
-        updateFilter = { user: userId, featureKey };
+      findOneAndUpdate: (filter) => {
+        updateFilter = filter;
         throw duplicateError;
       },
     }],

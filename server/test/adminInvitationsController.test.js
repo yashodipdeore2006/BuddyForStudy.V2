@@ -6,6 +6,7 @@ import { AdminInvitation } from "../src/models/AdminInvitation.js";
 import { AuditLog } from "../src/models/AuditLog.js";
 import { AuditOutbox } from "../src/models/AuditOutbox.js";
 import { User } from "../src/models/User.js";
+import { PlatformSetting } from "../src/models/PlatformSetting.js";
 
 function makeResponse() {
   const result = { statusCode: 200, body: undefined };
@@ -36,8 +37,15 @@ function makeInvitation(overrides = {}) {
 }
 
 async function withMocks(mocks, run) {
+  const effectiveMocks = [...mocks];
+  if (!effectiveMocks.some(([target]) => target === PlatformSetting)) {
+    effectiveMocks.push([PlatformSetting, {
+      findOneAndUpdate: async (_filter, update) => ({ value: update.$set.value }),
+      updateOne: async () => ({ modifiedCount: 1 })
+    }]);
+  }
   const originals = new Map();
-  for (const [target, methods] of mocks) {
+  for (const [target, methods] of effectiveMocks) {
     for (const [key, value] of Object.entries(methods)) {
       originals.set(`${originals.size}`, { target, key, value: target[key] });
       target[key] = value;
@@ -596,4 +604,83 @@ test("invitation revocation rejects missing or too-short audit reasons before da
       assert.equal(writes, 0);
     }
   });
+});
+
+
+test("invitation creation returns 409 while another request owns the per-email lock", async () => {
+  let userLookupCalled = false;
+  let invitationWriteCalled = false;
+  await withMocks([
+    [PlatformSetting, { findOneAndUpdate: async () => null }],
+    [User, { findOne: () => { userLookupCalled = true; return { select: async () => null }; } }],
+    [AdminInvitation, { create: async () => { invitationWriteCalled = true; } }]
+  ], async () => {
+    const res = makeResponse();
+    await createInvitation({
+      body: { name: "New Admin", email: "NEW-ADMIN@example.com", adminRole: "support_manager" },
+      user: { userId: "actor-id", adminRole: "super_admin" }
+    }, res, (error) => assert.fail(error));
+    assert.equal(res.result.statusCode, 409);
+    assert.match(res.result.body.message, /invitation for this email is in progress/i);
+    assert.equal(userLookupCalled, false);
+    assert.equal(invitationWriteCalled, false);
+  });
+});
+
+test("invitation lock is released after email delivery and before governance notifications", async () => {
+  const { env } = await import("../src/config/env.js");
+  const nodemailer = (await import("nodemailer")).default;
+  const original = { smtpHost: env.smtpHost, smtpUser: env.smtpUser, smtpPass: env.smtpPass, clientUrl: env.clientUrl, createTransport: nodemailer.createTransport };
+  const sideEffectOrder = [];
+  let storedToken = "";
+  const invitation = {
+    _id: { toString: () => invitationId },
+    email: "new-admin@example.com",
+    name: "New Admin",
+    adminRole: "support_manager",
+    expiresAt: new Date("2026-10-19T10:00:00.000Z"),
+    deleteOne: async () => assert.fail("sent invitation should remain")
+  };
+  env.smtpHost = "smtp.example.com";
+  env.smtpUser = "mailer@example.com";
+  env.smtpPass = "test-password";
+  env.clientUrl = "https://buddyforstudy.example";
+  nodemailer.createTransport = () => ({ sendMail: async () => sideEffectOrder.push("email") });
+  try {
+    await withMocks([
+      [PlatformSetting, {
+        findOneAndUpdate: async (_filter, update) => {
+          storedToken = update.$set.value.token;
+          return { value: update.$set.value };
+        },
+        updateOne: async (filter) => {
+          assert.equal(filter["value.token"], storedToken);
+          sideEffectOrder.push("lock-release");
+          return { modifiedCount: 1 };
+        }
+      }],
+      [User, { findOne: () => ({ select: async () => null }) }],
+      [AdminInvitation, {
+        create: async () => invitation,
+        updateMany: async () => ({ modifiedCount: 0 })
+      }],
+      [AuditLog, { create: async () => { sideEffectOrder.push("audit"); return {}; } }]
+    ], async () => {
+      const res = makeResponse();
+      await createInvitation({
+        body: { name: "New Admin", email: "NEW-ADMIN@example.com", adminRole: "support_manager", reason: "Staff onboarding" },
+        user: { userId: "actor-id", adminRole: "super_admin" },
+        get: () => "admin-invitation-test"
+      }, res, (error) => assert.fail(error));
+      assert.equal(res.result.statusCode, 201);
+      assert.ok(sideEffectOrder.indexOf("lock-release") > sideEffectOrder.indexOf("email"));
+      assert.ok(sideEffectOrder.indexOf("lock-release") < sideEffectOrder.indexOf("audit"));
+    });
+  } finally {
+    env.smtpHost = original.smtpHost;
+    env.smtpUser = original.smtpUser;
+    env.smtpPass = original.smtpPass;
+    env.clientUrl = original.clientUrl;
+    nodemailer.createTransport = original.createTransport;
+  }
 });

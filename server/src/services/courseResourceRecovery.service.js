@@ -62,7 +62,10 @@ function resourceProfile(course) {
 export async function recoverMissingTutorialResources(course, {
   lessonId = null,
   curate = curateForNode,
-  invalidateCache = cacheDelete
+  invalidateCache = cacheDelete,
+  actor = null,
+  source = actor ? "admin" : "system",
+  reason = actor ? "Admin bulk recovery of missing tutorial resources" : "Automatically recovered missing tutorial resources"
 } = {}) {
   if (!course) throw new Error("Course is required for resource recovery");
   const missing = findLessonsMissingVideoResources(course, lessonId);
@@ -179,10 +182,12 @@ export async function recoverMissingTutorialResources(course, {
   if (changed) {
     course.markModified?.("modules");
     course.$locals = course.$locals || {};
+    const revisionActor = actor || null;
     course.$locals.revisionContext = {
-      source: "system",
+      actor: revisionActor,
+      source: revisionActor && source === "admin" ? "admin" : "system",
       summary: "Learning resource recovery",
-      reason: "Automatically recovered missing tutorial resources"
+      reason: String(reason || (revisionActor ? "Admin bulk recovery of missing tutorial resources" : "Automatically recovered missing tutorial resources")).trim().slice(0, 500)
     };
     await course.save();
     await invalidateCache("course:" + course._id);

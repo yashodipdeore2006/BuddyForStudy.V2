@@ -299,14 +299,21 @@ export async function upsertUserFeatureOverride(req, res, next) {
       reason: existing.reason
     } : null;
     const actor = req.user?.user?._id || req.user?.userId;
+    const update = {
+      $set: { allowed: req.body.allowed, expiresAt, reason, updatedBy: actor },
+      $setOnInsert: { user: userId, featureKey, createdBy: actor }
+    };
+    const writeFilter = existing
+      ? { _id: existing._id, user: userId, featureKey, updatedAt: existing.updatedAt ?? null }
+      : { user: userId, featureKey };
     const override = await UserFeatureOverride.findOneAndUpdate(
-      { user: userId, featureKey },
-      {
-        $set: { allowed: req.body.allowed, expiresAt, reason, updatedBy: actor },
-        $setOnInsert: { user: userId, featureKey, createdBy: actor }
-      },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      writeFilter,
+      update,
+      { upsert: !existing, new: true, runValidators: true, setDefaultsOnInsert: true }
     ).lean();
+    if (!override) {
+      return failure(res, "This feature override changed concurrently. Refresh and try again.", 409);
+    }
     const auditResult = await audit(req, "user.feature_override.updated", "UserFeatureOverride", override._id, before, {
       userId: String(userId), featureKey, allowed: override.allowed, expiresAt: override.expiresAt || null
     }, reason);
@@ -329,11 +336,20 @@ export async function deleteUserFeatureOverride(req, res, next) {
     const reason = String(req.body?.reason || "").trim();
     if (!reason) return failure(res, "A reason is required for audit.", 400);
     if (reason.length > 500) return failure(res, "Reason must be 500 characters or fewer.", 400);
-    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey });
+    const existing = await UserFeatureOverride.findOne({ user: userId, featureKey }).lean();
     if (!existing) return failure(res, "No override exists for this feature.", 404);
-    await existing.deleteOne();
+    const deletion = await UserFeatureOverride.deleteOne({
+      _id: existing._id,
+      user: userId,
+      featureKey,
+      updatedAt: existing.updatedAt ?? null
+    });
+    if (deletion.deletedCount !== 1) {
+      return failure(res, "This feature override changed concurrently. Refresh and try again.", 409);
+    }
     const auditResult = await audit(req, "user.feature_override.removed", "UserFeatureOverride", existing._id, {
-      userId: String(userId), featureKey, allowed: existing.allowed, expiresAt: existing.expiresAt || null
+      userId: String(userId), featureKey, allowed: existing.allowed, expiresAt: existing.expiresAt || null,
+      reason: existing.reason
     }, null, reason);
     return success(res, {
       removed: true,

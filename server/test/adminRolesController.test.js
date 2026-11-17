@@ -38,7 +38,7 @@ test("administrator role changes stay successful when audit events are queued fo
     name: "Support Admin",
     email: "support@example.com",
     adminRole: "support_manager",
-    adminPermissionOverrides: [],
+    adminPermissionOverrides: ["billing.read", "users.read"],
     isActive: true,
     save: async () => target
   };
@@ -73,8 +73,14 @@ test("administrator role changes stay successful when audit events are queued fo
     assert.match(res.result.body.message, /queued for retry/i);
     assert.equal(queued.status, "pending");
     assert.equal(queued.event.action, "admin.role.updated");
-    assert.deepEqual(queued.event.before, { adminRole: "support_manager" });
-    assert.deepEqual(queued.event.after, { adminRole: "finance_manager" });
+    assert.deepEqual(queued.event.before, {
+      adminRole: "support_manager",
+      adminPermissionOverrides: ["billing.read", "users.read"]
+    });
+    assert.deepEqual(queued.event.after, {
+      adminRole: "finance_manager",
+      adminPermissionOverrides: []
+    });
   });
 });
 

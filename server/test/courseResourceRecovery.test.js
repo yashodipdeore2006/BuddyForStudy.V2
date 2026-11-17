@@ -74,6 +74,9 @@ test("resource recovery attaches the selected resource and invalidates the cours
   assert.equal(course.modified, true);
   assert.deepEqual(invalidated, ["course:course-1"]);
   assert.equal(course.$locals.revisionContext.summary, "Learning resource recovery");
+  assert.equal(course.$locals.revisionContext.actor, null);
+  assert.equal(course.$locals.revisionContext.source, "system");
+  assert.equal(course.$locals.revisionContext.reason, "Automatically recovered missing tutorial resources");
   assert.equal(calls[0].profile.topic, "SQL");
   assert.equal(calls[0].skill.canonicalSkillId, "sql-joins");
   assert.deepEqual(calls[0].skill.topics, ["INNER JOIN", "LEFT JOIN", "SQL Joins"]);
@@ -196,4 +199,34 @@ test("resource recovery rejects a resource below the AI lesson minimum", async (
   assert.equal(summary.recovered, 0);
   assert.equal(summary.unavailable, 1);
   assert.equal(recovered.tutorial.videos.length, 0);
+});
+
+
+test("admin-triggered resource recovery records the initiating administrator in the course revision context", async () => {
+  const { course, recovered } = fakeCourse();
+  const actor = "507f191e810c19729de860ea";
+  const summary = await recoverMissingTutorialResources(course, {
+    actor,
+    source: "admin",
+    reason: "Administrator repaired missing lesson resources",
+    curate: async () => ({
+      best: {
+        videoId: "admin-recovered-video",
+        title: "SQL Joins Explained",
+        durationSeconds: 900
+      },
+      alternatives: [],
+      meta: { state: "ready", lowConfidence: false }
+    }),
+    invalidateCache: async () => {}
+  });
+
+  assert.equal(summary.recovered, 1);
+  assert.equal(recovered.tutorial.videos[0].videoId, "admin-recovered-video");
+  assert.deepEqual(course.$locals.revisionContext, {
+    actor,
+    source: "admin",
+    reason: "Administrator repaired missing lesson resources",
+    summary: "Learning resource recovery"
+  });
 });

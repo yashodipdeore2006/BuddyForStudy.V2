@@ -73,8 +73,8 @@ test("another learner cannot cancel an enrollment they do not own", async () => 
   let writes = 0;
   Enrollment.findOneAndUpdate = async (filter, update) => {
     filters.push({ filter, update });
-    const belongsToLearnerB = filter.user === "learner-b";
-    if (!belongsToLearnerB) return null;
+    const belongsToLearnerA = filter.user === "learner-a";
+    if (!belongsToLearnerA) return null;
     writes += 1;
     return { _id: "enrollment-b", ...filter, ...update };
   };

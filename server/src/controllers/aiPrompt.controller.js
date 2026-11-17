@@ -67,24 +67,49 @@ async function changeActiveVersion(req, feature, version, reason) {
     return { changed: false, beforeId, activeVersion: version ? publicVersion(version) : null };
   }
 
-  if (version) {
-    await PlatformSetting.findOneAndUpdate(
-      { key },
-      {
-        $set: {
-          value: nextId,
-          description: "Active immutable prompt version for " + AI_PROMPT_FEATURES[feature].label + ".",
-          isPublic: false,
-          updatedBy: req.user?.user?._id || req.user?.userId
-        }
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-  } else if (beforeId) {
-    await PlatformSetting.deleteOne({ key });
+  const actor = req.user?.user?._id || req.user?.userId;
+  const compareFilter = existing
+    ? { _id: existing._id, key, value: existing.value }
+    : { key };
+
+  try {
+    if (version) {
+      const updated = await PlatformSetting.findOneAndUpdate(
+        compareFilter,
+        {
+          $set: {
+            value: nextId,
+            description: "Active immutable prompt version for " + AI_PROMPT_FEATURES[feature].label + ".",
+            isPublic: false,
+            updatedBy: actor
+          }
+        },
+        { upsert: !existing, new: true, setDefaultsOnInsert: true }
+      );
+      if (!updated) {
+        const conflict = new Error("The active prompt changed concurrently. Refresh the prompt versions panel and try again.");
+        conflict.status = 409;
+        throw conflict;
+      }
+    } else if (beforeId) {
+      const deleted = await PlatformSetting.deleteOne(compareFilter);
+      if (deleted.deletedCount !== 1) {
+        const conflict = new Error("The active prompt changed concurrently. Refresh the prompt versions panel and try again.");
+        conflict.status = 409;
+        throw conflict;
+      }
+    }
+  } catch (error) {
+    // A competing first activation can win the unique PlatformSetting.key
+    // insert between the initial read and this upsert.
+    if (error?.code === 11000) {
+      error.status = 409;
+      error.message = "The active prompt changed concurrently. Refresh the prompt versions panel and try again.";
+    }
+    throw error;
   }
 
-  const beforeVersion = beforeId
+  const beforeVersion = beforeId && isValidObjectId(beforeId)
     ? await AIPromptVersion.findOne({ _id: beforeId, feature }).select("version name contentHash").lean()
     : null;
   const afterMeta = version ? { id: String(version._id), version: version.version, name: version.name, contentHash: version.contentHash } : { source: "built_in", name: AI_PROMPT_FEATURES[feature].defaultName };
@@ -205,7 +230,7 @@ export async function createPromptVersion(req, res, next) {
       activeChanged
     }, req.body?.activate === true ? "Prompt version created and activated." : "Prompt version created. The current active version was not changed.", 201);
   } catch (error) {
-    if (error?.status === 400) return failure(res, error.message, 400);
+    if (error?.status === 400 || error?.status === 409) return failure(res, error.message, error.status);
     next(error);
   }
 }
@@ -230,7 +255,7 @@ export async function activatePromptVersion(req, res, next) {
       changed: result.changed
     }, version ? "Active prompt switched to version " + version.version + "." : "Built-in default prompt activated.");
   } catch (error) {
-    if (error?.status === 400) return failure(res, error.message, 400);
+    if (error?.status === 400 || error?.status === 409) return failure(res, error.message, error.status);
     next(error);
   }
 }

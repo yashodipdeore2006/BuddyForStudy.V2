@@ -223,3 +223,34 @@ Verification on code head `d762e68c7082b5192adb6dbbcf4fe56526b93d6d`:
 - Secret scan passed.
 
 No public runtime behavior was changed outside preserving correct revision attribution for the two admin-triggered course mutation paths.
+
+## Administrator feature overrides and role-governance concurrency (2026-11-17)
+
+### Per-user feature overrides
+
+The `UserFeatureOverride` model has a unique compound index on `(user, featureKey)`, which prevents duplicate override records even when two administrator requests attempt to create the same feature override concurrently.
+
+The controller now applies optimistic compare-and-set semantics to existing overrides:
+
+- Updates match the exact record ID, learner ID, feature key, and observed persisted state (allowed flag, expiry, reason, updater and update timestamp). If another administrator changes or removes that override after the initial read, the stale update does not write and returns HTTP 409.
+- Deletes use a conditional `deleteOne` against the same observed record state. A concurrent update/delete results in HTTP 409 rather than deleting a newer override.
+- Concurrent first-time upserts still rely on the unique compound index. A duplicate-key race is translated to HTTP 409.
+- Audit events are submitted only after the conditional mutation succeeds. Failed stale writes are not represented as successful changes in the audit history.
+
+Regression coverage: `server/test/adminFeatureOverrideConcurrency.test.js` checks stale update rejection, compare-and-delete conflict handling, and duplicate-key handling for competing first-time inserts.
+
+### Administrator role governance
+
+- Role changes remain serialized through the database-backed `internal_admin_role_change_lock` setting, whose unique `PlatformSetting.key` and atomic conditional `findOneAndUpdate` prevent multiple API instances from concurrently passing the last-active-Super-Admin check.
+- Self-role changes are rejected; demoting the last active Super Admin is rejected; lock contention returns HTTP 409 before the target administrator is read.
+- Role changes clear any per-admin permission overrides. The durable audit event now records both the previous role and previous permission overrides, and the resulting role with an empty override list, so the side effect is visible in before/after history.
+- The lock is released with its ownership token immediately after the role mutation and durable audit submission, before notification fan-out. This reduces the time spent inside the two-minute lease and avoids holding the governance lock during notification work.
+- Authentication middleware reloads the account from MongoDB for each authenticated request and derives the effective admin role/permission overrides from that record. Role changes therefore take effect on the next request without depending on stale role claims in the JWT.
+
+Regression coverage: `server/test/adminRolesController.test.js` verifies permission-override clearing is included in the audit event, last-Super-Admin protection, lock contention, and that token-aware lock release occurs before notification fan-out.
+
+### Verification limits
+
+These tests exercise controller-level compare-and-set query construction and lock orchestration with mocked model methods. They do not simulate simultaneous writers across multiple live MongoDB processes or validate the lock behavior under production network/database latency. The unique index and atomic conditional MongoDB writes are the runtime concurrency controls; a multi-instance integration test and production monitoring remain recommended before broad launch.
+
+No learner-visible course or entitlement behavior is changed by this audit slice; it strengthens conflict detection and audit fidelity for administrator actions.

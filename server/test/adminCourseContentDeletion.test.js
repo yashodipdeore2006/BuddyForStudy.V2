@@ -72,11 +72,10 @@ for (const operation of operations) {
 }
 
 
+
 test("nested admin content deletion cannot cross course or module ownership boundaries", async () => {
   const MODULE_B_ID = "507f1f77bcf86cd799439015";
   const FOREIGN_MODULE_ID = "507f1f77bcf86cd799439016";
-  const FOREIGN_LESSON_ID = "507f1f77bcf86cd799439017";
-  const FOREIGN_RESOURCE_ID = "507f1f77bcf86cd799439018";
   let saveCalls = 0;
   let markModifiedCalls = 0;
   const course = {
@@ -89,8 +88,7 @@ test("nested admin content deletion cannot cross course or module ownership boun
       },
       {
         _id: MODULE_B_ID,
-        // These child IDs belong to a different module. A request that pairs
-        // them with MODULE_ID must not delete them through a mismatched parent.
+        // These IDs exist in another module, not in the route's module.
         lessons: [{ _id: LESSON_ID }],
         resources: [{ _id: RESOURCE_ID }]
       }
@@ -109,38 +107,26 @@ test("nested admin content deletion cannot cross course or module ownership boun
   const cases = [
     {
       name: "module ID from outside the requested course",
-      run: () => deleteCourseModule({
-        params: { courseId: COURSE_ID, moduleId: FOREIGN_MODULE_ID },
-        body: { reason: "Removing an incorrect course module" },
-        user: { userId: "507f191e810c19729de860ea" }
-      }, responseRecorder(), (error) => { throw error; }),
+      controller: deleteCourseModule,
+      params: { courseId: COURSE_ID, moduleId: FOREIGN_MODULE_ID },
       expected: "Course module not found"
     },
     {
       name: "lesson ID belonging to a different module",
-      run: () => deleteCourseLesson({
-        params: { courseId: COURSE_ID, moduleId: MODULE_ID, lessonId: LESSON_ID },
-        body: { reason: "Removing an incorrect course lesson" },
-        user: { userId: "507f191e810c19729de860ea" }
-      }, responseRecorder(), (error) => { throw error; }),
+      controller: deleteCourseLesson,
+      params: { courseId: COURSE_ID, moduleId: MODULE_ID, lessonId: LESSON_ID },
       expected: "Lesson not found"
     },
     {
       name: "resource ID belonging to a different module",
-      run: () => deleteModuleResource({
-        params: { courseId: COURSE_ID, moduleId: MODULE_ID, resourceId: RESOURCE_ID },
-        body: { reason: "Removing an incorrect module resource" },
-        user: { userId: "507f191e810c19729de860ea" }
-      }, responseRecorder(), (error) => { throw error; }),
+      controller: deleteModuleResource,
+      params: { courseId: COURSE_ID, moduleId: MODULE_ID, resourceId: RESOURCE_ID },
       expected: "Module resource not found"
     },
     {
-      name: "module ID belonging to a different course",
-      run: () => deleteCourseModule({
-        params: { courseId: "507f1f77bcf86cd799439021", moduleId: MODULE_ID },
-        body: { reason: "Removing a mismatched course module" },
-        user: { userId: "507f191e810c19729de860ea" }
-      }, responseRecorder(), (error) => { throw error; }),
+      name: "module ID paired with a different course",
+      controller: deleteCourseModule,
+      params: { courseId: "507f1f77bcf86cd799439021", moduleId: MODULE_ID },
       expected: "Course not found"
     }
   ];
@@ -148,38 +134,25 @@ test("nested admin content deletion cannot cross course or module ownership boun
   try {
     for (const entry of cases) {
       const res = responseRecorder();
-      const request = entry.run;
-      // Re-run with a recorder owned by this case so each denial can be asserted.
-      const params = entry.name === "module ID from outside the requested course"
-        ? { courseId: COURSE_ID, moduleId: FOREIGN_MODULE_ID }
-        : entry.name === "lesson ID belonging to a different module"
-          ? { courseId: COURSE_ID, moduleId: MODULE_ID, lessonId: LESSON_ID }
-          : entry.name === "resource ID belonging to a different module"
-            ? { courseId: COURSE_ID, moduleId: MODULE_ID, resourceId: RESOURCE_ID }
-            : { courseId: "507f1f77bcf86cd799439021", moduleId: MODULE_ID };
-      const controller = entry.name.includes("lesson")
-        ? deleteCourseLesson
-        : entry.name.includes("resource")
-          ? deleteModuleResource
-          : deleteCourseModule;
-      await controller({
-        params,
+      await entry.controller({
+        params: entry.params,
         body: { reason: "Reviewed request to remove invalid course content" },
         user: { userId: "507f191e810c19729de860ea" }
       }, res, (error) => { throw error; });
+
       assert.equal(res.statusCode, 404, entry.name);
       assert.equal(res.body.message, entry.expected, entry.name);
       assert.equal(res.body.success, false, entry.name);
-      void request;
     }
+
     assert.deepEqual(queriedIds, [
       COURSE_ID,
       COURSE_ID,
       COURSE_ID,
       "507f1f77bcf86cd799439021"
     ]);
-    assert.equal(saveCalls, 0, "a cross-parent ID must never trigger a course write");
-    assert.equal(markModifiedCalls, 0, "a rejected cross-parent ID must not mutate the course document");
+    assert.equal(saveCalls, 0, "rejected cross-parent identifiers must not write the course");
+    assert.equal(markModifiedCalls, 0, "rejected cross-parent identifiers must not mutate the course");
     assert.deepEqual(course.modules[1].lessons.map((item) => String(item._id)), [LESSON_ID]);
     assert.deepEqual(course.modules[1].resources.map((item) => String(item._id)), [RESOURCE_ID]);
   } finally {

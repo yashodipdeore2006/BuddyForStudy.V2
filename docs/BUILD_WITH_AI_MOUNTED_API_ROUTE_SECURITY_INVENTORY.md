@@ -151,10 +151,12 @@ This exercises the actual permission middleware associated with each route but d
 Each negative case asserts HTTP 404 and no course save or mutation. This is a regression test of course/module/child association, not an assertion that admin users are restricted to only the courses they created; the current admin permissions authorize platform-wide course operations according to role.
 
 ### Remaining controller-level scope
+`server/test/adminProUserStatusReason.test.js` adds negative controller tests proving that the current administrator cannot deactivate their own account, an administrator account cannot be deactivated through ordinary user management, and the top-level account role cannot be changed through that endpoint. These tests exercise the controller guardrails; they do not replace a full HTTP integration test of the permission middleware plus controller.
+
 
 The route-permission matrix and these nested-content checks do not finish P1-05. Continue verifying high-impact side effects and actor/resource boundaries, including:
 
-- admin user status, feature override and role changes (including self-change and last-active-administrator safety);
+- admin user status, feature override and role changes (including self-deactivation denial, preventing account-status changes to another administrator, blocking top-level role changes through user management, and last-active-administrator safety);
 - payment/refund state changes, reconciliation and notification ownership;
 - administrative course lifecycle, publish/rollback and revisions;
 - background operations where the actor or resource identifier crosses into a service/job;

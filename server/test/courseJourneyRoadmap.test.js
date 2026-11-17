@@ -1,10 +1,23 @@
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { buildJourneyStages, calculateJourneyProgress, parseDurationSeconds } from "../src/services/courseJourneyRoadmap.service.js";
+import { buildJourneyStages, calculateJourneyProgress, parseDurationSeconds, regenerateCourseJourney } from "../src/services/courseJourneyRoadmap.service.js";
+import { Course } from "../src/models/Course.js";
 
 function lesson(id, duration) {
   return { id, title: "Lesson " + id, type: "tutorial", tutorial: { videos: [{ duration }] } };
+}
+
+async function withMocks(mocks, run) {
+  const originals = [];
+  for (const [target, methods] of mocks) {
+    for (const [key, value] of Object.entries(methods)) {
+      originals.push({ target, key, original: target[key] });
+      target[key] = value;
+    }
+  }
+  try { await run(); }
+  finally { for (const { target, key, original } of originals.reverse()) target[key] = original; }
 }
 
 test("groups a seven-module course into between three and seven stages without splitting modules", () => {
@@ -51,4 +64,72 @@ test("course journey roadmap progress is gated by current entitlement, not enrol
   assert.match(handler, /if \(enrollment && await canAccessCourse\(userId, courseId\)\)/);
   assert.ok(handler.indexOf("canAccessCourse(userId, courseId)") < handler.indexOf("Progress.findOne"),
     "Must verify current entitlement before reading private progress metadata");
+});
+
+
+test("admin course journey regeneration persists authenticated actor provenance for the course revision", async () => {
+  const actor = "507f191e810c19729de860ea";
+  let saveCalls = 0;
+  const course = {
+    _id: "507f1f77bcf86cd799439011",
+    deletedAt: null,
+    title: "SQL Learning Path",
+    modules: [{ _id: "module-1", title: "SQL", lessons: [{ _id: "lesson-1", title: "SQL joins" }] }],
+    roadmap: { theme: "trail", stages: [] },
+    $locals: {},
+    async save() { saveCalls += 1; }
+  };
+  const stages = [{
+    id: "stage-1",
+    order: 1,
+    title: "SQL foundations",
+    hours: 1,
+    lessonIds: ["lesson-1"],
+    skills: ["SQL"],
+    outcome: "Understand relational joins",
+    emoji: "📚"
+  }];
+
+  await withMocks([[Course, { findById: async (id) => {
+    assert.equal(String(id), String(course._id));
+    return course;
+  } }]], async () => {
+    await regenerateCourseJourney(course._id, stages, {
+      actor,
+      source: "admin",
+      reason: "Administrator edited the course journey",
+      summary: "Admin edited course journey stages"
+    });
+  });
+
+  assert.equal(saveCalls, 1);
+  assert.deepEqual(course.$locals.revisionContext, {
+    actor,
+    source: "admin",
+    reason: "Administrator edited the course journey",
+    summary: "Admin edited course journey stages"
+  });
+});
+
+test("automatic course journey regeneration leaves revision attribution as the system default", async () => {
+  let saveCalls = 0;
+  const course = {
+    _id: "507f1f77bcf86cd799439012",
+    deletedAt: null,
+    title: "SQL Learning Path",
+    modules: [{ _id: "module-1", title: "SQL", lessons: [{ _id: "lesson-1", title: "SQL joins" }] }],
+    roadmap: { theme: "trail", stages: [] },
+    $locals: {},
+    async save() { saveCalls += 1; }
+  };
+
+  await withMocks([[Course, { findById: async () => course }]], async () => {
+    await regenerateCourseJourney(course._id, [{
+      id: "stage-1", order: 1, title: "SQL foundations", hours: 1,
+      lessonIds: ["lesson-1"], skills: [], outcome: "", emoji: ""
+    }]);
+  });
+
+  assert.equal(saveCalls, 1);
+  assert.equal(course.$locals.revisionContext, undefined);
 });

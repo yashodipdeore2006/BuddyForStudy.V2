@@ -43,14 +43,27 @@ test("administrator role changes stay successful when audit events are queued fo
     save: async () => target
   };
   let queued;
+  const sideEffectOrder = [];
+  let acquiredToken = "";
   await withMocks([
     [User, {
       findOne: async () => target,
-      countDocuments: async () => 2
+      countDocuments: async () => 2,
+      find: () => {
+        sideEffectOrder.push("alert-fanout");
+        return { select: () => ({ lean: async () => [] }) };
+      }
     }],
     [PlatformSetting, {
-      findOneAndUpdate: async (_filter, update) => ({ value: update.$set.value }),
-      updateOne: async () => ({ modifiedCount: 1 })
+      findOneAndUpdate: async (_filter, update) => {
+        acquiredToken = update.$set.value.token;
+        return { value: update.$set.value };
+      },
+      updateOne: async (filter) => {
+        assert.equal(filter["value.token"], acquiredToken);
+        sideEffectOrder.push("lock-release");
+        return { modifiedCount: 1 };
+      }
     }],
     [AuditLog, { create: async () => { throw new Error("audit collection unavailable"); } }],
     [AuditOutbox, { create: async (entry) => { queued = entry; return entry; } }]
@@ -81,6 +94,8 @@ test("administrator role changes stay successful when audit events are queued fo
       adminRole: "finance_manager",
       adminPermissionOverrides: []
     });
+    assert.deepEqual(sideEffectOrder, ["lock-release", "alert-fanout"],
+      "the governance lock must be released before administrator notification fan-out");
   });
 });
 

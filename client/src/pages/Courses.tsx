@@ -1668,7 +1668,7 @@ export default function Courses() {
 
             <div className="space-y-3">
               {(() => {
-                const skillGraphById = new Map((aiRoadmap.skillGraph || []).map((skill) => [skill.id, skill]));
+                const skillGraphById = new Map((aiRoadmap.skillGraph || []).map((skill) => [skill.id, skill] as const));
                 return (aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
                 const expanded = expandedAiModules.has(moduleIndex);
                 const prerequisiteIds = module.title === "Final Capstone Projects"

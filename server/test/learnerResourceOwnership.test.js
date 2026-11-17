@@ -11,6 +11,32 @@ const savedCourseController = await import("../src/controllers/savedCourse.contr
 const enrollmentService = await import("../src/services/enrollment.service.js");
 const progressService = await import("../src/services/progress.service.js");
 
+
+test("enrollment list is restricted to the authenticated learner", async () => {
+  const originalFind = Enrollment.find;
+  let capturedFilter;
+  Enrollment.find = (filter) => {
+    capturedFilter = filter;
+    return {
+      populate() { return this; },
+      sort() { return this; },
+      then(resolve, reject) { return Promise.resolve([]).then(resolve, reject); }
+    };
+  };
+
+  try {
+    const result = await enrollmentService.getMine("learner-b");
+    assert.deepEqual(capturedFilter, {
+      user: "learner-b",
+      status: { $ne: "cancelled" },
+      revokedBy: null
+    });
+    assert.deepEqual(result, []);
+  } finally {
+    Enrollment.find = originalFind;
+  }
+});
+
 test("enrollment detail lookup is scoped to the authenticated learner and enrollment ID", () => {
   const originalFindOne = Enrollment.findOne;
   const filters = [];

@@ -254,3 +254,43 @@ Regression coverage: `server/test/adminRolesController.test.js` verifies permiss
 These tests exercise controller-level compare-and-set query construction and lock orchestration with mocked model methods. They do not simulate simultaneous writers across multiple live MongoDB processes or validate the lock behavior under production network/database latency. The unique index and atomic conditional MongoDB writes are the runtime concurrency controls; a multi-instance integration test and production monitoring remain recommended before broad launch.
 
 No learner-visible course or entitlement behavior is changed by this audit slice; it strengthens conflict detection and audit fidelity for administrator actions.
+
+## Remaining administrative mutation audit: settings, invitations, prompt versions and content policies (2026-11-17)
+
+### Administrator invitation lifecycle
+
+- Invitation creation is limited by the `admin_roles.manage` route permission and checks that only a Super Admin can invite another Super Admin.
+- Pending invitation acceptance and revocation use an atomic transition filter (`acceptedAt: null`, `revokedAt: null`, and an unexpired timestamp), so only one terminal transition can win. The existing Mongo integration test exercises acceptance/acceptance and acceptance/revocation races.
+- A newly identified same-email replacement race was closed with a database-backed per-email lease. The lock key is a SHA-256 digest of the normalized email (the email is not embedded in the PlatformSetting key), has a five-minute expiry for crash recovery, and is released only by its owner token. Creation, email delivery and replacement revocation are serialized for that email; contention returns HTTP 409 before invitation writes. The lock is released before audit and notification fan-out.
+- Existing delivery-failure behavior is retained: a failed replacement email removes the new unsent invitation and does not revoke the prior working invitation.
+- Regression coverage in `server/test/adminInvitationsController.test.js` checks lock contention and lock release sequencing. Multi-process lock acquisition against a live MongoDB instance remains an explicit follow-up for the deeper concurrency task.
+
+### Active AI prompt versions
+
+- Prompt versions remain immutable and are protected by the unique `(feature, version)` index; version creation retries duplicate version-number collisions a bounded number of times.
+- Active prompt pointer changes now compare the exact previously observed PlatformSetting row and value before update or deletion. A stale update/delete, or a duplicate-key race during first activation, returns HTTP 409 and does not write a success activation audit event.
+- Prompt pointer writes remain separate from immutable version creation. When a request creates a version and asks to activate it, a later activation conflict can leave the new immutable version stored but not active; the response is a conflict and the operator should refresh the panel before retrying activation. The version-created audit event remains accurate.
+- The prompt endpoints remain protected by `ai.manage`. Regression coverage is in `server/test/adminPromptActivationConcurrency.test.js`.
+
+### General platform settings
+
+- The general settings endpoint rejects non-boolean `isPublic` values rather than coercing strings such as `"false"` to true. Descriptions must be strings no longer than 500 characters.
+- Active AI prompt pointers remain blocked from the general settings panel, and public social-link settings retain their separate validation and public-visibility rule.
+- Existing setting updates now use conditional compare-and-set filters across the observed setting row/value/metadata; competing first inserts are translated from duplicate-key errors to HTTP 409. Deletion is compare-and-delete against the observed snapshot, so a setting modified between read and delete is not removed by a stale request.
+- Audit snapshots deliberately record setting existence, type and visibility rather than copying arbitrary setting values, which may contain sensitive operational configuration. The settings routes retain `settings.manage` authorization.
+- Regression coverage is in `server/test/adminSettingMutationSafety.test.js`.
+
+### Content approval policy batches
+
+- The full policy payload is validated before database access: every key must be registered and every mode must be `manual` or `automatic`.
+- Since the admin UI submits multiple policy switches together, the controller now applies all changed settings inside one MongoDB transaction. Existing rows use conditional filters over identity, value and update timestamp; missing rows are inserted with the unique key. A stale write or competing insert aborts the transaction and returns HTTP 409 rather than leaving a partially applied policy batch.
+- Audit events are written only after the transaction commits, keeping external audit/outbox writes outside a transaction callback that the driver may retry. This requires a MongoDB replica-set or sharded topology with transaction support; the production Atlas cluster is expected to support this, but actual deployment topology and live transaction behavior remain a pre-launch verification item.
+- Content policy updates remain protected by `courses.manage`; policy reads require `courses.read`. Regression coverage is in `server/test/adminContentApprovalPolicyMutation.test.js`.
+
+### Verification boundaries
+
+- Controller-level regression tests cover invitation-lock contention/release, prompt-pointer compare-and-set conflicts, setting strict validation and conditional mutations, and policy-batch transaction orchestration.
+- These mocked tests do not establish simultaneous lock acquisition or transaction rollback across independent live MongoDB clients. Existing invitation accept/revoke Mongo integration coverage is separate. Real multi-client lock/transaction verification remains assigned to the deeper concurrency and production verification tasks.
+- The above endpoints remain registered under their named permission middleware in `server/src/routes/adminPro.routes.js`; the existing full mounted-route permission test continues to reconcile the router declarations.
+
+These controls strengthen administrator mutation consistency and audit fidelity. They do not complete the remaining P1-05 public discovery, review pagination, curation-impression provenance, or live production-configuration acceptance criteria.

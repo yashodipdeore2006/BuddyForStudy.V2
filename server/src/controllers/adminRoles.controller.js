@@ -183,7 +183,13 @@ export async function updateAdministratorRole(req, res, next) {
       }
     }
 
-    const before = { adminRole: previousRole };
+    const previousPermissionOverrides = Array.isArray(target.adminPermissionOverrides)
+      ? [...target.adminPermissionOverrides]
+      : [];
+    const before = {
+      adminRole: previousRole,
+      adminPermissionOverrides: previousPermissionOverrides
+    };
     target.adminRole = adminRole;
     target.adminPermissionOverrides = [];
     await target.save();
@@ -195,7 +201,7 @@ export async function updateAdministratorRole(req, res, next) {
       targetId: target._id.toString(),
       reason: reason.trim(),
       before,
-      after: { adminRole },
+      after: { adminRole, adminPermissionOverrides: [] },
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500),
     });

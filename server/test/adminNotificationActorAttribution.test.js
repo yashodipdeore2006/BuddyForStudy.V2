@@ -109,7 +109,8 @@ test("operational admin alerts require active recipients with the requested perm
   const routing = await read("../src/utils/adminNotificationRouting.js");
   const start = service.indexOf("export async function notifyActiveAdmins");
   assert.notEqual(start, -1);
-  const notify = service.slice(start, service.indexOf("\n}", start) + 2);
+  const nextExport = service.indexOf("export async function ", start + "export async function notifyActiveAdmins".length);
+  const notify = service.slice(start, nextExport === -1 ? service.length : nextExport);
 
   assert.match(notify, /User\.find\(\{ role: "admin", isActive: true \}\)/);
   assert.match(notify, /selectAdminNotificationRecipients\(admins, requiredPermission\)/);

@@ -304,7 +304,16 @@ export async function upsertUserFeatureOverride(req, res, next) {
       $setOnInsert: { user: userId, featureKey, createdBy: actor }
     };
     const writeFilter = existing
-      ? { _id: existing._id, user: userId, featureKey, updatedAt: existing.updatedAt ?? null }
+      ? {
+          _id: existing._id,
+          user: userId,
+          featureKey,
+          allowed: existing.allowed,
+          expiresAt: existing.expiresAt ?? null,
+          reason: existing.reason,
+          updatedBy: existing.updatedBy ?? null,
+          updatedAt: existing.updatedAt ?? null
+        }
       : { user: userId, featureKey };
     const override = await UserFeatureOverride.findOneAndUpdate(
       writeFilter,
@@ -342,6 +351,10 @@ export async function deleteUserFeatureOverride(req, res, next) {
       _id: existing._id,
       user: userId,
       featureKey,
+      allowed: existing.allowed,
+      expiresAt: existing.expiresAt ?? null,
+      reason: existing.reason,
+      updatedBy: existing.updatedBy ?? null,
       updatedAt: existing.updatedAt ?? null
     });
     if (deletion.deletedCount !== 1) {

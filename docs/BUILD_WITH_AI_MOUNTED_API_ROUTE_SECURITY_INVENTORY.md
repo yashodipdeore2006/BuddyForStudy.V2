@@ -181,3 +181,17 @@ CI verification for the nested-content test revision must pass before its eviden
 - The generic lifecycle status endpoint cannot set `published`; publication must pass through the separate readiness-gated action.
 
 These tests verify selected controller guardrails and do not replace end-to-end integration testing of revision creation, rollback persistence, cache invalidation, audit delivery or production publication readiness. They also do not impose creator-only ownership on global administrative course operations; route permission is still the authorization boundary for those platform-wide actions.
+
+### Administrative notification actor and background-delivery checks (2026-11-17)
+
+`server/test/adminNotificationActorAttribution.test.js` adds cross-path regression checks for the administrative notification lifecycle:
+
+- Admin in-app notification and email campaigns use the signed-in administrator as `initiatedBy`, bind each notification to its resolved recipient, validate the signed audience preview before fan-out, and audit the campaign.
+- Announcement creation persists the authenticated administrator as required `createdBy`; the background worker derives recipient-level notification attribution from that persisted creator and uses a deterministic announcement/recipient event key. Existing lease, cursor and deferred-dispatch checks remain in place.
+- Both administrative delivery-retry endpoints pass the authenticated actor to the retry service and write an audit event after the retry claim succeeds. The retry pipeline stores the actor, channel, previous delivery state and bounded reason in retry history.
+- Operational alerts query active administrator accounts, filter recipients through the requested effective RBAC permission, and derive a separate idempotency key for each administrator.
+- Payment-support state changes use the authenticated actor for resolution/internal-note attribution, audit the support-case mutation, and address the resulting notification to the issue's persisted learner.
+
+The checks are source-contract regression tests alongside the existing service-level permission-routing, retry-pipeline, announcement scheduling and delivery-outbox tests. They are not an end-to-end test of every admin controller, external mail/push provider, or production worker deployment. No runtime code was changed in this step.
+
+P1-05 remains open: the remaining mounted-route/controller scope and previously recorded public API abuse-control gaps still need their own acceptance evidence. Full CI and secret-scan results for the new test commit must pass before this evidence is treated as validated.

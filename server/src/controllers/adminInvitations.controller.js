@@ -9,6 +9,7 @@ import { failure, success } from "../utils/response.js";
 import { isAdminRoleProfile } from "../utils/adminRbac.js";
 import { isValidObjectId } from "../utils/ids.js";
 import { notifyActiveAdmins } from "../services/notification.service.js";
+import { acquireAdminInvitationLock, releaseAdminInvitationLock } from "../services/adminInvitationLock.service.js";
 
 const invitationTtlMs = 24 * 60 * 60 * 1000;
 const inviteSchema = z.object({
@@ -62,6 +63,8 @@ export async function listInvitations(_req, res, next) {
 }
 
 export async function createInvitation(req, res, next) {
+  let invitationLockToken = "";
+  let invitationLockEmail = "";
   try {
     const input = inviteSchema.parse(req.body);
     const email = input.email.toLowerCase();
@@ -69,6 +72,15 @@ export async function createInvitation(req, res, next) {
     if (input.adminRole === "super_admin" && req.user?.adminRole !== "super_admin") {
       return failure(res, "Only a Super Admin can invite another Super Admin.", 403);
     }
+
+    // Serialize invitation replacement per normalized email. This prevents two
+    // concurrent sends from revoking each other's newly-created invitation.
+    invitationLockEmail = email;
+    invitationLockToken = await acquireAdminInvitationLock(email);
+    if (!invitationLockToken) {
+      return failure(res, "Another administrator invitation for this email is in progress. Refresh and try again.", 409);
+    }
+
     const existingUser = await User.findOne({ email }).select("_id role");
     if (existingUser) return failure(res, "This email already belongs to an account. Use the existing administrator role assignment workflow if appropriate.", 409);
 
@@ -135,6 +147,16 @@ export async function createInvitation(req, res, next) {
       });
     }
 
+    // Email delivery and old-invitation revocation are now complete; release
+    // the per-email lock before audit/notification fan-out.
+    const completedInvitationLockToken = invitationLockToken;
+    invitationLockToken = "";
+    await releaseAdminInvitationLock(invitationLockEmail, completedInvitationLockToken).catch((error) => {
+      console.error("[admin-invitations] invitation lock release failed", {
+        message: String(error?.message || "Unknown error").slice(0, 200)
+      });
+    });
+
     const auditResult = await recordAuditEvent({
       actor: req.user.userId,
       action: "admin.invitation.created",
@@ -177,6 +199,14 @@ export async function createInvitation(req, res, next) {
   } catch (error) {
     if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors);
     return next(error);
+  } finally {
+    if (invitationLockToken) {
+      await releaseAdminInvitationLock(invitationLockEmail, invitationLockToken).catch((error) => {
+        console.error("[admin-invitations] invitation lock release failed", {
+          message: String(error?.message || "Unknown error").slice(0, 200)
+        });
+      });
+    }
   }
 }
 

@@ -46,7 +46,12 @@ export async function updateAdmin(req, res, next) {
     const normalized = input.stages.map((stage, index) => ({ ...stage, id: stage.id || "stage-" + (index + 1), order: index + 1 }));
     const allAssigned = normalized.flatMap((stage) => stage.lessonIds);
     if (new Set(allAssigned).size !== allAssigned.length || validLessonIds.size !== allAssigned.length || [...validLessonIds].some((id) => !allAssigned.includes(id))) return failure(res, "Every course lesson must belong to exactly one roadmap stage.", 400);
-    const roadmap = await regenerateCourseJourney(course._id, normalized);
+    const roadmap = await regenerateCourseJourney(course._id, normalized, {
+      actor: req.user?.user?._id || req.user?.userId || null,
+      source: "admin",
+      reason: "Admin edited course journey stages",
+      summary: "Admin edited course journey stages"
+    });
     await recordRoadmapAudit(req, "course.roadmap.update", course._id, roadmap);
     return success(res, { roadmap }, "Course journey roadmap saved");
   } catch (error) { if (error instanceof z.ZodError) return failure(res, "Validation failed", 400, error.flatten().fieldErrors); next(error); }
@@ -59,7 +64,12 @@ export async function regenerateAdmin(req, res, next) {
     if (!course || course.deletedAt) return failure(res, "Course not found", 404);
     const stages = buildJourneyStages(course.modules || [], []);
     if (!stages.length) return failure(res, "Add lessons before generating a journey roadmap.", 400);
-    const roadmap = await regenerateCourseJourney(course._id);
+    const roadmap = await regenerateCourseJourney(course._id, null, {
+      actor: req.user?.user?._id || req.user?.userId || null,
+      source: "admin",
+      reason: "AI regenerated course journey stages",
+      summary: "AI regenerated course journey stages"
+    });
     await recordRoadmapAudit(req, "course.roadmap.regenerate", course._id, roadmap);
     return success(res, { roadmap }, "Course journey regenerated; AI metadata is used when configured");
   } catch (error) { next(error); }

@@ -205,6 +205,17 @@ export async function updateAdministratorRole(req, res, next) {
       ip: String(req.ip || "").slice(0, 100),
       userAgent: String(req.get?.("user-agent") || "").slice(0, 500),
     });
+    // The governance critical section ends after the role write and durable audit
+    // submission. Notification fan-out is independent work and must not consume
+    // the two-minute lock lease.
+    const completedLockToken = governanceLockToken;
+    governanceLockToken = "";
+    await releaseAdminGovernanceLock(completedLockToken).catch((error) => {
+      console.error("[admin-governance] role-change lock release failed", {
+        message: String(error?.message || "Unknown error").slice(0, 200)
+      });
+    });
+
     await notifyActiveAdmins({
       title: "Administrator role changed",
       message: "An administrator role assignment changed. Review the administrator governance audit log.",

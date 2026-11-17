@@ -1116,7 +1116,12 @@ export async function brokenCourseLinks(req, res, next) {
 export async function fillMissingCourseResources(req, res, next) {
   try {
     if (!isValidObjectId(req.params.courseId)) return failure(res, "Invalid courseId", 400);
-    const result = await recoverCourseMissingResources(req.params.courseId);
+    const reason = "Admin bulk recovery of missing tutorial resources";
+    const result = await recoverCourseMissingResources(req.params.courseId, {
+      actor: adminActorId(req),
+      source: "admin",
+      reason
+    });
     if (!result) return failure(res, "Course not found", 404);
     const { summary, course } = result;
     await audit(req, "course.resources.recovered", "Course", course._id, null, {
@@ -1124,7 +1129,7 @@ export async function fillMissingCourseResources(req, res, next) {
       recovered: summary.recovered,
       unavailable: summary.unavailable,
       quotaLimited: summary.quotaLimited
-    }, "Admin bulk recovery of missing tutorial resources");
+    }, reason);
     return success(res, {
       course: course.toObject ? course.toObject() : course,
       recovery: summary

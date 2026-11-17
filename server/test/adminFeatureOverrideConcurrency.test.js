@@ -49,7 +49,10 @@ function request(body = {}) {
 
 test("feature override update uses an optimistic version filter and returns 409 when stale", async () => {
   const updatedAt = new Date("2026-11-17T12:00:00.000Z");
-  const existing = { _id: "override-id", user: userId, featureKey, allowed: false, updatedAt };
+  const existing = {
+    _id: "override-id", user: userId, featureKey, allowed: false,
+    expiresAt: null, reason: "Previous grant reason", updatedBy: actorId, updatedAt,
+  };
   let writeFilter;
   let auditCalled = false;
   const res = responseRecorder();
@@ -73,6 +76,9 @@ test("feature override update uses an optimistic version filter and returns 409 
 
   assert.equal(res.statusCode, 409);
   assert.equal(writeFilter._id, "override-id");
+  assert.equal(writeFilter.allowed, false);
+  assert.equal(writeFilter.reason, "Previous grant reason");
+  assert.equal(writeFilter.updatedBy, actorId);
   assert.equal(writeFilter.updatedAt, updatedAt);
   assert.equal(auditCalled, false, "a stale write must not create a success audit event");
 });

@@ -466,23 +466,55 @@ export async function updateContentApprovalPolicies(req, res, next) {
       if (!CONTENT_APPROVAL_MODES.includes(mode)) return failure(res, "Approval mode for " + id + " must be manual or automatic.", 400);
     }
 
-    for (const [id, mode] of entries) {
-      const definition = CONTENT_APPROVAL_POLICIES[id];
-      const current = await PlatformSetting.findOne({ key: definition.key });
-      const before = current?.value ?? "manual";
-      if (before === mode) continue;
-      const setting = await PlatformSetting.findOneAndUpdate(
-        { key: definition.key },
-        { $set: {
-          value: mode,
-          description: definition.description,
-          isPublic: false,
-          updatedBy: req.user?.user?._id || req.user?.userId || null
-        } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      await audit(req, "content_approval_policy.updated", "PlatformSetting", setting._id,
-        { policy: id, mode: before }, { policy: id, mode }, reason);
+    const session = await mongoose.startSession();
+    const changedPolicies = [];
+    try {
+      await session.withTransaction(async () => {
+        // The client submits the full policy set. Keep the batch atomic so a
+        // database failure or concurrent change cannot leave only some policy
+        // switches updated. The callback may be retried by the MongoDB driver.
+        changedPolicies.length = 0;
+        for (const [id, mode] of entries) {
+          const definition = CONTENT_APPROVAL_POLICIES[id];
+          const current = await PlatformSetting.findOne({ key: definition.key }).session(session).lean();
+          const before = CONTENT_APPROVAL_MODES.includes(current?.value) ? current.value : "manual";
+          if (before === mode) continue;
+          const filter = current
+            ? { _id: current._id, updatedAt: current.updatedAt }
+            : { key: definition.key };
+          const setting = await PlatformSetting.findOneAndUpdate(
+            filter,
+            { $set: {
+              value: mode,
+              description: definition.description,
+              isPublic: false,
+              updatedBy: req.user?.user?._id || req.user?.userId || null
+            } },
+            { upsert: !current, new: true, setDefaultsOnInsert: true, session }
+          );
+          if (!setting) {
+            const conflict = new Error("A content approval policy changed concurrently. Refresh and try again.");
+            conflict.status = 409;
+            throw conflict;
+          }
+          changedPolicies.push({ id, before, mode, settingId: setting._id });
+        }
+      });
+    } catch (error) {
+      if (error?.status === 409 || error?.code === 11000) {
+        return failure(res, "A content approval policy changed concurrently. Refresh and try again.", 409);
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+
+    // Audit after the transaction commits. The audit service writes directly
+    // or falls back to the durable outbox; it must not run inside a retried
+    // transaction callback.
+    for (const change of changedPolicies) {
+      await audit(req, "content_approval_policy.updated", "PlatformSetting", change.settingId,
+        { policy: change.id, mode: change.before }, { policy: change.id, mode: change.mode }, reason);
     }
     return success(res, { policies: await getContentApprovalPolicies() }, "Content approval policies saved");
   } catch (error) { next(error); }

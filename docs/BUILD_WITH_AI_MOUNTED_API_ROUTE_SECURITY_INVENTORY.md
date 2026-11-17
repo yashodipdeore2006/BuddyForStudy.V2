@@ -86,4 +86,40 @@ This inventory establishes the mounted route map and registration-level middlewa
 - Two-user negative authorization tests cover learner-owned resources and admin permission boundaries.
 - CI executes the relevant tests successfully on the final inventory revision.
 
+
+## Public endpoint abuse-control audit (2026-11-17)
+
+### Controls confirmed in source
+
+| Surface | Current control | Assessment |
+|---|---|---|
+| All API groups after health mounts | Shared Mongo-backed Express rate limiter: 1,000 requests per 15 minutes, keyed by the Express client IP default | Baseline protection only; broad ceiling is not a substitute for route-specific limits on expensive endpoints. |
+| `/api/auth/*` | Additional shared auth limiter: 30 requests per 15 minutes | Applies to registration, invitation acceptance, login, OTP, recovery and Google login routes under the router. |
+| `/api/auth/google/config` | Shared API limiter; direct route is registered outside the `/api/auth` router and therefore does not receive the auth-specific limiter | Read-only configuration endpoint; this is an intentional low-cost exception to the auth-router limiter. |
+| `/api/discovery/curation-feedback` | Additional limiter: 120 events per hour, mounted before optional JWT parsing | Per-IP default key; anonymous `preview` events are allowed. Authenticated events still need trustworthy impression provenance and actor/idempotency enforcement. |
+| YouTube API provider calls | Shared daily quota accounting; atomic Mongo reservation across API instances; refuses provider calls when quota storage is unavailable | Useful provider-wide ceiling and fail-closed behavior, but it does not impose a tailored per-IP/per-user request ceiling. |
+| `/health`, `/api/health/*` | Mounted before the shared API limiter | Explicit operational exception so liveness/readiness remain available if the rate-limit store fails. Handlers are synchronous and expose only generic service/database readiness state. |
+| `/api/notifications/unsubscribe` | HMAC-SHA256 capability token, constant-time signature check, ObjectId subject validation, expiry validation and 2,048-character token bound | GET only displays confirmation; POST performs the preference change. Token remains replayable until expiry, but the operation only disables promotional email and is idempotent in intent. |
+
+Authentication also has complementary per-OTP controls: one-time codes expire after 10 minutes, resend is cooled down for 60 seconds per account/purpose, verification stops after five incorrect attempts, and successful consumption is atomic. The forgotten-password handler returns an indistinguishable public response when an account is absent or delivery fails.
+
+### Residual abuse-control gaps
+
+1. **Discovery search and playlist expansion are under a broad ceiling.** Public/optional-auth `GET /api/discovery/search`, `GET /api/discovery/course-search` and `GET /api/discovery/playlists/:playlistId` do not have their own route-specific rate limiter. They rely on the shared 1,000-request/15-minute API ceiling and the global YouTube quota budget. The playlist cache is process-local, so separate API instances can repeat provider work on cache misses. Recommend a smaller route-specific IP limit plus authenticated per-user budget and shared cache/coordination before broad public launch.
+2. **Public review listing is not paginated.** `listReviews(courseId)` queries all approved, visible reviews for the course and returns the full array. It is behind the shared API limiter, but a sufficiently large course review set can still produce a costly query/response. Add bounded pagination or a server-side maximum before increasing traffic.
+3. **Curation feedback is not proven by the rate limiter.** The 120/hour IP ceiling is helpful, but IP rotation can bypass it. The payload currently includes client-supplied event, resource ID, engine version, rank and score; the controller accepts anonymous preview events and does not require a server-issued impression token. SEC-06/SEC-07 remain open: feedback that affects ranking must be bound to an authenticated actor or narrowly constrained anonymous preview, verified against a server-issued impression, deduplicated and idempotent.
+4. **Direct Google config is intentionally global-limited only.** It returns whether Google OAuth is enabled and the public client ID; keep the response limited to those public bootstrap fields.
+
+### Regression tests added for this audit
+
+`server/test/publicEndpointAbuseControls.test.js` checks:
+- the shared limiter is mounted before the public and optional-auth API groups;
+- the only pre-limiter API mounts are the intended lightweight health probes;
+- authentication routes retain their dedicated limiter;
+- discovery feedback is limited before optional authentication/controller processing;
+- YouTube quota admission fails closed if the shared quota store is unavailable; and
+- unsubscribe capability tokens reject tampering, expiry and oversized input.
+
+These are focused registration/contract checks, not a penetration test or proof of production rate-limit settings. Production trust-proxy configuration, request limits and provider quotas still require deployment verification.
+
 No runtime authorization behavior is changed by this document.

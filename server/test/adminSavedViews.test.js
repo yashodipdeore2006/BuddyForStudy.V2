@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { authMiddleware, adminPermissionMiddleware } from "../src/middleware/auth.js";
 import { SavedView } from "../src/models/SavedView.js";
 import { AuditLog } from "../src/models/AuditLog.js";
-import { createSavedView, listSavedViews, updateSavedView } from "../src/controllers/savedView.controller.js";
+import { createSavedView, deleteSavedView, listSavedViews, updateSavedView } from "../src/controllers/savedView.controller.js";
 
 const OWNER_ID = "507f191e810c19729de860ea";
 const VIEW_ID = "507f1f77bcf86cd799439011";
@@ -142,14 +142,45 @@ test("saved-view creation validates input and writes a redacted audit event", as
 
 test("saved views cannot be updated by another administrator", async () => {
   const res = responseRecorder();
+  let capturedFilter;
   let saveCalled = false;
-  await withMocks([[SavedView, { findOne: async () => null }]], async () => {
-    // The controller looks up an owned document and must return before mutating it.
-    await updateSavedView({ params: { viewId: VIEW_ID }, user: { userId: OWNER_ID }, body: { name: "Changed" } }, res, (error) => { throw error; });
+  await withMocks([[SavedView, {
+    findOne: async (filter) => { capturedFilter = filter; return null; }
+  }]], async () => {
+    await updateSavedView({
+      params: { viewId: VIEW_ID },
+      user: { userId: "507f191e810c19729de860eb" },
+      body: { name: "Changed" }
+    }, res, (error) => { throw error; });
+  });
+  assert.deepEqual(capturedFilter, {
+    _id: VIEW_ID,
+    owner: "507f191e810c19729de860eb"
   });
   assert.equal(res.statusCode, 404);
   assert.equal(res.body.success, false);
   assert.equal(saveCalled, false);
+});
+
+test("saved views cannot be deleted by another administrator", async () => {
+  const res = responseRecorder();
+  let capturedFilter;
+  let deleteCalled = false;
+  await withMocks([[SavedView, {
+    findOne: async (filter) => { capturedFilter = filter; return null; }
+  }]], async () => {
+    await deleteSavedView({
+      params: { viewId: VIEW_ID },
+      user: { userId: "507f191e810c19729de860eb" }
+    }, res, (error) => { throw error; });
+  });
+  assert.deepEqual(capturedFilter, {
+    _id: VIEW_ID,
+    owner: "507f191e810c19729de860eb"
+  });
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.success, false);
+  assert.equal(deleteCalled, false);
 });
 
 

@@ -151,6 +151,9 @@ This exercises the actual permission middleware associated with each route but d
 Each negative case asserts HTTP 404 and no course save or mutation. This is a regression test of course/module/child association, not an assertion that admin users are restricted to only the courses they created; the current admin permissions authorize platform-wide course operations according to role.
 
 ### Remaining controller-level scope
+
+`server/test/adminRefundControllerSafety.test.js` adds controller-level state-transition checks: processed refunds are immutable; approved refunds cannot be altered through the ordinary decision endpoint and must use reconciliation; and a rejection that loses the atomic pending-state claim returns 409 without a refund/payment write. These tests deliberately stop before provider calls; they do not validate live Razorpay behavior or exhaustively test reconciliation failure recovery.
+
 `server/test/adminProUserStatusReason.test.js` adds negative controller tests proving that the current administrator cannot deactivate their own account, an administrator account cannot be deactivated through ordinary user management, and the top-level account role cannot be changed through that endpoint. These tests exercise the controller guardrails; they do not replace a full HTTP integration test of the permission middleware plus controller.
 
 

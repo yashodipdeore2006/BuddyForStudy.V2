@@ -157,9 +157,19 @@ export async function generateJourneyStageMetadata(course, baseStages) {
     return baseStages;
   }
 }
-export async function regenerateCourseJourney(courseId, stages = null) {
+export async function regenerateCourseJourney(courseId, stages = null, revisionContext = null) {
   const course = await Course.findById(courseId);
   if (!course || course.deletedAt) return null;
+  if (revisionContext && typeof revisionContext === "object") {
+    course.$locals = course.$locals || {};
+    const actor = revisionContext.actor || null;
+    course.$locals.revisionContext = {
+      actor,
+      source: actor && revisionContext.source === "admin" ? "admin" : "system",
+      reason: String(revisionContext.reason || "Course journey roadmap regeneration").trim().slice(0, 500),
+      summary: String(revisionContext.summary || "Course journey roadmap changed").trim().slice(0, 200)
+    };
+  }
   const baseStages = Array.isArray(stages) ? stages : buildJourneyStages(course.modules || [], []);
   const generated = Array.isArray(stages) ? stages : await generateJourneyStageMetadata(course, baseStages);
   course.roadmap = {

@@ -90,7 +90,14 @@ test("platform setting update uses a versioned filter and rejects a stale write 
       assert.fail(error);
     });
   });
-  assert.deepEqual(writeFilter, { _id: settingId, updatedAt });
+  assert.deepEqual(writeFilter, {
+    _id: settingId,
+    value: false,
+    description: "",
+    isPublic: false,
+    updatedBy: null,
+    updatedAt,
+  });
   assert.equal(res.statusCode, 409);
   assert.equal(auditWriteAttempted, false);
 });
@@ -117,7 +124,15 @@ test("platform setting deletion uses compare-and-delete and rejects a concurrent
       assert.fail(error);
     });
   });
-  assert.deepEqual(deleteFilter, { _id: settingId, key: "maintenance_mode", updatedAt: setting.updatedAt });
+  assert.deepEqual(deleteFilter, {
+    _id: settingId,
+    key: "maintenance_mode",
+    value: true,
+    description: "",
+    isPublic: false,
+    updatedBy: null,
+    updatedAt: setting.updatedAt,
+  });
   assert.equal(res.statusCode, 409);
   assert.equal(auditWriteAttempted, false);
 });

@@ -480,7 +480,7 @@ export async function updateContentApprovalPolicies(req, res, next) {
           const before = CONTENT_APPROVAL_MODES.includes(current?.value) ? current.value : "manual";
           if (before === mode) continue;
           const filter = current
-            ? { _id: current._id, updatedAt: current.updatedAt }
+            ? { _id: current._id, value: current.value, updatedAt: current.updatedAt }
             : { key: definition.key };
           const setting = await PlatformSetting.findOneAndUpdate(
             filter,
@@ -3075,6 +3075,10 @@ export async function deleteSetting(req, res, next) {
     const deleted = await PlatformSetting.deleteOne({
       _id: setting._id,
       key: setting.key,
+      value: setting.value,
+      description: setting.description ?? "",
+      isPublic: setting.isPublic ?? false,
+      updatedBy: setting.updatedBy ?? null,
       updatedAt: setting.updatedAt
     });
     if (deleted.deletedCount !== 1) {
@@ -3113,7 +3117,14 @@ export async function upsertSetting(req, res, next) {
     const isPublic = socialValidation.isSocialSetting ? true : req.body.isPublic === true;
     const current = await PlatformSetting.findOne({ key: settingKey });
     const compareFilter = current
-      ? { _id: current._id, updatedAt: current.updatedAt }
+      ? {
+          _id: current._id,
+          value: current.value,
+          description: current.description ?? "",
+          isPublic: current.isPublic ?? false,
+          updatedBy: current.updatedBy ?? null,
+          updatedAt: current.updatedAt
+        }
       : { key: settingKey };
     const setting = await PlatformSetting.findOneAndUpdate(
       compareFilter,

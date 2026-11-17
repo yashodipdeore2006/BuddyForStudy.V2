@@ -303,3 +303,49 @@ test("Build with AI enables adaptive onboarding only through the VITE_INTENT_V2 
   assert.match(courses, /Based on returned resource metadata; not a verification of video content/);
   assert.doesNotMatch(courses, /Verified video runtime/);
 });
+
+
+test("Build with AI adaptive questions remain optional and can be skipped without blocking progress", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  const intentTests = fs.readFileSync(path.join(root, "../server/src/services/intent.service.test.js"), "utf8");
+  const questionPacks = fs.readFileSync(path.join(root, "src/data/buildWithAiQuestionPacks.ts"), "utf8");
+
+  assert.ok(courses.includes("question.optional && <span className="), "optional questions must be identified in the interface");
+  assert.ok(courses.includes('trackIntentQuestionEvent(question, "skipped", index)'), "continuing must record unanswered optional questions as skipped");
+  assert.ok(courses.includes("setIntentWizardStep((step) => Math.min(4, step + 1))"), "skipping must still advance the wizard");
+  assert.ok(questionPacks.includes("Not sure, pick for me"), "question packs must offer a safe unsure choice");
+  assert.match(intentTests, /all questions can be skipped and legacy goal mapping stays compatible/);
+  assert.match(intentTests, /provider outage and malformed JSON failures return a safe uncached fallback/);
+});
+
+test("Build with AI review controls pass edited learner profile fields to roadmap generation", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  const labels = [
+    "Learning goal",
+    "Current experience",
+    "Course depth",
+    "Study minutes per day",
+    "Study days per week",
+    "Skills you already know",
+    "Resource languages"
+  ];
+  for (const label of labels) assert.ok(courses.includes(label), "missing editable review field: " + label);
+
+  assert.ok(courses.includes('markIntentAnswer("knownSkills", event.target.value)'), "known skills must be editable");
+  assert.ok(courses.includes('markIntentAnswer("studyDays", event.target.value + " days")'), "study days must be editable");
+  assert.ok(courses.includes("setAiResourceLanguages((current) =>"), "resource language selection must be editable");
+
+  const generateStart = courses.indexOf("const generateAiRoadmap = async () =>");
+  const profileStart = courses.indexOf("const profile = {", generateStart);
+  const requestStart = courses.indexOf("setAiLoading(true)", profileStart);
+  assert.ok(generateStart >= 0 && profileStart > generateStart && requestStart > profileStart, "expected the editable profile to be assembled before the roadmap request");
+  const profilePayload = courses.slice(profileStart, requestStart);
+
+  assert.match(profilePayload, /studyTimeMinutesPerDay: studyMinutes/);
+  assert.match(profilePayload, /language: preferredLanguage/);
+  assert.match(profilePayload, /knownSkills/);
+  assert.match(profilePayload, /studyDays: String\(studyDaysPerWeek\)/);
+  assert.match(profilePayload, /resourceLanguages: effectiveLanguages\.join\(","\)/);
+  assert.match(profilePayload, /targetRole: selectedRole/);
+  assert.match(profilePayload, /targetCompany: selectedCompany/);
+});

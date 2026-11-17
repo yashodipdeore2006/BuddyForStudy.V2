@@ -123,3 +123,43 @@ Authentication also has complementary per-OTP controls: one-time codes expire af
 These are focused registration/contract checks, not a penetration test or proof of production rate-limit settings. Production trust-proxy configuration, request limits and provider quotas still require deployment verification.
 
 No runtime authorization behavior is changed by this document.
+
+
+## Admin permission denial and nested resource-boundary tests (2026-11-17)
+
+### Admin route denial matrix
+
+`server/test/adminAllRouterPermissionDenial.test.js` adds runtime middleware-level negative authorization checks across the six admin-capable routers (`admin`, `adminPro`, `curriculum`, `adminPricing`, `adminTrials`, and `savedView`):
+
+- Reconciles 139 registered Express route declarations with their literal permission declarations and mounted permission handlers.
+- Checks every protected permission middleware against each of the six supported administrator profiles.
+- Confirms that a catalogued permission override is honored, while an unknown role remains denied even with a forged wildcard override.
+- Confirms ordinary-user principals, mismatched access types and unknown roles are denied with HTTP 403.
+- Confirms router-level authentication and admin-role middleware are mounted on each router; `GET /access` remains the single documented self-access exception.
+
+This exercises the actual permission middleware associated with each route but does not execute every controller or prove that every side effect is safe.
+
+### Admin nested course-content boundaries
+
+`server/test/adminCourseContentDeletion.test.js` now checks that nested identifiers cannot cross their parent boundaries:
+
+- A module ID that does not belong to the selected course is rejected.
+- A lesson ID that exists under a different module is rejected when paired with the wrong module ID.
+- A resource ID that exists under a different module is rejected when paired with the wrong module ID.
+- A module ID paired with a different course ID is rejected.
+
+Each negative case asserts HTTP 404 and no course save or mutation. This is a regression test of course/module/child association, not an assertion that admin users are restricted to only the courses they created; the current admin permissions authorize platform-wide course operations according to role.
+
+### Remaining controller-level scope
+
+The route-permission matrix and these nested-content checks do not finish P1-05. Continue verifying high-impact side effects and actor/resource boundaries, including:
+
+- admin user status, feature override and role changes (including self-change and last-active-administrator safety);
+- payment/refund state changes, reconciliation and notification ownership;
+- administrative course lifecycle, publish/rollback and revisions;
+- background operations where the actor or resource identifier crosses into a service/job;
+- learner-owned resource endpoints with two-user negative tests.
+
+Public-endpoint abuse gaps SEC-06/SEC-07, unbounded review listing, and discovery search/playlist route-specific throttling remain separately open.
+
+CI verification for the nested-content test revision must pass before its evidence is marked complete. No runtime authorization behavior is changed by these tests or this inventory update.

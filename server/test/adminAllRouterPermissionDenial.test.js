@@ -124,7 +124,7 @@ test("every mounted admin permission gate denies roles outside its permission pr
         assert.equal(result.nextCalled, allowedByProfile, entry.name + " " + key + " " + role);
         if (!allowedByProfile) {
           assert.equal(result.statusCode, 403, entry.name + " " + key + " " + role + " must be denied");
-          assert.equal(result.body?.details?.requiredPermission, permission);
+          assert.equal(result.body?.errors?.requiredPermission, permission);
         }
         checked += 1;
       }

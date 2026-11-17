@@ -3040,7 +3040,14 @@ export async function deleteSetting(req, res, next) {
       valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
       isPublic: setting.isPublic
     };
-    await setting.deleteOne();
+    const deleted = await PlatformSetting.deleteOne({
+      _id: setting._id,
+      key: setting.key,
+      updatedAt: setting.updatedAt
+    });
+    if (deleted.deletedCount !== 1) {
+      return failure(res, "This platform setting changed concurrently. Refresh and try again.", 409);
+    }
     await audit(req, "setting.deleted", "PlatformSetting", setting._id, metadata, null, reason);
     return success(res, { deleted: true, key: setting.key }, "Setting deleted");
   } catch (e) { next(e); }
@@ -3062,25 +3069,41 @@ export async function upsertSetting(req, res, next) {
       return failure(res, "Social media links must remain public so the footer and Contact page can display them.", 400);
     }
 
+    if (req.body?.isPublic !== undefined && typeof req.body.isPublic !== "boolean") {
+      return failure(res, "isPublic must be a boolean.", 400);
+    }
+    const description = req.body?.description === undefined ? "" : req.body.description;
+    if (typeof description !== "string" || description.length > 500) {
+      return failure(res, "description must be a string of 500 characters or fewer.", 400);
+    }
+
     const value = socialValidation.isSocialSetting ? socialValidation.value : req.body.value;
-    const isPublic = socialValidation.isSocialSetting ? true : Boolean(req.body.isPublic);
+    const isPublic = socialValidation.isSocialSetting ? true : req.body.isPublic === true;
     const current = await PlatformSetting.findOne({ key: settingKey });
-    const before = current?.value ?? null;
+    const compareFilter = current
+      ? { _id: current._id, updatedAt: current.updatedAt }
+      : { key: settingKey };
     const setting = await PlatformSetting.findOneAndUpdate(
-      { key: settingKey },
-      { $set: { value, description: req.body.description || "", isPublic, updatedBy: req.user.user._id } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      compareFilter,
+      { $set: { value, description, isPublic, updatedBy: req.user.user._id } },
+      { upsert: !current, new: true, setDefaultsOnInsert: true }
     );
+    if (!setting) return failure(res, "This platform setting changed concurrently. Refresh and try again.", 409);
+
     await audit(req, "setting.updated", "PlatformSetting", setting._id, {
-      valueChanged: true,
-      valueType: before === null ? "null" : Array.isArray(before) ? "array" : typeof before
+      exists: Boolean(current),
+      valueType: current?.value === null || current?.value === undefined ? "null" : Array.isArray(current.value) ? "array" : typeof current.value,
+      isPublic: current?.isPublic === true
     }, {
-      valueChanged: true,
+      exists: true,
       valueType: setting.value === null ? "null" : Array.isArray(setting.value) ? "array" : typeof setting.value,
       isPublic: setting.isPublic
     }, reason);
     return success(res, { setting }, "Setting updated");
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e?.code === 11000) return failure(res, "This platform setting was created concurrently. Refresh and try again.", 409);
+    next(e);
+  }
 }
 
 export async function coupons(req, res, next) {

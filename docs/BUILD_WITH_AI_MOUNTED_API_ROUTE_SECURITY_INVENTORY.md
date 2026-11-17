@@ -195,3 +195,31 @@ These tests verify selected controller guardrails and do not replace end-to-end 
 The checks are source-contract regression tests alongside the existing service-level permission-routing, retry-pipeline, announcement scheduling and delivery-outbox tests. They are not an end-to-end test of every admin controller, external mail/push provider, or production worker deployment. No runtime code was changed in this step.
 
 P1-05 remains open: the remaining mounted-route/controller scope and previously recorded public API abuse-control gaps still need their own acceptance evidence. Full CI and secret-scan results for the new test commit must pass before this evidence is treated as validated.
+
+### Admin-triggered course mutation provenance (2026-11-17)
+
+The admin resource-recovery and course-journey mutation paths were traced into the Course revision hook. Both persisted the course change without an admin revision context, so `CourseRevision.changedBy` was null and `changeSource` defaulted to `system`, despite the operation having been initiated by an authenticated administrator.
+
+The provenance path is now explicit:
+
+- `fillMissingCourseResources` passes the authenticated administrator ID, `source: "admin"`, and a bounded operation reason into `recoverCourseMissingResources` / `recoverMissingTutorialResources`. When recovery changes and saves modules, the resulting Course revision records the administrator as `changedBy`, labels the change `admin`, and carries the recovery reason.
+- Admin course-journey edit and regenerate controllers pass the authenticated administrator ID and admin revision context into `regenerateCourseJourney`. The course save therefore records the correct administrator in CourseRevision as well as the separate audit-outbox event.
+- Automatic/on-demand course-journey refreshes continue to call `regenerateCourseJourney` without an admin context. Those revisions intentionally retain the existing `system` default rather than impersonating a human administrator.
+- The resource-recovery endpoint and both course-journey endpoints remain protected by named `courses.manage` permission middleware and the router-level authentication/admin gates.
+
+Regression evidence:
+- `server/test/courseResourceRecovery.test.js` verifies both system-default attribution and administrator attribution when resource recovery writes a course.
+- `server/test/courseJourneyRoadmap.test.js` verifies admin revision context is persisted by the service and that automatic regeneration leaves attribution to the system default.
+- `server/test/adminCourseBackgroundAttribution.test.js` checks that controller call sites forward the authenticated actor, reason and source, and reconciles all three admin endpoints with `courses.manage` route protection.
+- Existing announcement, notification-retry and audit-outbox tests cover the complementary worker paths: persisted announcement creator propagation to per-recipient notifications, deterministic event keys/leases, retry actor and reason history, stable audit event IDs and idempotent outbox replay.
+
+These course operations execute within their admin HTTP requests; they are not separately queued worker jobs. The actual scheduled announcement and audit-outbox jobs run in the worker and retain their originating actor through persisted campaign/audit data. The changes in this section do not claim that a production worker deployment or external provider delivery has been verified.
+
+Verification on code head `d762e68c7082b5192adb6dbbcf4fe56526b93d6d`:
+- Backend suite: **973 passed, 0 failed**.
+- Backend lint, production-config preflight, selector comparison and JavaScript syntax checks passed.
+- Frontend lint, typecheck, unit tests, Vercel config tests, production build and browser navigation smoke tests passed.
+- Production release gate passed.
+- Secret scan passed.
+
+No public runtime behavior was changed outside preserving correct revision attribution for the two admin-triggered course mutation paths.

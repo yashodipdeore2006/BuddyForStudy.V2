@@ -24,7 +24,7 @@ export interface TutorialContent {
   content: string;
   videoUrl?: string;
   resourceUrl?: string;
-  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; durationSeconds?: number; duration?: string; relevanceScore?: number }>;
+  videos?: Array<{ title?: string; url?: string; videoId?: string; thumbnail?: string; channelTitle?: string; durationSeconds?: number; duration?: string; defaultAudioLanguage?: string; relevanceScore?: number }>;
   resources?: Array<{ title?: string; url?: string; type?: string }>;
 }
 

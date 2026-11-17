@@ -98,7 +98,14 @@ type AiModule = {
   lessons?: AiLesson[];
 };
 
+type AiSkillGraphNode = {
+  id: string;
+  name: string;
+  prerequisites?: string[];
+};
+
 type AiRoadmap = {
+  skillGraph?: AiSkillGraphNode[];
   query?: string;
   status?: string;
   draftId?: string;
@@ -1660,8 +1667,16 @@ export default function Courses() {
             </div>
 
             <div className="space-y-3">
-              {(aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
+              {(() => {
+                const skillGraphById = new Map((aiRoadmap.skillGraph || []).map((skill) => [skill.id, skill]));
+                return (aiRoadmap.course.modules || []).map((module, moduleIndex: number) => {
                 const expanded = expandedAiModules.has(moduleIndex);
+                const prerequisiteIds = module.title === "Final Capstone Projects"
+                  ? []
+                  : Array.from(new Set((module.skillIds || []).flatMap((skillId) => skillGraphById.get(skillId)?.prerequisites || [])));
+                const prerequisiteNames = prerequisiteIds.map((skillId) =>
+                  skillGraphById.get(skillId)?.name || skillId.replace(/[-_]+/g, " ")
+                );
                 const lessons = module.lessons || [];
                 const tutorialCount = lessons.filter((lesson) => lesson.type === 'tutorial').length;
                 const quizCount = lessons.filter((lesson) => lesson.type === 'quiz').length;
@@ -1679,6 +1694,7 @@ export default function Courses() {
                         <span className="block font-bold text-slate-900">{module.title}</span>
                         <span className="mt-1 block text-xs text-slate-500">{lessons.length} activities · {tutorialCount} tutorials · {quizCount} quizzes · {projectCount} projects</span>
                         {module.description && <span className="mt-1 block text-xs leading-5 text-slate-500">{module.description}</span>}
+                        {prerequisiteNames.length > 0 && <span className="mt-1 block text-xs font-semibold text-indigo-700">Prerequisites: {prerequisiteNames.join(", ")}</span>}
                       </span>
                       {expanded ? <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-500" /> : <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-500" />}
                     </button>
@@ -1707,6 +1723,7 @@ export default function Courses() {
                                     {videos.slice(0, 3).map((video) => (
                                       <div key={video.videoId || video.url || video.title} className="rounded-xl bg-slate-50 p-2.5">
                                         <a href={video.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:underline"><Play className="h-3 w-3 flex-shrink-0" /><span className="line-clamp-2">{video.title || 'Open tutorial video'}</span></a>
+                                        {video.defaultAudioLanguage && <span className="mt-2 inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-700">YouTube audio metadata: {BUILD_WITH_AI_LANGUAGES.find((language) => language.code === String(video.defaultAudioLanguage).split("-")[0].toLowerCase())?.label || video.defaultAudioLanguage}</span>}
                                         {video.videoId && <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                                           {(["helpful", "outdated", "wrong_level"] as const).map((event) => (
                                             <button key={event} type="button" disabled={Boolean(curationFeedbackSent[video.videoId!])} onClick={() => void sendCurationFeedback(event, module, video)} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-semibold text-slate-600 hover:border-blue-300 hover:text-blue-700 disabled:opacity-60">
@@ -1726,7 +1743,8 @@ export default function Courses() {
                     )}
                   </div>
                 );
-              })}
+                });
+              })()}
             </div>
 
             {aiEnrollError && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{aiEnrollError}</div>}

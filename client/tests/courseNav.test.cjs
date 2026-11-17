@@ -305,6 +305,20 @@ test("Build with AI enables adaptive onboarding only through the VITE_INTENT_V2 
 });
 
 
+test("Build with AI previews prerequisite relationships and selected video audio-language metadata", () => {
+  const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
+  const types = fs.readFileSync(path.join(root, "src/types/index.ts"), "utf8");
+
+  assert.match(courses, /skillGraph\?: AiSkillGraphNode\[\]/);
+  assert.match(courses, /skillGraphById\.get\(skillId\)\?\.prerequisites/);
+  assert.match(courses, /Prerequisites:/);
+  assert.match(courses, /YouTube audio metadata:/);
+  assert.match(courses, /video\.defaultAudioLanguage/);
+  assert.match(types, /defaultAudioLanguage\?: string/);
+  assert.match(courses, /Based on returned resource metadata; not a verification of video content/);
+});
+
+
 test("Build with AI adaptive questions remain optional and can be skipped without blocking progress", () => {
   const courses = fs.readFileSync(path.join(root, "src/pages/Courses.tsx"), "utf8");
   const intentTests = fs.readFileSync(path.join(root, "../server/src/services/intent.service.test.js"), "utf8");

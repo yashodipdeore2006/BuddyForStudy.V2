@@ -31,7 +31,7 @@ test("admin notification and email campaigns bind each recipient event to the au
   ]) {
     assert.match(handler, /verifyAdminAudiencePreviewToken/);
     assert.match(handler, /userId: String\(user\._id\)/);
-    assert.match(handler, new RegExp(`eventKey: \\`?${eventPrefix}:`));
+    assert.ok(handler.includes("eventKey: `" + eventPrefix + ":"));
     assert.match(handler, new RegExp(`source: "${sourceName}"`));
     assert.match(handler, /initiatedBy: String\(req\.user\.user\._id\)/);
     assert.doesNotMatch(handler, /initiatedBy:\s*req\.body|actorId:\s*req\.body|sentBy:\s*req\.body/i);

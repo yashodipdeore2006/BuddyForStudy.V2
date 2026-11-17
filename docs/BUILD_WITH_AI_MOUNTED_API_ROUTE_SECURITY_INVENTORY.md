@@ -168,3 +168,16 @@ The route-permission matrix and these nested-content checks do not finish P1-05.
 Public-endpoint abuse gaps SEC-06/SEC-07, unbounded review listing, and discovery search/playlist route-specific throttling remain separately open.
 
 CI verification for the nested-content test revision must pass before its evidence is marked complete. No runtime authorization behavior is changed by these tests or this inventory update.
+
+
+### Course lifecycle and revision boundary tests (2026-11-17)
+
+`server/test/adminCourseLifecycleRevisionSafety.test.js` adds controller-level regression checks for the administrative course lifecycle:
+
+- Revision listing is filtered by the requested course and bounded to the most recent 100 records; unknown courses do not trigger a revision query.
+- Rollback rejects malformed course/revision IDs and short audit reasons before database lookups.
+- A revision ID that does not belong to the requested course is treated as not found; the course document is not set, saved or otherwise mutated.
+- Direct publishing rejects deleted courses and learner-private courses without publishing or saving them.
+- The generic lifecycle status endpoint cannot set `published`; publication must pass through the separate readiness-gated action.
+
+These tests verify selected controller guardrails and do not replace end-to-end integration testing of revision creation, rollback persistence, cache invalidation, audit delivery or production publication readiness. They also do not impose creator-only ownership on global administrative course operations; route permission is still the authorization boundary for those platform-wide actions.

@@ -172,7 +172,8 @@ export async function syncPendingProgressForAccount(accountIdValue: string): Pro
       }
 
       const responseResults = Array.isArray(response?.results) ? response.results : [];
-      const resultsById = new Map(responseResults.map((entry) => [entry.operationId, entry]));
+      const resultsById = new Map<string, ServerOperationResult>();
+      for (const entry of responseResults) resultsById.set(entry.operationId, entry);
       const removeIds: string[] = [];
       const blocked: Array<{ operationId: string; errorCode: string; message: string }> = [];
       const retrying: Array<{ operation: ProgressQueueOperation; message: string; delay?: number }> = [];

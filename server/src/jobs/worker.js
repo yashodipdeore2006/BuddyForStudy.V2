@@ -8,11 +8,14 @@ const announcementIntervalMs = 30 * 1000;
 const orchestrator = createMaintenanceOrchestrator();
 
 let maintenanceHandle;
+let stopping = false;
 let heartbeatHandle;
 let heartbeatInProgress = Promise.resolve();
 let announcementHandle;
 
 async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
   console.info("[worker] received " + signal + "; stopping maintenance scheduler");
   orchestrator.stop();
   if (maintenanceHandle) clearInterval(maintenanceHandle);

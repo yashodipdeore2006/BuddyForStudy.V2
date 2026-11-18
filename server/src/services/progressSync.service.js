@@ -59,11 +59,13 @@ export function hashProgressSyncOperation(operation) {
 function publicFailureFor(error) {
   const status = Number(error?.status || error?.statusCode || 500);
   if (status === 403) {
+    // Keep the receipt retryable: the learner may restore enrollment or plan
+    // access before manually retrying the same immutable operationId.
     return {
-      status: "rejected",
+      status: "retryable",
       errorStatus: 403,
       errorCode: "COURSE_ACCESS_DENIED",
-      message: "Your access to this course has changed. Open the course and confirm your access before retrying."
+      message: "Your access to this course has changed. Restore course access before retrying."
     };
   }
   if (status === 404) {

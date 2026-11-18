@@ -208,3 +208,51 @@ test("inline scheduler rejects invalid owner identity and incompatible orchestra
   assert.throws(() => createInlineBackgroundScheduler({ ownerId: "" }), /ownerId/);
   assert.throws(() => createInlineBackgroundScheduler({ orchestrator: {} }), /maintenance orchestrator/);
 });
+
+
+test("inline shutdown drains an in-flight heartbeat before recording stopping", async () => {
+  const fakeTimers = createFakeTimers();
+  const heartbeatStatuses = [];
+  let releasePulse;
+  let pulseStartedResolve;
+  const pulseStarted = new Promise((resolve) => { pulseStartedResolve = resolve; });
+  const pulseGate = new Promise((resolve) => { releasePulse = resolve; });
+  let heartbeatCall = 0;
+
+  const scheduler = createInlineBackgroundScheduler({
+    ownerId: "api-instance-heartbeat-drain",
+    orchestrator: createOrchestrator(),
+    ...fakeTimers,
+    dependencies: {
+      async heartbeatWorker(status) {
+        heartbeatStatuses.push(status);
+        heartbeatCall += 1;
+        if (heartbeatCall === 2) {
+          pulseStartedResolve();
+          await pulseGate;
+        }
+      },
+      async markWorkerStopping() { heartbeatStatuses.push("stopping"); },
+      async acquireJobLease() { return null; },
+      async isJobLeaseOwned() { return false; },
+      async renewJobLease() { return null; },
+      async releaseJobLease() { return false; }
+    },
+    logger: { info() {}, warn() {}, error() {} }
+  });
+
+  await scheduler.start();
+  await waitForIdle(scheduler);
+  const heartbeatTimer = fakeTimers.timers.find((timer) => timer.intervalMs === INLINE_HEARTBEAT_INTERVAL_MS);
+  assert.ok(heartbeatTimer);
+  heartbeatTimer.callback();
+  await pulseStarted;
+
+  const stopPromise = scheduler.stop();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(heartbeatStatuses.includes("stopping"), false);
+
+  releasePulse();
+  await stopPromise;
+  assert.deepEqual(heartbeatStatuses, ["running", "running", "stopping", "stopped"]);
+});

@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 test("inline maintenance invokes only bounded handlers and leaves full scans to standalone mode", async () => {
   const source = (await readFile(new URL("../src/jobs/maintenanceOrchestrator.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
   const start = source.indexOf("async function runInlineMaintenance");
-  const end = source.indexOf("async function runMaintenance()", start);
+  const end = source.indexOf("async function runMaintenance(", start);
   assert.ok(start >= 0 && end > start, "inline and standalone maintenance handlers should be separate");
   const inline = source.slice(start, end);
 

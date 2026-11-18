@@ -120,3 +120,45 @@ test("the IndexedDB v1-to-v2 upgrade adds schemaVersion without discarding saved
   assert.match(queue, /includeDeferred === true/);
   assert.match(queue, /operation.status === "blocked"/);
 });
+
+
+test("authenticated sync batches keep the account identity out of the payload", async () => {
+  const syncClient = await readFile(new URL("../src/lib/progressSyncClient.ts", import.meta.url), "utf8");
+  const api = await readFile(new URL("../src/lib/api.ts", import.meta.url), "utf8");
+  assert.match(syncClient, /apiFetch\("\/api\/progress\/sync"/);
+  assert.match(syncClient, /expectedAccountId:\s*accountId/);
+  assert.match(syncClient, /operationId:\s*operation\.operationId/);
+  assert.match(syncClient, /schemaVersion:\s*operation\.schemaVersion/);
+  assert.match(syncClient, /clientSequence:\s*operation\.sequence/);
+  assert.doesNotMatch(syncClient.slice(syncClient.indexOf("const payload ="), syncClient.indexOf("let response:")), /accountId:/);
+  assert.match(api, /getStoredUserId\(\) !== expectedAccountId/);
+});
+
+test("cross-tab sync lock is scoped by account and only its owner may release it", async () => {
+  const queue = await readFile(new URL("../src/lib/offlineProgressQueue.ts", import.meta.url), "utf8");
+  assert.match(queue, /"sync-lock:" \+ accountId/);
+  assert.match(queue, /current\.ownerId !== owner/);
+  assert.match(queue, /request\.result\?\.ownerId !== owner/);
+  assert.match(queue, /export async function acquireProgressSyncLock/);
+  assert.match(queue, /export async function renewProgressSyncLock/);
+  assert.match(queue, /export async function releaseProgressSyncLock/);
+});
+
+test("authenticated startup, reconnect, foreground and manual retry all request queue synchronization", async () => {
+  const auth = await readFile(new URL("../src/context/AuthContext.tsx", import.meta.url), "utf8");
+  const serviceWorker = await readFile(new URL("../src/lib/serviceWorker.ts", import.meta.url), "utf8");
+  assert.match(auth, /syncPendingProgressForAccount\(accountId\)/);
+  assert.match(auth, /runSync\(\);/);
+  assert.match(serviceWorker, /window\.addEventListener\("online"/);
+  assert.match(serviceWorker, /BFS_PROGRESS_SYNC_REQUESTED/);
+  assert.match(auth, /visibilitychange/);
+});
+
+test("manual recovery distinguishes retryable blocked records from permanent blocked records", async () => {
+  const queue = await readFile(new URL("../src/lib/offlineProgressQueue.ts", import.meta.url), "utf8");
+  const player = await readFile(new URL("../src/pages/CoursePlayer.tsx", import.meta.url), "utf8");
+  assert.match(queue, /"LEARNING_PROGRESS_NOT_INCLUDED", "COURSE_ACCESS_DENIED"/);
+  assert.match(queue, /export async function discardBlockedProgressOperations/);
+  assert.match(player, /retryBlockedProgressOperations\(accountId, courseId\)/);
+  assert.match(player, /discardBlockedProgressOperations\(accountId, courseId\)/);
+});

@@ -10,6 +10,8 @@ envVarGroups:
         value: "1"
       - key: BACKGROUND_WORKER_MODE
         value: inline
+      - key: PAYMENTS_ENABLED
+        value: "false"
       - key: JWT_EXPIRES_IN
         value: 7d
       - key: USE_CURATION_ENGINE_FOR_AI
@@ -68,12 +70,6 @@ services:
       - key: GEMINI_MODEL
         value: gemini-3.8-flash
       - key: YOUTUBE_API_KEY
-        sync: false
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
       - key: SMTP_HOST
         sync: false

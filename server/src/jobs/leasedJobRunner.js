@@ -17,6 +17,7 @@ export function createLeasedJobRunner({
   ownerId = String(process.pid) + ":" + crypto.randomUUID(),
   leaseDurationMs = DEFAULT_JOB_LEASE_DURATION_MS,
   leaseRenewalIntervalMs = DEFAULT_JOB_LEASE_RENEWAL_INTERVAL_MS,
+  ownershipCheckIntervalMs = 1000,
   dependencies = {},
   logger = console,
   setIntervalFn = setInterval,
@@ -38,6 +39,9 @@ export function createLeasedJobRunner({
   if (!Number.isSafeInteger(leaseRenewalIntervalMs) || leaseRenewalIntervalMs < 250 ||
       leaseRenewalIntervalMs >= leaseDurationMs) {
     throw new RangeError("leaseRenewalIntervalMs must be an integer below the lease duration and at least 250.");
+  }
+  if (!Number.isSafeInteger(ownershipCheckIntervalMs) || ownershipCheckIntervalMs < 100 || ownershipCheckIntervalMs > 30_000) {
+    throw new RangeError("ownershipCheckIntervalMs must be an integer between 100 and 30000.");
   }
 
   let stopping = false;
@@ -61,6 +65,8 @@ export function createLeasedJobRunner({
     const identity = { jobKey, ownerId: normalizedOwnerId, leaseToken: lease.leaseToken };
     let leaseLost = false;
     let renewalPromise = null;
+    let lastOwnershipCheckAt = 0;
+    let lastOwnershipResult = true;
 
     const markLost = (reason) => {
       if (leaseLost) return;
@@ -92,11 +98,22 @@ export function createLeasedJobRunner({
 
     const shouldContinue = async () => {
       if (stopping || leaseLost) return false;
+
+      // Scans may ask for a checkpoint for every record. Cache a successful
+      // ownership read briefly so those checkpoints do not become one MongoDB
+      // round trip per record. Lease renewal still runs independently.
+      const checkedAt = Date.now();
+      if (lastOwnershipCheckAt && checkedAt - lastOwnershipCheckAt < ownershipCheckIntervalMs) {
+        return lastOwnershipResult;
+      }
+
+      lastOwnershipCheckAt = checkedAt;
       try {
-        const owned = await checkLease(identity);
-        if (!owned) markLost("ownership_check_failed");
-        return owned;
+        lastOwnershipResult = Boolean(await checkLease(identity));
+        if (!lastOwnershipResult) markLost("ownership_check_failed");
+        return lastOwnershipResult;
       } catch (error) {
+        lastOwnershipResult = false;
         markLost(error?.code || error?.name || "ownership_check_error");
         return false;
       }

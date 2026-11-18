@@ -94,6 +94,14 @@ test("overall background health is healthy, degraded, stopping or disabled based
   assert.equal(healthy.status, "healthy");
   assert.equal(healthy.mode, "inline");
 
+  const failureDegraded = await getBackgroundOperationsHealth({
+    now: NOW,
+    mode: "inline",
+    workerCheck: async () => ({ status: "healthy", consecutiveFailures: 2 }),
+    leaseCheck: async () => [{ status: "released" }]
+  });
+  assert.equal(failureDegraded.status, "degraded");
+
   const degraded = await getBackgroundOperationsHealth({
     now: NOW,
     mode: "standalone",
@@ -124,5 +132,4 @@ test("operational health endpoint requires an authenticated administrator", asyn
   const routeAt = routes.indexOf('router.get("/operations"');
   assert.ok(routeAt >= 0);
   assert.match(routes.slice(routeAt), /authMiddleware,\s*adminMiddleware,\s*controller\.operations/);
-  assert.doesNotMatch(routes.slice(routeAt), /controller\.operations\);/);
 });

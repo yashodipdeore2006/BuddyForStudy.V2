@@ -732,7 +732,8 @@ export default function CoursePlayer() {
         });
     };
     window.addEventListener("bfs:progress-queue-updated", refreshPendingCount);
-    refreshPendingCount();
+    // Initial course loading already fetched the authoritative progress snapshot
+    // and queue counts. Refresh from the server only after a queue mutation.
     return () => {
       cancelled = true;
       window.removeEventListener("bfs:progress-queue-updated", refreshPendingCount);

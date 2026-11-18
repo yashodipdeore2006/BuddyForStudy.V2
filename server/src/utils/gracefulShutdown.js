@@ -8,6 +8,7 @@ export function createGracefulShutdown({
   disconnect,
   clearTimers = () => {},
   beforeClose = async () => {},
+  beforeCloseTimeoutMs,
   timeoutMs = 10_000,
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
@@ -28,7 +29,29 @@ export function createGracefulShutdown({
     shutdownPromise = (async () => {
       logger.info?.("[server] graceful shutdown started", { signal });
       clearTimers();
-      await beforeClose();
+
+      let beforeCloseTimer;
+      const beforeCloseResult = await Promise.race([
+        Promise.resolve()
+          .then(beforeClose)
+          .then(() => ({ completed: true }), (error) => ({ completed: false, error })),
+        new Promise((resolve) => {
+          beforeCloseTimer = setTimeoutFn(
+            () => resolve({ timedOut: true }),
+            Math.max(1, Number(beforeCloseTimeoutMs ?? timeoutMs) || 10_000)
+          );
+          beforeCloseTimer?.unref?.();
+        })
+      ]);
+      if (beforeCloseTimer) clearTimeoutFn(beforeCloseTimer);
+      if (beforeCloseResult?.timedOut) {
+        logger.warn?.("[server] background shutdown deadline reached; continuing with process shutdown");
+      } else if (beforeCloseResult?.completed === false) {
+        logger.warn?.("[server] background shutdown hook failed; continuing with process shutdown", {
+          name: beforeCloseResult.error?.name || "Error",
+          code: beforeCloseResult.error?.code
+        });
+      }
 
       let forceCloseTimer;
       const closed = new Promise((resolve, reject) => {

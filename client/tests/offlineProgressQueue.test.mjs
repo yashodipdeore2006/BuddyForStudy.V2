@@ -113,7 +113,7 @@ test("a rejected operation blocks later operations for the same course until man
 test("the IndexedDB v1-to-v2 upgrade adds schemaVersion without discarding saved operations", async () => {
   const queue = await readFile(new URL("../src/lib/offlineProgressQueue.ts", import.meta.url), "utf8");
   assert.match(queue, /const DATABASE_VERSION = 2/);
-  assert.match(queue, /request.onupgradeneeded = (event)/);
+  assert.match(queue, /request.onupgradeneeded = \(event\)/);
   assert.match(queue, /if (event.oldVersion < 2/);
   assert.match(queue, /operation.schemaVersion = 1/);
   assert.match(queue, /cursor.update(operation)/);

@@ -84,7 +84,7 @@ Render's Blueprint deliberately does not commit credentials. Complete every `syn
 | `TRUST_PROXY_HOPS` | Blueprint sets `1` for the Render proxy topology. Confirm the actual trusted proxy chain before changing it; do not use blanket trust. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | Required for production email-based authentication and transactional messages. Verify the sender/domain and TLS mode with the chosen mail provider. |
 | `PAYMENTS_ENABLED` | Keep `false` until payment-provider onboarding and payment flows are ready. |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Required only when `PAYMENTS_ENABLED=true`. Use live-mode credentials in production; never use test credentials in the production environment. |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Add these API environment variables only when `PAYMENTS_ENABLED=true`. Use live-mode credentials in production; never use test credentials in the production environment. |
 | `GOOGLE_CLIENT_ID` | Google OAuth Web Client ID. Add the exact frontend origin to Authorized JavaScript origins in Google Cloud Console. |
 | `GEMINI_API_KEY` | Required for live Gemini-backed generation; keep it server-side. |
 | `YOUTUBE_API_KEY` | Required for live YouTube search/curation; restrict it to the YouTube Data API and monitor quota. |
@@ -103,7 +103,7 @@ After the API has a stable HTTPS hostname:
 1. Set Vercel `VITE_API_URL` to that API origin and redeploy the frontend.
 2. Set Render `CLIENT_URL` to the final Vercel custom-domain origin and `API_URL` to the Render API origin.
 3. In Google Cloud Console, allow the exact frontend origin for the Web OAuth client; use the same client ID on frontend and API.
-4. In Razorpay, configure the webhook URL as `https://<api-host>/api/webhooks/razorpay`, subscribe to the payment/subscription/refund events implemented by the server, and store the webhook secret only in Render.
+4. When payments are enabled, configure the Razorpay webhook URL as `https://<api-host>/api/webhooks/razorpay`, subscribe to the payment/subscription/refund events implemented by the server, and store the webhook secret only in Render.
 5. Verify SMTP delivery with the provider's test message and the application's email OTP flow.
 6. Configure VAPID only when browser push is part of the launch scope. Keep the VAPID private key exclusively in Render.
 7. If Redis is enabled, use TLS and authentication. The production validator rejects non-TLS or unauthenticated Redis URLs.
@@ -135,7 +135,7 @@ After deploy, verify:
 - Admin → Operations shows a recent worker heartbeat and no stale maintenance failure.
 - Signup, email OTP, login, Google OAuth, password reset and expired-session behavior work.
 - Public catalog, learner course enrollment, lesson completion, saved courses, notifications and admin permission boundaries work.
-- Razorpay sandbox/live-mode checkout and webhook signatures reconcile exactly once; test refunds only in the appropriate provider environment.
+- When `PAYMENTS_ENABLED=true`, verify Razorpay sandbox/live-mode checkout and webhook signatures reconcile exactly once; test refunds only in the appropriate provider environment.
 - Email and (if enabled) browser push deliver successfully; worker retries and notification outbox reconciliation are visible.
 - Build with AI and YouTube quota behavior are checked with an intentionally conservative test budget before enabling any rollout flags.
 

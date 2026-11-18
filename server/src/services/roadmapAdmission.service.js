@@ -53,6 +53,7 @@ export async function consumeRoadmapRequestAllowance({
 export async function recoverExpiredRoadmapAdmissions({
   now = new Date(),
   maxItems = Number.POSITIVE_INFINITY,
+  shouldContinue = async () => true,
   LeaseModel = RoadmapAdmissionLease,
   DraftModel = RoadmapDraft,
   CourseModel = Course
@@ -63,6 +64,7 @@ export async function recoverExpiredRoadmapAdmissions({
     : Number.POSITIVE_INFINITY;
   let recovered = 0;
   while (recovered < safeMaxItems) {
+    if (!(await shouldContinue())) break;
     // Mark the draft terminal before deleting its expired lease. If the process
     // crashes between these writes, the next recovery pass can safely finish
     // deleting the same expired lease without reviving the draft.

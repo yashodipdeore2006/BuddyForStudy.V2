@@ -1,5 +1,9 @@
 import { heartbeatWorker } from "../services/jobHeartbeat.service.js";
-import { JOB_LEASE_KEYS } from "../services/jobLease.service.js";
+import {
+  JOB_LEASE_KEYS,
+  DEFAULT_JOB_LEASE_DURATION_MS,
+  DEFAULT_JOB_LEASE_RENEWAL_INTERVAL_MS
+} from "../services/jobLease.service.js";
 import { createLeasedJobRunner } from "./leasedJobRunner.js";
 import { createMaintenanceOrchestrator } from "./maintenanceOrchestrator.js";
 
@@ -13,8 +17,8 @@ export const INLINE_HEARTBEAT_INTERVAL_MS = 60 * 1000;
  */
 export function createInlineBackgroundScheduler({
   ownerId,
-  leaseDurationMs,
-  leaseRenewalIntervalMs,
+  leaseDurationMs = DEFAULT_JOB_LEASE_DURATION_MS,
+  leaseRenewalIntervalMs = DEFAULT_JOB_LEASE_RENEWAL_INTERVAL_MS,
   maintenanceIntervalMs = INLINE_MAINTENANCE_INTERVAL_MS,
   announcementIntervalMs = INLINE_ANNOUNCEMENT_INTERVAL_MS,
   heartbeatIntervalMs = INLINE_HEARTBEAT_INTERVAL_MS,
